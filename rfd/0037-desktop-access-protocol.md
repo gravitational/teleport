@@ -305,11 +305,11 @@ In addition, this message also contains the screen resolution that the server ag
 
 #### 32 - sync keys
 
+This message is sent from the client to the server to synchronize the state of keyboard's modifier keys.
+
 ```
 | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
 ```
-
-This message synchronizes the state of keyboard's modifier keys.
 
 `*_lock_state` is one of:
 
