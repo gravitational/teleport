@@ -680,6 +680,7 @@ func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.Op
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
+// TODO(Joerger): DELETE IN 16.0.0, replaced by Trust service.
 func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.authServer.clock); err != nil {
 		return trace.Wrap(err)
