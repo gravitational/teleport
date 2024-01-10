@@ -180,7 +180,15 @@ function PrintState(props: {
   };
 }) {
   return (
-    <Flex flexDirection="column" mx="auto" mt="100px" alignItems="center">
+    <Flex
+      flexDirection="column"
+      mx="auto"
+      alignItems="center"
+      css={`
+        top: 11%;
+        position: relative;
+      `}
+    >
       {props.action && props.action.attempt.status === 'error' && (
         <Alert>{props.action.attempt.statusText}</Alert>
       )}

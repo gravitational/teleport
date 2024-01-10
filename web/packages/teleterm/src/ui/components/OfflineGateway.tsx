@@ -53,9 +53,12 @@ export function OfflineGateway(props: {
     <Flex
       flexDirection="column"
       mx="auto"
-      mt="100px"
       alignItems="center"
       maxWidth="500px"
+      css={`
+        top: 11%;
+        position: relative;
+      `}
     >
       <Text typography="h4" bold>
         {props.targetName}
