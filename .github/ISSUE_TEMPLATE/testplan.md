@@ -236,14 +236,6 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Connect to a Agentless node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
 
-- [ ] `tsh` CA loading
-
-  Create a trusted cluster pair with a node in the leaf cluster. Log into the root cluster.
-  - [ ] `load_all_cas` on the root auth server is `false` (default) -
-  `tsh ssh leaf.node.example.com` results in access denied.
-  - [ ] `load_all_cas` on the root auth server is `true` - `tsh ssh leaf.node.example.com`
-  succeeds.
-
 - [ ] X11 Forwarding
   - Install `xeyes` and `xclip`:
     - Linux: `apt install x11-apps xclip`

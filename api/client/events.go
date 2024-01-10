@@ -246,6 +246,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_ReportState{
 			ReportState: secreprotsv1conv.ToProtoReportState(r),
 		}
+	case *accesslist.Review:
+		out.Resource = &proto.Event_AccessListReview{
+			AccessListReview: accesslistv1conv.ToReviewProto(r),
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -439,6 +443,12 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetReportState(); r != nil {
 		out.Resource, err = secreprotsv1conv.FromProtoReportState(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &out, nil
+	} else if r := in.GetAccessListReview(); r != nil {
+		out.Resource, err = accesslistv1conv.FromReviewProto(r)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

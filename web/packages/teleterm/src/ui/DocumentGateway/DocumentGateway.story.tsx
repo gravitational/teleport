@@ -47,6 +47,7 @@ gateway.gatewayCliCommand.preview = 'connect-me-to-db-please';
 
 const onlineDocumentGatewayProps: DocumentGatewayProps = {
   gateway: gateway,
+  targetName: gateway.targetName,
   defaultPort: gateway.localPort,
   disconnect: async () => [undefined, null],
   connected: true,

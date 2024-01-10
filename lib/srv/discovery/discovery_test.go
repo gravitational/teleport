@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1848,7 +1849,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
-	waitForReconcile := make(chan struct{})
+	waitForReconcileTimeout := 5 * time.Second
 	reporter := &mockUsageReporter{}
 	tlsServer.Auth().SetUsageReporter(reporter)
 	srv, err := New(
@@ -1859,11 +1860,8 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			AccessPoint:      tlsServer.Auth(),
 			Matchers:         Matchers{},
 			Emitter:          authClient,
-			onDatabaseReconcile: func() {
-				waitForReconcile <- struct{}{}
-			},
-			DiscoveryGroup: mainDiscoveryGroup,
-			clock:          clock,
+			DiscoveryGroup:   mainDiscoveryGroup,
+			clock:            clock,
 		})
 
 	require.NoError(t, err)
@@ -1872,14 +1870,9 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 	go srv.Start()
 
 	// First Reconcile should not have any databases
-	select {
-	case <-waitForReconcile:
-		actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
-		require.NoError(t, err)
-		require.Empty(t, actualDatabases)
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s")
-	}
+	actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
+	require.NoError(t, err)
+	require.Empty(t, actualDatabases)
 
 	require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is no fetchers actually being called")
 
@@ -1902,15 +1895,9 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
 
-		// Reconcile should not have any databases
-		select {
-		case <-waitForReconcile:
-			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
-			require.NoError(t, err)
-			require.Empty(t, actualDatabases)
-		case <-time.After(time.Second):
-			t.Fatal("Didn't receive reconcile event after 1s")
-		}
+		actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
+		require.NoError(t, err)
+		require.Empty(t, actualDatabases)
 
 		require.Zero(t, reporter.DiscoveryFetchEventCount(), "a fetch event was emitted but there is no fetchers actually being called")
 	})
@@ -1936,29 +1923,26 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 		// Check for new resource in reconciler
 		expectDatabases := []types.Database{awsRDSDB}
-		select {
-		case <-waitForReconcile:
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Empty(t, cmp.Diff(expectDatabases, actualDatabases,
 				cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 			))
-		case <-time.After(time.Second):
-			t.Fatal("Didn't receive reconcile event after 1s")
-		}
+		}, waitForReconcileTimeout, 100*time.Millisecond)
+
 		require.Equal(t, 1, reporter.DiscoveryFetchEventCount())
 
 		// Advance clock to trigger a poll.
 		clock.Advance(5 * time.Minute)
 		// Wait for the cycle to complete
-		select {
-		case <-waitForReconcile:
-		case <-time.After(time.Second):
-			t.Fatal("Didn't receive reconcile event after 1s")
-		}
 		// A new DiscoveryFetch event must have been emitted.
-		require.Equal(t, 2, reporter.DiscoveryFetchEventCount())
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			assert.Equal(t, 2, reporter.DiscoveryFetchEventCount())
+		}, waitForReconcileTimeout, 100*time.Millisecond)
 
 		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
 			// Remove DiscoveryConfig
@@ -1966,14 +1950,13 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			require.NoError(t, err)
 
 			// Existing databases must be removed.
-			select {
-			case <-waitForReconcile:
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
-				require.NoError(t, err)
-				require.Empty(t, actualDatabases)
-			case <-time.After(time.Second):
-				t.Fatal("Didn't receive reconcile event after 1s")
-			}
+				if !assert.NoError(t, err) {
+					return
+				}
+				assert.Empty(t, actualDatabases)
+			}, waitForReconcileTimeout, 100*time.Millisecond)
 
 			// Given that no Fetch was issued, the counter should not increment.
 			require.Equal(t, 2, reporter.DiscoveryFetchEventCount())

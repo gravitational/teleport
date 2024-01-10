@@ -94,7 +94,7 @@ export function CreateDatabaseDialog({
     // success
     content = (
       <>
-        <Text mb={5} style={{ display: 'flex' }}>
+        <Text mb={5}>
           <Icons.Check size="small" ml={1} mr={2} color="success" />
           Database "{dbName}" successfully registered
         </Text>
@@ -106,7 +106,7 @@ export function CreateDatabaseDialog({
   }
 
   return (
-    <Dialog disableEscapeKeyDown={false} open={true}>
+    <Dialog open={true}>
       <DialogContent
         width="460px"
         alignItems="center"

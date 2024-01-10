@@ -441,7 +441,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   findGatewayByConnectionParams(
-    targetUri: uri.DatabaseUri | uri.KubeUri,
+    targetUri: uri.GatewayTargetUri,
     targetUser: string
   ) {
     let found: Gateway;
@@ -607,4 +607,23 @@ export function makeKube(source: tsh.Kube) {
     name: source.name,
     labels: source.labelsList,
   };
+}
+
+export function makeApp(source: tsh.App) {
+  const { publicAddr, endpointUri } = source;
+
+  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
+  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
+  let addrWithProtocol = endpointUri;
+  if (publicAddr) {
+    if (isCloud) {
+      addrWithProtocol = `cloud://${publicAddr}`;
+    } else if (isTcp) {
+      addrWithProtocol = `tcp://${publicAddr}`;
+    } else {
+      addrWithProtocol = `https://${publicAddr}`;
+    }
+  }
+
+  return { ...source, addrWithProtocol };
 }

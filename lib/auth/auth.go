@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
@@ -289,6 +290,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.CloudClients == nil {
+		cfg.CloudClients, err = cloud.NewClients()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -307,6 +314,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 		cfg.KeyStoreConfig.GCPKMS.HostUUID = cfg.HostUUID
+	} else if cfg.KeyStoreConfig.AWSKMS != (keystore.AWSKMSConfig{}) {
+		if !modules.GetModules().Features().HSM {
+			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+		}
+		cfg.KeyStoreConfig.AWSKMS.Cluster = cfg.ClusterName.GetClusterName()
+		cfg.KeyStoreConfig.AWSKMS.CloudClients = cfg.CloudClients
 	} else {
 		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
@@ -317,6 +330,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		Trust:                   cfg.Trust,
 		PresenceInternal:        cfg.Presence,
@@ -351,7 +365,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		PluginData:              cfg.PluginData,
 	}
 
-	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:                      cfg.Backend,
 		clock:                   cfg.Clock,
@@ -1570,6 +1583,25 @@ func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
 
+// GetClusterID returns the cluster ID.
+func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+	clusterName, err := a.GetClusterName(opts...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return clusterName.GetClusterID(), nil
+}
+
+// GetAnonymizationKey returns the anonymization key that identifies this client.
+// It falls back to the cluster ID if the anonymization key is not set in license file.
+func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+	if a.license == nil || len(a.license.AnonymizationKey) == 0 {
+		return a.GetClusterID(ctx, opts...)
+	}
+
+	return string(a.license.AnonymizationKey), nil
+}
+
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {
@@ -1742,6 +1774,9 @@ type certRequest struct {
 	// dbName is the optional database name which, if provided, will be used
 	// as a default database.
 	dbName string
+	// dbRoles is the optional list of database roles which, if provided, will
+	// be used instead of all database roles granted for the target database.
+	dbRoles []string
 	// mfaVerified is the UUID of an MFA device when this certRequest was
 	// created immediately after an MFA check.
 	mfaVerified string
@@ -1775,6 +1810,8 @@ type certRequest struct {
 	skipAttestation bool
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
+	// botName is the name of the bot requesting this cert, if any
+	botName string
 }
 
 // check verifies the cert request is valid.
@@ -2051,6 +2088,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		dbProtocol:     req.RouteToDatabase.Protocol,
 		dbUser:         req.RouteToDatabase.Username,
 		dbName:         req.RouteToDatabase.Database,
+		dbRoles:        req.RouteToDatabase.Roles,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2520,6 +2558,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
+		BotName:                 req.botName,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -2602,6 +2641,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 			Protocol:    req.dbProtocol,
 			Username:    req.dbUser,
 			Database:    req.dbName,
+			Roles:       req.dbRoles,
 		},
 		DatabaseNames:           dbNames,
 		DatabaseUsers:           dbUsers,
@@ -2616,6 +2656,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
+		BotName:                 req.botName,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3276,8 +3317,9 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			Code:        events.MFADeviceDeleteEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:      authz.ClientUserMetadataWithUser(ctx, user),
-		MFADeviceMetadata: mfaDeviceEventMetadata(deviceToDelete),
+		UserMetadata:       authz.ClientUserMetadataWithUser(ctx, user),
+		MFADeviceMetadata:  mfaDeviceEventMetadata(deviceToDelete),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3396,8 +3438,9 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 			Code:        events.MFADeviceAddEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:      authz.ClientUserMetadataWithUser(ctx, req.username),
-		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
+		UserMetadata:       authz.ClientUserMetadataWithUser(ctx, req.username),
+		MFADeviceMetadata:  mfaDeviceEventMetadata(dev),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit add mfa device event.")
 	}
@@ -5575,21 +5618,26 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 
-		autoCreate, _, err := checker.CheckDatabaseRoles(db)
-		if err != nil {
+		autoCreate, err := checker.DatabaseAutoUserMode(db)
+		switch {
+		case errors.Is(err, services.ErrSessionMFARequired):
+			noMFAAccessErr = err
+		case err != nil:
 			return nil, trace.Wrap(err)
+		default:
+			dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+				Database:       db,
+				DatabaseUser:   t.Database.Username,
+				DatabaseName:   t.Database.GetDatabase(),
+				AutoCreateUser: autoCreate.IsEnabled(),
+			})
+			noMFAAccessErr = checker.CheckAccess(
+				db,
+				services.AccessState{},
+				dbRoleMatchers...,
+			)
 		}
-		dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
-			Database:       db,
-			DatabaseUser:   t.Database.Username,
-			DatabaseName:   t.Database.GetDatabase(),
-			AutoCreateUser: autoCreate.IsEnabled(),
-		})
-		noMFAAccessErr = checker.CheckAccess(
-			db,
-			services.AccessState{},
-			dbRoleMatchers...,
-		)
+
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
 		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
 		if err != nil {

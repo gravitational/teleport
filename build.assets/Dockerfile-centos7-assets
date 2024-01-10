@@ -59,7 +59,7 @@ RUN git clone --branch llvmorg-12.0.0 --depth=1 https://github.com/llvm/llvm-pro
 -DLLVM_ENABLE_PROJECTS=clang \
 -DLLVM_BUILD_TOOLS=ON \
 -G \"Unix Makefiles\" ../llvm && \
-make -j$(grep -c processor /proc/cpuinfo) install-llvm-strip install-clang-format install-clang"' && \
+make -j$(grep -c processor /proc/cpuinfo) install-llvm-strip install-clang-format install-clang install-clang-resource-headers install-libclang"' && \
     cd ../.. && \
     rm -rf llvm-project
 

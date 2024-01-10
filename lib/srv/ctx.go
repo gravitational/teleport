@@ -279,6 +279,10 @@ type IdentityContext struct {
 	// been renewed.
 	Generation uint64
 
+	// BotName is the name of the Machine ID bot this identity is associated
+	// with, if any.
+	BotName string
+
 	// AllowedResourceIDs lists the resources this identity should be allowed to
 	// access
 	AllowedResourceIDs []types.ResourceID
@@ -1196,12 +1200,18 @@ func eventDeviceMetadataFromCert(cert *ssh.Certificate) *apievents.DeviceMetadat
 }
 
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
+	userKind := apievents.UserKind_USER_KIND_HUMAN
+	if id.BotName != "" {
+		userKind = apievents.UserKind_USER_KIND_BOT
+	}
+
 	return apievents.UserMetadata{
 		Login:          id.Login,
 		User:           id.TeleportUser,
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
 		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
+		UserKind:       userKind,
 	}
 }
 
