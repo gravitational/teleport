@@ -23,30 +23,34 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	samlidpv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// subCommandRunner is used to create pluggable sub command under
+// subcommandRunner is used to create pluggable subcommand under
 // idp command. E.g:
 // $ tctl idp saml <command> [<args> ...]
 // $ tctl idp oidc <command> [<args> ...]
-type subCommandRunner interface {
+type subcommandRunner interface {
 	initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config)
 	tryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
 }
 
 // IdPCommand implements all commands under "tctl idp".
 type IdPCommand struct {
-	subCommandRunners []subCommandRunner
+	subcommandRunners []subcommandRunner
 }
 
 // samlIdPCommand implements all commands under "tctl idp saml"
@@ -56,7 +60,7 @@ type samlIdPCommand struct {
 	testAttributeMapping testAttributeMapping
 }
 
-// Initialize installs the base "idp" command and all sub commands.
+// Initialize installs the base "idp" command and all subcommands.
 func (t *IdPCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	idp := app.Command("idp", "Teleport Identity Provider")
 
@@ -65,21 +69,19 @@ Examples:
   > tctl idp saml
 `)
 
-	t.subCommandRunners = []subCommandRunner{
+	t.subcommandRunners = []subcommandRunner{
 		&samlIdPCommand{},
 	}
 
-	for _, subCommandRunner := range t.subCommandRunners {
-		subCommandRunner.initialize(idp, cfg)
+	for _, subcommandRunner := range t.subcommandRunners {
+		subcommandRunner.initialize(idp, cfg)
 	}
-
 }
 
-// TryRun calls tryRun for each subc ommand, and if none of them match returns
-// (false, nil)
+// TryRun calls tryRun for each subcommand, and returns (false, nil) if none of them match.
 func (i *IdPCommand) TryRun(ctx context.Context, cmd string, c auth.ClientI) (match bool, err error) {
-	for _, subCommandRunner := range i.subCommandRunners {
-		match, err = subCommandRunner.tryRun(ctx, cmd, c)
+	for _, subcommandRunner := range i.subcommandRunners {
+		match, err = subcommandRunner.tryRun(ctx, cmd, c)
 		if err != nil {
 			return match, trace.Wrap(err)
 		}
@@ -91,39 +93,38 @@ func (i *IdPCommand) TryRun(ctx context.Context, cmd string, c auth.ClientI) (ma
 }
 
 func (s *samlIdPCommand) initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config) {
-	samlcmd := parent.Command("saml", "SAML Identity Provider.")
+	samlcmd := parent.Command("saml", "SAML Identity Provider")
 	samlcmd.Alias(`
 Examples:
 
-  Test Attribute Mapping from spconfig.yaml with input traits from user.yaml
-  > tctl idp saml test_attribute_mapping --users user.yaml (or username) --serviceprovider sp.yaml (or service provider name)
+  Test attribute mapping with given user and service provider.
+  > tctl idp saml test_attribute_mapping --users user.yaml (or username) --sp sp.yaml (or service provider name) --format (json,yaml)
 `)
 	s.cmd = samlcmd
 
-	testAttrMap := samlcmd.Command("test_attribute_mapping", "Test the parsing and evaluation of attribute mapping.")
-	testAttrMap.Flag("users", "username or name of a file containing user spec").StringsVar(&s.testAttributeMapping.users)
-	testAttrMap.Flag("serviceprovider", "service provider name or name of a file containing service provider spec").StringVar(&s.testAttributeMapping.serviceProvider)
+	testAttrMap := samlcmd.Command("test_attribute_mapping", "Test expression evaluation of attribute mapping.")
+	testAttrMap.Flag("users", "username or name of a file containing user spec").Short('u').StringsVar(&s.testAttributeMapping.users)
+	testAttrMap.Flag("sp", "name of a file containing service provider spec").StringVar(&s.testAttributeMapping.serviceProvider)
+	testAttrMap.Flag("format", "output format, 'yaml' or 'json'").StringVar(&s.testAttributeMapping.outFormat)
 	testAttrMap.Alias(`
 Examples:
 
 	# test with username and service provider name
-	> tctl idp saml test_attribute_mapping --users user1 --serviceprovider mysamlapp
+	> tctl idp saml test_attribute_mapping --users user1 --sp mysamlapp
 
 	# test with multiple usernames and service provider name
-	> tctl idp saml test_attribute_mapping --users user1,user2 --serviceprovider sp.yaml
+	> tctl idp saml test_attribute_mapping --users user1,user2 --sp sp.yaml
 
-	# test with user and service provider file
-	> tctl idp saml test_attribute_mapping --users user1.yaml --serviceprovider sp.yaml
+	# test with user and service provider file and print output in yaml format
+	> tctl idp saml test_attribute_mapping --users user1.yaml --sp sp.yaml --format yaml
 `)
-
 	s.testAttributeMapping.cmd = testAttrMap
-
 }
 
 func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, c auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case s.testAttributeMapping.cmd.FullCommand():
-		return true, trace.Wrap(s.testAttributeMapping.Run(ctx, c))
+		return true, trace.Wrap(s.testAttributeMapping.run(ctx, c))
 	default:
 		return false, nil
 	}
@@ -131,18 +132,22 @@ func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, c auth.ClientI)
 
 // testCommand implements the "tctl idp saml test_attribute_mapping" command.
 type testAttributeMapping struct {
-	cmd             *kingpin.CmdClause
+	cmd *kingpin.CmdClause
+
 	serviceProvider string
 	users           []string
+	outFormat       string
 }
 
-func (t *testAttributeMapping) tryRun(ctx context.Context, cmd string, c auth.ClientI) (match bool, err error) {
-	return true, nil
-}
-
-func (t *testAttributeMapping) Run(ctx context.Context, c auth.ClientI) error {
+func (t *testAttributeMapping) run(ctx context.Context, c auth.ClientI) error {
 	if len(t.serviceProvider) == 0 && len(t.users) == 0 {
-		return trace.BadParameter("no attributes to test, --user and --serviceprovider must be set")
+		return trace.BadParameter("no attributes to test, --users and --sp must be set")
+	}
+	if len(t.users) == 0 {
+		return trace.BadParameter("--users must be set. Either provide username or name of a file containing user spec")
+	}
+	if len(t.serviceProvider) == 0 {
+		return trace.BadParameter("--sp must be set. Provide name of a file containing service provider spec")
 	}
 	serviceProvider, err := parseSPFile(t.serviceProvider)
 	if err != nil {
@@ -153,6 +158,11 @@ func (t *testAttributeMapping) Run(ctx context.Context, c auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if len(users) == 0 {
+		return trace.BadParameter("no users found in file: %s", t.users)
+	}
+
 	resp, err := c.SAMLIdPClient().TestSAMLIdPAttributeMapping(ctx, &samlidpv1.TestSAMLIdPAttributeMappingRequest{
 		ServiceProvider: &serviceProvider,
 		Users:           users,
@@ -165,19 +175,32 @@ func (t *testAttributeMapping) Run(ctx context.Context, c auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	for _, v := range resp.MappedAttributes {
-		fmt.Printf("User: %s\n", v.Username)
-		for m, v := range v.MappedValues {
-			fmt.Printf("%s: %v\n", m, v.Values)
+	switch t.outFormat {
+	case teleport.YAML:
+		utils.WriteYAML(os.Stdout, resp.MappedAttributes)
+	case teleport.JSON:
+		utils.WriteJSON(os.Stdout, resp.MappedAttributes)
+	default:
+		for i, mappedAttribute := range resp.MappedAttributes {
+			table := asciitable.MakeTable([]string{"Attribute Name", "Attribute Value"})
+			if i > 0 {
+				fmt.Println("---")
+			}
+			fmt.Printf("User: %s\n", mappedAttribute.Username)
+			for name, value := range mappedAttribute.MappedValues {
+				table.AddRow([]string{
+					name,
+					strings.Join(value.Values, ", "),
+				})
+			}
+			fmt.Println(table.AsBuffer().String())
 		}
-		fmt.Println("--------------")
 	}
 
 	return nil
 }
 
-// parseSAMLIdP only handles files.
-// TODO(sshah): handle service provider name
+// parseSPFile parses service provider spec from given file.
 func parseSPFile(fileName string) (types.SAMLIdPServiceProviderV1, error) {
 	var u types.SAMLIdPServiceProviderV1
 	var r io.Reader = os.Stdin
@@ -191,18 +214,19 @@ func parseSPFile(fileName string) (types.SAMLIdPServiceProviderV1, error) {
 	}
 
 	decoder := kyaml.NewYAMLOrJSONDecoder(r, defaults.LookaheadBufSize)
-
-	err := decoder.Decode(&u)
-	if err != nil {
+	if err := decoder.Decode(&u); err != nil {
+		if errors.Is(err, io.EOF) {
+			return u, trace.BadParameter("empty service provider file")
+		}
 		return u, trace.Wrap(err)
 	}
-
 	return u, nil
 }
 
+// getUserFromNameOrFile parses user from spec file. If file is not found, it fetches user from backend.
 func getUserFromNameOrFile(ctx context.Context, userfileOrNames []string, c auth.ClientI) ([]*types.UserV2, error) {
 	ufromFileOrName := flattenSlice(userfileOrNames)
-	var allusers []*types.UserV2
+	var users []*types.UserV2
 
 	for _, name := range ufromFileOrName {
 		if _, err := os.Stat(name); os.IsNotExist(err) {
@@ -210,35 +234,30 @@ func getUserFromNameOrFile(ctx context.Context, userfileOrNames []string, c auth
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-
 			userV2, ok := user.(*types.UserV2)
 			if !ok {
 				return nil, trace.BadParameter("unsupported user type %T", user)
 			}
-			allusers = append(allusers, userV2)
-
+			users = append(users, userV2)
 		} else {
-			var r io.Reader = os.Stdin
 			f, err := os.Open(name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			defer f.Close()
-			r = f
 
-			users, err := getUserFromFile(r)
+			usersFromFile, err := parseUserFromFile(f)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			allusers = append(allusers, users...)
+			users = append(users, usersFromFile...)
 		}
-
 	}
 
-	return allusers, nil
+	return users, nil
 }
 
-func getUserFromFile(r io.Reader) ([]*types.UserV2, error) {
+func parseUserFromFile(r io.Reader) ([]*types.UserV2, error) {
 	var users []*types.UserV2
 	decoder := kyaml.NewYAMLOrJSONDecoder(r, defaults.LookaheadBufSize)
 	for {
