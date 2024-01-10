@@ -1271,6 +1271,10 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
+
+	t.Run("teleterm app gateways cert renewal", func(t *testing.T) {
+		testTeletermAppGateway(t, pack)
+	})
 }
 
 // TestALPNProxyRootLeafAuthDial tests dialing local/remote auth service based on ALPN

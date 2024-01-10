@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
@@ -109,7 +110,7 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, pack *dbhelpers
 		t,
 		gatewayCertRenewalParams{
 			tc:      tc,
-			albAddr:  albAddr,
+			albAddr: albAddr,
 			createGatewayParams: daemon.CreateGatewayParams{
 				TargetURI:  databaseURI.String(),
 				TargetUser: pack.Root.User.GetName(),
@@ -259,8 +260,8 @@ func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, 
 
 	tshdEventsService := &mockTSHDEventsService{
 		t:                         t,
-		tc:       tc,
-		addr:     ls.Addr().String(),
+		tc:                        tc,
+		addr:                      ls.Addr().String(),
 		generateAndSetupUserCreds: generateAndSetupUserCreds,
 	}
 
@@ -486,7 +487,7 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 		ctx,
 		t,
 		gatewayCertRenewalParams{
-			albAddr:  params.albAddr,
+			albAddr: params.albAddr,
 			tc:      tc,
 			createGatewayParams: daemon.CreateGatewayParams{
 				TargetURI: params.kubeURI.String(),
@@ -590,4 +591,44 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, ro
 	}
 
 	return webauthnLogin
+}
+
+func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack) {
+	ctx := context.Background()
+
+	t.Run("root cluster", func(t *testing.T) {
+		profileName := mustGetProfileName(t, pack.RootWebAddr())
+		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
+
+		testAppGatewayCertRenewal(ctx, t, pack, appURI)
+	})
+
+	t.Run("leaf cluster", func(t *testing.T) {
+		profileName := mustGetProfileName(t, pack.RootWebAddr())
+		appURI := uri.NewClusterURI(profileName).
+			AppendLeafCluster(pack.LeafAppClusterName()).
+			AppendApp(pack.LeafAppName())
+
+		testAppGatewayCertRenewal(ctx, t, pack, appURI)
+	})
+}
+
+func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, appURI uri.ResourceURI) {
+	t.Helper()
+
+	user, _ := pack.CreateUser(t)
+	tc := pack.MakeTeleportClient(t, user.GetName())
+
+	testGatewayCertRenewal(
+		ctx,
+		t,
+		gatewayCertRenewalParams{
+			tc: tc,
+			createGatewayParams: daemon.CreateGatewayParams{
+				TargetURI: appURI.String(),
+			},
+			testGatewayConnectionFunc: mustConnectAppGateway,
+			generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
+		},
+	)
 }
