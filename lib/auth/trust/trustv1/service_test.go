@@ -74,11 +74,16 @@ func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 }
 
 type fakeAuthServer struct {
+	clusterName          types.ClusterName
 	generateHostCertData map[string]struct {
 		cert []byte
 		err  error
 	}
 	rotateCertAuthorityData map[string]error
+}
+
+func (f *fakeAuthServer) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+	return f.clusterName, nil
 }
 
 func (f *fakeAuthServer) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
@@ -809,6 +814,66 @@ func TestRotateCertAuthority(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestRotateExternalCertAuthority(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	authorizer := &fakeAuthorizer{
+		checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindCertAuthority, types.VerbRotate}: true,
+			},
+		},
+	}
+
+	trust := local.NewCAService(p.mem)
+	cfg := &ServiceConfig{
+		Cache:      trust,
+		Backend:    trust,
+		Authorizer: authorizer,
+		AuthServer: &fakeAuthServer{
+			clusterName: &types.ClusterNameV2{
+				Spec: types.ClusterNameSpecV2{
+					ClusterName: "local",
+				},
+			},
+		},
+	}
+
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	localCA := newCertAuthority(t, types.HostCA, "local").(*types.CertAuthorityV2)
+	externalCA := newCertAuthority(t, types.HostCA, "external").(*types.CertAuthorityV2)
+	require.NoError(t, trust.UpsertCertAuthority(ctx, externalCA))
+
+	tests := []struct {
+		name    string
+		ca      *types.CertAuthorityV2
+		wantErr error
+	}{
+		{
+			name:    "NOK rotate local ca",
+			ca:      localCA,
+			wantErr: trace.BadParameter("can not rotate local certificate authority"),
+		}, {
+			name: "OK rotate external ca",
+			ca:   externalCA,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.RotateExternalCertAuthority(ctx, &trustpb.RotateExternalCertAuthorityRequest{
+				CertAuthority: test.ca,
+			})
+			require.ErrorIs(t, err, test.wantErr)
 		})
 	}
 }
