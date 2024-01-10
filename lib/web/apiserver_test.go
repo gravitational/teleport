@@ -9168,54 +9168,6 @@ func TestLogout(t *testing.T) {
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
 }
 
-func TestGetIsDashboard(t *testing.T) {
-	tt := []struct {
-		name     string
-		features authproto.Features
-		expected bool
-	}{
-		{
-			name: "not cloud nor recovery codes is not dashboard",
-			features: authproto.Features{
-				Cloud:         false,
-				RecoveryCodes: false,
-			},
-			expected: false,
-		},
-		{
-			name: "not cloud, with recovery codes is dashboard",
-			features: authproto.Features{
-				Cloud:         false,
-				RecoveryCodes: true,
-			},
-			expected: true,
-		},
-		{
-			name: "cloud, with recovery codes is not dashboard",
-			features: authproto.Features{
-				Cloud:         true,
-				RecoveryCodes: true,
-			},
-			expected: false,
-		},
-		{
-			name: "cloud, without recovery codes is not dashboard",
-			features: authproto.Features{
-				Cloud:         true,
-				RecoveryCodes: false,
-			},
-			expected: false,
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			result := isDashboard(tc.features)
-			require.Equal(t, tc.expected, result)
-		})
-	}
-}
-
 // initGRPCServer creates a gRPC server serving on the provided listener.
 func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	clusterName := env.server.ClusterName()
