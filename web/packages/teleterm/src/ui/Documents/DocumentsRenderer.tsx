@@ -20,6 +20,8 @@ import { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
 import styled from 'styled-components';
+import { Text } from 'design';
+
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 // @ts-ignore
 import { DocumentAccessRequests } from 'e-teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
@@ -122,11 +124,6 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
   const { doc, visible } = props;
 
   return useMemo(() => {
-    const unsupportedDocument = (
-      <Document visible={visible}>
-        Document kind "{doc.kind}" is not supported
-      </Document>
-    );
     switch (doc.kind) {
       case 'doc.cluster':
         return <DocumentCluster doc={doc} visible={visible} />;
@@ -140,7 +137,15 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         if (isAppUri(doc.targetUri)) {
           return <DocumentGatewayApp doc={doc} visible={visible} />;
         }
-        return unsupportedDocument;
+        return (
+          <Document visible={visible}>
+            <Text m="auto" mt={10} textAlign="center">
+              Cannot create a gateway for the target "{doc.targetUri}".
+              <br />
+              Only database, kube, and app targets are supported.
+            </Text>
+          </Document>
+        );
       }
       case 'doc.gateway_cli_client':
         return <DocumentGatewayCliClient doc={doc} visible={visible} />;
@@ -157,7 +162,13 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
       case 'doc.connect_my_computer':
         return <DocumentConnectMyComputer doc={doc} visible={visible} />;
       default:
-        return unsupportedDocument;
+        return (
+          <Document visible={visible}>
+            <Text m="auto" mt={10} textAlign="center">
+              Document kind "{doc.kind}" is not supported.
+            </Text>
+          </Document>
+        );
     }
   }, [visible, doc]);
 }
