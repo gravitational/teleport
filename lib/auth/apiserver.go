@@ -575,7 +575,7 @@ func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWri
 }
 
 func (s *APIServer) rotateCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req RotateRequest
+	var req types.RotateRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}

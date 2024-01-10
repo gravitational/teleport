@@ -37,8 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type RotateRequest = types.RotateRequest
-
 // RotateRequest is a request to start rotation of the certificate authority.
 
 // rotationReq is an internal rotation request
@@ -131,7 +129,7 @@ type rotationReq struct {
 //
 // It is possible to switch from automatic to manual by setting the phase
 // to the rollback phase.
-func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
+func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.clock); err != nil {
 		return trace.Wrap(err)
 	}

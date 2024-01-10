@@ -339,7 +339,7 @@ func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
-func (c *HTTPClient) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
+func (c *HTTPClient) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
 	_, err := c.PostJSON(ctx, c.Endpoint("authorities", string(req.Type), "rotate"), req)
 	return trace.Wrap(err)
 }
