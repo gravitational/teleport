@@ -10,7 +10,7 @@ crate-type = ["staticlib"]
 
 [dependencies]
 bitflags = "2.4.1"
-boring = { git = "https://github.com/gravitational/boring", rev="d1be1a42381476087ae1b154867d546e29d41f55", optional = true }
+boring = { git = "https://github.com/gravitational/boring", rev="eb1296f580475ce77017c7169f3f59d0eca36a0d", optional = true }
 byteorder = "1.5.0"
 bytes = "1.4.0"
 env_logger = "0.10.1"
@@ -33,7 +33,7 @@ rsa = "0.9.6"
 sspi = { git = "https://github.com/Devolutions/sspi-rs", rev="d54bdfcafa0e10d9d78224ebacc4f2a0992a6b79", features = ["network_client"] }
 static_init = "1.0.3"
 tokio = { version = "1.35", features = ["full"] }
-tokio-boring = { git = "https://github.com/gravitational/boring", rev="d1be1a42381476087ae1b154867d546e29d41f55", optional = true }
+tokio-boring = { git = "https://github.com/gravitational/boring", rev="eb1296f580475ce77017c7169f3f59d0eca36a0d", optional = true }
 utf16string = "0.2.0"
 uuid = { version = "1.6.1", features = ["v4"] }
 
