@@ -24,8 +24,6 @@ import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
-import { copyToClipboard } from 'design/utils/copyToClipboard';
-
 import { PortFieldInput } from 'teleterm/ui/DocumentGateway/common';
 import { Gateway } from 'teleterm/services/tshd/types';
 import { CliCommand } from 'teleterm/ui/DocumentGateway/CliCommand';
@@ -35,7 +33,8 @@ export function AppGateway(props: {
   disconnectAttempt: Attempt<void>;
   changePort(port: string): void;
   changePortAttempt: Attempt<void>;
-  onDisconnect(): void;
+  disconnect(): void;
+  copyCliCommandToClipboard(): void;
 }) {
   const formRef = useRef<HTMLFormElement>();
   const cliCommandPreview = props.gateway.gatewayCliCommand.preview;
@@ -58,7 +57,7 @@ export function AppGateway(props: {
             Could not close the connection: {props.disconnectAttempt.statusText}
           </Alert>
         )}
-        <ButtonSecondary size="small" onClick={props.onDisconnect}>
+        <ButtonSecondary size="small" onClick={props.disconnect}>
           Close Connection
         </ButtonSecondary>
       </Flex>
@@ -80,7 +79,7 @@ export function AppGateway(props: {
           cliCommand={cliCommandPreview}
           isLoading={props.changePortAttempt.status === 'processing'}
           buttonText="Copy"
-          onButtonClick={() => copyToClipboard(cliCommandPreview)}
+          onButtonClick={props.copyCliCommandToClipboard}
         />
       )}
       {props.changePortAttempt.status === 'error' && (
