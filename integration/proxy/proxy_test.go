@@ -1215,8 +1215,8 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
-	t.Run("teleterm gateways cert renewal", func(t *testing.T) {
-		testTeletermGatewaysCertRenewal(t, pack)
+	t.Run("teleterm db gateways cert renewal", func(t *testing.T) {
+		testTeletermDbGatewaysCertRenewal(t, pack)
 	})
 }
 
