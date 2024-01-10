@@ -1,0 +1,234 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// AWSResourceList is a list of AWS resources supported by the access graph.
+message AWSResourceList {
+  repeated AWSResource resources = 1;
+}
+
+// AWSResource is a list of AWS resources supported by the access graph.
+message AWSResource {
+  oneof resource {
+    // user is an AWS user.
+    AWSUserV1 user = 1;
+    // group is an AWS group.
+    AWSGroupV1 group = 2;
+    // user_policy is a policy that is inlined to an AWS user.
+    AWSUserInlinePolicyV1 user_policy = 3;
+    // user_groups is a list of AWS groups that an AWS user belongs to.
+    AWSUserGroupsV1 user_group = 4;
+    // instance is an AWS instance.
+    AWSInstanceV1 instance = 5;
+    // policy is an AWS policy.
+    AWSPolicyV1 policy = 6;
+    // user_attached_policies is a list of AWS policies that are attached to an
+    // AWS user.
+    AWSUserAttachedPolicies user_attached_policies = 7;
+    // group_attached_policies is a list of AWS policies that are attached to an
+    // AWS group.
+    AWSGroupAttachedPolicies group_attached_policies = 8;
+    // group_policy is a policy that is inlined to an AWS group.
+    AWSGroupInlinePolicyV1 group_policy = 9;
+  }
+}
+
+// AWSUserInlinePolicyV1 is a policy that is inlined to an AWS user.
+message AWSUserInlinePolicyV1 {
+  // policy_name is the name of the policy.
+  string policy_name = 1;
+  // username is the name of the AWS user that the policy is attached to.
+  string username = 2;
+  // policy_document is the JSON document that defines the policy.
+  bytes policy_document = 3;
+  // account_id is the ID of the AWS account that the user belongs to.
+  string account_id = 4;
+}
+
+// AWSPolicyV1 is an AWS policy.
+message AWSPolicyV1 {
+  // arn is the ARN of the AWS policy.
+  string arn = 1;
+  // created_at is the time when the AWS policy was created.
+  google.protobuf.Timestamp created_at = 2;
+  // default_version_id is the ID of the default version of the policy.
+  string default_version_id = 3;
+  // description is the description of the policy.
+  string description = 4;
+  // is_attachable indicates whether the policy can be attached to an AWS
+  // resource.
+  bool is_attachable = 5;
+  // path is the path of the policy.
+  string path = 6;
+  // policy_id is the ID of the policy.
+  string policy_id = 7;
+  // tags is the list of tags that are attached to the policy.
+  repeated AWSTag tags = 8;
+  // update_at is the time when the policy was last updated.
+  google.protobuf.Timestamp updated_at = 9;
+  // account_id is the ID of the AWS account that the policy belongs to.
+  string account_id = 10;
+  // policty_name is the name of the policy.
+  string policy_name = 11;
+  // policy_document is the JSON document that defines the policy.
+  bytes policy_document = 12;
+}
+
+// AWSGroupV1 is a group of AWS users.
+message AWSGroupV1 {
+  // arn is the ARN of the AWS group.
+  string arn = 1;
+  // created_at is the time when the AWS group was created.
+  google.protobuf.Timestamp created_at = 2;
+  // group_id is the ID of the AWS group.
+  string group_id = 3;
+  // name is the name of the AWS group.
+  string name = 4;
+  // path is the path of the AWS group.
+  string path = 5;
+  // account_id is the ID of the AWS account that the group belongs to.
+  string account_id = 6;
+}
+
+// AWSUserGroupsV1 is a list of AWS groups that an AWS user belongs to.
+message AWSUserGroupsV1 {
+  // user is the AWS user.
+  AWSUserV1 user = 1;
+  // groups is the list of AWS groups that the user belongs to.
+  repeated AWSGroupV1 groups = 2;
+}
+
+// AWSUserV1 is an AWS user.
+message AWSUserV1 {
+  // arn is the ARN of the AWS user.
+  string arn = 1;
+  // created_at is the time when the AWS user was created.
+  google.protobuf.Timestamp created_at = 2;
+  // path is the path of the AWS user.
+  string path = 3;
+  // user_id is the ID of the AWS user.
+  string user_id = 4;
+  // user_name is the name of the AWS user.
+  string user_name = 5;
+  // password_last_used is the time when the user last used their password.
+  google.protobuf.Timestamp password_last_used = 6;
+  // permissions_boundary is the permissions boundary of the user.
+  UsersPermissionsBoundaryV1 permissions_boundary = 7;
+  // tags is the list of tags that are attached to the user.
+  repeated AWSTag tags = 8;
+  // account_id is the ID of the AWS account that the user belongs to.
+  string account_id = 9;
+}
+
+// AWSTag is a tag that is attached to an AWS resource.
+message AWSTag {
+  // key is the key of the tag.
+  string key = 1;
+  // value is the value of the tag.
+  google.protobuf.StringValue value = 2;
+}
+
+// UsersPermissionsBoundaryV1 is the permissions boundary of a user.
+message UsersPermissionsBoundaryV1 {
+  // permissions_boundary_arn is the ARN of the permissions boundary.
+  string permissions_boundary_arn = 1;
+  // permissions_boundary_type is the ARN of the permissions boundary.
+  UsersPermissionsBoundaryType permissions_boundary_type = 2;
+}
+
+// UsersPermissionsBoundaryType is the type of the permissions boundary.
+enum UsersPermissionsBoundaryType {
+  // USERS_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED is an unspecified permissions
+  // boundary type.
+  USERS_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED = 0;
+  // USERS_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY is a
+  // permissions boundary policy.
+  USERS_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY = 1;
+}
+
+// AWSInstanceV1 is an AWS instance.
+message AWSInstanceV1 {
+  // instance_id is the ID of the AWS instance.
+  string instance_id = 1;
+  // launch_time is the time when the instance was launched.
+  google.protobuf.Timestamp launch_time = 2;
+  // region is the region of the AWS instance.
+  string region = 3;
+  // account_id is the ID of the AWS account that the instance belongs to.
+  string account_id = 4;
+  // tags is the list of tags that are attached to the instance.
+  repeated AWSTag tags = 5;
+  // public_dns_name is the public DNS name of the instance.
+  string public_dns_name = 6;
+  // iam_instance_profile_arn is the ARN of the IAM instance profile that is
+  // associated with the instance.
+  google.protobuf.StringValue iam_instance_profile_arn = 7;
+  // launch_key_name is the name of the key pair that is used to launch the
+  // instance.
+  google.protobuf.StringValue launch_key_name = 8;
+}
+
+// AWSUserAttachedPolicies is a list of AWS policies that are attached to an
+// AWS user.
+message AWSUserAttachedPolicies {
+  // user is the AWS user.
+  AWSUserV1 user = 1;
+  // policies is the list of AWS policies that are attached to the user.
+  repeated AttachedPolicyV1 policies = 2;
+  // account_id is the ID of the AWS account that the user belongs to.
+  string account_id = 3;
+}
+
+// AttachedPolicyV1 is a AWS policy identifier.
+message AttachedPolicyV1 {
+  // policy_name is the name of the policy.
+  string policy_name = 1;
+  // arn is the ARN of the policy.
+  string arn = 2;
+}
+
+// AWSGroupAttachedPolicies is a list of AWS policies that are attached to an
+// AWS group.
+message AWSGroupAttachedPolicies {
+  // group is the AWS group.
+  AWSGroupV1 group = 1;
+  // policies is the list of AWS policies that are attached to the group.
+  repeated AttachedPolicyV1 policies = 2;
+  // account_id is the ID of the AWS account that the group belongs to.
+  string account_id = 3;
+}
+
+// AWSGroupInlinePolicyV1 is a policy that is inlined to an AWS Group.
+message AWSGroupInlinePolicyV1 {
+  // policy_name is the name of the policy.
+  string policy_name = 1;
+  // group_name is the name of the AWS group that the policy is attached to.
+  string group_name = 2;
+  // policy_document is the JSON document that defines the policy.
+  bytes policy_document = 3;
+  // account_id is the ID of the AWS account that the group belongs to.
+  string account_id = 4;
+}
