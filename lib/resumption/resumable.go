@@ -301,10 +301,12 @@ func RunResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) error {
 
 			frameHeader := binary.AppendUvarint(scratch[:0], frameAck)
 			frameHeader = binary.AppendUvarint(frameHeader, len64(frameData))
-			frameBuffers := net.Buffers{frameHeader, frameData}
 
-			if _, err := frameBuffers.WriteTo(nc); err != nil {
-				return trace.Wrap(err, "writing frame")
+			if _, err := nc.Write(frameHeader); err != nil {
+				return trace.Wrap(err, "writing frame header")
+			}
+			if _, err := nc.Write(frameData); err != nil {
+				return trace.Wrap(err, "writing frame data")
 			}
 
 			r.mu.Lock()
