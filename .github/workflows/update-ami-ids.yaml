@@ -51,5 +51,6 @@ jobs:
           git config --global user.email "noreply@github.com"
           git config --global user.name "GitHub"
           TELEPORT_VERSION=${{ inputs.version }} AMI_PR_REVIEWER=${{ github.event.release.author.login }} make -C assets/aws create-update-pr
+          echo "AMI PR: $(gh pr view --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
