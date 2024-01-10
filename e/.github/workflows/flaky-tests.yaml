@@ -1,0 +1,57 @@
+name: Flaky Tests Detector
+run-name: Flaky Tests Detector - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+
+permissions:
+  pull-requests: read
+  issues: read
+
+jobs:
+  flaky-test:
+    name: Flaky Tests Detector
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+      packages: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-ref: master
+          edition: enterprise
+          ent-teleport-ref: ${{ github.event.pull_request.head.ref }}
+          ent-fetch-depth: 0
+
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+
+      - name: Checkout shared-workflows
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: main
+
+      - name: Find excluded tests
+        id: find_excluded
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=exclude-flakes -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"
+
+      - name: Run base difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "lib/operatortest/**/*"
+          target: test-go
+          path: .
+          directory: e

@@ -410,8 +410,11 @@ endif
 .PHONY: test
 test: test-go test-operator
 
+test-go: SUBJECT ?= ./...
 test-go:
-	gotestsum ./... -- -race
+ifneq ("$(SUBJECT)", "")
+	gotestsum -- $(SUBJECT) -race -shuffle on $(ADDFLAGS)
+endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource
 # types that must be tested with an enterprise Teleport cluster.
