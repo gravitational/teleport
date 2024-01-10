@@ -74,7 +74,7 @@ sequenceDiagram
     Note left of Browser: Web UI routes to AppLauncher.tsx <br/>/web/launch/dumper.localhost/cluster-name/dumper.localhost<br/>route format: /web/launch/:fqdn/:clusterId?/:publicAddr?
     end
     Note left of Browser: AppLauncher.tsx navigates to app authn route <br/>https://dumper.localhost:3080/x-teleport-auth
-    Browser->>App Handler: GET /dumper.localhost/x-teleport-auth<br>Creates state token
+    Browser->>App Handler: GET dumper.localhost/x-teleport-auth<br>Creates state token
     App Handler->>Browser: REDIRECT /web/launch/dumper.localhost/cluster-name/dumper.localhost?state=<TOKEN><br>set cookie with the same <TOKEN>
     Note left of Browser: Back at AppLauncher.tsx
     Browser->>Web Handler: POST /v1/webapi/sessions/app with body:<br>{fqdn: dumper.localhost, plubic_addr: dumper.localhost, cluster_name: cluster-name}
@@ -82,10 +82,10 @@ sequenceDiagram
     Auth Service->>Web Handler: Returns created session
     Web Handler->>Browser: Returns with the app <SESSION_BEARER_TOKEN> and <SESSION_ID> as JSON response
     Note left of Browser: AppLauncher.tsx navigates back to app authn route with:<br>https://dumper.localhost:3080/<br>x-teleport-auth?<br>state=<TOKEN><br>&subject=<SESSION_BEARER_TOKEN><br>&path=<ORIGINAL_PATH_QUERY><br>#35;value=<SESSION_ID>
-    Browser->>App Handler: GET /dumper.localhost:3080/x-teleport-auth?state=<TOKEN>&subject=<SESSION_BEARER_TOKEN>#35;value=<SESSION_ID>
+    Browser->>App Handler: GET dumper.localhost:3080/x-teleport-auth?state=<TOKEN>&subject=<SESSION_BEARER_TOKEN>#35;value=<SESSION_ID>
     App Handler->>Browser: Serve the app redirection HTML <br>(Just a blank page with inline JS that contains logic to complete auth exchange and redirect to target app path)
     Note left of Browser: App redirection HTML is loaded at <br>https://dumper.localhost:3080/x-teleport-auth...
-    Browser->>App Handler: POST /dumper.localhost:3080/x-teleport-auth with body:<br>{state_value: <TOKEN>, subject_cookie: <SESSION_BEARER_TOKEN>, cookie_value: <SESSION_ID>}
+    Browser->>App Handler: POST dumper.localhost:3080/x-teleport-auth with body:<br>{state_value: <TOKEN>, subject_cookie: <SESSION_BEARER_TOKEN>, cookie_value: <SESSION_ID>}
     alt Missing cookies or mismatching token
     App Handler->>Auth Server: Delete app session and emit audit event
     else Authentication successful
