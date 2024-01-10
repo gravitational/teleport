@@ -254,6 +254,10 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 		return nil, trace.BadParameter("missing certificate authority")
 	}
 
+	if err := services.ValidateCertAuthority(req.CertAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authzCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbRotate)
 	if err != nil {
 		return nil, trace.Wrap(err)
