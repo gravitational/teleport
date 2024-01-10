@@ -20,11 +20,8 @@ package proxy
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -46,7 +43,6 @@ import (
 	"github.com/sirupsen/logrus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -68,7 +64,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -262,11 +257,6 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clientCredentials, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(cfg.Clock))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// TODO (tigrato): remove this once we have a better way to handle
 	// deleting expired entried clusters and kube_servers entries.
 	// In the meantime, we need to make sure that the cache is cleaned
@@ -278,13 +268,12 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	closeCtx, close := context.WithCancel(cfg.Context)
 	fwd := &Forwarder{
-		log:               cfg.log,
-		cfg:               cfg,
-		clientCredentials: clientCredentials,
-		activeRequests:    make(map[string]context.Context),
-		ctx:               closeCtx,
-		close:             close,
-		sessions:          make(map[uuid.UUID]*session),
+		log:            cfg.log,
+		cfg:            cfg,
+		activeRequests: make(map[string]context.Context),
+		ctx:            closeCtx,
+		close:          close,
+		sessions:       make(map[uuid.UUID]*session),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -342,12 +331,6 @@ type Forwarder struct {
 	log    utils.FieldLoggerWithWriter
 	router http.Handler
 	cfg    ForwarderConfig
-	// clientCredentials is an expiring cache of ephemeral client credentials.
-	// Forwarder requests credentials with client identity, when forwarding to
-	// another teleport process (but not when forwarding to k8s API).
-	//
-	// TODO(klizhentas): flush certs on teleport CA rotation?
-	clientCredentials *ttlmap.TTLMap
 	// activeRequests is a map used to serialize active CSR requests to the auth server
 	activeRequests map[string]context.Context
 	// close is a close function
@@ -2392,134 +2375,6 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Fo
 	)
 
 	return forwarder, trace.Wrap(err)
-}
-
-// getOrCreateRequestContext creates a new certificate request for a given context,
-// if there is no active CSR request in progress, or returns an existing one.
-// if the new context has been created, cancel function is returned as a
-// second argument. Caller should call this function to signal that CSR has been
-// completed or failed.
-// TODO(tigrato): DELETE in 15.0.0
-func (f *Forwarder) getOrCreateRequestContext(key string) (context.Context, context.CancelFunc) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	ctx, ok := f.activeRequests[key]
-	if ok {
-		return ctx, nil
-	}
-	ctx, cancel := context.WithCancel(f.ctx)
-	f.activeRequests[key] = ctx
-	return ctx, func() {
-		cancel()
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		delete(f.activeRequests, key)
-	}
-}
-
-// TODO(tigrato): DELETE in 15.0.0
-func (f *Forwarder) serializedRequestClientCreds(tracingCtx context.Context, authContext authContext) (*tls.Config, error) {
-	ctx, cancel := f.getOrCreateRequestContext(authContext.key())
-	if cancel != nil {
-		f.log.Debugf("Requesting new ephemeral user certificate for %v.", authContext)
-		defer cancel()
-		c, err := f.requestCertificate(tracingCtx, authContext)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return c, f.saveClientCreds(authContext, c)
-	}
-	// cancel == nil means that another request is in progress, so simply wait until
-	// it finishes or fails
-	f.log.Debugf("Another request is in progress for %v, waiting until it gets completed.", authContext)
-	select {
-	case <-ctx.Done():
-		c := f.getClientCreds(authContext)
-		if c == nil {
-			return nil, trace.BadParameter("failed to request ephemeral certificate, try again")
-		}
-		return c, nil
-	case <-f.ctx.Done():
-		return nil, trace.BadParameter("forwarder is closing, aborting the request")
-	}
-}
-
-// TODO(tigrato): DELETE in 15.0.0
-func (f *Forwarder) requestCertificate(ctx context.Context, authCtx authContext) (*tls.Config, error) {
-	_, span := f.cfg.tracer.Start(
-		ctx,
-		"kube.Forwarder/requestCertificate",
-		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
-		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCMethodKey.String("ProcessKubeCSR"),
-			semconv.RPCSystemKey.String("kube"),
-		),
-	)
-	defer span.End()
-	f.log.Debugf("Requesting K8s cert for %v.", authCtx)
-	keyPEM, _, err := native.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	privateKey, err := ssh.ParseRawPrivateKey(keyPEM)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse private key")
-	}
-
-	// Note: ctx.UnmappedIdentity can potentially have temporary roles granted via
-	// workflow API. Always use the Subject() method to preserve the roles from
-	// caller's certificate.
-	//
-	// Also note: we need to send the UnmappedIdentity which could be a remote
-	// user identity. If we used the local mapped identity instead, the
-	// receiver of this certificate will think this is a local user and fail to
-	// find it in the backend.
-	callerIdentity := authCtx.UnmappedIdentity.GetIdentity()
-	subject, err := callerIdentity.Subject()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	csr := &x509.CertificateRequest{
-		Subject: subject,
-	}
-	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, privateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
-
-	response, err := f.cfg.AuthClient.ProcessKubeCSR(auth.KubeCSR{
-		Username:    authCtx.User.GetName(),
-		ClusterName: authCtx.teleportCluster.name,
-		CSR:         csrPEM,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	f.log.Debugf("Received valid K8s cert for %v.", authCtx)
-
-	cert, err := tls.X509KeyPair(response.Cert, keyPEM)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pool := x509.NewCertPool()
-	for _, certAuthority := range response.CertAuthorities {
-		ok := pool.AppendCertsFromPEM(certAuthority)
-		if !ok {
-			return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
-		}
-	}
-	tlsConfig := &tls.Config{
-		RootCAs:      pool,
-		Certificates: []tls.Certificate{cert},
-	}
-	//nolint:staticcheck // Keep BuildNameToCertificate to avoid changes in legacy behavior.
-	tlsConfig.BuildNameToCertificate()
-
-	return tlsConfig, nil
 }
 
 // kubeClusters returns the list of available clusters

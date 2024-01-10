@@ -28,10 +28,14 @@ import (
 
 // Login logs in a user to a cluster
 func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyResponse, error) {
-	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, clusterClient, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// The credentials + MFA login flow in the Electron app assumes that the default CLI prompt is
+	// used and works around that. Thus we have to remove the teleterm-specific MFAPromptConstructor
+	// added by daemon.Service.ResolveClusterURI.
+	clusterClient.MFAPromptConstructor = nil
 
 	if req.Params == nil {
 		return nil, trace.BadParameter("missing login parameters")
@@ -71,10 +75,14 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 		return trace.BadParameter("cluster URI is required")
 	}
 
-	cluster, _, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
+	cluster, clusterClient, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// The passwordless login flow in the Electron app assumes that the default CLI prompt is used and
+	// works around that. Thus we have to remove the teleterm-specific MFAPromptConstructor added by
+	// daemon.Service.ResolveClusterURI.
+	clusterClient.MFAPromptConstructor = nil
 
 	// Start the prompt flow.
 	if err := cluster.PasswordlessLogin(stream.Context(), stream); err != nil {

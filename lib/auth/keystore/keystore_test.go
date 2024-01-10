@@ -28,17 +28,21 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var (
@@ -70,8 +74,17 @@ fPTgihJAeKdWbBmRMjIDe8hkz/oxR6JE2Ap+4G+KZtwVON4b+ucCYTQS+1CQp2Xc
 RPAMyjbzPhWQpfJnIxLcqGmvXxosABvs/b2CWaPqfCQhZIWpLeKW
 -----END RSA PRIVATE KEY-----
 `)
-	testRawPublicKey = []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqIPatEnmSruE/nl44Iz0O12RY8wjw8EqDFoCJD0n1gXdo26v3xvyQAJxNDyLFKQewtxxWpF238KdvuO0FKvDEn0E3T19kSLIK/LuXDE0YExARqi/1RTvbae+5Ypv4SQfNxVX2J72LzAzzzGnPNg7x51rwVmMfFpqh7aWSseKI4VBG5smodWFb5I0VA5Xo6xURNNmWDmuZaEDmsqIHobRB4sfKxIwltssw5evVVu7tGqiGarQAXoR0yCLHc4nPeov1gMpA8DOGPtWI/NPTs+//2+Hl+NdoTmJOE9Piffe5jU3Z8kCfOxxm9WanHG5I6rHBYGqRHMgl7PW+/cX7nEMv")
-	testRawCert      = []byte(`-----BEGIN CERTIFICATE-----
+	testRawSSHPublicKey = []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqIPatEnmSruE/nl44Iz0O12RY8wjw8EqDFoCJD0n1gXdo26v3xvyQAJxNDyLFKQewtxxWpF238KdvuO0FKvDEn0E3T19kSLIK/LuXDE0YExARqi/1RTvbae+5Ypv4SQfNxVX2J72LzAzzzGnPNg7x51rwVmMfFpqh7aWSseKI4VBG5smodWFb5I0VA5Xo6xURNNmWDmuZaEDmsqIHobRB4sfKxIwltssw5evVVu7tGqiGarQAXoR0yCLHc4nPeov1gMpA8DOGPtWI/NPTs+//2+Hl+NdoTmJOE9Piffe5jU3Z8kCfOxxm9WanHG5I6rHBYGqRHMgl7PW+/cX7nEMv")
+	testRawPublicKeyDER = []byte{48, 130, 1, 34, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 5, 0, 3, 130, 1, 15, 0, 48, 130, 1, 10, 2, 130, 1, 1, 0, 170, 32, 246, 173, 18, 121, 146, 174, 225, 63, 158, 94, 56, 35, 61, 14, 215, 100, 88, 243, 8, 240, 240, 74, 131, 22, 128, 137, 15, 73, 245, 129, 119, 104, 219, 171, 247, 198, 252, 144, 0, 156, 77, 15, 34, 197, 41, 7, 176, 183, 28, 86, 164, 93, 183, 240, 167, 111, 184, 237, 5, 42, 240, 196, 159, 65, 55, 79, 95, 100, 72, 178, 10, 252, 187, 151, 12, 77, 24, 19, 16, 17, 170, 47, 245, 69, 59, 219, 105, 239, 185, 98, 155, 248, 73, 7, 205, 197, 85, 246, 39, 189, 139, 204, 12, 243, 204, 105, 207, 54, 14, 241, 231, 90, 240, 86, 99, 31, 22, 154, 161, 237, 165, 146, 177, 226, 136, 225, 80, 70, 230, 201, 168, 117, 97, 91, 228, 141, 21, 3, 149, 232, 235, 21, 17, 52, 217, 150, 14, 107, 153, 104, 64, 230, 178, 162, 7, 161, 180, 65, 226, 199, 202, 196, 140, 37, 182, 203, 48, 229, 235, 213, 86, 238, 237, 26, 168, 134, 106, 180, 0, 94, 132, 116, 200, 34, 199, 115, 137, 207, 122, 139, 245, 128, 202, 64, 240, 51, 134, 62, 213, 136, 252, 211, 211, 179, 239, 255, 219, 225, 229, 248, 215, 104, 78, 98, 78, 19, 211, 226, 125, 247, 185, 141, 77, 217, 242, 64, 159, 59, 28, 102, 245, 102, 167, 28, 110, 72, 234, 177, 193, 96, 106, 145, 28, 200, 37, 236, 245, 190, 253, 197, 251, 156, 67, 47, 2, 3, 1, 0, 1}
+	testRawPublicKeyPEM = []byte(`-----BEGIN RSA PUBLIC KEY-----
+MIIBCgKCAQEAqiD2rRJ5kq7hP55eOCM9DtdkWPMI8PBKgxaAiQ9J9YF3aNur98b8
+kACcTQ8ixSkHsLccVqRdt/Cnb7jtBSrwxJ9BN09fZEiyCvy7lwxNGBMQEaov9UU7
+22nvuWKb+EkHzcVV9ie9i8wM88xpzzYO8eda8FZjHxaaoe2lkrHiiOFQRubJqHVh
+W+SNFQOV6OsVETTZlg5rmWhA5rKiB6G0QeLHysSMJbbLMOXr1Vbu7Rqohmq0AF6E
+dMgix3OJz3qL9YDKQPAzhj7ViPzT07Pv/9vh5fjXaE5iThPT4n33uY1N2fJAnzsc
+ZvVmpxxuSOqxwWBqkRzIJez1vv3F+5xDLwIDAQAB
+-----END RSA PUBLIC KEY-----`)
+	testRawCert = []byte(`-----BEGIN CERTIFICATE-----
 MIIDeTCCAmGgAwIBAgIRALmlBQhTQQiGIS/P0PwF97wwDQYJKoZIhvcNAQELBQAw
 VjEQMA4GA1UEChMHc2VydmVyMTEQMA4GA1UEAxMHc2VydmVyMTEwMC4GA1UEBRMn
 MjQ2NzY0MDEwMjczNTA2ODc3NjY1MDEyMTc3Mzg5MTkyODY5ODIwMB4XDTIxMDcx
@@ -96,7 +109,7 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 	testPKCS11Key = []byte(`pkcs11:{"host_id": "server2", "key_id": "00000000-0000-0000-0000-000000000000"}`)
 
 	testRawSSHKeyPair = &types.SSHKeyPair{
-		PublicKey:      testRawPublicKey,
+		PublicKey:      testRawSSHPublicKey,
 		PrivateKey:     testRawPrivateKey,
 		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
@@ -106,13 +119,13 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 		KeyType: types.PrivateKeyType_RAW,
 	}
 	testRawJWTKeyPair = &types.JWTKeyPair{
-		PublicKey:      testRawPublicKey,
+		PublicKey:      testRawPublicKeyPEM,
 		PrivateKey:     testRawPrivateKey,
 		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
 
 	testPKCS11SSHKeyPair = &types.SSHKeyPair{
-		PublicKey:      testRawPublicKey,
+		PublicKey:      testRawSSHPublicKey,
 		PrivateKey:     testPKCS11Key,
 		PrivateKeyType: types.PrivateKeyType_PKCS11,
 	}
@@ -122,7 +135,7 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 		KeyType: types.PrivateKeyType_PKCS11,
 	}
 	testPKCS11JWTKeyPair = &types.JWTKeyPair{
-		PublicKey:      testRawPublicKey,
+		PublicKey:      testRawPublicKeyPEM,
 		PrivateKey:     testPKCS11Key,
 		PrivateKeyType: types.PrivateKeyType_PKCS11,
 	}
@@ -138,6 +151,8 @@ func TestKeyStore(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
+
+	clock := clockwork.NewFakeClock()
 
 	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
 	var softHSMConfig Config
@@ -162,6 +177,9 @@ func TestKeyStore(t *testing.T) {
 		gcpKMSConfig.kmsClientOverride = testClient
 		gcpKMSConfig.KeyRing = "test-keyring"
 	}
+
+	awsKMSAccount := os.Getenv("TEST_AWS_KMS_ACCOUNT")
+	awsKMSRegion := os.Getenv("TEST_AWS_KMS_REGION")
 
 	yubiSlotNumber := 0
 	backends := []struct {
@@ -273,7 +291,57 @@ func TestKeyStore(t *testing.T) {
 				}.marshal()
 			},
 		},
+		{
+			desc: "aws kms",
+			config: Config{
+				AWSKMS: AWSKMSConfig{
+					Cluster:    "test-cluster",
+					AWSAccount: awsKMSAccount,
+					AWSRegion:  awsKMSRegion,
+				},
+			},
+			shouldSkip: func() bool {
+				return awsKMSAccount == "" || awsKMSRegion == ""
+			},
+			unusedRawKey: func(t *testing.T) []byte {
+				return awsKMSKeyID{
+					arn:     "arn:aws:kms:" + awsKMSAccount + ":" + awsKMSRegion + ":key/unused",
+					account: awsKMSAccount,
+					region:  awsKMSRegion,
+				}.marshal()
+			},
+		},
+		{
+			desc: "fake aws kms",
+			config: Config{
+				AWSKMS: AWSKMSConfig{
+					Cluster:    "test-cluster",
+					AWSAccount: "123456789012",
+					AWSRegion:  "us-west-2",
+					CloudClients: &cloud.TestCloudClients{
+						KMS: newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
+						STS: &fakeAWSSTSClient{
+							account: "123456789012",
+						},
+					},
+					clock: clock,
+				},
+			},
+			shouldSkip: func() bool {
+				return false
+			},
+			unusedRawKey: func(t *testing.T) []byte {
+				return awsKMSKeyID{
+					arn:     "arn:aws:kms:us-west-2:123456789012:key/unused",
+					account: "123456789012",
+					region:  "us-west-2",
+				}.marshal()
+			},
+		},
 	}
+
+	message := []byte("Lorem ipsum dolor sit amet...")
+	messageHash := sha256.Sum256(message)
 
 	for _, tc := range backends {
 		tc := tc
@@ -284,11 +352,11 @@ func TestKeyStore(t *testing.T) {
 
 			// create the keystore manager
 			keyStore, err := NewManager(ctx, tc.config)
-			require.NoError(t, err)
+			require.NoError(t, err, trace.DebugReport(err))
 
 			// create a key
 			key, signer, err := keyStore.generateRSA(ctx)
-			require.NoError(t, err)
+			require.NoError(t, err, trace.DebugReport(err))
 			require.NotNil(t, key)
 			require.NotNil(t, signer)
 
@@ -296,18 +364,16 @@ func TestKeyStore(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, keyStore.deleteKey(ctx, key)) })
 
 			// get a signer from the key
-			signer, err = keyStore.getSigner(ctx, key)
+			signer, err = keyStore.getSigner(ctx, key, signer.Public())
 			require.NoError(t, err)
 			require.NotNil(t, signer)
 
 			// try signing something
-			message := []byte("Lorem ipsum dolor sit amet...")
-			hashed := sha256.Sum256(message)
-			signature, err := signer.Sign(rand.Reader, hashed[:], crypto.SHA256)
-			require.NoError(t, err)
+			signature, err := signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
+			require.NoError(t, err, trace.DebugReport(err))
 			require.NotEmpty(t, signature)
 			// make sure we can verify the signature with a "known good" rsa implementation
-			err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, hashed[:], signature)
+			err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, messageHash[:], signature)
 			require.NoError(t, err)
 
 			// make sure we can get the ssh public key
@@ -323,7 +389,9 @@ func TestKeyStore(t *testing.T) {
 					Organization: []string{"server1"},
 				}, nil, defaults.CATTL)
 			require.NoError(t, err)
-			require.NotNil(t, tlsCert)
+
+			jwtPublicKey, err := utils.MarshalPublicKey(signer)
+			require.NoError(t, err)
 
 			// test CA with multiple active keypairs
 			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
@@ -351,7 +419,7 @@ func TestKeyStore(t *testing.T) {
 						&types.JWTKeyPair{
 							PrivateKey:     key,
 							PrivateKeyType: keyType(key),
-							PublicKey:      sshPublicKey,
+							PublicKey:      jwtPublicKey,
 						},
 					},
 				},
@@ -360,7 +428,7 @@ func TestKeyStore(t *testing.T) {
 
 			// test that keyStore is able to select the correct key and get a signer
 			sshSigner, err = keyStore.GetSSHSigner(ctx, ca)
-			require.NoError(t, err)
+			require.NoError(t, err, trace.DebugReport(err))
 			require.NotNil(t, sshSigner)
 
 			tlsCert, tlsSigner, err := keyStore.GetTLSCertAndSigner(ctx, ca)
@@ -370,7 +438,7 @@ func TestKeyStore(t *testing.T) {
 			require.NotNil(t, tlsSigner)
 
 			jwtSigner, err := keyStore.GetJWTSigner(ctx, ca)
-			require.NoError(t, err)
+			require.NoError(t, err, trace.DebugReport(err))
 			require.NotNil(t, jwtSigner)
 
 			// test CA with only raw keys
@@ -436,26 +504,40 @@ func TestKeyStore(t *testing.T) {
 
 			// create some keys to test DeleteUnusedKeys
 			const numKeys = 3
-			var rawKeys [][]byte
+			rawPrivateKeys := make([][]byte, numKeys)
+			rawPublicKeys := make([][]byte, numKeys)
 			for i := 0; i < numKeys; i++ {
-				key, _, err := keyStore.generateRSA(ctx)
+				var signer crypto.Signer
+				rawPrivateKeys[i], signer, err = keyStore.generateRSA(ctx)
 				require.NoError(t, err)
-				rawKeys = append(rawKeys, key)
+				rawPublicKeys[i], err = utils.MarshalPublicKey(signer)
+				require.NoError(t, err)
 			}
 
+			// AWS KMS keystore will not delete any keys created in the past 5
+			// minutes.
+			clock.Advance(6 * time.Minute)
+
 			// say that only the first key is in use, delete the rest
-			usedKeys := [][]byte{rawKeys[0]}
+			usedKeys := [][]byte{rawPrivateKeys[0]}
 			err = keyStore.DeleteUnusedKeys(ctx, usedKeys)
-			require.NoError(t, err)
+			require.NoError(t, err, trace.DebugReport(err))
 
 			// make sure the first key is still good
-			signer, err := keyStore.getSigner(ctx, rawKeys[0])
+			signer, err := keyStore.getSigner(ctx, rawPrivateKeys[0], rawPublicKeys[0])
 			require.NoError(t, err)
-			require.NotNil(t, signer)
+			_, err = signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
+			require.NoError(t, err)
 
 			// make sure all other keys are deleted
 			for i := 1; i < numKeys; i++ {
-				_, err := keyStore.getSigner(ctx, rawKeys[i])
+				signer, err := keyStore.getSigner(ctx, rawPrivateKeys[i], rawPublicKeys[0])
+				if err != nil {
+					// For PKCS11 we expect to fail to get the signer, for cloud
+					// KMS backends it won't fail until signing
+					continue
+				}
+				_, err = signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
 				require.Error(t, err)
 			}
 
@@ -467,7 +549,7 @@ func TestKeyStore(t *testing.T) {
 			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 			// delete the final key so we don't leak it
-			err = keyStore.deleteKey(ctx, rawKeys[0])
+			err = keyStore.deleteKey(ctx, rawPrivateKeys[0])
 			require.NoError(t, err)
 		})
 	}

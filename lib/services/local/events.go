@@ -66,7 +66,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		var parser resourceParser
 		switch kind.Kind {
 		case types.KindCertAuthority:
-			parser = newCertAuthorityParser(kind.LoadSecrets)
+			parser = newCertAuthorityParser(kind.LoadSecrets, kind.Filter)
 		case types.KindToken:
 			parser = newProvisionTokenParser()
 		case types.KindStaticTokens:
@@ -187,6 +187,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newUserLoginStateParser()
 		case types.KindAccessListMember:
 			parser = newAccessListMemberParser()
+		case types.KindAccessListReview:
+			parser = newAccessListReviewParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -347,16 +349,20 @@ func (p baseParser) match(key []byte) bool {
 	return false
 }
 
-func newCertAuthorityParser(loadSecrets bool) *certAuthorityParser {
+func newCertAuthorityParser(loadSecrets bool, filter map[string]string) *certAuthorityParser {
+	var caFilter types.CertAuthorityFilter
+	caFilter.FromMap(filter)
 	return &certAuthorityParser{
 		loadSecrets: loadSecrets,
 		baseParser:  newBaseParser(backend.Key(authoritiesPrefix)),
+		filter:      caFilter,
 	}
 }
 
 type certAuthorityParser struct {
 	baseParser
 	loadSecrets bool
+	filter      types.CertAuthorityFilter
 }
 
 func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error) {
@@ -380,6 +386,9 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.WithRevision(event.Item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if !p.filter.Match(ca) {
+			return nil, nil
 		}
 		// never send private signing keys over event stream?
 		// this might not be true
@@ -1814,9 +1823,58 @@ type accessListMemberParser struct {
 func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindAccessListMember, types.V1, 0)
+		accessList, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindAccessListMember,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: accessList, // pass access list description field for the cache
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalAccessListMember(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessListReviewParser() *accessListReviewParser {
+	return &accessListReviewParser{
+		baseParser: newBaseParser(backend.ExactKey(accessListReviewPrefix)),
+	}
+}
+
+type accessListReviewParser struct {
+	baseParser
+}
+
+func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		accessList, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindAccessListReview,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: accessList, // pass access list description field for the cache
+			},
+		}, nil
+	case types.OpPut:
+		return services.UnmarshalAccessListReview(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
