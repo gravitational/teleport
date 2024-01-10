@@ -89,7 +89,24 @@ This poses a few challenges:
 To rectify this, a unique identifier should be established for an instance of
 a Bot.
 
-#### A) UUID Certificate Attribute
+#### Public Key Fingerprint
+
+One option is to modify the behaviour of `tbot` to persist and reuse the
+keypair across renewals. We could then use a fingerprint of the public key as a
+unique identifier of the Bot instance.
+
+This feels like a natural identifier. It avoids introducing a new attribute to
+certificates as the public key is already encoded within certificates. The
+nature of public-key cryptography also means that this provides the Bot instance
+a way to identify itself without needing an issued certificate.
+
+However:
+
+- Does switching to key reuse reduce security?
+- Is a fingerprint a user understandable identifier?
+- Key rotation resets the identity of a Bot instance.
+
+##### Alternative: UUID Certificate Attribute
 
 On the initial join of a Bot instance, we could generate a UUID to identify that 
 Bot instance and encode this within the certificate. Upon renewals, the UUID
@@ -108,28 +125,7 @@ either:
 TODO: There was a recent investigation about certificate hierarchies. Integrating
 with this would be ideal and would mean this integrates with security reports.
 
-#### B) Public Key Fingerprint
-
-Another option is to modify the behaviour of `tbot` to persist and reuse the
-keypair across renewals. We could then use a fingerprint of the public key as a
-unique identifier of the Bot instance.
-
-This feels like a natural identifier. It avoids introducing a new attribute to
-certificates as the public key is already encoded within certificates. The
-nature of public-key cryptography also means that this provides the Bot instance
-a way to identify itself without needing an issued certificate. 
-
-However:
-
-- Does switching to key reuse reduce security?
-- Is a fingerprint a user understandable identifier?
-- Key rotation resets the identity of a Bot instance.
-
-#### Decision
-
-TODO
-
-### Bot Instance Data (a.k.a Heartbeats??)
+### BotInstance Resource
 
 With a persistent identifier for a Bot instance established, we can now track
 information about a specific Bot server-side. In addition to providing a way
@@ -150,6 +146,8 @@ Some of this information is known and verified by the server - for example, the
 certificate generation or the join metadata. Some of this information is
 self-reported and should not be trusted. The information from these two sources
 should be segregated to avoid confusion.
+
+BotInstance will be a new resource type introduced to track this information.
 
 ```protobuf
 syntax = "proto3";
@@ -184,7 +182,7 @@ message BotInstanceSpec {
 // trusted.
 message BotInstanceStatusHeartbeat {
   google.protobuf.Timestamp timestamp = 1;
-  bool one_shot = 2;
+  bool is_startup = 2;
   string version = 3;
   string hostname = 4;
   // In future iterations, additional information can be submitted here.
@@ -192,22 +190,42 @@ message BotInstanceStatusHeartbeat {
 
 message BotInstanceStatusAuthentication {
   google.protobuf.Timestamp timestamp = 1;
-  google.protobuf.Struct metadata = 2;
+  string join_method = 2;
+  google.protobuf.Struct metadata = 3;
+  // On each renewal, this generation is incremented. For delegated join
+  // methods, this counter is not checked during renewal. For the `token` join
+  // method, this counter is checked during renewal and the Bot is locked out if
+  // the counter in the certificate does not match the counter of the last
+  // authentication.
+  int32 generation = 4;
 }
 
 message BotInstanceStatus {
-  string join_method = 1;
-  string generation = 2;
-  repeated BotInstanceStatusAuthentication authentications = 3;
-  repeated BotInstanceStatusHeartbeat heartbeats = 4;
+  string bot_name = 1;
+  // Last X records kept, with the second oldest being removed once the limit
+  // is reached. This avoids the indefinite growth of the resource but also
+  // ensures the initial record is retained.
+  repeated BotInstanceStatusAuthentication authentications = 2;
+  // Last X records kept, with the second oldest being removed once the limit
+  // is reached. This avoids the indefinite growth of the resource but also
+  // ensures the initial record is retained.
+  repeated BotInstanceStatusHeartbeat heartbeats = 3;
 }
 ```
 
-#### Submitting Heartbeat Data
+Specific edge-cases to handle:
 
-This additional information from the Bot could be submitted in two ways.
+- BotInstance is deleted but renewal/heartbeat is received
+  - Reject renewals/heartbeats, trigger `tbot` to exit and suggest reset, OR
+  - Create a BotInstance and continue as normal. Warn/Error log.
+- Join method/token changes:
+  - Reject renewals/heartbeats, trigger `tbot` to exit and suggest reset, OR
+  - Emit warning and continue.
+  - Consider case where linked Bot changes
 
-##### A) Specific Heartbeat RPC
+#### Recording Authentication Data
+
+#### Recording Heartbeat Data
 
 Pros:
 
@@ -224,20 +242,37 @@ Cons:
   made to the RPC message.
 - Information within the Heartbeat could come from different instances in time.
 
-##### B) Submit Heartbeat data on Join/Renew
+##### Alternative: Submit Heartbeat data on Join/Renew
 
 Pros:
 
 - Avoids introducing a new RPC and ensures that all data within the Heartbeat
   comes from the same instance in time.
+- Allows self-reported information to be used as part of renewal decision.
+  This is not a strong defence as it is self-reported and cannot be trusted.
 
 Cons:
 
 - Heartbeats are limited to the interval of renewal.
 
-##### Decision
+#### API
 
-### Improving the `token` join method
+### Changes to the `token` Join Method
+
+No longer consumed on join.
+
+### CLI Changes
+
+#### `tbot`
+
+`tbot reset`
+
+#### `tctl`
+
+`tctl bot instances list`
+`tctl bot instances list --bot <bot name>`
+
+Additionally, `tctl rm`/`tctl get` should be able to operate on BotInstance.
 
 ### Implementation
 
