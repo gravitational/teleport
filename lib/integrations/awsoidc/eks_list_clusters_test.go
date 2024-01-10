@@ -38,9 +38,6 @@ type mockListEKSClustersClient struct {
 	pageSize int
 
 	eksClusters []eksTypes.Cluster
-	//
-	//dbInstances []rdsTypes.DBInstance
-	//dbClusters  []rdsTypes.DBCluster
 }
 
 func (m mockListEKSClustersClient) ListClusters(ctx context.Context, params *eks.ListClustersInput, optFns ...func(*eks.Options)) (*eks.ListClustersOutput, error) {
