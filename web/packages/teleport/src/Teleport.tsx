@@ -18,7 +18,6 @@
 
 import React, { lazy, Suspense } from 'react';
 import ThemeProvider from 'design/ThemeProvider';
-import { ListAddCheck, Terminal } from 'design/Icon';
 
 import { Route, Router, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
@@ -29,12 +28,10 @@ import { getOSSFeatures } from 'teleport/features';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
-import { NavigationItem } from 'teleport/TopBar/TopBar';
 
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
 import cfg from './config';
-import useStickyClusterId from './useStickyClusterId';
 
 import type { History } from 'history';
 
@@ -57,9 +54,13 @@ const Teleport: React.FC<Props> = props => {
                   <Authenticated>
                     <UserContextProvider>
                       <TeleportContextProvider ctx={ctx}>
-                        <TeleportSwitch
-                          renderPrivateRoutes={createPrivateRoutes}
-                        />
+                        <Switch>
+                          <Route
+                            path={cfg.routes.appLauncher}
+                            component={AppLauncher}
+                          />
+                          <Route>{createPrivateRoutes()}</Route>
+                        </Switch>
                       </TeleportContextProvider>
                     </UserContextProvider>
                   </Authenticated>
@@ -85,17 +86,6 @@ const DesktopSession = lazy(() => import('./DesktopSession'));
 const HeadlessRequest = lazy(() => import('./HeadlessRequest'));
 
 const Main = lazy(() => import('./Main'));
-
-const TeleportSwitch = (props: TeleportSwitchProps) => {
-  const { clusterId } = useStickyClusterId();
-  const createPrivateRoutes = props.renderPrivateRoutes || privateOSSRoutes;
-  return (
-    <Switch>
-      <Route path={cfg.routes.appLauncher} component={AppLauncher} />
-      <Route>{createPrivateRoutes(clusterId)}</Route>
-    </Switch>
-  );
-};
 
 function publicOSSRoutes() {
   return [
@@ -144,31 +134,13 @@ export function getSharedPublicRoutes() {
   ];
 }
 
-function privateOSSRoutes(clusterId: string) {
-  const navigationItems: NavigationItem[] = [
-    {
-      title: 'Access Requests',
-      path: '/web/accessrequest',
-      Icon: <ListAddCheck color="text.main" />,
-    },
-    {
-      title: 'Active Sessions',
-      path: cfg.getSessionsRoute(clusterId),
-      Icon: <Terminal color="text.main" />,
-    },
-  ];
-
+function privateOSSRoutes() {
   return (
     <Switch>
       {getSharedPrivateRoutes()}
       <Route
         path={cfg.routes.root}
-        render={() => (
-          <Main
-            features={getOSSFeatures()}
-            navigationProps={{ navigationItems }}
-          />
-        )}
+        render={() => <Main features={getOSSFeatures()} />}
       />
     </Switch>
   );
@@ -197,7 +169,5 @@ export type Props = {
   ctx: TeleportContext;
   history: History;
   renderPublicRoutes?: () => React.ReactNode[];
-  renderPrivateRoutes?: (clusterId: string) => React.ReactNode;
+  renderPrivateRoutes?: () => React.ReactNode;
 };
-
-export type TeleportSwitchProps = Pick<Props, 'renderPrivateRoutes'>;

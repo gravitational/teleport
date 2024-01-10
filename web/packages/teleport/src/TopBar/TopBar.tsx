@@ -32,6 +32,7 @@ import useTeleport from 'teleport/useTeleport';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategory } from 'teleport/Navigation/categories';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
@@ -43,11 +44,16 @@ import logoDark from './logoDark.svg';
 
 const Assist = lazy(() => import('teleport/Assist'));
 
-export function TopBar({ navigationItems }: NavigationProps) {
+export function TopBar({ CustomLogo }: TopBarProps) {
   const ctx = useTeleport();
+  const { clusterId } = useStickyClusterId();
   const history = useHistory();
   const features = useFeatures();
   const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
+  const topBarLinks = features.filter(
+    feature =>
+      feature.category === NavigationCategory.Resources && feature.topMenuItem
+  );
 
   const [showAssist, setShowAssist] = useState(false);
 
@@ -74,69 +80,79 @@ export function TopBar({ navigationItems }: NavigationProps) {
 
   return (
     <TopBarContainer navigationHidden={feature?.hideNavigation}>
-      <TeleportLogo />
-      {feature?.hideNavigation && (
+      {feature?.hideNavigation ? (
         <ButtonIconContainer onClick={handleBack}>
           <ArrowLeft size="medium" />
         </ButtonIconContainer>
-      )}
-      <NavigationButton
-        selected={feature?.category === NavigationCategory.Management}
-        to="/web/users"
-        title="Access Management"
-      >
+      ) : (
         <>
-          <SlidersVertical
-            css={`
-              display: none;
-              @media screen and (max-width: ${p =>
-                  p.theme.breakpoints.medium}px) {
-                display: inline-flex;
-              }
-            `}
-            color="text.main"
-          />
-          <Text
-            css={`
-              display: none;
-              @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.medium}px) {
-                display: block;
-              }
-            `}
-            fontSize={18}
-            fontWeight={500}
-            color="text.muted"
+          <TeleportLogo CustomLogo={CustomLogo} />
+          <NavigationButton
+            selected={feature?.category === NavigationCategory.Management}
+            to={getFirstRouteForCategory(
+              features,
+              NavigationCategory.Management
+            )}
+            title="Access Management"
           >
-            Access Management
-          </Text>
-          {feature?.category !== NavigationCategory.Management && (
-            <ChevronRight
-              css={`
-                align-self: center;
-                height: 100%;
-                @media screen and (max-width: ${p =>
-                    p.theme.breakpoints.medium}px) {
+            <>
+              <SlidersVertical
+                css={`
                   display: none;
-                }
-              `}
-              color="text.muted"
-            />
-          )}
+                  @media screen and (max-width: ${p =>
+                      p.theme.breakpoints.medium}px) {
+                    display: inline-flex;
+                  }
+                `}
+                color="text.main"
+              />
+              <Text
+                css={`
+                  display: none;
+                  @media screen and (min-width: ${p =>
+                      p.theme.breakpoints.medium}px) {
+                    display: block;
+                  }
+                `}
+                fontSize={18}
+                fontWeight={500}
+                color="text.muted"
+              >
+                Access Management
+              </Text>
+              {feature?.category !== NavigationCategory.Management && (
+                <ChevronRight
+                  css={`
+                    align-self: center;
+                    height: 100%;
+                    @media screen and (max-width: ${p =>
+                        p.theme.breakpoints.medium}px) {
+                      display: none;
+                    }
+                  `}
+                  color="text.muted"
+                />
+              )}
+            </>
+          </NavigationButton>
         </>
-      </NavigationButton>
+      )}
 
       <Flex ml="auto" height="100%" alignItems="center">
-        {navigationItems.map(({ Icon, path, title }) => (
-          <NavigationButton
-            key={path}
-            to={path}
-            selected={history.location.pathname.includes(path)}
-            title={title}
-          >
-            {Icon}
-          </NavigationButton>
-        ))}
+        {topBarLinks.map(({ topMenuItem, navigationItem }) => {
+          return (
+            <NavigationButton
+              key={topMenuItem.title}
+              to={topMenuItem.getLink(clusterId)}
+              selected={history.location.pathname.includes(
+                navigationItem.getLink(clusterId)
+              )}
+              title={topMenuItem.title}
+            >
+              {topMenuItem.icon}
+            </NavigationButton>
+          );
+        })}
         {!hasDockedElement && assistEnabled && (
           <ButtonIconContainer onClick={() => setShowAssist(true)}>
             <BrainIcon />
@@ -158,6 +174,7 @@ export function TopBar({ navigationItems }: NavigationProps) {
 export const TopBarContainer = styled(TopNav)`
   background: ${p => p.theme.colors.levels.surface};
   overflow-y: initial;
+  overflow-x: none;
   flex-shrink: 0;
   z-index: 1000;
   border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[0]};
@@ -174,7 +191,7 @@ export const TopBarContainer = styled(TopNav)`
     0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 2px 1px -1px rgba(0, 0, 0, 0.2);
 `;
 
-const TeleportLogo = () => {
+const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
   const theme = useTheme();
 
   return (
@@ -188,7 +205,10 @@ const TeleportLogo = () => {
           cursor: pointer;
           height: 100%;
           display: flex;
-          width: 256px;
+          width: 190px;
+          @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+            width: 256px;
+          }
 
           transition: background-color 0.1s linear;
           &:hover {
@@ -199,13 +219,17 @@ const TeleportLogo = () => {
         `}
         to="/web"
       >
-        <Image
-          src={theme.type === 'dark' ? logoDark : logoLight}
-          alt="teleport logo"
-          css={`
-            padding-left: ${props => props.theme.space[4]}px;
-          `}
-        />
+        {CustomLogo ? (
+          <CustomLogo />
+        ) : (
+          <Image
+            src={theme.type === 'dark' ? logoDark : logoLight}
+            alt="teleport logo"
+            css={`
+              padding-left: ${props => props.theme.space[4]}px;
+            `}
+          />
+        )}
       </Link>
     </HoverTooltip>
   );
@@ -219,7 +243,7 @@ const NavigationButton = ({
 }: {
   to: string;
   selected: boolean;
-  children: JSX.Element;
+  children: React.ReactNode;
   title: string;
 }) => {
   const theme = useTheme();
@@ -263,14 +287,13 @@ const NavigationButton = ({
   );
 };
 
-export type NavigationProps = {
-  CustomLogo?: () => React.ReactElement;
-  showPoweredByLogo?: boolean;
-  navigationItems?: NavigationItem[];
-};
-
 export type NavigationItem = {
   title: string;
   path: string;
   Icon: JSX.Element;
+};
+
+export type TopBarProps = {
+  CustomLogo?: () => React.ReactElement;
+  showPoweredByLogo?: boolean;
 };

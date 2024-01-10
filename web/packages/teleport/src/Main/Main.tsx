@@ -50,7 +50,7 @@ import {
   Navigation,
 } from 'teleport/Navigation/Navigation';
 import { NavigationCategory } from 'teleport/Navigation/categories';
-import { NavigationProps } from 'teleport/TopBar/TopBar';
+import { TopBarProps } from 'teleport/TopBar/TopBar';
 import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
@@ -65,7 +65,7 @@ export interface MainProps {
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
   Questionnaire?: (props: QuestionnaireProps) => React.ReactElement;
-  navigationProps?: NavigationProps;
+  topBarProps?: TopBarProps;
   inviteCollaboratorsFeedback?: ReactNode;
 }
 
@@ -163,13 +163,19 @@ export function Main(props: MainProps) {
 
   return (
     <FeaturesContextProvider value={features}>
+      <TopBar
+        CustomLogo={
+          props.topBarProps?.showPoweredByLogo
+            ? props.topBarProps.CustomLogo
+            : null
+        }
+      />
       <BannerList
         banners={banners}
         customBanners={props.customBanners}
         billingBanners={featureFlags.billing && props.billingBanners}
         onBannerDismiss={dismissAlert}
       >
-        <TopBar navigationItems={props.navigationProps.navigationItems} />
         <MainContainer>
           <Navigation />
           <HorizontalSplit>

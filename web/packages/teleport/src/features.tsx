@@ -100,12 +100,13 @@ class AccessRequests implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AccessRequests,
-    icon: <EqualizersVertical />,
+    icon: <EqualizersVertical color="text.main" />,
     exact: true,
     getLink() {
       return cfg.routes.accessRequest;
     },
   };
+  topMenuItem = this.navigationItem;
 }
 
 export class FeatureNodes implements TeleportFeature {
@@ -280,12 +281,13 @@ export class FeatureSessions implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.ActiveSessions,
-    icon: <Terminal />,
+    icon: <Terminal color="text.main" />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getSessionsRoute(clusterId);
     },
   };
+  topMenuItem = this.navigationItem;
 }
 
 // ****************************
