@@ -98,7 +98,7 @@ func (s *samlIdPCommand) initialize(parent *kingpin.CmdClause, cfg *servicecfg.C
 Examples:
 
   Test attribute mapping with given user and service provider.
-  > tctl idp saml test_attribute_mapping --users user.yaml (or username) --sp sp.yaml (or service provider name) --format (json,yaml)
+  > tctl idp saml test_attribute_mapping --users user.yaml (user spec file or username) --sp sp.yaml (service provider spec file) --format (json,yaml)
 `)
 	s.cmd = samlcmd
 
@@ -109,10 +109,10 @@ Examples:
 	testAttrMap.Alias(`
 Examples:
 
-	# test with username and service provider name
-	> tctl idp saml test_attribute_mapping --users user1 --sp mysamlapp
+	# test with username and service provider file
+	> tctl idp saml test_attribute_mapping --users user1 --sp sp.yaml
 
-	# test with multiple usernames and service provider name
+	# test with multiple usernames and service provider file
 	> tctl idp saml test_attribute_mapping --users user1,user2 --sp sp.yaml
 
 	# test with user and service provider file and print output in yaml format
@@ -158,7 +158,6 @@ func (t *testAttributeMapping) run(ctx context.Context, c auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	if len(users) == 0 {
 		return trace.BadParameter("no users found in file: %s", t.users)
 	}
@@ -167,7 +166,6 @@ func (t *testAttributeMapping) run(ctx context.Context, c auth.ClientI) error {
 		ServiceProvider: &serviceProvider,
 		Users:           users,
 	})
-
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return trace.NotImplemented("the server does not support testing SAML attribute mapping")
