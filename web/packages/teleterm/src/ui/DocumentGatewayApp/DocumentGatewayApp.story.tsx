@@ -39,6 +39,7 @@ const documentGateway: types.DocumentGateway = {
   uri: '/docs/123',
   title: 'quux',
   targetUser: '',
+  status: '',
   targetName: 'quux',
 };
 

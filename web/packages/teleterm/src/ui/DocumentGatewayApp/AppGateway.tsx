@@ -24,9 +24,10 @@ import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
-import { PortFieldInput } from 'teleterm/ui/DocumentGateway/common';
 import { Gateway } from 'teleterm/services/tshd/types';
 import { CliCommand } from 'teleterm/ui/DocumentGateway/CliCommand';
+
+import { PortFieldInput } from '../components/FieldInputs';
 
 export function AppGateway(props: {
   gateway: Gateway;
