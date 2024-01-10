@@ -1,5 +1,12 @@
 # Changelog
 
+## 12.4.33
+
+* Updated Go to 1.20.13. [#36480](https://github.com/gravitational/teleport/pull/36480)
+* Resources named `.` and `..` are no longer allowed. Please review the resources in your Teleport instance and rename any resources with these names before upgrading. [#36402](https://github.com/gravitational/teleport/pull/36402)
+* Ensure that the login time is populated for app sessions. [#36375](https://github.com/gravitational/teleport/pull/36375)
+* Prevent deleted users from using account reset links created prior to the user being deleted. [#36276](https://github.com/gravitational/teleport/pull/36276)
+
 ## 12.4.32
 
 This release of Teleport contains multiple security fixes, improvements and bug fixes.
