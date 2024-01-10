@@ -50,7 +50,13 @@ export function OfflineGateway(props: {
     props.connectAttempt.status === 'error' || reconnectRequested;
 
   return (
-    <Flex flexDirection="column" m="auto" alignItems="center" maxWidth="500px">
+    <Flex
+      flexDirection="column"
+      mx="auto"
+      mt="100px"
+      alignItems="center"
+      maxWidth="500px"
+    >
       <Text typography="h4" bold>
         {props.targetName}
       </Text>
