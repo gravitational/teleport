@@ -33,6 +33,7 @@ import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+import cfg from 'teleport/config';
 
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
@@ -217,7 +218,7 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
           }
           align-items: center;
         `}
-        to="/web"
+        to={cfg.routes.root}
       >
         {CustomLogo ? (
           <CustomLogo />
