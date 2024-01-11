@@ -320,18 +320,19 @@ larger clusters, so it may take several minutes for the new labels to appear.
    $ tsh ls
    ```
 
-   You should see output similar to the following with the `foo` label displayed:
+   You should see output similar to the following with the `dynamic/foo` label displayed:
 
    ```code
    Node Name        Address        Labels                                                                                                                   
    ---------------- -------------- ------------------------------------------------------
-   ip-192-168-13-57 ⟵ Tunnel       foo=bar,hostname=ip-192-168-13-57
+   ip-192-168-13-57 ⟵ Tunnel       dynamic/foo=bar,hostname=ip-192-168-13-57
    ```
 
-Resource-based labels are stored in memory on servers, so if a server restarts it may temporarily lose
-its resource-based labels until the Auth Service applies them again. Because of this, it is not safe to
-use resource-based labels in an RBAC deny rule. To update resource-based labels, recreate the
-`server_info` resource with updated labels.
+Note that all resource-based labels created with `tctl` will have the
+`dynamic/` prefix. This prefix forbids the label from being used in a
+role's deny rules.
+
+To update resource-based labels, recreate the `server_info` resource with updated labels.
 
 ## Next steps
 
