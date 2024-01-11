@@ -45,6 +45,7 @@ export const sharedStyles: SharedStyles = {
     medium: 1053,
     large: 1280,
   },
+  topBarHeight: [48, 56, 72],
   space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80],
   borders: [
     0,

@@ -276,6 +276,7 @@ export type SharedStyles = {
     medium: number;
     large: number;
   };
+  topBarHeight: number[];
   space: number[];
   borders: (string | number)[];
   typography: typeof typography;

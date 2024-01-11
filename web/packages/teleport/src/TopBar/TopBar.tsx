@@ -45,6 +45,53 @@ import logoDark from './logoDark.svg';
 
 const Assist = lazy(() => import('teleport/Assist'));
 
+const AccessManagementButton = ({
+  iconOnly = false,
+  to,
+  selected,
+  ...props
+}: {
+  iconOnly?: boolean;
+  to: string;
+  selected: boolean;
+}) => {
+  return (
+    <NavigationButton
+      selected={selected}
+      to={to}
+      title="Access Management"
+      {...props}
+    >
+      {iconOnly ? (
+        <SlidersVertical color={selected ? 'text.main' : 'text.muted'} />
+      ) : (
+        <>
+          <Text
+            fontSize={18}
+            fontWeight={500}
+            color={selected ? 'text.main' : 'text.muted'}
+          >
+            Access Management
+          </Text>
+          {!selected && (
+            <ChevronRight
+              css={`
+                align-self: center;
+                height: 100%;
+                @media screen and (max-width: ${p =>
+                    p.theme.breakpoints.medium}px) {
+                  display: none;
+                }
+              `}
+              color="text.muted"
+            />
+          )}
+        </>
+      )}
+    </NavigationButton>
+  );
+};
+
 export function TopBar({ CustomLogo }: TopBarProps) {
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
@@ -88,69 +135,52 @@ export function TopBar({ CustomLogo }: TopBarProps) {
       ) : (
         <>
           <TeleportLogo CustomLogo={CustomLogo} />
-          <NavigationButton
+          <AccessManagementButton
+            css={`
+              display: none;
+              @media screen and (min-width: ${p =>
+                  p.theme.breakpoints.medium}px) {
+                display: block;
+              }
+            `}
             selected={feature?.category === NavigationCategory.Management}
             to={getFirstRouteForCategory(
               features,
               NavigationCategory.Management
             )}
-            title="Access Management"
-          >
-            <>
-              <SlidersVertical
-                css={`
-                  display: none;
-                  @media screen and (max-width: ${p =>
-                      p.theme.breakpoints.medium}px) {
-                    display: inline-flex;
-                  }
-                `}
-                color="text.main"
-              />
-              <Text
-                css={`
-                  display: none;
-                  @media screen and (min-width: ${p =>
-                      p.theme.breakpoints.medium}px) {
-                    display: block;
-                  }
-                `}
-                fontSize={18}
-                fontWeight={500}
-                color="text.muted"
-              >
-                Access Management
-              </Text>
-              {feature?.category !== NavigationCategory.Management && (
-                <ChevronRight
-                  css={`
-                    align-self: center;
-                    height: 100%;
-                    @media screen and (max-width: ${p =>
-                        p.theme.breakpoints.medium}px) {
-                      display: none;
-                    }
-                  `}
-                  color="text.muted"
-                />
-              )}
-            </>
-          </NavigationButton>
+          />
         </>
       )}
 
       <Flex ml="auto" height="100%" alignItems="center">
+        <AccessManagementButton
+          css={`
+            @media screen and (min-width: ${p =>
+                p.theme.breakpoints.medium}px) {
+              display: none;
+            }
+          `}
+          iconOnly={true}
+          selected={feature?.category === NavigationCategory.Management}
+          to={getFirstRouteForCategory(features, NavigationCategory.Management)}
+        />
         {topBarLinks.map(({ topMenuItem, navigationItem }) => {
+          const selected = history.location.pathname.includes(
+            navigationItem.getLink(clusterId)
+          );
           return (
             <NavigationButton
               key={topMenuItem.title}
               to={topMenuItem.getLink(clusterId)}
-              selected={history.location.pathname.includes(
-                navigationItem.getLink(clusterId)
-              )}
+              selected={selected}
               title={topMenuItem.title}
+              css={`
+                &:hover {
+                  color: red;
+                }
+              `}
             >
-              {topMenuItem.icon}
+              <topMenuItem.icon color={selected ? 'text.main' : 'text.muted'} />
             </NavigationButton>
           );
         })}
@@ -173,19 +203,20 @@ export function TopBar({ CustomLogo }: TopBarProps) {
 }
 
 export const TopBarContainer = styled(TopNav)`
+  position: absolute;
+  width: 100%;
   background: ${p => p.theme.colors.levels.surface};
   overflow-y: initial;
-  overflow-x: none;
   flex-shrink: 0;
   z-index: 1000;
   border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[0]};
 
-  height: 48px;
+  height: ${p => p.theme.topBarHeight[0]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
-    height: 56px;
+    height: ${p => p.theme.topBarHeight[1]}px;
   }
   @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    height: 72px;
+    height: ${p => p.theme.topBarHeight[2]}px;
   }
 
   box-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.12),
@@ -229,6 +260,15 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
             alt="teleport logo"
             css={`
               padding-left: ${props => props.theme.space[4]}px;
+              height: 26px;
+              @media screen and (min-width: ${p =>
+                  p.theme.breakpoints.small}px) {
+                height: 28px;
+              }
+              @media screen and (min-width: ${p =>
+                  p.theme.breakpoints.large}px) {
+                height: 30px;
+              }
             `}
           />
         )}
@@ -242,6 +282,7 @@ const NavigationButton = ({
   selected,
   children,
   title,
+  ...props
 }: {
   to: string;
   selected: boolean;
@@ -264,8 +305,12 @@ const NavigationButton = ({
           text-decoration: none;
           color: rgba(0, 0, 0, 0.54);
           height: 100%;
-          padding-left: 24px;
-          padding-right: 24px;
+          padding-left: 12px;
+          padding-right: 12px;
+          @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+            padding-left: 24px;
+            padding-right: 24px;
+          }
           border-bottom: ${selected ? selectedBorder : 'none'};
           background-color: ${selected ? selectedBackground : 'inherit'};
           &:hover {
@@ -274,6 +319,7 @@ const NavigationButton = ({
               : theme.colors.buttons.secondary.default};
           }
         `}
+        {...props}
       >
         <Flex
           css={`

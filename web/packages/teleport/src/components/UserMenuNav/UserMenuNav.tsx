@@ -69,6 +69,7 @@ const Username = styled(Text)`
   font-size: 14px;
   font-weight: 400;
   padding-right: 40px;
+  margin-left: 16px;
   display: none;
   @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
     display: inline-flex;
@@ -85,7 +86,6 @@ const StyledAvatar = styled.div`
   font-weight: bold;
   justify-content: center;
   height: 32px;
-  margin-right: 16px;
   width: 100%;
   max-width: 32px;
   min-width: 32px;
@@ -146,7 +146,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
           to={item.topMenuItem.getLink(clusterId)}
           onClick={() => setOpen(false)}
         >
-          <DropdownItemIcon>{item.topMenuItem.icon}</DropdownItemIcon>
+          <DropdownItemIcon>{<item.topMenuItem.icon />}</DropdownItemIcon>
           {item.topMenuItem.title}
         </DropdownItemLink>
       </DropdownItem>

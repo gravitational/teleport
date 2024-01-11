@@ -83,7 +83,7 @@ export function Notifications() {
           data-testid="tb-note-button"
         >
           {items.length > 0 && <AttentionDot data-testid="tb-note-attention" />}
-          <NotificationIcon />
+          <NotificationIcon color={open ? 'text.main' : 'text.muted'} />
         </ButtonIconContainer>
 
         <Dropdown
@@ -142,7 +142,6 @@ function NotificationItem({
 const NotificationButtonContainer = styled.div`
   position: relative;
   height: 100%;
-  width: 72px;
 `;
 
 const AttentionDot = styled.div`
@@ -162,4 +161,5 @@ const NotificationItemButton = styled(DropdownItemButton)`
 
 const NotificationLink = styled(DropdownItemLink)`
   padding: 0;
+  z-index: 999;
 `;
