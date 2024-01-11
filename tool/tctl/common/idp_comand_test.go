@@ -53,31 +53,20 @@ func TestIdPSAMLCommand(t *testing.T) {
 		spFilepath := filepath.Join(t.TempDir(), "sp.yaml")
 		require.NoError(t, os.WriteFile(spFilepath, []byte(sp), 0644))
 
-		// no --users argument
-		err := runIdPSAMLCommand(t, fileConfig, []string{"saml", "test_attribute_mapping", "--sp", spFilepath})
-		require.ErrorContains(t, err, "--users must be set")
-
-		// non existent file should try to get user from cluster. Non-existent user error returns "user "name_of_user" not found" error.
-		err = runIdPSAMLCommand(t, fileConfig, []string{"saml", "test_attribute_mapping", "--users", "no file", "--sp", spFilepath})
-		require.ErrorContains(t, err, "not found")
+		// nonexistent file should try to get user from cluster. Since we provide user name "testuser" which does not exist in cluster,
+		// error should be 'user "testuser" not found.'
+		err := runIdPSAMLCommand(t, fileConfig, []string{"saml", "test_attribute_mapping", "--users", "testuser", "--sp", spFilepath})
+		require.ErrorContains(t, err, `user "testuser" not found`)
 
 		// empty user file
 		require.NoError(t, os.WriteFile(userFilepath, []byte(""), 0644))
 		err = runIdPSAMLCommand(t, fileConfig, []string{"saml", "test_attribute_mapping", "--users", userFilepath, "--sp", spFilepath})
-		require.ErrorContains(t, err, "no users found in file")
+		require.ErrorContains(t, err, "users not found in file")
 
 		// empty sp file
 		require.NoError(t, os.WriteFile(spFilepath, []byte(""), 0644))
 		err = runIdPSAMLCommand(t, fileConfig, []string{"saml", "test_attribute_mapping", "--users", userFilepath, "--sp", spFilepath})
-		require.ErrorContains(t, err, "empty service provider file")
-
-		// no --sp argument
-		err = runIdPSAMLCommand(t, fileConfig, []string{"saml", "test_attribute_mapping", "--users", userFilepath})
-		require.ErrorContains(t, err, "--sp must be set")
-
-		// no user and sp file.
-		err = runIdPSAMLCommand(t, fileConfig, []string{"saml", "test_attribute_mapping"})
-		require.ErrorContains(t, err, "no attributes to test")
+		require.ErrorContains(t, err, "service provider not found in file")
 	})
 }
 

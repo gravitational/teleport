@@ -26,10 +26,10 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/gravitational/teleport"
 	samlidpv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -103,8 +103,8 @@ Examples:
 	s.cmd = samlcmd
 
 	testAttrMap := samlcmd.Command("test_attribute_mapping", "Test expression evaluation of attribute mapping.")
-	testAttrMap.Flag("users", "username or name of a file containing user spec").Short('u').StringsVar(&s.testAttributeMapping.users)
-	testAttrMap.Flag("sp", "name of a file containing service provider spec").StringVar(&s.testAttributeMapping.serviceProvider)
+	testAttrMap.Flag("users", "username or name of a file containing user spec").Required().Short('u').StringsVar(&s.testAttributeMapping.users)
+	testAttrMap.Flag("sp", "name of a file containing service provider spec").Required().StringVar(&s.testAttributeMapping.serviceProvider)
 	testAttrMap.Flag("format", "output format, 'yaml' or 'json'").StringVar(&s.testAttributeMapping.outFormat)
 	testAttrMap.Alias(`
 Examples:
@@ -140,26 +140,17 @@ type testAttributeMapping struct {
 }
 
 func (t *testAttributeMapping) run(ctx context.Context, c auth.ClientI) error {
-	if len(t.serviceProvider) == 0 && len(t.users) == 0 {
-		return trace.BadParameter("no attributes to test, --users and --sp must be set")
-	}
-	if len(t.users) == 0 {
-		return trace.BadParameter("--users must be set. Either provide username or name of a file containing user spec")
-	}
-	if len(t.serviceProvider) == 0 {
-		return trace.BadParameter("--sp must be set. Provide name of a file containing service provider spec")
-	}
 	serviceProvider, err := parseSPFile(t.serviceProvider)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	users, err := getUserFromNameOrFile(ctx, t.users, c)
+	users, err := getUsersFromAPIOrFile(ctx, t.users, c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(users) == 0 {
-		return trace.BadParameter("no users found in file: %s", t.users)
+		return trace.BadParameter("users not found in file: %s", t.users)
 	}
 
 	resp, err := c.SAMLIdPClient().TestSAMLIdPAttributeMapping(ctx, &samlidpv1.TestSAMLIdPAttributeMappingRequest{
@@ -175,9 +166,13 @@ func (t *testAttributeMapping) run(ctx context.Context, c auth.ClientI) error {
 
 	switch t.outFormat {
 	case teleport.YAML:
-		utils.WriteYAML(os.Stdout, resp.MappedAttributes)
+		if err := utils.WriteYAML(os.Stdout, resp.MappedAttributes); err != nil {
+			return trace.Wrap(err)
+		}
 	case teleport.JSON:
-		utils.WriteJSON(os.Stdout, resp.MappedAttributes)
+		if err := utils.WriteJSON(os.Stdout, resp.MappedAttributes); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		for i, mappedAttribute := range resp.MappedAttributes {
 			table := asciitable.MakeTable([]string{"Attribute Name", "Attribute Value"})
@@ -214,15 +209,15 @@ func parseSPFile(fileName string) (types.SAMLIdPServiceProviderV1, error) {
 	decoder := kyaml.NewYAMLOrJSONDecoder(r, defaults.LookaheadBufSize)
 	if err := decoder.Decode(&u); err != nil {
 		if errors.Is(err, io.EOF) {
-			return u, trace.BadParameter("empty service provider file")
+			return u, trace.BadParameter("service provider not found in file: %s", fileName)
 		}
 		return u, trace.Wrap(err)
 	}
 	return u, nil
 }
 
-// getUserFromNameOrFile parses user from spec file. If file is not found, it fetches user from backend.
-func getUserFromNameOrFile(ctx context.Context, userfileOrNames []string, c auth.ClientI) ([]*types.UserV2, error) {
+// getUsersFromAPIOrFile parses user from spec file. If file is not found, it fetches user from backend.
+func getUsersFromAPIOrFile(ctx context.Context, userfileOrNames []string, c auth.ClientI) ([]*types.UserV2, error) {
 	ufromFileOrName := flattenSlice(userfileOrNames)
 	var users []*types.UserV2
 
