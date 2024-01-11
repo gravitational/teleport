@@ -252,14 +252,43 @@ Specific edge-cases to handle:
 
 #### Recording Heartbeat Data
 
-A new special endpoint will be added for submitting Heartbeat data.
+A new RPC will be added for submitting Heartbeat data.
 
 ```protobuf
+syntax = "proto3";
 
+package teleport.machineid.v1;
+
+service BotInstanceService {
+  // SubmitHeartbeat submits a heartbeat for a BotInstance.
+  rpc SubmitHeartbeat(SubmitHeartbeatRequest) returns (SubmitHeartbeatResponse);
+}
+
+// The request for SubmitHeartbeat.
+message SubmitHeartbeatRequest {
+  // The heartbeat data to submit.
+  BotInstanceStatusHeartbeat heartbeat = 1;
+}
+
+// The response for SubmitHeartbeat.
+message SubmitHeartbeatResponse {
+  // Empty
+}
 ```
 
+The endpoint will have a special authentication check. RBAC will not be used and
+instead the endpoint will check:
+
+- The presented client certificate is for the Bot linked to the instance.
+- The presented client certificate's public key matches the public key recorded
+  for the BotInstance.
+
 This endpoint will be called by `tbot` immediately after it has initially
-authenticated and then every hour after.
+authenticated. After a heartbeat has succesfully completed, another should be
+scheduled for an hour after. A small amount of jitter should be added to the
+heartbeat period to avoid a thundering herd of heartbeats.
+
+If the heartbeat fails, then `tbot` should retry on a exponential backoff.
 
 Pros:
 
@@ -281,6 +310,8 @@ Specific edge-cases to handle:
 - BotInstance does not exist but heartbeat is received
 
 ##### Alternative: Submit Heartbeat data on Join/Renew
+
+Alternatively, we could add a Heartbeat field to the join/renew RPCs.
 
 Pros:
 
