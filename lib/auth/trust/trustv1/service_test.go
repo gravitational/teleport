@@ -854,17 +854,42 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 	require.NoError(t, trust.UpsertCertAuthority(ctx, externalCA))
 
 	tests := []struct {
-		name    string
-		ca      *types.CertAuthorityV2
-		wantErr error
+		name        string
+		ca          *types.CertAuthorityV2
+		assertError require.ErrorAssertionFunc
 	}{
 		{
-			name:    "NOK rotate local ca",
-			ca:      localCA,
-			wantErr: trace.BadParameter("can not rotate local certificate authority"),
+			name: "NOK no ca",
+			ca:   nil,
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
 		}, {
-			name: "OK rotate external ca",
-			ca:   externalCA,
+			name: "NOK invalid ca",
+			ca:   &types.CertAuthorityV2{},
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		}, {
+			name: "NOK rotate local ca",
+			ca:   localCA,
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		}, {
+			name: "NOK nonexistent ca",
+			ca:   newCertAuthority(t, types.HostCA, "na").(*types.CertAuthorityV2),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		}, {
+			name:        "OK rotate external ca",
+			ca:          newCertAuthority(t, types.HostCA, "external").(*types.CertAuthorityV2),
+			assertError: require.NoError,
+		}, {
+			name:        "OK equivalent external ca",
+			ca:          externalCA,
+			assertError: require.NoError,
 		},
 	}
 
@@ -873,7 +898,7 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 			_, err := service.RotateExternalCertAuthority(ctx, &trustpb.RotateExternalCertAuthorityRequest{
 				CertAuthority: test.ca,
 			})
-			require.ErrorIs(t, err, test.wantErr)
+			test.assertError(t, err, "RotateExternalCertAuthority error mismatch")
 		})
 	}
 }

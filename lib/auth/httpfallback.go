@@ -115,10 +115,6 @@ func (c *Client) RotateCertAuthority(ctx context.Context, req types.RotateReques
 
 // TODO(Joerger): DELETE IN 16.0.0
 func (c *Client) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
-	if err := services.ValidateCertAuthority(ca); err != nil {
-		return trace.Wrap(err)
-	}
-
 	err := c.APIClient.RotateExternalCertAuthority(ctx, ca)
 	if trace.IsNotImplemented(err) {
 		// Fall back to HTTP implementation.
