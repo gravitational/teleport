@@ -4048,7 +4048,8 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
+						User:     "token-creator",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
 					JoinMethod: types.JoinMethodToken,
@@ -4076,7 +4077,8 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
+						User:     "token-creator",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
@@ -4088,7 +4090,8 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Code: events.TrustedClusterTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
+						User:     "token-creator",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 				},
 			},
@@ -4207,7 +4210,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
 					JoinMethod: types.JoinMethodToken,
@@ -4235,7 +4239,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
@@ -4247,7 +4252,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.TrustedClusterTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 				},
 			},
@@ -4275,7 +4281,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleNode},
 					JoinMethod: types.JoinMethodToken,
