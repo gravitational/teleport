@@ -14,4 +14,5 @@
  * limitations under the License.
  */
 
-export { Popup } from './Popup';
+export * from './discovery';
+export * from './types';

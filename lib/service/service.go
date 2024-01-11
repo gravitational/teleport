@@ -4039,11 +4039,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 				return ctx, trace.Wrap(err)
 			}),
-			PROXYSigner:     proxySigner,
-			OpenAIConfig:    cfg.Testing.OpenAIConfig,
-			NodeWatcher:     nodeWatcher,
-			AccessGraphAddr: accessGraphAddr,
-			TracerProvider:  process.TracingProvider,
+			PROXYSigner:               proxySigner,
+			OpenAIConfig:              cfg.Testing.OpenAIConfig,
+			NodeWatcher:               nodeWatcher,
+			AccessGraphAddr:           accessGraphAddr,
+			TracerProvider:            process.TracingProvider,
+			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {

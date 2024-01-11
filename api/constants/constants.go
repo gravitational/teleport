@@ -403,6 +403,12 @@ const (
 )
 
 const (
+	// MaxAssumeStartDuration latest duration into the future an access request's assume
+	// start time can be
+	MaxAssumeStartDuration = time.Hour * 24 * 7
+)
+
+const (
 	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
 	// call.
 	WebAPIConnUpgrade = "/webapi/connectionupgrade"

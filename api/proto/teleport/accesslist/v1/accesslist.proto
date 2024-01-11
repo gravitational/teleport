@@ -81,6 +81,9 @@ message AccessListSpec {
   //   `implicit`: Any user meeting the `ownership_requires` conditions will automatically
   //             be considered an owner of this list.
   string ownership = 10;
+
+  // owner_grants describes the access granted by owners to this access list.
+  AccessListGrants owner_grants = 11;
 }
 
 // AccessListOwner is an owner of an access list.

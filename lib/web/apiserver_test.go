@@ -100,6 +100,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
@@ -1134,6 +1135,71 @@ func TestClusterNodesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res2))
 	require.Len(t, res.Items, 2)
 	require.Equal(t, res, res2)
+}
+
+func TestUserGroupsGet(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+
+	type testResponse struct {
+		Items      []ui.UserGroup `json:"items"`
+		StartKey   string         `json:"startKey"`
+		TotalCount int            `json:"totalCount"`
+	}
+
+	// add a user group
+	ug, err := types.NewUserGroup(types.Metadata{
+		Name: "ug1", Description: "ug1-description",
+		Labels: map[string]string{"test-field": "test-value"},
+	},
+		types.UserGroupSpecV1{Applications: []string{"appnameonly"}})
+	require.NoError(t, err)
+	err = env.server.Auth().CreateUserGroup(ctx, ug)
+	require.NoError(t, err)
+
+	resource := &types.AppServerV3{
+		Metadata: types.Metadata{Name: "test-app-server"},
+		Kind:     types.KindApp,
+		Version:  types.V2,
+		Spec: types.AppServerSpecV3{
+			HostID: "hostid",
+			App: &types.AppV3{
+				Metadata: types.Metadata{
+					Name:        "appnameonly",
+					Description: "app-description",
+				},
+				Spec: types.AppSpecV3{
+					URI: "appname-uri",
+				},
+			},
+		},
+	}
+
+	// Register app
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, resource)
+	require.NoError(t, err)
+
+	// Make the call.
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "user-groups")
+	re, err := pack.clt.Get(ctx, endpoint, url.Values{"sort": []string{"name"}})
+	require.NoError(t, err)
+
+	// The correct response should include application names (not app server names)
+	var resp testResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, 1, resp.TotalCount)
+	require.ElementsMatch(t, resp.Items, []ui.UserGroup{{
+		Name:        "ug1",
+		Description: ug.GetMetadata().Description,
+		Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
+		Applications: []ui.ApplicationAndFriendlyName{
+			{Name: "appnameonly", FriendlyName: ""},
+		},
+	}})
 }
 
 func TestUnifiedResourcesGet(t *testing.T) {
@@ -4521,20 +4587,21 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
 
-	httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, r.URL.Path, "/v1/stable/cloud/version")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("v99.0.1"))
-	}))
-	defer httpTestServer.Close()
-	versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
 	require.NoError(t, err)
-	env.proxies[0].handler.handler.cfg.AutomaticUpgradesVersionURL = versionURL
+	// This version is too high and MUST NOT be used
+	testVersion := "v99.0.1"
+	channels := automaticupgrades.Channels{
+		automaticupgrades.DefaultCloudChannelName: {
+			StaticVersion: testVersion,
+		},
+	}
+	require.NoError(t, channels.CheckAndSetDefaults(authproto.Features{AutomaticUpgrades: true, Cloud: true}))
+	env.proxies[0].handler.handler.cfg.AutomaticUpgradesChannels = channels
 
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
 	expectedCfg.AutomaticUpgrades = true
-	expectedCfg.AutomaticUpgradesTargetVersion = "v99.0.1"
+	expectedCfg.AutomaticUpgradesTargetVersion = teleport.Version
 	expectedCfg.AssistEnabled = false
 
 	// request and verify enabled features are enabled.
@@ -9099,54 +9166,6 @@ func TestLogout(t *testing.T) {
 	_, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
 	require.True(t, trace.IsAccessDenied(err))
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
-}
-
-func TestGetIsDashboard(t *testing.T) {
-	tt := []struct {
-		name     string
-		features authproto.Features
-		expected bool
-	}{
-		{
-			name: "not cloud nor recovery codes is not dashboard",
-			features: authproto.Features{
-				Cloud:         false,
-				RecoveryCodes: false,
-			},
-			expected: false,
-		},
-		{
-			name: "not cloud, with recovery codes is dashboard",
-			features: authproto.Features{
-				Cloud:         false,
-				RecoveryCodes: true,
-			},
-			expected: true,
-		},
-		{
-			name: "cloud, with recovery codes is not dashboard",
-			features: authproto.Features{
-				Cloud:         true,
-				RecoveryCodes: true,
-			},
-			expected: false,
-		},
-		{
-			name: "cloud, without recovery codes is not dashboard",
-			features: authproto.Features{
-				Cloud:         true,
-				RecoveryCodes: false,
-			},
-			expected: false,
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			result := isDashboard(tc.features)
-			require.Equal(t, tc.expected, result)
-		})
-	}
 }
 
 // initGRPCServer creates a gRPC server serving on the provided listener.

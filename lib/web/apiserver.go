@@ -273,14 +273,13 @@ type Config struct {
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.NodeWatcher
 
-	// AutomaticUpgradesVersionURL is the URL which returns the target agent version.
-	// This URL must returns a valid version string.
-	// Eg, v13.4.3
-	// Optional: uses cloud/stable channel when omitted.
-	AutomaticUpgradesVersionURL string
-
 	// AccessGraphAddr is the address of the Access Graph service GRPC API
 	AccessGraphAddr utils.NetAddr
+
+	// AutomaticUpgradesChannels is a map of all version channels used by the
+	// proxy built-in version server to retrieve target versions. This is part
+	// of the automatic upgrades.
+	AutomaticUpgradesChannels automaticupgrades.Channels
 }
 
 // SetDefaults ensures proper default values are set if
@@ -358,6 +357,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	} else {
 		// Set up a limiter with "infinite limit", the "burst" parameter is ignored
 		h.assistantLimiter = rate.NewLimiter(rate.Inf, 0)
+	}
+
+	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
+		h.cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	}
+
+	if h.cfg.AutomaticUpgradesChannels != nil {
+		err := h.cfg.AutomaticUpgradesChannels.CheckAndSetDefaults(cfg.ClusterFeatures)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// for properly handling url-encoded parameter values.
@@ -812,11 +822,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.GET("/webapi/scripts/integrations/configure/listdatabases-iam.sh", h.WithLimiter(h.awsOIDCConfigureListDatabasesIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deploydatabaseservices", h.WithClusterAuth(h.awsOIDCDeployDatabaseServices))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 
 	// AWS OIDC Integration specific endpoints:
@@ -882,6 +894,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Returns logins included in the Connect My Computer role of the user.
 	// Returns an empty list of logins if the user does not have a Connect My Computer role assigned.
 	h.GET("/webapi/connectmycomputer/logins", h.WithAuth(h.connectMyComputerLoginsList))
+
+	// Implements the agent version server.
+	// Channel can contain "/", hence the use of a catch-all parameter
+	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1554,7 +1570,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
-		automaticUpgradesTargetVersion, err = automaticupgrades.Version(r.Context(), h.cfg.AutomaticUpgradesVersionURL)
+		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1567,7 +1583,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		TunnelPublicAddress:            tunnelPublicAddr,
 		RecoveryCodesEnabled:           clusterFeatures.GetRecoveryCodes(),
 		UI:                             h.getUIConfig(r.Context()),
-		IsDashboard:                    isDashboard(clusterFeatures),
+		IsDashboard:                    services.IsDashboard(clusterFeatures),
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
@@ -4330,17 +4346,6 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
 	// It also handles the Range negotiation
 	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
-}
-
-// isDashboard returns a bool indicating if the cluster is a
-// dashboard cluster.
-// Dashboard is a cluster running on cloud infrastructure that
-// isn't a Teleport Cloud cluster
-func isDashboard(features proto.Features) bool {
-	// TODO(matheus): for now, we assume dashboard based on
-	// the presence of recovery codes, which are never enabled
-	// in OSS or self-hosted Teleport.
-	return !features.GetCloud() && features.GetRecoveryCodes()
 }
 
 const robots = `User-agent: *

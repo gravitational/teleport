@@ -1569,6 +1569,25 @@ func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
 
+// GetClusterID returns the cluster ID.
+func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+	clusterName, err := a.GetClusterName(opts...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return clusterName.GetClusterID(), nil
+}
+
+// GetAnonymizationKey returns the anonymization key that identifies this client.
+// It falls back to the cluster ID if the anonymization key is not set in license file.
+func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+	if a.license == nil || len(a.license.AnonymizationKey) == 0 {
+		return a.GetClusterID(ctx, opts...)
+	}
+
+	return string(a.license.AnonymizationKey), nil
+}
+
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {
@@ -3588,6 +3607,10 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 		return nil, trace.BadParameter("access request %q has expired", accessRequestID)
 	}
 
+	if req.GetAssumeStartTime() != nil && req.GetAssumeStartTime().After(a.GetClock().Now()) {
+		return nil, trace.BadParameter("access request %q can not be assumed until %v", accessRequestID, req.GetAssumeStartTime())
+	}
+
 	return req, nil
 }
 
@@ -4419,10 +4442,11 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 			UpdatedBy: authz.ClientUsername(ctx),
 			Expires:   req.GetAccessExpiry(),
 		},
-		RequestID:    params.RequestID,
-		RequestState: params.State.String(),
-		Reason:       params.Reason,
-		Roles:        params.Roles,
+		RequestID:       params.RequestID,
+		RequestState:    params.State.String(),
+		Reason:          params.Reason,
+		Roles:           params.Roles,
+		AssumeStartTime: params.AssumeStartTime,
 	}
 
 	if delegator := apiutils.GetDelegator(ctx); delegator != "" {

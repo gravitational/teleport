@@ -119,7 +119,7 @@ func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster
 	// the resource.
 	// TODO(tigrato): DELETE on 15.0.0
 	if trace.IsAlreadyExists(err) {
-		return trace.Wrap(s.onKubeUpdate(ctx, kubeCluster))
+		return trace.Wrap(s.onKubeUpdate(ctx, kubeCluster, nil))
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -137,7 +137,7 @@ func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster
 	return nil
 }
 
-func (s *Server) onKubeUpdate(ctx context.Context, kubeCluster types.KubeCluster) error {
+func (s *Server) onKubeUpdate(ctx context.Context, kubeCluster, _ types.KubeCluster) error {
 	s.Log.Debugf("Updating kube_cluster %s.", kubeCluster.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateKubernetesCluster(ctx, kubeCluster))
 }

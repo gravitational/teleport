@@ -140,6 +140,8 @@ type CLIConf struct {
 	MyRequests bool
 	// Approve/Deny indicates the desired review kind.
 	Approve, Deny bool
+	// AssumeStartTimeRaw format is RFC3339
+	AssumeStartTimeRaw string
 	// ResourceKind is the resource kind to search for
 	ResourceKind string
 	// Username is the Teleport user's username (to login into proxies)
@@ -253,6 +255,9 @@ type CLIConf struct {
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
 	BindAddr string
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
+	CallbackAddr string
 
 	// AuthConnector is the name of the connector to use.
 	AuthConnector string
@@ -687,6 +692,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
@@ -1042,12 +1048,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the the access should be granted for").DurationVar(&cf.MaxDuration)
+	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqReview := req.Command("review", "Review an access request.")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
 	reqReview.Flag("approve", "Review proposes approval").BoolVar(&cf.Approve)
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
+	reqReview.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind",
@@ -1489,7 +1497,7 @@ func initializeTracing(cf *CLIConf) func() {
 	// flush ensures that the spans are all attempted to be written when tsh exits.
 	flush := func(provider *tracing.Provider) func() {
 		return func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(cf.Context), time.Second)
 			defer cancel()
 			err := provider.Shutdown(shutdownCtx)
 			if err != nil && !errors.Is(err, context.DeadlineExceeded) {
@@ -2522,6 +2530,19 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	if cf.MaxDuration > 0 {
 		// Time will be relative to the approval time instead of the request time.
 		req.SetMaxDuration(time.Now().UTC().Add(cf.MaxDuration))
+	}
+
+	if cf.AssumeStartTimeRaw != "" {
+		assumeStartTime, err := time.Parse(time.RFC3339, cf.AssumeStartTimeRaw)
+		if err != nil {
+			return nil, trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
+		}
+
+		if time.Until(assumeStartTime) > constants.MaxAssumeStartDuration {
+			return nil, trace.BadParameter("assume-start-time too far in future: latest date %q",
+				assumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
+		}
+		req.SetAssumeStartTime(assumeStartTime)
 	}
 
 	return req, nil
@@ -3801,6 +3822,10 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
 	}
 	c.BindAddr = cf.BindAddr
+	if cf.CallbackAddr != "" && cf.BindAddr == "" {
+		return nil, trace.BadParameter("--callback must be used with --bind-addr")
+	}
+	c.CallbackAddr = cf.CallbackAddr
 
 	// Don't execute remote command, used when port forwarding.
 	c.NoRemoteExec = cf.NoRemoteExec

@@ -264,11 +264,11 @@ func (r *SystemRole) Set(v string) error {
 	return nil
 }
 
-// String returns debug-friendly representation of this teleport role.
+// String returns the system role string representation. Returned values must
+// match (case-insensitive) the role mappings; otherwise, the validation check
+// will fail.
 func (r *SystemRole) String() string {
 	switch *r {
-	case RoleSignup:
-		return "Password"
 	case RoleTrustedCluster:
 		return "trusted_cluster"
 	default:

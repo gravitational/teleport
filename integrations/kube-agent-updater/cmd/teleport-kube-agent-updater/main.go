@@ -35,11 +35,14 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	kubeversionupdater "github.com/gravitational/teleport/integrations/kube-agent-updater"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
+	podmaintenance "github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
+	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 var (
@@ -97,12 +100,14 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         !disableLeaderElection,
 		LeaderElectionID:       agentName,
 		Cache: cache.Options{
-			Namespaces: []string{agentNamespace},
+			DefaultNamespaces: map[string]cache.Config{
+				agentNamespace: {},
+			},
 			SyncPeriod: &syncPeriod,
 			ByObject: map[kclient.Object]cache.ByObject{
 				&appsv1.Deployment{}:  {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
@@ -123,8 +128,8 @@ func main() {
 	versionGetter := version.NewBasicHTTPVersionGetter(versionServerURL)
 	maintenanceTriggers := maintenance.Triggers{
 		maintenance.NewBasicHTTPMaintenanceTrigger("critical update", versionServerURL),
-		maintenance.NewUnhealthyWorkloadTrigger("unhealthy pods", mgr.GetClient()),
-		maintenance.NewWindowTrigger("maintenance window", mgr.GetClient()),
+		podmaintenance.NewUnhealthyWorkloadTrigger("unhealthy pods", mgr.GetClient()),
+		podmaintenance.NewWindowTrigger("maintenance window", mgr.GetClient()),
 	}
 
 	var imageValidators img.Validators
@@ -183,6 +188,8 @@ func main() {
 		ctrl.Log.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
+
+	ctrl.Log.Info("starting the updater", "version", kubeversionupdater.Version, "url", versionServerURL.String())
 
 	if err := mgr.Start(ctx); err != nil {
 		ctrl.Log.Error(err, "failed to start manager, exiting")
