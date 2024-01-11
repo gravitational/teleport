@@ -99,3 +99,14 @@ func (c *Client) generateHostCertHTTP(
 	}
 	return []byte(cert), nil
 }
+
+// TODO(Joerger): DELETE IN 16.0.0
+func (c *Client) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
+	err := c.APIClient.RotateCertAuthority(ctx, req)
+	if trace.IsNotImplemented(err) {
+		// Fall back to HTTP implementation.
+		_, err := c.PostJSON(ctx, c.Endpoint("authorities", string(req.Type), "rotate"), req)
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(err)
+}

@@ -92,6 +92,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
+	// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
 	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
 
@@ -574,8 +575,9 @@ func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWri
 	return certs, nil
 }
 
+// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
 func (s *APIServer) rotateCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req RotateRequest
+	var req types.RotateRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
