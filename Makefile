@@ -1146,7 +1146,7 @@ version: $(VERSRC)
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
-# Pushes GITTAG to GitHub and builds the corresponding release.
+# Pushes GITTAG and api/GITTAG to GitHub.
 #
 # Before running `make update-tag`, do:
 #
