@@ -384,7 +384,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231016165738-49dd2c1f3d0b
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
-	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	k8s.io/component-helpers v0.26.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
 	k8s.io/metrics v0.26.3 // indirect
@@ -400,7 +399,7 @@ require github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 // Update also `ignore` in .github/dependabot.yml.
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
-	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.0
+	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.1
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
 	github.com/go-redis/redis/v9 => github.com/gravitational/redis/v9 v9.0.0-teleport.3
