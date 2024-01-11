@@ -1,5 +1,30 @@
 # Changelog
 
+## 14.3.1
+
+* Added support to select database roles from `tsh`. [#36528](https://github.com/gravitational/teleport/pull/36528)
+* Fixed goroutine leak per ssh session. [#36511](https://github.com/gravitational/teleport/pull/36511)
+* Fixed user invites preventing listing tokens. [#36492](https://github.com/gravitational/teleport/pull/36492)
+* Updated Go to v1.21.6. [#36478](https://github.com/gravitational/teleport/pull/36478)
+* Fixed `refresh_identity = true` preventing Access Plugins connecting to Teleport using TLS routing with a L7 LB. [#36469](https://github.com/gravitational/teleport/pull/36469)
+* Added --callback flag to tsh login. [#36468](https://github.com/gravitational/teleport/pull/36468)
+* Added auto-enrolling capabilities to RDS discover flow in the web UI. [#36434](https://github.com/gravitational/teleport/pull/36434)
+* Fixed an issue where bad cache state could cause spurious access denied errors during app access. [#36432](https://github.com/gravitational/teleport/pull/36432)
+* Resources named `.` and `..` are no longer allowed. Please review the resources in your Teleport instance and rename any resources with these names before upgrading. [#36404](https://github.com/gravitational/teleport/pull/36404)
+* Ensured that the login time is populated for app sessions. [#36373](https://github.com/gravitational/teleport/pull/36373)
+* Fixed incorrect report of user's IP address in Kubernetes Audit Logs. [#36346](https://github.com/gravitational/teleport/pull/36346)
+* Access lists and associated resources are now cached, which should significantly reduce the impact of access list calculation. [#36331](https://github.com/gravitational/teleport/pull/36331)
+* Added new certificate extensions and usage reporting flags to explicitly identify Machine ID bots and their cluster activity. [#36313](https://github.com/gravitational/teleport/pull/36313)
+* Fixed potential panic after backend watcher failure. [#36301](https://github.com/gravitational/teleport/pull/36301)
+* Prevent deleted users from using account reset links created prior to the user being deleted. [#36271](https://github.com/gravitational/teleport/pull/36271)
+* Make Unified Resources page in Web UI responsive. [#36265](https://github.com/gravitational/teleport/pull/36265)
+* Added "Database Roles" column to `tsh db ls -v`. [#36246](https://github.com/gravitational/teleport/pull/36246)
+* Safeguard against the disruption of cluster access caused by incorrect Kubernetes APIService configurations. [#36227](https://github.com/gravitational/teleport/pull/36227)
+* Support running a version server in the proxy for automatic agent upgrades. [#36220](https://github.com/gravitational/teleport/pull/36220)
+* The user login state generator now uses the cache, which should reduce the number of calls to the backend. [#36196](https://github.com/gravitational/teleport/pull/36196)
+* Added the `--insecure-no-resolve-image` flag to the `teleport-kube-agent-updater` to disable image tag resolution if it cannot pull the image. [#36097](https://github.com/gravitational/teleport/pull/36097)
+* Added future assume time to access requests. [#35726](https://github.com/gravitational/teleport/pull/35726)
+
 ## 14.3.0
 
 This release of Teleport contains multiple security fixes, improvements and bug fixes.
