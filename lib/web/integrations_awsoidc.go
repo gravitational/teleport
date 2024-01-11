@@ -685,10 +685,10 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	endpoints := make([]awsoidc.CreateEC2ICERequestEndpoint, 0, len(req.Endpoints))
+	endpoints := make([]awsoidc.EC2ICEEndpoint, 0, len(req.Endpoints))
 
 	for _, endpoint := range req.Endpoints {
-		endpoints = append(endpoints, awsoidc.CreateEC2ICERequestEndpoint{
+		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
 			SubnetID:         endpoint.SubnetID,
 			SecurityGroupIDs: endpoint.SecurityGroupIDs,
 		})
@@ -696,7 +696,7 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 
 	// Backwards compatible: get the endpoint from the deprecated fields.
 	if len(endpoints) == 0 {
-		endpoints = append(endpoints, awsoidc.CreateEC2ICERequestEndpoint{
+		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
 			SubnetID:         req.SubnetID,
 			SecurityGroupIDs: req.SecurityGroupIDs,
 		})
@@ -715,10 +715,10 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	respEndpoints := make([]ui.AWSOIDCDeployEC2ICEResponseEndpoint, 0, len(resp.CreatedEndpoints))
-	for name, subnet := range resp.CreatedEndpoints {
+	for _, endpoint := range resp.CreatedEndpoints {
 		respEndpoints = append(respEndpoints, ui.AWSOIDCDeployEC2ICEResponseEndpoint{
-			Name:     name,
-			SubnetID: subnet,
+			Name:     endpoint.Name,
+			SubnetID: endpoint.SubnetID,
 		})
 	}
 

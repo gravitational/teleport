@@ -32,8 +32,8 @@ import (
 )
 
 type mockCreateEC2ICEClient struct {
-	subnetToNameMap map[string]string
-	err             error
+	subnetToName map[string]string
+	err          error
 }
 
 func (m mockCreateEC2ICEClient) CreateInstanceConnectEndpoint(ctx context.Context, params *ec2.CreateInstanceConnectEndpointInput, optFns ...func(*ec2.Options)) (*ec2.CreateInstanceConnectEndpointOutput, error) {
@@ -41,7 +41,7 @@ func (m mockCreateEC2ICEClient) CreateInstanceConnectEndpoint(ctx context.Contex
 		return nil, m.err
 	}
 
-	name, ok := m.subnetToNameMap[aws.ToString(params.SubnetId)]
+	name, ok := m.subnetToName[aws.ToString(params.SubnetId)]
 	if !ok {
 		return nil, trace.NotFound("subnet not configured")
 	}
@@ -56,14 +56,14 @@ func (m mockCreateEC2ICEClient) CreateInstanceConnectEndpoint(ctx context.Contex
 func TestCreateEC2ICE_success(t *testing.T) {
 	ctx := context.Background()
 	mockCreateClient := &mockCreateEC2ICEClient{
-		subnetToNameMap: map[string]string{
+		subnetToName: map[string]string{
 			"subnet-id123": "eice-123",
 		},
 	}
 	resp, err := CreateEC2ICE(ctx, mockCreateClient, CreateEC2ICERequest{
 		Cluster:         "c1",
 		IntegrationName: "i1",
-		Endpoints: []CreateEC2ICERequestEndpoint{{
+		Endpoints: []EC2ICEEndpoint{{
 			SubnetID: "subnet-id123",
 		}},
 	})
@@ -74,7 +74,7 @@ func TestCreateEC2ICE_success(t *testing.T) {
 func TestCreateEC2ICE_success_multiple(t *testing.T) {
 	ctx := context.Background()
 	mockCreateClient := &mockCreateEC2ICEClient{
-		subnetToNameMap: map[string]string{
+		subnetToName: map[string]string{
 			"subnet-id123": "eice-123",
 			"subnet-id456": "eice-456",
 		},
@@ -82,7 +82,7 @@ func TestCreateEC2ICE_success_multiple(t *testing.T) {
 	resp, err := CreateEC2ICE(ctx, mockCreateClient, CreateEC2ICERequest{
 		Cluster:         "c1",
 		IntegrationName: "i1",
-		Endpoints: []CreateEC2ICERequestEndpoint{
+		Endpoints: []EC2ICEEndpoint{
 			{SubnetID: "subnet-id123"},
 			{SubnetID: "subnet-id456"},
 		},
@@ -90,8 +90,8 @@ func TestCreateEC2ICE_success_multiple(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "eice-123,eice-456", resp.Name)
 	require.Len(t, resp.CreatedEndpoints, 2)
-	require.Equal(t, "subnet-id123", resp.CreatedEndpoints["eice-123"])
-	require.Equal(t, "subnet-id456", resp.CreatedEndpoints["eice-456"])
+	require.Equal(t, EC2ICEEndpoint{SubnetID: "subnet-id123", Name: "eice-123"}, resp.CreatedEndpoints[0])
+	require.Equal(t, EC2ICEEndpoint{SubnetID: "subnet-id456", Name: "eice-456"}, resp.CreatedEndpoints[1])
 }
 
 func TestCreateEC2ICE_error_quota_reached(t *testing.T) {
@@ -102,7 +102,7 @@ func TestCreateEC2ICE_error_quota_reached(t *testing.T) {
 	_, err := CreateEC2ICE(ctx, mockCreateClient, CreateEC2ICERequest{
 		Cluster:         "c1",
 		IntegrationName: "i1",
-		Endpoints: []CreateEC2ICERequestEndpoint{{
+		Endpoints: []EC2ICEEndpoint{{
 			SubnetID: "subnet-id123",
 		}},
 	})
@@ -118,7 +118,7 @@ func TestCreateEC2ICERequest(t *testing.T) {
 		return CreateEC2ICERequest{
 			Cluster:         "teleport-cluster",
 			IntegrationName: "teleportdev",
-			Endpoints: []CreateEC2ICERequestEndpoint{{
+			Endpoints: []EC2ICEEndpoint{{
 				SubnetID:         "subnet-123",
 				SecurityGroupIDs: []string{"sg-1", "sg-2"},
 			}},
@@ -181,7 +181,7 @@ func TestCreateEC2ICERequest(t *testing.T) {
 			reqWithDefaults: CreateEC2ICERequest{
 				Cluster:         "teleport-cluster",
 				IntegrationName: "teleportdev",
-				Endpoints: []CreateEC2ICERequestEndpoint{{
+				Endpoints: []EC2ICEEndpoint{{
 					SubnetID:         "subnet-123",
 					SecurityGroupIDs: []string{"sg-1", "sg-2"},
 				}},
