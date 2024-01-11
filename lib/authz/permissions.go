@@ -1589,6 +1589,16 @@ func IsLocalOrRemoteUser(authContext Context) bool {
 	}
 }
 
+// IsLocalOrRemoteService checks if the identity is either a local or remote service.
+func IsLocalOrRemoteService(authContext Context) bool {
+	switch authContext.UnmappedIdentity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
+		return true
+	default:
+		return false
+	}
+}
+
 // IsCurrentUser checks if the identity is a local user matching the given username
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
