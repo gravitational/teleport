@@ -34,6 +34,8 @@ type DiscoveryConfig struct {
 	GCPMatchers []types.GCPMatcher
 	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
 	KubernetesMatchers []types.KubernetesMatcher
+	// AccessGraphSync is used to sync access graph with the discovery service.
+	AccessGraphSync []types.AccessGraphSync
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another

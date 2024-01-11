@@ -1638,6 +1638,30 @@ kubernetes matchers are present`)
 		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers, serviceMatcher)
 	}
 
+	seenAccounts := make(map[string]struct{})
+	for _, matcher := range fc.Discovery.AccessGraph {
+		var tMatcher types.AccessGraphSync
+		for _, awsMatcher := range matcher.AWS {
+			if awsMatcher.AccountID == "" {
+				return trace.BadParameter("missing account_id in access_graph")
+			}
+			if _, ok := seenAccounts[awsMatcher.AccountID]; ok {
+				return trace.BadParameter("duplicate account %q in access_graph", awsMatcher.AccountID)
+			}
+			regions := awsMatcher.Regions
+			if len(regions) == 0 {
+				regions = awsutils.GetKnownRegions()
+			}
+			seenAccounts[awsMatcher.AccountID] = struct{}{}
+			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
+				AccountID:     awsMatcher.AccountID,
+				Regions:       regions,
+				AssumeRoleARN: awsMatcher.AssumeRoleARN,
+				ExternalID:    awsMatcher.ExternalID,
+			})
+		}
+		cfg.Discovery.AccessGraphSync = append(cfg.Discovery.AccessGraphSync, tMatcher)
+	}
 	return nil
 }
 

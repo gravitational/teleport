@@ -48,6 +48,8 @@ type Spec struct {
 	GCP []types.GCPMatcher `json:"gcp,omitempty" yaml:"gcp"`
 	// Kube is a list of matchers for the supported resources in Kubernetes.
 	Kube []types.KubernetesMatcher `json:"kube,omitempty" yaml:"kube"`
+
+	AccessGraphSync *types.AccessGraphSync `json:"access_graph_sync,omitempty" yaml:"access_graph_sync"`
 }
 
 // NewDiscoveryConfig will create a new discovery config.

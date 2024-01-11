@@ -61,11 +61,12 @@ func FromProto(msg *discoveryconfigv1.DiscoveryConfig) (*discoveryconfig.Discove
 	discoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
 		headerv1.FromMetadataProto(msg.Header.Metadata),
 		discoveryconfig.Spec{
-			DiscoveryGroup: msg.Spec.DiscoveryGroup,
-			AWS:            awsMatchers,
-			Azure:          azureMatchers,
-			GCP:            gcpMatchers,
-			Kube:           kubeMatchers,
+			DiscoveryGroup:  msg.Spec.DiscoveryGroup,
+			AWS:             awsMatchers,
+			Azure:           azureMatchers,
+			GCP:             gcpMatchers,
+			Kube:            kubeMatchers,
+			AccessGraphSync: msg.Spec.AccessGraphSync,
 		},
 	)
 
