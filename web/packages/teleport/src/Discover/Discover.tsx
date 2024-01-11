@@ -21,16 +21,16 @@ import React from 'react';
 import { Prompt } from 'react-router-dom';
 import { Box } from 'design';
 
+import { Navigation } from 'teleport/components/Wizard/Navigation';
 import { FeatureBox } from 'teleport/components/Layout';
-
-import { Navigation } from 'teleport/Discover/Navigation/Navigation';
 import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
 import cfg from 'teleport/config';
+import { findViewAtIndex } from 'teleport/components/Wizard/flow';
 
 import { EViewConfigs } from './types';
-import { findViewAtIndex } from './flow';
 
 import { DiscoverProvider, useDiscover } from './useDiscover';
+import { DiscoverIcon } from './SelectResource/icons';
 
 function DiscoverContent() {
   const {
@@ -63,11 +63,16 @@ function DiscoverContent() {
     <>
       <FeatureBox>
         {hasSelectedResource && (
-          <Navigation
-            currentStep={currentStep}
-            views={indexedViews}
-            selectedResource={agentProps.resourceSpec}
-          />
+          <Box mt="10px" mb="45px">
+            <Navigation
+              currentStep={currentStep}
+              views={indexedViews}
+              startWithIcon={{
+                title: agentProps.resourceSpec.name,
+                component: <DiscoverIcon name={agentProps.resourceSpec.icon} />,
+              }}
+            />
+          </Box>
         )}
         <Box>{content}</Box>
       </FeatureBox>
