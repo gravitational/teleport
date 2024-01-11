@@ -47,6 +47,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -2452,6 +2453,16 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &serverInfoCollection{serverInfos: serverInfos}, nil
+	case types.KindAccessList:
+		if rc.ref.Name != "" {
+			resource, err := client.AccessListClient().GetAccessList(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &accessListCollection{accessLists: []*accesslist.AccessList{resource}}, nil
+		}
+		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
+		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
