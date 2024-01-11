@@ -37,7 +37,7 @@ type CreateEC2ICERequest struct {
 	IntegrationName string
 
 	// Endpoints is a list of EC2 Instance Connect Endpoints to be createed.
-	Endpoints []CreateEC2ICERequestEndpoint
+	Endpoints []EC2ICEEndpoint
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
 	// Defaults to:
@@ -47,9 +47,12 @@ type CreateEC2ICERequest struct {
 	ResourceCreationTags AWSTags
 }
 
-// CreateEC2ICERequestEndpoint contains the information for a single Endpoint to be created.
+// EC2ICEEndpoint contains the information for a single Endpoint to be created.
 
-type CreateEC2ICERequestEndpoint struct {
+type EC2ICEEndpoint struct {
+	// Name is the endpoint name.
+	Name string
+
 	// SubnetID is the Subnet where the Endpoint will be created.
 	SubnetID string
 
@@ -91,7 +94,7 @@ type CreateEC2ICEResponse struct {
 	Name string
 
 	// CreatedEndpoints contains the name of created endpoints and their Subnet.
-	CreatedEndpoints map[string]string
+	CreatedEndpoints []EC2ICEEndpoint
 }
 
 // CreateEC2ICE describes the required methods to List EC2 Instances using a 3rd Party API.
@@ -128,7 +131,7 @@ func CreateEC2ICE(ctx context.Context, clt CreateEC2ICEClient, req CreateEC2ICER
 		return nil, trace.Wrap(err)
 	}
 
-	createdEndpoints := make(map[string]string, len(req.Endpoints))
+	createdEndpoints := make([]EC2ICEEndpoint, 0, len(req.Endpoints))
 	endpointNames := make([]string, 0, len(req.Endpoints))
 
 	for _, endpoint := range req.Endpoints {
@@ -146,13 +149,19 @@ func CreateEC2ICE(ctx context.Context, clt CreateEC2ICEClient, req CreateEC2ICER
 			return nil, trace.Wrap(err)
 		}
 
+		// Sentinel value that indicates that the API returned a nil ec2ICEndpoint.InstanceConnectEndpoint.
+		// Very unlikely to happen.
 		endpointName := "unknown"
 		if ec2ICEndpoint.InstanceConnectEndpoint != nil {
 			endpointName = aws.ToString(ec2ICEndpoint.InstanceConnectEndpoint.InstanceConnectEndpointId)
 		}
 		endpointNames = append(endpointNames, endpointName)
 
-		createdEndpoints[endpointName] = endpoint.SubnetID
+		createdEndpoints = append(createdEndpoints, EC2ICEEndpoint{
+			Name:             endpointName,
+			SubnetID:         endpoint.SubnetID,
+			SecurityGroupIDs: endpoint.SecurityGroupIDs,
+		})
 	}
 
 	return &CreateEC2ICEResponse{
