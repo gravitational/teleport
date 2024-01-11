@@ -109,6 +109,10 @@ However:
 - Is a fingerprint a user understandable identifier?
 - Key rotation resets the identity of a Bot instance.
 
+To mitigate the risk of pre-image attacks, SHA256 will be used to determine the
+fingerprint of the public key. In addition, the full public key should be
+recorded and verified against when authenticating a Bot instance action.
+
 ##### Alternative: UUID Certificate Attribute
 
 On the initial join of a Bot instance, we could generate a UUID to identify that 
@@ -188,6 +192,7 @@ message BotInstanceStatusHeartbeat {
   bool is_startup = 2;
   string version = 3;
   string hostname = 4;
+  google.protobuf.Duration uptime = 5;
   // In future iterations, additional information can be submitted here.
 }
 
@@ -204,19 +209,36 @@ message BotInstanceStatusAuthentication {
 }
 
 message BotInstanceStatus {
-  string bot_name = 1;
+  // The public key of the Bot instance.
+  bytes public_key = 1;
+  // The name of the Bot that this instance is associated with.
+  string bot_name = 2;
   // Last X records kept, with the second oldest being removed once the limit
   // is reached. This avoids the indefinite growth of the resource but also
   // ensures the initial record is retained.
-  repeated BotInstanceStatusAuthentication authentications = 2;
+  repeated BotInstanceStatusAuthentication authentications = 3;
   // Last X records kept, with the second oldest being removed once the limit
   // is reached. This avoids the indefinite growth of the resource but also
   // ensures the initial record is retained.
-  repeated BotInstanceStatusHeartbeat heartbeats = 3;
+  repeated BotInstanceStatusHeartbeat heartbeats = 4;
 }
 ```
 
+The name used for a BotInstance will be a concatenation of the Bot name and the
+SHA256 fingerprint of the instance's public key
+e.g `my-robot/2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae`.
+
+When storing the BotInstance in the backend, the key will be:
+`bot_instances/{bot_name}/{fingerprint}`.
+
 #### Recording Authentication Data
+
+Upon each join and renewal, the BotInstance record will be updated with an
+additional entry in the `status.authentications` field. If there is X entries,
+then the second-oldest entry will be removed. This prevents growth without
+bounds but also ensures that the original record is retained.
+
+If a BotInstance does not exist, then one will be created.
 
 Specific edge-cases to handle:
 
@@ -229,6 +251,15 @@ Specific edge-cases to handle:
   - Consider case where linked Bot changes
 
 #### Recording Heartbeat Data
+
+A new special endpoint will be added for submitting Heartbeat data.
+
+```protobuf
+
+```
+
+This endpoint will be called by `tbot` immediately after it has initially
+authenticated and then every hour after.
 
 Pros:
 
