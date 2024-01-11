@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import Flex from 'design/Flex';
 import React from 'react';
 import styled from 'styled-components';
 
@@ -23,9 +24,14 @@ export type Props = {
   isDone?: boolean;
   isActive?: boolean;
   stepNumber?: number;
+  Icon?: JSX.Element;
 };
 
-export function Bullet({ isDone, isActive, stepNumber }: Props) {
+export function Bullet({ isDone, isActive, stepNumber, Icon }: Props) {
+  if (Icon) {
+    return <Flex mr={2}>{Icon}</Flex>;
+  }
+
   if (isActive) {
     return <ActiveBullet data-testid="bullet-active" />;
   }

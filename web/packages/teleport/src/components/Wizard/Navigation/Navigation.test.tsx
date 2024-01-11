@@ -19,12 +19,12 @@
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
 
-import { StepNavigation } from './StepNavigation';
+import { Navigation } from './Navigation';
 
 const steps = [{ title: 'first' }, { title: 'second' }, { title: 'third' }];
 
 test('step 1/3', async () => {
-  render(<StepNavigation steps={steps} currentStep={0} />);
+  render(<Navigation views={steps} currentStep={0} />);
 
   const firstBullet = screen.getByTestId('bullet-active');
   expect(firstBullet).toHaveTextContent('');
@@ -43,7 +43,7 @@ test('step 1/3', async () => {
 });
 
 test('step 2/3', async () => {
-  render(<StepNavigation steps={steps} currentStep={1} />);
+  render(<Navigation views={steps} currentStep={1} />);
 
   const firstBullet = screen.getByTestId('bullet-checked');
   expect(firstBullet).toHaveTextContent('');
@@ -59,7 +59,7 @@ test('step 2/3', async () => {
 });
 
 test('step 3/3', async () => {
-  render(<StepNavigation steps={steps} currentStep={2} />);
+  render(<Navigation views={steps} currentStep={2} />);
 
   const checkedBullets = screen.getAllByTestId('bullet-checked');
   expect(checkedBullets).toHaveLength(2);
