@@ -1,5 +1,22 @@
 # Changelog
 
+## 13.4.15
+
+* Fixed goroutine leak per ssh session. [#36512](https://github.com/gravitational/teleport/pull/36512)
+* Access lists now support granting roles and traits to owners. [#36481](https://github.com/gravitational/teleport/pull/36481)
+* Updated Go to 1.20.13. [#36479](https://github.com/gravitational/teleport/pull/36479)
+* Fixes `refresh_identity = true` preventing Access Plugins connecting to Teleport using TLS routing with a L7 LB. [#36470](https://github.com/gravitational/teleport/pull/36470)
+* Fixed an issue where bad cache state could cause spurious access denied errors during app access. [#36431](https://github.com/gravitational/teleport/pull/36431)
+* Resources named `.` and `..` are no longer allowed. Please review the resources in your Teleport instance and rename any resources with these names before upgrading. [#36403](https://github.com/gravitational/teleport/pull/36403)
+* Ensured that the login time is populated for app sessions. [#36374](https://github.com/gravitational/teleport/pull/36374)
+* Added new certificate extensions and usage reporting flags to explicitly identify Machine ID bots and their cluster activity. [#36366](https://github.com/gravitational/teleport/pull/36366)
+* Fixed incorrect report of user's IP address in Kubernetes Audit Logs. [#36345](https://github.com/gravitational/teleport/pull/36345)
+* Access lists and associated resources are now cached, which should significantly reduce the impact of access list calculation. [#36334](https://github.com/gravitational/teleport/pull/36334)
+* Support running a version server in the proxy for automatic agent upgrades. [#36315](https://github.com/gravitational/teleport/pull/36315)
+* Prevent deleted users from using account reset links created prior to the user being deleted. [#36275](https://github.com/gravitational/teleport/pull/36275)
+* The user login state generator now uses the cache, which should reduce the number of calls to the backend. [#36195](https://github.com/gravitational/teleport/pull/36195)
+* Added the `--insecure-no-resolve-image` flag to the `teleport-kube-agent-updater` to disable image tag resolution if it cannot pull the image. [#36098](https://github.com/gravitational/teleport/pull/36098)
+
 ## 13.4.14
 
 This release of Teleport contains multiple security fixes, improvements and bug fixes.
