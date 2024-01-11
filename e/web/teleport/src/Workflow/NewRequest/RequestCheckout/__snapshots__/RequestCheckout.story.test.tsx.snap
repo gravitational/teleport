@@ -582,7 +582,7 @@ exports[`failed state 1`] = `
 }
 
 .c14 .react-select__selected .icon-circlecheck {
-  color: #00BFA5;
+  color: #00BFA6;
 }
 
 .c14 .react-select__selected .icon-cross {
@@ -1921,7 +1921,7 @@ exports[`loaded state 1`] = `
 }
 
 .c13 .react-select__selected .icon-circlecheck {
-  color: #00BFA5;
+  color: #00BFA6;
 }
 
 .c13 .react-select__selected .icon-cross {

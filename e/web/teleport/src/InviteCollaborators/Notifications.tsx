@@ -82,7 +82,7 @@ export function Notifications({
 
     switch (item.severity) {
       case 'info':
-        background = theme.colors.success;
+        background = theme.colors.success.main;
         color = theme.colors.levels.sunken;
         break;
       case 'warn':

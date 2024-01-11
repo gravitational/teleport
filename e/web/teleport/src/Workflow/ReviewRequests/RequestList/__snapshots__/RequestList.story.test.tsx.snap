@@ -252,9 +252,14 @@ exports[`loaded state 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #00BFA5;
   margin-left: -3px;
   margin-right: 4px;
+}
+
+.c26 color {
+  main: #00BFA6;
+  hover: #33CCB8;
+  active: #66D9CA;
 }
 
 .c21 {
@@ -327,7 +332,7 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   margin-right: 8px;
   padding: 0px;
-  background: #00BFA5;
+  background: #00BFA6;
   color: #000000;
   width: 10px;
   font-size: 10px;

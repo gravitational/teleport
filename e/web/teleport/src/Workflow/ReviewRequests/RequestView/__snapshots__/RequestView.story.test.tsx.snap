@@ -45,8 +45,13 @@ exports[`loaded approved role based request state 1`] = `
   margin-left: 16px;
   margin-right: 8px;
   padding: 3px;
-  background-color: #00BFA5;
   border-radius: 50%;
+}
+
+.c21 backgroundColor {
+  main: #00BFA6;
+  hover: #33CCB8;
+  active: #66D9CA;
 }
 
 .c23 {
@@ -312,7 +317,7 @@ exports[`loaded approved role based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background: #00BFA5;
+  background: #00BFA6;
   color: #000000;
   font-size: 10px;
 }
@@ -330,7 +335,7 @@ exports[`loaded approved role based request state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   padding: 0px;
-  background: #00BFA5;
+  background: #00BFA6;
   color: #000000;
   width: 10px;
   font-size: 10px;

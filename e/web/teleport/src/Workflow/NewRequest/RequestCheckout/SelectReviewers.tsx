@@ -322,7 +322,7 @@ const SelectWrapper = styled(Box)`
 
   .react-select__selected {
     .icon-circlecheck {
-      color: ${props => props.theme.colors.success};
+      color: ${props => props.theme.colors.success.main};
     }
 
     .icon-cross {

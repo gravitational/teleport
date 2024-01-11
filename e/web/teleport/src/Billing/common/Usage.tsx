@@ -22,7 +22,7 @@ export function Usage({ usage }: { usage: CycleUsage }) {
     }
 
     // the default behavior is for free tier products within their free tier limits
-    return theme.colors.success;
+    return theme.colors.success.main;
   };
 
   return (

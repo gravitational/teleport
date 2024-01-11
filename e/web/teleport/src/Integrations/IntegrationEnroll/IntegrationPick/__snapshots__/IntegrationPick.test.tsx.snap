@@ -34,9 +34,14 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
 
 .c19 {
   box-sizing: border-box;
-  background-color: #00BFA5;
   border-top-right-radius: 4px;
   border-bottom-left-radius: 4px;
+}
+
+.c19 backgroundColor {
+  main: #00BFA6;
+  hover: #33CCB8;
+  active: #66D9CA;
 }
 
 .c6 {
@@ -1113,9 +1118,14 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
 
 .c22 {
   box-sizing: border-box;
-  background-color: #00BFA5;
   border-top-right-radius: 4px;
   border-bottom-left-radius: 4px;
+}
+
+.c22 backgroundColor {
+  main: #00BFA6;
+  hover: #33CCB8;
+  active: #66D9CA;
 }
 
 .c6 {
@@ -2210,9 +2220,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
 
 .c19 {
   box-sizing: border-box;
-  background-color: #00BFA5;
   border-top-right-radius: 4px;
   border-bottom-left-radius: 4px;
+}
+
+.c19 backgroundColor {
+  main: #00BFA6;
+  hover: #33CCB8;
+  active: #66D9CA;
 }
 
 .c24 {
