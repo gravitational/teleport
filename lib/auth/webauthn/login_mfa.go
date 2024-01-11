@@ -22,8 +22,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -108,15 +106,14 @@ func (f *LoginFlow) Begin(ctx context.Context, user string, scope wanpb.Challeng
 // It returns the MFADevice used to solve the challenge. If login is successful,
 // Finish has the side effect of updating the counter and last used timestamp of
 // the returned device.
-func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, scope wanpb.ChallengeScope) (*types.MFADevice, error) {
+func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, scope wanpb.ChallengeScope) (*WebauthnSessionData, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
 		Webauthn:    f.Webauthn,
 		identity:    mfaIdentity{f.Identity},
 		sessionData: (*userSessionStorage)(f),
 	}
-	dev, _, err := lf.finish(ctx, user, scope, resp)
-	return dev, trace.Wrap(err)
+	return lf.finish(ctx, user, scope, resp)
 }
 
 type mfaIdentity struct {

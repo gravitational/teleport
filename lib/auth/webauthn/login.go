@@ -193,46 +193,52 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 	return wla.UserID, nil
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.ChallengeScope, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, string, error) {
+type WebauthnSessionData struct {
+	Device   *types.MFADevice
+	User     string
+	Reusable bool
+}
+
+func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.ChallengeScope, resp *wantypes.CredentialAssertionResponse) (*WebauthnSessionData, error) {
 	isPasswordless := scope == wanpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	switch {
 	case user == "" && !isPasswordless:
-		return nil, "", trace.BadParameter("user required")
+		return nil, trace.BadParameter("user required")
 	case resp == nil:
 		// resp != nil is good enough to proceed, we leave remaining validations to
 		// duo-labs/webauthn.
-		return nil, "", trace.BadParameter("credential assertion response required")
+		return nil, trace.BadParameter("credential assertion response required")
 	}
 
 	parsedResp, err := parseCredentialResponse(resp)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	origin := parsedResp.Response.CollectedClientData.Origin
 	if err := validateOrigin(origin, f.Webauthn.RPID); err != nil {
 		log.WithError(err).Debugf("WebAuthn: origin validation failed")
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	var webID []byte
 	if isPasswordless {
 		webID = parsedResp.Response.UserHandle
 		if len(webID) == 0 {
-			return nil, "", trace.BadParameter("webauthn user handle required for passwordless")
+			return nil, trace.BadParameter("webauthn user handle required for passwordless")
 		}
 
 		// Fetch user from WebAuthn UserHandle (aka User ID).
 		teleportUser, err := f.identity.GetTeleportUserByWebauthnID(ctx, webID)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		user = teleportUser
 	} else {
 		webID, err = f.getWebID(ctx, user)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -240,11 +246,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.Challen
 	// registered device.
 	devices, err := f.identity.GetMFADevices(ctx, user, false /* withSecrets */)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	dev, ok := findDeviceByID(devices, parsedResp.RawID)
 	if !ok {
-		return nil, "", trace.BadParameter(
+		return nil, trace.BadParameter(
 			"unknown device credential: %q", base64.RawURLEncoding.EncodeToString(parsedResp.RawID))
 	}
 
@@ -255,7 +261,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.Challen
 	rpID := f.Webauthn.RPID
 	switch {
 	case dev.GetU2F() != nil && f.U2F == nil:
-		return nil, "", trace.BadParameter("U2F device attempted login, but U2F configuration not present")
+		return nil, trace.BadParameter("U2F device attempted login, but U2F configuration not present")
 	case dev.GetU2F() != nil:
 		rpID = f.U2F.AppID
 	}
@@ -266,7 +272,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.Challen
 	challenge := parsedResp.Response.CollectedClientData.Challenge
 	sessionDataPB, err := f.sessionData.Get(ctx, user, challenge)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	sessionData := sessionFromPB(sessionDataPB)
 
@@ -275,7 +281,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.Challen
 		// old clients do not yet provide a scope, so we only enforce scope opportunistically.
 		// TODO(Joerger): DELETE IN v16.0.0
 		if sessionDataPB.GetScope() != wanpb.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
-			return nil, "", trace.AccessDenied("required scope %q is not satisfied by the given webauthn credentials with scope %q", scope, sessionDataPB.GetScope())
+			return nil, trace.AccessDenied("required scope %q is not satisfied by the given webauthn credentials with scope %q", scope, sessionDataPB.GetScope())
 		}
 	}
 
@@ -299,7 +305,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.Challen
 		requireUserVerification: isPasswordless,
 	})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	var credential *wan.Credential
@@ -310,7 +316,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.Challen
 		credential, err = web.ValidateLogin(u, *sessionData, parsedResp)
 	}
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if credential.Authenticator.CloneWarning {
 		log.Warnf(
@@ -319,7 +325,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.Challen
 
 	// Update last used timestamp and device counter.
 	if err := setCounterAndTimestamps(dev, credential); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// Retroactively write the credential RPID, now that it cleared authn.
 	if webDev := dev.GetWebauthn(); webDev != nil && webDev.CredentialRpId == "" {
@@ -328,7 +334,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.Challen
 	}
 
 	if err := f.identity.UpsertMFADevice(ctx, user, dev); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// The user just solved the challenge, so let's make sure it won't be used
@@ -339,7 +345,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, scope wanpb.Challen
 		}
 	}
 
-	return dev, user, nil
+	return &WebauthnSessionData{
+		Device:   dev,
+		User:     user,
+		Reusable: sessionDataPB.AllowReuse,
+	}, nil
 }
 
 func parseCredentialResponse(resp *wantypes.CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {

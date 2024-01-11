@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -379,8 +380,8 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateU
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			mfaDev, _, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
-			return mfaDev, trace.Wrap(err)
+			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
+			return mfaData.Device, trace.Wrap(err)
 		}
 		authErr = authenticateWebauthnError
 	case req.OTP != nil:
@@ -472,7 +473,7 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 			Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 		},
 	}
-	dev, user, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
+	mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "" /* user */, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN)
 	if err != nil {
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
@@ -481,12 +482,12 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	// A distinction between passwordless and "plain" MFA is that we can't
 	// acquire the user lock beforehand (or at all on failures!)
 	// We do grab it here so successful logins go through the regular process.
-	if err := a.WithUserLock(ctx, user, func() error { return nil }); err != nil {
-		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", user, err)
-		return nil, user, trace.Wrap(authenticateWebauthnError)
+	if err := a.WithUserLock(ctx, mfaData.User, func() error { return nil }); err != nil {
+		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", mfaData.User, err)
+		return nil, mfaData.User, trace.Wrap(authenticateWebauthnError)
 	}
 
-	return dev, user, nil
+	return mfaData.Device, mfaData.User, nil
 }
 
 func (a *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (mfa *types.MFADevice, err error) {

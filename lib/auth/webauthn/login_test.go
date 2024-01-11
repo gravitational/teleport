@@ -148,15 +148,15 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 
 			// 2nd and last step of the login ceremony.
 			beforeLastUsed := time.Now().Add(-1 * time.Second)
-			loginDevice, err := webLogin.Finish(ctx, user, assertionResp, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
+			webauthnData, err := webLogin.Finish(ctx, user, assertionResp, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
 			require.NoError(t, err)
 			// Last used time and counter are updated.
-			require.True(t, beforeLastUsed.Before(loginDevice.LastUsed))
-			require.Equal(t, wantCounter, getSignatureCounter(loginDevice))
+			require.True(t, beforeLastUsed.Before(webauthnData.Device.LastUsed))
+			require.Equal(t, wantCounter, getSignatureCounter(webauthnData.Device))
 			// Did we update the device in storage?
 			require.NotEmpty(t, identity.UpdatedDevices)
 			got := identity.UpdatedDevices[len(identity.UpdatedDevices)-1]
-			if diff := cmp.Diff(loginDevice, got); diff != "" {
+			if diff := cmp.Diff(webauthnData.Device, got); diff != "" {
 				t.Errorf("Updated device mismatch (-want +got):\n%s", diff)
 			}
 			// Did we delete the challenge?
@@ -439,9 +439,9 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 			assertionResp.AssertionResponse.UserHandle = wla.UserID
 
 			// 2nd and last step of the login ceremony.
-			mfaDevice, user, err := webLogin.Finish(ctx, assertionResp)
+			webauthnData, err := webLogin.Finish(ctx, assertionResp)
 			require.NoError(t, err)
-			require.NotNil(t, mfaDevice)
+			require.NotNil(t, webauthnData.Device)
 			require.Equal(t, test.user, user)
 		})
 	}
@@ -501,7 +501,7 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, _, err := webLogin.Finish(ctx, test.createResp())
+			_, err := webLogin.Finish(ctx, test.createResp())
 			require.True(t, test.assertErrType(err), "assertErrType failed, err = %v", err)
 			require.Contains(t, err.Error(), test.wantErrMsg)
 		})
@@ -584,9 +584,9 @@ func TestCredentialRPID(t *testing.T) {
 		car, err := dev1Key.SignAssertion(origin, assertion)
 		require.NoError(t, err, "SignAssertion failed")
 
-		mfaDev, err := webLogin.Finish(ctx, user, car, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
+		webauthnData, err := webLogin.Finish(ctx, user, car, wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
 		require.NoError(t, err, "Finish failed")
-		assert.Equal(t, rpID, mfaDev.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
+		assert.Equal(t, rpID, webauthnData.Device.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
 	})
 
 	t.Run("login doesn't issue challenges for the wrong RPIDs", func(t *testing.T) {
@@ -622,6 +622,126 @@ func TestCredentialRPID(t *testing.T) {
 			assertion.Response.AllowedCredentials[0].CredentialID,
 			"Expected key handle for device `other1`")
 	})
+}
+
+func TestLoginScopeAndReuse(t *testing.T) {
+	// webUser gets a newly registered device and a webID.
+	const webUser = "llama"
+	webIdentity := newFakeIdentity(webUser)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+
+	const webOrigin = "https://example.com"
+	ctx := context.Background()
+
+	// Register a Webauthn device.
+	// Last registration step creates the user webID and adds the new device to
+	// identity.
+	webKey, err := mocku2f.Create()
+	require.NoError(t, err)
+	webKey.PreferRPID = true // Webauthn-registered device
+	webRegistration := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+	cc, err := webRegistration.Begin(ctx, webUser, false /* passwordless */)
+	require.NoError(t, err)
+	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
+	require.NoError(t, err)
+	_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             webUser,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name            string
+		beginScope      wanpb.ChallengeScope
+		beginAllowReuse bool
+		beginErr        bool
+		finishScope     wanpb.ChallengeScope
+		finishReusable  bool
+		finishErr       bool
+	}{
+		{
+			name:        "NOK mismatched scope",
+			beginScope:  wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			finishScope: wanpb.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+			finishErr:   true,
+		}, {
+			name:        "OK matching scope",
+			beginScope:  wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			finishScope: wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+		}, {
+			// old clients do not yet provide a scope, so we only enforce scope
+			// opportunistically during login finish.
+			// TODO(Joerger): DELETE IN v16.0.0
+			name:        "OK scope not specified",
+			beginScope:  wanpb.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+			finishScope: wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+		}, {
+			name:            "NOK reuse not allowed for scope",
+			beginScope:      wanpb.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			beginAllowReuse: true,
+			beginErr:        true,
+		}, {
+			name:            "NOK reuse requested but not allowed",
+			beginScope:      wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			beginAllowReuse: true,
+			finishScope:     wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			finishReusable:  false,
+			finishErr:       true,
+		}, {
+			name:            "OK reuse not requested but allowed",
+			beginScope:      wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			beginAllowReuse: false,
+			finishScope:     wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			finishReusable:  true,
+		}, {
+			name:            "OK reuse requested allowed",
+			beginScope:      wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			beginAllowReuse: true,
+			finishScope:     wanpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			finishReusable:  true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			identity := webIdentity
+			user := webUser
+
+			webLogin := &wanlib.LoginFlow{
+				Webauthn: webConfig,
+				Identity: webIdentity,
+			}
+
+			assertion, err := webLogin.Begin(ctx, user, test.beginScope, test.beginAllowReuse)
+			if test.beginErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			assertionResp, err := webKey.SignAssertion(webOrigin, assertion)
+			require.NoError(t, err)
+
+			webauthnData, err := webLogin.Finish(ctx, user, assertionResp, test.finishScope)
+			if test.finishErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, test.finishReusable, webauthnData.Reusable)
+
+			// Session data should only be deleted if reuse was not requested on begin.
+			if test.beginAllowReuse {
+				require.NotEmpty(t, identity.SessionData)
+			} else {
+				require.Empty(t, identity.SessionData)
+			}
+		})
+	}
 }
 
 type fakeIdentity struct {

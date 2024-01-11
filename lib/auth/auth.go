@@ -3217,9 +3217,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 			return trace.Wrap(err)
 		}
 
-		if _, _, err := a.ValidateMFAAuthResponse(
-			ctx, req.ExistingMFAResponse, user, false, /* passwordless */
-		); err != nil {
+		if _, err := a.ValidateMFAAuthResponse(ctx, req.ExistingMFAResponse, user, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -5887,8 +5885,7 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	}
 
 	if err := a.WithUserLock(ctx, username, func() error {
-		_, _, err := a.ValidateMFAAuthResponse(
-			ctx, resp, username, false /* passwordless */)
+		_, err := a.ValidateMFAAuthResponse(ctx, resp, username, webauthnpb.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES)
 		return err
 	}); err != nil {
 		return false, trace.Wrap(err)
@@ -5897,13 +5894,16 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	return true, nil
 }
 
-// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-// Returns the device used to solve the challenge (if applicable) and the
-// username.
-func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+// ValidateMFAAuthResponse validates an MFA or passwordless challenge. If the challenge
+// response if of type webauthn, this also validates that the challenge response scope
+// and reusability is satisfied by the stored webauthn credentials. Returns the device
+// used to solve the challenge (if applicable) and the username.
+func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredScope webauthnpb.ChallengeScope) (*authz.MFAAuthData, error) {
+	isPasswordless := requiredScope == webauthnpb.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+
 	// Sanity check user/passwordless.
-	if user == "" && !passwordless {
-		return nil, "", trace.BadParameter("user required")
+	if user == "" && !isPasswordless {
+		return nil, trace.BadParameter("user required")
 	}
 
 	switch res := resp.Response.(type) {
@@ -5912,46 +5912,59 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 		// Read necessary configurations.
 		cap, err := a.GetAuthPreference(ctx)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		u2f, err := cap.GetU2F()
 		switch {
 		case trace.IsNotFound(err): // OK, may happen.
 		case err != nil: // Unexpected.
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		webConfig, err := cap.GetWebauthn()
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		assertionResp := wantypes.CredentialAssertionResponseFromProto(res.Webauthn)
-		var dev *types.MFADevice
-		if passwordless {
+		var webauthnData *wanlib.WebauthnSessionData
+		if isPasswordless {
 			webLogin := &wanlib.PasswordlessFlow{
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, user, err = webLogin.Finish(ctx, assertionResp)
+			webauthnData, err = webLogin.Finish(ctx, assertionResp)
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), webauthnpb.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED)
+			webauthnData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredScope)
 		}
 		if err != nil {
-			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)
+			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
-		return dev, user, nil
+		return &authz.MFAAuthData{
+			Device:   webauthnData.Device,
+			User:     webauthnData.User,
+			Reusable: webauthnData.Reusable,
+		}, nil
 
 	case *proto.MFAAuthenticateResponse_TOTP:
 		dev, err := a.checkOTP(user, res.TOTP.Code)
-		return dev, user, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &authz.MFAAuthData{
+			Device: dev,
+			User:   user,
+			// We store the last used token to prevent OTP reuse.
+			Reusable: false,
+		}, nil
 
 	default:
-		return nil, "", trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
+		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
 }
 

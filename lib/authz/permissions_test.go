@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -50,8 +51,7 @@ import (
 )
 
 const (
-	clusterName   = "test-cluster"
-	validTOTPCode = "valid"
+	clusterName = "test-cluster"
 )
 
 func TestContextLockTargets(t *testing.T) {
@@ -444,6 +444,18 @@ func hostFQDN(hostUUID, clusterName string) string {
 	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
+type fakeMFAAuthentictor struct {
+	mfaData map[string]*MFAAuthData
+}
+
+func (a *fakeMFAAuthentictor) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredScope webauthnpb.ChallengeScope) (*MFAAuthData, error) {
+	mfaData, ok := a.mfaData[resp.GetTOTP().GetCode()]
+	if !ok {
+		return nil, trace.AccessDenied("invalid MFA")
+	}
+	return mfaData, nil
+}
+
 func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	ctx := context.Background()
 	client, watcher, _ := newTestResources(t)
@@ -479,11 +491,23 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	_, err = client.CreateUser(ctx, bot)
 	require.NoError(t, err)
 
+	validTOTPCode := "valid"
+	validReusableTOTPCode := "valid-reusable"
+	fakeMFAAuthentictor := &fakeMFAAuthentictor{
+		mfaData: map[string]*MFAAuthData{
+			validTOTPCode: {},
+			validReusableTOTPCode: {
+				Reusable: true,
+			},
+		},
+	}
+
 	// Create a new authorizer.
 	authorizer, err := NewAuthorizer(AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: client,
-		LockWatcher: watcher,
+		ClusterName:      clusterName,
+		AccessPoint:      client,
+		LockWatcher:      watcher,
+		MFAAuthenticator: fakeMFAAuthentictor,
 	})
 	require.NoError(t, err, "NewAuthorizer failed")
 
@@ -1081,14 +1105,6 @@ type testClient struct {
 	services.Access
 	services.Identity
 	types.Events
-}
-
-func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	if resp.GetTOTP().Code == validTOTPCode {
-		return &types.MFADevice{}, "", nil
-	}
-
-	return nil, "", trace.AccessDenied("invalid MFA")
 }
 
 func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authorizer) {

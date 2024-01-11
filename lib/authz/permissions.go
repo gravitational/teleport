@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -73,10 +74,11 @@ type DeviceAuthorizationOpts struct {
 
 // AuthorizerOpts holds creation options for [NewAuthorizer].
 type AuthorizerOpts struct {
-	ClusterName string
-	AccessPoint AuthorizerAccessPoint
-	LockWatcher *services.LockWatcher
-	Logger      logrus.FieldLogger
+	ClusterName      string
+	AccessPoint      AuthorizerAccessPoint
+	MFAAuthenticator MFAAuthenticator
+	LockWatcher      *services.LockWatcher
+	Logger           logrus.FieldLogger
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -98,9 +100,11 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	if logger == nil {
 		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
 	}
+
 	return &authorizer{
 		clusterName:             opts.ClusterName,
 		accessPoint:             opts.AccessPoint,
+		mfaAuthentictor:         opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
@@ -150,18 +154,32 @@ type AuthorizerAccessPoint interface {
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+}
 
-	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-	// Returns the device used to solve the challenge (if applicable) and the username.
-	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
+// MFAAuthenticator authenticates MFA responses.
+type MFAAuthenticator interface {
+	// ValidateMFAAuthResponse validates an MFA challenge response.
+	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredScope webauthnpb.ChallengeScope) (*MFAAuthData, error)
+}
+
+// MFAAuthData contains a user's MFA authentication data for a validated MFA response.
+type MFAAuthData struct {
+	// User is the authenticated Teleport User.
+	User string
+	// Device is the user's MFA device used to authenticate.
+	Device *types.MFADevice
+	// Reusable determines whether the MFA challenge response used to authenticate
+	// can be reused. Reusable MFAAuthData may be denied for specific actions.
+	Reusable bool
 }
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	clusterName string
-	accessPoint AuthorizerAccessPoint
-	lockWatcher *services.LockWatcher
-	logger      logrus.FieldLogger
+	clusterName     string
+	accessPoint     AuthorizerAccessPoint
+	mfaAuthentictor MFAAuthenticator
+	lockWatcher     *services.LockWatcher
+	logger          logrus.FieldLogger
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -376,7 +394,8 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 
 // checkAdminActionVerification checks if this auth request is verified for admin actions.
 func (a *authorizer) checkAdminActionVerification(ctx context.Context, authContext *Context) error {
-	if err := a.authorizeAdminAction(ctx, authContext); err != nil {
+	err := a.authorizeAdminAction(ctx, authContext)
+	if err != nil {
 		if trace.IsNotFound(err) {
 			// missing MFA verification should be a noop.
 			return nil
@@ -443,10 +462,16 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	if _, _, err := a.accessPoint.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false); err != nil {
+	if a.mfaAuthentictor == nil {
+		return trace.AccessDenied("failed to validate MFA auth response, authorizer missing mfaAuthenticator field")
+	}
+
+	_, err = a.mfaAuthentictor.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), webauthnpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	authContext.AdminActionAuthorized = true
 	return nil
 }
 
