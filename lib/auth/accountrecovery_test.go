@@ -1343,7 +1343,7 @@ type userAuthCreds struct {
 func createUserWithSecondFactors(testServer *TestTLSServer) (*userAuthCreds, error) {
 	ctx := context.Background()
 	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
-	password := []byte("abc123")
+	password := []byte("abcdef123456")
 
 	// Enable second factors.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{

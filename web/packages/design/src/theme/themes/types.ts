@@ -42,8 +42,9 @@ export type ThemeColors = {
   /**
     Spot backgrounds are used as highlights, for example
     to indicate a hover or active state for an item in a menu.
+    @deprecated Use `interactive.tonal.neutral` instead.
   */
-  spotBackground: [string, string, string];
+  spotBackground: string[];
 
   brand: string;
 
@@ -57,6 +58,7 @@ export type ThemeColors = {
   interactive: {
     tonal: {
       primary: string[];
+      neutral: string[];
     };
   };
 

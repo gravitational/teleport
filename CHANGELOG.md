@@ -2,7 +2,60 @@
 
 ## 15.0.0 (xx/xx/24)
 
-### Breaking changes
+### New features
+
+#### FIPS now supported on ARM64
+
+Teleport 15 now provides FIPS-compliant Linux builds on ARM64. Users will now
+be able to run Teleport in FedRAMP/FIPS mode on ARM64.
+
+#### Hardened AMIs now produced for ARM64
+
+Teleport 15 now provides hardened AWS AMIs on ARM64.
+
+#### Streaming session playback
+
+Prior to Teleport 15, `tsh play` and the web UI would download the entire
+session recording before starting playback. As a result, playback of large
+recordings could be slow to start, and may fail to play at all in the browser.
+
+In Teleport 15, session recordings are streamed from the auth server, allowing
+playback to start before the entire session is downloaded and unpacked.
+
+Additionally, `tsh play` now supports a `--speed` flag for adjusting the
+playback speed.
+
+### Breaking changes and deprecations
+
+#### RDP engine requires RemoteFX
+
+Teleport 15 includes a new RDP engine that leverages the RemoteFX codec for
+improved performance. Additional configuration may be required to enable
+RemoteFX on your Windows hosts.
+
+If you are using our authentication package for local users, the v15 installer
+will automatically enable RemoteFX for you.
+
+Alternatively, you can enable RemoteFX by updating the registry:
+
+```powershell
+Set-ItemProperty -Path 'HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services' -Name 'ColorDepth' -Type DWORD -Value 5
+Set-ItemProperty -Path 'HKLM:\Software\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableVirtualizedGraphics' -Type DWORD -Value 1
+```
+
+If you are using Teleport with Windows hosts that are part of an Active
+Directory environment, you should enable RemoteFX via group policy.
+
+Under Computer Configuration > Administrative Templates > Windows Components >
+Remote Desktop Services > Remote Desktop Session Host, enable:
+
+1. Remote Session Environment > RemoteFX for Windows Server 2008 R2 > Configure RemoteFX
+1. Remote Session Environment > Enable RemoteFX encoding for RemoteFX clients designed for Windows Server 2008 R2 SP1
+1. Remote Session Environment > Limit maximum color depth
+
+Detailed instructions are available in the
+[setup guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx).
+A reboot may be required for these changes to take effect.
 
 #### `tsh ssh`
 
@@ -19,7 +72,7 @@ by `insecure-drop`, which still creates temporary users but does not create a
 home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
 or use PAM.
 
-##### Packages no longer published to legacy Debian and RPM repos
+#### Packages no longer published to legacy Debian and RPM repos
 
 `deb.releases.teleport.dev` and `rpm.releases.teleport.dev` were deprecated in
 Teleport 11. Beginning in Teleport 15, Debian and RPM packages will no longer be
@@ -36,7 +89,7 @@ has been out of support for many months.
 #### Container images
 
 Teleport 15 contains several breaking changes to improve the default security
-and usability of container images.
+and usability of Teleport-provided container images.
 
 ##### "Heavy" container images are discontinued
 
@@ -83,6 +136,56 @@ Teleport 8 will need to download any quay.io images they depend on and mirror
 them elsewhere before July 2024. Following brownouts in May and June, Teleport
 will disable pulls from all Teleport quay.io repositories on Wednesday July 3,
 2024.
+
+#### Amazon AMIs
+
+Teleport 15 contains several breaking changes to improve the default security
+and usability of Teleport-provided Amazon AMIs.
+
+##### Hardened AMIs
+
+Teleport-provided Amazon Linux 2023 previously only supported x86_64/amd64.
+Starting with Teleport 15, arm64-based AMIs will be produced. However, the
+naming scheme for these AMIs has been changed to include the architecture.
+
+- Previous naming scheme: `teleport-oss-14.0.0-$TIMESTAMP`
+- New naming scheme: `teleport-oss-15.0.0-x86_64-$TIMESTAMP`
+
+##### Legacy Amazon Linux 2 AMIs
+
+Teleport-provided Amazon Linux 2 AMIs were deprecated, and Teleport 14 is the
+last version to produce such legacy AMIs. With Teleport 15's release, only
+the newer hardened Amazon Linux 2023 AMIs will be produced.
+
+The legacy AMIs will continue to be published for Teleport 13 and 14 throughout
+the remainder of these releases' lifecycle.
+
+#### `windows_desktop_service` no longer writes to the NTAuth store
+
+In Teleport 15, the process that periodically publishes Teleport's user CA to
+the Windows NTAuth store has been removed. It is not necessary for Teleport to
+perform this step since it must be done by an administrator at installation
+time. As a result, Teleport's service account can use more restrictive
+permissions.
+
+#### Example AWS cluster deployments updated
+
+The AWS terraform examples for Teleport clusters have been updated to use the
+newer hardened Amazon Linux 2023 AMIs. Additionally, the default architecture
+and instance type has been changed to ARM64/Graviton.
+
+As a result of this modernization, the legacy monitoring stack configuration
+used with the legacy AMIs has been removed.
+
+### Other changes
+
+#### Increased password length
+
+The minimum password length has been increased to 12 characters.
+
+#### Increased account lockout interval
+
+The account lockout interval has been increased to 30 minutes.
 
 ## 14.0.0 (09/20/23)
 

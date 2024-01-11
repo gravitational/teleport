@@ -38,7 +38,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -62,8 +61,6 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 type IdentityService struct {
 	backend.Backend
 	log logrus.FieldLogger
-	// desyncedClockForTesting is used in tests to desync the service clock from the backend clock.
-	desyncedClockForTesting clockwork.Clock
 }
 
 // NewIdentityService returns a new instance of IdentityService object
@@ -72,13 +69,6 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 		Backend: backend,
 		log:     logrus.WithField(trace.Component, "identity"),
 	}
-}
-
-func (s *IdentityService) getClock() clockwork.Clock {
-	if s.desyncedClockForTesting != nil {
-		return s.desyncedClockForTesting
-	}
-	return s.Backend.Clock()
 }
 
 // DeleteAllUsers deletes all users
@@ -913,21 +903,9 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 	}
 
 	item, err := s.Get(ctx, sessionDataKey(user, sessionID))
-	if trace.IsNotFound(err) {
-		return nil, trace.NotFound("webauthn session data is not found")
-	} else if err != nil {
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if !s.getClock().Now().Before(item.Expires) {
-		// Webauthn session already expired. Some backends do not clean up expired
-		// items in a timely manner, force delete.
-		if err := s.Delete(ctx, item.Key); err != nil && !trace.IsNotFound(err) {
-			s.log.WithError(err).Debug("Failed to delete expired webauthn session")
-		}
-		return nil, trace.NotFound("webauthn session data is not found")
-	}
-
 	sd := &wanpb.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
@@ -1877,16 +1855,6 @@ func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey c
 	key := keyAttestationDataFingerprint(pubDER)
 	item, err := s.Get(ctx, backend.Key(attestationsPrefix, key))
 
-	// Fallback to old fingerprint (std base64 encoded ssh public key) for backwards compatibility.
-	// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
-	if trace.IsNotFound(err) {
-		key, err = KeyAttestationDataFingerprintV11(publicKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		item, err = s.Get(ctx, backend.Key(attestationsPrefix, key))
-	}
-
 	if trace.IsNotFound(err) {
 		return nil, trace.NotFound("hardware key attestation not found")
 	} else if err != nil {
@@ -1904,18 +1872,6 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 	sha256sum := sha256.Sum256(pubDER)
 	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
 	return encodedSHA
-}
-
-// KeyAttestationDataFingerprintV11 creates a "KeyAttestationData" fingerprint
-// compatible with older patches of Teleport v11.
-// Exposed for testing, do not use this function directly.
-// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
-func KeyAttestationDataFingerprintV11(pub crypto.PublicKey) (string, error) {
-	sshPub, err := ssh.NewPublicKey(pub)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return ssh.FingerprintSHA256(sshPub), nil
 }
 
 const (

@@ -3,7 +3,7 @@
 // are relying on systemd
 data "aws_ami" "base" {
   most_recent = true
-  owners      = [126027368216]
+  owners      = [146628656107]
 
   filter {
     name   = "name"

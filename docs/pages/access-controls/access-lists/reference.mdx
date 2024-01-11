@@ -89,6 +89,14 @@ spec:
   ownership_requires:
     roles:
     - access
+  # grants controls which roles and traits are granted to users who are owners
+  # of this Access List.
+  owner_grants:
+    roles:
+    - access
+    traits:
+      trait1:
+      - value1
   # grants controls which roles and traits are granted to users who are members
   # of this Access List.
   grants:

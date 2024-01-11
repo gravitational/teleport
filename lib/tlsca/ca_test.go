@@ -203,6 +203,51 @@ func TestKubeExtensions(t *testing.T) {
 	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
 }
 
+func TestDatabaseExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:        "alice@example.com",
+		Groups:          []string{"admin"},
+		Impersonator:    "bob@example.com",
+		Usage:           []string{teleport.UsageDatabaseOnly},
+		TeleportCluster: "tele-cluster",
+		RouteToDatabase: RouteToDatabase{
+			ServiceName: "postgres-rds",
+			Protocol:    "postgres",
+			Username:    "postgres",
+			Roles:       []string{"read_only"},
+		},
+		DatabaseNames: []string{"postgres", "main"},
+		DatabaseUsers: []string{"postgres", "alice"},
+		Expires:       expires,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.False(t, out.Renewable)
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+}
+
 func TestAzureExtensions(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
@@ -369,6 +414,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					GCPServiceAccount: "gcpaccount",
 				},
 				ActiveRequests: []string{"accessreq1", "accessreq2"},
+				BotName:        "",
 			},
 			want: apievents.UserMetadata{
 				User:              "alpaca",
@@ -377,6 +423,30 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				AccessRequests:    []string{"accessreq1", "accessreq2"},
 				AzureIdentity:     "azureidentity",
 				GCPServiceAccount: "gcpaccount",
+				UserKind:          apievents.UserKind_USER_KIND_HUMAN,
+			},
+		},
+		{
+			name: "user metadata for bot",
+			identity: Identity{
+				Username:     "alpaca",
+				Impersonator: "llama",
+				RouteToApp: RouteToApp{
+					AWSRoleARN:        "awsrolearn",
+					AzureIdentity:     "azureidentity",
+					GCPServiceAccount: "gcpaccount",
+				},
+				ActiveRequests: []string{"accessreq1", "accessreq2"},
+				BotName:        "foo",
+			},
+			want: apievents.UserMetadata{
+				User:              "alpaca",
+				Impersonator:      "llama",
+				AWSRoleARN:        "awsrolearn",
+				AccessRequests:    []string{"accessreq1", "accessreq2"},
+				AzureIdentity:     "azureidentity",
+				GCPServiceAccount: "gcpaccount",
+				UserKind:          apievents.UserKind_USER_KIND_BOT,
 			},
 		},
 		{
@@ -388,6 +458,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					AssetTag:     "assettag1",
 					CredentialID: "credentialid1",
 				},
+				BotName: "",
 			},
 			want: apievents.UserMetadata{
 				User: "llama",
@@ -396,6 +467,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					AssetTag:     "assettag1",
 					CredentialId: "credentialid1",
 				},
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
 			},
 		},
 	}

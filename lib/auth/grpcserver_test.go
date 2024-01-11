@@ -25,7 +25,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -3984,13 +3982,9 @@ func TestRoleVersions(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
-
-	originalLabels := map[string]string{"env": "staging"}
 	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
 		role, err := types.NewRoleWithVersion(name, version, spec)
 		meta := role.GetMetadata()
-		meta.Labels = maps.Clone(originalLabels)
 		role.SetMetadata(meta)
 		require.NoError(t, err)
 		return role
@@ -3998,73 +3992,16 @@ func TestRoleVersions(t *testing.T) {
 
 	role := newRole("test_role_1", types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			NodeLabels:               wildcardLabels,
-			AppLabels:                wildcardLabels,
-			AppLabelsExpression:      `labels["env"] == "staging"`,
-			DatabaseLabelsExpression: `labels["env"] == "staging"`,
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, services.RW()),
 			},
-			KubernetesLabels: wildcardLabels,
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Name:      types.Wildcard,
-					Verbs:     []string{types.VerbList},
-				},
-			},
 		},
-		Deny: types.RoleConditions{
-			KubernetesLabels:               types.Labels{"env": {"prod"}},
-			ClusterLabels:                  types.Labels{"env": {"prod"}},
-			ClusterLabelsExpression:        `labels["env"] == "prod"`,
-			WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Name:      types.Wildcard,
-				},
-			},
+		Options: types.RoleOptions{
+			CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		},
 	})
 
-	roleV7Wildcard := newRole("test_role_2", types.V7, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			NodeLabels:               wildcardLabels,
-			AppLabels:                wildcardLabels,
-			AppLabelsExpression:      `labels["env"] == "staging"`,
-			DatabaseLabelsExpression: `labels["env"] == "staging"`,
-			Rules: []types.Rule{
-				types.NewRule(types.KindRole, services.RW()),
-			},
-			KubernetesLabels: wildcardLabels,
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Name:      types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-				},
-			},
-		},
-		Deny: types.RoleConditions{
-			KubernetesLabels:               types.Labels{"env": {"prod"}},
-			ClusterLabels:                  types.Labels{"env": {"prod"}},
-			ClusterLabelsExpression:        `labels["env"] == "prod"`,
-			WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Name:      types.Wildcard,
-				},
-			},
-		},
-	})
-
-	user, err := CreateUser(context.Background(), srv.Auth(), "user", role, roleV7Wildcard)
+	user, err := CreateUser(context.Background(), srv.Auth(), "user", role)
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(TestUser(user.GetName()))
@@ -4081,107 +4018,27 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date",
 			clientVersions: []string{
-				"14.0.0-alpha.1", "15.1.2", api.Version, "",
+				"15.1.2", api.Version, "",
 			},
 			inputRole:    role,
 			expectedRole: role,
 		},
 		{
-			desc: "downgrade role to v6 with wildcard on kube resources but supports label expressions",
+			desc: "downgrade host user creation mode only",
 			clientVersions: []string{
-				minSupportedLabelExpressionVersion.String(), "13.3.0",
-			},
-			inputRole: roleV7Wildcard,
-			expectedRole: newRole(roleV7Wildcard.GetName(), types.V6, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					NodeLabels:       wildcardLabels,
-					AppLabels:        wildcardLabels,
-					KubernetesLabels: wildcardLabels,
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Namespace: types.Wildcard,
-							Name:      types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-					AppLabelsExpression:      `labels["env"] == "staging"`,
-					DatabaseLabelsExpression: `labels["env"] == "staging"`,
-					Rules: []types.Rule{
-						types.NewRule(types.KindRole, services.RW()),
-					},
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels:               wildcardLabels,
-					ClusterLabels:                  types.Labels{"env": {"prod"}},
-					ClusterLabelsExpression:        `labels["env"] == "prod"`,
-					WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade role to v6 but supports label expressions",
-			clientVersions: []string{
-				minSupportedLabelExpressionVersion.String(), "13.3.0",
+				"14.0.0-alpha.1",
 			},
 			inputRole: role,
-			expectedRole: newRole(role.GetName(), types.V6, types.RoleSpecV6{
+			expectedRole: newRole(role.GetName(), types.V7, types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					NodeLabels:               wildcardLabels,
-					AppLabels:                wildcardLabels,
-					AppLabelsExpression:      `labels["env"] == "staging"`,
-					DatabaseLabelsExpression: `labels["env"] == "staging"`,
 					Rules: []types.Rule{
 						types.NewRule(types.KindRole, services.RW()),
 					},
 				},
-				Deny: types.RoleConditions{
-					KubernetesLabels:               wildcardLabels,
-					ClusterLabels:                  types.Labels{"env": {"prod"}},
-					ClusterLabelsExpression:        `labels["env"] == "prod"`,
-					WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+				Options: types.RoleOptions{
+					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
 				},
 			}),
-			expectDowngraded: true,
-		},
-		{
-			desc:           "bad client versions",
-			clientVersions: []string{"Not a version", "13", "13.1"},
-			expectError:    true,
-			inputRole:      role,
-		},
-		{
-			desc:           "label expressions downgraded",
-			clientVersions: []string{"13.0.11", "12.4.3", "6.0.0"},
-			inputRole:      role,
-			expectedRole: newRole(
-				role.GetName(),
-				types.V6,
-				types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						// None of the allow labels change
-						NodeLabels:               wildcardLabels,
-						AppLabels:                wildcardLabels,
-						AppLabelsExpression:      `labels["env"] == "staging"`,
-						DatabaseLabelsExpression: `labels["env"] == "staging"`,
-						Rules: []types.Rule{
-							types.NewRule(types.KindRole, services.RW()),
-						},
-					},
-					Deny: types.RoleConditions{
-						// These fields don't change
-						KubernetesLabels:               wildcardLabels,
-						ClusterLabelsExpression:        `labels["env"] == "prod"`,
-						WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
-						// These all get set to wildcard deny because there is
-						// either an allow or deny label expression for them.
-						AppLabels:            wildcardLabels,
-						DatabaseLabels:       wildcardLabels,
-						ClusterLabels:        wildcardLabels,
-						WindowsDesktopLabels: wildcardLabels,
-					},
-				}),
 			expectDowngraded: true,
 		},
 	} {
@@ -4285,15 +4142,6 @@ func TestRoleVersions(t *testing.T) {
 						} else {
 							require.NoError(t, err)
 						}
-					}
-
-					// Call maybeDowngrade directly to make sure the original
-					// role isn't modified
-					sv, err := semver.NewVersion(clientVersion)
-					if err == nil {
-						_, err := maybeDowngradeRoleToV6(ctx, tc.inputRole.(*types.RoleV6), sv)
-						require.NoError(t, err)
-						require.Equal(t, originalLabels, tc.inputRole.GetMetadata().Labels)
 					}
 				})
 			}

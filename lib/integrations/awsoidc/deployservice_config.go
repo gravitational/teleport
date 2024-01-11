@@ -30,12 +30,19 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
+type generateTeleportConfigParams struct {
+	ProxyServerHostPort           string
+	TeleportIAMTokenName          string
+	DeploymentMode                string
+	DatabaseResourceMatcherLabels types.Labels
+}
+
 // generateTeleportConfigString creates a teleport.yaml configuration that the agent
 // deployed in a ECS Cluster (using Fargate) will use.
 //
 // Returns config as base64-encoded string suitable for passing to teleport process
 // via --config-string flag.
-func generateTeleportConfigString(req DeployServiceRequest) (string, error) {
+func generateTeleportConfigString(req generateTeleportConfigParams) (string, error) {
 	teleportConfig, err := config.MakeSampleFileConfig(config.SampleFlags{
 		Version:      defaults.TeleportConfigVersionV3,
 		ProxyAddress: req.ProxyServerHostPort,
@@ -64,7 +71,7 @@ func generateTeleportConfigString(req DeployServiceRequest) (string, error) {
 		}
 	*/
 	teleportConfig.JoinParams = config.JoinParams{
-		TokenName: *req.TeleportIAMTokenName,
+		TokenName: req.TeleportIAMTokenName,
 		Method:    types.JoinMethodIAM,
 	}
 

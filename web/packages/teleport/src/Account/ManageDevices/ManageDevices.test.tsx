@@ -37,6 +37,7 @@ const twoDevices = [
     name: 'iphone 12',
     registeredDate: new Date(1628799417000),
     lastUsedDate: new Date(1628799417000),
+    residentKey: false,
   },
   {
     id: '2',
@@ -44,6 +45,7 @@ const twoDevices = [
     name: 'yubikey',
     registeredDate: new Date(1623722252000),
     lastUsedDate: new Date(1623981452000),
+    residentKey: false,
   },
 ];
 

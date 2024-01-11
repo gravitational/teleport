@@ -8,7 +8,6 @@ TELEPORT_DOMAIN_ADMIN_EMAIL=test@email.com
 TELEPORT_DOMAIN_NAME=gus-tftestkube4.gravitational.io
 TELEPORT_DYNAMO_TABLE_NAME=gus-tftestkube4
 TELEPORT_DYNAMO_EVENTS_TABLE_NAME=gus-tftestkube4-events
-TELEPORT_INFLUXDB_ADDRESS=http://gus-tftestkube4-monitor-ae7983980c3419ab.elb.us-east-1.amazonaws.com:8086
 TELEPORT_LOCKS_TABLE_NAME=gus-tftestkube4-locks
 TELEPORT_S3_BUCKET=gus-tftestkube4.gravitational.io
 USE_ACM=false

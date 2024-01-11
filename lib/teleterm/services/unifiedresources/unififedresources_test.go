@@ -65,10 +65,49 @@ func TestUnifiedResourcesList(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	app, err := types.NewAppServerV3(types.Metadata{
+		Name: "testApp",
+	}, types.AppServerSpecV3{
+		HostID: uuid.New().String(),
+		App: &types.AppV3{
+			Metadata: types.Metadata{
+				Name: "testApp",
+			},
+			Spec: types.AppSpecV3{
+				URI: "https://test.app",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	idpProvider, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+		Name: "testApp",
+	}, types.SAMLIdPServiceProviderSpecV1{
+		ACSURL:   "https://test.example",
+		EntityID: "123",
+	})
+	require.NoError(t, err)
+
 	mockedResources := []*proto.PaginatedResource{
 		{Resource: &proto.PaginatedResource_Node{Node: node.(*types.ServerV2)}},
 		{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}},
 		{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: kube}},
+		{Resource: &proto.PaginatedResource_AppServer{AppServer: app}},
+		// just an app server like above, but wrapped in AppServerOrSAMLIdPServiceProvider
+		{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+			AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+				Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+					AppServer: app,
+				},
+			}},
+		},
+		{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+			AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+				Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+					SAMLIdPServiceProvider: idpProvider.(*types.SAMLIdPServiceProviderV1),
+				},
+			}},
+		},
 	}
 	mockedNextKey := "nextKey"
 
@@ -91,6 +130,18 @@ func TestUnifiedResourcesList(t *testing.T) {
 		URI:               uri.NewClusterURI(cluster.ProfileName).AppendKube(kube.GetCluster().GetName()),
 		KubernetesCluster: kube.GetCluster(),
 	}}, response.Resources[2])
+	require.Equal(t, UnifiedResource{App: &clusters.App{
+		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(app.GetApp().GetName()),
+		App: app.GetApp(),
+	}}, response.Resources[3])
+	require.Equal(t, UnifiedResource{App: &clusters.App{
+		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(app.GetApp().GetName()),
+		App: app.GetApp(),
+	}}, response.Resources[4])
+	require.Equal(t, UnifiedResource{SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
+		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(idpProvider.GetName()),
+		Provider: idpProvider,
+	}}, response.Resources[5])
 	require.Equal(t, mockedNextKey, response.NextKey)
 }
 

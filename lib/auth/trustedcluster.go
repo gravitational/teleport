@@ -180,6 +180,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: trustedCluster.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		logger.WithError(err).Warn("Failed to emit trusted cluster create event.")
 	}
@@ -248,6 +249,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit trusted cluster delete event.")
 	}

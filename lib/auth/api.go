@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -703,6 +704,8 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+	// GetDatabase returns a database resource with the given name if it exists.
+	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
@@ -809,6 +812,9 @@ type ReadOktaAccessPoint interface {
 
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	// GetLocks lists the locks that target a given set of resources.
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 
 // OktaAccessPoint is a read caching interface used by an Okta component.
@@ -861,6 +867,12 @@ type OktaAccessPoint interface {
 
 	// DeleteApplicationServer removes specified application server.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+
+	// UpsertLock creates or updates a given lock
+	UpsertLock(ctx context.Context, lock types.Lock) error
+
+	// DeleteLock deletes a given lock
+	DeleteLock(ctx context.Context, name string) error
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -1064,6 +1076,27 @@ type Cache interface {
 	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// GetAccessLists returns a list of all access lists.
+	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
+	// ListAccessLists returns a paginated list of access lists.
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	// GetAccessList returns the specified access list resource.
+	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+
+	// ListAccessListMembers returns a paginated list of all access list members.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member list.
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// GetAccessListMember returns the specified access list member resource.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member record.
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+
+	// ListAccessListReviews will list access list reviews for a particular access list.
+	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
@@ -1377,6 +1410,21 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 // DeleteApplicationServer removes specified application server.
 func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
+}
+
+// GetLocks fetches locks that target a given set of resources
+func (w *OktaWrapper) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	return w.NoCache.GetLocks(ctx, inForceOnly, targets...)
+}
+
+// UpsertLock creates and/or updates lock resources
+func (w *OktaWrapper) UpsertLock(ctx context.Context, lock types.Lock) error {
+	return w.NoCache.UpsertLock(ctx, lock)
+}
+
+// DeleteLock deletes a lock by name
+func (w *OktaWrapper) DeleteLock(ctx context.Context, name string) error {
+	return w.NoCache.DeleteLock(ctx, name)
 }
 
 // Close closes all associated resources
