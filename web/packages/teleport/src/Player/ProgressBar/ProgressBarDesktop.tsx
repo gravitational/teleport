@@ -33,7 +33,7 @@ export const ProgressBarDesktop = (props: {
   id?: string;
 }) => {
   const { playerClient, durationMs } = props;
-  const intervalRef = useRef<NodeJS.Timer>();
+  const intervalRef = useRef<number>();
   let playSpeed = 1.0;
 
   const toHuman = (currentMs: number) => {
@@ -73,7 +73,7 @@ export const ProgressBarDesktop = (props: {
       const smoothOutProgress = (speed: number) => {
         const smoothingInterval = 25;
 
-        intervalRef.current = setInterval(() => {
+        intervalRef.current = window.setInterval(() => {
           setState(prevState => {
             const nextTimeMs = prevState.current + smoothingInterval * speed;
             if (nextTimeMs <= durationMs) {
@@ -93,7 +93,7 @@ export const ProgressBarDesktop = (props: {
       // should be called when the playback is paused or ended.
       const stopProgress = () => {
         throttledUpdateCurrentTime.cancel();
-        clearInterval(intervalRef.current);
+        window.clearInterval(intervalRef.current);
       };
 
       const throttledUpdateCurrentTime = throttle(
