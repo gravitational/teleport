@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
@@ -37,16 +38,11 @@ export class TshdNotificationsService {
       let targetUser: string;
       let targetDesc: string;
 
-      // Try to get target name and user from gateway object.
       if (gateway) {
         targetName = gateway.targetName;
         targetUser = gateway.targetUser;
       } else {
-        // Try to get target name from target URI.
-        targetName =
-          routing.parseDbUri(targetUri)?.params['dbId'] ||
-          routing.parseKubeUri(targetUri)?.params['kubeId'] ||
-          targetUri;
+        targetName = getTargetNameFromUri(targetUri);
       }
 
       if (targetUser) {

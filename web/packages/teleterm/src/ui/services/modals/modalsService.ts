@@ -143,7 +143,7 @@ export interface DialogClusterConnect {
 
 export interface ClusterConnectReasonGatewayCertExpired {
   kind: 'reason.gateway-cert-expired';
-  targetUri: string;
+  targetUri: uri.GatewayTargetUri;
   // The original RPC message passes gatewayUri but we might not always be able to resolve it to a
   // gateway, hence the use of undefined.
   gateway: types.Gateway | undefined;
