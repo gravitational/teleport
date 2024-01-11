@@ -300,7 +300,8 @@ const ExtraTopComponents = (props: {
                   showErrorsInModal={() => {
                     showErrorsInModal(nonRetryableResourceSearchErrors);
                   }}
-                  advancedSearch={advancedSearch}
+                  // We show the advanced search in TypeToSearchItem.
+                  advancedSearch={undefined}
                 />
               )}
             </>
