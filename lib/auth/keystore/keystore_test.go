@@ -302,6 +302,7 @@ func TestManager(t *testing.T) {
 		tlsCert, tlsSigner, err := manager.GetTLSCertAndSigner(ctx, ca)
 		require.NoError(t, err)
 		require.Equal(t, tlsKeyPair.Cert, tlsCert)
+		require.NotNil(t, tlsSigner)
 
 		jwtSigner, err := manager.GetJWTSigner(ctx, ca)
 		require.NoError(t, err, trace.DebugReport(err))
