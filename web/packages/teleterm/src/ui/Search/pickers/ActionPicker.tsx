@@ -233,11 +233,11 @@ export function ActionPicker(props: { input: ReactElement }) {
 function getKey(searchResult: SearchResult): string {
   switch (searchResult.kind) {
     case 'resource-type-filter':
-      return searchResult.resource;
+      return `${searchResult.kind}-${searchResult.resource}`;
     case 'display-results':
-      return searchResult.value;
+      return `${searchResult.kind}-${searchResult.documentUri}-${searchResult.value}`;
     default:
-      return searchResult.resource.uri;
+      return `${searchResult.kind}-${searchResult.resource.uri}`;
   }
 }
 
