@@ -376,7 +376,7 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateU
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			mfaDev, _, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
+			mfaDev, _, err := a.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
 			return mfaDev, trace.Wrap(err)
 		}
 		authErr = authenticateWebauthnError
@@ -393,7 +393,7 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateU
 		authErr = invalidUserPass2FError
 	}
 	if authenticateFn != nil {
-		err := a.WithUserLock(ctx, user, func() error {
+		err := a.WithUserLock(user, func() error {
 			var err error
 			mfaDev, err = authenticateFn()
 			return err
