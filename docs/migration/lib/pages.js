@@ -62,7 +62,7 @@ function migrateDetails(page) {
 
 function migrateVarComponent(page) {
   return page
-    .replace(/<Var name="(.*?)".*?\/>/g, '$1')
+    .replace(/<Var[\s\S]*?name="(.*?)"[\s\S]*?\/>/g, '$1')
 }
 
 function migrateSnippetTemplateBinding(snippetPage) {
