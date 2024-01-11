@@ -38,8 +38,7 @@ import type {
 } from 'teleport/types';
 
 const AuthConnectors = lazy(() => import('e-teleport/AuthConnectors'));
-const AccountE = lazy(() => import('e-teleport/Account'));
-const AccountENew = lazy(() => import('e-teleport/Account/AccountNew'));
+const AccountE = lazy(() => import('e-teleport/Account/AccountNew'));
 const Integrations = lazy(() => import('e-teleport/Integrations'));
 const IntegrationEnroll = lazy(
   () => import('e-teleport/Integrations/IntegrationEnroll')
@@ -418,10 +417,7 @@ class FeatureAccount extends OSS.FeatureAccount {
   route = {
     title: 'Account Settings',
     path: cfg.oss.routes.account,
-    component:
-      localStorage.getItem('enableNewAccountSettingsScreen') == 'true'
-        ? AccountENew
-        : AccountE,
+    component: AccountE,
   };
 }
 
