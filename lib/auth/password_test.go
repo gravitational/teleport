@@ -30,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type passwordSuite struct {
@@ -124,6 +126,38 @@ func TestUserNotFound(t *testing.T) {
 	require.Error(t, err)
 	// Make sure the error is not a NotFound. That would be a username oracle.
 	require.True(t, trace.IsBadParameter(err))
+}
+
+func TestPasswordLengthChange(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	authServer := srv.Auth()
+
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOff,
+	})
+	require.NoError(t, err)
+
+	err = authServer.SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
+	password := []byte("a")
+	_, _, err = CreateUserAndRole(authServer, username, []string{username}, nil)
+	require.NoError(t, err)
+
+	hash, err := utils.BcryptFromPassword(password, bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	// Set an initial password that is shorter than minimum length
+	err = authServer.UpsertPasswordHash(username, hash)
+	require.NoError(t, err)
+
+	// Ensure that a shorter password still works for auth
+	err = authServer.checkPasswordWOToken(username, password)
+	require.NoError(t, err)
 }
 
 func TestChangePassword(t *testing.T) {
