@@ -103,7 +103,7 @@ describe('searchResources', () => {
     const server = makeServer();
     const db = makeDatabase();
     const kube = makeKube();
-    const app = makeApp();
+    const app = { ...makeApp(), addrWithProtocol: '' };
 
     const tshClient: Partial<tsh.TshClient> = {
       getServers: jest.fn().mockResolvedValueOnce({
