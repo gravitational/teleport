@@ -794,6 +794,7 @@ export function useNewRequest(ctx: Ctx) {
     addAllFetchAttempt: addAllFetchAttempt.attempt,
     fetchUsage,
     usage,
+    ctx,
   };
 }
 

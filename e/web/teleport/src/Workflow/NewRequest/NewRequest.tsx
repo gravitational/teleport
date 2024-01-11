@@ -28,6 +28,7 @@ import { Info } from 'design/Alert';
 import { SearchPanel } from 'shared/components/Search';
 import { storageService } from 'teleport/services/storageService';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 import UnifiedSearchPanel from 'teleport/UnifiedResources/SearchPanel';
 import {
   FilterKind,
@@ -178,10 +179,12 @@ export function NewRequest(props: State) {
     addAllFetchAttempt,
     usage,
     fetchUsage,
+    ctx,
   } = props;
   const { setEnforceMinWidth } = useContentMinWidthContext();
   const unifiedResourcesEnabled = storageService.areUnifiedResourcesEnabled();
   const { preferences, updatePreferences } = useUser();
+  const [clusterDropdownError, setClusterDropdownError] = useState('');
 
   const [showCheckout, setShowCheckout] = useState(false);
   // warningConfirm holds the next resource option that will be applied
@@ -307,6 +310,7 @@ export function NewRequest(props: State) {
       {addAllFetchAttempt.status === 'failed' && (
         <ErrorMessage message={addAllFetchAttempt.statusText} />
       )}
+      {clusterDropdownError && <ErrorMessage message={clusterDropdownError} />}
       {dryRunAttempt.status === 'failed' && selectedResource !== 'role' && (
         <Info>{dryRunAttempt.statusText}</Info>
       )}
@@ -362,6 +366,13 @@ export function NewRequest(props: State) {
               text: 'Add/remove from request',
             },
           ]}
+          ClusterDropdown={
+            <ClusterDropdown
+              clusterLoader={ctx.clusterService}
+              clusterId={clusterId}
+              onError={setClusterDropdownError}
+            />
+          }
           resources={resources.map(resource => ({
             resource,
             ui: {
