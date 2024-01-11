@@ -73,7 +73,7 @@ export class UsageService {
 
   captureProtocolUse(
     uri: ClusterOrResourceUri,
-    protocol: 'ssh' | 'kube' | 'db',
+    protocol: 'ssh' | 'kube' | 'db' | 'app',
     origin: DocumentOrigin
   ): void {
     const clusterProperties = this.getClusterProperties(uri);

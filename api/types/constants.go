@@ -1178,3 +1178,10 @@ const (
 	// installer script when agentless mode is enabled for a matcher
 	DefaultInstallerScriptNameAgentless = "default-agentless-installer"
 )
+
+const (
+	// ApplicationProtocolHTTP is the HTTP (Web) apps protocol
+	ApplicationProtocolHTTP = "HTTP"
+	// ApplicationProtocolTCP is the TCP apps protocol.
+	ApplicationProtocolTCP = "TCP"
+)
