@@ -207,6 +207,8 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 		}
 
 		// db gateways still store certs on disk, so they need to load it after reissue.
+		// Unlike other gateway types, the custom middleware for db proxies does not set the cert on the
+		// local proxy.
 		err = g.ReloadCert()
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
@@ -220,12 +222,13 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 		return cert, trace.Wrap(err)
 	case g.TargetURI().IsApp():
 		appName := g.TargetURI().GetAppName()
-
 		app, err := c.getApp(ctx, appName)
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 
+		// The cert is saved and then loaded from disk, then returned from this function and finally set
+		// on LocalProxy by the middleware.
 		cert, err := c.reissueAppCert(ctx, app)
 		return cert, trace.Wrap(err)
 	default:
