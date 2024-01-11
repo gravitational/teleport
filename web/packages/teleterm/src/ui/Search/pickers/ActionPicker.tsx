@@ -722,13 +722,18 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
 
   const $resourceFields = (
     <ResourceFields>
-      <span
-        css={`
-          flex-shrink: 0;
-        `}
-      >
-        <HighlightField field="addrWithProtocol" searchResult={searchResult} />
-      </span>
+      {app.addrWithProtocol && (
+        <span
+          css={`
+            flex-shrink: 0;
+          `}
+        >
+          <HighlightField
+            field="addrWithProtocol"
+            searchResult={searchResult}
+          />
+        </span>
+      )}
       {app.desc && (
         <span
           css={`

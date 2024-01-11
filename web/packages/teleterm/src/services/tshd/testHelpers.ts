@@ -62,10 +62,10 @@ export const makeApp = (props: Partial<tsh.App> = {}): App => ({
   friendlyName: 'foo',
   desc: '',
   awsConsole: false,
-  publicAddr: '',
+  publicAddr: 'local-app.example.com:3000',
   samlApp: false,
   uri: '/clusters/bar/apps/foo',
-  addrWithProtocol: '',
+  addrWithProtocol: 'tcp://local-app.example.com:3000',
   ...props,
 });
 
