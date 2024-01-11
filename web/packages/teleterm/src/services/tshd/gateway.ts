@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { routing, GatewayTargetUri } from 'teleterm/ui/uri';
+
 import { GatewayCLICommand } from './types';
 
 /**
@@ -47,5 +49,24 @@ export function getCliCommandEnv(
 ): Record<string, string> {
   return Object.fromEntries(
     cliCommand.envList.map(nameEqualsValue => nameEqualsValue.split('='))
+  );
+}
+
+/**
+ * getTargetNameFromUri extracts the name of the gateway target from the target URI.
+ *
+ * Defaults to the target URI itself if the target URI doesn't seem to match any of the supported
+ * URI types.
+ *
+ * If possible, the target name should be acquired from the gateway object itself.
+ * getTargetNameFromUri is reserved for situations where a gateway is not available, but we still
+ * want to display a pretty name in the UI.
+ */
+export function getTargetNameFromUri(targetUri: GatewayTargetUri): string {
+  return (
+    routing.parseDbUri(targetUri)?.params['dbId'] ||
+    routing.parseKubeUri(targetUri)?.params['kubeId'] ||
+    routing.parseAppUri(targetUri)?.params['appId'] ||
+    targetUri
   );
 }

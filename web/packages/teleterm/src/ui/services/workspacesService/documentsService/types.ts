@@ -104,7 +104,7 @@ export interface DocumentGateway extends DocumentBase {
   // status is used merely to show a progress bar when the gateway is being set up.
   status: '' | 'connecting' | 'connected' | 'error';
   gatewayUri?: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.AppUri;
   targetUser: string;
   targetName: string;
   targetSubresourceName?: string;
@@ -247,7 +247,7 @@ export function isDocumentTshNodeWithServerId(
 
 export type CreateGatewayDocumentOpts = {
   gatewayUri?: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.AppUri;
   targetName: string;
   targetUser: string;
   targetSubresourceName?: string;
