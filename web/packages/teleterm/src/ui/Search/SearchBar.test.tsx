@@ -41,6 +41,11 @@ import { SearchBarConnected } from './SearchBar';
 
 beforeAll(() => {
   Logger.init(new NullService());
+  // Mock scrollIntoView since JSDOM doesn't do layout.
+  // https://github.com/jsdom/jsdom/issues/1695#issuecomment-449931788
+  // We can't use jest.spyOn because scrollIntoView is not defined.
+  // eslint-disable-next-line jest/prefer-spy-on
+  Element.prototype.scrollIntoView = jest.fn();
 });
 
 beforeEach(() => {

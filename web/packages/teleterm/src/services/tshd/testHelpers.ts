@@ -53,6 +53,19 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   ...props,
 });
 
+export const makeApp = (props: Partial<tsh.App> = {}): tsh.App => ({
+  name: 'foo',
+  labelsList: [],
+  endpointUri: '',
+  friendlyName: 'foo',
+  desc: '',
+  awsConsole: false,
+  publicAddr: '',
+  samlApp: false,
+  uri: '/clusters/bar/apps/foo',
+  ...props,
+});
+
 export const makeLabelsList = (labels: Record<string, string>): tsh.Label[] =>
   Object.entries(labels).map(([name, value]) => ({ name, value }));
 
