@@ -360,7 +360,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	return nil
 }
 
-// This function creates a net.Listener or tls.Listener according to the requested TLS Configuration
+// createProxyAppListener creates a net.Listener or tls.Listener according to the requested TLS Configuration
 func createProxyAppListener(cf *CLIConf, tc *libclient.TeleportClient) (net.Listener, error) {
 	var err error
 
