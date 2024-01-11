@@ -263,8 +263,8 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
-		return nil, trace.Wrap(err)
+	if !authz.IsLocalOrRemoteService(*authzCtx) {
+		return nil, trace.AccessDenied("this request can be only executed by an internal Teleport service")
 	}
 
 	clusterName, err := s.authServer.GetClusterName()
