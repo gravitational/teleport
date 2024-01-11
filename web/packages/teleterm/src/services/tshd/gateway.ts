@@ -53,7 +53,7 @@ export function getCliCommandEnv(
 }
 
 /**
- * getTargetName extracts the name of the gateway target from the target URI.
+ * getTargetNameFromUri extracts the name of the gateway target from the target URI.
  *
  * Defaults to the target URI itself if the target URI doesn't seem to match any of the supported
  * URI types.
