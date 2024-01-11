@@ -121,7 +121,7 @@ export const searchableFields: {
   // Right now, friendlyName is set only for Okta apps (api/types/resource.go).
   // The friendly name is constructed *after* fetching apps, but since it is
   // made from the value of a label, the server-side search can find it.
-  app: ['name', 'friendlyName', 'desc', 'publicAddr'],
+  app: ['name', 'friendlyName', 'desc', 'addrWithProtocol'],
 } as const;
 
 export interface ResourceTypeSearchFilter {

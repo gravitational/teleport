@@ -727,7 +727,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
           flex-shrink: 0;
         `}
       >
-        <HighlightField field="publicAddr" searchResult={searchResult} />
+        <HighlightField field="addrWithProtocol" searchResult={searchResult} />
       </span>
       {app.desc && (
         <span

@@ -18,6 +18,8 @@
 
 import { pluralize } from 'shared/utils/text';
 
+import { makeApp } from 'teleterm/ui/services/clusters';
+
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
@@ -104,7 +106,7 @@ export class ResourcesService {
         res =>
           res.agentsList.map(resource => ({
             kind: 'app' as const,
-            resource,
+            resource: makeApp(resource),
           })),
         err => Promise.reject(new ResourceSearchError(clusterUri, 'app', err))
       );
@@ -213,7 +215,10 @@ export type SearchResultDatabase = {
   resource: types.Database;
 };
 export type SearchResultKube = { kind: 'kube'; resource: types.Kube };
-export type SearchResultApp = { kind: 'app'; resource: types.App };
+export type SearchResultApp = {
+  kind: 'app';
+  resource: ReturnType<typeof makeApp>;
+};
 
 export type SearchResult =
   | SearchResultServer
