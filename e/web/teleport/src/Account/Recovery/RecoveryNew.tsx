@@ -55,7 +55,7 @@ export function Recovery({
       <MultiRowBox>
         <Row>
           <Header
-            icon={<Icon.ShieldCheck />}
+            icon={<Icon.Vault />}
             title={title}
             description={description()}
             showIndicator={attempt.status === 'processing'}
