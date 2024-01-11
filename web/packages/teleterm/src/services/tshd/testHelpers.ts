@@ -58,7 +58,7 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
 export const makeApp = (props: Partial<tsh.App> = {}): App => ({
   name: 'foo',
   labelsList: [],
-  endpointUri: '',
+  endpointUri: 'tcp://localhost:3000',
   friendlyName: 'foo',
   desc: '',
   awsConsole: false,
