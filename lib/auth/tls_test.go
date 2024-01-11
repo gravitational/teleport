@@ -3798,6 +3798,7 @@ func TestEvents(t *testing.T) {
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS:       clt,
+		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
 		PresenceS:     clt,
 		CAS:           clt,
