@@ -756,7 +756,7 @@ exports[`auth2faType: optional rendering 1`] = `
                           <div
                             class="react-select__single-value css-1uccc91-singleValue"
                           >
-                            Passkey or Hardware Key
+                            Passkey or Security Key
                           </div>
                           <input
                             aria-autocomplete="list"
@@ -1853,7 +1853,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
                           <div
                             class="react-select__single-value css-1uccc91-singleValue"
                           >
-                            Passkey or Hardware Key
+                            Passkey or Security Key
                           </div>
                           <input
                             aria-autocomplete="list"
@@ -2480,7 +2480,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
                           <div
                             class="react-select__single-value css-1uccc91-singleValue"
                           >
-                            Passkey or Hardware Key
+                            Passkey or Security Key
                           </div>
                           <input
                             aria-autocomplete="list"
