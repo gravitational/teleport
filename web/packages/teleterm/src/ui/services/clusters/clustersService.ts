@@ -612,7 +612,11 @@ export function makeKube(source: tsh.Kube) {
   };
 }
 
-export function makeApp(source: tsh.App) {
+export interface App extends tsh.App {
+  addrWithProtocol: string;
+}
+
+export function makeApp(source: tsh.App): App {
   const { publicAddr, endpointUri } = source;
 
   const isTcp = endpointUri && endpointUri.startsWith('tcp://');

@@ -18,7 +18,7 @@
 
 import { pluralize } from 'shared/utils/text';
 
-import { makeApp } from 'teleterm/ui/services/clusters';
+import { makeApp, App } from 'teleterm/ui/services/clusters';
 
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
@@ -217,7 +217,7 @@ export type SearchResultDatabase = {
 export type SearchResultKube = { kind: 'kube'; resource: types.Kube };
 export type SearchResultApp = {
   kind: 'app';
-  resource: ReturnType<typeof makeApp>;
+  resource: App;
 };
 
 export type SearchResult =
