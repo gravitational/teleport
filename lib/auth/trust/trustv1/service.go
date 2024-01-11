@@ -37,6 +37,9 @@ type authServer interface {
 	// the host (along with metadata like host ID, node name, roles, and ttl)
 	// to generate a host certificate.
 	GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
+
+	// RotateCertAuthority starts or restarts certificate authority rotation process.
+	RotateCertAuthority(ctx context.Context, req types.RotateRequest) error
 }
 
 // ServiceConfig holds configuration options for
@@ -201,6 +204,43 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 	}
 
 	return req.CertAuthority, nil
+}
+
+// RotateCertAuthority rotates a cert authority.
+func (s *Service) RotateCertAuthority(ctx context.Context, req *trustpb.RotateCertAuthorityRequest) (*trustpb.RotateCertAuthorityResponse, error) {
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rotateRequest := types.RotateRequest{
+		Type:        types.CertAuthType(req.Type),
+		TargetPhase: req.TargetPhase,
+		Mode:        req.Mode,
+	}
+
+	if req.GracePeriod != nil {
+		duration := req.GracePeriod.AsDuration()
+		rotateRequest.GracePeriod = &duration
+	}
+
+	if req.Schedule != nil {
+		rotateRequest.Schedule = &types.RotationSchedule{
+			UpdateClients: req.Schedule.UpdateClients.AsTime(),
+			UpdateServers: req.Schedule.UpdateServers.AsTime(),
+			Standby:       req.Schedule.Standby.AsTime(),
+		}
+	}
+
+	if err := s.authServer.RotateCertAuthority(ctx, rotateRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &trustpb.RotateCertAuthorityResponse{}, nil
 }
 
 // GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format
