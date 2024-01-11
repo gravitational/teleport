@@ -307,7 +307,7 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 	// CASing `updated` over `existing` if they're equivalent will only cause
 	// backend and watcher spam for no gain, so we exit early if that's the case
 	if services.CertAuthoritiesEquivalent(existing, updated) {
-		return nil, nil
+		return &trustpb.RotateExternalCertAuthorityResponse{}, nil
 	}
 
 	// use compare and swap to protect from concurrent updates
