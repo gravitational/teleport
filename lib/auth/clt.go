@@ -502,6 +502,21 @@ func (c *Client) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 	return nil, "", trace.NotImplemented(notImplementedMessage)
 }
 
+// DeleteStaticTokens deletes static tokens
+func (c *Client) DeleteStaticTokens() error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetStaticTokens returns a list of static register tokens
+func (c *Client) GetStaticTokens() (types.StaticTokens, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// SetStaticTokens sets a list of static register tokens
+func (c *Client) SetStaticTokens(st types.StaticTokens) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
