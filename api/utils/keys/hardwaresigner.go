@@ -45,22 +45,12 @@ func (k *PrivateKey) GetAttestationStatement() *AttestationStatement {
 	return nil
 }
 
-// TODO(Joerger): Delete in favor of method above once references in /e are replaced.
-func GetAttestationStatement(priv *PrivateKey) (*AttestationStatement, error) {
-	return priv.GetAttestationStatement(), nil
-}
-
 // GetPrivateKeyPolicy returns this key's PrivateKeyPolicy.
 func (k *PrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 	if attestedPriv, ok := k.Signer.(HardwareSigner); ok {
 		return attestedPriv.GetPrivateKeyPolicy()
 	}
 	return PrivateKeyPolicyNone
-}
-
-// TODO(Joerger): Delete in favor of method above once references in /e are replaced.
-func GetPrivateKeyPolicy(priv *PrivateKey) PrivateKeyPolicy {
-	return priv.GetPrivateKeyPolicy()
 }
 
 // AttestationStatement is an attestation statement for a hardware private key
