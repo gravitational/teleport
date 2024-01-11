@@ -27,6 +27,14 @@ export default {
 
 export const LoadedWebauthn = () => <AddDevice {...props} />;
 
+export const RestrictedToPasswordless = () => (
+  <AddDevice {...props} restrictDeviceUsage="passwordless" />
+);
+
+export const RestrictedToMFA = () => (
+  <AddDevice {...props} restrictDeviceUsage="mfa" />
+);
+
 export const Failed = () => (
   <AddDevice
     {...props}
