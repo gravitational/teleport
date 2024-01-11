@@ -442,7 +442,7 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 			webauthnData, err := webLogin.Finish(ctx, assertionResp)
 			require.NoError(t, err)
 			require.NotNil(t, webauthnData.Device)
-			require.Equal(t, test.user, user)
+			require.Equal(t, user, test.user)
 		})
 	}
 }
