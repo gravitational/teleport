@@ -65,6 +65,11 @@ interface FilterPanelProps {
   expandAllLabels: boolean;
   setExpandAllLabels: (expandAllLabels: boolean) => void;
   hideViewModeOptions: boolean;
+  /*
+   * ClusterDropdown is an optional prop to add a ClusterDropdown to the
+   * FilterPanel component. This is useful to turn off in Connect and use on web only
+   */
+  ClusterDropdown?: JSX.Element;
 }
 
 export function FilterPanel({
@@ -79,6 +84,7 @@ export function FilterPanel({
   expandAllLabels,
   setExpandAllLabels,
   hideViewModeOptions,
+  ClusterDropdown = null,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -120,6 +126,7 @@ export function FilterPanel({
           availableKinds={availableKinds}
           kindsFromParams={kinds || []}
         />
+        {ClusterDropdown}
       </Flex>
       <Flex gap={2} alignItems="center">
         <Flex mr={1}>{BulkActions}</Flex>
