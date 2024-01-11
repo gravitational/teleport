@@ -103,6 +103,10 @@ export interface GetKubesResponse extends apiService.GetKubesResponse.AsObject {
   agentsList: Kube[];
 }
 
+export interface GetAppsResponse extends apiService.GetAppsResponse.AsObject {
+  agentsList: App[];
+}
+
 export type GetRequestableRolesResponse =
   apiService.GetRequestableRolesResponse.AsObject;
 
@@ -198,6 +202,7 @@ export type TshClient = {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
   getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
+  getApps: (params: GetResourcesParams) => Promise<GetAppsResponse>;
   getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
   assumeRole: (
