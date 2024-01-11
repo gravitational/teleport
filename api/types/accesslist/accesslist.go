@@ -450,6 +450,9 @@ func (a *Audit) UnmarshalJSON(data []byte) error {
 		return trace.Wrap(err)
 	}
 
+	if audit.NextAuditDate == "" {
+		return nil
+	}
 	var err error
 	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, audit.NextAuditDate)
 	if err != nil {
