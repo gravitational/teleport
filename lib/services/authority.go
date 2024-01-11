@@ -357,10 +357,13 @@ type UserCertParams struct {
 	DisallowReissue bool
 	// CertificateExtensions are user configured ssh key extensions
 	CertificateExtensions []*types.CertExtension
-	// Renewable indicates this certificate is renewable
+	// Renewable indicates this certificate is renewable.
 	Renewable bool
 	// Generation counts the number of times a certificate has been renewed.
 	Generation uint64
+	// BotName is set to the name of the bot, if the user is a Machine ID bot user.
+	// Empty for human users.
+	BotName string
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs string
 	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.

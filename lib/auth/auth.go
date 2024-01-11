@@ -1796,6 +1796,8 @@ type certRequest struct {
 	skipAttestation bool
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
+	// botName is the name of the bot requesting this cert, if any
+	botName string
 }
 
 // check verifies the cert request is valid.
@@ -2542,6 +2544,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
+		BotName:                 req.botName,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -2639,6 +2642,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
+		BotName:                 req.botName,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,

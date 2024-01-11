@@ -236,7 +236,7 @@ func (a *Server) generateCertsBot(
 	}
 
 	certs, err := a.generateInitialBotCerts(
-		ctx, BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable,
+		ctx, botName, BotResourceName(botName), req.RemoteAddr, req.PublicSSHKey, expires, renewable,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
