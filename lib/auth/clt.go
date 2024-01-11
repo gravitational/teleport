@@ -796,7 +796,7 @@ type ClientI interface {
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 
 	// RotateCertAuthority starts or restarts certificate authority rotation process.
-	RotateCertAuthority(ctx context.Context, req RotateRequest) error
+	RotateCertAuthority(ctx context.Context, req types.RotateRequest) error
 
 	// RotateExternalCertAuthority rotates external certificate authority,
 	// this method is used to update only public keys and certificates of the
