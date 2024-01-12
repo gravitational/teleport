@@ -34,10 +34,26 @@ func TestResumableConnPipe(t *testing.T) {
 		firstConn bool
 		syncPipe  bool
 	}{
-		{"FirstConnSync", true, true},
-		{"NotFirstConnSync", false, true},
-		{"FirstConnSocketpair", true, false},
-		{"NotFirstConnSocketpair", false, false},
+		{
+			testName:  "FirstConnSync",
+			firstConn: true,
+			syncPipe:  true,
+		},
+		{
+			testName:  "NotFirstConnSync",
+			firstConn: false,
+			syncPipe:  true,
+		},
+		{
+			testName:  "FirstConnSocketpair",
+			firstConn: true,
+			syncPipe:  false,
+		},
+		{
+			testName:  "NotFirstConnSocketpair",
+			firstConn: false,
+			syncPipe:  false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -84,8 +100,14 @@ func TestResumableConn(t *testing.T) {
 		testName string
 		syncPipe bool
 	}{
-		{"Sync", true},
-		{"Socketpair", false},
+		{
+			testName: "Sync",
+			syncPipe: true,
+		},
+		{
+			testName: "Socketpair",
+			syncPipe: false,
+		},
 	}
 
 	for _, tc := range testCases {

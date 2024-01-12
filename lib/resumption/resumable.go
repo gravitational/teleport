@@ -29,8 +29,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func newResumableConn(localAddr, remoteAddr net.Addr) *ResumableConn {
-	r := &ResumableConn{
+func newResumableConn(localAddr, remoteAddr net.Addr) *Conn {
+	r := &Conn{
 		managedConn: managedConn{
 			localAddr:  localAddr,
 			remoteAddr: remoteAddr,
@@ -40,7 +40,10 @@ func newResumableConn(localAddr, remoteAddr net.Addr) *ResumableConn {
 	return r
 }
 
-type ResumableConn struct {
+// Conn is a [net.Conn] whose underlying transport can be closed and reopened,
+// to maintain the illusion of a perfect unbroken stream of bytes even if
+// network conditions would otherwise terminate a normal connection.
+type Conn struct {
 	managedConn
 
 	// attached is non-nil iff there's an underlying connection attached;
@@ -49,7 +52,7 @@ type ResumableConn struct {
 	attached func()
 }
 
-var _ net.Conn = (*ResumableConn)(nil)
+var _ net.Conn = (*Conn)(nil)
 
 const handshakeTimeout = 5 * time.Second
 
@@ -68,7 +71,7 @@ const maxFrameSize = 128 * 1024
 // correct behavior of firstConn requires no possible external interference
 // before the attach point is reached; the lock will be not held when the
 // function returns.
-func runResumeV1Unlocking(r *ResumableConn, nc net.Conn, firstConn bool) error {
+func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 	defer nc.Close()
 
 	if !firstConn {
@@ -173,7 +176,7 @@ func runResumeV1Unlocking(r *ResumableConn, nc net.Conn, firstConn bool) error {
 	return trace.Wrap(eg.Wait())
 }
 
-func runResumeV1Read(r *ResumableConn, nc byteReaderReader, stopRequested *atomic.Bool) error {
+func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) error {
 	for {
 		ack, err := binary.ReadUvarint(nc)
 		if err != nil {
@@ -267,7 +270,7 @@ func runResumeV1Read(r *ResumableConn, nc byteReaderReader, stopRequested *atomi
 	}
 }
 
-func runResumeV1Write(r *ResumableConn, nc io.Writer, stopRequested *atomic.Bool, sentPosition, peerPosition uint64) error {
+func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, sentPosition, peerPosition uint64) error {
 	var headerBuf [2 * binary.MaxVarintLen64]byte
 	var dataBuf [maxFrameSize]byte
 
