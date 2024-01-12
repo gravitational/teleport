@@ -231,7 +231,7 @@ const StatusLight = styled(Box)`
   height: 8px;
   background-color: ${({ status, theme }) => {
     if (status === Status.Success) {
-      return theme.colors.success;
+      return theme.colors.success.main;
     }
     if (status === Status.Error) {
       return theme.colors.error.main;

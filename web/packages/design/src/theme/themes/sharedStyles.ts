@@ -64,6 +64,7 @@ export const sharedStyles: SharedStyles = {
 export const sharedColors: SharedColors = {
   dark: '#000000',
   light: '#FFFFFF',
+  interactionHandle: '#FFFFFF',
   grey: {
     ...blueGrey,
   },

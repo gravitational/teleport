@@ -167,6 +167,11 @@ type ServicesTestSuite struct {
 	ProvisioningS services.Provisioner
 	WebS          services.Identity
 	ConfigS       services.ClusterConfiguration
+	// LocalConfigS is used for local config which can only be
+	// managed by the Auth service directly (static tokens).
+	// Used by some tests to differentiate between a server
+	// and client interface.
+	LocalConfigS  services.ClusterConfiguration
 	EventsS       types.Events
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
@@ -1061,7 +1066,6 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NotEmpty(t, upserted.GetRevision())
 	require.NotEqual(t, updated.GetRevision(), upserted.GetRevision())
 	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
-
 }
 
 func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
@@ -1558,13 +1562,13 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.SetStaticTokens(staticTokens)
+				err = s.LocalConfigS.SetStaticTokens(staticTokens)
 				require.NoError(t, err)
 
-				out, err := s.ConfigS.GetStaticTokens()
+				out, err := s.LocalConfigS.GetStaticTokens()
 				require.NoError(t, err)
 
-				err = s.ConfigS.DeleteStaticTokens()
+				err = s.LocalConfigS.DeleteStaticTokens()
 				require.NoError(t, err)
 
 				return out
