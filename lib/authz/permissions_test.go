@@ -19,6 +19,7 @@ package authz
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -721,6 +723,26 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 			require.NoError(t, err, "RoleSetForBuiltinRoles failed")
 			assert.NotEmpty(t, rs, "RoleSetForBuiltinRoles returned a nil RoleSet")
 			test.assertRoleSet(t, rs)
+		})
+	}
+}
+
+func TestConnectionMetadata(t *testing.T) {
+	for name, test := range map[string]struct {
+		ctx                        context.Context
+		expectedConnectionMetadata apievents.ConnectionMetadata
+	}{
+		"with client address": {
+			ctx:                        ContextWithClientSrcAddr(context.Background(), &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0), Port: 1234}),
+			expectedConnectionMetadata: apievents.ConnectionMetadata{RemoteAddr: "10.255.0.0:1234"},
+		},
+		"empty client address": {
+			ctx:                        context.Background(),
+			expectedConnectionMetadata: apievents.ConnectionMetadata{},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Empty(t, cmp.Diff(test.expectedConnectionMetadata, ConnectionMetadata(test.ctx)))
 		})
 	}
 }

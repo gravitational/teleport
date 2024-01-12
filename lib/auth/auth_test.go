@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	mathrand "math/rand"
+	"net"
 	"os"
 	"sort"
 	"strings"
@@ -892,7 +893,8 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
+	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	s.a.emitter = s.mockEmitter
 
 	// set up existing cluster to bypass switch cases that
@@ -920,6 +922,8 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterCreateEvent)
+	require.Equal(t, events.TrustedClusterCreateEvent, s.mockEmitter.LastEvent().GetType())
+	require.Equal(t, clientAddr.String(), s.mockEmitter.LastEvent().(*apievents.TrustedClusterCreate).ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test create event for switch case: when tc exists but enabled is true
@@ -928,19 +932,24 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterCreateEvent)
+	require.Equal(t, events.TrustedClusterCreateEvent, s.mockEmitter.LastEvent().GetType())
+	require.Equal(t, clientAddr.String(), s.mockEmitter.LastEvent().(*apievents.TrustedClusterCreate).ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test delete event
 	err = s.a.DeleteTrustedCluster(ctx, "test")
 	require.NoError(t, err)
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterDeleteEvent)
+	require.Equal(t, events.TrustedClusterDeleteEvent, s.mockEmitter.LastEvent().GetType())
+	require.Equal(t, clientAddr.String(), s.mockEmitter.LastEvent().(*apievents.TrustedClusterDelete).ConnectionMetadata.RemoteAddr)
 }
 
 func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 
-	ctx := context.Background()
+	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
+	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	// test github create event
 	github, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
 		TeamsToLogins: []types.TeamMapping{
@@ -955,14 +964,16 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
+	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+	require.Equal(t, clientAddr.String(), s.mockEmitter.LastEvent().(*apievents.GithubConnectorCreate).ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test github update event
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
+	require.Equal(t, events.GithubConnectorCreatedEvent, s.mockEmitter.LastEvent().GetType())
+	require.Equal(t, clientAddr.String(), s.mockEmitter.LastEvent().(*apievents.GithubConnectorCreate).ConnectionMetadata.RemoteAddr)
 	s.mockEmitter.Reset()
 
 	// test github delete event
@@ -970,6 +981,8 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	require.IsType(t, &apievents.GithubConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorDeletedEvent)
+	require.Equal(t, events.GithubConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
+	require.Equal(t, clientAddr.String(), s.mockEmitter.LastEvent().(*apievents.GithubConnectorDelete).ConnectionMetadata.RemoteAddr)
 }
 
 func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
@@ -2189,7 +2202,8 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	authServer.emitter = mockEmitter
 
-	ctx := context.Background()
+	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
+	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 
 	username := "llama@goteleport.com"
 	_, _, err := CreateUserAndRole(authServer, username, []string{username}, nil /* allowRules */)
@@ -2275,6 +2289,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 			require.IsType(t, &apievents.MFADeviceDelete{}, event, "underlying event type")
 			deleteEvent := event.(*apievents.MFADeviceDelete) // asserted above
 			assert.Equal(t, username, deleteEvent.User, "event.User")
+			assert.Equal(t, clientAddr.String(), deleteEvent.ConnectionMetadata.RemoteAddr)
 		})
 	}
 }
@@ -2624,7 +2639,9 @@ func TestAddMFADeviceSync(t *testing.T) {
 				event := mockEmitter.LastEvent()
 				require.Equal(t, events.MFADeviceAddEvent, event.GetType())
 				require.Equal(t, events.MFADeviceAddEventCode, event.GetCode())
-				require.Equal(t, event.(*apievents.MFADeviceAdd).UserMetadata.User, u.username)
+				addEvt := event.(*apievents.MFADeviceAdd)
+				require.Equal(t, u.username, addEvt.UserMetadata.User)
+				assert.Contains(t, addEvt.ConnectionMetadata.RemoteAddr, "127.0.0.1", "client remote addr must be localhost")
 
 				// Check it's been added.
 				res, err := clt.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})

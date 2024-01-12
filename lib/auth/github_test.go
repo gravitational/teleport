@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -182,7 +183,8 @@ func (c *testGithubAPIClient) getTeams() ([]teamResponse, error) {
 }
 
 func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
-	ctx := context.Background()
+	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
+	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	tt := setupGithubContext(ctx, t)
 
 	auth := &GithubAuthResponse{
@@ -216,10 +218,12 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.AppliedLoginRules = []string{"login-rule"}
 		return auth, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetType(), events.UserLoginEvent)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOLoginCode)
-	require.Equal(t, tt.mockEmitter.LastEvent().(*apievents.UserLogin).AppliedLoginRules, []string{"login-rule"})
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
+	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
+	require.Equal(t, events.UserSSOLoginCode, tt.mockEmitter.LastEvent().GetCode())
+	loginEvt := tt.mockEmitter.LastEvent().(*apievents.UserLogin)
+	require.Equal(t, []string{"login-rule"}, loginEvt.AppliedLoginRules)
+	require.Equal(t, clientAddr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
 	require.Equal(t, ssoDiagInfoCalls, 0)
 	tt.mockEmitter.Reset()
 
@@ -229,9 +233,12 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOLoginFailureCode)
-	require.Equal(t, ssoDiagInfoCalls, 0)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
+	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
+	require.Equal(t, events.UserSSOLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
+	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
+	require.Equal(t, clientAddr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
+	require.Equal(t, 0, ssoDiagInfoCalls)
 
 	// Test success event, test-flow.
 	diagCtx = ssoDiagContextFixture(true /* testFlow */)
@@ -239,10 +246,12 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetType(), events.UserLoginEvent)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOTestFlowLoginCode)
-	require.Equal(t, ssoDiagInfoCalls, 1)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
+	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
+	require.Equal(t, events.UserSSOTestFlowLoginCode, tt.mockEmitter.LastEvent().GetCode())
+	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
+	require.Equal(t, clientAddr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
+	require.Equal(t, 1, ssoDiagInfoCalls)
 	tt.mockEmitter.Reset()
 
 	// Test failure event, test-flow.
@@ -251,9 +260,12 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
-	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOTestFlowLoginFailureCode)
-	require.Equal(t, ssoDiagInfoCalls, 2)
+	_, _ = validateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.emitter)
+	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
+	require.Equal(t, events.UserSSOTestFlowLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
+	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
+	require.Equal(t, clientAddr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
+	require.Equal(t, 2, ssoDiagInfoCalls)
 }
 
 type mockedGithubManager struct {

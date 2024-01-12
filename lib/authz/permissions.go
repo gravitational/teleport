@@ -1438,3 +1438,17 @@ func IsLocalUser(authContext Context) bool {
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
 }
+
+// ConnectionMetadata returns a ConnectionMetadata suitable for events caused by
+// a remote client making a call. If ctx didn't pass through auth middleware or
+// did not come from an HTTP request, empty metadata is returned.
+func ConnectionMetadata(ctx context.Context) apievents.ConnectionMetadata {
+	remoteAddr, err := ClientSrcAddrFromContext(ctx)
+	if err != nil {
+		return apievents.ConnectionMetadata{}
+	}
+
+	return apievents.ConnectionMetadata{
+		RemoteAddr: remoteAddr.String(),
+	}
+}

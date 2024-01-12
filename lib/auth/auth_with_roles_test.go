@@ -22,6 +22,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -5779,7 +5780,8 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 
 func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
+	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	m := &eventstest.MockAuditLog{
 		Emitter: &eventstest.MockRecorderEmitter{},
 	}
@@ -5801,10 +5803,11 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	localUser := authz.LocalUser{Username: "test", Identity: tlsca.Identity{Username: "test"}}
 
 	// test create user, happy path
-	err = setupServer.CreateUser(authz.ContextWithUser(ctx, localUser), user)
-	require.NoError(t, err)
+	require.NoError(t, setupServer.CreateUser(authz.ContextWithUser(ctx, localUser), user))
 	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
-	require.Equal(t, "test", m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	createEvt := m.Emitter.LastEvent().(*apievents.UserCreate)
+	require.Equal(t, "test", createEvt.User)
+	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 	m.Emitter.Reset()
 
 	// test create user with existing user
@@ -5815,9 +5818,10 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	// test createdBy gets set to default
 	user2, err := types.NewUser("some-other-user")
 	require.NoError(t, err)
-	err = setupServer.CreateUser(ctx, user2)
-	require.NoError(t, err)
-	require.Equal(t, teleport.UserSystem, m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	require.NoError(t, setupServer.CreateUser(ctx, user2))
+	createEvt = m.Emitter.LastEvent().(*apievents.UserCreate)
+	require.Equal(t, teleport.UserSystem, createEvt.User)
+	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 	m.Emitter.Reset()
 
 	// test update on non-existent user
@@ -5828,21 +5832,18 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	require.Nil(t, m.Emitter.LastEvent())
 
 	// test update user
-	err = setupServer.UpdateUser(authz.ContextWithUser(ctx, localUser), user)
-	require.NoError(t, err)
+	require.NoError(t, setupServer.UpdateUser(authz.ContextWithUser(ctx, localUser), user))
 	require.Equal(t, events.UserUpdatedEvent, m.Emitter.LastEvent().GetType())
-	require.Equal(t, "test", m.Emitter.LastEvent().(*apievents.UserCreate).User)
+	createEvt = m.Emitter.LastEvent().(*apievents.UserCreate)
+	require.Equal(t, "test", createEvt.User)
+	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 
-	err = setupServer.UpsertUser(authz.ContextWithUser(ctx, localUser), user)
-	require.NoError(t, err)
+	require.NoError(t, setupServer.UpsertUser(authz.ContextWithUser(ctx, localUser), user))
 	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
-	require.Equal(t, "test", m.Emitter.LastEvent().(*apievents.UserCreate).User)
 	m.Emitter.Reset()
 
-	err = setupServer.UpsertUser(ctx, user)
-	require.NoError(t, err)
+	require.NoError(t, setupServer.UpsertUser(ctx, user))
 	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
-	require.Equal(t, teleport.UserSystem, m.Emitter.LastEvent().(*apievents.UserCreate).User)
 	m.Emitter.Reset()
 }
 
