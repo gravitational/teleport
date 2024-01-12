@@ -43,7 +43,7 @@ but filter and limit access to the servers based on their AWS region.
 
 (!docs/pages/includes/tctl.mdx!)
 
-### Install Teleport
+## Step 1/2. Install Teleport
 
 1. Select a host for running the Teleport agent.
 
@@ -75,6 +75,11 @@ as a resource:
    ```code
    $ export INVITE_TOKEN=<token>
    ```
+
+## Step 2/2. Apply labels
+
+Follow any or all of the sections below to add different types of labels to
+your resource.
 
 ### Apply a static label
 
@@ -292,19 +297,35 @@ should be named `si-<name>`.
 
 To add resource-based labels:
 
+1. Run `tctl get node/<Var name="hostname"/>` to get the name of the node resource to apply labels to.
+   You should get output similar to the following:
+
+   ```yaml
+   kind: node
+   metadata:
+      expires: "2024-01-12T00:41:17.355013266Z"
+      id: <id>
+      name: <name-uuid>
+      revision: <revision-uuid>
+   spec:
+      # ...
+   ```
+
+   Save the value of `metadata.name` for the next step.
+
 1. Create the file `server_info.yaml` and paste the following into it:
 
    ```yaml
    # server_info.yaml
    kind: server_info
    metadata:
-      # Replace "example-node" with the name of the node to apply labels to
-      name: si-example-node
+      name: si-<node-name>
    spec:
       new_labels:
          "foo": "bar"
    ```
 
+   Replace `<node-name>` with the resource name you saved in the previous step.
    Run the following to create the `server_info` resource:
 
    ```code
@@ -328,9 +349,11 @@ larger clusters, so it may take several minutes for the new labels to appear.
    ip-192-168-13-57 ⟵ Tunnel       dynamic/foo=bar,hostname=ip-192-168-13-57
    ```
 
-Note that all resource-based labels created with `tctl` will have the
-`dynamic/` prefix. This prefix forbids the label from being used in a
-role's deny rules.
+<Admonition type="warning">
+   All resource-based labels created with `tctl` will have the
+   `dynamic/` prefix. This prefix forbids the label from being used in a
+   role's deny rules.
+</Admonition>
 
 To update resource-based labels, recreate the `server_info` resource with updated labels.
 
