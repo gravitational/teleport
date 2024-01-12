@@ -150,13 +150,15 @@ func ValidateAssertionConsumerService(acs saml.IndexedEndpoint) error {
 // or are using a non-https endpoint. We perform filtering rather than outright rejection because it is generally
 // expected that a service provider will successfully support a given ACS so long as they have at least one
 // compatible binding.
-func FilterSAMLEntityDescriptor(ed *saml.EntityDescriptor) error {
+func FilterSAMLEntityDescriptor(ed *saml.EntityDescriptor, quiet bool) error {
 	var originalCount int
 	var filteredCount int
 	for i := range ed.SPSSODescriptors {
 		filtered := slices.DeleteFunc(ed.SPSSODescriptors[i].AssertionConsumerServices, func(acs saml.IndexedEndpoint) bool {
 			if err := ValidateAssertionConsumerService(acs); err != nil {
-				log.Warnf("AssertionConsumerService binding for entity %q is invalid and will be ignored: %v", ed.EntityID, err)
+				if !quiet {
+					log.Warnf("AssertionConsumerService binding for entity %q is invalid and will be ignored: %v", ed.EntityID, err)
+				}
 				return true
 			}
 

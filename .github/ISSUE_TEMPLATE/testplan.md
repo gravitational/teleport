@@ -465,6 +465,16 @@ connectors are accepted, invalid are rejected with sensible error messages.
         - [ ] Google Workspace
         - [ ] Non-Google IdP
 
+### SSO login on remote host
+
+- [ ] SSO login on a remote host
+
+`tsh` should be running on a remote host (e.g. over an SSH session) and use the
+local browser to complete and SSO login. Run
+`tsh login --callback <remote.host>:<port> --bind-addr localhost:<port> --auth <auth>`
+on the remote host. Note that the `--callback` URL must be able to resolve to the
+`--bind-addr` over HTTPS.
+
 ### Teleport Plugins
 
 - [ ] Test receiving a message via Teleport Slackbot

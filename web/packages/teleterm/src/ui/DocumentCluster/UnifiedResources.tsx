@@ -332,7 +332,7 @@ const mapToSharedResource = (
           samlApp: app.samlApp,
         },
         ui: {
-          ActionButton: <ConnectAppActionButton />,
+          ActionButton: <ConnectAppActionButton app={app} />,
         },
       };
     }

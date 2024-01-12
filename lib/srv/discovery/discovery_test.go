@@ -519,7 +519,6 @@ func TestDiscoveryServer(t *testing.T) {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
 					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
-
 				}, 5000*time.Millisecond, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
@@ -571,8 +570,10 @@ func TestDiscoveryKubeServices(t *testing.T) {
 	mockKubeServices := []*corev1.Service{
 		newMockKubeService("service1", "ns1", "", map[string]string{"test-label": "testval"}, nil,
 			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
-		newMockKubeService("service2", "ns2", "", map[string]string{"test-label": "testval",
-			"test-label2": "testval2"}, nil, []corev1.ServicePort{{Port: 42, Name: "custom", AppProtocol: &appProtocolHTTP, Protocol: corev1.ProtocolTCP}}),
+		newMockKubeService("service2", "ns2", "", map[string]string{
+			"test-label":  "testval",
+			"test-label2": "testval2",
+		}, nil, []corev1.ServicePort{{Port: 42, Name: "custom", AppProtocol: &appProtocolHTTP, Protocol: corev1.ProtocolTCP}}),
 	}
 
 	app1 := mustConvertKubeServiceToApp(t, mainDiscoveryGroup, "http", mockKubeServices[0], mockKubeServices[0].Spec.Ports[0])
@@ -719,7 +720,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					}
 				}
 				return true
-
 			}, 5*time.Second, 200*time.Millisecond)
 		})
 	}
@@ -1331,7 +1331,7 @@ var eksMockClusters = []*eks.Cluster{
 }
 
 func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discoveryGroup string) types.KubeCluster {
-	cluster, err := services.NewKubeClusterFromAWSEKS(eksCluster)
+	cluster, err := services.NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	common.ApplyEKSNameSuffix(cluster)
@@ -2581,21 +2581,24 @@ func TestGCPVMDiscovery(t *testing.T) {
 					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
-
 		})
 	}
 }
 
 // TestServer_onCreate tests the update of the discovery_group of a resource
-// when it differs from the one in the database.
-// TODO(tigrato): DELETE in 15.0.0
+// when a resource already exists with the same name but an empty discovery_group.
 func TestServer_onCreate(t *testing.T) {
 	_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "test")
-	accessPoint := &fakeAccessPoint{}
+	_, awsRedshiftDBEmptyDiscoveryGroup := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "" /* empty discovery group */)
+	accessPoint := &fakeAccessPoint{
+		kube:     mustConvertEKSToKubeCluster(t, eksMockClusters[0], "" /* empty discovery group */),
+		database: awsRedshiftDBEmptyDiscoveryGroup,
+	}
 	s := &Server{
 		Config: &Config{
-			AccessPoint: accessPoint,
-			Log:         logrus.New(),
+			DiscoveryGroup: "test-cluster",
+			AccessPoint:    accessPoint,
+			Log:            logrus.New(),
 		},
 	}
 
@@ -2603,12 +2606,28 @@ func TestServer_onCreate(t *testing.T) {
 		err := s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
 		require.NoError(t, err)
 		require.True(t, accessPoint.updateKube)
+
+		// Reset the update flag.
+		accessPoint.updateKube = false
+		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], "nonEmpty")
+		// Update the kube cluster with non-empty discovery group.
+		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		require.Error(t, err)
+		require.False(t, accessPoint.updateKube)
 	})
 
 	t.Run("onCreate update database", func(t *testing.T) {
 		err := s.onDatabaseCreate(context.Background(), awsRedshiftDB)
 		require.NoError(t, err)
 		require.True(t, accessPoint.updateDatabase)
+
+		// Reset the update flag.
+		accessPoint.updateDatabase = false
+		accessPoint.database = awsRedshiftDB
+		// Update the db with non-empty discovery group.
+		err = s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		require.Error(t, err)
+		require.False(t, accessPoint.updateDatabase)
 	})
 }
 
@@ -2671,9 +2690,10 @@ func TestEmitUsageEvents(t *testing.T) {
 
 type fakeAccessPoint struct {
 	auth.DiscoveryAccessPoint
-	updateKube     bool
-	updateDatabase bool
-
+	updateKube          bool
+	updateDatabase      bool
+	kube                types.KubeCluster
+	database            types.Database
 	upsertedServerInfos chan types.ServerInfo
 }
 
@@ -2681,6 +2701,14 @@ func newFakeAccessPoint() *fakeAccessPoint {
 	return &fakeAccessPoint{
 		upsertedServerInfos: make(chan types.ServerInfo),
 	}
+}
+
+func (f *fakeAccessPoint) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+	return f.kube, nil
+}
+
+func (f *fakeAccessPoint) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	return f.database, nil
 }
 
 func (f *fakeAccessPoint) CreateDatabase(ctx context.Context, database types.Database) error {
@@ -2711,11 +2739,9 @@ func (f *fakeAccessPoint) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	return newFakeWatcher(), nil
 }
 
-type fakeWatcher struct {
-}
+type fakeWatcher struct{}
 
 func newFakeWatcher() fakeWatcher {
-
 	return fakeWatcher{}
 }
 

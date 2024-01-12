@@ -110,7 +110,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
       <CliCommand
         cliCommand={props.gateway.gatewayCliCommand.preview}
         isLoading={isPortOrDbNameProcessing}
-        onRun={props.runCliCommand}
+        onButtonClick={props.runCliCommand}
       />
       {$errors}
       <Text typography="h4" mt={3} mb={1}>

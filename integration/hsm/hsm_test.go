@@ -157,7 +157,7 @@ func TestHSMRotation(t *testing.T) {
 	allServices = append(allServices, proxy)
 
 	log.Debug("TestHSMRotation: sending rotation request init")
-	err := auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err := auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
@@ -166,7 +166,7 @@ func TestHSMRotation(t *testing.T) {
 	require.NoError(t, allServices.waitForPhaseChange(ctx))
 
 	log.Debug("TestHSMRotation: sending rotation request update_clients")
-	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
@@ -175,7 +175,7 @@ func TestHSMRotation(t *testing.T) {
 	require.NoError(t, allServices.waitForRestart(ctx))
 
 	log.Debug("TestHSMRotation: sending rotation request update_servers")
-	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
@@ -184,7 +184,7 @@ func TestHSMRotation(t *testing.T) {
 	require.NoError(t, allServices.waitForRestart(ctx))
 
 	log.Debug("TestHSMRotation: sending rotation request standby")
-	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
@@ -334,7 +334,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	// do a full rotation
 	for _, stage := range stages {
 		log.Debugf("TestHSMDualAuthRotation: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,
@@ -353,7 +353,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	// Do another full rotation from the new auth server
 	for _, stage := range stages {
 		log.Debugf("TestHSMDualAuthRotation: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth2.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		require.NoError(t, auth2.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,
@@ -456,7 +456,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	}
 	for _, stage := range stages {
 		log.Debugf("TestHSMDualAuthRotation: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,
@@ -563,7 +563,7 @@ func TestHSMMigrate(t *testing.T) {
 	// do a full rotation
 	for _, stage := range stages {
 		log.Debugf("TestHSMMigrate: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,
@@ -590,7 +590,7 @@ func TestHSMMigrate(t *testing.T) {
 	// do a full rotation
 	for _, stage := range stages {
 		log.Debugf("TestHSMMigrate: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,

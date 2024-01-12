@@ -532,6 +532,7 @@ Use Discover Wizard to enroll new resources and access them:
 - [ ] Self-Hosted PostgreSQL
 - [ ] AWS RDS PostgreSQL
 - [ ] Kubernetes
+- [ ] AWS EKS cluster
 - [ ] Windows Desktop Active Directory
 
 ## Teleport Connect
@@ -541,13 +542,16 @@ Use Discover Wizard to enroll new resources and access them:
      (`auth_service.authentication` in the cluster config):
       - [ ] `type: local`, `second_factor: "off"`
       - [ ] `type: local`, `second_factor: "otp"`
+         - [ ] Test per-session MFA items listed later in the test plan.
       - [ ] `type: local`, `second_factor: "webauthn"`,
+         - [ ] Test per-session MFA items listed later in the test plan.
       - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with hardware key
       - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with touch ID
       - [ ] `type: local`, `second_factor: "optional"`, log in without MFA
       - [ ] `type: local`, `second_factor: "optional"`, log in with OTP
       - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key
       - [ ] `type: local`, `second_factor: "on"`, log in with OTP
+         - [ ] Test per-session MFA items listed later in the test plan.
       - [ ] `type: local`, `second_factor: "on"`, log in with hardware key
       - [ ] `type: local`, `second_factor: "on"`, log in with passwordless auth
       - [ ] Verify that the passwordless credential picker works.
@@ -617,10 +621,10 @@ Use Discover Wizard to enroll new resources and access them:
    - [ ] Check that those connections are removed after you log out of the root cluster that they
          belong to.
    - [ ] Verify that reopening a db connection from the connections picker remembers last used port.
-- Cluster resources (servers, databases, k8s)
+- Cluster resources (servers, databases, k8s, apps)
    - [ ] Verify that the app shows the same resources as the Web UI.
-   - [ ] Verify that search is working for the resources lists.
-   - [ ] Verify that pagination is working for the resources lists.
+   - [ ] Verify that search is working for the resources list.
+   - [ ] Verify that pagination is working for the resources list.
    - [ ] Verify that pagination works in tandem with search, that is verify that search results are
          paginated too.
    - [ ] Verify that you can connect to these resources.
@@ -804,6 +808,13 @@ Use Discover Wizard to enroll new resources and access them:
    - [ ] Create a db connection, wait for the cert to expire. Attempt to connect to the database
      through CLI. While the login modal is shown, make a headless request. Verify that after logging
      in again, the app shows the modal for the headless request.
+- Per-session MFA
+   - The easiest way to test it is to enable [cluster-wide per-session
+     MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa/#cluster-wide).
+   - [ ] Verify that connecting to a Kube cluster prompts for MFA.
+      - [ ] Re-execute `kubectl exec --stdin --tty shell-demo -- /bin/bash` mentioned above to
+        verify that Kube access is working with MFA.
+   - [ ] Verify that Connect prompts for MFA during Connect My Computer setup.
 - Connect My Computer
    - [ ] Verify the happy path from clean slate (no existing role) setup: set up the node and then
      connect to it.

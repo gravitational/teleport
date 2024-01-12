@@ -22,8 +22,13 @@ exports[`rendering of CardSuccess components 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #00BFA5;
   margin-bottom: 16px;
+}
+
+.c2 color {
+  main: #00BFA6;
+  hover: #33CCB8;
+  active: #66D9CA;
 }
 
 <div

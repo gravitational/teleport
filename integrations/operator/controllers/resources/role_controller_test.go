@@ -90,7 +90,7 @@ allow:
   - ubuntu
   - root
 options:
-  create_host_user_mode: 4
+  create_host_user_mode: 3
 `,
 			shouldFail: false,
 			expectedSpec: &types.RoleSpecV6{
@@ -98,7 +98,7 @@ options:
 					Logins: []string{"ubuntu", "root"},
 				},
 				Options: types.RoleOptions{
-					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 				},
 			},
 		},
