@@ -300,23 +300,23 @@ auth_service:
 
 ## Step 3/5. (Re)start Teleport Auth
 
-If this is a new auth server which has not been started yet, starting a brand
-new cluster with an empty backend, HSM keys will be automatically generated at
-startup and no further action is required, skip to step 5. Otherwise, continue
-reading.
+If this is a new Teleport Auth Service which has not been started yet, starting
+a brand new cluster with an empty backend, HSM keys will be automatically
+generated at startup and no further action is required, skip to step 5.
+Otherwise, continue reading.
 
 If you are connecting an HSM to an existing Teleport cluster, restart the auth
 server for the configuration changes to take effect.
 New CA keys will automatically be generated in the HSM during the next CA
 rotation.
-Until a CA rotation is completed, the auth server will continue signing new
+Until a CA rotation is completed, the Auth Service will continue signing new
 certificates with the existing software keys.
 
 ## Step 4/5. Certificate Rotation with HSM
 
 When adding a new HSM to an existing Teleport cluster, or adding a new
-HSM-connected Auth server to an HA Teleport cluster, you will need to rotate all
-Certificate Authorities in order for new certificates to be issued and
+HSM-connected Auth Service to an HA Teleport cluster, you will need to rotate
+all Certificate Authorities in order for new certificates to be issued and
 trusted.
 
 `teleport start` will print a warning during startup if any CA needs to be rotated.

@@ -239,9 +239,9 @@ CA keys during its first start.
 Those existing CA keys will have been used to sign all existing user and host
 certificates, and will be trusted by all other services in your cluster.
 
-In order for the auth servers to generate new keys in GCP KMS and have them
-trusted by the rest of the cluster, you will need to rotate all of your Teleport
-CAs.
+In order for the Teleport Auth Service to generate new keys in GCP KMS and have
+them trusted by the rest of the cluster, you will need to rotate all of your
+Teleport CAs.
 
 `teleport start` will print a warning during startup if any CA needs to be rotated.
 CA rotation can be performed manually or semi-automatically, see our admin guide
