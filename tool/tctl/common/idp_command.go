@@ -217,11 +217,11 @@ func parseSPFile(fileName string) (types.SAMLIdPServiceProviderV1, error) {
 }
 
 // getUsersFromAPIOrFile parses user from spec file. If file is not found, it fetches user from backend.
-func getUsersFromAPIOrFile(ctx context.Context, userfileOrNames []string, c auth.ClientI) ([]*types.UserV2, error) {
-	ufromFileOrName := flattenSlice(userfileOrNames)
+func getUsersFromAPIOrFile(ctx context.Context, usernamesOrFileNames []string, c auth.ClientI) ([]*types.UserV2, error) {
+	flattenedUsernamesOrFileNames := flattenSlice(usernamesOrFileNames)
 	var users []*types.UserV2
 
-	for _, name := range ufromFileOrName {
+	for _, name := range flattenedUsernamesOrFileNames {
 		if _, err := os.Stat(name); os.IsNotExist(err) {
 			user, err := c.GetUser(ctx, name, false)
 			if err != nil {
