@@ -59,24 +59,21 @@ spec:
   db_labels:
     env: prod
   mappings:
-    - match:
-        databases:
-          - 'Widget*'
-        db_service_names:
-          - all-things-widget
-        names:
-          - '*sales*'
-        object_kinds:
-          - table
-          - view
-          - procedure
-        protocol_names:
-          - postgres
-        schemas:
+    - scope:
+        database_names:
+          - Widget*
+        schema_names:
           - widget
           - sales
           - public
           - secret
+      match:
+        procedure_names:
+          - '*sales*'
+        table_names:
+          - '*sales*'
+        view_names:
+          - '*sales*'
       add_labels:
         env: prod
         product: WidgetMaster3000
@@ -132,47 +129,52 @@ object attributes.
 kind: db_object_import_rule
 version: v1
 metadata:
-  name: mark-confidential
+  name: mark_confidential
 spec:
-  priority: 20
   db_labels:
     env: prod
   mappings:
-    - match:
-        schemas:
+    - scope:
+        schema_names:
           - private
           - sales
           - secret
       add_labels:
         confidential: 'true'
-    - match:
-        schemas:
+    - scope:
+        schema_names:
           - public
       add_labels:
         confidential: 'false'
+  priority: 20
 ```
 
-As another example, a wide rule to import all tables from all databases may look
-as follows:
+As another example, a wide rule to import all tables in schema "public" from all
+staging databases may look as follows:
 
 ```yaml
 kind: db_object_import_rule
 version: v1
 metadata:
-  name: import_all_tables
+  name: import_all_staging_tables
 spec:
-  priority: 20
   db_labels:
     env: staging
   mappings:
-    - match:
-        object_kinds:
-          - table
-        schemas:
-          - public
-      add_labels:
-        env: staging
+    - add_labels:
         custom_label: my_custom_value
+        env: staging
+      match:
+        procedure_names:
+          - ''
+        table_names:
+          - '*'
+        view_names:
+          - ''
+      scope:
+        schema_names:
+          - public
+  priority: 30
 ```
 
 A more fine-grained rule, targeting a specific set of tables:
@@ -183,22 +185,25 @@ version: v1
 metadata:
   name: import_specific_tables
 spec:
-  priority: 30
   db_labels:
     env: dev
   mappings:
-    - match:
-        object_kinds:
-          - table
-        schemas:
-          - public
-        names:
-          - 'table1'
-          - 'table2'
-          - 'table3'
-      add_labels:
-        env: dev
+    - add_labels:
         custom_label: my_custom_value
+        env: dev
+      match:
+        procedure_names:
+          - ''
+        table_names:
+          - table1
+          - table2
+          - table3
+        view_names:
+          - ''
+      scope:
+        schema_names:
+          - public
+  priority: 30
 ```
 
 #### Import process
@@ -283,27 +288,44 @@ one as follows:
 
 ```yaml
 kind: db_object_import_rule
-version: v1
 metadata:
-  name: import_object_kind
+  name: object-kind
 spec:
+  db_labels:
+    '*': '*'
   mappings:
     - add_labels:
         kind: table
       match:
-        object_kinds:
-          - table
+        procedure_names:
+          - ''
+        table_names:
+          - '*'
+        view_names:
+          - ''
+      scope: {}
     - add_labels:
         kind: view
       match:
-        object_kinds:
-          - view
+        procedure_names:
+          - ''
+        table_names:
+          - ''
+        view_names:
+          - '*'
+      scope: {}
     - add_labels:
-        kind: schema
+        kind: procedure
       match:
-        object_kinds:
-          - schema
+        procedure_names:
+          - '*'
+        table_names:
+          - ''
+        view_names:
+          - ''
+      scope: {}
   priority: 100
+version: v1
 ```
 
 #### Applying permissions
@@ -326,8 +348,8 @@ changes, but the cost of implementing such a feature should be weighed against
 the benefits it would provide. The list of roles for a given user is unchanging
 in the scope of a single connection, so this is not an element that may change.
 
-To avoid confusion regarding the source of access, `db_permissions` will only be
-considered if no `db_roles` are configured for user.
+To avoid confusion regarding the source of access, `db_permissions` will be
+mutually exclusive with `db_roles`.
 
 The precise meaning of individual permissions is database-specific.
 
