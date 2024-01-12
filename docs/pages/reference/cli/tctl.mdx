@@ -405,11 +405,11 @@ $ tctl bots add <name> [<flags>]
 | `--logins` | none | Comma-separated list of allowed SSH logins to set Bot's login trait to. | Optional. Specifies the values that should be configured as the Bot's logins trait for the purpose of role templating. |
 | `--token` | none | String name of an existing join token. | Optional. Specifies an existing join token to be used rather than creating one as part of the Bot creation. |
 | `--ttl` | 15m | Duration. | Optional. Overrides the TTL of the token that will be created if `--token` is not specified. |
-| `--format` | `text` | `text`, `json` | If set to `json`, return new bot information as a machine readable JSON string. |
+| `--format` | `text` | `text`, `json` | If set to `json`, return new bot information as a machine-readable JSON string. |
 
 ### Examples
 
-Create a new bot named `example` that may assume the `access` role and login as `root`:
+Create a new bot named `example` that may assume the `access` role and log in as `root`:
 
 ```code
 $ tctl bots add example --roles=access --logins=root
@@ -486,7 +486,7 @@ an empty list:
 $ tctl bots update example --set-logins=,
 ```
 
-(Note that the bot may still be granted additional logins via roles.)
+Note that the bot may still be granted additional logins via roles.
 
 ### Global flags
 
