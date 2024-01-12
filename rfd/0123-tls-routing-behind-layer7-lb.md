@@ -140,8 +140,8 @@ Both WebSocket and the "legacy" upgrade methods will be supported by the Telepor
 releases for backwards compatibility. And the "legacy" upgrade is expected to be removed in a later version.
 
 During the transition period, the client will send both upgrade types in the "Upgrade" headers, with "websocket" as the
-first choice. Upon receiving 101 Switching Protocols, the client will pick the negotiated protocol based on the response
-headers.
+first choice. Upon receiving 101 Switching Protocols, the client will pick the negotiated protocol based on the value of
+the "Upgrade" header from the response ([RFC spec](https://datatracker.ietf.org/doc/html/rfc2616#section-14.42)).
 
 On the server side, older servers ignore any upgrade types other than the "legacy" upgrade types. Therefore "websocket"
 sent by newer clients will be skipped and "legacy" upgrades will be negotiated as long as the "legacy" types are also
