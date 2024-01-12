@@ -361,7 +361,7 @@ message GetBotInstanceRequest {
   string name = 1;
 }
 
-// Request for ListFoos.
+// Request for ListBotInstances.
 //
 // Follows the pagination semantics of
 // https://cloud.google.com/apis/design/standard_methods#list
@@ -403,8 +403,8 @@ Eventually, we may wish to add a way to specify a number of joins which can
 occur with a token. This provides a way to easily control the lifetime of a 
 token when deploying to a fleet of a pre-known size.
 
-The renewal logic will need to be adjusted to read the generation counter from
-the BotInstance rather than the Bot user.
+The renewal logic will need to be adjusted to read and update the generation
+counter from the BotInstance rather than the Bot user.
 
 ### CLI Changes
 
@@ -466,8 +466,40 @@ method without introducing the BotInstance resource. Instead of storing a
 single counter within the Bot User labels, we could store a JSON encoded map
 of counters.
 
-One challenge would be contention over the User resource if a large number of
+One challenge would be contention over the user resource if a large number of
 Bot instances are trying to renew their certificates at the same time. Our
 Backend has limited support for transactional consistency and this increases the
 risk of two Bot instances renewing simultaneously and producing an inconsistent
 state that locks one of them out.
+
+### Remove generation counter from the `token` join method
+
+## Out of Scope
+
+These tasks are out of scope of this RFD but could be considered natural 
+follow-on tasks.
+
+### Multi-phase Commit of Generation Counter
+
+Currently, the generation counter is fragile as it is incremented server side
+without confirmation that `tbot` has been able to use and persist the new
+credentials. If `tbot` does not receive confirmation of the renewal or is
+unable to persist the new credentials, it will be locked out on it's next
+attempt to renew.
+
+We could introduce a multi-phase commit of the generation counter. This would
+provide more robustness to the renewal process.
+
+### Locking of Individual Bot Instances
+
+Currently, it's only possible to lock out an entire Bot user. This means that
+when managing a large fleet, it would not be able to lock out a specific host
+that had been compromised. This is likely to be a major friction point for those
+deploying a large number of Bot instances.
+
+It also increases the significance of the fragility of the generation counter.
+
+### Bot Command and Control
+
+The BotInstance resource could be extended to allow `tbot` to be controlled
+remotely.
