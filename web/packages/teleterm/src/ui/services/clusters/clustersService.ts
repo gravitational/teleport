@@ -612,7 +612,17 @@ export function makeKube(source: tsh.Kube) {
   };
 }
 
-export function makeApp(source: tsh.App) {
+export interface App extends tsh.App {
+  /**
+   * `addrWithProtocol` is an app protocol + a public address.
+   * If the public address is empty, it falls back to the endpoint URI.
+   *
+   * Always empty for SAML applications.
+   */
+  addrWithProtocol: string;
+}
+
+export function makeApp(source: tsh.App): App {
   const { publicAddr, endpointUri } = source;
 
   const isTcp = endpointUri && endpointUri.startsWith('tcp://');

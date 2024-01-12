@@ -184,7 +184,7 @@ export interface DocumentClusterQueryParams {
 // `DocumentClusterQueryParams` uses values of this type and documents are stored to disk.
 export type DocumentClusterResourceKind = Extract<
   SharedUnifiedResource['resource']['kind'],
-  'node' | 'kube_cluster' | 'db'
+  'node' | 'app' | 'kube_cluster' | 'db'
 >;
 
 export interface DocumentAccessRequests extends DocumentBase {
