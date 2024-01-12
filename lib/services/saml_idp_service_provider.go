@@ -128,9 +128,6 @@ func GenerateIdPServiceProviderFromFields(name string, entityDescriptor string) 
 var supportedACSBindings = map[string]struct{}{
 	saml.HTTPPostBinding:     {},
 	saml.HTTPRedirectBinding: {},
-	// HTTPArtifactBinding is defined when entity descriptor is generated
-	// using crewjam/saml https://github.com/crewjam/saml/blob/main/service_provider.go#L228.
-	saml.HTTPArtifactBinding: {},
 }
 
 // ValidateAssertionConsumerService checks if a given assertion consumer service is usable by teleport. Note that
@@ -153,13 +150,15 @@ func ValidateAssertionConsumerService(acs saml.IndexedEndpoint) error {
 // or are using a non-https endpoint. We perform filtering rather than outright rejection because it is generally
 // expected that a service provider will successfully support a given ACS so long as they have at least one
 // compatible binding.
-func FilterSAMLEntityDescriptor(ed *saml.EntityDescriptor) error {
+func FilterSAMLEntityDescriptor(ed *saml.EntityDescriptor, quiet bool) error {
 	var originalCount int
 	var filteredCount int
 	for i := range ed.SPSSODescriptors {
 		filtered := slices.DeleteFunc(ed.SPSSODescriptors[i].AssertionConsumerServices, func(acs saml.IndexedEndpoint) bool {
 			if err := ValidateAssertionConsumerService(acs); err != nil {
-				log.Warnf("AssertionConsumerService binding for entity %q is invalid and will be ignored: %v", ed.EntityID, err)
+				if !quiet {
+					log.Warnf("AssertionConsumerService binding for entity %q is invalid and will be ignored: %v", ed.EntityID, err)
+				}
 				return true
 			}
 

@@ -1007,7 +1007,7 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 		}
 
 		// issue warning about unsupported ACS bindings.
-		if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
+		if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
 			log.Warnf("Entity descriptor for SAML IdP service provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
 		}
 	}

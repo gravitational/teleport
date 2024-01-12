@@ -102,7 +102,7 @@ func TestFilterSAMLEntityDescriptor(t *testing.T) {
 				Done(),
 			ok:     true,
 			before: 3,
-			after:  2,
+			after:  1,
 			name:   "binding filtering",
 		},
 		{
@@ -124,7 +124,7 @@ func TestFilterSAMLEntityDescriptor(t *testing.T) {
 
 			require.Equal(t, tt.before, getACSCount(ed))
 
-			err = FilterSAMLEntityDescriptor(ed)
+			err = FilterSAMLEntityDescriptor(ed, false /* quiet */)
 			if !tt.ok {
 				require.Error(t, err)
 				return

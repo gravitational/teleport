@@ -134,7 +134,7 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 	}
 
 	// ensure any filtering related issues get logged
-	if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
 		s.log.Warnf("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
 	}
 
@@ -175,7 +175,7 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 	}
 
 	// ensure any filtering related issues get logged
-	if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
 		s.log.Warnf("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
 	}
 
@@ -290,12 +290,19 @@ func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.
 		AuthnNameIDFormat: saml.UnspecifiedNameIDFormat,
 	}
 
-	entityDescriptor, err := xml.MarshalIndent(newServiceProvider.Metadata(), "", "  ")
+	ed := newServiceProvider.Metadata()
+	// HTTPArtifactBinding is defined when entity descriptor is generated
+	// using crewjam/saml https://github.com/crewjam/saml/blob/main/service_provider.go#L228.
+	// But we do not support it, so filter it out below.
+	// Error and warnings are swallowed because the descriptor is Teleport generated and
+	// users have no control over sanitizing filtered binding.
+	services.FilterSAMLEntityDescriptor(ed, true /* quiet */)
+	edXMLBytes, err := xml.MarshalIndent(ed, "", "  ")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	sp.SetEntityDescriptor(string(entityDescriptor))
+	sp.SetEntityDescriptor(string(edXMLBytes))
 	return nil
 }
 
