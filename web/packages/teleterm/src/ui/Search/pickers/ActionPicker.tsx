@@ -1030,16 +1030,7 @@ function ContentAndAdvancedSearch(
     <Flex gap={2} justifyContent="space-between" alignItems="flex-start">
       {props.children}
       {props.advancedSearch && (
-        <AdvancedSearchToggle
-          {...props.advancedSearch}
-          css={`
-            //TODO(gzdunek): Remove when we get a toggle that can be displayed
-            // on a white background
-            label > div {
-              border: 1px solid ${props => props.theme.colors.spotBackground[1]};
-            }
-          `}
-        />
+        <AdvancedSearchToggle {...props.advancedSearch} />
       )}
     </Flex>
   );
