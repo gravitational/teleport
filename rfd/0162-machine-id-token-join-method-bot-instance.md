@@ -188,6 +188,14 @@ message BotInstanceSpec {
   // Eventually this could be leveraged for simple command and control?
 }
 
+message BotInstanceStatusHeartbeatOutput {
+  string type = 1;
+}
+
+message BotInstanceStatusHeartbeatService {
+  string type = 1;
+}
+
 // BotInstanceStatusHeartbeat contains information self-reported by an instance
 // of a Bot. This information is not verified by the server and should not be
 // trusted.
@@ -208,6 +216,10 @@ message BotInstanceStatusHeartbeat {
   string join_method = 6;
   // Indicates whether `tbot` is running in one-shot mode.
   bool one_shot = 7;
+  // List of currently user configured outputs.
+  repeated outputs BotInstanceStatusHeartbeatOutput = 8;
+  // List of currently user configured services.
+  repeated services BotInstanceStatusHeartbeatService = 9;
   
   // In future iterations, additional information can be submitted here.
   // For example, the configuration of `tbot` or the health of individual
@@ -222,14 +234,17 @@ message BotInstanceStatusAuthentication {
   google.protobuf.Timestamp authenticated_at = 1;
   // The join method used for this join or renewal.
   string join_method = 2;
+  // The join token used for this join or renewal. This is only populated for
+  // delegated join methods as the value for `token` join methods is sensitive.
+  string join_token = 3;
   // The metadata sourced from the join method.
-  google.protobuf.Struct metadata = 3;
+  google.protobuf.Struct metadata = 4;
   // On each renewal, this generation is incremented. For delegated join
   // methods, this counter is not checked during renewal. For the `token` join
   // method, this counter is checked during renewal and the Bot is locked out if
   // the counter in the certificate does not match the counter of the last
   // authentication.
-  int32 generation = 4;
+  int32 generation = 5;
 }
 
 // BotInstanceStatus holds the status of a BotInstance.
@@ -276,7 +291,9 @@ In addition, the TTL of the BotInstance resource will be extended.
 If a BotInstance does not exist, then one will be created. In the case that
 this occurs for a bot using the `token` join method and this is a renewal,
 a warning will be emitted and the initial generation of the BotInstance will
-be sourced from the certificates current generation counter. 
+be sourced from the certificates current generation counter. This behaviour
+will support the migration of existing `tbot` instances to the new BotInstance
+behaviour.
 
 #### Recording Heartbeat Data
 
@@ -312,11 +329,11 @@ instead the endpoint will check:
   for the BotInstance.
 
 This endpoint will be called by `tbot` immediately after it has initially
-authenticated. After a heartbeat has succesfully completed, another should be
-scheduled for an hour after. A small amount of jitter should be added to the
-heartbeat period to avoid a thundering herd of heartbeats.
+authenticated. After a heartbeat has successfully completed, another should be
+scheduled for a half hour after. A small amount of jitter should be added to
+the heartbeat period to avoid a thundering herd of heartbeats.
 
-If the heartbeat fails, then `tbot` should retry on a exponential backoff.
+If the heartbeat fails, then `tbot` should retry on an exponential backoff.
 
 ##### Alternative: Submit Heartbeat Data on Join/Renew
 
@@ -413,6 +430,14 @@ counter from the BotInstance rather than the Bot user.
 `tbot reset` will be added to allow a `tbot` instance to be reset. This will
 simply clear out any artifacts within the `tbot` storage directory.
 
+In addition, if the bot detects a change in join token or join method, it should
+automatically rotate it's keypair. This will ensure it presents as a fresh
+BotInstance to the AuthServer.
+
+A log message should be output that identifies the linked BotInstance at
+startup and on each heartbeat. This will allow users to easily correlate the
+`tbot` installation with a BotInstance.
+
 #### `tctl`
 
 `tctl bots instances list`
@@ -445,17 +470,44 @@ message BotInstanceHeartbeatEvent {
 }
 ```
 
-### Implementation
+Existing analytics for join, renewal and certificate generation should be
+extended to include the BotInstance ID anonymized. This will allow them to be
+linked together.
 
-1. a
-2. b
-3. c
+### Migration/Compatability
+
+The "create if not exists" behaviour of the BotInstance resource will mean that
+existing Bot instances will have a BotInstance resource created on their first
+renewal after this feature is released. Their existing generation counter will
+be trusted on this first renewal. This allows for a seamless migration to the
+new system.
+
+Older `tbot` instances will not submit heartbeats. This means that their
+BotInstance will only contain authentication data. Any CLI or GUI that shows
+BotInstances should show a gracefully degraded state in this case that explains
+that the `tbot` needs to be upgraded.
 
 ## Security Considerations
 
 ### Audit Events
 
-Deletion of a BotInstance should be audited.
+An audit event should be added for the deletion of a BotInstance. The
+name of the BotInstance should be added to the existing join, renewal and
+certificate generation audit events.
+
+### Resistance to collision/pre-image attacks
+
+We should be cautious that a BotInstance cannot be impersonated using a
+second pre-image attack. This risk is introduced by using the public key
+fingerprint as an identifier.
+
+To mitigate this, we should ensure that the full public key is compared
+to the recorded one when authenticating a BotInstance rather than merely
+comparing the fingerprint.
+
+In addition, a more modern hashing algorithm should be used to calculate the
+fingerprint. In this case, we have selected SHA256 as this is more resistant
+compared to hash functions such as MD5 or SHA1.
 
 ## Alternatives
 
@@ -472,7 +524,20 @@ Backend has limited support for transactional consistency and this increases the
 risk of two Bot instances renewing simultaneously and producing an inconsistent
 state that locks one of them out.
 
-### Remove generation counter from the `token` join method
+### Introduce renewal-less and generation-less `token` join method
+
+One option is to introduce a new join method that does not produce renewable
+certificates. There would be no need for the fragile generation counter
+and the join token would be continually re-used to join as is done for the
+delegated join methods. This also circumvents the need for a one-to-one binding
+between a Bot instance and a Bot.
+
+This token would be incredibly sensitive and if stolen, there would be no
+automated mechanisms to detect this as exists today with the generation counter.
+
+It likely makes more sense to improve the existing `token` join method rather
+than introduce a variant which behaves differently and is less secure. It would
+increase the complexity of the codebase and the user experience.
 
 ## Out of Scope
 
