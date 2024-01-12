@@ -26,7 +26,6 @@ import Select from 'shared/components/Select';
 import Link from 'design/Link';
 import { Info } from 'design/Alert';
 import { SearchPanel } from 'shared/components/Search';
-import { storageService } from 'teleport/services/storageService';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 import UnifiedSearchPanel from 'teleport/UnifiedResources/SearchPanel';
@@ -71,32 +70,6 @@ const agentOptions: ResourceOption[] = [
   {
     value: 'resource',
     label: 'resources',
-  },
-];
-
-const legacyAgentOptions: ResourceOption[] = [
-  {
-    value: 'app',
-    label: 'applications',
-  },
-  {
-    value: 'db',
-    label: 'databases',
-  },
-  {
-    value: 'windows_desktop',
-    label: 'desktops',
-  },
-  {
-    value: 'kube_cluster',
-    label: 'kubernetes',
-  },
-  // Order matters. On initial render
-  // the last element in the options array
-  // will be used. Which can either be 'node' or 'role'.
-  {
-    value: 'node',
-    label: 'servers',
   },
 ];
 
@@ -182,7 +155,6 @@ export function NewRequest(props: State) {
     ctx,
   } = props;
   const { setEnforceMinWidth } = useContentMinWidthContext();
-  const unifiedResourcesEnabled = storageService.areUnifiedResourcesEnabled();
   const { preferences, updatePreferences } = useUser();
   const [clusterDropdownError, setClusterDropdownError] = useState('');
 
@@ -193,14 +165,12 @@ export function NewRequest(props: State) {
 
   // Role based access requests are only allowed in root cluster.
   const resourceOptions = useMemo(() => {
-    let options = unifiedResourcesEnabled
-      ? [...agentOptions]
-      : [...legacyAgentOptions];
+    let options = [...agentOptions];
     if (!isLeafCluster) {
       options.unshift(roleOption);
     }
     return options;
-  }, [unifiedResourcesEnabled, isLeafCluster]);
+  }, [isLeafCluster]);
 
   // Load the last option which is either:
   //  - option role if at a root cluster

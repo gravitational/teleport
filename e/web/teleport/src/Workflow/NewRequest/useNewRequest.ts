@@ -13,7 +13,6 @@ import { Kube } from 'teleport/services/kube';
 import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { UserGroup } from 'teleport/services/userGroups';
-import { KeysEnum } from 'teleport/services/storageService';
 
 import cfg from 'teleport/config';
 
@@ -154,15 +153,6 @@ export function useNewRequest(ctx: Ctx) {
   }
 
   useEffect(fetchUsage, []);
-
-  // TODO (avatus) DELETE IN 15
-  // Beacuse we need to rerender our options/view for access requests based on this key, we need to remove
-  // this key and let the component fetch/re-set the value based on the response. Generally, this would be handled
-  // when the cluster selector is updated but if we select a leaf cluster and then click "New Request" in the navigation
-  // menu again, the cluster ID changes without interacting with the cluster selector in the TopBar. This catches that behavior
-  useEffect(() => {
-    window.localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED);
-  }, [clusterId]);
 
   const {
     fetch: unifiedFetch,

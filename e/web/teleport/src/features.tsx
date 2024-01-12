@@ -476,11 +476,6 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
   return [
     // Resources
     new OSS.FeatureUnifiedResources(),
-    new OSS.FeatureNodes(),
-    new OSS.FeatureApps(),
-    new OSS.FeatureKubes(),
-    new OSS.FeatureDatabases(),
-    new OSS.FeatureDesktops(),
     new FeatureAccessRequests(),
     new FeatureNewAccessRequest(),
     new FeatureReviewAccessRequests(),
