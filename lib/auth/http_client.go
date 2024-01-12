@@ -938,42 +938,6 @@ func (c *HTTPClient) SetClusterName(cn types.ClusterName) error {
 	return nil
 }
 
-// DeleteStaticTokens deletes static tokens
-func (c *HTTPClient) DeleteStaticTokens() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("configuration", "static_tokens"))
-	return trace.Wrap(err)
-}
-
-// GetStaticTokens returns a list of static register tokens
-func (c *HTTPClient) GetStaticTokens() (types.StaticTokens, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("configuration", "static_tokens"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	st, err := services.UnmarshalStaticTokens(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return st, err
-}
-
-// SetStaticTokens sets a list of static register tokens
-func (c *HTTPClient) SetStaticTokens(st types.StaticTokens) error {
-	data, err := services.MarshalStaticTokens(st)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "static_tokens"), &setStaticTokensReq{StaticTokens: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 func (c *HTTPClient) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	validateRequestRaw, err := validateRequest.ToRaw()
 	if err != nil {

@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
 
 import { render, screen } from 'design/utils/testing';
 
@@ -52,7 +53,7 @@ class MockUserFeature implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.Users,
-    icon: <div />,
+    icon: styled.div,
     exact: true,
     getLink(clusterId: string) {
       return generatePath('/web/cluster/:clusterId/feature', { clusterId });
@@ -76,7 +77,7 @@ class MockAccessListFeature implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AccessLists,
-    icon: <div />,
+    icon: styled.div,
     exact: true,
     getLink(clusterId: string) {
       return generatePath('/web/cluster/:clusterId/feature', { clusterId });

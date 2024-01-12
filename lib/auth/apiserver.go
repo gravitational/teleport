@@ -158,9 +158,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// cluster configuration
 	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
 	srv.POST("/:version/configuration/name", srv.WithAuth(srv.setClusterName))
-	srv.GET("/:version/configuration/static_tokens", srv.WithAuth(srv.getStaticTokens))
-	srv.DELETE("/:version/configuration/static_tokens", srv.WithAuth(srv.deleteStaticTokens))
-	srv.POST("/:version/configuration/static_tokens", srv.WithAuth(srv.setStaticTokens))
 
 	// SSO validation handlers
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
@@ -914,48 +911,6 @@ func (s *APIServer) setClusterName(auth *ServerWithRoles, w http.ResponseWriter,
 	}
 
 	return message(fmt.Sprintf("cluster name set: %+v", cn)), nil
-}
-
-func (s *APIServer) getStaticTokens(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	st, err := auth.GetStaticTokens()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalStaticTokens(st, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-func (s *APIServer) deleteStaticTokens(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteStaticTokens()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-type setStaticTokensReq struct {
-	StaticTokens json.RawMessage `json:"static_tokens"`
-}
-
-func (s *APIServer) setStaticTokens(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req setStaticTokensReq
-
-	err := httplib.ReadJSON(r, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	st, err := services.UnmarshalStaticTokens(req.StaticTokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.SetStaticTokens(st)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("static tokens set: %+v", st)), nil
 }
 
 type upsertTunnelConnectionRawReq struct {

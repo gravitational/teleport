@@ -23,6 +23,7 @@ import {
   connectToDatabase,
   connectToKube,
   connectToServer,
+  connectToApp,
   DocumentCluster,
   getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
@@ -93,6 +94,16 @@ export function mapToAction(
             }
           );
         },
+      };
+    }
+    case 'app': {
+      return {
+        type: 'simple-action',
+        searchResult: result,
+        perform: () =>
+          connectToApp(ctx, result.resource, {
+            origin: 'search_bar',
+          }),
       };
     }
     case 'database': {

@@ -86,6 +86,7 @@ export function Account({
   mfaDisabled,
   isSso,
   enterpriseComponent: EnterpriseComponent,
+  restrictNewDeviceUsage,
 }: AccountProps) {
   const passkeys = devices.filter(d => d.residentKey);
   const mfaDevices = devices.filter(d => !d.residentKey);
@@ -93,9 +94,6 @@ export function Account({
     createRestrictedTokenAttempt.status === 'processing' ||
     fetchDevicesAttempt.status !== 'success' ||
     mfaDisabled;
-  const addButtonTitle = mfaDisabled
-    ? 'Two-factor authentication is disabled'
-    : '';
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
@@ -154,8 +152,12 @@ export function Account({
                 actions={
                   <ActionButton
                     disabled={disableAddDevice}
-                    title={addButtonTitle}
-                    onClick={onAddDevice}
+                    title={
+                      mfaDisabled
+                        ? 'Passwordless authentication is disabled'
+                        : ''
+                    }
+                    onClick={() => onAddDevice('passwordless')}
                   >
                     <Icon.Add size={20} />
                     Add a Passkey
@@ -189,8 +191,12 @@ export function Account({
                 actions={
                   <ActionButton
                     disabled={disableAddDevice}
-                    title={addButtonTitle}
-                    onClick={onAddDevice}
+                    title={
+                      mfaDisabled
+                        ? 'Multi-factor authentication is disabled'
+                        : ''
+                    }
+                    onClick={() => onAddDevice('mfa')}
                   >
                     <Icon.Add size={20} />
                     Add MFA
@@ -215,6 +221,7 @@ export function Account({
             fetchDevices={fetchDevices}
             token={token}
             onClose={hideAddDevice}
+            restrictDeviceUsage={restrictNewDeviceUsage}
           />
         )}
         {EnterpriseComponent && (

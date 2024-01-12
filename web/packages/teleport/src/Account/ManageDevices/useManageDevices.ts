@@ -22,7 +22,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
-import { MfaDevice } from 'teleport/services/mfa';
+import { DeviceUsage, MfaDevice } from 'teleport/services/mfa';
 
 export default function useManageDevices(ctx: Ctx) {
   const [devices, setDevices] = useState<MfaDevice[]>([]);
@@ -30,6 +30,9 @@ export default function useManageDevices(ctx: Ctx) {
   const [deviceToRemove, setDeviceToRemove] = useState<DeviceToRemove>();
   const [token, setToken] = useState('');
   const fetchDevicesAttempt = useAttempt('');
+  const [restrictNewDeviceUsage, setRestrictNewDeviceUsage] = useState<
+    DeviceUsage | undefined
+  >(undefined);
 
   // This is a restricted privilege token that can only be used to add a device, in case
   // the user has no devices yet and thus can't authenticate using the ReAuthenticate dialog
@@ -52,7 +55,8 @@ export default function useManageDevices(ctx: Ctx) {
     });
   }
 
-  function onAddDevice() {
+  function onAddDevice(restrictUsage?: DeviceUsage) {
+    setRestrictNewDeviceUsage(restrictUsage);
     if (devices.length === 0) {
       createRestrictedTokenAttempt.run(() =>
         auth.createRestrictedPrivilegeToken().then(token => {
@@ -105,6 +109,7 @@ export default function useManageDevices(ctx: Ctx) {
     hideAddDevice,
     hideRemoveDevice,
     mfaDisabled: cfg.getAuth2faType() === 'off',
+    restrictNewDeviceUsage,
   };
 }
 

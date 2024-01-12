@@ -271,44 +271,69 @@ exports[`render DocumentNodes 1`] = `
 
 .c24 {
   width: 32px;
-  height: 12px;
-  border-radius: 12px;
-  background: #222C59;
+  height: 16px;
+  border-radius: 10px;
   cursor: inherit;
   flex-shrink: 0;
+  background: rgba(255,255,255,0.07);
+  transition: background 0.15s ease-in-out;
+}
+
+.c24:hover {
+  background: rgba(255,255,255,0.13);
+}
+
+.c24:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c24:before {
   content: '';
   position: absolute;
   top: 50%;
-  transform: translate(0,-50%);
-  width: 16px;
-  height: 16px;
-  border-radius: 16px;
-  background: #9F85FF;
+  width: 12px;
+  height: 12px;
+  transform: translate(2px,-50%);
+  border-radius: 14px;
+  background: #FFFFFF;
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  transition: transform 0.05s ease-in;
 }
 
 .c22 {
   opacity: 0;
   position: absolute;
   cursor: inherit;
-}
-
-.c22:checked + .c23 {
-  background: rgba(255,255,255,0.13);
+  z-index: -1;
 }
 
 .c22:checked + .c23:before {
-  transform: translate(16px,-50%);
+  transform: translate(18px,-50%);
+}
+
+.c22:enabled:checked + .c23 {
+  background: #00BFA6;
+}
+
+.c22:enabled:checked + .c23:hover {
+  background: #33CCB8;
+}
+
+.c22:enabled:checked + .c23:active {
+  background: #66D9CA;
 }
 
 .c22:disabled + .c23 {
-  background: #222C59;
+  background: rgba(255,255,255,0.07);
 }
 
 .c22:disabled + .c23:before {
-  background: #455a64;
+  opacity: 0.36;
+  box-shadow: none;
+}
+
+.c22:disabled:checked + .c23 {
+  background: rgba(0,191,166,0.25);
 }
 
 .c28 {

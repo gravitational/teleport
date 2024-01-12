@@ -35,8 +35,6 @@ import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
-import history from 'teleport/services/history';
-import cfg from 'teleport/config';
 import {
   FeatureHeader,
   FeatureHeaderTitle,
@@ -54,11 +52,6 @@ import SearchPanel from './SearchPanel';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
-  const enabled = storageService.areUnifiedResourcesEnabled();
-
-  if (!enabled) {
-    history.replace(cfg.getNodesRoute(clusterId));
-  }
 
   return (
     <ClusterResources
@@ -152,34 +145,26 @@ function ClusterResources({
   const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
-        try {
-          const response = await teleCtx.resourceService.fetchUnifiedResources(
-            clusterId,
-            {
-              search: params.search,
-              query: params.query,
-              pinnedOnly: params.pinnedOnly,
-              sort: params.sort,
-              kinds: params.kinds,
-              searchAsRoles: '',
-              limit: paginationParams.limit,
-              startKey: paginationParams.startKey,
-            },
-            signal
-          );
+        const response = await teleCtx.resourceService.fetchUnifiedResources(
+          clusterId,
+          {
+            search: params.search,
+            query: params.query,
+            pinnedOnly: params.pinnedOnly,
+            sort: params.sort,
+            kinds: params.kinds,
+            searchAsRoles: '',
+            limit: paginationParams.limit,
+            startKey: paginationParams.startKey,
+          },
+          signal
+        );
 
-          return {
-            startKey: response.startKey,
-            agents: response.agents,
-            totalCount: response.agents.length,
-          };
-        } catch (err) {
-          if (!storageService.areUnifiedResourcesEnabled()) {
-            history.replace(cfg.getNodesRoute(clusterId));
-          } else {
-            throw err;
-          }
-        }
+        return {
+          startKey: response.startKey,
+          agents: response.agents,
+          totalCount: response.agents.length,
+        };
       },
       [
         clusterId,
