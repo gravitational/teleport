@@ -17,7 +17,6 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
@@ -25,18 +24,15 @@ import { Text, Toggle } from 'design';
 
 import { ShareFeedbackFormValues } from './types';
 
-interface ShareFeedbackFormProps {
-  disabled: boolean;
-  formValues: ShareFeedbackFormValues;
-
-  setFormValues(values: ShareFeedbackFormValues): void;
-}
-
 export function ShareFeedbackFormFields({
   formValues,
   setFormValues,
   disabled,
-}: ShareFeedbackFormProps) {
+}: {
+  disabled: boolean;
+  formValues: ShareFeedbackFormValues;
+  setFormValues(values: ShareFeedbackFormValues): void;
+}) {
   function updateFormField<T extends keyof ShareFeedbackFormValues>(
     field: T,
     value: ShareFeedbackFormValues[T]
