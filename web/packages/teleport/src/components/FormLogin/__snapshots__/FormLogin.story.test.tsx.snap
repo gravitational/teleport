@@ -314,7 +314,7 @@ exports[`auth2faType: optional rendering 1`] = `
 
 .c12 {
   box-sizing: border-box;
-  max-width: 50%;
+  max-width: 60%;
   margin-bottom: 0px;
   margin-right: 16px;
   width: 100%;
@@ -756,7 +756,7 @@ exports[`auth2faType: optional rendering 1`] = `
                           <div
                             class="react-select__single-value css-1uccc91-singleValue"
                           >
-                            Hardware Key
+                            Passkey or Security Key
                           </div>
                           <input
                             aria-autocomplete="list"
@@ -850,7 +850,7 @@ exports[`auth2faType: otp rendering 1`] = `
 
 .c12 {
   box-sizing: border-box;
-  max-width: 50%;
+  max-width: 60%;
   margin-bottom: 0px;
   margin-right: 16px;
   width: 100%;
@@ -859,7 +859,7 @@ exports[`auth2faType: otp rendering 1`] = `
 .c15 {
   box-sizing: border-box;
   margin-bottom: 0px;
-  width: 50%;
+  width: 40%;
 }
 
 .c16 {
@@ -1339,7 +1339,7 @@ exports[`auth2faType: otp rendering 1`] = `
                 </div>
                 <div
                   class="c15"
-                  width="50%"
+                  width="40%"
                 >
                   <label
                     class="c8"
@@ -1411,7 +1411,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 
 .c12 {
   box-sizing: border-box;
-  max-width: 50%;
+  max-width: 60%;
   margin-bottom: 0px;
   margin-right: 16px;
   width: 100%;
@@ -1853,7 +1853,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
                           <div
                             class="react-select__single-value css-1uccc91-singleValue"
                           >
-                            Hardware Key
+                            Passkey or Security Key
                           </div>
                           <input
                             aria-autocomplete="list"
@@ -1962,7 +1962,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 .c17 {
   box-sizing: border-box;
-  max-width: 50%;
+  max-width: 60%;
   margin-bottom: 0px;
   margin-right: 16px;
   width: 100%;
@@ -2480,7 +2480,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
                           <div
                             class="react-select__single-value css-1uccc91-singleValue"
                           >
-                            Hardware Key
+                            Passkey or Security Key
                           </div>
                           <input
                             aria-autocomplete="list"

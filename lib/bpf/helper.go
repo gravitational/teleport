@@ -247,7 +247,7 @@ const (
 	PathMax = 255
 
 	// ArgvMax is the maximum length of the args vector.
-	ArgvMax = 128
+	ArgvMax = 1024
 
 	// eventArg is an exec event that holds the arguments to a function.
 	eventArg = 0
