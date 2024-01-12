@@ -73,6 +73,8 @@ export const DesktopPlayer = ({
   const isPlaying = playerStatus === StatusEnum.PLAYING;
   const isComplete = isError || playerStatus === StatusEnum.COMPLETE;
 
+  const t = playerStatus === StatusEnum.COMPLETE ? durationMs : time;
+
   return (
     <StyledPlayer>
       {isError && <DesktopPlayerAlert my={4} mx={10} children={statusText} />}
@@ -98,10 +100,10 @@ export const DesktopPlayer = ({
         id="progressBarDesktop"
         min={0}
         max={durationMs}
-        current={time}
+        current={t}
         disabled={isComplete}
         isPlaying={isPlaying}
-        time={formatDisplayTime(time)}
+        time={formatDisplayTime(t)}
         onRestart={reload}
         onStartMove={() => playerClient.suspendTimeUpdates()}
         move={pos => {
