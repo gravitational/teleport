@@ -519,7 +519,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
                       <div
                         class="react-select__single-value css-1uccc91-singleValue"
                       >
-                        Hardware Key
+                        Passkey or Security Key
                       </div>
                       <input
                         aria-autocomplete="list"
@@ -1218,7 +1218,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
                       <div
                         class="react-select__single-value css-1uccc91-singleValue"
                       >
-                        Hardware Key
+                        Passkey or Security Key
                       </div>
                       <input
                         aria-autocomplete="list"

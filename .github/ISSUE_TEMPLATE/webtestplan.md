@@ -532,6 +532,7 @@ Use Discover Wizard to enroll new resources and access them:
 - [ ] Self-Hosted PostgreSQL
 - [ ] AWS RDS PostgreSQL
 - [ ] Kubernetes
+- [ ] AWS EKS cluster
 - [ ] Windows Desktop Active Directory
 
 ## Teleport Connect

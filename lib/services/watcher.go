@@ -1722,6 +1722,8 @@ type Node interface {
 	GetTeleportVersion() string
 	// GetAddr return server address
 	GetAddr() string
+	// GetPublicAddr returns a public address where this server can be reached.
+	GetPublicAddr() string
 	// GetHostname returns server hostname
 	GetHostname() string
 	// GetNamespace returns server namespace

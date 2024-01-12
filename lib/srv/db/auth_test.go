@@ -356,7 +356,7 @@ func TestDBCertSigning(t *testing.T) {
 	// Set rotation to init phase. New CA will be generated.
 	// DB service should still use old key to sign certificates.
 	// tctl should use new key to sign certificates.
-	err = authServer.AuthServer.RotateCertAuthority(ctx, auth.RotateRequest{
+	err = authServer.AuthServer.RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.DatabaseCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
