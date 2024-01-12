@@ -128,6 +128,9 @@ func GenerateIdPServiceProviderFromFields(name string, entityDescriptor string) 
 var supportedACSBindings = map[string]struct{}{
 	saml.HTTPPostBinding:     {},
 	saml.HTTPRedirectBinding: {},
+	// HTTPArtifactBinding is defined when entity descriptor is generated
+	// using crewjam/saml https://github.com/crewjam/saml/blob/main/service_provider.go#L228.
+	saml.HTTPArtifactBinding: {},
 }
 
 // ValidateAssertionConsumerService checks if a given assertion consumer service is usable by teleport. Note that
