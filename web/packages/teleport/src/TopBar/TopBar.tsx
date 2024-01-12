@@ -153,37 +153,46 @@ export function TopBar({ CustomLogo }: TopBarProps) {
       )}
 
       <Flex ml="auto" height="100%" alignItems="center">
-        <AccessManagementButton
-          css={`
-            @media screen and (min-width: ${p =>
-                p.theme.breakpoints.medium}px) {
-              display: none;
-            }
-          `}
-          iconOnly={true}
-          selected={feature?.category === NavigationCategory.Management}
-          to={getFirstRouteForCategory(features, NavigationCategory.Management)}
-        />
-        {topBarLinks.map(({ topMenuItem, navigationItem }) => {
-          const selected = history.location.pathname.includes(
-            navigationItem.getLink(clusterId)
-          );
-          return (
-            <NavigationButton
-              key={topMenuItem.title}
-              to={topMenuItem.getLink(clusterId)}
-              selected={selected}
-              title={topMenuItem.title}
+        {!feature?.hideNavigation && (
+          <>
+            <AccessManagementButton
               css={`
-                &:hover {
-                  color: red;
+                @media screen and (min-width: ${p =>
+                    p.theme.breakpoints.medium}px) {
+                  display: none;
                 }
               `}
-            >
-              <topMenuItem.icon color={selected ? 'text.main' : 'text.muted'} />
-            </NavigationButton>
-          );
-        })}
+              iconOnly={true}
+              selected={feature?.category === NavigationCategory.Management}
+              to={getFirstRouteForCategory(
+                features,
+                NavigationCategory.Management
+              )}
+            />
+            {topBarLinks.map(({ topMenuItem, navigationItem }) => {
+              const selected = history.location.pathname.includes(
+                navigationItem.getLink(clusterId)
+              );
+              return (
+                <NavigationButton
+                  key={topMenuItem.title}
+                  to={topMenuItem.getLink(clusterId)}
+                  selected={selected}
+                  title={topMenuItem.title}
+                  css={`
+                    &:hover {
+                      color: red;
+                    }
+                  `}
+                >
+                  <topMenuItem.icon
+                    color={selected ? 'text.main' : 'text.muted'}
+                  />
+                </NavigationButton>
+              );
+            })}
+          </>
+        )}
         {!hasDockedElement && assistEnabled && (
           <ButtonIconContainer onClick={() => setShowAssist(true)}>
             <BrainIcon />
