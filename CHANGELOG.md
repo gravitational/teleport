@@ -1,6 +1,12 @@
 # Changelog
 
-## 14.3.1
+## 14.3.2 (01/11/24)
+
+* Fixed routing to nodes by their public address. [#36591](https://github.com/gravitational/teleport/pull/36591)
+* Verify MFA device locks during user authentication. [#36589](https://github.com/gravitational/teleport/pull/36589)
+* Fixed `tctl get access_list` and support creating Access Lists without a next audit date. [#36572](https://github.com/gravitational/teleport/pull/36572)
+
+## 14.3.1 (01/10/24)
 
 * Added support to select database roles from `tsh`. [#36528](https://github.com/gravitational/teleport/pull/36528)
 * Fixed goroutine leak per ssh session. [#36511](https://github.com/gravitational/teleport/pull/36511)
