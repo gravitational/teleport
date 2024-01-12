@@ -216,6 +216,7 @@ export const TopBarContainer = styled(TopNav)`
   width: 100%;
   background: ${p => p.theme.colors.levels.surface};
   overflow-y: initial;
+  overflow-x: none;
   flex-shrink: 0;
   z-index: 10;
   border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[0]};
