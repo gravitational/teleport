@@ -40,12 +40,12 @@ import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_reque
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
 import apiAccessList from 'gen-proto-js/teleport/accesslist/v1/accesslist_pb';
 
-import * as uri from 'teleterm/ui/uri';
+import * as uri from 'teleterm/ui/uri'; // We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
 
-// We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
 // to alias it first to do the reexport.
 // https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
 import UserType = apiCluster.LoggedInUser.UserType;
+
 export { UserType };
 
 export interface Kube extends apiKube.Kube.AsObject {
@@ -59,6 +59,27 @@ export interface Server extends apiServer.Server.AsObject {
 
 export interface App extends apiApp.App.AsObject {
   uri: uri.AppUri;
+  /** Name of the application. */
+  name: string;
+  /** URI and port the application is available at. */
+  endpointUri: string;
+  /** Description of the application. */
+  desc: string;
+  /** Indicates if the application is an AWS management console. */
+  awsConsole: boolean;
+  /**
+   * Optional application public address that overrides the endpoint URI.
+   * Always empty for SAML applications.
+   */
+  publicAddr: string;
+  /**
+   * Right now, `friendlyName` is set only for Okta applications.
+   * It is constructed from a label value.
+   * See more in api/types/resource.go.
+   */
+  friendlyName: string;
+  /** Indicates if the application is a SAML Application (SAML IdP Service Provider). */
+  samlApp: boolean;
 }
 
 export interface Gateway extends apiGateway.Gateway.AsObject {

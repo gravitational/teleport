@@ -26,6 +26,7 @@ import { pipe } from 'shared/utils/pipe';
 
 import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+
 import {
   Cluster,
   Gateway,
@@ -39,8 +40,9 @@ import { UsageService } from 'teleterm/ui/services/usage';
 
 import { ImmutableStore } from '../immutableStore';
 
-import type * as types from './types';
 import type * as tsh from 'teleterm/services/tshd/types';
+
+import type * as types from './types';
 
 const { routing } = uri;
 
@@ -613,6 +615,12 @@ export function makeKube(source: tsh.Kube) {
 }
 
 export interface App extends tsh.App {
+  /**
+   * `addrWithProtocol` is an app protocol + a public address.
+   * If the public address is empty, it falls back to the endpoint URI.
+   *
+   * Always empty for SAML applications.
+   */
   addrWithProtocol: string;
 }
 
