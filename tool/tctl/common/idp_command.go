@@ -98,11 +98,11 @@ func (s *samlIdPCommand) initialize(parent *kingpin.CmdClause, cfg *servicecfg.C
 Examples:
 
   Test attribute mapping with given user and service provider.
-  > tctl idp saml test_attribute_mapping --users user.yaml (user spec file or username) --sp sp.yaml (service provider spec file) --format (json,yaml)
+  > tctl idp saml test-attribute-mapping --users user.yaml (user spec file or username) --sp sp.yaml (service provider spec file) --format (json,yaml)
 `)
 	s.cmd = samlcmd
 
-	testAttrMap := samlcmd.Command("test_attribute_mapping", "Test expression evaluation of attribute mapping.")
+	testAttrMap := samlcmd.Command("test-attribute-mapping", "Test expression evaluation of attribute mapping.")
 	testAttrMap.Flag("users", "username or name of a file containing user spec").Required().Short('u').StringsVar(&s.testAttributeMapping.users)
 	testAttrMap.Flag("sp", "name of a file containing service provider spec").Required().StringVar(&s.testAttributeMapping.serviceProvider)
 	testAttrMap.Flag("format", "output format, 'yaml' or 'json'").StringVar(&s.testAttributeMapping.outFormat)
@@ -110,13 +110,13 @@ Examples:
 Examples:
 
 	# test with username and service provider file
-	> tctl idp saml test_attribute_mapping --users user1 --sp sp.yaml
+	> tctl idp saml test-attribute-mapping --users user1 --sp sp.yaml
 
 	# test with multiple usernames and service provider file
-	> tctl idp saml test_attribute_mapping --users user1,user2 --sp sp.yaml
+	> tctl idp saml test-attribute-mapping --users user1,user2 --sp sp.yaml
 
 	# test with user and service provider file and print output in yaml format
-	> tctl idp saml test_attribute_mapping --users user1.yaml --sp sp.yaml --format yaml
+	> tctl idp saml test-attribute-mapping --users user1.yaml --sp sp.yaml --format yaml
 `)
 	s.testAttributeMapping.cmd = testAttrMap
 }
@@ -130,7 +130,7 @@ func (s *samlIdPCommand) tryRun(ctx context.Context, cmd string, c auth.ClientI)
 	}
 }
 
-// testCommand implements the "tctl idp saml test_attribute_mapping" command.
+// testCommand implements the "tctl idp saml test-attribute-mapping" command.
 type testAttributeMapping struct {
 	cmd *kingpin.CmdClause
 
