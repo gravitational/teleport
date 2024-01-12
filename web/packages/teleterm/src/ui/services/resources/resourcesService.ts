@@ -25,7 +25,7 @@ import type * as uri from 'teleterm/ui/uri';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
 
 export class ResourcesService {
-  constructor(private tshClient: types.TshClient) {}
+  constructor(private tshClient: types.TshdClient) {}
 
   fetchServers(params: types.GetResourcesParams) {
     return this.tshClient.getServers(params);
