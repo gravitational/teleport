@@ -5803,8 +5803,7 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	localUser := authz.LocalUser{Username: "test", Identity: tlsca.Identity{Username: "test"}}
 
 	// test create user, happy path
-	err = setupServer.CreateUser(authz.ContextWithUser(ctx, localUser), user)
-	require.NoError(t, err)
+	require.NoError(t, setupServer.CreateUser(authz.ContextWithUser(ctx, localUser), user))
 	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
 	createEvt := m.Emitter.LastEvent().(*apievents.UserCreate)
 	require.Equal(t, "test", createEvt.User)
@@ -5819,7 +5818,7 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	// test createdBy gets set to default
 	user2, err := types.NewUser("some-other-user")
 	require.NoError(t, err)
-	err = setupServer.CreateUser(ctx, user2)
+	require.NoError(t, setupServer.CreateUser(ctx, user2))
 	createEvt = m.Emitter.LastEvent().(*apievents.UserCreate)
 	require.Equal(t, teleport.UserSystem, createEvt.User)
 	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
@@ -5833,20 +5832,17 @@ func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
 	require.Nil(t, m.Emitter.LastEvent())
 
 	// test update user
-	err = setupServer.UpdateUser(authz.ContextWithUser(ctx, localUser), user)
-	require.NoError(t, err)
+	require.NoError(t, setupServer.UpdateUser(authz.ContextWithUser(ctx, localUser), user))
 	require.Equal(t, events.UserUpdatedEvent, m.Emitter.LastEvent().GetType())
 	createEvt = m.Emitter.LastEvent().(*apievents.UserCreate)
 	require.Equal(t, "test", createEvt.User)
 	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 
-	err = setupServer.UpsertUser(authz.ContextWithUser(ctx, localUser), user)
-	require.NoError(t, err)
+	require.NoError(t, setupServer.UpsertUser(authz.ContextWithUser(ctx, localUser), user))
 	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
 	m.Emitter.Reset()
 
-	err = setupServer.UpsertUser(ctx, user)
-	require.NoError(t, err)
+	require.NoError(t, setupServer.UpsertUser(ctx, user))
 	require.Equal(t, events.UserCreateEvent, m.Emitter.LastEvent().GetType())
 	m.Emitter.Reset()
 }
