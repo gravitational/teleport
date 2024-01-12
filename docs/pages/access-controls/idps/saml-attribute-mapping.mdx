@@ -4,15 +4,14 @@ description: How to map user attributes to custom SAML response
 h1: SAML Attribute Mapping
 ---
 
-## Attribute Mapping
 Attribute mapping configures SAML Identity Provider to assert custom user attributes in SAML response.
 The Teleport SAML IdP supports three configurable fields for attribute mapping:
-- name: Name of the outgoing attribute. Required. Name should be unique across attribute mapping.
-- value: Value defined using predicate expression, which can be mapped to Teleport user name, roles or traits. Required.
-- name_format: SAML attribute name format. Optional. The following formats are supported:
-    - unspecified: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified`. Used as a default value.
-    - uri: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:uri`.
-    - basic: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:basic`.
+- `name`: Name of the outgoing attribute. Required. Name should be unique across attribute mapping.
+- `value`: Value defined using predicate expression, which can be mapped to Teleport user name, roles or traits. Required.
+- `name_format`: SAML attribute name format. Optional. The following formats are supported:
+    - `unspecified`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified`. Used as a default value.
+    - `uri`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:uri`.
+    - `basic`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:basic`.
 
 The values can be configured with `saml_idp_service_provider` spec.
 ```
@@ -29,37 +28,36 @@ spec:
     name_format: basic # optional, unspecified used as default if no value is provided.
     value: user.spec.traits.firstname
   - name: groups
-    name_format: urn:oasis:names:tc:SAML:2.0:attrname-format:basic # optional, unspecified used as default if no value is provided.
+    name_format: urn:oasis:names:tc:SAML:2.0:attrname-format:basic # optional, full urn format.
     value: user.spec.roles
 ```
-
 
 ## Attribute value evaluation
 
 Attribute values are authored using Predicate expression. During SSO request, the expressions will be parsed from the
-Service Provider metadata and passed to Predicate evaluator for evaluation. The resulting values are asserted in the SAML 
-response as per the requested attribute name.
+Service Provider metadata and passed to Predicate evaluator for evaluation. The resulting values are asserted in the SAML
+response under the requested attribute name.
 
 Given a correct and supported predicate expression, attributes will be mapped as long as the requested attributes are present in Teleport.
-Attribute with non-existent value will not be included in SAML assertion.
+Attribute mapping that points to a non-existent value will not be included in SAML assertion.
 
 ## Evaluation context
 
-The following user attributes will be made available for mapping between Teleport IdP and Service Providers:
+The following user attributes are available for mapping between Teleport IdP and Service Providers:
 
-| Attributes | Description                                                      | Syntax                                                       |
-| ---------- | ---------------------------------------------------------------- | ------------------------------------------------------------ |
-| Username   | User name.                                                       | `uid` or `user.metadata.name`.                               |
-| Roles      | User roles.                                                      | `eduPersonAffiliate` or `user.spec.roles`.                   |
-| Traits     | All values under user traits will be made available for mapping. | `user.spec.traits.firstname`, `user.spec.traits.groups` etc. |
+| Attributes | Description                   | Syntax                                                       |
+| ---------- | ------------------------------| ------------------------------------------------------------ |
+| Username   | User name.                    | `uid` or `user.metadata.name`.                               |
+| Roles      | User roles.                   | `eduPersonAffiliation` or `user.spec.roles`.                 |
+| Traits     | All values under user traits. | `user.spec.traits.firstname`, `user.spec.traits.groups` etc. |
 
 
 ## Predicate expressions
 
 Predicate expressions for attribute mapping are evaluated against user attributes that can be accessed using evaluation context listed above.
 
-Expression syntax are similar to how expressions are used for [Login Rules](../login-rules/reference.mdx) but not all of the 
-function and methods are available for attribute mapping. The supported functions and methods are listed below, along with 
+Expression syntax are similar to how expressions are used in [Login Rules](../login-rules/reference.mdx). But not all of the 
+functions and methods are available for attribute mapping. The supported functions and methods are listed below, along with 
 the usage syntax and it's result, evaluated against the following reference user spec file:
 ```
 # reference user spec file
@@ -88,25 +86,25 @@ spec:
 ```
 ### Methods
 #### `add`
-Add new value. Works on `user.spec.roles` and `user.spec.traits.groups`.
+Add new value(s). Works on `user.spec.roles` and `user.spec.traits.groups`.
 Expression | Result
 -----------| ------
 `user.spec.roles.add("staging-ssh")` | `access, editor, dev-ssh, staging-ssh`
 
-You can also add an entirely new role, adding value that is not available in the user spec file.
+You can also add an entirely new value that is not available in the user spec file.
 E.g.:
 Expression | Result
 -----------| ------
 `set.add("entirely-new-role")` | `entirely-new-role`
 
 #### `remove`
-Remove value. Works on `user.spec.roles` and `user.spec.traits.groups`
+Remove value(s). Works on `user.spec.roles` and `user.spec.traits.groups`
 Expression | Result
 ---------- | ------
 `user.spec.roles.remove("editor", "access")` | `dev-ssh`
 
 #### `contains`
-Returns boolean value for matching expression. To be used in helper function such as `ifelse`.
+Returns boolean value for matching expression. To be used in helper functions such as `ifelse`.
 Works on `user.spec.roles` and `user.spec.traits.groups`.
 Expression | Result
 ---------- | ------
@@ -126,7 +124,7 @@ Expression | Result
 `strings.lower(user.spec.traits.lastname)` | `bar`
 
 #### `strings.replaceall`
-Replace all matching string.
+Replace all matching strings.
 Expression | Result
 -----------| ------
 `strings.replaceall(user.spec.traits.groups, "-", "+")` | `okta+admin, dev+sso, dev+rdp`
@@ -139,7 +137,7 @@ Expression | Result
 `strings.split(user.spec.traits.groups, "-", " ")` | `okta admin, dev sso, dev rdp`
 
 #### `ifelse`
-Conditionally return values. To be used in conjuction with methods suchs as `contains`.
+Conditionally return values. To be used in conjunction with methods such as `contains`.
 
 Signature: `ifelse(condition, "value to return if condition is true", "value to return if condition is false")`
 Expression | Result
@@ -162,15 +160,17 @@ Expression | Result
 - (!docs/pages/includes/tctl.mdx!)
 - User with permission to create Service Provider resource. The preset `editor` role has this permission.
 
-### `test_attribute_mapping`
-Attribute mapping can be tested using `tctl idp saml test_attribute_mapping` command.
+### `test_attribute_mapping` command
 
-- `--users`: user names or name of files containing user spec.
-- `--sp`: name of file containg service provider spec with attribute mapping.
-- `--format`: `yaml` or `json`. Text output by default if the flag is not provided.
+Attribute mapping can be tested using `tctl idp saml test_attribute_mapping` command.
+`test_attribute_mapping` command accepts three arguments.
+
+- `--users`: user names or names of files containing user spec. Required.
+- `--sp`: name of file containing service provider spec with attribute mapping. Required.
+- `--format`: `yaml` or `json`.  Optional. Text output by default if the flag is not provided.
 
 E.g.:
-Test attribtue mapping for user "user1"
+Test with user name and Service Provider spec file:
 ```bash
 # with username and service provider file
 $ tctl idp saml test_attribute_mapping --user user1 --sp sp.yml
@@ -183,12 +183,12 @@ roles          access, editor, dev-ssh
 groups         okta-admin, dev-sso, dev-rdp
 ```
 
-Test attribute mapping from user spec file.
+Test with user spec file and Service Provider spec file:
 ```bash
 $ tctl idp saml test_attribute_mapping --user user.yml --sp sp.yml
 ```
 
-Print result in format of choice
+Print result in format of choice.
 ```bash
 $ tctl idp saml test_attribute_mapping --user user.yml --sp sp.yml --format (json/yaml)
 ```
