@@ -96,9 +96,7 @@ WebSocket `ping` frames periodically and the client will respond with `pong`.
 
 ### The legacy "connection upgrade"
 
-This section decribes the legacy Teleport-custom connection upgrade used before v15 (TBD). Both WebSocket and the
-"legacy" upgrade methods are supported by the Teleport clients and servers in this version for backwards compatibility.
-The "legacy" upgrade is expected to be removed in a later version.
+This section decribes the legacy Teleport-custom connection upgrade used before v15 (TBD).
 
 Borrowed from the "WebSocket" design, the Teleport client can make a connection upgrade through a web API on the
 Teleport Proxy:
@@ -135,6 +133,22 @@ In addition to the `Upgrade` header, the following headers are also set from the
 - `Connection` header is set to `Upgrade` to meet [RFC spec](https://datatracker.ietf.org/doc/html/rfc2616#section-14.42)
 - `X-Teleport-Upgrade` header is set to the same value as the `Upgrade` header as some load balancers have seen
   dropping values from the `Upgrade` header
+
+#### Migration from "legacy" to WebSocket
+
+Both WebSocket and the "legacy" upgrade methods will be supported by the Teleport clients and servers for 1-2 major
+releases for backwards compatibility. And the "legacy" upgrade is expected to be removed in a later version.
+
+During the transition period, the client will send both upgrade types in the "Upgrade" headers, with "websocket" as the
+first choice. Upon receiving 101 Switching Protocols, the client will pick the negotiated protocol based on the response
+headers.
+
+On the server side, older servers ignore any upgrade types other than the "legacy" upgrade types. Therefore "websocket"
+sent by newer clients will be skipped and "legacy" upgrades will be negotiated as long as the "legacy" types are also
+present in the request headers.
+
+During the transition period, newer servers prefer the "websocket" upgrade type if both WebSocket and "legacy" types are
+provided.
 
 ### Teleport Proxy with self-signed certs
 
