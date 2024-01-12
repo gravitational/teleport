@@ -76,16 +76,15 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 	// verify that entity descriptor parses
 	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 	if err != nil {
-		return trace.BadParameter("invalid entity descriptor for SAML IdP Service provider %q: %v", sp.GetEntityID(), err)
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
 	}
 
 	if ed.EntityID != sp.GetEntityID() {
 		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
 	}
 
-	// ensure any filtering related issues get logged
-	if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
-		logrus.Warnf("Entity descriptor for SAML IdP service provider %q may be malformed: %v", sp.GetEntityID(), err)
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+		logrus.Warnf("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
 	}
 
 	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
@@ -112,7 +111,7 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 	// verify that entity descriptor parses
 	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 	if err != nil {
-		return trace.BadParameter("invalid entity descriptor for SAML IdP Service provider %q: %v", sp.GetEntityID(), err)
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
 	}
 
 	if ed.EntityID != sp.GetEntityID() {
@@ -120,8 +119,8 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 	}
 
 	// ensure any filtering related issues get logged
-	if err := services.FilterSAMLEntityDescriptor(ed); err != nil {
-		logrus.Warnf("Entity descriptor for SAML IdP service provider %q may be malformed: %v", sp.GetEntityID(), err)
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+		logrus.Warnf("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
 	}
 
 	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
