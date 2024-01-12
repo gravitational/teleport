@@ -46,8 +46,8 @@ interface UserMenuNavProps {
 const Container = styled.div`
   position: relative;
   align-self: center;
-  padding-left: ${props => props.theme.space[4]}px;
-  padding-right: ${props => props.theme.space[4]}px;
+  padding-left: ${props => props.theme.space[3]}px;
+  padding-right: ${props => props.theme.space[3]}px;
   &:hover {
     background: ${props => props.theme.colors.spotBackground[0]};
   }
@@ -69,9 +69,8 @@ const Username = styled(Text)`
   font-size: 14px;
   font-weight: 400;
   padding-right: 40px;
-  margin-left: 16px;
   display: none;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
     display: inline-flex;
   }
 `;
@@ -81,21 +80,23 @@ const StyledAvatar = styled.div`
   background: ${props => props.theme.colors.brand};
   color: ${props => props.theme.colors.text.primaryInverse};
   border-radius: 50%;
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+    margin-right: 16px;
+    height: 32px;
+    max-width: 32px;
+    min-width: 32px;
+  }
   display: flex;
   font-size: 14px;
   font-weight: bold;
   justify-content: center;
-  height: 32px;
   width: 100%;
-  max-width: 32px;
-  min-width: 32px;
+  height: 24px;
+  max-width: 24px;
+  min-width: 24px;
 `;
 
 const Arrow = styled.div`
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translate(0, -50%);
   line-height: 0;
 
   svg {
