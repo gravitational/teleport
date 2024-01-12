@@ -341,12 +341,12 @@ statements will be issued. To ensure complete removal of all permissions, the
 stored procedure will iterate over all schemas and objects within, revoking the
 access to each individual object.
 
-Additionally, the permissions _may_ be updated if a schema change is detected.
+Updating the permissions due to schema change is a feature that is out of scope
+of initial implementation.
 
-The permissions also _may_ be updated if the role definition in the backend
-changes, but the cost of implementing such a feature should be weighed against
-the benefits it would provide. The list of roles for a given user is unchanging
-in the scope of a single connection, so this is not an element that may change.
+Similarly, the permissions will not be updated due to changed role definition.
+Finally, the list of roles for a given user is unchanging in the scope of a
+single connection, so this is not an element that may change.
 
 To avoid confusion regarding the source of access, `db_permissions` will be
 mutually exclusive with `db_roles`.
