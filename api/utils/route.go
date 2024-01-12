@@ -59,7 +59,7 @@ type RouteableServer interface {
 	GetHostname() string
 	GetAddr() string
 	GetUseTunnel() bool
-	GetPublicAddr() string
+	GetPublicAddrs() []string
 }
 
 // RouteToServer checks if this route matcher wants to route to the supplied server.
@@ -70,20 +70,34 @@ func (m *SSHRouteMatcher) RouteToServer(server RouteableServer) bool {
 		return true
 	}
 
+	hostnameMatch := m.routeToHostname(server.GetHostname())
+
 	// if the server has connected over a reverse tunnel
 	// then match only by hostname.
 	if server.GetUseTunnel() {
-		return m.routeToHostname(server.GetHostname())
+		return hostnameMatch
 	}
 
-	for _, addr := range []string{server.GetAddr(), server.GetPublicAddr()} {
+	matchAddr := func(addr string) bool {
 		ip, nodePort, err := net.SplitHostPort(addr)
 		if err != nil {
-			continue
+			return false
 		}
 
-		if (m.targetHost == ip || m.routeToHostname(server.GetHostname()) || slices.Contains(m.ips, ip)) &&
+		if (m.targetHost == ip || hostnameMatch || slices.Contains(m.ips, ip)) &&
 			(m.targetPort == "" || m.targetPort == "0" || m.targetPort == nodePort) {
+			return true
+		}
+
+		return false
+	}
+
+	if matchAddr(server.GetAddr()) {
+		return true
+	}
+
+	for _, addr := range server.GetPublicAddrs() {
+		if matchAddr(addr) {
 			return true
 		}
 	}
