@@ -231,6 +231,9 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       transformOrigin={{ vertical: 'top', horizontal: 'center' }}
       tipContent="Teleport Resources Home"
+      css={`
+        height: 100%;
+      `}
     >
       <Link
         css={`
@@ -298,6 +301,9 @@ const NavigationButton = ({
       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       transformOrigin={{ vertical: 'top', horizontal: 'center' }}
       tipContent={title}
+      css={`
+        height: 100%;
+      `}
     >
       <Link
         to={to}

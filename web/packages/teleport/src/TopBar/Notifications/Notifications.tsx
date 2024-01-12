@@ -76,6 +76,9 @@ export function Notifications() {
       anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       transformOrigin={{ vertical: 'top', horizontal: 'center' }}
       tipContent="Notifications"
+      css={`
+        height: 100%;
+      `}
     >
       <NotificationButtonContainer ref={ref} data-testid="tb-note">
         <ButtonIconContainer
@@ -150,8 +153,8 @@ const AttentionDot = styled.div`
   height: 7px;
   border-radius: 100px;
   background-color: ${p => p.theme.colors.buttons.warning.default};
-  top: 10px;
-  right: 15px;
+  top: 20px;
+  right: 25px;
 `;
 
 const NotificationItemButton = styled(DropdownItemButton)`

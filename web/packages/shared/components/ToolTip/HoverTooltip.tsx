@@ -73,7 +73,6 @@ export const HoverTooltip: React.FC<
 
   return (
     <Flex
-      height="100%"
       aria-owns={open ? 'mouse-over-popover' : undefined}
       onMouseEnter={handlePopoverOpen}
       onMouseLeave={handlePopoverClose}
