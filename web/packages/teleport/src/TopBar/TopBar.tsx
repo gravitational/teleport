@@ -37,6 +37,8 @@ import cfg from 'teleport/config';
 
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
+import { useUser } from 'teleport/User/UserContext';
+import { ViewMode } from 'teleport/Assist/types';
 
 import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
@@ -47,6 +49,8 @@ const Assist = lazy(() => import('teleport/Assist'));
 
 export function TopBar({ CustomLogo }: TopBarProps) {
   const ctx = useTeleport();
+  const { preferences } = useUser();
+  const viewMode = preferences?.assist?.viewMode;
   const { clusterId } = useStickyClusterId();
   const history = useHistory();
   const features = useFeatures();
@@ -85,7 +89,10 @@ export function TopBar({ CustomLogo }: TopBarProps) {
     feature?.category === NavigationCategory.Management;
 
   return (
-    <TopBarContainer navigationHidden={feature?.hideNavigation}>
+    <TopBarContainer
+      navigationHidden={feature?.hideNavigation}
+      dockedView={showAssist && viewMode === ViewMode.Docked}
+    >
       {!feature?.hideNavigation && (
         <>
           <TeleportLogo CustomLogo={CustomLogo} />
@@ -199,9 +206,10 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   );
 }
 
+const assistDockedWidth = `width: calc(100% - 520px);`;
 export const TopBarContainer = styled(TopNav)`
   position: absolute;
-  width: 100%;
+  ${props => (props.dockedView ? assistDockedWidth : 'width: 100%;')}
   display: flex;
   justify-content: space-between;
   background: ${p => p.theme.colors.levels.surface};

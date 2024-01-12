@@ -153,8 +153,12 @@ const AttentionDot = styled.div`
   height: 7px;
   border-radius: 100px;
   background-color: ${p => p.theme.colors.buttons.warning.default};
-  top: 20px;
-  right: 25px;
+  top: 10px;
+  right: 15px;
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+    top: 20px;
+    right: 25px;
+  }
 `;
 
 const NotificationItemButton = styled(DropdownItemButton)`
