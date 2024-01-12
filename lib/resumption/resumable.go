@@ -27,15 +27,16 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/gravitational/teleport/api/constants"
 )
 
 func newResumableConn(localAddr, remoteAddr net.Addr) *ResumableConn {
-	r := new(ResumableConn)
+	r := &ResumableConn{
+		managedConn: managedConn{
+			localAddr:  localAddr,
+			remoteAddr: remoteAddr,
+		},
+	}
 	r.cond.L = &r.mu
-	r.localAddr = localAddr
-	r.remoteAddr = remoteAddr
 	return r
 }
 
@@ -48,19 +49,9 @@ type ResumableConn struct {
 	attached func()
 }
 
-func (r *ResumableConn) waitForDetachLocked() {
-	for r.attached != nil {
-		r.attached()
-		r.cond.Wait()
-	}
-}
-
 var _ net.Conn = (*ResumableConn)(nil)
 
-const (
-	graceTimeout     = 5 * time.Second
-	handshakeTimeout = 30 * time.Second
-)
+const handshakeTimeout = 5 * time.Second
 
 const (
 	errorTag        = ^uint64(0)
@@ -69,44 +60,44 @@ const (
 
 const maxFrameSize = 128 * 1024
 
-func RunResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) error {
+// runResumeV1Unlocking runs the symmetric resumption v1 protocol for r, using
+// nc as the underlying transport. The previous attached transport, if any, will
+// be detached immediately. firstConn signifies that the connection has not been
+// used, and the initial handshake will be assumed to be 0 for both sides. The
+// connection lock is assumed to be held when entering the function, since the
+// correct behavior of firstConn requires no possible external interference
+// before the attach point is reached; the lock will be not held when the
+// function returns.
+func runResumeV1Unlocking(r *ResumableConn, nc net.Conn, firstConn bool) error {
 	defer nc.Close()
 
-	localAddr := nc.LocalAddr()
-	remoteAddr := nc.RemoteAddr()
-
-	r.mu.Lock()
-	r.waitForDetachLocked()
-
-	if r.localClosed || r.remoteClosed {
-		localClosed := r.localClosed
-		r.mu.Unlock()
-
-		defer time.AfterFunc(graceTimeout, func() { nc.Close() }).Stop()
-		_, _ = nc.Write([]byte(errorTagUvarint))
-
-		if localClosed {
-			return trace.ConnectionProblem(net.ErrClosed, constants.UseOfClosedNetworkConnection)
+	if !firstConn {
+		for !r.remoteClosed && r.attached != nil {
+			r.attached()
+			r.cond.Wait()
 		}
-		return trace.ConnectionProblem(net.ErrClosed, "refusing to attempt to resume a connection already closed by the peer")
+
+		if r.remoteClosed {
+			r.mu.Unlock()
+
+			return trace.ConnectionProblem(errBrokenPipe, "attempting to resume a connection already closed by the peer")
+		}
+	} else if r.attached != nil || r.remoteClosed || r.localClosed || r.receiveBuffer.end > 0 || r.sendBuffer.start > 0 {
+		r.mu.Unlock()
+		panic("firstConn for resume V1 is not actually unused")
 	}
 
-	// stopRequested should be checked whenever we're in a loop that doesn't
-	// involve I/O on the conn
 	var stopRequested atomic.Bool
 	requestStop := func() {
-		if stopRequested.Swap(true) {
-			return
-		}
-		r.cond.Broadcast()
 		nc.Close()
+		if !stopRequested.Swap(true) {
+			r.cond.Broadcast()
+		}
 	}
-
-	r.localAddr = localAddr
-	r.remoteAddr = remoteAddr
 
 	r.attached = requestStop
 	r.cond.Broadcast()
+
 	defer func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()
@@ -114,36 +105,27 @@ func RunResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) error {
 		r.cond.Broadcast()
 	}()
 
-	sentReceivePosition := r.receiveBuffer.end
+	sentPosition := r.receiveBuffer.end
 	r.mu.Unlock()
 
-	ncReader, ok := nc.(interface {
-		io.Reader
-		io.ByteReader
-	})
+	ncReader, ok := nc.(byteReaderReader)
 	if !ok {
 		ncReader = bufio.NewReader(nc)
 	}
 
-	var peerReceivePosition uint64
+	var peerPosition uint64
 
 	handshakeWatchdog := time.AfterFunc(handshakeTimeout, func() { nc.Close() })
 	defer handshakeWatchdog.Stop()
 
-	if firstConn {
-		if sentReceivePosition != 0 {
-			go io.Copy(io.Discard, ncReader)
-			_, _ = nc.Write([]byte(errorTagUvarint))
-			return trace.BadParameter("handshake for a new connection on a used connection (this is a bug)")
-		}
-	} else {
+	if !firstConn {
 		errC := make(chan error, 1)
 		go func() {
-			_, err := nc.Write(binary.AppendUvarint(nil, sentReceivePosition))
+			_, err := nc.Write(binary.AppendUvarint(nil, sentPosition))
 			errC <- err
 		}()
 		var err error
-		peerReceivePosition, err = binary.ReadUvarint(ncReader)
+		peerPosition, err = binary.ReadUvarint(ncReader)
 		if err != nil {
 			return trace.Wrap(err, "reading peer receive position")
 		}
@@ -154,7 +136,7 @@ func RunResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) error {
 	}
 
 	r.mu.Lock()
-	if minPos, maxPos := r.sendBuffer.start, r.sendBuffer.end; peerReceivePosition < minPos || maxPos < peerReceivePosition {
+	if minPos, maxPos := r.sendBuffer.start, r.sendBuffer.end; peerPosition < minPos || maxPos < peerPosition {
 		// incompatible resume position, mark as remotely closed since we can't
 		// ever continue from this; this also includes receiving an errorTag
 		// (since that's too big of a position to reach legitimately)
@@ -163,10 +145,10 @@ func RunResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) error {
 		r.mu.Unlock()
 
 		_, _ = nc.Write([]byte(errorTagUvarint))
-		return trace.BadParameter("got incompatible resume position (%v, expected %v to %v)", peerReceivePosition, minPos, maxPos)
+		return trace.BadParameter("got incompatible resume position (%v, expected %v to %v)", peerPosition, minPos, maxPos)
 	}
-	if r.sendBuffer.start != peerReceivePosition {
-		r.sendBuffer.advance(peerReceivePosition - r.sendBuffer.start)
+	if r.sendBuffer.start != peerPosition {
+		r.sendBuffer.advance(peerPosition - r.sendBuffer.start)
 		r.cond.Broadcast()
 	}
 	r.mu.Unlock()
@@ -174,154 +156,176 @@ func RunResumeV1(r *ResumableConn, nc net.Conn, firstConn bool) error {
 	handshakeWatchdog.Stop()
 
 	eg, ctx := errgroup.WithContext(context.Background())
-	context.AfterFunc(ctx, requestStop)
+	defer context.AfterFunc(ctx, func() {
+		if !stopRequested.Swap(true) {
+			r.cond.Broadcast()
+		}
+	})()
 
 	eg.Go(func() error {
-		for {
-			ack, err := binary.ReadUvarint(ncReader)
-			if err != nil {
-				return trace.Wrap(err, "reading ack")
-			}
-
-			if ack > 0 {
-				r.mu.Lock()
-				if ack == errorTag {
-					r.remoteClosed = true
-					r.cond.Broadcast()
-					r.mu.Unlock()
-
-					return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer")
-				}
-
-				if maxAck := r.sendBuffer.len(); ack > maxAck {
-					r.mu.Unlock()
-					return trace.BadParameter("got ack bigger than current send buffer (%v, expected up to %v)", ack, maxAck)
-				}
-
-				r.sendBuffer.advance(ack)
-				r.cond.Broadcast()
-				r.mu.Unlock()
-			}
-
-			size, err := binary.ReadUvarint(ncReader)
-			if err != nil {
-				return trace.Wrap(err, "reading data size")
-			}
-
-			if size > maxFrameSize {
-				return trace.BadParameter("got data size bigger than limit (%v, expected up to %v)", size, maxFrameSize)
-			}
-
-			r.mu.Lock()
-
-			for size > 0 {
-				if r.localClosed {
-					r.receiveBuffer.advance(r.receiveBuffer.len())
-					r.cond.Broadcast()
-					r.mu.Unlock()
-
-					n, err := io.Copy(io.Discard, io.LimitReader(ncReader, int64(size)))
-
-					r.mu.Lock()
-					r.receiveBuffer.advance(uint64(n))
-					if err != nil {
-						r.mu.Unlock()
-						return trace.Wrap(err, "reading data to discard")
-					}
-					break
-				}
-
-				for r.receiveBuffer.len() >= receiveBufferSize {
-					r.cond.Wait()
-					if stopRequested.Load() || r.remoteClosed {
-						r.mu.Unlock()
-						return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer or disconnection requested")
-					}
-				}
-
-				next := min(receiveBufferSize-r.receiveBuffer.len(), size)
-				r.receiveBuffer.reserve(next)
-				tail, _ := r.receiveBuffer.free()
-				if len64(tail) > size {
-					tail = tail[:size]
-				}
-				r.mu.Unlock()
-
-				n, err := io.ReadFull(ncReader, tail)
-
-				r.mu.Lock()
-				if n > 0 {
-					r.receiveBuffer.append(tail[:n])
-					size -= uint64(n)
-					r.cond.Broadcast()
-				}
-
-				if err != nil {
-					r.mu.Unlock()
-					return trace.Wrap(err, "reading data")
-				}
-			}
-			r.mu.Unlock()
-		}
+		return runResumeV1Read(r, ncReader, &stopRequested)
 	})
 
 	eg.Go(func() error {
-		var scratch [2 * binary.MaxVarintLen64]byte
-		for {
-			var frameAck uint64
-			var frameData []byte
-
-			r.mu.Lock()
-			for {
-				frameAck = r.receiveBuffer.end - sentReceivePosition
-
-				frameData = nil
-				if r.sendBuffer.end > peerReceivePosition {
-					skip := peerReceivePosition - r.sendBuffer.start
-					d1, d2 := r.sendBuffer.buffered()
-					if len64(d1) <= skip {
-						frameData = d2[skip-len64(d1):]
-					} else {
-						frameData = d1[skip:]
-					}
-				}
-				if len(frameData) >= maxFrameSize {
-					frameData = frameData[:maxFrameSize]
-				}
-				if frameAck > 0 || len(frameData) > 0 {
-					break
-				}
-
-				if stopRequested.Load() || r.localClosed || r.remoteClosed {
-					localClosed := r.localClosed
-					r.mu.Unlock()
-
-					if localClosed {
-						_, _ = nc.Write([]byte(errorTagUvarint))
-					}
-					return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer or disconnection requested")
-				}
-
-				r.cond.Wait()
-			}
-			r.mu.Unlock()
-
-			frameHeader := binary.AppendUvarint(scratch[:0], frameAck)
-			frameHeader = binary.AppendUvarint(frameHeader, len64(frameData))
-
-			if _, err := nc.Write(frameHeader); err != nil {
-				return trace.Wrap(err, "writing frame header")
-			}
-			if _, err := nc.Write(frameData); err != nil {
-				return trace.Wrap(err, "writing frame data")
-			}
-
-			r.mu.Lock()
-			sentReceivePosition += frameAck
-			peerReceivePosition += len64(frameData)
-			r.mu.Unlock()
-		}
+		return runResumeV1Write(r, nc, &stopRequested, sentPosition, peerPosition)
 	})
 
 	return trace.Wrap(eg.Wait())
+}
+
+func runResumeV1Read(r *ResumableConn, nc byteReaderReader, stopRequested *atomic.Bool) error {
+	for {
+		ack, err := binary.ReadUvarint(nc)
+		if err != nil {
+			return trace.Wrap(err, "reading ack")
+		}
+
+		if ack > 0 {
+			r.mu.Lock()
+			if ack == errorTag {
+				r.remoteClosed = true
+				r.cond.Broadcast()
+				r.mu.Unlock()
+
+				return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer")
+			}
+
+			if maxAck := r.sendBuffer.len(); ack > maxAck {
+				r.mu.Unlock()
+				return trace.BadParameter("got ack bigger than current send buffer (%v, expected up to %v)", ack, maxAck)
+			}
+
+			r.sendBuffer.advance(ack)
+			r.cond.Broadcast()
+			r.mu.Unlock()
+		}
+
+		size, err := binary.ReadUvarint(nc)
+		if err != nil {
+			return trace.Wrap(err, "reading data size")
+		}
+
+		if size > maxFrameSize {
+			return trace.BadParameter("got data size bigger than limit (%v, expected up to %v)", size, maxFrameSize)
+		}
+
+		r.mu.Lock()
+
+		for size > 0 {
+			if r.localClosed {
+				r.receiveBuffer.advance(r.receiveBuffer.len())
+				r.cond.Broadcast()
+				r.mu.Unlock()
+
+				n, err := io.Copy(io.Discard, io.LimitReader(nc, int64(size)))
+
+				r.mu.Lock()
+				r.receiveBuffer.start += uint64(n)
+				r.receiveBuffer.end = r.receiveBuffer.start
+				r.cond.Broadcast()
+				if err != nil {
+					r.mu.Unlock()
+					return trace.Wrap(err, "reading data to discard")
+				}
+				break
+			}
+
+			for r.receiveBuffer.len() >= receiveBufferSize {
+				r.cond.Wait()
+				if stopRequested.Load() || r.remoteClosed {
+					r.mu.Unlock()
+					if stopRequested.Load() {
+						return trace.ConnectionProblem(net.ErrClosed, "disconnection requested")
+					}
+					return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer")
+				}
+			}
+
+			next := min(receiveBufferSize-r.receiveBuffer.len(), size)
+			r.receiveBuffer.reserve(next)
+			tail, _ := r.receiveBuffer.free()
+			if len64(tail) > size {
+				tail = tail[:size]
+			}
+			r.mu.Unlock()
+
+			n, err := io.ReadFull(nc, tail)
+
+			r.mu.Lock()
+			if n > 0 {
+				r.receiveBuffer.append(tail[:n])
+				size -= uint64(n)
+				r.cond.Broadcast()
+			}
+
+			if err != nil {
+				r.mu.Unlock()
+				return trace.Wrap(err, "reading data")
+			}
+		}
+		r.mu.Unlock()
+	}
+}
+
+func runResumeV1Write(r *ResumableConn, nc io.Writer, stopRequested *atomic.Bool, sentPosition, peerPosition uint64) error {
+	var headerBuf [2 * binary.MaxVarintLen64]byte
+	var dataBuf [maxFrameSize]byte
+
+	for {
+		var frameAck uint64
+		var frameData []byte
+
+		r.mu.Lock()
+		for {
+			frameAck = r.receiveBuffer.end - sentPosition
+
+			frameData = nil
+			if r.sendBuffer.end > peerPosition {
+				skip := peerPosition - r.sendBuffer.start
+				d1, d2 := r.sendBuffer.buffered()
+				if len64(d1) <= skip {
+					frameData = d2[skip-len64(d1):]
+				} else {
+					frameData = d1[skip:]
+				}
+			}
+			if frameAck > 0 || len(frameData) > 0 {
+				break
+			}
+
+			if stopRequested.Load() || r.localClosed || r.remoteClosed {
+				localClosed := r.localClosed
+				r.mu.Unlock()
+
+				if localClosed {
+					_, _ = nc.Write([]byte(errorTagUvarint))
+				}
+				return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer or disconnection requested")
+			}
+
+			r.cond.Wait()
+		}
+		frameData = dataBuf[:copy(dataBuf[:], frameData)]
+		r.mu.Unlock()
+
+		frameHeader := binary.AppendUvarint(headerBuf[:0], frameAck)
+		frameHeader = binary.AppendUvarint(frameHeader, len64(frameData))
+
+		if _, err := nc.Write(frameHeader); err != nil {
+			return trace.Wrap(err, "writing frame header")
+		}
+		if _, err := nc.Write(frameData); err != nil {
+			return trace.Wrap(err, "writing frame data")
+		}
+
+		r.mu.Lock()
+		sentPosition += frameAck
+		peerPosition += len64(frameData)
+		r.mu.Unlock()
+	}
+}
+
+type byteReaderReader interface {
+	io.Reader
+	io.ByteReader
 }

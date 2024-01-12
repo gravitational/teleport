@@ -60,8 +60,11 @@ func TestResumableConnPipe(t *testing.T) {
 					}
 				}
 
-				go RunResumeV1(r1, p1, tc.firstConn)
-				go RunResumeV1(r2, p2, tc.firstConn)
+				r1.mu.Lock()
+				go runResumeV1Unlocking(r1, p1, tc.firstConn)
+
+				r2.mu.Lock()
+				go runResumeV1Unlocking(r2, p2, tc.firstConn)
 
 				return r1, r2, func() {
 					r1.Close()
@@ -103,18 +106,27 @@ func testResumableConn(t *testing.T, syncPipe bool) {
 	r2 := newResumableConn(nil, nil)
 	defer r2.Close()
 
-	var p1, p2 net.Conn
-	if syncPipe {
-		p1, p2 = net.Pipe()
-	} else {
-		var err error
-		p1, p2, err = uds.NewSocketpair(uds.SocketTypeStream)
-		require.NoError(err)
+	makePipe := func() (net.Conn, net.Conn) {
+		var p1, p2 net.Conn
+		if syncPipe {
+			p1, p2 = net.Pipe()
+		} else {
+			var err error
+			p1, p2, err = uds.NewSocketpair(uds.SocketTypeStream)
+			require.NoError(err)
+		}
+		t.Cleanup(func() { _ = p1.Close() })
+		t.Cleanup(func() { _ = p2.Close() })
+		return p1, p2
 	}
-	defer p1.Close()
-	defer p2.Close()
-	go RunResumeV1(r1, p1, true)
-	go RunResumeV1(r2, p2, true)
+
+	p1, p2 := makePipe()
+
+	const isFirstConn = true
+	r1.mu.Lock()
+	go runResumeV1Unlocking(r1, p1, isFirstConn)
+	r2.mu.Lock()
+	go runResumeV1Unlocking(r2, p2, isFirstConn)
 
 	randB := make([]byte, 100)
 	_, err := rand.Read(randB)
@@ -134,17 +146,13 @@ func testResumableConn(t *testing.T, syncPipe bool) {
 	_, err = r2.Write(randB)
 	require.NoError(err)
 
-	if syncPipe {
-		p1, p2 = net.Pipe()
-	} else {
-		var err error
-		p1, p2, err = uds.NewSocketpair(uds.SocketTypeStream)
-		require.NoError(err)
-	}
-	defer p1.Close()
-	defer p2.Close()
-	go RunResumeV1(r1, p1, false)
-	go RunResumeV1(r2, p2, false)
+	p1, p2 = makePipe()
+
+	const isNotFirstConn = false
+	r1.mu.Lock()
+	go runResumeV1Unlocking(r1, p1, isNotFirstConn)
+	r2.mu.Lock()
+	go runResumeV1Unlocking(r2, p2, isNotFirstConn)
 
 	_, err = io.ReadFull(r1, recvB)
 	require.NoError(err)
