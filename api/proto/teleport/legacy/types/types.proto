@@ -5577,6 +5577,26 @@ message PluginOktaSettings {
 
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
+
+  // Sync settings controls the user and access list sync settings for Okta.
+  PluginOktaSyncSettings sync_settings = 4;
+}
+
+// Defines settings for syncing users and access lists from Okta.
+message PluginOktaSyncSettings {
+  option (gogoproto.equal) = true;
+
+  // SyncUsers controls the user sync in the Okta integration service.
+  bool sync_users = 1;
+
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Okta plugin
+  string sso_connector_id = 2;
+
+  // SyncAccessLists controls the access list sync in the Okta integration service.
+  bool sync_access_lists = 3;
+
+  // DefaultOwners are the default owners for all imported access lists.
+  repeated string default_owners = 4;
 }
 
 // Defines a set of discord channel IDs
