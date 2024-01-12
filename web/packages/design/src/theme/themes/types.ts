@@ -279,7 +279,11 @@ export type SharedStyles = {
     mobile: number;
     tablet: number;
     desktop: number;
+    small: number;
+    medium: number;
+    large: number;
   };
+  topBarHeight: number[];
   space: number[];
   borders: (string | number)[];
   typography: typeof typography;
