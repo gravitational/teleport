@@ -179,7 +179,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
   const clientOnTdpError = React.useCallback(
     (error: Error) => {
       setPlayerStatus(StatusEnum.ERROR);
-      setStatusText(error.message);
+      setStatusText(error.message || error.toString());
     },
     [setPlayerStatus, setStatusText]
   );
