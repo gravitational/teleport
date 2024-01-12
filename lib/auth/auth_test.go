@@ -548,7 +548,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 		"SetAuthPreference")
 
 	// Prepare user, password and MFA device.
-	_, _, err = CreateUserAndRole(authServer, user, []string{user}, nil /* allowRules */)
+	_, _, err = CreateUserAndRole(authServer, user, []string{user})
 	require.NoError(t, err, "CreateUserAndRole")
 	require.NoError(t,
 		authServer.UpsertPassword(user, []byte(pass)),

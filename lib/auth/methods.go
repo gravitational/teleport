@@ -225,11 +225,11 @@ func (a *Server) authenticateUser(
 
 	verifyLocks = func(p verifyMFADeviceLocksParams) error {
 		if p.Checker == nil {
-			userState, err := a.GetUserOrLoginState(ctx, user)
+			u, err := a.GetUser(user, false /* withSecrets */)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			accessInfo := services.AccessInfoFromUserState(userState)
+			accessInfo := services.AccessInfoFromUser(u)
 			clusterName, err := a.GetClusterName()
 			if err != nil {
 				return trace.Wrap(err)
