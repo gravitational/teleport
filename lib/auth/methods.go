@@ -115,7 +115,7 @@ type SessionCreds struct {
 func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (types.User, error) {
 	username := req.Username
 
-	_, mfaDev, actualUsername, err := a.authenticateUser(ctx, req)
+	verifyMFALocks, mfaDev, actualUsername, err := a.authenticateUser(ctx, req)
 	// err is handled below.
 	switch {
 	case username != "" && actualUsername != "" && username != actualUsername:
@@ -133,6 +133,9 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		UserMetadata: apievents.UserMetadata{
 			User: username,
 		},
+		Status: apievents.Status{
+			Success: false,
+		},
 		Method: events.LoginMethodLocal,
 	}
 	if mfaDev != nil {
@@ -147,33 +150,56 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 			event.UserAgent = req.ClientMetadata.UserAgent
 		}
 	}
-
-	var user types.User
 	if err != nil {
-		event.Code = events.UserLocalLoginFailureCode
-		event.Status.Success = false
-		event.Status.Error = err.Error()
-	} else {
-		event.Code = events.UserLocalLoginCode
-		event.Status.Success = true
-
-		var err error
-		user, err = a.GetUser(username, false /* withSecrets */)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		event.Error = err.Error()
+		if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit login event.")
 		}
-
-		// After we're sure that the user has been logged in successfully, we should call
-		// the registered login hooks. Login hooks can be registered by other processes to
-		// execute arbitrary operations after a successful login.
-		if err := a.CallLoginHooks(ctx, user); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(err)
 	}
+
+	user, err := a.GetUser(username, false /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// After we're sure that the user has been logged in successfully, we should call
+	// the registered login hooks. Login hooks can be registered by other processes to
+	// execute arbitrary operations after a successful login.
+	if err := a.CallLoginHooks(ctx, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Verify if the MFA device is locked.
+	accessInfo := services.AccessInfoFromUser(user)
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := verifyMFALocks(verifyMFADeviceLocksParams{
+		Checker: checker,
+	}); err != nil {
+		// Log MFA lock failure as an authn failure.
+		event.Error = err.Error()
+		if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit login event.")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	// Log authn success.
+	event.Code = events.UserLocalLoginCode
+	event.Success = true
+	event.Error = ""
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")
 	}
-	return user, trace.Wrap(err)
+
+	return user, nil
 }
 
 var (
