@@ -160,10 +160,10 @@ Expression | Result
 - (!docs/pages/includes/tctl.mdx!)
 - User with permission to create Service Provider resource. The preset `editor` role has this permission.
 
-### `test_attribute_mapping` command
+### `test-attribute-mapping` command
 
-Attribute mapping can be tested using `tctl idp saml test_attribute_mapping` command.
-`test_attribute_mapping` command accepts three arguments.
+Attribute mapping can be tested using `tctl idp saml test-attribute-mapping` command.
+`test-attribute-mapping` command accepts three arguments.
 
 - `--users`: user names or names of files containing user spec. Required.
 - `--sp`: name of file containing service provider spec with attribute mapping. Required.
@@ -173,7 +173,7 @@ E.g.:
 Test with user name and Service Provider spec file:
 ```bash
 # with username and service provider file
-$ tctl idp saml test_attribute_mapping --user user1 --sp sp.yml
+$ tctl idp saml test-attribute-mapping --user user1 --sp sp.yml
 User: user1
 Attribute Name Attribute Value
 -------------- -----------------------------
@@ -185,10 +185,10 @@ groups         okta-admin, dev-sso, dev-rdp
 
 Test with user spec file and Service Provider spec file:
 ```bash
-$ tctl idp saml test_attribute_mapping --user user.yml --sp sp.yml
+$ tctl idp saml test-attribute-mapping --user user.yml --sp sp.yml
 ```
 
 Print result in format of choice.
 ```bash
-$ tctl idp saml test_attribute_mapping --user user.yml --sp sp.yml --format (json/yaml)
+$ tctl idp saml test-attribute-mapping --user user.yml --sp sp.yml --format (json/yaml)
 ```
