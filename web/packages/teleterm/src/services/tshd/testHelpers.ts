@@ -59,7 +59,7 @@ export const makeApp = (props: Partial<tsh.App> = {}): App => ({
   name: 'foo',
   labelsList: [],
   endpointUri: 'tcp://localhost:3000',
-  friendlyName: 'foo',
+  friendlyName: '',
   desc: '',
   awsConsole: false,
   publicAddr: 'local-app.example.com:3000',

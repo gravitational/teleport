@@ -229,7 +229,7 @@ const SearchResultItems = () => {
     makeResourceResult({
       kind: 'app',
       resource: makeApp({
-        name: 'super-long-server-app-with-uuid-1f96e498-88ec-442f-a25b-569fa915041c',
+        name: 'super-long-app-with-uuid-1f96e498-88ec-442f-a25b-569fa915041c',
         desc: 'short-desc',
         uri: `${longClusterUri}/apps/super-long-desc`,
         labelsList: makeLabelsList({
