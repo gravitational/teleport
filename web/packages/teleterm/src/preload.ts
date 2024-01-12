@@ -19,7 +19,7 @@
 import { contextBridge } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
 
-import createTshClient from 'teleterm/services/tshd/createClient';
+import { createTshdClient } from 'teleterm/services/tshd/createClient';
 import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import { createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
@@ -60,7 +60,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     mainProcessClient.getResolvedChildProcessAddresses(),
     createGrpcCredentials(runtimeSettings),
   ]);
-  const tshClient = createTshClient(addresses.tsh, credentials.tshd);
+  const tshClient = createTshdClient(addresses.tsh, credentials.tshd);
   const ptyServiceClient = createPtyService(
     addresses.shared,
     credentials.shared,
