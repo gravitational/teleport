@@ -35,9 +35,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -310,8 +310,10 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 				},
 			},
 		},
-		AllowReuse: true,
-		Scope:      webauthnpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)

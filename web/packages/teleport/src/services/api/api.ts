@@ -31,12 +31,16 @@ const api = {
     return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
   },
 
-  post(url, data?, abortSignal?) {
-    return api.fetchJsonWithMfaAuthnRetry(url, {
-      body: JSON.stringify(data),
-      method: 'POST',
-      signal: abortSignal,
-    });
+  post(url, data?, abortSignal?, webauthnResponse?: WebauthnAssertionResponse) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'POST',
+        signal: abortSignal,
+      },
+      webauthnResponse
+    );
   },
 
   postFormData(url, formData) {
