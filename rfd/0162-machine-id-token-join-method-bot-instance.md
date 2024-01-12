@@ -427,8 +427,16 @@ startup and on each heartbeat. This will allow users to easily correlate the
 
 #### `tctl`
 
+Commands to list all BotInstances and the BotInstances for a specific Bot should
+be added to the `tctl bots` family:
+
 `tctl bots instances list`
 `tctl bots instances list --bot <bot name>`
+
+The `tctl tokens add` command should be extended to allow a new token to be
+associated with an existing Bot now that multiple Bot instances can be run
+against a single Bot:
+
 `tctl tokens add --type=bot --bot <bot name>`
 
 Additionally, `tctl rm`/`tctl get` should be able to operate on BotInstance.
