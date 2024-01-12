@@ -41,10 +41,12 @@ var ErrFnCacheClosed = errors.New("fncache permanently closed")
 // basis and can cause a significant number of backend reads if the cache is unhealthy or taking a while to initialize.
 type FnCache struct {
 	cfg         FnCacheConfig
-	mu          sync.Mutex
-	nextCleanup time.Time
-	entries     map[any]*fnCacheEntry
 	closed      bool
+	cancel      context.CancelFunc
+	nextCleanup time.Time
+
+	mu      sync.Mutex
+	entries map[any]*fnCacheEntry
 }
 
 // cleanupMultiplier is an arbitrary multiplier used to derive the default interval
@@ -107,10 +109,15 @@ func NewFnCache(cfg FnCacheConfig) (*FnCache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &FnCache{
+	cache := &FnCache{
 		cfg:     cfg,
 		entries: make(map[any]*fnCacheEntry),
-	}, nil
+	}
+
+	cache.cfg.Context, cache.cancel = context.WithCancel(cfg.Context)
+
+	return cache, nil
+
 }
 
 type fnCacheEntry struct {
@@ -126,6 +133,7 @@ type fnCacheEntry struct {
 // per item in the cache.
 func (c *FnCache) Shutdown(ctx context.Context) {
 	c.mu.Lock()
+	c.cancel()
 	c.closed = true
 	entries := c.entries
 	c.entries = make(map[any]*fnCacheEntry)
