@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -496,18 +497,12 @@ func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
 	return nil
 }
 
-// updateBotUser applies updates to a bot user that were specified in the CLI
-// arguments.
-func (c *BotsCommand) updateBotUser(ctx context.Context, client auth.ClientI) error {
-	resource := machineidv1.BotResourceName(c.botName)
-	user, err := client.GetUser(ctx, resource, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	traits := user.GetTraits()
-	if traits == nil {
-		traits = map[string][]string{}
+// updateBotLogins applies updates from CLI arguments to a bot's logins trait,
+// updating the field mask if any updates were made.
+func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
+	traits := map[string][]string{}
+	for _, t := range bot.Spec.GetTraits() {
+		traits[t.Name] = t.Values
 	}
 
 	var currentLogins map[string]struct{}
@@ -529,11 +524,12 @@ func (c *BotsCommand) updateBotUser(ctx context.Context, client auth.ClientI) er
 		desiredLogins = setUnion(desiredLogins, arrayToSet(addLogins))
 	}
 
-	log.Infof("Desired logins for bot %q: %+v", c.botName, setToArray(desiredLogins))
 	if setsEqual(currentLogins, desiredLogins) {
-		log.Infof("Desired logins match existing set, will not update bot user")
+		log.Infof("Requested logins match existing, nothing to do: %+v", setToArray(desiredLogins))
 		return nil
 	}
+
+	log.Infof("Desired logins for bot %q: %+v", c.botName, setToArray(desiredLogins))
 
 	if len(desiredLogins) == 0 {
 		delete(traits, constants.TraitLogins)
@@ -541,28 +537,24 @@ func (c *BotsCommand) updateBotUser(ctx context.Context, client auth.ClientI) er
 	} else {
 		traits[constants.TraitLogins] = setToArray(desiredLogins)
 	}
-	user.SetTraits(traits)
 
-	if _, err := client.UpdateUser(ctx, user); err != nil {
-		return trace.Wrap(err)
+	traitsArray := []*machineidv1pb.Trait{}
+	for k, v := range traits {
+		traitsArray = append(traitsArray, &machineidv1pb.Trait{
+			Name:   k,
+			Values: v,
+		})
 	}
 
-	return nil
+	bot.Spec.Traits = traitsArray
+
+	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.traits"))
 }
 
-// updateBotRole performs any updates to a bot's role that were specified in the
-// CLI arguments.
-func (c *BotsCommand) updateBotRole(ctx context.Context, client auth.ClientI) error {
-	resource := machineidv1.BotResourceName(c.botName)
-	role, err := client.GetRole(ctx, resource)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	allowCond := role.GetImpersonateConditions(types.Allow)
-	currentRoles := arrayToSet(allowCond.Roles)
-
-	log.Infof("Existing roles for bot %q: %+v", c.botName, setToArray(currentRoles))
+// updateBotRoles applies updates from CLI arguments to a bot's roles, updating
+// the field mask as necessary if any updates were made.
+func (c *BotsCommand) updateBotRoles(ctx context.Context, client auth.ClientI, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
+	currentRoles := arrayToSet(bot.Spec.Roles)
 
 	var desiredRoles map[string]struct{}
 	if c.botRoles != "" {
@@ -575,11 +567,12 @@ func (c *BotsCommand) updateBotRole(ctx context.Context, client auth.ClientI) er
 		desiredRoles = setUnion(desiredRoles, arrayToSet(splitEntries(c.addRoles)))
 	}
 
-	log.Infof("Desired roles for bot %q:  %+v", c.botName, setToArray(desiredRoles))
 	if setsEqual(currentRoles, desiredRoles) {
-		log.Infof("Desired roles match existing roles, will not update bot role")
+		log.Infof("Requested roles match existing, nothing to do: %+v", setToArray(desiredRoles))
 		return nil
 	}
+
+	log.Infof("Desired roles for bot %q:  %+v", c.botName, setToArray(desiredRoles))
 
 	// Validate roles (server does not do this yet).
 	for roleName := range desiredRoles {
@@ -588,40 +581,51 @@ func (c *BotsCommand) updateBotRole(ctx context.Context, client auth.ClientI) er
 		}
 	}
 
-	allowCond.Roles = setToArray(desiredRoles)
-	role.SetImpersonateConditions(types.Allow, allowCond)
+	bot.Spec.Roles = setToArray(desiredRoles)
 
-	if _, err := client.UpdateRole(ctx, role); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.roles"))
 }
 
 // UpdateBot performs various updates to existing bot users and roles.
 func (c *BotsCommand) UpdateBot(ctx context.Context, client auth.ClientI) error {
-	changes := false
+	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
+		BotName: c.botName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fieldMask, err := fieldmaskpb.New(&machineidv1pb.Bot{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	if c.setLogins != "" || c.addLogins != "" {
-		if err := c.updateBotUser(ctx, client); err != nil {
+		if err := c.updateBotLogins(ctx, bot, fieldMask); err != nil {
 			return trace.Wrap(err)
 		}
-
-		changes = true
 	}
 
 	if c.botRoles != "" || c.addRoles != "" {
-		if err := c.updateBotRole(ctx, client); err != nil {
+		if err := c.updateBotRoles(ctx, client, bot, fieldMask); err != nil {
 			return trace.Wrap(err)
 		}
-
-		changes = true
 	}
 
-	if changes {
-		log.Infof("Bot %q has been updated. Roles will take affect on its next renewal.", c.botName)
-	} else {
-		log.Infof("No changes requested. Specify one or more flags.")
+	if len(fieldMask.Paths) == 0 {
+		log.Infof("No changes requested, nothing to do.")
+		return nil
 	}
+
+	_, err = client.BotServiceClient().UpdateBot(ctx, &machineidv1pb.UpdateBotRequest{
+		Bot:        bot,
+		UpdateMask: fieldMask,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Bot %q has been updated. Roles will take affect on its next renewal.", c.botName)
 
 	return nil
 }
