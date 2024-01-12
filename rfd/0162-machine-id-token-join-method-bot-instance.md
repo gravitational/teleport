@@ -204,6 +204,10 @@ message BotInstanceStatusHeartbeat {
   // The duration that `tbot` has been running for when it submitted this
   // heartbeat.
   google.protobuf.Duration uptime = 5;
+  // The currently configured join_method.
+  string join_method = 6;
+  // Indicates whether `tbot` is running in one-shot mode.
+  bool one_shot = 7;
   
   // In future iterations, additional information can be submitted here.
   // For example, the configuration of `tbot` or the health of individual
@@ -314,7 +318,7 @@ heartbeat period to avoid a thundering herd of heartbeats.
 
 If the heartbeat fails, then `tbot` should retry on a exponential backoff.
 
-##### Alternative: Submit Heartbeat data on Join/Renew
+##### Alternative: Submit Heartbeat Data on Join/Renew
 
 Alternatively, we could add a Heartbeat field to the join/renew RPCs.
 
@@ -424,6 +428,22 @@ with `tctl`.
 
 A PostHog event should be emitted for each BotInstance heartbeat. This will
 allow us to track active bots in a similar way to how we track active agents.
+
+```protobuf
+// a heartbeat for a Bot Instance
+//
+// PostHog event: tp.bot.instance.hb
+message BotInstanceHeartbeatEvent {
+  // anonymized name of the instance, 32 bytes (HMAC-SHA-256);
+  bytes bot_instance_name = 1;
+  // the version of tbot
+  string version = 2;
+  // indicates whether or not tbot is running in one-shot mode
+  bool one_shot = 3;
+  // indicates the configured join method of `tbot`.
+  string join_method = 4;
+}
+```
 
 ### Implementation
 
