@@ -38,7 +38,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -1856,16 +1855,6 @@ func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey c
 	key := keyAttestationDataFingerprint(pubDER)
 	item, err := s.Get(ctx, backend.Key(attestationsPrefix, key))
 
-	// Fallback to old fingerprint (std base64 encoded ssh public key) for backwards compatibility.
-	// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
-	if trace.IsNotFound(err) {
-		key, err = KeyAttestationDataFingerprintV11(publicKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		item, err = s.Get(ctx, backend.Key(attestationsPrefix, key))
-	}
-
 	if trace.IsNotFound(err) {
 		return nil, trace.NotFound("hardware key attestation not found")
 	} else if err != nil {
@@ -1883,18 +1872,6 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 	sha256sum := sha256.Sum256(pubDER)
 	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
 	return encodedSHA
-}
-
-// KeyAttestationDataFingerprintV11 creates a "KeyAttestationData" fingerprint
-// compatible with older patches of Teleport v11.
-// Exposed for testing, do not use this function directly.
-// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
-func KeyAttestationDataFingerprintV11(pub crypto.PublicKey) (string, error) {
-	sshPub, err := ssh.NewPublicKey(pub)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return ssh.FingerprintSHA256(sshPub), nil
 }
 
 const (

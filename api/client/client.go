@@ -38,6 +38,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -4315,6 +4316,30 @@ func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority
 	})
 
 	return out, trace.Wrap(err)
+}
+
+// RotateCertAuthority updates or inserts new cert authority
+func (c *Client) RotateCertAuthority(ctx context.Context, rr types.RotateRequest) error {
+	req := &trustpb.RotateCertAuthorityRequest{
+		Type:        string(rr.Type),
+		TargetPhase: rr.TargetPhase,
+		Mode:        rr.Mode,
+	}
+
+	if rr.GracePeriod != nil {
+		req.GracePeriod = durationpb.New(*rr.GracePeriod)
+	}
+
+	if rr.Schedule != nil {
+		req.Schedule = &trustpb.RotationSchedule{
+			UpdateClients: timestamppb.New(rr.Schedule.UpdateClients),
+			UpdateServers: timestamppb.New(rr.Schedule.UpdateServers),
+			Standby:       timestamppb.New(rr.Schedule.Standby),
+		}
+	}
+
+	_, err := c.TrustClient().RotateCertAuthority(ctx, req)
+	return trace.Wrap(err)
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.

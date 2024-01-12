@@ -147,6 +147,11 @@ export interface UnifiedResourcesProps {
    */
   pinning: UnifiedResourcesPinning;
   availableKinds: FilterKind[];
+  /*
+   * ClusterDropdown is an optional prop to add a ClusterDropdown to the
+   * FilterPanel component. This is useful to turn off in Connect and use on web only
+   */
+  ClusterDropdown?: JSX.Element;
   setParams(params: UnifiedResourcesQueryParams): void;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
@@ -175,6 +180,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferencesAttempt,
     updateUnifiedResourcesPreferences,
     unifiedResourcePreferences,
+    ClusterDropdown,
     bulkActions = [],
   } = props;
 
@@ -439,6 +445,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         currentViewMode={unifiedResourcePreferences.viewMode}
         setCurrentViewMode={selectViewMode}
         expandAllLabels={expandAllLabels}
+        ClusterDropdown={ClusterDropdown}
         setExpandAllLabels={expandAllLabels => {
           setLabelsViewMode(
             expandAllLabels

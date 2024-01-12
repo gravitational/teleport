@@ -67,6 +67,7 @@ export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
 export type AppUri = RootClusterAppUri | LeafClusterAppUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
+export type GatewayTargetUri = DatabaseUri | KubeUri | AppUri;
 
 /*
  * Document URIs
@@ -227,6 +228,22 @@ export const routing = {
     return resourceRootClusterUri === rootClusterUri;
   },
 };
+
+export function isAppUri(uri: string): uri is AppUri {
+  return !!routing.parseAppUri(uri);
+}
+
+export function isDatabaseUri(uri: string): uri is DatabaseUri {
+  return !!routing.parseDbUri(uri);
+}
+
+export function isServerUri(uri: string): uri is ServerUri {
+  return !!routing.parseServerUri(uri);
+}
+
+export function isKubeUri(uri: string): uri is KubeUri {
+  return !!routing.parseKubeUri(uri);
+}
 
 export type Params = {
   rootClusterId?: string;

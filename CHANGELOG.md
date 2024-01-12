@@ -177,6 +177,16 @@ and instance type has been changed to ARM64/Graviton.
 As a result of this modernization, the legacy monitoring stack configuration
 used with the legacy AMIs has been removed.
 
+### Other changes
+
+#### Increased password length
+
+The minimum password length has been increased to 12 characters.
+
+#### Increased account lockout interval
+
+The account lockout interval has been increased to 30 minutes.
+
 ## 14.0.0 (09/20/23)
 
 Teleport 14 brings the following new major features and improvements:

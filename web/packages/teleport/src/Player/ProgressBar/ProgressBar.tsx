@@ -154,7 +154,7 @@ const ActionButton = styled.button`
     opacity: 1;
 
     .icon {
-      color: ${props => props.theme.colors.success};
+      color: ${props => props.theme.colors.success.main};
     }
   }
 
@@ -193,7 +193,7 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .bar-0 {
-    background-color: ${props => props.theme.colors.success};
+    background-color: ${props => props.theme.colors.success.main};
     box-shadow: none;
   }
 

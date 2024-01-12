@@ -19,6 +19,7 @@
 import React, { useCallback, useState, useEffect } from 'react';
 
 import { Flex } from 'design';
+import { Danger } from 'design/Alert';
 
 import {
   FilterKind,
@@ -27,6 +28,7 @@ import {
   UnifiedResourcesPinning,
 } from 'shared/components/UnifiedResources';
 import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { storageService } from 'teleport/services/storageService';
@@ -120,6 +122,7 @@ function ClusterResources({
     updateClusterPinnedResources,
   } = useUser();
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
+  const [loadClusterError, setLoadClusterError] = useState('');
 
   const { params, setParams, replaceHistory, pathname } = useUrlFiltering({
     sort: {
@@ -212,6 +215,7 @@ function ClusterResources({
 
   return (
     <FeatureBox px={4}>
+      {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
         params={params}
         fetchResources={fetch}
@@ -222,6 +226,13 @@ function ClusterResources({
         }}
         availableKinds={getAvailableKindsWithAccess(flags)}
         pinning={pinning}
+        ClusterDropdown={
+          <ClusterDropdown
+            clusterLoader={teleCtx.clusterService}
+            clusterId={clusterId}
+            onError={setLoadClusterError}
+          />
+        }
         NoResources={
           <Empty
             clusterId={clusterId}
