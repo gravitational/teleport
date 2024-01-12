@@ -1,5 +1,11 @@
 # Changelog
 
+## 14.3.3 (01/12/24)
+
+* Fixed routing to nodes by their public addresses. [#36624](https://github.com/gravitational/teleport/pull/36624)
+* Enhanced Kubernetes app discovery functionality to provide the ability to disable specific Service imports and configure the TLS Skip Verify option using an annotation. [#36611](https://github.com/gravitational/teleport/pull/36611)
+* Added client remote IP address to some administrative audit events. [#36567](https://github.com/gravitational/teleport/pull/36567)
+
 ## 14.3.2 (01/11/24)
 
 * Fixed routing to nodes by their public address. [#36591](https://github.com/gravitational/teleport/pull/36591)
