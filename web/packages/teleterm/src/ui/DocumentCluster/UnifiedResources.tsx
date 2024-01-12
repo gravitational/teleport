@@ -57,11 +57,13 @@ import {
   DocumentCluster,
   DocumentClusterResourceKind,
 } from 'teleterm/ui/services/workspacesService';
+import { makeApp } from 'teleterm/ui/services/clusters';
 
 import {
   ConnectServerActionButton,
   ConnectKubeActionButton,
   ConnectDatabaseActionButton,
+  ConnectAppActionButton,
 } from './actionButtons';
 import { useResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
@@ -235,6 +237,10 @@ function Resources(props: {
           disabled: false,
         },
         {
+          kind: 'app',
+          disabled: false,
+        },
+        {
           kind: 'db',
           disabled: false,
         },
@@ -307,6 +313,26 @@ const mapToSharedResource = (
         },
         ui: {
           ActionButton: <ConnectKubeActionButton kube={kube} />,
+        },
+      };
+    }
+    case 'app': {
+      const app = makeApp(resource.resource);
+
+      return {
+        resource: {
+          kind: 'app' as const,
+          labels: app.labelsList,
+          name: app.name,
+          id: app.name,
+          addrWithProtocol: app.addrWithProtocol,
+          awsConsole: app.awsConsole,
+          description: app.desc,
+          friendlyName: app.friendlyName,
+          samlApp: app.samlApp,
+        },
+        ui: {
+          ActionButton: <ConnectAppActionButton app={app} />,
         },
       };
     }

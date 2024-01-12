@@ -22,9 +22,9 @@ import { Trash, Unlink } from 'design/Icon';
 
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { ListItem } from 'teleterm/ui/components/ListItem';
-import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
 
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
@@ -107,7 +107,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
                 border-radius: 4px;
               `}
             >
-              {getKindName(props.item.kind)}
+              {getKindName(props.item)}
             </span>
             <span
               css={`
@@ -140,15 +140,21 @@ export function ConnectionItem(props: ConnectionItemProps) {
   );
 }
 
-function getKindName(kind: ExtendedTrackedConnection['kind']): string {
-  switch (kind) {
+function getKindName(connection: ExtendedTrackedConnection): string {
+  switch (connection.kind) {
     case 'connection.gateway':
-      return 'DB';
+      if (isAppUri(connection.targetUri)) {
+        return 'APP';
+      }
+      if (isDatabaseUri(connection.targetUri)) {
+        return 'DB';
+      }
+      return '';
     case 'connection.server':
       return 'SSH';
     case 'connection.kube':
       return 'KUBE';
     default:
-      assertUnreachable(kind);
+      return '';
   }
 }

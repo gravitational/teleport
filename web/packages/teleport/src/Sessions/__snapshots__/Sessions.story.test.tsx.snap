@@ -529,6 +529,9 @@ exports[`active sessions CTA 1`] = `
     </div>
   </div>
   <div
+    class="c3"
+  />
+  <div
     class="c15"
   >
     <nav
@@ -1540,6 +1543,9 @@ exports[`loaded 1`] = `
     </div>
   </div>
   <div
+    class="c3"
+  />
+  <div
     class="c9"
   >
     <nav
@@ -2550,6 +2556,9 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
       Active Sessions
     </div>
   </div>
+  <div
+    class="c3"
+  />
   <div
     class="c9"
   >

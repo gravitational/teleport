@@ -236,14 +236,6 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Connect to a Agentless node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
 
-- [ ] `tsh` CA loading
-
-  Create a trusted cluster pair with a node in the leaf cluster. Log into the root cluster.
-  - [ ] `load_all_cas` on the root auth server is `false` (default) -
-  `tsh ssh leaf.node.example.com` results in access denied.
-  - [ ] `load_all_cas` on the root auth server is `true` - `tsh ssh leaf.node.example.com`
-  succeeds.
-
 - [ ] X11 Forwarding
   - Install `xeyes` and `xclip`:
     - Linux: `apt install x11-apps xclip`
@@ -472,6 +464,16 @@ connectors are accepted, invalid are rejected with sensible error messages.
     - [ ] OIDC
         - [ ] Google Workspace
         - [ ] Non-Google IdP
+
+### SSO login on remote host
+
+- [ ] SSO login on a remote host
+
+`tsh` should be running on a remote host (e.g. over an SSH session) and use the
+local browser to complete and SSO login. Run
+`tsh login --callback <remote.host>:<port> --bind-addr localhost:<port> --auth <auth>`
+on the remote host. Note that the `--callback` URL must be able to resolve to the
+`--bind-addr` over HTTPS.
 
 ### Teleport Plugins
 

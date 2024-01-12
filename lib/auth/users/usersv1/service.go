@@ -261,8 +261,9 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 			Name:    created.GetName(),
 			Expires: created.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     created.GetRoles(),
+		Connector:          connectorName,
+		Roles:              created.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.logger.WithError(err).Warn("Failed to emit user create event.")
 	}
@@ -329,8 +330,9 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 			Name:    updated.GetName(),
 			Expires: updated.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     updated.GetRoles(),
+		Connector:          connectorName,
+		Roles:              updated.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.logger.WithError(err).Warn("Failed to emit user update event.")
 	}
@@ -405,8 +407,9 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 			Name:    upserted.GetName(),
 			Expires: upserted.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     upserted.GetRoles(),
+		Connector:          connectorName,
+		Roles:              upserted.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.logger.WithError(err).Warn("Failed to emit user upsert event.")
 	}
@@ -474,6 +477,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: req.Name,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.logger.WithError(err).Warn("Failed to emit user delete event.")
 	}

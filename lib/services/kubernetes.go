@@ -24,7 +24,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
@@ -264,35 +263,34 @@ func labelsFromGCPKubeCluster(cluster gcp.GKECluster) map[string]string {
 }
 
 // NewKubeClusterFromAWSEKS creates a kube_cluster resource from an EKS cluster.
-func NewKubeClusterFromAWSEKS(cluster *eks.Cluster) (types.KubeCluster, error) {
-	parsedARN, err := arn.Parse(aws.StringValue(cluster.Arn))
+func NewKubeClusterFromAWSEKS(clusterName, clusterArn string, tags map[string]*string) (types.KubeCluster, error) {
+	parsedARN, err := arn.Parse(clusterArn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	labels := labelsFromAWSKubeCluster(cluster, parsedARN)
+	labels := labelsFromAWSKubeClusterTags(tags, parsedARN)
 
 	return types.NewKubernetesClusterV3(
 		setAWSKubeName(types.Metadata{
 			Description: fmt.Sprintf("AWS EKS cluster %q in %s",
-				aws.StringValue(cluster.Name),
+				clusterName,
 				parsedARN.Region),
 			Labels: labels,
-		}, aws.StringValue(cluster.Name)),
+		}, clusterName),
 		types.KubernetesClusterSpecV3{
 			AWS: types.KubeAWS{
-				Name:      aws.StringValue(cluster.Name),
+				Name:      clusterName,
 				AccountID: parsedARN.AccountID,
 				Region:    parsedARN.Region,
 			},
 		})
 }
 
-// labelsFromAWSKubeCluster creates kube cluster labels.
-func labelsFromAWSKubeCluster(cluster *eks.Cluster, parsedARN arn.ARN) map[string]string {
-	labels := awsEKSTagsToLabels(cluster.Tags)
+// labelsFromAWSKubeClusterTags creates kube cluster labels.
+func labelsFromAWSKubeClusterTags(tags map[string]*string, parsedARN arn.ARN) map[string]string {
+	labels := awsEKSTagsToLabels(tags)
 	labels[types.CloudLabel] = types.CloudAWS
 	labels[types.DiscoveryLabelRegion] = parsedARN.Region
-
 	labels[types.DiscoveryLabelAccountID] = parsedARN.AccountID
 	return labels
 }

@@ -18,6 +18,8 @@
 
 import * as tsh from './types';
 
+import type { App } from 'teleterm/ui/services/clusters';
+
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   uri: '/clusters/teleport-local/servers/1234abcd-1234-abcd-1234-abcd1234abcd',
   tunnel: false,
@@ -50,6 +52,20 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   name: 'foo',
   labelsList: [],
   uri: '/clusters/bar/kubes/foo',
+  ...props,
+});
+
+export const makeApp = (props: Partial<tsh.App> = {}): App => ({
+  name: 'foo',
+  labelsList: [],
+  endpointUri: 'tcp://localhost:3000',
+  friendlyName: '',
+  desc: '',
+  awsConsole: false,
+  publicAddr: 'local-app.example.com:3000',
+  samlApp: false,
+  uri: '/clusters/bar/apps/foo',
+  addrWithProtocol: 'tcp://local-app.example.com:3000',
   ...props,
 });
 
@@ -241,5 +257,25 @@ export const makeKubeGateway = (
     preview: 'KUBECONFIG=/path/to/kubeconfig /bin/kubectl version',
   },
   targetSubresourceName: '',
+  ...props,
+});
+
+export const makeAppGateway = (
+  props: Partial<tsh.Gateway> = {}
+): tsh.Gateway => ({
+  uri: '/gateways/bar',
+  targetName: 'sales-production',
+  targetUri: '/clusters/bar/apps/foo',
+  localAddress: 'localhost',
+  localPort: '1337',
+  targetSubresourceName: 'bar',
+  gatewayCliCommand: {
+    path: '',
+    preview: 'curl http://localhost:1337',
+    envList: [],
+    argsList: [],
+  },
+  targetUser: '',
+  protocol: 'HTTP',
   ...props,
 });

@@ -26,7 +26,7 @@ export default function ProgressBar(props: ProgressBarProps) {
   const Icon = props.isPlaying ? Icons.CirclePause : Icons.CirclePlay;
   return (
     <StyledProgessBar style={props.style} id={props.id}>
-      <ActionButton onClick={props.toggle}>
+      <ActionButton onClick={props.toggle} disabled={props.disabled}>
         <Icon />
       </ActionButton>
       <PlaySpeedSelector onChange={props.onPlaySpeedChange} />
@@ -36,7 +36,9 @@ export default function ProgressBar(props: ProgressBarProps) {
           min={props.min}
           max={props.max}
           value={props.current}
-          onChange={props.move}
+          disabled={props.disabled}
+          onBeforeChange={props.onStartMove}
+          onAfterChange={props.move}
           defaultValue={1}
           withBars
           className="grv-slider"
@@ -67,13 +69,15 @@ function Restart(props: { onRestart?: () => void }) {
 export type ProgressBarProps = {
   max: number;
   min: number;
-  time: any;
+  time: string;
   isPlaying: boolean;
+  disabled?: boolean;
   current: number;
   move: (value: any) => void;
   toggle: () => void;
   style?: React.CSSProperties;
   id?: string;
+  onStartMove?: () => void;
   onPlaySpeedChange?: (newSpeed: number) => void;
   onRestart?: () => void;
 };
@@ -140,11 +144,17 @@ const ActionButton = styled.button`
     color: ${props => props.theme.colors.text.main};
   }
 
-  &:hover {
+  &:disabled {
+    .icon {
+      color: ${props => props.theme.colors.text.disabled};
+    }
+  }
+
+  &:hover:enabled {
     opacity: 1;
 
     .icon {
-      color: ${props => props.theme.colors.success};
+      color: ${props => props.theme.colors.success.main};
     }
   }
 
@@ -183,7 +193,7 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .bar-0 {
-    background-color: ${props => props.theme.colors.success};
+    background-color: ${props => props.theme.colors.success.main};
     box-shadow: none;
   }
 

@@ -101,6 +101,38 @@ export default function createClient(
       });
     },
 
+    async getApps({
+      clusterUri,
+      search,
+      sort,
+      query,
+      searchAsRoles,
+      startKey,
+      limit,
+    }: types.GetResourcesParams) {
+      const req = new api.GetAppsRequest()
+        .setClusterUri(clusterUri)
+        .setSearchAsRoles(searchAsRoles)
+        .setStartKey(startKey)
+        .setSearch(search)
+        .setQuery(query)
+        .setLimit(limit);
+
+      if (sort) {
+        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
+      }
+
+      return new Promise<types.GetAppsResponse>((resolve, reject) => {
+        tshd.getApps(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject() as types.GetAppsResponse);
+          }
+        });
+      });
+    },
+
     async listGateways() {
       const req = new api.ListGatewaysRequest();
       return new Promise<types.Gateway[]>((resolve, reject) => {
@@ -848,6 +880,11 @@ export default function createClient(
                           return {
                             kind: 'kube' as const,
                             resource: p.getKube().toObject() as types.Kube,
+                          };
+                        case api.PaginatedResource.ResourceCase.APP:
+                          return {
+                            kind: 'app' as const,
+                            resource: p.getApp().toObject() as types.App,
                           };
                         default:
                           logger.info(
