@@ -47,97 +47,74 @@ represent a resource in a given version.
 
 ### Suggested approach
 
-We break the relation between the CRD version and the Teleport resource, and
-specify the version in the CR spec. This means users would use a single version
-of `resources.teleport.dev` for all their resources.
+Put the Teleport resource version in the Kubernetes Kind and treat different
+versions as different resources.
 
-Before, an admin would create a RoleV5 by creating a `TeleportRole` through via the API
-`resources.teleport.dev/v5` and a UserV2 through the api `resources.teleport.dev/v2`.
+This approach completely avoids any conversion problem by not doing conversions.
+This way, we don't have to deal with how Kubernetes does API versionning and the
+fact it is not compatible with how Teleport manages versions.
 
-```yaml
-apiVersion: resources.teleport.dev/v5
-kind: TeleportRole
-metadata:
-  name: myrole
-spec:
-  allow:
-    rules:
-      - resources: ['user', 'role']
-        verbs: ['list','create','read','update','delete']
----
-apiVersion: resources.teleport.dev/v2
-kind: TeleportUser
-metadata:
-  name: myuser
-spec:
-  roles: ['myrole']
-```
-
-After this RFD, both `TeleportRole` and `TeleportUser` resources would be created
-through the `resources.teleport.dev/vX` API. The Teleport resource version would
-be specified in a separate field: `teleportResourceVersion`.
+For example, to support roles v6 and v7 we would introduce:
 
 ```yaml
-apiVersion: resources.teleport.dev/vX
-teleportResourceVersion: "v5"
-kind: TeleportRole
-metadata:
-  name: myrole
-spec:
-  allow:
-    rules:
-      - resources: ['user', 'role']
-        verbs: ['list','create','read','update','delete']
+kind: TeleportRoleV6
+apiVersion: v1
 ---
-apiVersion: resources.teleport.dev/vX
-teleportResourceVersion: "v2"
-kind: TeleportUser
-metadata:
-  name: myuser
-spec:
-  roles: ['myrole']
+kind: TeleportRoleV7
+apiVersion: v1
 ```
 
-The version `vX` in `resources.teleport.dev/vX` needs to be higher than the highest
-current version (TeleportRole is served under `v6`). We can set it to the current
-Teleport version (`v15` or `v16` depending on the timing).
-
-To avoid CRD inflation and non-semantic updates, this version should not be updated
-with every Teleport major. Updating this version should only happen if we introduce
-a breaking change in the API. See the [API Evolution](#api-evolution) section for
-more details.
+All CRs could be managed by the same controller using the unstructured client,
+or multiple controllers if we need it.
 
 ### Pros
 
-- This approach ensures the operator behaves like other regular Teleport clients
-  (`tctl` and the Terraform Provider), it passes the spec and leaves to Teleport:
-  - the validation
-  - the defaults
-  - the conversion between versions
-- This is the same versioning approach we are already using for the Terraform Provider.
-- This is backward compatible as we can default to the existing versions when
-  the `teleportResourceVersion` field is not set. We can also continue to support the
-  existing CRD APIs.
-- This design doesn't add new failure modes.
-- Upgrading the resource version is straightforward for a Teleport user: they change both the
-  `teleportResourceVersion` and the affected `spec` fields simultaneously.
-- The implementation cost of this solution is several orders of magnitude lower
-  than the alternatives. See [the Alternatives section](#alternatives).
+- This approach allows us to continue building CRDs and relying on Kube's
+  apiserver for doing schema validation and rejecting wrong CRs early in the
+  process.
+- This approach is quite Kubernetes friendly as Kubernetes tooling can rely on
+  well-defined CRDs.
+- This approach implementation cost is low and the additional complexity is
+  minimal as we don't add new components and reuse our existing CRD tooling and
+  generic controllers.
+- This approach is backward compatible.
 
 ### Cons
 
-- This design doesn't follow usual Kubernetes resource versioning.
-- Settling on `vX` can be confusing. See [the API evolution section](#api-evolution).
-- This design relies on the fact we don't radically change the resource structure.
-  See [the API evolution section](#api-evolution). This is already the case for the other IaC
-  Teleport integration: the Terraform Provider.
+- Migrating a role from v5 to v6 will take an extra step (disable reconciliation
+  of v5 + remove finalizers, then create a v6 role and delete the v5?).
+- `TeleportRole` vs `TeleportRoleV7` can be a bit confusing, especially when using kubectl.
+  We can do a breaking change to edit the short names and make the CLI
+  experience more consistent if needed. For example:
+
+  ```code
+  # get roles v5
+  kubectl get teleportrolev5
+  
+  # get roles v6
+  kubectl get teleportrolev6
+  
+  # get roles v7
+  kubeclt get teleportrolev7
+  
+  # get roles v5, we could remove it but it would break
+  kubectl get teleportrole
+  ```
+- Users can create multiple resources with the same name udner different
+  versions (e.g., two CRs `TeleportRole` and `TeleportRoleV7` with the same
+  name.) This would cause a non-deterministic behaviour. We can mitigate this
+  risk by labeling the resource with the CR kind/version. This risk already
+  exists if you run two operators against the same cluster.
 
 ### Security
 
 This design adds little changes to the current Teleport Kubernetes Operator
-security model. The only risk is users forgetting to set the `teleportResourceVersion`
-field, in this case we would default to the current version. In a future operator
-version, we can enforce the presence of this field if deemed necessary.
+security model. The only risks are:
+
+- worse visibility as you need to `kubectl get` all versions of a resource to
+  get a full view.
+- potential conflicts if the same resource is defined in multiple versions with
+  different specs.
 
 ### UX
 
@@ -148,19 +125,8 @@ version, we can enforce the presence of this field if deemed necessary.
 
 ### API evolution
 
-This design unblocks us today, but does not cover cases in which we introduce a
-new resource version with a completely different structure with fields with
-different types. It is unclear if this can or will happen as this would very
-likely cause other issues in Teleport due to the way we handle resource versioning.
-
-If this were to happen, we would need to revise the solution from this RFD and
-introduce a new resource, or implement conversion hooks. We would also need to
-change the `resources.teleport.dev/vX` version to the current Teleport version.
-
-For example:
-- We implement this RFD in Teleport 15: the API is `resources.teleport.dev/v15`
-- We don't do any breaking changes before v20: the API is still `resources.teleport.dev/v15` for Teleport version 16, 17, 18 and 19.
-- In Teleport v20, we introduce a breaking change in Role. We introduce a new API `resoucres.teleport.dev/v20`.
+This design is future-proof as it will accommodate any new Teleport resource or
+version.
 
 ### Alternatives
 
@@ -190,7 +156,10 @@ causes several problems:
   or third party services. This is not a good design, and we're converging to a
   formal `Spec`/`Status` separation in RFD 0153, but the existing resources are
   flawed.
-
+- We need to handle both upward conversion and backward conversion as per
+  Kubernetes versioning design. Resources created through newer APIs might not
+  be representable in the old versions, and we would need to write all the
+  downgrade logic as we don't have it today, potentially introducing new bugs.
 
 This approach can also cause additional friction:
 - We currently handle resource conversion only from the old version to the newer
@@ -209,15 +178,82 @@ This approach can also cause additional friction:
     talk to the operator.
   - Not all Kubernetes distributions support kube control plane to workload
     communication by default. Examples can be found [in cert-manager's
-    documentation](https://cert-manager.io/docs/concepts/webhook/#known-problems-and-solutions)
+    documentation](https://cert-manager.io/docs/concepts/webhook/#known-problems-and-solutions).
   - Kubernetes must trust the webhook server. This implies creating a CA,
     issuing certs, and inserting x509 material in the CRD resource.
 - The cost of implementing this solution is way higher than the other alternatives.
 
+#### Putting the version in the CR
+
+We can break the relation between the CRD version and the Teleport resource, and
+specify the version in the CR spec. This means users would use a single version
+of `resources.teleport.dev` for all their resources.
+
+Before, an admin would create a RoleV5 by creating a `TeleportRole` through via the API
+`resources.teleport.dev/v5` and a UserV2 through the api `resources.teleport.dev/v2`.
+
+```yaml
+apiVersion: resources.teleport.dev/v5
+kind: TeleportRole
+metadata:
+  name: myrole
+spec:
+  allow:
+    rules:
+      - resources: ['user', 'role']
+        verbs: ['list','create','read','update','delete']
+---
+apiVersion: resources.teleport.dev/v2
+kind: TeleportUser
+metadata:
+  name: myuser
+spec:
+  roles: ['myrole']
+```
+
+With this approach, both `TeleportRole` and `TeleportUser` resources would be created
+through the `resources.teleport.dev/vX` API. The Teleport resource version would
+be specified in a separate field: `teleportResourceVersion`.
+
+```yaml
+apiVersion: resources.teleport.dev/vX
+teleportResourceVersion: "v5"
+kind: TeleportRole
+metadata:
+  name: myrole
+spec:
+  allow:
+    rules:
+      - resources: ['user', 'role']
+        verbs: ['list','create','read','update','delete']
+---
+apiVersion: resources.teleport.dev/vX
+teleportResourceVersion: "v2"
+kind: TeleportUser
+metadata:
+  name: myuser
+spec:
+  roles: ['myrole']
+```
+
+The version `vX` in `resources.teleport.dev/vX` needs to be higher than the highest
+current version (TeleportRole is served under `v6`). We can set it to the current
+Teleport version (`v15` or `v16` depending on the timing).
+
+This approach has the following limitations:
+- This design doesn't follow usual Kubernetes resource versioning.
+- Settling on `vX` can be confusing. See [the API evolution section](#api-evolution).
+- This design relies on the fact we don't radically change the resource
+  structure. See [the API evolution section](#api-evolution). If this were to
+  happen, we would need to relax the CRD and stop validating. Users would be able
+  to create invalid CRs and not receive instant feedback.
+
 #### Introducing a new API
 
-This is a variant of the suggested solution, but instead of using `resources.teleport.dev/vX`
-with `vX` being the Teleport version when this was implemented, we introduce a new `v1` API.
+This is a variant of
+the ["putting version in the CR"](#putting-the-version-in-the-cr) approach, but
+instead of using `resources.teleport.dev/vX` with `vX` being the Teleport
+version when this was implemented, we introduce a new `v1` API.
 
 For example: `operator.teleport.dev/v1`.
 
@@ -233,5 +269,4 @@ that might not be compensated by the benefits which are mostly cosmetic.
 
 The test plan is the following:
 - validate that existing CRs are reconciled the same way by the operator
-- validate that the operator uses the `teleportResourceVersion` field when specified
-- validate that users can create RoleV6 and RoleV7 once this is implemented
+- validate that users can create `TeleportRoleV6` and `TeleportRoleV7` once this is implemented
