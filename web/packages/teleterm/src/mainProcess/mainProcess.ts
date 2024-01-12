@@ -120,7 +120,7 @@ export default class MainProcess {
 
   static create(opts: Options) {
     const instance = new MainProcess(opts);
-    instance._init();
+    instance.init();
     return instance;
   }
 
@@ -136,21 +136,21 @@ export default class MainProcess {
     ]);
   }
 
-  private _init() {
+  private init() {
     this.updateAboutPanelIfNeeded();
-    this._setAppMenu();
+    this.setAppMenu();
     try {
-      this._initTshd();
-      this._initSharedProcess();
-      this._initResolvingChildProcessAddresses();
-      this._initIpc();
+      this.initTshd();
+      this.initSharedProcess();
+      this.initResolvingChildProcessAddresses();
+      this.initIpc();
     } catch (err) {
       this.logger.error('Failed to start main process: ', err.message);
       app.exit(1);
     }
   }
 
-  private _initTshd() {
+  private initTshd() {
     const { binaryPath, flags, homeDir } = this.settings.tshd;
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
@@ -174,7 +174,7 @@ export default class MainProcess {
     }).pipeProcessOutputIntoLogger(this.tshdProcess);
   }
 
-  private _initSharedProcess() {
+  private initSharedProcess() {
     this.sharedProcess = fork(
       path.join(__dirname, 'sharedProcess.js'),
       [`--runtimeSettingsJson=${JSON.stringify(this.settings)}`],
@@ -194,7 +194,7 @@ export default class MainProcess {
     }).pipeProcessOutputIntoLogger(this.sharedProcess);
   }
 
-  private _initResolvingChildProcessAddresses(): void {
+  private initResolvingChildProcessAddresses(): void {
     this.resolvedChildProcessAddresses = Promise.all([
       resolveNetworkAddress(
         this.settings.tshd.requestedNetworkAddress,
@@ -207,7 +207,7 @@ export default class MainProcess {
     ]).then(([tsh, shared]) => ({ tsh, shared }));
   }
 
-  private _initIpc() {
+  private initIpc() {
     ipcMain.on(MainProcessIpc.GetRuntimeSettings, event => {
       event.returnValue = this.settings;
     });
@@ -421,7 +421,7 @@ export default class MainProcess {
     subscribeToFileStorageEvents(this.appStateFileStorage);
   }
 
-  private _setAppMenu() {
+  private setAppMenu() {
     const isMac = this.settings.platform === 'darwin';
     const commonHelpTemplate: MenuItemConstructorOptions[] = [
       { label: 'Open Documentation', click: openDocsUrl },
