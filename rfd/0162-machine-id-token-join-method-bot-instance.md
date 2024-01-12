@@ -188,14 +188,6 @@ message BotInstanceSpec {
   // Eventually this could be leveraged for simple command and control?
 }
 
-message BotInstanceStatusHeartbeatOutput {
-  string type = 1;
-}
-
-message BotInstanceStatusHeartbeatService {
-  string type = 1;
-}
-
 // BotInstanceStatusHeartbeat contains information self-reported by an instance
 // of a Bot. This information is not verified by the server and should not be
 // trusted.
@@ -216,11 +208,6 @@ message BotInstanceStatusHeartbeat {
   string join_method = 6;
   // Indicates whether `tbot` is running in one-shot mode.
   bool one_shot = 7;
-  // List of currently user configured outputs.
-  repeated outputs BotInstanceStatusHeartbeatOutput = 8;
-  // List of currently user configured services.
-  repeated services BotInstanceStatusHeartbeatService = 9;
-  
   // In future iterations, additional information can be submitted here.
   // For example, the configuration of `tbot` or the health of individual
   // outputs.
