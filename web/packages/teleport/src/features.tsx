@@ -20,15 +20,11 @@ import React, { lazy } from 'react';
 
 import {
   AddCircle,
-  Application,
   CirclePlay,
   ClipboardUser,
   Cluster,
-  Database,
-  Desktop,
   EqualizersVertical,
   Integrations as IntegrationsIcon,
-  Kubernetes,
   Laptop,
   ListThin,
   Lock,
@@ -43,8 +39,6 @@ import {
 
 import cfg from 'teleport/config';
 
-import { storageService } from 'teleport/services/storageService';
-
 import {
   ManagementSection,
   NavigationCategory,
@@ -55,14 +49,12 @@ import { NavTitle } from './types';
 import type { FeatureFlags, TeleportFeature } from './types';
 
 const Audit = lazy(() => import('./Audit'));
-const Nodes = lazy(() => import('./Nodes'));
 const Sessions = lazy(() => import('./Sessions'));
 const UnifiedResources = lazy(() => import('./UnifiedResources'));
-const Account = lazy(() => import('./Account/AccountNew'));
-const Applications = lazy(() => import('./Apps'));
-const Kubes = lazy(() => import('./Kubes'));
+const Account = lazy(() => import('./Account'));
 const Support = lazy(() => import('./Support'));
 const Clusters = lazy(() => import('./Clusters'));
+const Nodes = lazy(() => import('./Nodes'));
 const Trust = lazy(() => import('./TrustedClusters'));
 const Users = lazy(() => import('./Users'));
 const Roles = lazy(() => import('./Roles'));
@@ -71,8 +63,6 @@ const Recordings = lazy(() => import('./Recordings'));
 const AuthConnectors = lazy(() => import('./AuthConnectors'));
 const Locks = lazy(() => import('./LocksV2/Locks'));
 const NewLock = lazy(() => import('./LocksV2/NewLock'));
-const Databases = lazy(() => import('./Databases'));
-const Desktops = lazy(() => import('./Desktops'));
 const Discover = lazy(() => import('./Discover'));
 const LockedAccessRequests = lazy(() => import('./AccessRequests'));
 const Integrations = lazy(() => import('./Integrations'));
@@ -127,8 +117,6 @@ export class FeatureNodes implements TeleportFeature {
     },
   };
 
-  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
-
   category = NavigationCategory.Resources;
 
   hasAccess(flags: FeatureFlags) {
@@ -153,117 +141,11 @@ export class FeatureUnifiedResources implements TeleportFeature {
     },
   };
 
-  hideFromNavigation = !storageService.areUnifiedResourcesEnabled();
-
   category = NavigationCategory.Resources;
 
   hasAccess() {
     return !cfg.isDashboard;
   }
-}
-
-export class FeatureApps implements TeleportFeature {
-  category = NavigationCategory.Resources;
-
-  route = {
-    title: 'Applications',
-    path: cfg.routes.apps,
-    exact: true,
-    component: Applications,
-  };
-
-  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.applications;
-  }
-
-  navigationItem = {
-    title: NavTitle.Applications,
-    icon: Application,
-    exact: true,
-    getLink(clusterId: string) {
-      return cfg.getAppsRoute(clusterId);
-    },
-  };
-}
-
-export class FeatureKubes implements TeleportFeature {
-  category = NavigationCategory.Resources;
-
-  route = {
-    title: 'Kubernetes',
-    path: cfg.routes.kubernetes,
-    exact: true,
-    component: Kubes,
-  };
-
-  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.kubernetes;
-  }
-
-  navigationItem = {
-    title: NavTitle.Kubernetes,
-    icon: Kubernetes,
-    exact: true,
-    getLink(clusterId: string) {
-      return cfg.getKubernetesRoute(clusterId);
-    },
-  };
-}
-
-export class FeatureDatabases implements TeleportFeature {
-  category = NavigationCategory.Resources;
-
-  route = {
-    title: 'Databases',
-    path: cfg.routes.databases,
-    exact: true,
-    component: Databases,
-  };
-
-  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.databases;
-  }
-
-  navigationItem = {
-    title: NavTitle.Databases,
-    icon: Database,
-    exact: true,
-    getLink(clusterId: string) {
-      return cfg.getDatabasesRoute(clusterId);
-    },
-  };
-}
-
-export class FeatureDesktops implements TeleportFeature {
-  category = NavigationCategory.Resources;
-
-  route = {
-    title: 'Desktops',
-    path: cfg.routes.desktops,
-    exact: true,
-    component: Desktops,
-  };
-
-  hideFromNavigation = storageService.areUnifiedResourcesEnabled();
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.desktops;
-  }
-
-  navigationItem = {
-    title: NavTitle.Desktops,
-    icon: Desktop,
-    exact: true,
-    getLink(clusterId: string) {
-      return cfg.getDesktopsRoute(clusterId);
-    },
-  };
 }
 
 export class FeatureSessions implements TeleportFeature {
@@ -682,11 +564,6 @@ export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
     new FeatureUnifiedResources(),
-    new FeatureNodes(),
-    new FeatureApps(),
-    new FeatureKubes(),
-    new FeatureDatabases(),
-    new FeatureDesktops(),
     new AccessRequests(),
     new FeatureSessions(),
 
