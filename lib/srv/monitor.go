@@ -394,7 +394,6 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 			lockWatchDoneC = nil
 
 		case <-w.Context.Done():
-			w.Entry.Debugf("Releasing associated resources - context has been closed.")
 			return
 		}
 	}
