@@ -90,6 +90,8 @@ type Config struct {
 	// OnExpiredCert is called when a new downstream connection is accepted by the
 	// gateway but cannot be proxied because the cert used by the gateway has expired.
 	//
+	// Returns a fresh valid cert.
+	//
 	// Handling of the connection is blocked until OnExpiredCert returns.
 	OnExpiredCert OnExpiredCertFunc
 	// TLSRoutingConnUpgradeRequired indicates that ALPN connection upgrades

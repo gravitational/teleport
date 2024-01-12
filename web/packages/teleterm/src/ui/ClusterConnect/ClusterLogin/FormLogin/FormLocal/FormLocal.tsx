@@ -103,7 +103,7 @@ export const FormLocal = ({
           {secondFactor !== 'off' && (
             <Flex alignItems="flex-end" mb={4}>
               <FieldSelect
-                maxWidth="50%"
+                maxWidth="60%"
                 width="100%"
                 data-testid="mfa-select"
                 label="Two-factor Type"
@@ -117,7 +117,7 @@ export const FormLocal = ({
               />
               {mfaType.value === 'otp' && (
                 <FieldInput
-                  width="50%"
+                  width="40%"
                   label="Authenticator Code"
                   rule={requiredToken}
                   autoComplete="one-time-code"

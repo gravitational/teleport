@@ -39,6 +39,7 @@ const (
 	TrustService_GetCertAuthorities_FullMethodName  = "/teleport.trust.v1.TrustService/GetCertAuthorities"
 	TrustService_DeleteCertAuthority_FullMethodName = "/teleport.trust.v1.TrustService/DeleteCertAuthority"
 	TrustService_UpsertCertAuthority_FullMethodName = "/teleport.trust.v1.TrustService/UpsertCertAuthority"
+	TrustService_RotateCertAuthority_FullMethodName = "/teleport.trust.v1.TrustService/RotateCertAuthority"
 	TrustService_GenerateHostCert_FullMethodName    = "/teleport.trust.v1.TrustService/GenerateHostCert"
 )
 
@@ -54,6 +55,8 @@ type TrustServiceClient interface {
 	DeleteCertAuthority(ctx context.Context, in *DeleteCertAuthorityRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertCertAuthority creates or updates the provided cert authority.
 	UpsertCertAuthority(ctx context.Context, in *UpsertCertAuthorityRequest, opts ...grpc.CallOption) (*types.CertAuthorityV2, error)
+	// RotateCertAuthority is a request to start rotation of the certificate authority.
+	RotateCertAuthority(ctx context.Context, in *RotateCertAuthorityRequest, opts ...grpc.CallOption) (*RotateCertAuthorityResponse, error)
 	// GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns
 	// a SSH certificate signed by the Host CA.
 	GenerateHostCert(ctx context.Context, in *GenerateHostCertRequest, opts ...grpc.CallOption) (*GenerateHostCertResponse, error)
@@ -103,6 +106,15 @@ func (c *trustServiceClient) UpsertCertAuthority(ctx context.Context, in *Upsert
 	return out, nil
 }
 
+func (c *trustServiceClient) RotateCertAuthority(ctx context.Context, in *RotateCertAuthorityRequest, opts ...grpc.CallOption) (*RotateCertAuthorityResponse, error) {
+	out := new(RotateCertAuthorityResponse)
+	err := c.cc.Invoke(ctx, TrustService_RotateCertAuthority_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *trustServiceClient) GenerateHostCert(ctx context.Context, in *GenerateHostCertRequest, opts ...grpc.CallOption) (*GenerateHostCertResponse, error) {
 	out := new(GenerateHostCertResponse)
 	err := c.cc.Invoke(ctx, TrustService_GenerateHostCert_FullMethodName, in, out, opts...)
@@ -124,6 +136,8 @@ type TrustServiceServer interface {
 	DeleteCertAuthority(context.Context, *DeleteCertAuthorityRequest) (*emptypb.Empty, error)
 	// UpsertCertAuthority creates or updates the provided cert authority.
 	UpsertCertAuthority(context.Context, *UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error)
+	// RotateCertAuthority is a request to start rotation of the certificate authority.
+	RotateCertAuthority(context.Context, *RotateCertAuthorityRequest) (*RotateCertAuthorityResponse, error)
 	// GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns
 	// a SSH certificate signed by the Host CA.
 	GenerateHostCert(context.Context, *GenerateHostCertRequest) (*GenerateHostCertResponse, error)
@@ -145,6 +159,9 @@ func (UnimplementedTrustServiceServer) DeleteCertAuthority(context.Context, *Del
 }
 func (UnimplementedTrustServiceServer) UpsertCertAuthority(context.Context, *UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertCertAuthority not implemented")
+}
+func (UnimplementedTrustServiceServer) RotateCertAuthority(context.Context, *RotateCertAuthorityRequest) (*RotateCertAuthorityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RotateCertAuthority not implemented")
 }
 func (UnimplementedTrustServiceServer) GenerateHostCert(context.Context, *GenerateHostCertRequest) (*GenerateHostCertResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateHostCert not implemented")
@@ -234,6 +251,24 @@ func _TrustService_UpsertCertAuthority_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TrustService_RotateCertAuthority_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RotateCertAuthorityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TrustServiceServer).RotateCertAuthority(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TrustService_RotateCertAuthority_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TrustServiceServer).RotateCertAuthority(ctx, req.(*RotateCertAuthorityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TrustService_GenerateHostCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GenerateHostCertRequest)
 	if err := dec(in); err != nil {
@@ -274,6 +309,10 @@ var TrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpsertCertAuthority",
 			Handler:    _TrustService_UpsertCertAuthority_Handler,
+		},
+		{
+			MethodName: "RotateCertAuthority",
+			Handler:    _TrustService_RotateCertAuthority_Handler,
 		},
 		{
 			MethodName: "GenerateHostCert",

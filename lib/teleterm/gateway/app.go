@@ -18,7 +18,7 @@ package gateway
 
 import (
 	"context"
-	"net"
+	"crypto/tls"
 	"net/url"
 	"strings"
 
@@ -55,11 +55,29 @@ func makeAppGateway(cfg Config) (Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	middleware := &appMiddleware{
+		log: a.cfg.Log,
+		onExpiredCert: func(ctx context.Context) (tls.Certificate, error) {
+			cert, err := a.cfg.OnExpiredCert(ctx, a)
+			return cert, trace.Wrap(err)
+		},
+	}
+
+	localProxyConfig := alpnproxy.LocalProxyConfig{
+		InsecureSkipVerify:      a.cfg.Insecure,
+		RemoteProxyAddr:         a.cfg.WebProxyAddr,
+		Listener:                listener,
+		ParentContext:           a.closeContext,
+		Clock:                   a.cfg.Clock,
+		ALPNConnUpgradeRequired: a.cfg.TLSRoutingConnUpgradeRequired,
+	}
+
 	lp, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(a.closeContext, a.cfg, listener),
+		localProxyConfig,
 		alpnproxy.WithALPNProtocol(alpnProtocolForApp(a.cfg.Protocol)),
 		alpnproxy.WithClientCerts(a.cfg.Cert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(a.closeContext, a.cfg.RootClusterCACertPoolFunc),
+		alpnproxy.WithMiddleware(middleware),
 	)
 	if err != nil {
 		return nil, trace.NewAggregate(err, listener.Close())
@@ -67,16 +85,6 @@ func makeAppGateway(cfg Config) (Gateway, error) {
 
 	a.localProxy = lp
 	return a, nil
-}
-
-func makeBasicLocalProxyConfig(ctx context.Context, cfg *Config, listener net.Listener) alpnproxy.LocalProxyConfig {
-	return alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:         cfg.WebProxyAddr,
-		InsecureSkipVerify:      cfg.Insecure,
-		ParentContext:           ctx,
-		Listener:                listener,
-		ALPNConnUpgradeRequired: cfg.TLSRoutingConnUpgradeRequired,
-	}
 }
 
 func alpnProtocolForApp(protocol string) alpncommon.Protocol {
