@@ -8,14 +8,18 @@ export const BblpLogo = () => {
   return (
     <Image
       src={bblpLogo}
-      height="32px"
       width="fit-content"
-      style={{
-        marginTop: '28px',
-        marginLeft: '32px',
-        marginBottom: '12px',
-      }}
       alt="bblp logo"
+      css={`
+        padding-left: ${props => props.theme.space[4]}px;
+        height: 26px;
+        @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+          height: 28px;
+        }
+        @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+          height: 30px;
+        }
+      `}
     />
   );
 };

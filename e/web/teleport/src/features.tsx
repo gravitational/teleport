@@ -9,7 +9,6 @@ import {
   Add,
   Chart,
   Download,
-  EqualizersVertical,
   FlowArrow,
   Headset,
   Invoices,
@@ -86,12 +85,16 @@ class FeatureAccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
   navigationItem: TeleportFeatureNavigationItem = {
     title: NavTitle.AccessRequests,
-    icon: <EqualizersVertical />,
+    icon: ListAddCheck,
+    getLink() {
+      return cfg.getAccessRequestRoute();
+    },
   };
 
   hasAccess(flags: FeatureFlags) {
     return flags.accessRequests;
   }
+  topMenuItem = this.navigationItem;
 }
 
 class FeatureNewAccessRequest implements TeleportFeature {
@@ -110,7 +113,7 @@ class FeatureNewAccessRequest implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.NewRequest,
-    icon: <Add />,
+    icon: Add,
     getLink(clusterId: string) {
       return cfg.getNewAccessRequestRoute(clusterId);
     },
@@ -134,7 +137,7 @@ class FeatureReviewAccessRequests implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.ReviewRequests,
-    icon: <ListAddCheck />,
+    icon: ListAddCheck,
     getLink() {
       return cfg.getAccessRequestRoute();
     },
@@ -177,7 +180,7 @@ export class FeatureTeamSummary implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.BillingSummary,
-    icon: <Chart />,
+    icon: Chart,
     getLink(clusterId: string) {
       return cfg.getBillingSummaryRoute(clusterId);
     },
@@ -200,7 +203,7 @@ export class FeatureEubpSummary implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.BillingSummary,
-    icon: <Chart />,
+    icon: Chart,
     getLink(clusterId: string) {
       return cfg.getEubpBillingSummaryRoute(clusterId);
     },
@@ -223,7 +226,7 @@ export class FeaturePaymentsAndInvoices implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.PaymentsAndInvoices,
-    icon: <Invoices />,
+    icon: Invoices,
     getLink(clusterId: string) {
       return cfg.getPaymentsInvoicesRoute(clusterId);
     },
@@ -246,7 +249,7 @@ export class FeatureInvoiceSettings implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.InvoiceSettings,
-    icon: <Profile />,
+    icon: Profile,
     getLink(clusterId: string) {
       return cfg.getInvoiceSettingsRoute(clusterId);
     },
@@ -273,11 +276,12 @@ class FeatureDownloadCenter implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.Downloads,
-    icon: <Download />,
+    icon: Download,
     getLink() {
       return cfg.routes.downloadCenter;
     },
   };
+  topMenuItem = this.navigationItem;
 }
 
 class FeatureSupport implements TeleportFeature {
@@ -289,7 +293,7 @@ class FeatureSupport implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.Support,
-    icon: <Headset />,
+    icon: Headset,
     getLink() {
       return 'https://support.goteleport.com/';
     },
@@ -318,7 +322,7 @@ class FeatureAccessMonitoring implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AccessMonitoring,
-    icon: <Graph />,
+    icon: Graph,
     getLink() {
       return cfg.routes.accessMonitoring.base;
     },
@@ -351,7 +355,7 @@ class FeatureAccessListManagement implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AccessLists,
-    icon: <UserList />,
+    icon: UserList,
     getLink() {
       return cfg.getAccessListManagementRoute(null);
     },
@@ -374,7 +378,7 @@ class FeatureDeviceTrust implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.TrustedDevices,
-    icon: <Laptop />,
+    icon: Laptop,
     exact: true,
     getLink() {
       return cfg.routes.deviceTrust;
@@ -461,7 +465,7 @@ class FeatureAccessGraph implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AccessGraph,
-    icon: <FlowArrow size={20} />,
+    icon: FlowArrow,
     getLink() {
       return cfg.routes.accessGraph;
     },

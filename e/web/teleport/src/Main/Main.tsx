@@ -112,7 +112,7 @@ export function MainE() {
       billingBanners={billingBanners}
       Questionnaire={questionnaire}
       inviteCollaboratorsFeedback={inviteCollaboratorsFeedback}
-      navigationProps={
+      topBarProps={
         cfg.oss.customTheme && {
           CustomLogo: CustomLogos[cfg.oss.customTheme],
           showPoweredByLogo: !!CustomLogos[cfg.oss.customTheme],
