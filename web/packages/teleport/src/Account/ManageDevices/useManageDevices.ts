@@ -30,8 +30,9 @@ export default function useManageDevices(ctx: Ctx) {
   const [deviceToRemove, setDeviceToRemove] = useState<DeviceToRemove>();
   const [token, setToken] = useState('');
   const fetchDevicesAttempt = useAttempt('');
-  const [restrictNewDeviceUsage, setRestrictNewDeviceUsage] =
-    useState<DeviceUsage | null>(null);
+  const [restrictNewDeviceUsage, setRestrictNewDeviceUsage] = useState<
+    DeviceUsage | undefined
+  >(undefined);
 
   // This is a restricted privilege token that can only be used to add a device, in case
   // the user has no devices yet and thus can't authenticate using the ReAuthenticate dialog
