@@ -200,7 +200,7 @@ func (c *Client) Run(ctx context.Context) error {
 	case err := <-rustRDPReturnCh:
 		// Ensure the startInputStreaming goroutine returns.
 		close(stopCh)
-		return err
+		return trace.Wrap(err)
 	case err := <-inputStreamingReturnCh:
 		// Ensure the startRustRDP goroutine returns.
 		stopErr := c.stopRustRDP()
@@ -340,7 +340,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 
 		msg, err := c.cfg.Conn.ReadMessage()
 		if utils.IsOKNetworkError(err) {
-			return err
+			return nil
 		} else if tdp.IsNonFatalErr(err) {
 			c.cfg.Conn.SendNotification(err.Error(), tdp.SeverityWarning)
 			continue
