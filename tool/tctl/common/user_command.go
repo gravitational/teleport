@@ -33,8 +33,11 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -296,6 +299,30 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 
 	user.SetTraits(traits)
 	user.SetRoles(u.allowedRoles)
+
+	// Prompt for admin action MFA if required.
+	challenge, err := client.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
+		MFARequiredCheck: &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_AdminAction{
+				AdminAction: &proto.AdminAction{
+					Name: "CreateUser",
+				},
+			},
+		},
+		AllowReuse: true,
+		Scope:      webauthnpb.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if challenge.MFARequired == proto.MFARequired_MFA_REQUIRED_YES {
+		mfaResponse, err := client.PromptMFA(ctx, challenge, mfa.WithPromptReasonAdminAction("CreateUser"))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	}
 
 	if _, err := client.CreateUser(ctx, user); err != nil {
 		if trace.IsAlreadyExists(err) {
