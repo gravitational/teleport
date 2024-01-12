@@ -825,15 +825,14 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 	}
 
 	loginRuleClient := client.LoginRuleClient()
-	switch rc.IsForced() {
-	case true:
+	if rc.IsForced() {
 		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
 			LoginRule: rule,
 		})
 		if err != nil {
 			return trail.FromGRPC(err)
 		}
-	case false:
+	} else {
 		_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
 			LoginRule: rule,
 		})
@@ -841,7 +840,7 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 			return trail.FromGRPC(err)
 		}
 	}
-	verb := UpsertVerb(false /* we don't know if it existed before */, rc.IsForced() /* force update*/)
+	verb := UpsertVerb(false /* we don't know if it existed before */, rc.IsForced() /* force update */)
 	fmt.Printf("login_rule %q has been %s\n", rule.GetMetadata().GetName(), verb)
 	return nil
 }
