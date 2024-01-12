@@ -14,6 +14,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
+	"github.com/vulcand/predicate/builder"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -37,12 +38,15 @@ import (
 )
 
 const (
-	testUser   = "test-user"
-	ownerUser  = "owner-user"
-	ownerUser2 = "owner-user2"
-	member1    = "member1"
-	member2    = "member2"
-	member3    = "member3"
+	testUser          = "test-user"
+	testUserWhere     = "test-user-where"
+	testUserDenyWhere = "test-user-deny-where"
+	testUserDenyAll   = "test-user-deny-all"
+	ownerUser         = "owner-user"
+	ownerUser2        = "owner-user2"
+	member1           = "member1"
+	member2           = "member2"
+	member3           = "member3"
 )
 
 // cmpOpts are general cmpOpts for all comparisons.
@@ -76,20 +80,28 @@ func TestService_GetAccessLists(t *testing.T) {
 	a3m1 := newAccessListMember(t, a3.GetName(), member1, c.clock)
 	a3m2 := newAccessListMember(t, a3.GetName(), member2, c.clock)
 
-	// a3 will have different ownership requirements.
-	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
+	// a4 will have a label attached.
+	a4 := newAccessList(t, "4", c.clock)
+	a4.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
+	a4.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
-		[]*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
+		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
 
 	getResp, err = c.svc.GetAccessLists(c.userCtx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
 
 	// owner should only see a1 and a2
 	getResp, err = c.svc.GetAccessLists(c.ownerCtx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
+
+	// userDenyWhereWhere shouldn't see anything even though it's an owner
+	_, err = c.svc.GetAccessLists(c.userDenyAllCtx, &accesslistv1.GetAccessListsRequest{})
+	require.True(t, trace.IsAccessDenied(err))
 
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},
@@ -98,6 +110,11 @@ func TestService_GetAccessLists(t *testing.T) {
 	getResp, err = c.svc.GetAccessLists(memberCtx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
+
+	// userWhere can only see a4
+	getResp, err = c.svc.GetAccessLists(c.userWhereCtx, &accesslistv1.GetAccessListsRequest{})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a4}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
 }
 
 func TestService_ListAccessLists(t *testing.T) {
@@ -111,6 +128,16 @@ func TestService_ListAccessLists(t *testing.T) {
 	a3 := newAccessList(t, "3", c.clock)
 	a4 := newAccessList(t, "4", c.clock)
 	a5 := newAccessList(t, "5", c.clock)
+	a6 := newAccessList(t, "6", c.clock)
+
+	// a3 will have different ownership requirements.
+	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
+
+	// a6 will have a label attached.
+	a6.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
+	a6.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, c.clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, c.clock)
@@ -122,20 +149,34 @@ func TestService_ListAccessLists(t *testing.T) {
 	a5m1 := newAccessListMember(t, a5.GetName(), member1, c.clock)
 	a5m2 := newAccessListMember(t, a5.GetName(), member2, c.clock)
 
-	// a3 will have different ownership requirements.
-	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
-
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
-		[]*accesslist.AccessList{a1, a2, a3, a4, a5}, []*accesslist.AccessListMember{
+		[]*accesslist.AccessList{a1, a2, a3, a4, a5, a6}, []*accesslist.AccessListMember{
 			a1m1, a1m2, a2m1, a3m1, a3m2, a4m1, a4m2, a5m1, a5m2,
 		})
 
 	accessLists = listAccessLists(c.userCtx, t, c.svc, 1)
-	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4, a5}, accessLists, cmpOpts...))
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4, a5, a6}, accessLists, cmpOpts...))
 
 	// owner should only see a1, a2, a4, a5
 	accessLists = listAccessLists(c.ownerCtx, t, c.svc, 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4, a5}, accessLists, cmpOpts...))
+
+	// userDenyWhere should only see a1, a2, a4, a5
+	accessLists = listAccessLists(c.userDenyWhereCtx, t, c.svc, 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4, a5}, accessLists, cmpOpts...))
+
+	// Add a label that should be denied to a5
+	a5.SetStaticLabels(map[string]string{
+		"denied": "true",
+	})
+	_, err := c.svc.UpsertAccessList(c.userCtx, &accesslistv1.UpsertAccessListRequest{
+		AccessList: conv.ToProto(a5),
+	})
+	require.NoError(t, err)
+
+	// userDenyWhere should no longer see a5
+	accessLists = listAccessLists(c.userDenyWhereCtx, t, c.svc, 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4}, accessLists, cmpOpts...))
 
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},
@@ -147,6 +188,10 @@ func TestService_ListAccessLists(t *testing.T) {
 	// Use the page size defaults
 	accessLists = listAccessLists(memberCtx, t, c.svc, 0)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3, a4, a5}, accessLists, cmpOpts...))
+
+	// User where should only see a6
+	accessLists = listAccessLists(c.userWhereCtx, t, c.svc, 0)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a6}, accessLists, cmpOpts...))
 }
 
 func listAccessLists(ctx context.Context, t *testing.T, svc *Service, pageSize int) []*accesslist.AccessList {
@@ -183,6 +228,12 @@ func TestService_UpsertAccessList(t *testing.T) {
 
 	a1 := newAccessList(t, "1", c.clock)
 	a2 := newAccessList(t, "2", c.clock)
+	a3 := newAccessList(t, "3", c.clock)
+	a4 := newAccessList(t, "4", c.clock)
+
+	a4.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
 
 	_, err = c.svc.UpsertAccessList(c.userCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
 	require.NoError(t, err)
@@ -221,6 +272,21 @@ func TestService_UpsertAccessList(t *testing.T) {
 	})
 	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
 		require.Equal(t, a2.GetName(), event.AccessListUpdate.Metadata.Id)
+	})
+
+	// UserWhere cannot upsert a3
+	_, err = c.svc.UpsertAccessList(c.userWhereCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a3)})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// UserWhere can upsert a4
+	_, err = c.svc.UpsertAccessList(c.userWhereCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a4)})
+	require.NoError(t, err)
+
+	expectEvent(t, events.AccessListCreateSuccessCode, c.emitter, func(event *apievents.AccessListCreate) {
+		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListCreate) {
+		require.Equal(t, a4.GetName(), event.AccessListCreate.Metadata.Id)
 	})
 }
 
@@ -261,6 +327,14 @@ func TestService_GetAccessList(t *testing.T) {
 		},
 	}
 
+	// a4 will have a label attached.
+	a4 := newAccessList(t, "4", c.clock)
+	a4.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
+	a4.Spec.Owners = a3.Spec.Owners
+	a4.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
+
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, c.clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, c.clock)
 	a2m1 := newAccessListMember(t, a2.GetName(), member1, c.clock)
@@ -268,7 +342,7 @@ func TestService_GetAccessList(t *testing.T) {
 	a3m2 := newAccessListMember(t, a3.GetName(), member2, c.clock)
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
-		[]*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
+		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a3m1, a3m2})
 
 	get, err := c.svc.GetAccessList(c.userCtx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
@@ -281,6 +355,10 @@ func TestService_GetAccessList(t *testing.T) {
 	get, err = c.svc.GetAccessList(c.userCtx, &accesslistv1.GetAccessListRequest{Name: a3.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a3, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
+
+	get, err = c.svc.GetAccessList(c.userCtx, &accesslistv1.GetAccessListRequest{Name: a4.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(a4, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
 
 	// member2 can't see a2
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
@@ -310,6 +388,23 @@ func TestService_GetAccessList(t *testing.T) {
 	// owner can't see a3
 	_, err = c.svc.GetAccessList(c.ownerCtx, &accesslistv1.GetAccessListRequest{Name: a3.GetName()})
 	require.True(t, trace.IsAccessDenied(err))
+
+	// userDenyWhere can't see a2
+	_, err = c.svc.GetAccessList(c.userDenyWhereCtx, &accesslistv1.GetAccessListRequest{Name: a2.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// userDenyWhere gets access denied for non-existent list
+	_, err = c.svc.GetAccessList(c.userDenyWhereCtx, &accesslistv1.GetAccessListRequest{Name: "non-existent-list"})
+	fmt.Printf("Error: %v\n", err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// userWhere can only see a4
+	_, err = c.svc.GetAccessList(c.userWhereCtx, &accesslistv1.GetAccessListRequest{Name: a3.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
+
+	get, err = c.svc.GetAccessList(c.userWhereCtx, &accesslistv1.GetAccessListRequest{Name: a4.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(a4, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
 }
 
 func TestService_GetAccessListsToReview(t *testing.T) {
@@ -470,12 +565,23 @@ func TestService_DeleteAccessList(t *testing.T) {
 	require.Empty(t, getResp.AccessLists)
 
 	a1 := newAccessList(t, "1", c.clock)
+	a2 := newAccessList(t, "2", c.clock)
 
-	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1}, nil)
+	a2.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
+
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1, a2}, nil)
 
 	get, err := c.svc.GetAccessList(c.userCtx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a1, mustFromProto(t, get), cmpOpts...))
+
+	_, err = c.svc.DeleteAccessList(c.userWhereCtx, &accesslistv1.DeleteAccessListRequest{Name: a1.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
+	expectEvent(t, events.AccessListDeleteFailureCode, c.emitter, func(event *apievents.AccessListDelete) {
+		require.False(t, event.Success)
+	})
 
 	_, err = c.svc.DeleteAccessList(c.userCtx, &accesslistv1.DeleteAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
@@ -488,6 +594,22 @@ func TestService_DeleteAccessList(t *testing.T) {
 
 	_, err = c.svc.DeleteAccessList(c.userCtx, &accesslistv1.DeleteAccessListRequest{Name: a1.GetName()})
 	require.True(t, trace.IsNotFound(err))
+	expectEvent(t, events.AccessListDeleteFailureCode, c.emitter, func(event *apievents.AccessListDelete) {
+		require.False(t, event.Success)
+	})
+
+	_, err = c.svc.DeleteAccessList(c.userWhereCtx, &accesslistv1.DeleteAccessListRequest{Name: a2.GetName()})
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListDeleteSuccessCode, c.emitter, func(event *apievents.AccessListDelete) {
+		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListDelete) {
+		require.Equal(t, a2.GetName(), event.AccessListDelete.Metadata.Id)
+	})
+
+	// Delete non existent access list if auth err is non nill
+	_, err = c.svc.DeleteAccessList(c.userDenyWhereCtx, &accesslistv1.DeleteAccessListRequest{Name: "non-existent access list"})
+	require.True(t, trace.IsAccessDenied(err))
 	expectEvent(t, events.AccessListDeleteFailureCode, c.emitter, func(event *apievents.AccessListDelete) {
 		require.False(t, event.Success)
 	})
@@ -548,14 +670,17 @@ type testEnvironment struct {
 }
 
 type testSvcComponents struct {
-	userCtx       context.Context
-	ownerCtx      context.Context
-	svc           *Service
-	clock         clockwork.FakeClock
-	emitter       *eventstest.ChannelEmitter
-	usageEvents   *usageEventsClient
-	usageReporter *usageReporter
-	testEnv       *testEnvironment
+	userCtx          context.Context
+	userWhereCtx     context.Context
+	userDenyWhereCtx context.Context
+	userDenyAllCtx   context.Context
+	ownerCtx         context.Context
+	svc              *Service
+	clock            clockwork.FakeClock
+	emitter          *eventstest.ChannelEmitter
+	usageEvents      *usageEventsClient
+	usageReporter    *usageReporter
+	testEnv          *testEnvironment
 }
 
 func initSvc(t *testing.T) testSvcComponents {
@@ -625,7 +750,51 @@ func initSvc(t *testing.T) testSvcComponents {
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.KindAccessList, types.KindUser},
-					Verbs:     []string{types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
+					Verbs:     services.RW(),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	roleWhere, err := auth.CreateRole(ctx, clt, "access-lists-where", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindAccessList},
+					Verbs:     services.RW(),
+					Where: builder.Equals(
+						builder.Identifier(`resource.metadata.labels["test-label"]`),
+						builder.String("test"),
+					).String(),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	roleDenyWhere, err := auth.CreateRole(ctx, clt, "access-lists-deny-where", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindAccessList},
+					Verbs:     services.RW(),
+					Where: builder.Equals(
+						builder.Identifier(`resource.metadata.labels["denied"]`),
+						builder.String("true"),
+					).String(),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	roleDenyAll, err := auth.CreateRole(ctx, clt, "access-lists-deny-all", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindAccessList},
+					Verbs:     services.RW(),
 				},
 			},
 		},
@@ -648,6 +817,10 @@ func initSvc(t *testing.T) testSvcComponents {
 	require.NoError(t, err)
 	user.AddRole(role.GetName())
 
+	userWhere, err := types.NewUser(testUserWhere)
+	require.NoError(t, err)
+	userWhere.AddRole(roleWhere.GetName())
+
 	ownerRoles := []string{"orole1", "orole2"}
 	ownerTraits := map[string][]string{
 		"otrait1": {"ovalue1", "ovalue2"},
@@ -663,7 +836,25 @@ func initSvc(t *testing.T) testSvcComponents {
 	owner2.SetRoles(ownerRoles)
 	owner2.SetTraits(ownerTraits)
 
+	userDenyWhere, err := types.NewUser(testUserDenyWhere)
+	require.NoError(t, err)
+	userDenyWhere.SetRoles(ownerRoles)
+	userDenyWhere.SetTraits(ownerTraits)
+	userDenyWhere.AddRole(roleDenyWhere.GetName())
+
+	userDenyAll, err := types.NewUser(testUserDenyAll)
+	require.NoError(t, err)
+	userDenyAll.SetRoles(ownerRoles)
+	userDenyAll.SetTraits(ownerTraits)
+	userDenyAll.AddRole(roleDenyAll.GetName())
+
 	user, err = userSvc.CreateUser(ctx, user)
+	require.NoError(t, err)
+	userWhere, err = userSvc.CreateUser(ctx, userWhere)
+	require.NoError(t, err)
+	userDenyWhere, err = userSvc.CreateUser(ctx, userDenyWhere)
+	require.NoError(t, err)
+	userDenyAll, err = userSvc.CreateUser(ctx, userDenyAll)
 	require.NoError(t, err)
 	owner, err = userSvc.CreateUser(ctx, owner)
 	require.NoError(t, err)
@@ -722,13 +913,16 @@ func initSvc(t *testing.T) testSvcComponents {
 	require.NoError(t, err)
 
 	return testSvcComponents{
-		userCtx:       genUserContext(ctx, user.GetName(), []string{role.GetName()}, nil),
-		ownerCtx:      genUserContext(ctx, owner.GetName(), ownerRoles, ownerTraits),
-		svc:           svc,
-		clock:         clock,
-		emitter:       emitter,
-		usageEvents:   usageEvents,
-		usageReporter: usageReporter,
+		userCtx:          genUserContext(ctx, user.GetName(), user.GetRoles(), nil),
+		userWhereCtx:     genUserContext(ctx, userWhere.GetName(), userWhere.GetRoles(), nil),
+		userDenyWhereCtx: genUserContext(ctx, userDenyWhere.GetName(), userDenyWhere.GetRoles(), userDenyWhere.GetTraits()),
+		userDenyAllCtx:   genUserContext(ctx, userDenyAll.GetName(), userDenyAll.GetRoles(), userDenyAll.GetTraits()),
+		ownerCtx:         genUserContext(ctx, owner.GetName(), owner.GetRoles(), owner.GetTraits()),
+		svc:              svc,
+		clock:            clock,
+		emitter:          emitter,
+		usageEvents:      usageEvents,
+		usageReporter:    usageReporter,
 		testEnv: &testEnvironment{
 			identity: userSvc,
 		},
@@ -741,9 +935,21 @@ func TestService_ListAccessListMembers(t *testing.T) {
 	a1 := newAccessList(t, "1", c.clock)
 	a2 := newAccessList(t, "2", c.clock)
 	a3 := newAccessList(t, "3", c.clock)
+	a4 := newAccessList(t, "4", c.clock)
+
+	// a2 will have a label attached.
+	a2.SetStaticLabels(map[string]string{
+		"denied": "true",
+	})
 
 	// a3 will have different ownership requirements.
 	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
+
+	// a4 will have a label attached.
+	a4.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
+	a4.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, c.clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, c.clock)
@@ -751,9 +957,11 @@ func TestService_ListAccessListMembers(t *testing.T) {
 	a2m2 := newAccessListMember(t, a2.GetName(), member2, c.clock)
 	a3m1 := newAccessListMember(t, a3.GetName(), member1, c.clock)
 	a3m2 := newAccessListMember(t, a3.GetName(), member2, c.clock)
+	a4m1 := newAccessListMember(t, a4.GetName(), member1, c.clock)
+	a4m2 := newAccessListMember(t, a4.GetName(), member2, c.clock)
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
-		[]*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2, a3m1, a3m2})
+		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2, a3m1, a3m2, a4m1, a4m2})
 
 	// Admin should be able to list everything
 	members := listAllAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
@@ -763,13 +971,33 @@ func TestService_ListAccessListMembers(t *testing.T) {
 	members = listAllAccessListMembers(c.ownerCtx, t, c.svc, a2.GetName(), 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{a2m1, a2m2}, members, cmpOpts...))
 
+	// userDenyWhere should not be able to see members for a2
+	_, err := c.svc.ListAccessListMembers(c.userDenyWhereCtx, &accesslistv1.ListAccessListMembersRequest{
+		PageSize:   0,
+		PageToken:  "",
+		AccessList: a2.GetName(),
+	})
+	require.True(t, trace.IsAccessDenied(err))
+
 	// owner should not be able to see members for a3
-	_, err := c.svc.ListAccessListMembers(c.ownerCtx, &accesslistv1.ListAccessListMembersRequest{
+	_, err = c.svc.ListAccessListMembers(c.ownerCtx, &accesslistv1.ListAccessListMembersRequest{
 		PageSize:   0,
 		PageToken:  "",
 		AccessList: a3.GetName(),
 	})
 	require.True(t, trace.IsAccessDenied(err))
+
+	// userWhere should not be able to see members for a2
+	_, err = c.svc.ListAccessListMembers(c.userWhereCtx, &accesslistv1.ListAccessListMembersRequest{
+		PageSize:   0,
+		PageToken:  "",
+		AccessList: a2.GetName(),
+	})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// userWhere should be able to see members for a4
+	members = listAllAccessListMembers(c.userWhereCtx, t, c.svc, a4.GetName(), 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{a4m1, a4m2}, members, cmpOpts...))
 }
 
 func TestService_ListDynamicAccessListMembers(t *testing.T) {
@@ -889,12 +1117,25 @@ func TestService_GetAccessListMember(t *testing.T) {
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
+	a2 := newAccessList(t, "2", c.clock)
+
+	// a1 will have a label attached.
+	a1.SetStaticLabels(map[string]string{
+		"denied": "true",
+	})
+
+	// a2 will have a label attached.
+	a2.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, c.clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, c.clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, c.clock)
+	a2m2 := newAccessListMember(t, a2.GetName(), member2, c.clock)
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
-		[]*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1, a1m2})
+		[]*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2})
 
 	// Admin should be able to get members
 	member, err := c.svc.GetAccessListMember(c.userCtx, &accesslistv1.GetAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
@@ -905,12 +1146,27 @@ func TestService_GetAccessListMember(t *testing.T) {
 	member, err = c.svc.GetAccessListMember(c.ownerCtx, &accesslistv1.GetAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m2.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a1m2, mustFromMemberProto(t, member), cmpOpts...))
+
+	// userDenyWhere should not be able to see members for a1
+	_, err = c.svc.GetAccessListMember(c.userDenyWhereCtx, &accesslistv1.GetAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m2.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// userWhere should be able to see members for a2
+	member, err = c.svc.GetAccessListMember(c.userWhereCtx, &accesslistv1.GetAccessListMemberRequest{AccessList: a2.GetName(), MemberName: a2m2.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(a2m2, mustFromMemberProto(t, member), cmpOpts...))
 }
 
 func TestService_UpsertAccessListMember(t *testing.T) {
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
+	a2 := newAccessList(t, "2", c.clock)
+
+	// a2 will have a label attached.
+	a2.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
 
 	_, err := c.svc.UpsertAccessList(c.userCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
 	require.NoError(t, err)
@@ -921,9 +1177,32 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 		require.Equal(t, a1.GetName(), event.AccessListCreate.Metadata.Id)
 	})
 
+	_, err = c.svc.UpsertAccessList(c.userCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListCreateSuccessCode, c.emitter, func(event *apievents.AccessListCreate) {
+		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListCreate) {
+		require.Equal(t, a2.GetName(), event.AccessListCreate.Metadata.Id)
+	})
+
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, c.clock)
 
 	require.Equal(t, testUser, a1m1.Spec.AddedBy)
+
+	_, err = c.svc.UpsertAccessListMember(c.userWhereCtx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(a1m1)})
+	require.True(t, trace.IsAccessDenied(err))
+
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, c.clock)
+
+	_, err = c.svc.UpsertAccessListMember(c.userWhereCtx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(a2m1)})
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListMemberCreateSuccessCode, c.emitter, func(event *apievents.AccessListMemberCreate) {
+		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
+		require.Equal(t, a2.GetName(), event.AccessListMemberCreate.Metadata.Id)
+	})
 
 	got, err := c.svc.UpsertAccessListMember(c.ownerCtx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(a1m1)})
 	require.NoError(t, err)
@@ -986,15 +1265,32 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
+	a2 := newAccessList(t, "2", c.clock)
+
+	// a1 will have a label attached.
+	a1.SetStaticLabels(map[string]string{
+		"denied": "true",
+	})
+
+	// a2 will have a label attached.
+	a2.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, c.clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, c.clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, c.clock)
+	a2m2 := newAccessListMember(t, a2.GetName(), member2, c.clock)
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents,
-		[]*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1, a1m2})
+		[]*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2})
+
+	// userWhere can't delete from a1
+	_, err := c.svc.DeleteAccessListMember(c.userWhereCtx, &accesslistv1.DeleteAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
 
 	// Admin should be able to delete members
-	_, err := c.svc.DeleteAccessListMember(c.userCtx, &accesslistv1.DeleteAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
+	_, err = c.svc.DeleteAccessListMember(c.userCtx, &accesslistv1.DeleteAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
 	require.NoError(t, err)
 	expectEvent(t, events.AccessListMemberDeleteSuccessCode, c.emitter, func(event *apievents.AccessListMemberDelete) {
 		require.True(t, event.Success)
@@ -1005,6 +1301,10 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 
 	members := listAllAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{a1m2}, members, cmpOpts...))
+
+	// userDenyWhere should not be able to delete members
+	_, err = c.svc.DeleteAccessListMember(c.userDenyWhereCtx, &accesslistv1.DeleteAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m2.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
 
 	// owner should be able to delete members
 	_, err = c.svc.DeleteAccessListMember(c.ownerCtx, &accesslistv1.DeleteAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m2.GetName()})
@@ -1017,6 +1317,16 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 	})
 	members = listAllAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
 	require.Empty(t, members)
+
+	// userWhere can delete from a2
+	_, err = c.svc.DeleteAccessListMember(c.userWhereCtx, &accesslistv1.DeleteAccessListMemberRequest{AccessList: a2.GetName(), MemberName: a2m1.GetName()})
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListMemberDeleteSuccessCode, c.emitter, func(event *apievents.AccessListMemberDelete) {
+		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
+		require.Equal(t, a2.GetName(), event.AccessListMemberDelete.Metadata.Id)
+	})
 }
 
 func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
@@ -1024,17 +1334,34 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 
 	a1 := newAccessList(t, "1", c.clock)
 	a2 := newAccessList(t, "2", c.clock)
+	a3 := newAccessList(t, "3", c.clock)
+
+	// a1 will have a label attached.
+	a1.SetStaticLabels(map[string]string{
+		"denied": "true",
+	})
+
+	// a3 will have a label attached.
+	a3.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, c.clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, c.clock)
 	a2m1 := newAccessListMember(t, a2.GetName(), member1, c.clock)
 	a2m2 := newAccessListMember(t, a2.GetName(), member2, c.clock)
+	a3m1 := newAccessListMember(t, a3.GetName(), member1, c.clock)
+	a3m2 := newAccessListMember(t, a3.GetName(), member2, c.clock)
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents,
-		[]*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2})
+		[]*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2, a3m1, a3m2})
+
+	// userWhere can't delete from a1
+	_, err := c.svc.DeleteAllAccessListMembersForAccessList(c.userWhereCtx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{AccessList: a1.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
 
 	// Admin should be able to delete members
-	_, err := c.svc.DeleteAllAccessListMembersForAccessList(c.userCtx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{AccessList: a1.GetName()})
+	_, err = c.svc.DeleteAllAccessListMembersForAccessList(c.userCtx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{AccessList: a1.GetName()})
 	require.NoError(t, err)
 	expectEvent(t, events.AccessListMemberDeleteAllForAccessListSuccessCode, c.emitter, func(event *apievents.AccessListMemberDeleteAllForAccessList) {
 		require.True(t, event.Success)
@@ -1042,6 +1369,10 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 
 	members := listAllAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
 	require.Empty(t, members)
+
+	// userDenyWhere can't delete from a1
+	_, err = c.svc.DeleteAllAccessListMembersForAccessList(c.userDenyWhereCtx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{AccessList: a1.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
 
 	// owner should be able to delete members
 	_, err = c.svc.DeleteAllAccessListMembersForAccessList(c.ownerCtx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{AccessList: a2.GetName()})
@@ -1052,6 +1383,13 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 
 	members = listAllAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 1)
 	require.Empty(t, members)
+
+	// UserWhere should be able to delete members from a3
+	_, err = c.svc.DeleteAllAccessListMembersForAccessList(c.userWhereCtx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{AccessList: a3.GetName()})
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListMemberDeleteAllForAccessListSuccessCode, c.emitter, func(event *apievents.AccessListMemberDeleteAllForAccessList) {
+		require.True(t, event.Success)
+	})
 }
 
 func TestService_UpsertAccessListWithMembers(t *testing.T) {
@@ -1208,7 +1546,6 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			newAccessListMember(t, a4.GetName(), member2, c.clock),
 		}, require.NoError)
 
-		// One member should have been deleted
 		membersA4 := listAllAccessListMembers(c.userCtx, t, c.svc, a4.GetName(), 3)
 		require.Len(t, membersA4, 2)
 	})
@@ -1295,6 +1632,17 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		})
 	})
 
+	t.Run("userDenyWhere can't modify members", func(t *testing.T) {
+		_, err := c.svc.UpsertAccessListWithMembers(c.userWhereCtx, &accesslistv1.UpsertAccessListWithMembersRequest{
+			AccessList: conv.ToProto(a3),
+			Members: []*accesslistv1.Member{
+				conv.ToMemberProto(newAccessListMember(t, a3.GetName(), member1, c.clock)),
+				conv.ToMemberProto(newAccessListMember(t, a3.GetName(), member2, c.clock)),
+			},
+		})
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
 	t.Run("owner can modify members", func(t *testing.T) {
 		upsertAccessListWithMembers(t, c.ownerCtx, a3, []*accesslist.AccessListMember{
 			newAccessListMember(t, a3.GetName(), member1, c.clock),
@@ -1368,6 +1716,68 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		require.Len(t, membersA2, 5)
 	})
 
+	t.Run("user where can't create access list without appropriate where clause being satisfied", func(t *testing.T) {
+		a5 := conv.ToProto(newAccessList(t, "6", c.clock))
+
+		_, err := c.svc.UpsertAccessListWithMembers(c.userWhereCtx, &accesslistv1.UpsertAccessListWithMembersRequest{
+			AccessList: a5,
+		})
+		require.True(t, trace.IsAccessDenied(err))
+
+		expectEvent(t, events.AccessListCreateFailureCode, c.emitter, func(event *apievents.AccessListCreate) {
+			require.False(t, event.Success)
+		})
+	})
+
+	t.Run("create a new access list with members", func(t *testing.T) {
+		a5 := newAccessList(t, "5", c.clock)
+
+		// a5 will have a label attached.
+		a5.SetStaticLabels(map[string]string{
+			"test-label": "test",
+		})
+
+		upsertAccessListWithMembers(t, c.userCtx, a5, []*accesslist.AccessListMember{
+			newAccessListMember(t, a5.GetName(), member1, c.clock),
+			newAccessListMember(t, a5.GetName(), member2, c.clock),
+		}, require.NoError)
+
+		membersA5 := listAllAccessListMembers(c.userCtx, t, c.svc, a5.GetName(), 3)
+		require.Len(t, membersA5, 2)
+	})
+
+	t.Run("userDenyWhere can't create or update an access list with where clause satisfied", func(t *testing.T) {
+		a6 := newAccessList(t, "6", c.clock)
+
+		// a6 will have a label attached.
+		a6.SetStaticLabels(map[string]string{
+			"denied": "true",
+		})
+
+		_, err := c.svc.UpsertAccessListWithMembers(c.userDenyWhereCtx, &accesslistv1.UpsertAccessListWithMembersRequest{
+			AccessList: conv.ToProto(a6),
+		})
+		require.True(t, trace.IsAccessDenied(err))
+
+		expectEvent(t, events.AccessListCreateFailureCode, c.emitter, func(event *apievents.AccessListCreate) {
+			require.False(t, event.Success)
+		})
+
+		upsertAccessListWithMembers(t, c.userCtx, a6, []*accesslist.AccessListMember{
+			newAccessListMember(t, a6.GetName(), member1, c.clock),
+			newAccessListMember(t, a6.GetName(), member2, c.clock),
+		}, require.NoError)
+
+		a6.Spec.Description = "some new description"
+		_, err = c.svc.UpsertAccessListWithMembers(c.userDenyWhereCtx, &accesslistv1.UpsertAccessListWithMembersRequest{
+			AccessList: conv.ToProto(a6),
+		})
+		require.True(t, trace.IsAccessDenied(err))
+
+		expectEvent(t, events.AccessListUpdateFailureCode, c.emitter, func(event *apievents.AccessListUpdate) {
+			require.False(t, event.Success)
+		})
+	})
 }
 
 func TestService_AuthOrIsOwner(t *testing.T) {
@@ -1492,24 +1902,50 @@ func TestService_CreateAccessListReview(t *testing.T) {
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
+	a2 := newAccessList(t, "2", c.clock)
+
+	// a1 will have a label attached.
+	a1.SetStaticLabels(map[string]string{
+		"denied": "true",
+	})
+
+	// a2 will have a label attached.
+	a2.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
 
 	a1m1 := newAccessListMember(t, a1.GetName(), member1, c.clock)
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, c.clock)
 
-	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{a1}, []*accesslist.AccessListMember{a1m1, a1m2})
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2})
 
 	require.Empty(t, listAllAccessListReviews(c.userCtx, t, c.svc, a1.GetName(), 1))
 
 	review1ForA1 := newAccessListReview(t, a1.GetName())
 
+	// RBAC user with where clause can't create a review.
+	_, err := c.svc.CreateAccessListReview(c.userWhereCtx, &accesslistv1.CreateAccessListReviewRequest{
+		Review: conv.ToReviewProto(review1ForA1),
+	})
+	require.True(t, trace.IsAccessDenied(err))
+
 	// RBAC user can create a review.
-	_, err := c.svc.CreateAccessListReview(c.userCtx, &accesslistv1.CreateAccessListReviewRequest{
+	_, err = c.svc.CreateAccessListReview(c.userCtx, &accesslistv1.CreateAccessListReviewRequest{
 		Review: conv.ToReviewProto(review1ForA1),
 	})
 	require.NoError(t, err)
 
-	// Owner can only create reviews with member changes.
+	// userDenyWhere can't create reviews.
 	review := newAccessListReview(t, a1.GetName())
+	review.Spec.Changes.RemovedMembers = []string{a1m1.GetName()}
+
+	_, err = c.svc.CreateAccessListReview(c.userDenyWhereCtx, &accesslistv1.CreateAccessListReviewRequest{
+		Review: conv.ToReviewProto(review),
+	})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Owner can only create reviews with member changes.
+	review = newAccessListReview(t, a1.GetName())
 	review.Spec.Changes.RemovedMembers = []string{a1m1.GetName()}
 
 	_, err = c.svc.CreateAccessListReview(c.ownerCtx, &accesslistv1.CreateAccessListReviewRequest{
@@ -1535,6 +1971,14 @@ func TestService_CreateAccessListReview(t *testing.T) {
 		Review: conv.ToReviewProto(review),
 	})
 	require.ErrorIs(t, err, trace.AccessDenied("user cannot modify the access list as part of the review"))
+
+	review1ForA2 := newAccessListReview(t, a2.GetName())
+
+	// RBAC user with where clause can create a review if access list meets where clause.
+	_, err = c.svc.CreateAccessListReview(c.userWhereCtx, &accesslistv1.CreateAccessListReviewRequest{
+		Review: conv.ToReviewProto(review1ForA2),
+	})
+	require.NoError(t, err)
 }
 
 func TestService_ListAccessListReviews(t *testing.T) {
@@ -1542,17 +1986,26 @@ func TestService_ListAccessListReviews(t *testing.T) {
 
 	a1 := newAccessList(t, "1", c.clock)
 	a2 := newAccessList(t, "2", c.clock)
+	a3 := newAccessList(t, "3", c.clock)
 
-	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1, a2}, nil)
+	// a3 will have a label attached.
+	a3.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
+
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1, a2, a3}, nil)
 
 	require.Empty(t, listAllAccessListReviews(c.userCtx, t, c.svc, a1.GetName(), 1))
 	require.Empty(t, listAllAccessListReviews(c.userCtx, t, c.svc, a2.GetName(), 1))
+	require.Empty(t, listAllAccessListReviews(c.userCtx, t, c.svc, a3.GetName(), 1))
 
 	review1ForA1 := newAccessListReview(t, a1.GetName())
 	review2ForA1 := newAccessListReview(t, a1.GetName())
 	review3ForA1 := newAccessListReview(t, a1.GetName())
 	review1ForA2 := newAccessListReview(t, a2.GetName())
 	review2ForA2 := newAccessListReview(t, a2.GetName())
+	review1ForA3 := newAccessListReview(t, a3.GetName())
+	review2ForA3 := newAccessListReview(t, a3.GetName())
 
 	review3ForA1.Spec.Changes.MembershipRequirementsChanged = &accesslist.Requires{
 		Roles: []string{"new-role1", "new-role2"},
@@ -1571,11 +2024,22 @@ func TestService_ListAccessListReviews(t *testing.T) {
 		review1ForA2,
 		review2ForA2,
 	})
+	createReviews(c.ownerCtx, t, c.svc, c.emitter, c.usageEvents, []*accesslist.Review{
+		review1ForA3,
+		review2ForA3,
+	})
 
 	reviews := listAllAccessListReviews(c.userCtx, t, c.svc, a1.GetName(), 1)
 	require.Empty(t, cmp.Diff([]*accesslist.Review{review1ForA1, review2ForA1, review3ForA1}, reviews, cmpOpts...))
 	reviews = listAllAccessListReviews(c.userCtx, t, c.svc, a2.GetName(), 1)
 	require.Empty(t, cmp.Diff([]*accesslist.Review{review1ForA2, review2ForA2}, reviews, cmpOpts...))
+
+	_, err := c.svc.ListAccessListReviews(c.userWhereCtx, &accesslistv1.ListAccessListReviewsRequest{
+		AccessList: a1.GetName(),
+	})
+	require.True(t, trace.IsAccessDenied(err))
+	reviews = listAllAccessListReviews(c.userWhereCtx, t, c.svc, a3.GetName(), 1)
+	require.Empty(t, cmp.Diff([]*accesslist.Review{review1ForA3, review2ForA3}, reviews, cmpOpts...))
 }
 
 func TestService_DeleteAccessListReviews(t *testing.T) {
@@ -1587,8 +2051,14 @@ func TestService_DeleteAccessListReviews(t *testing.T) {
 
 	a1 := newAccessList(t, "1", c.clock)
 	a2 := newAccessList(t, "2", c.clock)
+	a3 := newAccessList(t, "3", c.clock)
 
-	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1, a2}, nil)
+	// a3 will have a label attached.
+	a3.SetStaticLabels(map[string]string{
+		"test-label": "test",
+	})
+
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1, a2, a3}, nil)
 
 	// Advance the clock so that the new reviews are past the review date.
 	c.clock.Advance(time.Hour * 24 * 366) // 24 hours past the access list review date.
@@ -1601,6 +2071,8 @@ func TestService_DeleteAccessListReviews(t *testing.T) {
 	review3ForA1 := newAccessListReview(t, a1.GetName())
 	review1ForA2 := newAccessListReview(t, a2.GetName())
 	review2ForA2 := newAccessListReview(t, a2.GetName())
+	review1ForA3 := newAccessListReview(t, a3.GetName())
+	review2ForA3 := newAccessListReview(t, a3.GetName())
 
 	createReviews(c.userCtx, t, c.svc, c.emitter, c.usageEvents, []*accesslist.Review{
 		review1ForA1,
@@ -1611,8 +2083,18 @@ func TestService_DeleteAccessListReviews(t *testing.T) {
 		review1ForA2,
 		review2ForA2,
 	})
+	createReviews(c.ownerCtx, t, c.svc, c.emitter, c.usageEvents, []*accesslist.Review{
+		review1ForA3,
+		review2ForA3,
+	})
 
-	_, err := c.svc.DeleteAccessListReview(c.ownerCtx, &accesslistv1.DeleteAccessListReviewRequest{
+	_, err := c.svc.DeleteAccessListReview(c.userWhereCtx, &accesslistv1.DeleteAccessListReviewRequest{
+		AccessListName: review1ForA1.Spec.AccessList,
+		ReviewName:     review1ForA1.GetName(),
+	})
+	require.True(t, trace.IsAccessDenied(err))
+
+	_, err = c.svc.DeleteAccessListReview(c.ownerCtx, &accesslistv1.DeleteAccessListReviewRequest{
 		AccessListName: review1ForA1.Spec.AccessList,
 		ReviewName:     review1ForA1.GetName(),
 	})
@@ -1631,6 +2113,17 @@ func TestService_DeleteAccessListReviews(t *testing.T) {
 
 	reviews := listAllAccessListReviews(c.userCtx, t, c.svc, a1.GetName(), 1)
 	require.Empty(t, cmp.Diff([]*accesslist.Review{review2ForA1, review3ForA1}, reviews, cmpOpts...))
+
+	_, err = c.svc.DeleteAccessListReview(c.userWhereCtx, &accesslistv1.DeleteAccessListReviewRequest{
+		AccessListName: review1ForA3.Spec.AccessList,
+		ReviewName:     review1ForA3.GetName(),
+	})
+	require.NoError(t, err)
+
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListReviewDelete) {
+		require.Equal(t, a3.GetName(), event.AccessListReviewDelete.Metadata.Id)
+		require.Equal(t, review1ForA3.GetName(), event.AccessListReviewDelete.AccessListReviewId)
+	})
 }
 
 func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {
@@ -1797,6 +2290,14 @@ func newAccessListWithNextAuditDate(t *testing.T, name string, nextAuditDate tim
 				{
 					Name:        ownerUser2,
 					Description: "owner user 2",
+				},
+				{
+					Name:        testUserDenyWhere,
+					Description: "deny where user",
+				},
+				{
+					Name:        testUserDenyAll,
+					Description: "deny where user",
 				},
 			},
 			Audit: accesslist.Audit{
