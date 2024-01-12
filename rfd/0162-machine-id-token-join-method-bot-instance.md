@@ -103,15 +103,13 @@ certificates as the public key is already encoded within certificates. The
 nature of public-key cryptography also means that this provides the Bot instance
 a way to identify itself without needing an issued certificate.
 
-However:
-
-- Does switching to key reuse reduce security?
-- Is a fingerprint a user understandable identifier?
-- Key rotation resets the identity of a Bot instance.
-
 To mitigate the risk of pre-image attacks, SHA256 will be used to determine the
 fingerprint of the public key. In addition, the full public key should be
 recorded and verified against when authenticating a Bot instance action.
+
+It should be noted that with this technique, rotating the keypair of a `tbot`
+instance would reset the identity of that instance. Rotation of this keypair
+would be unusual and this side effect seems expected.
 
 ##### Alternative: UUID Certificate Attribute
 
@@ -126,13 +124,19 @@ previous certificate of the Bot instance is not readily available. We can
 either:
 
 - Accept this limitation and treat each renewal of a delegated Bot instance as a
-  new Bot instance.
+  new Bot instance. This is likely unacceptable and would limit any advantages
+  of this work to the `token` join method.
 - Add support for calling the join RPCs with a client certificate.
 
-TODO: There was a recent investigation about certificate hierarchies. Integrating
-with this would be ideal and would mean this integrates with security reports.
+This technique could reuse a recently proposed LoginID attribute. This would 
+allow features such as security reports and automated anomaly detection to work
+seamlessly across humans and machines.
 
 ### BotInstance Resource
+
+The
+[Resource Guidelines RFD](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+will be followed.
 
 With a persistent identifier for a Bot instance established, we can now track
 information about a specific Bot instance server-side. In addition to providing
@@ -188,17 +192,33 @@ message BotInstanceSpec {
 // of a Bot. This information is not verified by the server and should not be
 // trusted.
 message BotInstanceStatusHeartbeat {
-  google.protobuf.Timestamp timestamp = 1;
+  // The timestamp that the heartbeat was recorded by the Auth Server. Any
+  // value submitted by `tbot` for this field will be ignored.
+  google.protobuf.Timestamp recorded_at = 1;
+  // Indicates whether this is the heartbeat submitted by `tbot` on startup.
   bool is_startup = 2;
+  // The version of `tbot` that submitted this heartbeat.
   string version = 3;
+  // The hostname of the host that `tbot` is running on.
   string hostname = 4;
+  // The duration that `tbot` has been running for when it submitted this
+  // heartbeat.
   google.protobuf.Duration uptime = 5;
+  
   // In future iterations, additional information can be submitted here.
+  // For example, the configuration of `tbot` or the health of individual
+  // outputs.
 }
 
+// BotInstanceStatusAuthentication contains information about a join or renewal.
+// Ths information is entirely sourced by the Auth Server and can be trusted.
 message BotInstanceStatusAuthentication {
-  google.protobuf.Timestamp timestamp = 1;
+  // The timestamp that the join or renewal was authenticated by the Auth
+  // Server.
+  google.protobuf.Timestamp authenticated_at = 1;
+  // The join method used for this join or renewal.
   string join_method = 2;
+  // The metadata sourced from the join method.
   google.protobuf.Struct metadata = 3;
   // On each renewal, this generation is incremented. For delegated join
   // methods, this counter is not checked during renewal. For the `token` join
@@ -208,19 +228,24 @@ message BotInstanceStatusAuthentication {
   int32 generation = 4;
 }
 
+// BotInstanceStatus holds the status of a BotInstance.
 message BotInstanceStatus {
   // The public key of the Bot instance.
+  // When authenticating a Bot instance, the full public key must be compared
+  // rather than just the fingerprint to mitigate pre-image attacks.
   bytes public_key = 1;
+  // The fingerprint of the public key of the Bot instance.
+  string fingerprint = 2;
   // The name of the Bot that this instance is associated with.
-  string bot_name = 2;
+  string bot_name = 3;
   // Last X records kept, with the second oldest being removed once the limit
   // is reached. This avoids the indefinite growth of the resource but also
   // ensures the initial record is retained.
-  repeated BotInstanceStatusAuthentication authentications = 3;
+  repeated BotInstanceStatusAuthentication authentications = 4;
   // Last X records kept, with the second oldest being removed once the limit
   // is reached. This avoids the indefinite growth of the resource but also
   // ensures the initial record is retained.
-  repeated BotInstanceStatusHeartbeat heartbeats = 4;
+  repeated BotInstanceStatusHeartbeat heartbeats = 5;
 }
 ```
 
@@ -229,7 +254,11 @@ SHA256 fingerprint of the instance's public key
 e.g `my-robot/2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae`.
 
 When storing the BotInstance in the backend, the key will be:
-`bot_instances/{bot_name}/{fingerprint}`.
+`bot_instances/{bot_name}/{fingerprint}`. This will allow for efficient listing
+of BotInstances for a given Bot.
+
+Like agent heartbeats, the BotInstance will expire after a period of inactivity.
+This avoids the accumulation of ephemeral BotInstances.
 
 #### Recording Authentication Data
 
@@ -238,21 +267,16 @@ additional entry in the `status.authentications` field. If there is X entries,
 then the second-oldest entry will be removed. This prevents growth without
 bounds but also ensures that the original record is retained.
 
-If a BotInstance does not exist, then one will be created.
+In addition, the TTL of the BotInstance resource will be extended.
 
-Specific edge-cases to handle:
-
-- BotInstance does not exist but renewal is received
-  - Reject renewals, trigger `tbot` to exit and suggest reset, OR
-  - Create a BotInstance and continue as normal. Warn/Error log.
-- Join method/token changes:
-  - Reject renewals, trigger `tbot` to exit and suggest reset, OR
-  - Emit warning and continue.
-  - Consider case where linked Bot changes
+If a BotInstance does not exist, then one will be created. In the case that
+this occurs for a bot using the `token` join method and this is a renewal,
+a warning will be emitted and the initial generation of the BotInstance will
+be sourced from the certificates current generation counter. 
 
 #### Recording Heartbeat Data
 
-A new RPC will be added for submitting Heartbeat data.
+A new RPC will be added for submitting heartbeat data:
 
 ```protobuf
 syntax = "proto3";
@@ -276,7 +300,7 @@ message SubmitHeartbeatResponse {
 }
 ```
 
-The endpoint will have a special authentication check. RBAC will not be used and
+The endpoint will have a special auth/authz check. RBAC will not be used and
 instead the endpoint will check:
 
 - The presented client certificate is for the Bot linked to the instance.
@@ -290,25 +314,6 @@ heartbeat period to avoid a thundering herd of heartbeats.
 
 If the heartbeat fails, then `tbot` should retry on a exponential backoff.
 
-Pros:
-
-- Avoids making significant changes to the existing join/renew RPCs.
-- Allows for Heartbeats to be submitted at a different frequency to renewals.
-
-Cons:
-
-- Information about the Bot instance would be incomplete immediately after
-  joining.
-- Some information can only be updated during the join/renew
-  e.g generation counter and last join metadata. So we'd still need to update 
-  the join/renew RPCs to support this. However, no changes would need to be
-  made to the RPC message.
-- Information within the Heartbeat could come from different instances in time. 
-
-Specific edge-cases to handle:
-
-- BotInstance does not exist but heartbeat is received
-
 ##### Alternative: Submit Heartbeat data on Join/Renew
 
 Alternatively, we could add a Heartbeat field to the join/renew RPCs.
@@ -319,32 +324,106 @@ Pros:
   comes from the same instance in time.
 - Allows self-reported information to be used as part of renewal decision.
   This is not a strong defence as it is self-reported and cannot be trusted.
+- Avoids a state where the BotInstance is incomplete immediately after joining
+  and before it has called SubmitHeartbeat.
 
 Cons:
 
+- Adds Bot specific behaviour to RPCs that are also used for Node joining.
 - Heartbeats are limited to the interval of renewal.
 
 #### API
 
+Additional RPCs will be added to the BotInstance service to allow these to
+be listed and deleted:
+
+```protobuf
+syntax = "proto3";
+
+package teleport.machineid.v1;
+
+service BotInstanceService {
+  // GetBotInstance returns the specified BotInstance resource.
+  rpc GetBotInstance(GetBotInstanceRequest) returns (BotInstance);
+  // ListBotInstances returns a page of BotInstance resources.
+  rpc ListBotInstances(ListBotInstancesRequest) returns (ListBotInstancesResponse);
+  // DeleteBotInstance hard deletes the specified BotInstance resource.
+  rpc DeleteBotInstance(DeleteBotInstanceRequest) returns (google.protobuf.Empty);
+}
+
+// Request for GetBotInstance.
+message GetBotInstanceRequest {
+  // The name of the BotInstance to retrieve.
+  string name = 1;
+}
+
+// Request for ListFoos.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list
+message ListBotInstancesRequest {
+  // The name of the Bot to list BotInstances for. If empty, all BotInstances
+  // will be listed.
+  string filter_bot_name = 1;
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 2;
+  // The page_token value returned from a previous ListBotInstances request, if
+  // any.
+  string page_token = 3;
+}
+
+// Response for ListBotInstances.
+message ListBotInstancesResponse {
+  // BotInstance that matched the search.
+  repeated BotInstance bot_instances = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results exist.
+  string next_page_token = 2;
+}
+
+// Request for DeleteBotInstance.
+message DeleteBotInstanceRequest {
+  // The name of the BotInstance to delete.
+  string name = 1;
+}
+```
+
 ### Changes to the `token` Join Method
 
-No longer consumed on join.
+As we now have a way to track the generation for a specific Bot instance, we
+can allow multiple Bot instances to be associated with a single Bot. This
+also means that the token no longer needs to be consumed on a join.
+
+Eventually, we may wish to add a way to specify a number of joins which can
+occur with a token. This provides a way to easily control the lifetime of a 
+token when deploying to a fleet of a pre-known size.
+
+The renewal logic will need to be adjusted to read the generation counter from
+the BotInstance rather than the Bot user.
 
 ### CLI Changes
 
 #### `tbot`
 
-`tbot reset`
+`tbot reset` will be added to allow a `tbot` instance to be reset. This will
+simply clear out any artifacts within the `tbot` storage directory.
 
 #### `tctl`
 
-`tctl bot instances list`
-`tctl bot instances list --bot <bot name>`
+`tctl bots instances list`
+`tctl bots instances list --bot <bot name>`
+`tctl tokens add --type=bot --bot <bot name>`
 
 Additionally, `tctl rm`/`tctl get` should be able to operate on BotInstance.
 
 There is no requirement for it to be possible to create or update a BotInstance
 with `tctl`.
+
+### Analytics
+
+A PostHog event should be emitted for each BotInstance heartbeat. This will
+allow us to track active bots in a similar way to how we track active agents.
 
 ### Implementation
 
@@ -356,16 +435,19 @@ with `tctl`.
 
 ### Audit Events
 
-TODO
+Deletion of a BotInstance should be audited.
 
 ## Alternatives
 
-### Skip the Heartbeats and just improve the `token` join method
+### Defer the Heartbeats work and solely improve the `token` join method
 
-TODO
+We could modify the way we record the generation counter for the `token` join
+method without introducing the BotInstance resource. Instead of storing a
+single counter within the Bot User labels, we could store a JSON encoded map
+of counters.
 
-One challenge would be contention over the user resource if a large number of
+One challenge would be contention over the User resource if a large number of
 Bot instances are trying to renew their certificates at the same time. Our
-Backend lacks support for transactional consistency and this increases the risk
-of two Bot instances renewing simultaneously and producing an inconsistent state
-that locks one of them out.
+Backend has limited support for transactional consistency and this increases the
+risk of two Bot instances renewing simultaneously and producing an inconsistent
+state that locks one of them out.
