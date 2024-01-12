@@ -358,6 +358,11 @@
               "forScopes": ["enterprise", "cloud", "team"]
             },
             {
+              "title": "Attribute Mapping",
+              "slug": "/access-controls/idps/saml-attribute-mapping/",
+              "forScopes": ["enterprise", "cloud", "team"]
+            },
+            {
               "title": "Authenticate to Grafana with Teleport SAML",
               "slug": "/access-controls/idps/saml-grafana/",
               "forScopes": ["enterprise", "cloud", "team"]
