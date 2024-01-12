@@ -59,7 +59,6 @@ export interface Server extends apiServer.Server.AsObject {
 
 export interface App extends apiApp.App.AsObject {
   uri: uri.AppUri;
-  addrWithProtocol: string;
 }
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
