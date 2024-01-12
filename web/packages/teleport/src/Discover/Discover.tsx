@@ -63,7 +63,7 @@ function DiscoverContent() {
     <>
       <FeatureBox>
         {hasSelectedResource && (
-          <Box mt="10px" mb="45px">
+          <Box mt={2} mb={7}>
             <Navigation
               currentStep={currentStep}
               views={indexedViews}

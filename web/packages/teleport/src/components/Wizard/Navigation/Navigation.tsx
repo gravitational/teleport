@@ -51,7 +51,8 @@ interface NavigationProps<T> {
  * For simple views, defining indexes is not required.
  *
  *
- * Example of how nesting views are used for Discover wizards:
+ * @example
+ * How nesting views are used for Discover wizards:
  *
  * Discover is a complicated wizard that has different steps depending on what
  * input has been given.
