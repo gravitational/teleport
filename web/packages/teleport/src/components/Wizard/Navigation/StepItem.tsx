@@ -50,7 +50,7 @@ export function StepItem<T>(props: {
     );
   }
 
-  const index = props.view.index != null ? props.view.index : props.index;
+  const index = props.view.index ?? props.index;
   const isActive = props.currentStep === index;
   const isDone = props.currentStep > index;
 

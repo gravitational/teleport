@@ -80,7 +80,7 @@ export function addIndexToViews<T>(
 export function findViewAtIndex<T>(
   views: BaseView<T>[],
   currentStep: number
-): BaseView<T> | null {
+): BaseView<T> | undefined {
   for (const view of views) {
     if (view.views) {
       const result = findViewAtIndex(view.views, currentStep);
