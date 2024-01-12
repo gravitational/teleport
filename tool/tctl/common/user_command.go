@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -296,6 +297,14 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 
 	user.SetTraits(traits)
 	user.SetRoles(u.allowedRoles)
+
+	// Prompt for admin action MFA if required, allowing reuse for CreateResetPasswordToken.
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client, "CreateUser", true /*allowReuse*/)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if mfaResponse != nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	}
 
 	if _, err := client.CreateUser(ctx, user); err != nil {
 		if trace.IsAlreadyExists(err) {
