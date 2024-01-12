@@ -26,7 +26,6 @@ import { pipe } from 'shared/utils/pipe';
 
 import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
-
 import {
   Cluster,
   Gateway,
@@ -40,9 +39,8 @@ import { UsageService } from 'teleterm/ui/services/usage';
 
 import { ImmutableStore } from '../immutableStore';
 
-import type * as tsh from 'teleterm/services/tshd/types';
-
 import type * as types from './types';
+import type * as tsh from 'teleterm/services/tshd/types';
 
 const { routing } = uri;
 

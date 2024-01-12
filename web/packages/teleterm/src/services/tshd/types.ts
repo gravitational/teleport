@@ -40,12 +40,12 @@ import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_reque
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
 import apiAccessList from 'gen-proto-js/teleport/accesslist/v1/accesslist_pb';
 
-import * as uri from 'teleterm/ui/uri'; // We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
+import * as uri from 'teleterm/ui/uri';
 
+// We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
 // to alias it first to do the reexport.
 // https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
 import UserType = apiCluster.LoggedInUser.UserType;
-
 export { UserType };
 
 export interface Kube extends apiKube.Kube.AsObject {
@@ -61,14 +61,18 @@ export interface App extends apiApp.App.AsObject {
   uri: uri.AppUri;
   /** Name of the application. */
   name: string;
-  /** URI and port the application is available at. */
+  /** URI and port the target application is available at. */
   endpointUri: string;
   /** Description of the application. */
   desc: string;
   /** Indicates if the application is an AWS management console. */
   awsConsole: boolean;
   /**
-   * Optional application public address that overrides the endpoint URI.
+   * The application public address.
+   * By default, it is a subdomain of the cluster (e.g., dumper.example.com).
+   * Optionally, it can be overridden (by the 'public_addr' field in the app config)
+   * with an address available on the internet.
+   *
    * Always empty for SAML applications.
    */
   publicAddr: string;
