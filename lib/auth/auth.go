@@ -5925,13 +5925,13 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 		}
 
 		assertionResp := wantypes.CredentialAssertionResponseFromProto(res.Webauthn)
-		var dev *types.MFADevice
+		var loginData *wanlib.LoginData
 		if passwordless {
 			webLogin := &wanlib.PasswordlessFlow{
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, user, err = webLogin.Finish(ctx, assertionResp)
+			loginData, err = webLogin.Finish(ctx, assertionResp)
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,
@@ -5943,12 +5943,14 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
 				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_UNSPECIFIED,
 			}
-			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), ext)
+			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), ext)
 		}
 		if err != nil {
 			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)
 		}
-		return dev, user, nil
+		// TODO(Joerger): Refactor Validate to also return AllowReuse
+		// for further validation by caller when necessary.
+		return loginData.Device, loginData.User, nil
 
 	case *proto.MFAAuthenticateResponse_TOTP:
 		dev, err := a.checkOTP(user, res.TOTP.Code)

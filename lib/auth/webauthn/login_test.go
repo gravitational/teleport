@@ -149,17 +149,17 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 
 			// 2nd and last step of the login ceremony.
 			beforeLastUsed := time.Now().Add(-1 * time.Second)
-			loginDevice, err := webLogin.Finish(ctx, user, assertionResp, mfav1.ChallengeExtensions{
+			loginData, err := webLogin.Finish(ctx, user, assertionResp, mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			})
 			require.NoError(t, err)
 			// Last used time and counter are updated.
-			require.True(t, beforeLastUsed.Before(loginDevice.LastUsed))
-			require.Equal(t, wantCounter, getSignatureCounter(loginDevice))
+			require.True(t, beforeLastUsed.Before(loginData.Device.LastUsed))
+			require.Equal(t, wantCounter, getSignatureCounter(loginData.Device))
 			// Did we update the device in storage?
 			require.NotEmpty(t, identity.UpdatedDevices)
 			got := identity.UpdatedDevices[len(identity.UpdatedDevices)-1]
-			if diff := cmp.Diff(loginDevice, got); diff != "" {
+			if diff := cmp.Diff(loginData, got); diff != "" {
 				t.Errorf("Updated device mismatch (-want +got):\n%s", diff)
 			}
 			// Did we delete the challenge?
@@ -455,10 +455,10 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 			assertionResp.AssertionResponse.UserHandle = wla.UserID
 
 			// 2nd and last step of the login ceremony.
-			mfaDevice, user, err := webLogin.Finish(ctx, assertionResp)
+			loginData, err := webLogin.Finish(ctx, assertionResp)
 			require.NoError(t, err)
-			require.NotNil(t, mfaDevice)
-			require.Equal(t, test.user, user)
+			require.NotNil(t, loginData.Device)
+			require.Equal(t, test.user, loginData.User)
 		})
 	}
 }
@@ -517,7 +517,7 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, _, err := webLogin.Finish(ctx, test.createResp())
+			_, err := webLogin.Finish(ctx, test.createResp())
 			require.True(t, test.assertErrType(err), "assertErrType failed, err = %v", err)
 			require.Contains(t, err.Error(), test.wantErrMsg)
 		})
@@ -604,11 +604,11 @@ func TestCredentialRPID(t *testing.T) {
 		car, err := dev1Key.SignAssertion(origin, assertion)
 		require.NoError(t, err, "SignAssertion failed")
 
-		mfaDev, err := webLogin.Finish(ctx, user, car, mfav1.ChallengeExtensions{
+		loginData, err := webLogin.Finish(ctx, user, car, mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		})
 		require.NoError(t, err, "Finish failed")
-		assert.Equal(t, rpID, mfaDev.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
+		assert.Equal(t, rpID, loginData.Device.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
 	})
 
 	t.Run("login doesn't issue challenges for the wrong RPIDs", func(t *testing.T) {

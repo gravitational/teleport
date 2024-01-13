@@ -65,7 +65,7 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAsser
 // Finish is the last step of the passwordless login flow.
 // It works similarly to LoginFlow.Finish, but the user identity is established
 // via the response UserHandle, instead of an explicit Teleport username.
-func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, string, error) {
+func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.CredentialAssertionResponse) (*LoginData, error) {
 	lf := &loginFlow{
 		Webauthn:    f.Webauthn,
 		identity:    passwordlessIdentity{f.Identity},
