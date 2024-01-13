@@ -267,6 +267,16 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+
+	// Check if the given scope is satisfied by the challenge scope.
+	if requiredExtensions.Scope != sd.ChallengeExtensions.Scope && requiredExtensions.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+		// old clients do not yet provide a scope, so we only enforce scope opportunistically.
+		// TODO(Joerger): DELETE IN v16.0.0
+		if sd.ChallengeExtensions.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+			return nil, "", trace.AccessDenied("required scope %q is not satisfied by the given webauthn session with scope %q", requiredExtensions.Scope, sd.ChallengeExtensions.Scope)
+		}
+	}
+
 	sessionData := wantypes.SessionDataToProtocol(sd)
 
 	// Make sure _all_ credentials in the session are accounted for by the user.
