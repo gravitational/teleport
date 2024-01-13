@@ -192,7 +192,9 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 	return wla.UserID, nil
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
+func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions mfav1.ChallengeExtensions) (*types.MFADevice, string, error) {
+	passwordless := requiredExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+
 	switch {
 	case user == "" && !passwordless:
 		return nil, "", trace.BadParameter("user required")
