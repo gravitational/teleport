@@ -71,7 +71,11 @@ func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.Credential
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
 	}
-	return lf.finish(ctx, "" /* user */, resp, true /* passwordless */)
+	requiredExt := mfav1.ChallengeExtensions{
+		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+	}
+	return lf.finish(ctx, "" /* user */, resp, requiredExt)
 }
 
 type passwordlessIdentity struct {
