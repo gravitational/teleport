@@ -33,7 +33,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -53,8 +52,8 @@ type loginIdentity interface {
 // * Passwordless uses global variants
 // (services.Identity.Update/Get/DeleteGlobalWebauthnSessionData methods).
 type sessionIdentity interface {
-	Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error
-	Get(ctx context.Context, user string, challenge string) (*wanpb.SessionData, error)
+	Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error
+	Get(ctx context.Context, user string, challenge string) (*wantypes.SessionData, error)
 	Delete(ctx context.Context, user string, challenge string) error
 }
 
@@ -163,11 +162,13 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	}
 
 	// Store SessionData - it's checked against the user response by Finish.
-	sessionDataPB, err := sessionToPB(sessionData)
+	sd, err := wantypes.SessionDataFromProtocol(sessionData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := f.sessionData.Upsert(ctx, user, sessionDataPB); err != nil {
+	// TODO(Joerger): set challenge extensions from caller
+
+	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -254,11 +255,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	// Fetch the previously-stored SessionData, so it's checked against the user
 	// response.
 	challenge := parsedResp.Response.CollectedClientData.Challenge
-	sessionDataPB, err := f.sessionData.Get(ctx, user, challenge)
+	sd, err := f.sessionData.Get(ctx, user, challenge)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	sessionData := sessionFromPB(sessionDataPB)
+	sessionData := wantypes.SessionDataToProtocol(sd)
 
 	// Make sure _all_ credentials in the session are accounted for by the user.
 	// webauthn.ValidateLogin requires it.

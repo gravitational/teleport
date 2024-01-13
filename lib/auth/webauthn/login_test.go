@@ -26,14 +26,12 @@ import (
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -130,7 +128,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 			// Did we record the SessionData in storage?
 			require.Len(t, identity.SessionData, 1)
 			// Did we record the web ID in the SessionData?
-			var sd *wanpb.SessionData
+			var sd *wantypes.SessionData
 			for _, v := range identity.SessionData {
 				sd = v // Retrieve without guessing the key
 				break
@@ -412,20 +410,19 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 
 			// Verify that we recorded user verification requirements in storage.
 			require.Len(t, identity.SessionData, 1)
-			var sd *wanpb.SessionData
+			var sd *wantypes.SessionData
 			for _, v := range identity.SessionData {
 				sd = v // Get SessionData without guessing the key.
 				break
 			}
-			wantSD := &wanpb.SessionData{
+			wantSD := &wantypes.SessionData{
 				Challenge:        sd.Challenge,
 				UserId:           nil,   // aka unset
 				AllowCredentials: nil,   // aka unset
 				ResidentKey:      false, // irrelevant for login
 				UserVerification: string(protocol.VerificationRequired),
 			}
-			if !proto.Equal(sd, wantSD) {
-				diff := cmp.Diff(wantSD, sd)
+			if diff := cmp.Diff(wantSD, sd); diff != "" {
 				t.Fatalf("SessionData mismatch (-want +got):\n%s", diff)
 			}
 
@@ -630,7 +627,7 @@ type fakeIdentity struct {
 	// It's automatically assigned when UpsertWebauthnLocalAuth is called.
 	MappedUser     string
 	UpdatedDevices []*types.MFADevice
-	SessionData    map[string]*wanpb.SessionData
+	SessionData    map[string]*wantypes.SessionData
 }
 
 func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
@@ -645,7 +642,7 @@ func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
 				},
 			},
 		},
-		SessionData: make(map[string]*wanpb.SessionData),
+		SessionData: make(map[string]*wantypes.SessionData),
 	}
 }
 
@@ -690,12 +687,12 @@ func (f *fakeIdentity) GetTeleportUserByWebauthnID(ctx context.Context, webID []
 	return f.MappedUser, nil
 }
 
-func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
+func (f *fakeIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
 	f.SessionData[sessionDataKey(user, sessionID)] = sd
 	return nil
 }
 
-func (f *fakeIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
+func (f *fakeIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
 	sd, ok := f.SessionData[sessionDataKey(user, sessionID)]
 	if !ok {
 		return nil, trace.NotFound("not found")
@@ -712,12 +709,12 @@ func sessionDataKey(user string, sessionID string) string {
 	return fmt.Sprintf("user/%v/%v", user, sessionID)
 }
 
-func (f *fakeIdentity) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error {
+func (f *fakeIdentity) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error {
 	f.SessionData[globalSessionDataKey(scope, id)] = sd
 	return nil
 }
 
-func (f *fakeIdentity) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error) {
+func (f *fakeIdentity) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
 	sd, ok := f.SessionData[globalSessionDataKey(scope, id)]
 	if !ok {
 		return nil, trace.NotFound("not found")
