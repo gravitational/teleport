@@ -46,10 +46,10 @@ func newResumableConn(localAddr, remoteAddr net.Addr) *Conn {
 type Conn struct {
 	managedConn
 
-	// attached is non-nil iff there's an underlying connection attached;
-	// calling it should eventually result in the connection becoming detached,
-	// signaled by the field becoming nil.
-	attached func()
+	// requestDetach is non-nil if and only if there is an underlying connection
+	// attached; calling it should eventually result in the connection becoming
+	// detached, signaled by the field becoming nil.
+	requestDetach func()
 }
 
 var _ net.Conn = (*Conn)(nil)
@@ -75,8 +75,8 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 	defer nc.Close()
 
 	if !firstConn {
-		for !r.remoteClosed && r.attached != nil {
-			r.attached()
+		for !r.remoteClosed && r.requestDetach != nil {
+			r.requestDetach()
 			r.cond.Wait()
 		}
 
@@ -85,26 +85,25 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 
 			return trace.ConnectionProblem(errBrokenPipe, "attempting to resume a connection already closed by the peer")
 		}
-	} else if r.attached != nil || r.remoteClosed || r.localClosed || r.receiveBuffer.end > 0 || r.sendBuffer.start > 0 {
+	} else if r.requestDetach != nil || r.remoteClosed || r.localClosed || r.receiveBuffer.end > 0 || r.sendBuffer.start > 0 {
 		r.mu.Unlock()
 		panic("firstConn for resume V1 is not actually unused")
 	}
 
 	var stopRequested atomic.Bool
-	requestStop := func() {
+
+	r.requestDetach = func() {
 		nc.Close()
 		if !stopRequested.Swap(true) {
 			r.cond.Broadcast()
 		}
 	}
-
-	r.attached = requestStop
 	r.cond.Broadcast()
 
 	defer func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()
-		r.attached = nil
+		r.requestDetach = nil
 		r.cond.Broadcast()
 	}()
 
