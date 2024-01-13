@@ -55,3 +55,17 @@ type TCPIPForwardReq struct {
 	// Port is the port to listen on.
 	Port uint32
 }
+
+func ParseTCPIPForwardReq(data []byte) (*TCPIPForwardReq, error) {
+	var r TCPIPForwardReq
+	if err := ssh.Unmarshal(data, &r); err != nil {
+		log.Infof("failed to parse TCP IP Forward request: %v", err)
+		return nil, trace.Wrap(err)
+	}
+	return &r, nil
+}
+
+type CancelTCPIPForwardReq struct {
+	Addr string
+	Port uint32
+}

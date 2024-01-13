@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 // TCPIPForwardDialer represents a dialer used to handle TCPIP forward requests.
@@ -62,6 +63,8 @@ type ConnectionContext struct {
 	// tcpipForwardDialer is a lazily initialized dialer used to handle all tcpip
 	// forwarding requests.
 	tcpipForwardDialer TCPIPForwardDialer
+
+	tcpipForwardConn *uds.Conn
 
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
@@ -263,6 +266,22 @@ func (c *ConnectionContext) AddCloser(closer io.Closer) {
 		return
 	}
 	c.closers = append(c.closers, closer)
+}
+
+func (c *ConnectionContext) TrySetTCPIPForwardConn(conn *uds.Conn) (registered *uds.Conn, ok bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.tcpipForwardConn != nil {
+		return c.tcpipForwardConn, false
+	}
+	c.tcpipForwardConn = conn
+	return c.tcpipForwardConn, true
+}
+
+func (c *ConnectionContext) GetTCPIPForwardConn() (conn *uds.Conn, ok bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.tcpipForwardConn, c.tcpipForwardConn != nil
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null
