@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -66,7 +67,12 @@ type loginFlow struct {
 	sessionData sessionIdentity
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialAssertion, error) {
+func (f *loginFlow) begin(ctx context.Context, user string, ext mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
+	if ext.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && ext.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION {
+		return nil, trace.BadParameter("mfa challenges with scope %s cannot allow reuse", ext.Scope)
+	}
+
+	passwordless := ext.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
@@ -166,7 +172,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(Joerger): set challenge extensions from caller
+	sd.ChallengeExtensions = &ext
 
 	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {
 		return nil, trace.Wrap(err)

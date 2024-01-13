@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"errors"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -54,7 +55,11 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAsser
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
 	}
-	return lf.begin(ctx, "" /* user */, true /* passwordless */)
+	ext := mfav1.ChallengeExtensions{
+		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+	}
+	return lf.begin(ctx, "" /* user */, ext)
 }
 
 // Finish is the last step of the passwordless login flow.
