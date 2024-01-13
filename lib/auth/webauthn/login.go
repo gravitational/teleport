@@ -288,6 +288,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		}
 	}
 
+	// If this session is reusable, but this login forbids reusable sessions, return an error.
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && sd.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		return nil, trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context")
+	}
+
 	sessionData := wantypes.SessionDataToProtocol(sd)
 
 	// Make sure _all_ credentials in the session are accounted for by the user.
