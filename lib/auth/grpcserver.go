@@ -490,7 +490,7 @@ func maybeFilterCertAuthorityWatches(ctx context.Context, watch *types.Watch) fu
 		log.Debugf("Unable to determine client version: %v", err)
 		return nil
 	}
-	if versionSupportsDatabaseClientCA(*clientVersion) {
+	if versionHandlesDatabaseClientCAEvents(*clientVersion) {
 		// don't need to inject a CA filter if the client support DB Client CA.
 		return nil
 	}
@@ -547,17 +547,13 @@ func getClientVersion(ctx context.Context) (*semver.Version, error) {
 	return clientVersion, trace.Wrap(err)
 }
 
-// versionSupportsDatabaseClientCA returns true if the client version supports
-// the DatabaseClientCA. This CA was introduced in backports.
+// versionHandlesDatabaseClientCAEvents returns true if the client version can
+// handle the DatabaseClientCA, either because the client knows of the
+// DatabaseClientCA or it uses a CA filter. This CA was introduced in backports.
 // Client version in the intervals [v12.x, v13.0), [v13.y, v14.0), [v14.z, inf)
-// supports the DatabaseClientCA type, where x, y, z are the minor release
+// can handle the DatabaseClientCA type, where x, y, z are the minor release
 // versions that the DatabaseClientCA is backported to.
-// Since this function needs to be aware of multiple minor release versions,
-// we should first backport to v12 with a known minor version, then
-// v13, then v14, and finally merge into v15.
-// That way each minor release will be aware of the supported version
-// intervals.
-func versionSupportsDatabaseClientCA(v semver.Version) bool {
+func versionHandlesDatabaseClientCAEvents(v semver.Version) bool {
 	v.PreRelease = "" // ignore pre-release tags
 	return !v.LessThan(dbClientCACutoffVersion)
 }
