@@ -52,7 +52,7 @@ type testClient struct {
 
 	// signingCtx is a context that can be injected into the signing service.
 	signingCtx     context.Context
-	signingService *SigningService
+	samlIdPService *SAMLIdPService
 }
 
 func (t testClient) GetRole(ctx context.Context, name string) (types.Role, error) {
@@ -92,7 +92,14 @@ func (t testClient) ProcessSAMLIdPRequest(ctx context.Context, req *samlidppb.Pr
 	if t.signingCtx != nil {
 		ctx = t.signingCtx
 	}
-	return t.signingService.ProcessSAMLIdPRequest(ctx, req)
+	return t.samlIdPService.ProcessSAMLIdPRequest(ctx, req)
+}
+
+func (t testClient) TestSAMLIdPAttributeMapping(ctx context.Context, req *samlidppb.TestSAMLIdPAttributeMappingRequest, _ ...grpc.CallOption) (*samlidppb.TestSAMLIdPAttributeMappingResponse, error) {
+	if t.signingCtx != nil {
+		ctx = t.signingCtx
+	}
+	return t.samlIdPService.TestSAMLIdPAttributeMapping(ctx, req)
 }
 
 func (t *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
@@ -185,13 +192,14 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 		},
 	})
 	require.NoError(t, err)
-	signingService, err := NewSigningService(&SigningServiceConfig{
+	samlIdPService, err := NewSAMLIdPService(&SAMLIdPServiceConfig{
 		Client:     client,
 		KeyStore:   keyStore,
 		Authorizer: authorizer,
+		Log:        logrus.NewEntry(logrus.New()),
 	})
 	require.NoError(t, err)
-	client.signingService = signingService
+	client.samlIdPService = samlIdPService
 
 	return testServices{
 		samlIdP:        samlIdP,

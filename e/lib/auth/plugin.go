@@ -216,15 +216,16 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		return trace.Wrap(err)
 	}
 
-	signingService, err := saml.NewSigningService(&saml.SigningServiceConfig{
+	samlIdPService, err := saml.NewSAMLIdPService(&saml.SAMLIdPServiceConfig{
 		Client:     p.authServer.AuthServer,
 		KeyStore:   p.authServer.AuthServer.GetKeyStore(),
 		Authorizer: p.authServer.Authorizer,
+		Log:        log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	samlidppb.RegisterSAMLIdPServiceServer(gRPCServer, signingService)
+	samlidppb.RegisterSAMLIdPServiceServer(gRPCServer, samlIdPService)
 
 	// register the start hour getter so that auth can use it during periodic MaintenanceWindow
 	// resource sync.

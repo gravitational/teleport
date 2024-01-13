@@ -8,9 +8,11 @@ import (
 	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -29,8 +31,8 @@ type ProcessSAMLIdPRequestClient interface {
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextToken string) ([]types.SAMLIdPServiceProvider, string, error)
 }
 
-// SigningServiceConfig is the config for the signing service.
-type SigningServiceConfig struct {
+// SAMLIdPServiceConfig is the config for the SAML IdP service.
+type SAMLIdPServiceConfig struct {
 	// Client is the SAML client used for retrieving CAs and cluster names.
 	Client ProcessSAMLIdPRequestClient
 
@@ -39,9 +41,12 @@ type SigningServiceConfig struct {
 
 	// Authorizer is for authorizing the signing requests.
 	Authorizer authz.Authorizer
+
+	// Log is the logrus logging entry.
+	Log *logrus.Entry
 }
 
-func (s *SigningServiceConfig) CheckAndSetDefaults() error {
+func (s *SAMLIdPServiceConfig) CheckAndSetDefaults() error {
 	if s.Client == nil {
 		return trace.BadParameter("client is missing")
 	}
@@ -51,36 +56,42 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 	if s.Authorizer == nil {
 		return trace.BadParameter("authorizer is missing")
 	}
+	if s.Log == nil {
+		return trace.BadParameter("logger is missing")
+	}
 
 	return nil
 }
 
-// NewSigningServicew will create the new signing service.
-func NewSigningService(cfg *SigningServiceConfig) (*SigningService, error) {
+// NewSAMNewSAMLIdPServiceLIdP will create the new SAML IdP service.
+func NewSAMLIdPService(cfg *SAMLIdPServiceConfig) (*SAMLIdPService, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &SigningService{
+	return &SAMLIdPService{
 		client:     cfg.Client,
 		keyStore:   cfg.KeyStore,
 		authorizer: cfg.Authorizer,
+		log:        cfg.Log,
 	}, nil
 }
 
-// SigningService is the service that signs SAML IdP responses.
-type SigningService struct {
+// SAMLIdPService is the SAML IdP service used for
+// SAML response signing and testing attribute mapping configuration.
+type SAMLIdPService struct {
 	samlidppb.UnimplementedSAMLIdPServiceServer
 
 	client     ProcessSAMLIdPRequestClient
 	keyStore   *keystore.Manager
 	authorizer authz.Authorizer
+	log        *logrus.Entry
 }
 
 // ProcessSAMLIdPRequest makes a signed SAML response to a SAML auth request.
 //
 //nolint:revive // Because we want this to be IdP.
-func (s *SigningService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidppb.ProcessSAMLIdPRequestRequest) (*samlidppb.ProcessSAMLIdPRequestResponse, error) {
+func (s *SAMLIdPService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidppb.ProcessSAMLIdPRequestRequest) (*samlidppb.ProcessSAMLIdPRequestResponse, error) {
 	// Only the proxy can sign SAML IdP requests.
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -192,4 +203,82 @@ func (s *SigningService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 	}
 
 	return resp, nil
+}
+
+func (s *SAMLIdPService) TestSAMLIdPAttributeMapping(ctx context.Context, req *samlidppb.TestSAMLIdPAttributeMappingRequest) (*samlidppb.TestSAMLIdPAttributeMappingResponse, error) {
+	// only users who can create attribute mapping should be able to test it.
+	if err := s.authorizeAccess(ctx, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var mappableUserSpec []samlMappableUserSpec
+	for _, user := range req.Users {
+		mappableUserSpec = append(mappableUserSpec, samlMappableUserSpec{
+			Username: user.GetName(),
+			Roles:    user.Spec.Roles,
+			Traits:   user.Spec.Traits,
+		})
+	}
+
+	var resp samlidppb.TestSAMLIdPAttributeMappingResponse
+	for _, userSpec := range mappableUserSpec {
+		var attributes []saml.Attribute
+		reqAttrs := attributeToRequestedAttribute(req.ServiceProvider.GetAttributeMapping())
+		evaluatedAttributes, err := evaluateAttributes(reqAttrs, userSpec)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		attributes = append(attributes, evaluatedAttributes...)
+		mapped := attributeToTestSAMLIdPAttributeMappingResponse(userSpec.Username, attributes)
+		resp.MappedAttributes = append(resp.MappedAttributes, mapped)
+	}
+
+	return &resp, nil
+}
+
+// authorizeAccess checks user context with given authorizeVerbs against KindSAMLIdPServiceProvider resource.
+func (s *SAMLIdPService) authorizeAccess(ctx context.Context, authorizeVerbs ...string) error {
+	authzWithContext, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true /* quiet */, types.KindSAMLIdPServiceProvider, authorizeVerbs...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err = authz.AuthorizeAdminAction(ctx, authzWithContext); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func attributeToRequestedAttribute(attributes []*types.SAMLAttributeMapping) (reqAttrs []saml.RequestedAttribute) {
+	for _, v := range attributes {
+		reqAttrs = append(reqAttrs, saml.RequestedAttribute{
+			Attribute: saml.Attribute{
+				FriendlyName: v.Name,
+				Name:         v.Name,
+				NameFormat:   v.NameFormat,
+				Values:       []saml.AttributeValue{{Value: v.Value}},
+			},
+		})
+	}
+	return
+}
+
+func attributeToTestSAMLIdPAttributeMappingResponse(user string, attributes []saml.Attribute) *samlidppb.MappedAttribute {
+	mapped := make(map[string]*wrappers.StringValues)
+	for _, attr := range attributes {
+		mapped[attr.Name] = &wrappers.StringValues{
+			Values: attributeValuesToStringSlice(attr.Values),
+		}
+	}
+	return &samlidppb.MappedAttribute{
+		Username:     user,
+		MappedValues: mapped,
+	}
+}
+
+func attributeValuesToStringSlice(avals []saml.AttributeValue) []string {
+	av := make([]string, 0)
+	for _, v := range avals {
+		av = append(av, v.Value)
+	}
+	return av
 }
