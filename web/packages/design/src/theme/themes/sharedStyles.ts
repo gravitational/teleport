@@ -60,6 +60,7 @@ export const sharedStyles: SharedStyles = {
 
 // Colors that are shared between all themes, these should be added to the theme.colors object.
 export const sharedColors: SharedColors = {
+  interactionHandle: '#FFFFFF',
   dark: '#000000',
   light: '#FFFFFF',
   grey: {
