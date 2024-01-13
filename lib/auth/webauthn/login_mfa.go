@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -100,7 +101,11 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*wantypes.Credentia
 		identity:    mfaIdentity{f.Identity},
 		sessionData: (*userSessionStorage)(f),
 	}
-	return lf.begin(ctx, user, false /* passwordless */)
+	ext := mfav1.ChallengeExtensions{
+		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+	}
+	return lf.begin(ctx, user, ext)
 }
 
 // Finish is the second and last step of the LoginFlow.
