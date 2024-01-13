@@ -332,9 +332,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 
 	// The user just solved the challenge, so let's make sure it won't be used
-	// again.
-	if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
-		log.Warnf("WebAuthn: failed to delete login SessionData for user %v (passwordless = %v)", user, passwordless)
+	// again, unless reuse is explicitly allowed.
+	if sd.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
+			log.Warnf("WebAuthn: failed to delete login SessionData for user %v (scope = %s)", user, sd.ChallengeExtensions.Scope)
+		}
 	}
 
 	return dev, user, nil
