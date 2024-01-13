@@ -312,9 +312,11 @@ function TdpClientCanvas(props: Props) {
       };
       client.on(TdpClientEvent.RESET, _clearCanvas);
 
-      return () => { client.removeListener(TdpClientEvent.RESET, _clearCanvas) };
+      return () => {
+        client.removeListener(TdpClientEvent.RESET, _clearCanvas);
+      };
     }
-  }, [client])
+  }, [client]);
 
   // Call connect after all listeners have been registered
   useEffect(() => {
