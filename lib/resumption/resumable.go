@@ -320,10 +320,8 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, sentPos
 			return trace.Wrap(err, "writing frame data")
 		}
 
-		r.mu.Lock()
 		sentPosition += frameAck
 		peerPosition += len64(frameData)
-		r.mu.Unlock()
 	}
 }
 
