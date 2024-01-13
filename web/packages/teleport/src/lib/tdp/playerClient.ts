@@ -19,8 +19,9 @@
 import { throttle } from 'shared/utils/highbar';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 
-import Client, { TdpClientEvent } from './client';
 import { StatusEnum } from 'teleport/lib/player';
+
+import Client, { TdpClientEvent } from './client';
 import { ClientScreenSpec } from './codec';
 
 // we update the time every time we receive data, or

@@ -21,13 +21,14 @@ import React, { memo, useEffect, useRef } from 'react';
 import { TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
 
+import { TdpClient } from 'teleport/lib/tdp';
+
 import type { CSSProperties } from 'react';
 import type {
   PngFrame,
   ClientScreenSpec,
   ClipboardData,
 } from 'teleport/lib/tdp/codec';
-import { TdpClient } from 'teleport/lib/tdp';
 
 function TdpClientCanvas(props: Props) {
   const {

@@ -19,8 +19,9 @@
 import { throttle } from 'shared/utils/highbar';
 import Logger from 'shared/libs/logger';
 
-import Tty from './tty';
 import { StatusEnum } from 'teleport/lib/player';
+
+import Tty from './tty';
 import { TermEvent, WebsocketCloseCode } from './enums';
 
 const logger = Logger.create('TtyPlayer');

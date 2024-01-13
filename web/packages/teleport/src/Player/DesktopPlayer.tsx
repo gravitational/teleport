@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -27,11 +26,12 @@ import { PlayerClient, TdpClient } from 'teleport/lib/tdp';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 
+import { formatDisplayTime } from 'teleport/lib/player';
+
 import ProgressBar from './ProgressBar';
 
 import type { PngFrame, ClientScreenSpec } from 'teleport/lib/tdp/codec';
 import type { BitmapFrame } from 'teleport/lib/tdp/client';
-import { formatDisplayTime } from 'teleport/lib/player';
 
 const reload = () => window.location.reload();
 const handleContextMenu = () => true;
