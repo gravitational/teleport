@@ -508,7 +508,7 @@ func maybeFilterCertAuthorityWatches(ctx context.Context, watch *types.Watch) fu
 			// later.
 			// As a precaution, do nothing when any of the CA WatchKind(s) are
 			// non-trivial.
-			log.Warnf("Cannot inject filter into non-trivial CertAuthority watcher with client version %s.", clientVersion)
+			log.Debugf("Cannot inject filter into non-trivial CertAuthority watcher with client version %s.", clientVersion)
 			return nil
 		}
 		targets = append(targets, &watch.Kinds[i])
