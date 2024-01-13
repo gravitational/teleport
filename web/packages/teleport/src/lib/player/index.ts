@@ -16,8 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import TdpClient, { TdpClientEvent } from './client';
-import { PlayerClient } from './playerClient';
-import { ButtonState, ScrollAxis } from './codec';
+export enum StatusEnum {
+  LOADING = 'LOADING',
+  PLAYING = 'PLAYING',
+  PAUSED = 'PAUSED',
+  COMPLETE = 'COMPLETE',
+  ERROR = 'ERROR',
+}
 
-export { TdpClient, TdpClientEvent, PlayerClient, ButtonState, ScrollAxis };
+export function formatDisplayTime(ms: number) {
+  if (ms <= 0) {
+    return '00:00';
+  }
+
+  const totalSec = Math.floor(ms / 1000);
+  const totalDays = (totalSec % 31536000) % 86400;
+  const h = Math.floor(totalDays / 3600);
+  const m = Math.floor((totalDays % 3600) / 60);
+  const s = (totalDays % 3600) % 60;
+
+  return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s
+    .toString()
+    .padStart(2, '0')}`;
+}
