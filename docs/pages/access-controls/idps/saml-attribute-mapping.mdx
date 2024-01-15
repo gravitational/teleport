@@ -4,10 +4,10 @@ description: How to map user attributes to custom SAML response
 h1: SAML Attribute Mapping
 ---
 
-Attribute mapping configures SAML Identity Provider to assert custom user attributes in SAML response.
+Attribute mapping configures Teleport SAML Identity Provider to assert custom user attributes in SAML response
 The Teleport SAML IdP supports three configurable fields for attribute mapping:
 - `name`: Name of the outgoing attribute. Required. Name should be unique across attribute mapping.
-- `value`: Value defined using predicate expression, which can be mapped to Teleport user name, roles or traits. Required.
+- `value`: Value defined using a predicate expression, which can reference Teleport usernames, roles or traits. Required.
 - `name_format`: SAML attribute name format. Optional. The following formats are supported:
     - `unspecified`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified`. Used as a default value.
     - `uri`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:uri`.
@@ -34,9 +34,9 @@ spec:
 
 ## Attribute value evaluation
 
-Attribute values are authored using Predicate expression. During SSO request, the expressions will be parsed from the
-Service Provider metadata and passed to Predicate evaluator for evaluation. The resulting values are asserted in the SAML
-response under the requested attribute name.
+Attribute values are authored using predicate expressions. During an SSO request, the expressions will be parsed from the
+Service Provider metadata and passed to predicate evaluator for evaluation with the authenticated user context.
+The resulting values are asserted in the SAML response under the requested attribute name.
 
 Given a correct and supported predicate expression, attributes will be mapped as long as the requested attributes are present in Teleport.
 Attribute mapping that points to a non-existent value will not be included in SAML assertion.
@@ -56,8 +56,8 @@ The following user attributes are available for mapping between Teleport IdP and
 
 Predicate expressions for attribute mapping are evaluated against user attributes that can be accessed using evaluation context listed above.
 
-Expression syntax are similar to how expressions are used in [Login Rules](../login-rules/reference.mdx). But not all of the 
-functions and methods are available for attribute mapping. The supported functions and methods are listed below, along with 
+Expression syntax are similar to how expressions are used in [Login Rules](../login-rules/reference.mdx). But not all of the
+functions and methods are available for attribute mapping. The supported functions and methods are listed below, along with
 the usage syntax and it's result, evaluated against the following reference user spec file:
 ```
 # reference user spec file
@@ -95,7 +95,7 @@ You can also add an entirely new value that is not available in the user spec fi
 E.g.:
 Expression | Result
 -----------| ------
-`set.add("entirely-new-role")` | `entirely-new-role`
+`set().add("prod-ssh")` or `set("prod-ssh")` | `prod-ssh`
 
 #### `remove`
 Remove value(s). Works on `user.spec.roles` and `user.spec.traits.groups`
@@ -134,7 +134,7 @@ Expression | Result
 Split string at matching character.
 Expression | Result
 -----------| ------
-`strings.split(user.spec.traits.groups, "-", " ")` | `okta admin, dev sso, dev rdp`
+`strings.split(user.spec.traits.groups, "-")` | `okta, admin, dev, sso, rdp`
 
 #### `ifelse`
 Conditionally return values. To be used in conjunction with methods such as `contains`.
