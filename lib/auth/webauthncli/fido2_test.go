@@ -185,7 +185,7 @@ func TestIsFIDO2Available(t *testing.T) {
 
 func TestFIDO2Login(t *testing.T) {
 	resetFIDO2AfterTests(t)
-	wancli.FIDO2PollInterval = 1 * time.Millisecond // run fast on tests
+	wancli.FIDO2PollInterval = 1 * time.Millisecond // Run fast on tests
 
 	const rpID = "example.com"
 	const appID = "https://example.com"
@@ -828,6 +828,7 @@ func (cp *countingPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
 
 func TestFIDO2Login_PromptTouch(t *testing.T) {
 	resetFIDO2AfterTests(t)
+	wancli.FIDO2PollInterval = 1 * time.Millisecond // Run fast on tests.
 
 	const rpID = "example.com"
 	const origin = "https://example.com"
@@ -1401,6 +1402,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 
 func TestFIDO2Register(t *testing.T) {
 	resetFIDO2AfterTests(t)
+	wancli.FIDO2PollInterval = 1 * time.Millisecond // Run fast on tests.
 
 	const rpID = "example.com"
 	const origin = "https://example.com"
