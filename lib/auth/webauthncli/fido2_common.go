@@ -35,6 +35,9 @@ var (
 	// FIDO2PollInterval is the poll interval used to check for new FIDO2 devices.
 	FIDO2PollInterval  = 5 * time.Second        // Poll less frequently than 2 Hz / 0.5 second.
 	fido2RetryInterval = 600 * time.Millisecond // Poll less frequently than 2 Hz / 0.5 second.
+
+	// Timeout for FIDO2 device communication.
+	fido2DeviceTimeout = 30 * time.Second
 )
 
 // FIDO2Login implements Login for CTAP1 and CTAP2 devices.
