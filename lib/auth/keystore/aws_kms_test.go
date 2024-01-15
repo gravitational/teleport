@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestAWSKMS_DeleteUnusedKeys tests the AWS KMS keystore's DeleteUnusedKeys
+// TestAWSKMS_deleteUnusedKeys tests the AWS KMS keystore's deleteUnusedKeys
 // method under conditions where the ListKeys response is paginated and/or
 // includes keys created by other clusters.
 //
@@ -322,7 +322,6 @@ func (f *fakeAWSKMSService) ListKeysWithContext(ctx aws.Context, input *kms.List
 		output.NextMarker = aws.String(strconv.Itoa(i))
 		output.Truncated = aws.Bool(true)
 	}
-	fmt.Println("NIC ListKeys", aws.StringValue(input.Marker), len(output.Keys), output.NextMarker)
 	return output, nil
 }
 
