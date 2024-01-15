@@ -36,3 +36,12 @@ EuIXJJox2oAL7NzdSi9VIUYnEnx+2EtkU/spAFRR6i1BnT6aoIy3521B76wnmRr9
 atCSKjt6MdRxgj4htCjBWWJAGM9Z/avF4CYFmK7qiVxgpdrSM8Esbt2Ta+Lu3QMJ
 T8LjqFu3u3dxVOo9RuLk+BkCAwEAAQ==
 -----END PUBLIC KEY-----`)
+
+// teleportCertIdentityRegexp is a regular expression containing the GitHub
+// Actions workflow and associated git ref used as part of keyless signing
+// of Teleport distroless images.
+var teleportCertIdentityRegexp = "https://github\\.com/gravitational/teleport\\.e/\\.github/workflows/oci-image-build\\.yml@refs/tags/.+"
+
+// teleportCertOIDCIssuer is the GitHub Actions OIDC issuer used as part
+// of keyless signing of Teleport distroless images.
+var teleportCertOIDCIssuer = "https://token.actions.githubusercontent.com/teleport"

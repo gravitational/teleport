@@ -22,14 +22,17 @@ import (
 	"context"
 	"crypto"
 	"encoding/hex"
+	"strconv"
 
 	"github.com/distribution/reference"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/gravitational/trace"
+	"github.com/mitchellh/hashstructure/v2"
 	"github.com/opencontainers/go-digest"
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/fulcioroots"
 	"github.com/sigstore/sigstore/pkg/signature"
 )
 
@@ -40,17 +43,32 @@ import (
 const hashAlgo = crypto.SHA256
 
 type cosignKeyValidator struct {
-	verifier        signature.Verifier
+	sigVerifier     signature.Verifier
+	identities      []cosign.Identity
 	skid            []byte
 	name            string
 	registryOptions []ociremote.Option
 }
 
-// Name returns the validator name, it is composed of a pretty name chosen at creation
-// and its public SubjectKeyID hex-encoded.
+// Name returns the validator name
 func (v *cosignKeyValidator) Name() string {
-	prettySKID := hex.EncodeToString(v.skid)
-	return v.name + "-" + prettySKID
+	// If SubjectKeyID (skid) present, hex-encode it and append to name
+	if v.skid != nil {
+		prettySKID := hex.EncodeToString(v.skid)
+		return v.name + "-" + prettySKID
+	}
+
+	// If identities present, hash the struct and append to name
+	if v.identities != nil {
+		hashedIdentities, err := hashstructure.Hash(v.identities, hashstructure.FormatV2, nil)
+		if err != nil {
+			return v.name
+		}
+		return v.name + "-" + strconv.Itoa(int(hashedIdentities))
+	}
+
+	// If none of the above, just return the name
+	return v.name
 }
 
 // TODO: cache this to protect against registry quotas
@@ -62,7 +80,7 @@ func (v *cosignKeyValidator) Name() string {
 // failure, ValidateAndResolveDigest should cache its result.
 
 // ValidateAndResolveDigest resolves the image digest and validates it was
-// signed with cosign using a trusted static key.
+// signed with cosign using a trusted signature method.
 func (v *cosignKeyValidator) ValidateAndResolveDigest(ctx context.Context, image reference.NamedTagged) (NamedTaggedDigested, error) {
 	// No RegistryClientOpts for now, this means no private repo support
 	// This might also be useful for local testing (running a test registry)
@@ -70,8 +88,22 @@ func (v *cosignKeyValidator) ValidateAndResolveDigest(ctx context.Context, image
 		RegistryClientOpts: v.registryOptions,
 		Annotations:        nil,
 		ClaimVerifier:      cosign.SimpleClaimVerifier,
-		SigVerifier:        v.verifier,
-		IgnoreTlog:         true, // TODO: should we keep this?
+	}
+
+	if v.identities != nil {
+		rootCerts, err := fulcioroots.Get()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		intermediateCerts, err := fulcioroots.GetIntermediates()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		checkOpts.Identities = v.identities
+		checkOpts.RootCerts = rootCerts
+		checkOpts.IntermediateCerts = intermediateCerts
+	} else {
+		checkOpts.SigVerifier = v.sigVerifier
 	}
 
 	ref, err := NamedTaggedToDigest(image)
@@ -113,9 +145,19 @@ func NewCosignSingleKeyValidator(pem []byte, name string) (Validator, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &cosignKeyValidator{
-		verifier: verifier,
-		skid:     skid,
-		name:     name,
+		sigVerifier: verifier,
+		skid:        skid,
+		name:        name,
+	}, nil
+}
+
+// NewCosignKeylessValidator takes an OIDC issuer and identity and returns an
+// img.Validator that checks the image was signed with cosign by the
+// provided certificate parameters.
+func NewCosignKeylessValidator(certIdentityRegexp string, certOidcIssuer string, name string) (Validator, error) {
+	return &cosignKeyValidator{
+		identities: []cosign.Identity{{Issuer: certOidcIssuer, SubjectRegExp: certIdentityRegexp}},
+		name:       name,
 	}, nil
 }
 
