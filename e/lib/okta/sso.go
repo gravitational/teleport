@@ -70,25 +70,31 @@ func (a *ConnectorArgs) Check() error {
 	return nil
 }
 
+// SSOConnectorInfo holds data about the created SSO connector and underlying
+// Okta SAML app. Returned from CreateSSOConnector().
+type SSOConnectorInfo struct {
+	OktaAppID   string
+	OktaAppName string
+}
+
 // CreateSSOConnector automates the creation of an Okta SAML app and
 // corresponding SAML SSO connector in Teleport.
-func CreateSSOConnector(ctx context.Context, args ConnectorArgs) error {
+func CreateSSOConnector(ctx context.Context, args ConnectorArgs) (*SSOConnectorInfo, error) {
 	if err := args.Check(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	_, err := args.SAMLConnectorService.GetSAMLConnector(ctx, args.ConnectorName, false)
 	if err == nil {
-		return trace.AlreadyExists("SAML SSO connector %q already exists", args.ConnectorName)
+		return nil, trace.AlreadyExists("SAML SSO connector %q already exists", args.ConnectorName)
 	}
 
 	// First, we create the Okta side of the connection: an Okta app that will
 	// allow members of the upstream Okta organization to log into Teleport via
 	// SAML.
-
 	app, err := createOktaSAMLApp(ctx, args.OktaClient, args.ClusterName, args.PublicURL, args.ConnectorName, args.Log)
 	if err != nil {
-		return trace.Wrap(err, "creating Okta SAML app")
+		return nil, trace.Wrap(err, "creating Okta SAML app")
 	}
 
 	// The "Everyone" group exists in all Okta instances, and contains all users
@@ -100,13 +106,13 @@ func CreateSSOConnector(ctx context.Context, args ConnectorArgs) error {
 
 	everyone, err := findOktaBuiltinGroup(ctx, args.OktaClient, oktaGroupEveryone)
 	if err != nil {
-		return trace.Wrap(err, "finding Okta group Everyone")
+		return nil, trace.Wrap(err, "finding Okta group Everyone")
 	}
 
 	args.Log.Infof("Assigning everyone (group %s) to app %s (%s)", everyone.Id, app.Name, app.Id)
 	err = args.OktaClient.assignGroupToApplicationByID(ctx, everyone.Id, app.Id)
 	if err != nil {
-		return trace.Wrap(err, "assigning everyone to app")
+		return nil, trace.Wrap(err, "assigning everyone to app")
 	}
 
 	// Now that we have configured the Okta side of the SSO connection, we need
@@ -116,7 +122,7 @@ func CreateSSOConnector(ctx context.Context, args ConnectorArgs) error {
 
 	metadataURL, metadataContentType, err := extractMetadataURL(app.Links)
 	if err != nil {
-		return trace.Wrap(err, "extracting SAML app entity metadata link")
+		return nil, trace.Wrap(err, "extracting SAML app entity metadata link")
 	}
 
 	args.Log.Infof("Downloading entity metadata for app %s from %s as %q",
@@ -128,12 +134,12 @@ func CreateSSOConnector(ctx context.Context, args ConnectorArgs) error {
 	metadata, err := args.OktaClient.doHttp(ctx, http.MethodGet, metadataURL,
 		acceptableContentTypes)
 	if err != nil {
-		return trace.Wrap(err, "fetching SAML app entity metadata")
+		return nil, trace.Wrap(err, "fetching SAML app entity metadata")
 	}
 
 	connectorDisplayName, err := generateConnectorName(ctx, args.OktaClient)
 	if err != nil {
-		return trace.Wrap(err, "generating connector name")
+		return nil, trace.Wrap(err, "generating connector name")
 	}
 
 	// Note that we create the SSO connector with a role mapping gives all users
@@ -154,17 +160,17 @@ func CreateSSOConnector(ctx context.Context, args ConnectorArgs) error {
 		},
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	args.Log.Infof("Creating new SAML SSO connector %s for Okta org %s",
 		connector.GetName(),
 		args.PublicURL)
 	if _, err := args.SAMLConnectorService.CreateSAMLConnector(ctx, connector); err != nil {
-		return trace.Wrap(err, "creating Okta SAML connector")
+		return nil, trace.Wrap(err, "creating Okta SAML connector")
 	}
 
-	return nil
+	return &SSOConnectorInfo{OktaAppID: app.Id, OktaAppName: app.Name}, nil
 }
 
 // box creates a "boxed" (i.e. heap-allocated) copy of any value. Helpful when

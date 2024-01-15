@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -319,7 +320,14 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		staticCredentials: staticCreds,
 		log:               log,
 	}
-	delegate, err := factory(ctx, plugin, deps)
+
+	// Note that we give a copy of the plugin resource to the plugin factory. If
+	// we shared the same resource instance with the plugin process, and that
+	// process were plugin to modify it, then the Plugin Update monitor would
+	// treat that as an update and immediately attempt to restart the plugin,
+	// starting off an infinite sequence of modifications and restarts.
+
+	delegate, err := factory(ctx, apiutils.CloneProtoMsg(plugin), deps)
 	if err != nil {
 		cancel()
 		return trace.Wrap(err)

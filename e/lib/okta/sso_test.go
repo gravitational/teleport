@@ -156,7 +156,7 @@ func TestSSOConectorCreation(t *testing.T) {
 
 		// When I attempt to create a SAML connector and its corresponding
 		// Okta app...
-		err := CreateSSOConnector(ctx, ConnectorArgs{
+		_, err := CreateSSOConnector(ctx, ConnectorArgs{
 			OktaClient:           oktaClient,
 			SAMLConnectorService: samlConnectors,
 			ClusterName:          testClusterName,
@@ -195,7 +195,7 @@ func TestSSOConectorCreation(t *testing.T) {
 		}
 
 		// When I attempt to invoke the automated SSO connector creation...
-		err := CreateSSOConnector(ctx, ConnectorArgs{
+		_, err := CreateSSOConnector(ctx, ConnectorArgs{
 			OktaClient:           oktaClient,
 			SAMLConnectorService: samlConnectors,
 			ClusterName:          testClusterName,

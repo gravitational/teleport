@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -22,9 +23,13 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.BadParameter("static credentials must be present")
 	}
 
-	// For now, we'll just choose the first static credential until we have a need for rotation or other complexity.
-	staticToken := deps.staticCredentials[0].GetAPIToken()
-	if staticToken == "" {
+	oktaAPITokenCred, err := selectOktaAPIToken(deps.staticCredentials)
+	if err != nil {
+		return nil, trace.Wrap(err, "selecting okta credentials")
+	}
+
+	oktaAPIToken := oktaAPITokenCred.GetAPIToken()
+	if oktaAPIToken == "" {
 		return nil, trace.BadParameter("api token is empty")
 	}
 
@@ -34,7 +39,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	oktaSpec.EnableUserSync = oktaSpec.EnableUserSync && modules.GetModules().Features().IGSEnabled()
 
 	return func() error {
-		closeEvent := services.InitOktaPlugin(deps.lifetime, deps.parentProcess, deps.statusSink, *oktaSpec, staticToken, plugin.GetName())
+		closeEvent := services.InitOktaPlugin(deps.lifetime, deps.parentProcess, deps.statusSink, *oktaSpec, oktaAPIToken, plugin.GetName())
 
 		// wait for the calling context to finish before doing anything else.
 		<-deps.lifetime.Done()
@@ -51,4 +56,21 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		deps.log.Info("Okta plugin has stopped")
 		return nil
 	}, nil
+}
+
+func selectOktaAPIToken(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
+
+	// For now, we'll just choose the first eligible static credential until we
+	// have a need for rotation or other complexity.
+	for _, cred := range staticCredentials {
+		// Older Okta API credentials are not labeled with a purpose, so a cred
+		// is considered eligible if it has no purpose label, or a purpose label
+		// set to okta.CredPurposeOktaAuth.
+		purpose, present := cred.GetLabel(okta.CredPurposeLabel)
+		if !present || purpose == okta.CredPurposeOktaAuth {
+			return cred, nil
+		}
+	}
+
+	return nil, trace.NotFound("Okta API token")
 }

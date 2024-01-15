@@ -9,7 +9,41 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// Plugin represents a hosted plugin instance
+// PluginSpec identifies a type as a plugin Spec
+type PluginSpec interface {
+	PluginSpecType() types.PluginType
+}
+
+// OktaPluginSpec holds information about the Okta plugin.
+type OktaPluginSpec struct {
+	// SCIMBearerToken is the plain text of the bearer token that Okta will use
+	// to authenticate SCIM requests
+	SCIMBearerToken string `json:"scimBearerToken,omitempty"`
+
+	// OktaAppID is the Okta ID of the SAML App created during the Okta plugin
+	// installation
+	OktaAppID string `json:"oktaAppId,omitempty"`
+
+	// OktaAppName is the human readable name of the Okta SAML app created
+	// during the Okta plugin installation
+	OktaAppName string `json:"oktaAppName,omitempty"`
+
+	// TeleportSSOConnector is the name of the Teleport SAML SSO connector
+	// created by the plugin during installation
+	TeleportSSOConnector string `json:"teleportSsoConnector,omitempty"`
+
+	// Error contains a description of any failures during plugin installation
+	// that were deemed not serious enough to fail the plugin installation, but
+	// may effect the operation of advanced features like User Sync or SCIM.
+	Error string `json:"error,omitempty"`
+}
+
+// PluginSpecType implements PluginSpec for OktaPluginSpec
+func (*OktaPluginSpec) PluginSpecType() types.PluginType {
+	return types.PluginTypeOkta
+}
+
+// Plugin holds a UI-visible representation of a hosted plugin instance
 type Plugin struct {
 	// Name of the plugin
 	Name string `json:"name"`
@@ -23,6 +57,10 @@ type Plugin struct {
 
 	// StatusCode is the user-facing plugin status
 	StatusCode types.PluginStatusCode `json:"statusCode"`
+
+	// Spec contains any pluginType-specific information that may be useful to
+	// the UI. May be nil at any time.
+	Spec PluginSpec `json:"spec,omitempty"`
 }
 
 // NewPlugin constructs a new UI plugin from types.Plugin
