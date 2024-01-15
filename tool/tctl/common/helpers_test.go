@@ -159,6 +159,16 @@ func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts .
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
 }
 
+func runBotsCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &BotsCommand{
+		stdout: &stdoutBuff,
+	}
+
+	args = append([]string{"bots"}, args...)
+	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
+}
+
 func runUserCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
 	command := &UserCommand{}
 	args = append([]string{"users"}, args...)
