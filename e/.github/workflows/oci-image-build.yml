@@ -398,7 +398,7 @@ jobs:
           AWS_REGION: ${{ inputs.dest-image-registry-region }}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@2b6a709cf9c4025c5438138008beaddbb02086f0 # v0.14.0
+        uses: aquasecurity/trivy-action@d43c1f16c00cfd3978dde6c07f4bbcf9eb6993ca # v0.16.1
         with:
           image-ref: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
           ignore-unfixed: true
