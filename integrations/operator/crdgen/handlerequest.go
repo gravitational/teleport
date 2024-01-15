@@ -85,8 +85,11 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 
 	resources := []resource{
 		{name: "UserV2"},
+		// Role V5 is using the RoleV6 message
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5)}},
+		// Role V6 and V7 have their own Kubernetes kind
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionInKindOverride()}},
+		// Role V7 is using the RoleV6 message
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V7), withVersionInKindOverride()}},
 		{name: "SAMLConnectorV2"},
 		{name: "OIDCConnectorV3"},

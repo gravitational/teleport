@@ -51,16 +51,27 @@ type SchemaGenerator struct {
 
 // RootSchema is a wrapper for a message we are generating a schema for.
 type RootSchema struct {
-	groupName      string
-	versions       []SchemaVersion
-	name           string
-	pluralName     string
-	teleportKind   string
+	groupName  string
+	versions   []SchemaVersion
+	name       string
+	pluralName string
+	// teleportKind is the kind of the Teleport resource
+	teleportKind string
+	// kubernetesKind is the kind of the Kubernetes resource. This is the
+	// teleportKind, prefixed by "Teleport" and potentially suffixed by the
+	// version. Since v15, resources with multiple versions are exposed through
+	// different kinds. At some point we will suffix all kinds by the version
+	// and deprecate the old resources.
 	kubernetesKind string
 }
 
 type SchemaVersion struct {
-	teleportVersion   string
+	// teleportVersion is the Teleport resource version
+	teleportVersion string
+	// kubernetesVersion is the Kubernetes CR API version. For single-version
+	// Teleport resource, this is equal to teleportVersion for compatibility
+	// purposes. For multi-version resource, the value is always "v1" as the
+	// version is already in the CR kind.
 	kubernetesVersion string
 	Schema            *Schema
 }
@@ -107,6 +118,7 @@ func withVersionOverride(version string) resourceSchemaOption {
 	}
 }
 
+// set this onlt on new multi-version resources
 func withVersionInKindOverride() resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
 		cfg.kindContainsVersion = true
@@ -195,8 +207,13 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		}
 		generator.roots[kubernetesKind] = root
 	}
+
+	// For legacy CRs with a single version, we use the Teleport version as the
+	// Kubernetes API version
 	kubernetesVersion := resourceVersion
 	if cfg.kindContainsVersion {
+		// For new multi-version resources we always set the version to "v1" as
+		// the Teleport version is also in the CR kind.
 		kubernetesVersion = "v1"
 	}
 	root.versions = append(root.versions, SchemaVersion{
@@ -204,8 +221,6 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		kubernetesVersion: kubernetesVersion,
 		Schema:            schema,
 	})
-
-	// }
 
 	return nil
 }
