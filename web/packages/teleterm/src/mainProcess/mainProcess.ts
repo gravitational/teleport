@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ChildProcess, fork, spawn, exec } from 'child_process';
-import path from 'path';
-import fs from 'fs/promises';
-
-import { promisify } from 'util';
+import { ChildProcess, fork, spawn, exec } from 'node:child_process';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { promisify } from 'node:util';
 
 import {
   app,
@@ -31,6 +30,7 @@ import {
   nativeTheme,
   shell,
 } from 'electron';
+import { ChannelCredentials } from '@grpc/grpc-js';
 
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
@@ -43,6 +43,9 @@ import {
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
+import * as grpcCreds from 'teleterm/services/grpcCredentials';
+import { createTshdClient } from 'teleterm/services/tshd/createClient';
+import { TshdClient } from 'teleterm/services/tshd/types';
 
 import {
   ConfigService,
@@ -148,6 +151,14 @@ export default class MainProcess {
       this.logger.error('Failed to start main process: ', err.message);
       app.exit(1);
     }
+  }
+
+  async initTshdClient(): Promise<TshdClient> {
+    const { tsh: tshdAddress } = await this.resolvedChildProcessAddresses;
+    return setUpTshdClient({
+      runtimeSettings: this.settings,
+      tshdAddress,
+    });
   }
 
   private initTshd() {
@@ -565,4 +576,41 @@ function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
     }
     return pending;
   };
+}
+
+/**
+ * Sets up the gRPC client for tsh daemon used in the main process.
+ */
+async function setUpTshdClient({
+  runtimeSettings,
+  tshdAddress,
+}: {
+  runtimeSettings: RuntimeSettings;
+  tshdAddress: string;
+}): Promise<TshdClient> {
+  const creds = await createGrpcCredentials(runtimeSettings);
+  return createTshdClient(tshdAddress, creds);
+}
+
+async function createGrpcCredentials(
+  runtimeSettings: RuntimeSettings
+): Promise<ChannelCredentials> {
+  if (!grpcCreds.shouldEncryptConnection(runtimeSettings)) {
+    return grpcCreds.createInsecureClientCredentials();
+  }
+
+  const { certsDir } = runtimeSettings;
+  const [mainProcessKeyPair, tshdCert] = await Promise.all([
+    grpcCreds.generateAndSaveGrpcCert(
+      certsDir,
+      grpcCreds.GrpcCertName.MainProcess
+    ),
+    grpcCreds.readGrpcCert(certsDir, grpcCreds.GrpcCertName.Tshd),
+    // tsh daemon expects both certs to be created before accepting connections. So even though the
+    // main process does not use the cert of the renderer process, it must still wait for the cert
+    // to be saved to disk.
+    grpcCreds.readGrpcCert(certsDir, grpcCreds.GrpcCertName.Renderer),
+  ]);
+
+  return grpcCreds.createClientCredentials(mainProcessKeyPair, tshdCert);
 }

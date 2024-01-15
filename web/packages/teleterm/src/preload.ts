@@ -118,6 +118,10 @@ async function createGrpcCredentials(
     generateAndSaveGrpcCert(certsDir, GrpcCertName.Renderer),
     readGrpcCert(certsDir, GrpcCertName.Tshd),
     readGrpcCert(certsDir, GrpcCertName.Shared),
+    // tsh daemon expects both certs to be created before accepting connections. So even though the
+    // renderer process does not use the cert of the main process, it must still wait for the cert
+    // to be saved to disk.
+    readGrpcCert(certsDir, GrpcCertName.MainProcess),
   ]);
 
   return {
