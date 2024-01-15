@@ -573,7 +573,12 @@ func runOnFIDO2Devices(
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	closeDev := true
 	defer func() {
+		if !closeDev {
+			return
+		}
 		err := dev.Close()
 		log.Debugf("FIDO2: Close device %v: %v", dev.info.path, err)
 	}()
@@ -602,11 +607,15 @@ func runOnFIDO2Devices(
 		return trace.Wrap(err)
 	}
 
+	// Relinquish device ownership to the selectDevice call below.
+	// This is important because closing the device while the callback runs will
+	// cause a panic/segfault.
+	closeDev = false
+
 	// Run the callback again with the informed PIN.
 	// selectDevice is used since it correctly deals with cancellation.
 	cb = withoutPINHandler(withRetries(deviceCallback))
-	_, err = selectDevice(ctx, pin, dev, cb)
-	if err != nil {
+	if _, err = selectDevice(ctx, pin, dev, cb, true /* takeOwnership */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -842,7 +851,7 @@ func findAndSelectDevice(ctx context.Context, filter deviceFilterFunc, deviceCal
 				dev := dev
 				selectGoroutines++
 				go func() {
-					requiresPIN, err := selectDevice(innerCtx, "" /* pin */, dev, cb)
+					requiresPIN, err := selectDevice(innerCtx, "" /* pin */, dev, cb, false /* takeOwnership */)
 					selectC <- selectResp{
 						dev:         dev,
 						requiresPIN: requiresPIN,
@@ -937,6 +946,7 @@ func findDevices(knownPaths map[string]struct{}) ([]*deviceWithInfo, error) {
 func selectDevice(
 	ctx context.Context,
 	pin string, dev *deviceWithInfo, cb pinAwareCallbackFunc,
+	takeOwnership bool,
 ) (requiresPIN bool, err error) {
 	// Spin a goroutine to run the callback so we can deal with context
 	// cancellation.
@@ -944,6 +954,11 @@ func selectDevice(
 	go func() {
 		requiresPIN, err = cb(dev, dev.info, pin)
 		close(done)
+
+		if takeOwnership {
+			closeErr := dev.Close()
+			log.Debugf("FIDO2: Close device %v: %v", dev.info.path, closeErr)
+		}
 	}()
 
 	select {
