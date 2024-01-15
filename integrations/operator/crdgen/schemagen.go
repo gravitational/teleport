@@ -51,16 +51,18 @@ type SchemaGenerator struct {
 
 // RootSchema is a wrapper for a message we are generating a schema for.
 type RootSchema struct {
-	groupName  string
-	versions   []SchemaVersion
-	name       string
-	pluralName string
-	kind       string
+	groupName      string
+	versions       []SchemaVersion
+	name           string
+	pluralName     string
+	teleportKind   string
+	kubernetesKind string
 }
 
 type SchemaVersion struct {
-	Version string
-	Schema  *Schema
+	teleportVersion   string
+	kubernetesVersion string
+	Schema            *Schema
 }
 
 // Schema is a set of object properties.
@@ -92,8 +94,9 @@ func NewSchema() *Schema {
 }
 
 type resourceSchemaConfig struct {
-	versionOverride  string
-	customSpecFields []string
+	versionOverride     string
+	customSpecFields    []string
+	kindContainsVersion bool
 }
 
 type resourceSchemaOption func(*resourceSchemaConfig)
@@ -101,6 +104,12 @@ type resourceSchemaOption func(*resourceSchemaConfig)
 func withVersionOverride(version string) resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
 		cfg.versionOverride = version
+	}
+}
+
+func withVersionInKindOverride() resourceSchemaOption {
+	return func(cfg *resourceSchemaConfig) {
+		cfg.kindContainsVersion = true
 	}
 }
 
@@ -165,22 +174,38 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 	if cfg.versionOverride != "" {
 		resourceVersion = cfg.versionOverride
 	}
+	kubernetesKind := resourceKind
+	if cfg.kindContainsVersion {
+		kubernetesKind = resourceKind + strings.ToUpper(resourceVersion)
+	}
 	schema.Description = fmt.Sprintf("%s resource definition %s from Teleport", resourceKind, resourceVersion)
 
-	root, ok := generator.roots[resourceKind]
+	root, ok := generator.roots[kubernetesKind]
 	if !ok {
-		root = &RootSchema{
-			groupName:  generator.groupName,
-			kind:       resourceKind,
-			name:       strings.ToLower(resourceKind),
-			pluralName: strings.ToLower(english.PluralWord(2, resourceKind, "")),
+		pluralName := strings.ToLower(english.PluralWord(2, resourceKind, ""))
+		if cfg.kindContainsVersion {
+			pluralName = pluralName + resourceVersion
 		}
-		generator.roots[resourceKind] = root
+		root = &RootSchema{
+			groupName:      generator.groupName,
+			teleportKind:   resourceKind,
+			kubernetesKind: kubernetesKind,
+			name:           strings.ToLower(kubernetesKind),
+			pluralName:     pluralName,
+		}
+		generator.roots[kubernetesKind] = root
+	}
+	kubernetesVersion := resourceVersion
+	if cfg.kindContainsVersion {
+		kubernetesVersion = "v1"
 	}
 	root.versions = append(root.versions, SchemaVersion{
-		Version: resourceVersion,
-		Schema:  schema,
+		teleportVersion:   resourceVersion,
+		kubernetesVersion: kubernetesVersion,
+		Schema:            schema,
 	})
+
+	// }
 
 	return nil
 }
@@ -390,8 +415,8 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 		Spec: apiextv1.CustomResourceDefinitionSpec{
 			Group: root.groupName,
 			Names: apiextv1.CustomResourceDefinitionNames{
-				Kind:       k8sKindPrefix + root.kind,
-				ListKind:   k8sKindPrefix + root.kind + "List",
+				Kind:       k8sKindPrefix + root.kubernetesKind,
+				ListKind:   k8sKindPrefix + root.kubernetesKind + "List",
 				Plural:     strings.ToLower(k8sKindPrefix + root.pluralName),
 				Singular:   strings.ToLower(k8sKindPrefix + root.name),
 				ShortNames: root.getShortNames(),
@@ -425,15 +450,14 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 	for i, schemaVersion := range root.versions {
 
 		var statusType crdtools.TypeIdent
-		versionName := schemaVersion.Version
 		schema := schemaVersion.Schema
 		for _, pkg := range pkgs {
 			// This if is a bit janky, condition checking should be stronger
-			if pkg.Name == versionName {
+			if pkg.Name == schemaVersion.teleportVersion {
 				parser.NeedPackage(pkg)
 				statusType = crdtools.TypeIdent{
 					Package: pkg,
-					Name:    fmt.Sprintf("%s%sStatus", k8sKindPrefix, root.kind),
+					Name:    fmt.Sprintf("%s%sStatus", k8sKindPrefix, root.teleportKind),
 				}
 				// Kubernetes CRDs don't support $ref in openapi schemas, we need a flattened schema
 				parser.NeedFlattenedSchemaFor(statusType)
@@ -441,7 +465,7 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 		}
 
 		crd.Spec.Versions = append(crd.Spec.Versions, apiextv1.CustomResourceDefinitionVersion{
-			Name:   versionName,
+			Name:   schemaVersion.kubernetesVersion,
 			Served: true,
 			// Storage the first version available.
 			Storage: i == 0,
@@ -451,7 +475,7 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 			Schema: &apiextv1.CustomResourceValidation{
 				OpenAPIV3Schema: &apiextv1.JSONSchemaProps{
 					Type:        "object",
-					Description: fmt.Sprintf("%s is the Schema for the %s API", root.kind, root.pluralName),
+					Description: fmt.Sprintf("%s is the Schema for the %s API", root.kubernetesKind, root.pluralName),
 					Properties: map[string]apiextv1.JSONSchemaProps{
 						"apiVersion": {
 							Type:        "string",

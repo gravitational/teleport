@@ -86,7 +86,8 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 	resources := []resource{
 		{name: "UserV2"},
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5)}},
-		{name: "RoleV6"},
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionInKindOverride()}},
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V7), withVersionInKindOverride()}},
 		{name: "SAMLConnectorV2"},
 		{name: "OIDCConnectorV3"},
 		{name: "GithubConnectorV3"},
