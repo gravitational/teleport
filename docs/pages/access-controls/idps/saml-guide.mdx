@@ -17,7 +17,7 @@ authenticate to external services.
 - If you're new to SAML, consider reviewing our [SAML Identity Provider
   Reference](./saml-reference.mdx) before proceeding.
 - User with permission to create Service Provider resource. The preset `editor` role has this permission.
-- Test SAML application, also known as SAML Service Provider (SP). For this guide, we'll be using 
+- Test SAML application, also known as SAML Service Provider (SP). For this guide, we'll be using
 [samltest.id](https://samltest.id/) to create a test consumer of Teleport's SAML IdP.
 
 ## Step 1/3. Add samltest.id Service Provider to Teleport
@@ -35,8 +35,8 @@ metadata:
   # service provider as well as in identity provider initiated SSO.
   name: samltest-id
 spec:
-   # entity_id is the metadata endpoint of service provider
-   # that serves entity descriptor, aka SP metadata.
+  # entity_id is the metadata endpoint of service provider
+  # that serves entity descriptor, aka SP metadata.
   entity_id: https://samltest.id/saml/sp
   # acs_url is the endpoint where users will be redirected after
   # SAML authentication.
@@ -53,14 +53,14 @@ $ tctl create saml-sp.yaml
 Teleport now trusts the samltest.id service provider.
 
 <Admonition type="note" title="Entity Descriptor">
-Teleport tries to fetch an entity descriptor by quering Entity ID endpoint.
-If an entity descriptor is not found in that endpoint, Teleport will generate
+Teleport tries to fetch an entity descriptor by quering the Entity ID endpoint.
+If an entity descriptor is not found at that endpoint, Teleport will generate
 a new entity descriptor with the given Entity ID and ACS URL values.
 
-If you need a manual control over configuring entity descriptor, you may also directly add 
-it in the `saml_idp_service_provider` spec.
+If you need more control over the entity descriptor, you may also add it directly
+to the `saml_idp_service_provider` spec.
 
-<Details title="(Optional) Manualy add entity descriptor" closed>
+<Details title="(Optional) Manually add entity descriptor" closed>
 
 First download the service provider metadata from samltest.id as `saml-sp.xml`:
 
@@ -96,7 +96,7 @@ $ tctl create saml-sp.yaml
 
 ## Step 2/3. Configure samltest.id to recognize Teleport's SAML IdP
 
-First, obtain Teleport SAML IdP metadata by navigating to `https://<proxy-address>/enterprise/saml-idp/metadata`. 
+First, obtain your Teleport SAML IdP metadata by navigating to `https://<proxy-address>/enterprise/saml-idp/metadata`. 
 Save it in an easy to remember file name like `teleport-metadata.xml`.
 
 Now navigate to https://samltest.id and click on "Upload Metadata." Next, choose to upload
@@ -128,7 +128,7 @@ You should be redirected to the same successful login page seen earlier.
 
 For production, we recommend creating a dedicated role to manage Service Provider.
 
-To create dedicated role, first, ensure you are logged into Teleport as a user that has
+To create a dedicated role, first, ensure you are logged into Teleport as a user that has
 permissions to read and modify `saml_idp_service_provider` objects. The default `editor` role
 has access to this already, but in case you are using a more customized configuration,
 create a role called `sp-manager.yaml` with the following contents:
@@ -158,11 +158,6 @@ $ tctl create sp-manager.yaml
 role 'saml-idp-service-provider-manager' has been created
 ```
 
-Add the role to your user. Replace `teleport-admin` with your user name:
+Next, add the role to your user.
 
-```code
-$ tctl users update --set-roles $(tctl get users/<Var name="teleport-admin"/> --format=json | \
-jq -r '.[].spec.roles | join(",")'), sp-manager <Var name="teleport-admin"/>
-User teleport-admin has been updated:
-  New roles: auditor,editor,access,sp-manager
-```
+(!docs/pages/includes/add-role-to-user.mdx role="(!docs/pages/includes/add-role-to-user.mdx role="sp-manager"!)"!)
