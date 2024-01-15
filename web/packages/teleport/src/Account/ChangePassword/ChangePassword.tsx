@@ -19,6 +19,8 @@
 import React from 'react';
 import PasswordForm from 'shared/components/FormPassword';
 
+import { Card } from 'design';
+
 import {
   FeatureBox,
   FeatureHeader,
@@ -43,12 +45,14 @@ export function ChangePassword({
       <FeatureHeader border="none">
         <FeatureHeaderTitle>Change Password</FeatureHeaderTitle>
       </FeatureHeader>
-      <PasswordForm
-        auth2faType={auth2faType}
-        preferredMfaType={preferredMfaType}
-        onChangePass={changePassword}
-        onChangePassWithWebauthn={changePasswordWithWebauthn}
-      />
+      <Card width="456px" p="6">
+        <PasswordForm
+          auth2faType={auth2faType}
+          preferredMfaType={preferredMfaType}
+          onChangePass={changePassword}
+          onChangePassWithWebauthn={changePasswordWithWebauthn}
+        />
+      </Card>
     </FeatureBox>
   );
 }

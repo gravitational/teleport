@@ -1364,6 +1364,82 @@ export namespace GetKubesResponse {
     }
 }
 
+export class GetAppsRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetAppsRequest;
+
+    getLimit(): number;
+    setLimit(value: number): GetAppsRequest;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetAppsRequest;
+
+    getSearch(): string;
+    setSearch(value: string): GetAppsRequest;
+
+    getQuery(): string;
+    setQuery(value: string): GetAppsRequest;
+
+    getSortBy(): string;
+    setSortBy(value: string): GetAppsRequest;
+
+    getSearchAsRoles(): string;
+    setSearchAsRoles(value: string): GetAppsRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAppsRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAppsRequest): GetAppsRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAppsRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAppsRequest;
+    static deserializeBinaryFromReader(message: GetAppsRequest, reader: jspb.BinaryReader): GetAppsRequest;
+}
+
+export namespace GetAppsRequest {
+    export type AsObject = {
+        clusterUri: string,
+        limit: number,
+        startKey: string,
+        search: string,
+        query: string,
+        sortBy: string,
+        searchAsRoles: string,
+    }
+}
+
+export class GetAppsResponse extends jspb.Message { 
+    clearAgentsList(): void;
+    getAgentsList(): Array<teleport_lib_teleterm_v1_app_pb.App>;
+    setAgentsList(value: Array<teleport_lib_teleterm_v1_app_pb.App>): GetAppsResponse;
+    addAgents(value?: teleport_lib_teleterm_v1_app_pb.App, index?: number): teleport_lib_teleterm_v1_app_pb.App;
+
+    getTotalCount(): number;
+    setTotalCount(value: number): GetAppsResponse;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetAppsResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAppsResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAppsResponse): GetAppsResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAppsResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAppsResponse;
+    static deserializeBinaryFromReader(message: GetAppsResponse, reader: jspb.BinaryReader): GetAppsResponse;
+}
+
+export namespace GetAppsResponse {
+    export type AsObject = {
+        agentsList: Array<teleport_lib_teleterm_v1_app_pb.App.AsObject>,
+        totalCount: number,
+        startKey: string,
+    }
+}
+
 export class GetAuthSettingsRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetAuthSettingsRequest;

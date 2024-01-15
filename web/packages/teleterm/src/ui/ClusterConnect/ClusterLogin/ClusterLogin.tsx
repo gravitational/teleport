@@ -25,7 +25,7 @@ import { PrimaryAuthType } from 'shared/services';
 
 import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
-import { routing } from 'teleterm/ui/uri';
+import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 
 import LoginForm from './FormLogin';
 import useClusterLogin, { State, Props } from './useClusterLogin';
@@ -130,17 +130,7 @@ function Reason({ reason }: { reason: ClusterConnectReason }) {
           </>
         );
       } else {
-        const targetName = routing.parseDbUri(targetUri)?.params['dbId'];
-
-        if (targetName) {
-          $targetDesc = <strong>{targetName}</strong>;
-        } else {
-          $targetDesc = (
-            <>
-              a database server under <code>{targetUri}</code>
-            </>
-          );
-        }
+        $targetDesc = <strong>{getTargetNameFromUri(targetUri)}</strong>;
       }
 
       return (

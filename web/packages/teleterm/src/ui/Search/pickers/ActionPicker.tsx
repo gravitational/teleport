@@ -38,6 +38,7 @@ import {
   SearchResultCluster,
   SearchResultDatabase,
   SearchResultKube,
+  SearchResultApp,
   SearchResultResourceType,
   SearchResultServer,
   DisplayResults,
@@ -232,11 +233,11 @@ export function ActionPicker(props: { input: ReactElement }) {
 function getKey(searchResult: SearchResult): string {
   switch (searchResult.kind) {
     case 'resource-type-filter':
-      return searchResult.resource;
+      return `${searchResult.kind}-${searchResult.resource}`;
     case 'display-results':
-      return searchResult.value;
+      return `${searchResult.kind}-${searchResult.documentUri}-${searchResult.value}`;
     default:
-      return searchResult.resource.uri;
+      return `${searchResult.kind}-${searchResult.resource.uri}`;
   }
 }
 
@@ -299,7 +300,8 @@ const ExtraTopComponents = (props: {
                   showErrorsInModal={() => {
                     showErrorsInModal(nonRetryableResourceSearchErrors);
                   }}
-                  advancedSearch={advancedSearch}
+                  // We show the advanced search in TypeToSearchItem.
+                  advancedSearch={undefined}
                 />
               )}
             </>
@@ -499,6 +501,7 @@ export const ComponentMap: Record<
   server: ServerItem,
   kube: KubeItem,
   database: DatabaseItem,
+  app: AppItem,
   'cluster-filter': ClusterFilterItem,
   'resource-type-filter': ResourceTypeFilterItem,
   'display-results': DisplayResultsItem,
@@ -572,6 +575,7 @@ const resourceIcons: Record<
   kube_cluster: icons.Kubernetes,
   node: icons.Server,
   db: icons.Database,
+  app: icons.Application,
 };
 
 function ResourceTypeFilterItem(
@@ -701,6 +705,77 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
           Otherwise show the resource fields and the labels together in a single line.
        */}
       {db.desc.length >= 30 ? (
+        <>
+          {$resourceFields}
+          <Labels searchResult={searchResult} />
+        </>
+      ) : (
+        <Labels searchResult={searchResult}>{$resourceFields}</Labels>
+      )}
+    </IconAndContent>
+  );
+}
+
+export function AppItem(props: SearchResultItem<SearchResultApp>) {
+  const { searchResult } = props;
+  const app = searchResult.resource;
+
+  const $resourceFields = (
+    <ResourceFields>
+      {app.addrWithProtocol && (
+        <span
+          css={`
+            flex-shrink: 0;
+          `}
+        >
+          <HighlightField
+            field="addrWithProtocol"
+            searchResult={searchResult}
+          />
+        </span>
+      )}
+      {app.desc && (
+        <span
+          css={`
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          `}
+        >
+          <HighlightField field="desc" searchResult={searchResult} />
+        </span>
+      )}
+    </ResourceFields>
+  );
+
+  return (
+    <IconAndContent Icon={icons.Application} iconColor="brand">
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Text typography="body1">
+          Set up an app connection to{' '}
+          <strong>
+            <HighlightField
+              field={app.friendlyName ? 'friendlyName' : 'name'}
+              searchResult={searchResult}
+            />
+          </strong>
+        </Text>
+        <Box ml="auto">
+          <Text typography="body2" fontSize={0}>
+            {props.getOptionalClusterName(app.uri)}
+          </Text>
+        </Box>
+      </Flex>
+
+      {/* If the description is long, put the resource fields on a separate line.
+          Otherwise, show the resource fields and the labels together in a single line.
+       */}
+      {app.desc.length >= 30 ? (
         <>
           {$resourceFields}
           <Labels searchResult={searchResult} />
@@ -1030,16 +1105,7 @@ function ContentAndAdvancedSearch(
     <Flex gap={2} justifyContent="space-between" alignItems="flex-start">
       {props.children}
       {props.advancedSearch && (
-        <AdvancedSearchToggle
-          {...props.advancedSearch}
-          css={`
-            //TODO(gzdunek): Remove when we get a toggle that can be displayed
-            // on a white background
-            label > div {
-              border: 1px solid ${props => props.theme.colors.spotBackground[1]};
-            }
-          `}
-        />
+        <AdvancedSearchToggle {...props.advancedSearch} />
       )}
     </Flex>
   );

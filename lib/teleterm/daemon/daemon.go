@@ -229,6 +229,8 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
+	// Those RPCs assume that the default CLI prompt is in use.
 	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI.String())
 	return cluster, clusterClient, nil
 }
@@ -443,6 +445,10 @@ func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, erro
 
 	case targetURI.IsKube():
 		cmd, err := cmd.NewKubeCLICommand(gateway)
+		return cmd, trace.Wrap(err)
+
+	case targetURI.IsApp():
+		cmd, err := cmd.NewAppCLICommand(gateway)
 		return cmd, trace.Wrap(err)
 
 	default:

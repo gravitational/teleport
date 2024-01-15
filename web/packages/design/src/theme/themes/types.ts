@@ -59,6 +59,7 @@ export type ThemeColors = {
     tonal: {
       primary: string[];
       neutral: string[];
+      success: string[];
     };
   };
 
@@ -136,6 +137,12 @@ export type ThemeColors = {
     active: string;
   };
 
+  success: {
+    main: string;
+    hover: string;
+    active: string;
+  };
+
   notice: {
     background: string;
   };
@@ -183,7 +190,6 @@ export type ThemeColors = {
   };
 
   link: string;
-  success: string;
 
   dataVisualisation: DataVisualisationColors;
   accessGraph: AccessGraphColors;
@@ -242,6 +248,7 @@ interface AccessGraphEdgeColors {
 export type SharedColors = {
   dark: string;
   light: string;
+  interactionHandle: string;
   grey: typeof blueGrey;
   subtle: string;
   bgTerminal: string;
@@ -272,7 +279,11 @@ export type SharedStyles = {
     mobile: number;
     tablet: number;
     desktop: number;
+    small: number;
+    medium: number;
+    large: number;
   };
+  topBarHeight: number[];
   space: number[];
   borders: (string | number)[];
   typography: typeof typography;

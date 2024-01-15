@@ -73,16 +73,21 @@ func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 	}, nil
 }
 
-type fakeHostCertSigner struct {
-	data map[string]struct {
+type fakeAuthServer struct {
+	generateHostCertData map[string]struct {
 		cert []byte
 		err  error
 	}
+	rotateCertAuthorityData map[string]error
 }
 
-func (f *fakeHostCertSigner) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-	data := f.data[hostID]
+func (f *fakeAuthServer) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
+	data := f.generateHostCertData[hostID]
 	return data.cert, data.err
+}
+
+func (f *fakeAuthServer) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
+	return f.rotateCertAuthorityData[string(req.Type)]
 }
 
 type fakeChecker struct {
@@ -399,7 +404,7 @@ func TestRBAC(t *testing.T) {
 				Cache:      trust,
 				Backend:    trust,
 				Authorizer: &test.authorizer,
-				AuthServer: &fakeHostCertSigner{},
+				AuthServer: &fakeAuthServer{},
 			}
 
 			service, err := NewService(cfg)
@@ -433,7 +438,7 @@ func TestGetCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
-		AuthServer: &fakeHostCertSigner{},
+		AuthServer: &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -522,7 +527,7 @@ func TestGetCertAuthorities(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
-		AuthServer: &fakeHostCertSigner{},
+		AuthServer: &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -616,7 +621,7 @@ func TestDeleteCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
-		AuthServer: &fakeHostCertSigner{},
+		AuthServer: &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -685,7 +690,7 @@ func TestUpsertCertAuthority(t *testing.T) {
 		Cache:      trust,
 		Backend:    trust,
 		Authorizer: authorizer,
-		AuthServer: &fakeHostCertSigner{},
+		AuthServer: &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -742,6 +747,72 @@ func TestUpsertCertAuthority(t *testing.T) {
 	}
 }
 
+func TestRotateCertAuthority(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	authorizer := &fakeAuthorizer{
+		checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindCertAuthority, types.VerbCreate}: true,
+				{types.KindCertAuthority, types.VerbUpdate}: true,
+			},
+		},
+	}
+
+	fakeErr := trace.BadParameter("bad thing happened")
+	authServer := &fakeAuthServer{
+		rotateCertAuthorityData: map[string]error{
+			"success": nil,
+			"fail":    fakeErr,
+		},
+	}
+
+	trust := local.NewCAService(p.mem)
+	cfg := &ServiceConfig{
+		Cache:      trust,
+		Backend:    trust,
+		Authorizer: authorizer,
+		AuthServer: authServer,
+	}
+
+	tests := []struct {
+		name    string
+		req     *trustpb.RotateCertAuthorityRequest
+		wantErr error
+	}{
+		{
+			name: "success",
+			req: &trustpb.RotateCertAuthorityRequest{
+				Type: "success",
+			},
+		},
+		{
+			name: "fail",
+			req: &trustpb.RotateCertAuthorityRequest{
+				Type: "fail",
+			},
+			wantErr: fakeErr,
+		},
+	}
+
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.RotateCertAuthority(ctx, test.req)
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestGenerateHostCert(t *testing.T) {
 	t.Parallel()
 
@@ -756,8 +827,8 @@ func TestGenerateHostCert(t *testing.T) {
 		},
 	}
 
-	hostCertSigner := &fakeHostCertSigner{
-		data: map[string]struct {
+	hostCertSigner := &fakeAuthServer{
+		generateHostCertData: map[string]struct {
 			cert []byte
 			err  error
 		}{

@@ -16,10 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 
 import { TdpClientEvent } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
+
+import { TdpClient } from 'teleport/lib/tdp';
 
 import type { CSSProperties } from 'react';
 import type {
@@ -27,13 +29,12 @@ import type {
   ClientScreenSpec,
   ClipboardData,
 } from 'teleport/lib/tdp/codec';
-import type { TdpClient } from 'teleport/lib/tdp';
 
-export default function TdpClientCanvas(props: Props) {
+function TdpClientCanvas(props: Props) {
   const {
     client,
     clientShouldConnect = false,
-    clientScreenSpec,
+    clientScreenSpecToRequest,
     clientOnPngFrame,
     clientOnBmpFrame,
     clientOnClipboardData,
@@ -51,7 +52,6 @@ export default function TdpClientCanvas(props: Props) {
     canvasOnContextMenu,
     style,
   } = props;
-
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   if (canvasRef.current) {
@@ -226,8 +226,9 @@ export default function TdpClientCanvas(props: Props) {
     }
 
     return () => {
-      if (canvasOnMouseMove)
+      if (canvasOnMouseMove) {
         canvas.removeEventListener('mousemove', _onmousemove);
+      }
     };
   }, [client, canvasOnMouseMove]);
 
@@ -303,10 +304,25 @@ export default function TdpClientCanvas(props: Props) {
     };
   }, [client, canvasOnKeyUp]);
 
-  // Call init after all listeners have been registered
+  useEffect(() => {
+    if (client) {
+      const canvas = canvasRef.current;
+      const _clearCanvas = () => {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      };
+      client.on(TdpClientEvent.RESET, _clearCanvas);
+
+      return () => {
+        client.removeListener(TdpClientEvent.RESET, _clearCanvas);
+      };
+    }
+  }, [client]);
+
+  // Call connect after all listeners have been registered
   useEffect(() => {
     if (client && clientShouldConnect) {
-      client.connect(clientScreenSpec);
+      client.connect(clientScreenSpecToRequest);
       return () => {
         client.shutdown();
       };
@@ -321,9 +337,9 @@ export type Props = {
   // clientShouldConnect determines whether the TdpClientCanvas
   // will try to connect to the server.
   clientShouldConnect?: boolean;
-  // clientScreenSpec will be passed to client.connect() if
+  // clientScreenSpecToRequest will be passed to client.connect() if
   // clientShouldConnect is true.
-  clientScreenSpec?: ClientScreenSpec;
+  clientScreenSpecToRequest?: ClientScreenSpec;
   clientOnPngFrame?: (
     ctx: CanvasRenderingContext2D,
     pngFrame: PngFrame
@@ -355,3 +371,5 @@ export type Props = {
   canvasOnContextMenu?: () => boolean;
   style?: CSSProperties;
 };
+
+export default memo(TdpClientCanvas);

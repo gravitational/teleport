@@ -36,6 +36,7 @@ export class MockTshClient implements types.TshClient {
   getServers: (
     params: types.GetResourcesParams
   ) => Promise<types.GetServersResponse>;
+  getApps: (params: types.GetResourcesParams) => Promise<types.GetAppsResponse>;
   assumeRole: (
     clusterUri: string,
     requestIds: string[],

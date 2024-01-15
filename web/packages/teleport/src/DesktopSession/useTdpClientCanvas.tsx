@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -23,7 +24,11 @@ import { NotificationItem } from 'shared/components/Notification';
 import { getPlatformType } from 'design/platform';
 
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
-import { ClipboardData, PngFrame } from 'teleport/lib/tdp/codec';
+import {
+  ClientScreenSpec,
+  ClipboardData,
+  PngFrame,
+} from 'teleport/lib/tdp/codec';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { Sha256Digest } from 'teleport/lib/util';
@@ -77,8 +82,12 @@ export default function useTdpClientCanvas(props: Props) {
     // is resolved.
     canvas.width = width;
     canvas.height = height;
+    console.debug(`set canvas.width x canvas.height to ${width} x ${height}`);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
+    console.debug(
+      `set canvas.style.width x canvas.style.height to ${width} x ${height}`
+    );
   };
 
   // Default TdpClientEvent.TDP_PNG_FRAME handler (buffered)
@@ -109,6 +118,23 @@ export default function useTdpClientCanvas(props: Props) {
     ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
   };
 
+  // Default TdpClientEvent.TDP_CLIENT_SCREEN_SPEC handler.
+  const clientOnClientScreenSpec = (
+    cli: TdpClient,
+    canvas: HTMLCanvasElement,
+    spec: ClientScreenSpec
+  ) => {
+    const { width, height } = spec;
+    canvas.width = width;
+    canvas.height = height;
+    console.debug(`set canvas.width x canvas.height to ${width} x ${height}`);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    console.debug(
+      `set canvas.style.width x canvas.style.height to ${width} x ${height}`
+    );
+  };
+
   // Default TdpClientEvent.TDP_CLIPBOARD_DATA handler.
   const clientOnClipboardData = async (clipboardData: ClipboardData) => {
     if (
@@ -130,7 +156,7 @@ export default function useTdpClientCanvas(props: Props) {
     setClipboardSharingEnabled(false);
     setTdpConnection({
       status: 'failed',
-      statusText: error.message,
+      statusText: error.message || error.toString(),
     });
   };
 
@@ -269,9 +295,10 @@ export default function useTdpClientCanvas(props: Props) {
 
   return {
     tdpClient,
-    clientScreenSpec: getDisplaySize(),
+    clientScreenSpecToRequest: getDisplaySize(),
     clientOnPngFrame,
     clientOnBitmapFrame,
+    clientOnClientScreenSpec,
     clientOnTdpError,
     clientOnClipboardData,
     clientOnWsClose,

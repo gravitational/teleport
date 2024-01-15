@@ -659,7 +659,7 @@ type authPack struct {
 // user, otp token, created web session and authenticated client.
 func (s *WebSuite) authPack(t *testing.T, user string, roles ...string) *authPack {
 	login := s.user
-	pass := "abc123"
+	pass := "abcdef123456"
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
@@ -711,7 +711,7 @@ func (s *WebSuite) authPack(t *testing.T, user string, roles ...string) *authPac
 }
 
 func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Role) *authPack {
-	const password = "testing"
+	const password = "testing12345"
 	user, err := types.NewUser(name)
 	require.NoError(t, err)
 
@@ -941,7 +941,7 @@ func TestCSRF(t *testing.T) {
 
 	// create a valid user
 	user := "csrfuser"
-	pass := "abc123"
+	pass := "abcdef123456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
 	s.createUser(t, user, user, pass, otpSecret)
 
@@ -988,8 +988,8 @@ func TestPasswordChange(t *testing.T) {
 	require.NoError(t, err)
 
 	req := changePasswordReq{
-		OldPassword:       []byte("abc123"),
-		NewPassword:       []byte("abc1234"),
+		OldPassword:       []byte("abcdef123456"),
+		NewPassword:       []byte("fedcba654321"),
 		SecondFactorToken: validToken,
 	}
 
@@ -1023,7 +1023,7 @@ func TestWebSessionsBadInput(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
 	user := "bob"
-	pass := "abc123"
+	pass := "abcdef123456"
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
@@ -2444,11 +2444,11 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	require.NoError(t, err)
 
 	// create user
-	s.createUser(t, "user1", "root", "password", "")
+	s.createUser(t, "user1", "root", "password1234", "")
 
 	loginReq, err := json.Marshal(CreateSessionReq{
 		User: "user1",
-		Pass: "password",
+		Pass: "password1234",
 	})
 	require.NoError(t, err)
 
@@ -2483,11 +2483,11 @@ func TestLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// create user
-	s.createUser(t, "user1", "root", "password", "")
+	s.createUser(t, "user1", "root", "password1234", "")
 
 	loginReq, err := json.Marshal(CreateSessionReq{
 		User: "user1",
-		Pass: "password",
+		Pass: "password1234",
 	})
 	require.NoError(t, err)
 
@@ -3804,6 +3804,24 @@ func TestAuthExport(t *testing.T) {
 			assertBody:     validateTLSCertificatePEMFunc,
 		},
 		{
+			name:           "db-der",
+			authType:       "db-der",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificateDERFunc,
+		},
+		{
+			name:           "db-client",
+			authType:       "db-client",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificatePEMFunc,
+		},
+		{
+			name:           "db-client-der",
+			authType:       "db-client-der",
+			expectedStatus: http.StatusOK,
+			assertBody:     validateTLSCertificateDERFunc,
+		},
+		{
 			name:           "tls",
 			authType:       "tls",
 			expectedStatus: http.StatusOK,
@@ -4810,7 +4828,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 
 	// Create a user with a TOTP device.
 	username := "llama"
-	proxy.createUser(ctx, t, username, "root", "password", "some-otp-secret", nil /* roles */)
+	proxy.createUser(ctx, t, username, "root", "password1234", "some-otp-secret", nil /* roles */)
 
 	// Enable second factor.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -5418,7 +5436,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	clt := env.proxies[0].client
 	re, err := clt.ChangeUserAuthentication(ctx, &authproto.ChangeUserAuthenticationRequest{
 		TokenID:     resetToken.GetName(),
-		NewPassword: []byte("abc123"),
+		NewPassword: []byte("abcdef123456"),
 		NewMFARegisterResponse: &authproto.MFARegisterResponse{Response: &authproto.MFARegisterResponse_TOTP{
 			TOTP: &authproto.TOTPRegisterResponse{Code: totpCode},
 		}},
@@ -5449,7 +5467,7 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	// Test valid username (email) returns codes.
 	re, err = clt.ChangeUserAuthentication(ctx, &authproto.ChangeUserAuthenticationRequest{
 		TokenID:     resetToken.GetName(),
-		NewPassword: []byte("abc123"),
+		NewPassword: []byte("abcdef123456"),
 		NewMFARegisterResponse: &authproto.MFARegisterResponse{Response: &authproto.MFARegisterResponse_TOTP{
 			TOTP: &authproto.TOTPRegisterResponse{Code: totpCode},
 		}},
@@ -5511,7 +5529,7 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	clt := env.proxies[0].newClient(t)
 	req := changeUserAuthenticationRequest{
 		SecondFactorToken: totpCode,
-		Password:          []byte("abc123"),
+		Password:          []byte("abcdef123456"),
 		TokenID:           resetToken.GetName(),
 	}
 	httpReqData, err := json.Marshal(req)
@@ -5577,7 +5595,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		name:                 "first cloud sign-in with password does not change connector",
 		cloud:                true,
 		numberOfUsers:        1,
-		password:             []byte("abc123"),
+		password:             []byte("abcdef123456"),
 		authPreferenceType:   constants.Local,
 		initialConnectorName: "",
 		resultConnectorName:  "",
@@ -7960,7 +7978,7 @@ type testProxy struct {
 func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
 	ctx := context.Background()
 	const (
-		pass      = "abc123"
+		pass      = "abcdef123456"
 		rawSecret = "def456"
 	)
 
@@ -8951,54 +8969,6 @@ func TestLogout(t *testing.T) {
 	_, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
 	require.True(t, trace.IsAccessDenied(err))
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
-}
-
-func TestGetIsDashboard(t *testing.T) {
-	tt := []struct {
-		name     string
-		features authproto.Features
-		expected bool
-	}{
-		{
-			name: "not cloud nor recovery codes is not dashboard",
-			features: authproto.Features{
-				Cloud:         false,
-				RecoveryCodes: false,
-			},
-			expected: false,
-		},
-		{
-			name: "not cloud, with recovery codes is dashboard",
-			features: authproto.Features{
-				Cloud:         false,
-				RecoveryCodes: true,
-			},
-			expected: true,
-		},
-		{
-			name: "cloud, with recovery codes is not dashboard",
-			features: authproto.Features{
-				Cloud:         true,
-				RecoveryCodes: true,
-			},
-			expected: false,
-		},
-		{
-			name: "cloud, without recovery codes is not dashboard",
-			features: authproto.Features{
-				Cloud:         true,
-				RecoveryCodes: false,
-			},
-			expected: false,
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			result := isDashboard(tc.features)
-			require.Equal(t, tc.expected, result)
-		})
-	}
 }
 
 // initGRPCServer creates a gRPC server serving on the provided listener.
