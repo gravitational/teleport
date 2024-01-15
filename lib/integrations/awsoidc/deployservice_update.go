@@ -28,6 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 // waitDuration specifies the amount of time to wait for a service to become healthy after an update.
@@ -60,19 +62,34 @@ func (req *UpdateServiceRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// UpdateDeployService updates the AWS OIDC deploy service with the specified version tag.
-func UpdateDeployService(ctx context.Context, clt DeployServiceClient, req UpdateServiceRequest) error {
+// UpdateDeployService updates all the AWS OIDC deployed services with the specified version tag.
+func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *logrus.Entry, req UpdateServiceRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	teleportImage := getDistrolessTeleportImage(req.TeleportVersionTag)
-	service, err := getManagedService(ctx, clt, req.TeleportClusterName, req.OwnershipTags)
+	services, err := getManagedServices(ctx, clt, log, req.TeleportClusterName, req.OwnershipTags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	taskDefinition, err := getManagedTaskDefinition(ctx, clt, aws.ToString(service.TaskDefinition), req.OwnershipTags)
+	for _, ecsService := range services {
+		log := log.WithFields(logrus.Fields{
+			"ecs-service-arn": aws.ToString(ecsService.ServiceArn),
+			"teleport-image":  teleportImage,
+		})
+		if err := updateServiceContainerImage(ctx, clt, log, &ecsService, teleportImage, req.OwnershipTags); err != nil {
+			log.WithError(err).Warn("Failed to upgrade ECS Service.")
+			continue
+		}
+	}
+
+	return nil
+}
+
+func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, log *logrus.Entry, service *ecsTypes.Service, teleportImage string, ownershipTags AWSTags) error {
+	taskDefinition, err := getManagedTaskDefinition(ctx, clt, aws.ToString(service.TaskDefinition), ownershipTags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -88,7 +105,7 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, req Updat
 		return nil
 	}
 
-	registerTaskDefinitionIn, err := generateTaskDefinitionWithImage(taskDefinition, teleportImage, req.OwnershipTags.ToECSTags())
+	registerTaskDefinitionIn, err := generateTaskDefinitionWithImage(taskDefinition, teleportImage, ownershipTags.ToECSTags())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -97,66 +114,103 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, req Updat
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	newTaskDefinitionARN := registerTaskDefinitionOut.TaskDefinition.TaskDefinitionArn
+	oldTaskDefinitionARN := aws.ToString(service.TaskDefinition)
 
 	// Update service with new task definition
-	_, err = updateServiceOrRollback(ctx, clt, service, registerTaskDefinitionOut.TaskDefinition)
+	serviceNewVersion, err := clt.UpdateService(ctx, generateServiceWithTaskDefinition(service, aws.ToString(newTaskDefinitionARN)))
 	if err != nil {
-		// If update failed, then rollback task definition.
-		// The update will be re-attempted during the next interval if it is still
-		// within the upgrade window or the critical upgrade flag is still enabled.
-		_, rollbackErr := clt.DeregisterTaskDefinition(ctx, &ecs.DeregisterTaskDefinitionInput{
-			TaskDefinition: registerTaskDefinitionOut.TaskDefinition.TaskDefinitionArn,
-		})
-		if rollbackErr != nil {
-			return trace.NewAggregate(err, trace.Wrap(rollbackErr, "failed to rollback task definition"))
-		}
 		return trace.Wrap(err)
 	}
 
-	// Attempt to deregister previous task definition but ignore error on failure
-	_, err = clt.DeregisterTaskDefinition(ctx, &ecs.DeregisterTaskDefinitionInput{
-		TaskDefinition: taskDefinition.TaskDefinitionArn,
-	})
-	if err != nil {
-		logrus.WithError(err).Warning("Failed to deregister task definition.")
-	}
+	// Wait for Service to become stable, or rollback to the previous TaskDefinition.
+	go waitServiceStableOrRollback(ctx, clt, log, serviceNewVersion.Service, oldTaskDefinitionARN)
+
+	log.Info("Successfully upgraded ECS Service.")
 
 	return nil
 }
 
-func getManagedService(ctx context.Context, clt DeployServiceClient, teleportClusterName string, ownershipTags AWSTags) (*ecsTypes.Service, error) {
-	var ecsServiceNames []string
-	for _, deploymentMode := range DeploymentModes {
-		ecsServiceNames = append(ecsServiceNames, normalizeECSServiceName(teleportClusterName, deploymentMode))
-	}
+func getAllServiceNamesForCluster(ctx context.Context, clt DeployServiceClient, clusterName *string) ([]string, error) {
+	ret := make([]string, 0)
 
-	describeServicesOut, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
-		Cluster:  aws.String(normalizeECSClusterName(teleportClusterName)),
-		Services: ecsServiceNames,
-		Include:  []ecsTypes.ServiceField{ecsTypes.ServiceFieldTags},
-	})
+	nextToken := ""
+	for {
+		resp, err := clt.ListServices(ctx, &ecs.ListServicesInput{
+			Cluster:   clusterName,
+			NextToken: aws.String(nextToken),
+		})
+		if err != nil {
+			return nil, awslib.ConvertIAMv2Error(err)
+		}
+
+		ret = append(ret, resp.ServiceArns...)
+
+		nextToken = aws.ToString(resp.NextToken)
+		if nextToken == "" {
+			break
+		}
+	}
+	return ret, nil
+}
+
+func getManagedServices(ctx context.Context, clt DeployServiceClient, log *logrus.Entry, teleportClusterName string, ownershipTags AWSTags) ([]ecsTypes.Service, error) {
+	// The Cluster name is created using the Teleport Cluster Name.
+	// Check the DeployDatabaseServiceRequest.CheckAndSetDefaults
+	// and DeployServiceRequest.CheckAndSetDefaults.
+	wellKnownClusterName := aws.String(normalizeECSClusterName(teleportClusterName))
+
+	ecsServiceNames, err := getAllServiceNamesForCluster(ctx, clt, wellKnownClusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(describeServicesOut.Services) == 0 {
-		return nil, trace.NotFound("services %v not found", ecsServiceNames)
-	}
-	if len(describeServicesOut.Services) != 1 {
-		return nil, trace.BadParameter("expected 1 service, but got %d", len(describeServicesOut.Services))
-	}
-	service := describeServicesOut.Services[0]
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
 
-	if !ownershipTags.MatchesECSTags(service.Tags) {
-		return nil, trace.Errorf("ECS Service %q already exists but is not managed by Teleport. "+
-			"Add the following tags to allow Teleport to manage this service: %s", aws.ToString(service.ServiceName), ownershipTags)
-	}
-	// If the LaunchType is the required one, than we can update the current Service.
-	// Otherwise we have to delete it.
-	if service.LaunchType != ecsTypes.LaunchTypeFargate {
-		return nil, trace.Errorf("ECS Service %q already exists but has an invalid LaunchType %q. Delete the Service and try again.", aws.ToString(service.ServiceName), service.LaunchType)
+		// Previous versions of the DeployService only deployed a single ECS Service, based on the DatabaseServiceDeploymentMode.
+		// During the Discover Wizard flow, users were asked to run a script that added the required permissions, but ecs:ListServices was not initially included.
+		// For those situations, fallback to using the only ECS Service that was deployed.
+		ecsServiceNameLegacy := normalizeECSServiceName(teleportClusterName, DatabaseServiceDeploymentMode)
+		ecsServiceNames = []string{ecsServiceNameLegacy}
 	}
 
-	return &service, nil
+	ecsServices := make([]ecsTypes.Service, 0, len(ecsServiceNames))
+
+	// According to AWS API docs, a maximum of 10 Services can be queried at the same time when using the ecs:DescribeServices operation.
+	batchSize := 10
+	for batchStart := 0; batchStart < len(ecsServiceNames); batchStart += batchSize {
+		batchEnd := batchStart + batchSize
+		if batchEnd > len(ecsServiceNames) {
+			batchEnd = len(ecsServiceNames)
+		}
+
+		describeServicesOut, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
+			Cluster:  wellKnownClusterName,
+			Services: ecsServiceNames[batchStart:batchEnd],
+			Include:  []ecsTypes.ServiceField{ecsTypes.ServiceFieldTags},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Filter out Services without Ownership tags or an invalid LaunchType.
+		for _, s := range describeServicesOut.Services {
+			log := log.WithField("ecs-service", aws.ToString(s.ServiceArn))
+			if !ownershipTags.MatchesECSTags(s.Tags) {
+				log.Warnf("ECS Service exists but is not managed by Teleport. "+
+					"Add the following tags to allow Teleport to manage this service: %s", ownershipTags)
+				continue
+			}
+			// If the LaunchType is the required one, than we can update the current Service.
+			// Otherwise we have to delete it.
+			if s.LaunchType != ecsTypes.LaunchTypeFargate {
+				log.Warnf("ECS Service already exists but has an invalid LaunchType %q. Delete the Service and try again.", s.LaunchType)
+				continue
+			}
+			ecsServices = append(ecsServices, s)
+		}
+	}
+
+	return ecsServices, nil
 }
 
 func getManagedTaskDefinition(ctx context.Context, clt DeployServiceClient, taskDefinitionName string, ownershipTags AWSTags) (*ecsTypes.TaskDefinition, error) {
@@ -181,40 +235,30 @@ func getTaskDefinitionTeleportImage(taskDefinition *ecsTypes.TaskDefinition) (st
 	return aws.ToString(taskDefinition.ContainerDefinitions[0].Image), nil
 }
 
-// updateServiceOrRollback attempts to update the service with the specified task definition.
-// The service will be rolled back if the service fails to become healthy.
-func updateServiceOrRollback(ctx context.Context, clt DeployServiceClient, service *ecsTypes.Service, taskDefinition *ecsTypes.TaskDefinition) (*ecsTypes.Service, error) {
-	// Update service with new task definition
-	updateServiceOut, err := clt.UpdateService(ctx, generateServiceWithTaskDefinition(service, aws.ToString(taskDefinition.TaskDefinitionArn)))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// waitServiceStableOrRollback waits for the ECS Service to be stable, and if it takes longer than 5 minutes, it restarts it with its old task definition.
+func waitServiceStableOrRollback(ctx context.Context, clt DeployServiceClient, log *logrus.Entry, service *ecsTypes.Service, oldTaskDefinitionARN string) {
+	log = log.WithFields(logrus.Fields{
+		"ecs-service":         aws.ToString(service.ServiceArn),
+		"task-definition":     aws.ToString(service.TaskDefinition),
+		"old-task-definition": oldTaskDefinitionARN,
+	})
 
+	log.Debug("Waiting for ECS Service to become stable.")
 	serviceStableWaiter := ecs.NewServicesStableWaiter(clt)
-	err = serviceStableWaiter.Wait(ctx, &ecs.DescribeServicesInput{
-		Services: []string{aws.ToString(updateServiceOut.Service.ServiceName)},
-		Cluster:  updateServiceOut.Service.ClusterArn,
+	waitErr := serviceStableWaiter.Wait(ctx, &ecs.DescribeServicesInput{
+		Services: []string{aws.ToString(service.ServiceName)},
+		Cluster:  service.ClusterArn,
 	}, waitDuration)
-	if err == nil {
-		return updateServiceOut.Service, nil
+	if waitErr == nil {
+		log.Debug("ECS Service is stable.")
+		return
 	}
 
-	// If the service fails to reach a stable state within the allowed wait time,
-	// then rollback service with previous task definition
-	rollbackServiceOut, rollbackErr := clt.UpdateService(ctx, generateServiceWithTaskDefinition(service, aws.ToString(service.TaskDefinition)))
+	log.WithError(waitErr).Warn("ECS Service is not stable, restarting the service with its previous TaskDefinition.")
+	_, rollbackErr := clt.UpdateService(ctx, generateServiceWithTaskDefinition(service, oldTaskDefinitionARN))
 	if rollbackErr != nil {
-		return nil, trace.NewAggregate(err, trace.Wrap(rollbackErr, "failed to rollback service"))
+		log.WithError(rollbackErr).Warn("Failed to update ECS Service with its previous version.")
 	}
-
-	rollbackErr = serviceStableWaiter.Wait(ctx, &ecs.DescribeServicesInput{
-		Services: []string{aws.ToString(rollbackServiceOut.Service.ServiceName)},
-		Cluster:  updateServiceOut.Service.ClusterArn,
-	}, waitDuration)
-	if rollbackErr != nil {
-		return nil, trace.NewAggregate(err, trace.Wrap(rollbackErr, "failed to rollback service"))
-	}
-
-	return nil, trace.Wrap(err)
 }
 
 // generateTaskDefinitionWithImage returns new register task definition input with the desired teleport image
