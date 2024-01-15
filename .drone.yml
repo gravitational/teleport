@@ -1686,7 +1686,7 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 environment:
-  BUILDBOX_VERSION: teleport15
+  BUILDBOX_VERSION: teleport16
   GID: "1000"
   UID: "1000"
 trigger:
@@ -11976,6 +11976,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 02f9a71d868451efb9fcfe9f56525912874113fb7a8b19ad8c682d37167550f3
+hmac: a48f47f7c6bd1ab5e49222cc5e37d0980ec48cfa8fd42d0a54b39c4f07c1e5dc
 
 ...
