@@ -48,7 +48,6 @@ type CreateEC2ICERequest struct {
 }
 
 // EC2ICEEndpoint contains the information for a single Endpoint to be created.
-
 type EC2ICEEndpoint struct {
 	// Name is the endpoint name.
 	Name string
