@@ -313,7 +313,10 @@ type AWSOIDCListEC2ICERequest struct {
 	// Region is the AWS Region.
 	Region string `json:"region"`
 	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
+	// Deprecated: use VPCIDs instead.
 	VPCID string `json:"vpcId"`
+	// VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
+	VPCIDs []string `json:"vpcIds"`
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
 	NextToken string `json:"nextToken"`
@@ -323,6 +326,9 @@ type AWSOIDCListEC2ICERequest struct {
 type AWSOIDCListEC2ICEResponse struct {
 	// EC2ICEs contains the page of Endpoints
 	EC2ICEs []awsoidc.EC2InstanceConnectEndpoint `json:"ec2Ices"`
+
+	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
+	DashboardLink string `json:"dashboardLink,omitempty"`
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.
