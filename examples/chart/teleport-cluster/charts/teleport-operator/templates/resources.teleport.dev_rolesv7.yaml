@@ -2,20 +2,23 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
-  name: teleportroles.resources.teleport.dev
+  name: teleportrolesv7.resources.teleport.dev
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportRole
-    listKind: TeleportRoleList
-    plural: teleportroles
-    singular: teleportrole
+    kind: TeleportRoleV7
+    listKind: TeleportRoleV7List
+    plural: teleportrolesv7
+    shortNames:
+    - rolev7
+    - rolesv7
+    singular: teleportrolev7
   scope: Namespaced
   versions:
-  - name: v5
+  - name: v1
     schema:
       openAPIV3Schema:
-        description: Role is the Schema for the roles API
+        description: RoleV7 is the Schema for the rolesv7 API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -30,7 +33,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: Role resource definition v5 from Teleport
+            description: Role resource definition v7 from Teleport
             properties:
               allow:
                 description: Allow is the set of conditions evaluated to grant access.
@@ -281,7 +284,7 @@ spec:
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
                           they also offer a mechanism for forwarding claims from an
-                          external identity provider, to a plugin via `{{external.trait_name}}`
+                          external identity provider, to a plugin via {{ `{{external.trait_name}}` }}
                           style substitutions.
                         type: object
                       claims_to_roles:
@@ -742,7 +745,7 @@ spec:
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
                           they also offer a mechanism for forwarding claims from an
-                          external identity provider, to a plugin via `{{external.trait_name}}`
+                          external identity provider, to a plugin via {{ `{{external.trait_name}}` }}
                           style substitutions.
                         type: object
                       claims_to_roles:
@@ -993,6 +996,10 @@ spec:
                     description: CreateDatabaseUser enabled automatic database user
                       creation.
                     type: boolean
+                  create_db_user_mode:
+                    description: CreateDatabaseUserMode allows users to be automatically
+                      created on a database when not set to off.
+                    x-kubernetes-int-or-string: true
                   create_desktop_user:
                     description: CreateDesktopUser allows users to be automatically
                       created on a Windows desktop
