@@ -18,6 +18,8 @@
 
 import { pluralize } from 'shared/utils/text';
 
+import { makeApp, App } from 'teleterm/ui/services/clusters';
+
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
@@ -58,6 +60,10 @@ export class ResourcesService {
     return this.tshClient.getKubes(params);
   }
 
+  fetchApps(params: types.GetResourcesParams) {
+    return this.tshClient.getApps(params);
+  }
+
   async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
     return await this.tshClient.listDatabaseUsers(dbUri);
   }
@@ -95,6 +101,15 @@ export class ResourcesService {
         err =>
           Promise.reject(new ResourceSearchError(clusterUri, 'server', err))
       );
+    const getApps = () =>
+      this.fetchApps(params).then(
+        res =>
+          res.agentsList.map(resource => ({
+            kind: 'app' as const,
+            resource: makeApp(resource),
+          })),
+        err => Promise.reject(new ResourceSearchError(clusterUri, 'app', err))
+      );
     const getDatabases = () =>
       this.fetchDatabases(params).then(
         res =>
@@ -118,10 +133,11 @@ export class ResourcesService {
     const promises = filters?.length
       ? [
           filters.includes('node') && getServers(),
+          filters.includes('app') && getApps(),
           filters.includes('db') && getDatabases(),
           filters.includes('kube_cluster') && getKubes(),
         ].filter(Boolean)
-      : [getServers(), getDatabases(), getKubes()];
+      : [getServers(), getApps(), getDatabases(), getKubes()];
 
     return Promise.allSettled(promises);
   }
@@ -199,15 +215,22 @@ export type SearchResultDatabase = {
   resource: types.Database;
 };
 export type SearchResultKube = { kind: 'kube'; resource: types.Kube };
+export type SearchResultApp = {
+  kind: 'app';
+  resource: App;
+};
 
 export type SearchResult =
   | SearchResultServer
   | SearchResultDatabase
-  | SearchResultKube;
+  | SearchResultKube
+  | SearchResultApp;
 
 export type SearchResultResource<Kind extends SearchResult['kind']> =
   Kind extends 'server'
     ? SearchResultServer['resource']
+    : Kind extends 'app'
+    ? SearchResultApp['resource']
     : Kind extends 'database'
     ? SearchResultDatabase['resource']
     : Kind extends 'kube'

@@ -394,7 +394,8 @@ const (
 	// KindConnectionDiagnostic is a resource that tracks the result of testing a connection
 	KindConnectionDiagnostic = "connection_diagnostic"
 
-	// KindDatabaseCertificate is a resource to control Database Certificates generation
+	// KindDatabaseCertificate is a resource to control db CA cert
+	// generation.
 	KindDatabaseCertificate = "database_certificate"
 
 	// KindInstaller is a resource that holds a node installer script
@@ -696,6 +697,10 @@ const (
 	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
 	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
 	DiscoveryAppNameLabel = TeleportNamespace + "/name"
+	// DiscoveryAppInsecureSkipVerify specifies the TLS verification enforcement for a discovered app created from Kubernetes service.
+	DiscoveryAppInsecureSkipVerify = TeleportNamespace + "/insecure-skip-verify"
+	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.
+	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
 
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"

@@ -18,6 +18,8 @@
 
 import * as tsh from './types';
 
+import type { App } from 'teleterm/ui/services/clusters';
+
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   uri: '/clusters/teleport-local/servers/1234abcd-1234-abcd-1234-abcd1234abcd',
   tunnel: false,
@@ -50,6 +52,20 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   name: 'foo',
   labelsList: [],
   uri: '/clusters/bar/kubes/foo',
+  ...props,
+});
+
+export const makeApp = (props: Partial<tsh.App> = {}): App => ({
+  name: 'foo',
+  labelsList: [],
+  endpointUri: 'tcp://localhost:3000',
+  friendlyName: '',
+  desc: '',
+  awsConsole: false,
+  publicAddr: 'local-app.example.com:3000',
+  samlApp: false,
+  uri: '/clusters/bar/apps/foo',
+  addrWithProtocol: 'tcp://local-app.example.com:3000',
   ...props,
 });
 
