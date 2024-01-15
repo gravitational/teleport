@@ -24,12 +24,11 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509/pkix"
-	"log"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -39,9 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -141,230 +137,31 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 	}
 )
 
-func TestKeyStore(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			HSM: true,
-		},
-	})
-
+func TestBackends(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-
-	clock := clockwork.NewFakeClock()
-
-	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
-	var softHSMConfig Config
-	if !skipSoftHSM {
-		softHSMConfig = SetupSoftHSMTest(t)
-		softHSMConfig.PKCS11.HostUUID = "server1"
-	}
-
-	hostUUID := uuid.NewString()
-
-	gcpKMSConfig := GCPKMSConfig{
-		HostUUID:        hostUUID,
-		ProtectionLevel: "HSM",
-	}
-	if keyRing := os.Getenv("TEST_GCP_KMS_KEYRING"); keyRing != "" {
-		t.Logf("Running test with real GCP KMS keyring %s", keyRing)
-		gcpKMSConfig.KeyRing = keyRing
-	} else {
-		t.Log("Running test with fake GCP KMS service")
-		_, dialer := newTestGCPKMSService(t)
-		testClient := newTestGCPKMSClient(t, dialer)
-		gcpKMSConfig.kmsClientOverride = testClient
-		gcpKMSConfig.KeyRing = "test-keyring"
-	}
-
-	awsKMSAccount := os.Getenv("TEST_AWS_KMS_ACCOUNT")
-	awsKMSRegion := os.Getenv("TEST_AWS_KMS_REGION")
-
-	yubiSlotNumber := 0
-	backends := []struct {
-		desc       string
-		config     Config
-		isSoftware bool
-		shouldSkip func() bool
-		// unusedRawKey should return passable raw key identifier for this
-		// backend that would not actually exist in the backend.
-		unusedRawKey func(t *testing.T) []byte
-	}{
-		{
-			desc: "software",
-			config: Config{
-				Software: SoftwareConfig{
-					RSAKeyPairSource: native.GenerateKeyPair,
-				},
-			},
-			isSoftware: true,
-			shouldSkip: func() bool { return false },
-			unusedRawKey: func(t *testing.T) []byte {
-				rawKey, _, err := native.GenerateKeyPair()
-				require.NoError(t, err)
-				return rawKey
-			},
-		},
-		{
-			desc:   "softhsm",
-			config: softHSMConfig,
-			shouldSkip: func() bool {
-				if skipSoftHSM {
-					log.Println("Skipping softhsm test because SOFTHSM2_PATH is not set.")
-					return true
-				}
-				return false
-			},
-			unusedRawKey: func(t *testing.T) []byte {
-				rawKey, err := keyID{
-					HostID: softHSMConfig.PKCS11.HostUUID,
-					KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
-				}.marshal()
-				require.NoError(t, err)
-				return rawKey
-			},
-		},
-		{
-			desc: "yubihsm",
-			config: Config{
-				PKCS11: PKCS11Config{
-					Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
-					SlotNumber: &yubiSlotNumber,
-					Pin:        "0001password",
-					HostUUID:   hostUUID,
-				},
-			},
-			shouldSkip: func() bool {
-				if os.Getenv("YUBIHSM_PKCS11_CONF") == "" || os.Getenv("YUBIHSM_PKCS11_PATH") == "" {
-					log.Println("Skipping yubihsm test because YUBIHSM_PKCS11_CONF or YUBIHSM_PKCS11_PATH is not set.")
-					return true
-				}
-				return false
-			},
-			unusedRawKey: func(t *testing.T) []byte {
-				rawKey, err := keyID{
-					HostID: hostUUID,
-					KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
-				}.marshal()
-				require.NoError(t, err)
-				return rawKey
-			},
-		},
-		{
-			desc: "cloudhsm",
-			config: Config{
-				PKCS11: PKCS11Config{
-					Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
-					TokenLabel: "cavium",
-					Pin:        os.Getenv("CLOUDHSM_PIN"),
-					HostUUID:   hostUUID,
-				},
-			},
-			shouldSkip: func() bool {
-				if os.Getenv("CLOUDHSM_PIN") == "" {
-					log.Println("Skipping cloudhsm test because CLOUDHSM_PIN is not set.")
-					return true
-				}
-				return false
-			},
-			unusedRawKey: func(t *testing.T) []byte {
-				rawKey, err := keyID{
-					HostID: hostUUID,
-					KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
-				}.marshal()
-				require.NoError(t, err)
-				return rawKey
-			},
-		},
-		{
-			desc: "gcp kms",
-			config: Config{
-				GCPKMS: gcpKMSConfig,
-			},
-			shouldSkip: func() bool {
-				return false
-			},
-			unusedRawKey: func(t *testing.T) []byte {
-				return gcpKMSKeyID{
-					keyVersionName: gcpKMSConfig.KeyRing + "/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
-				}.marshal()
-			},
-		},
-		{
-			desc: "aws kms",
-			config: Config{
-				AWSKMS: AWSKMSConfig{
-					Cluster:    "test-cluster",
-					AWSAccount: awsKMSAccount,
-					AWSRegion:  awsKMSRegion,
-				},
-			},
-			shouldSkip: func() bool {
-				return awsKMSAccount == "" || awsKMSRegion == ""
-			},
-			unusedRawKey: func(t *testing.T) []byte {
-				return awsKMSKeyID{
-					arn:     "arn:aws:kms:" + awsKMSAccount + ":" + awsKMSRegion + ":key/unused",
-					account: awsKMSAccount,
-					region:  awsKMSRegion,
-				}.marshal()
-			},
-		},
-		{
-			desc: "fake aws kms",
-			config: Config{
-				AWSKMS: AWSKMSConfig{
-					Cluster:    "test-cluster",
-					AWSAccount: "123456789012",
-					AWSRegion:  "us-west-2",
-					CloudClients: &cloud.TestCloudClients{
-						KMS: newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
-						STS: &fakeAWSSTSClient{
-							account: "123456789012",
-						},
-					},
-					clock: clock,
-				},
-			},
-			shouldSkip: func() bool {
-				return false
-			},
-			unusedRawKey: func(t *testing.T) []byte {
-				return awsKMSKeyID{
-					arn:     "arn:aws:kms:us-west-2:123456789012:key/unused",
-					account: "123456789012",
-					region:  "us-west-2",
-				}.marshal()
-			},
-		},
-	}
 
 	message := []byte("Lorem ipsum dolor sit amet...")
 	messageHash := sha256.Sum256(message)
 
-	for _, tc := range backends {
-		tc := tc
-		t.Run(tc.desc, func(t *testing.T) {
-			if tc.shouldSkip() {
-				t.SkipNow()
-			}
+	pack := newTestPack(ctx, t)
 
-			// create the keystore manager
-			keyStore, err := NewManager(ctx, tc.config)
-			require.NoError(t, err, trace.DebugReport(err))
+	for _, backendDesc := range pack.backends {
+		t.Run(backendDesc.name, func(t *testing.T) {
+			backend := backendDesc.backend
 
 			// create a key
-			key, signer, err := keyStore.generateRSA(ctx)
+			key, signer, err := backend.generateRSA(ctx)
 			require.NoError(t, err, trace.DebugReport(err))
 			require.NotNil(t, key)
 			require.NotNil(t, signer)
+			require.Equal(t, backendDesc.expectedKeyType, keyType(key))
 
 			// delete the key when we're done with it
-			t.Cleanup(func() { require.NoError(t, keyStore.deleteKey(ctx, key)) })
+			t.Cleanup(func() { require.NoError(t, backend.deleteKey(ctx, key)) })
 
 			// get a signer from the key
-			signer, err = keyStore.getSigner(ctx, key, signer.Public())
+			signer, err = backend.getSigner(ctx, key, signer.Public())
 			require.NoError(t, err)
 			require.NotNil(t, signer)
 
@@ -375,140 +172,21 @@ func TestKeyStore(t *testing.T) {
 			// make sure we can verify the signature with a "known good" rsa implementation
 			err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, messageHash[:], signature)
 			require.NoError(t, err)
-
-			// make sure we can get the ssh public key
-			sshSigner, err := ssh.NewSignerFromSigner(signer)
-			require.NoError(t, err)
-			sshPublicKey := ssh.MarshalAuthorizedKey(sshSigner.PublicKey())
-
-			// make sure we can get a tls cert
-			tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
-				signer,
-				pkix.Name{
-					CommonName:   "server1",
-					Organization: []string{"server1"},
-				}, nil, defaults.CATTL)
-			require.NoError(t, err)
-
-			jwtPublicKey, err := utils.MarshalPublicKey(signer)
-			require.NoError(t, err)
-
-			// test CA with multiple active keypairs
-			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-				Type:        types.HostCA,
-				ClusterName: "example.com",
-				ActiveKeys: types.CAKeySet{
-					SSH: []*types.SSHKeyPair{
-						testPKCS11SSHKeyPair,
-						&types.SSHKeyPair{
-							PrivateKey:     key,
-							PrivateKeyType: keyType(key),
-							PublicKey:      sshPublicKey,
-						},
-					},
-					TLS: []*types.TLSKeyPair{
-						testPKCS11TLSKeyPair,
-						&types.TLSKeyPair{
-							Key:     key,
-							KeyType: keyType(key),
-							Cert:    tlsCert,
-						},
-					},
-					JWT: []*types.JWTKeyPair{
-						testPKCS11JWTKeyPair,
-						&types.JWTKeyPair{
-							PrivateKey:     key,
-							PrivateKeyType: keyType(key),
-							PublicKey:      jwtPublicKey,
-						},
-					},
-				},
-			})
-			require.NoError(t, err)
-
-			// test that keyStore is able to select the correct key and get a signer
-			sshSigner, err = keyStore.GetSSHSigner(ctx, ca)
-			require.NoError(t, err, trace.DebugReport(err))
-			require.NotNil(t, sshSigner)
-
-			tlsCert, tlsSigner, err := keyStore.GetTLSCertAndSigner(ctx, ca)
-			require.NoError(t, err)
-			require.NotNil(t, tlsCert)
-			require.NotEqual(t, testPKCS11TLSKeyPair.Cert, tlsCert)
-			require.NotNil(t, tlsSigner)
-
-			jwtSigner, err := keyStore.GetJWTSigner(ctx, ca)
-			require.NoError(t, err, trace.DebugReport(err))
-			require.NotNil(t, jwtSigner)
-
-			// test CA with only raw keys
-			ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
-				Type:        types.HostCA,
-				ClusterName: "example.com",
-				ActiveKeys: types.CAKeySet{
-					SSH: []*types.SSHKeyPair{
-						testRawSSHKeyPair,
-					},
-					TLS: []*types.TLSKeyPair{
-						testRawTLSKeyPair,
-					},
-					JWT: []*types.JWTKeyPair{
-						testRawJWTKeyPair,
-					},
-				},
-			})
-			require.NoError(t, err)
-
-			if !tc.isSoftware {
-				// hsm keyStore should not get any signer from raw keys
-				_, err = keyStore.GetSSHSigner(ctx, ca)
-				require.True(t, trace.IsNotFound(err))
-
-				_, _, err = keyStore.GetTLSCertAndSigner(ctx, ca)
-				require.True(t, trace.IsNotFound(err))
-
-				_, err = keyStore.GetJWTSigner(ctx, ca)
-				require.True(t, trace.IsNotFound(err))
-			} else {
-				// software keyStore should be able to get a signer
-				sshSigner, err = keyStore.GetSSHSigner(ctx, ca)
-				require.NoError(t, err)
-				require.NotNil(t, sshSigner)
-
-				tlsCert, tlsSigner, err = keyStore.GetTLSCertAndSigner(ctx, ca)
-				require.NoError(t, err)
-				require.NotNil(t, tlsCert)
-				require.NotNil(t, tlsSigner)
-
-				jwtSigner, err = keyStore.GetJWTSigner(ctx, ca)
-				require.NoError(t, err)
-				require.NotNil(t, jwtSigner)
-			}
 		})
 	}
 
-	for _, tc := range backends {
-		t.Run(tc.desc+"_DeleteUnusedKeys", func(t *testing.T) {
-			if tc.shouldSkip() {
-				t.SkipNow()
-			}
-			if tc.isSoftware {
-				// deleting keys is a no-op for software, we won't get the error
-				// we're expecting
-				t.SkipNow()
-			}
+	for _, backendDesc := range pack.backends {
+		t.Run(backendDesc.name+"_deleteUnusedKeys", func(t *testing.T) {
+			backend := backendDesc.backend
 
-			// create the keystore manager
-			keyStore, err := NewManager(ctx, tc.config)
-			require.NoError(t, err)
-
-			// create some keys to test DeleteUnusedKeys
+			// create some keys to test deleteUnusedKeys
 			const numKeys = 3
 			rawPrivateKeys := make([][]byte, numKeys)
 			rawPublicKeys := make([][]byte, numKeys)
 			for i := 0; i < numKeys; i++ {
 				var signer crypto.Signer
-				rawPrivateKeys[i], signer, err = keyStore.generateRSA(ctx)
+				var err error
+				rawPrivateKeys[i], signer, err = backend.generateRSA(ctx)
 				require.NoError(t, err)
 				rawPublicKeys[i], err = utils.MarshalPublicKey(signer)
 				require.NoError(t, err)
@@ -516,41 +194,397 @@ func TestKeyStore(t *testing.T) {
 
 			// AWS KMS keystore will not delete any keys created in the past 5
 			// minutes.
-			clock.Advance(6 * time.Minute)
+			pack.clock.Advance(6 * time.Minute)
 
 			// say that only the first key is in use, delete the rest
 			usedKeys := [][]byte{rawPrivateKeys[0]}
-			err = keyStore.DeleteUnusedKeys(ctx, usedKeys)
+			err := backend.deleteUnusedKeys(ctx, usedKeys)
 			require.NoError(t, err, trace.DebugReport(err))
 
 			// make sure the first key is still good
-			signer, err := keyStore.getSigner(ctx, rawPrivateKeys[0], rawPublicKeys[0])
+			signer, err := backend.getSigner(ctx, rawPrivateKeys[0], rawPublicKeys[0])
 			require.NoError(t, err)
 			_, err = signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
 			require.NoError(t, err)
 
 			// make sure all other keys are deleted
 			for i := 1; i < numKeys; i++ {
-				signer, err := keyStore.getSigner(ctx, rawPrivateKeys[i], rawPublicKeys[0])
+				signer, err := backend.getSigner(ctx, rawPrivateKeys[i], rawPublicKeys[0])
 				if err != nil {
 					// For PKCS11 we expect to fail to get the signer, for cloud
-					// KMS backends it won't fail until signing
+					// KMS backends it won't fail until actually signing.
 					continue
 				}
 				_, err = signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
-				require.Error(t, err)
+				if backendDesc.deletionDoesNothing {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+				}
 			}
 
 			// Make sure key deletion is aborted when one of the active keys
 			// cannot be found. This makes sure that we don't accidentally
 			// delete current active keys in case the ListKeys operation fails.
-			fakeActiveKey := tc.unusedRawKey(t)
-			err = keyStore.DeleteUnusedKeys(ctx, [][]byte{fakeActiveKey})
-			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+			fakeActiveKey := backendDesc.unusedRawKey
+			err = backend.deleteUnusedKeys(ctx, [][]byte{fakeActiveKey})
+			if backendDesc.deletionDoesNothing {
+				require.NoError(t, err)
+			} else {
+				require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+			}
 
 			// delete the final key so we don't leak it
-			err = keyStore.deleteKey(ctx, rawPrivateKeys[0])
+			err = backend.deleteKey(ctx, rawPrivateKeys[0])
 			require.NoError(t, err)
 		})
+	}
+}
+
+func TestManager(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	pack := newTestPack(ctx, t)
+
+	const clusterName = "test-cluster"
+
+	for _, backendDesc := range pack.backends {
+		manager, err := NewManager(ctx, backendDesc.config)
+		require.NoError(t, err)
+
+		// Delete all keys to clean up the test.
+		t.Cleanup(func() {
+			require.NoError(t, manager.DeleteUnusedKeys(context.Background(), nil /*activeKeys*/))
+		})
+
+		sshKeyPair, err := manager.NewSSHKeyPair(ctx)
+		require.NoError(t, err)
+		require.Equal(t, backendDesc.expectedKeyType, sshKeyPair.PrivateKeyType)
+
+		tlsKeyPair, err := manager.NewTLSKeyPair(ctx, clusterName)
+		require.NoError(t, err)
+		require.Equal(t, backendDesc.expectedKeyType, tlsKeyPair.KeyType)
+
+		jwtKeyPair, err := manager.NewJWTKeyPair(ctx)
+		require.NoError(t, err)
+		require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
+
+		// Test a CA with multiple active keypairs. Each element of ActiveKeys
+		// includes a keypair generated above and a PKCS11 keypair with a
+		// different hostID that this manager should not be able to use.
+		ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:        types.HostCA,
+			ClusterName: clusterName,
+			ActiveKeys: types.CAKeySet{
+				SSH: []*types.SSHKeyPair{
+					testPKCS11SSHKeyPair,
+					sshKeyPair,
+				},
+				TLS: []*types.TLSKeyPair{
+					testPKCS11TLSKeyPair,
+					tlsKeyPair,
+				},
+				JWT: []*types.JWTKeyPair{
+					testPKCS11JWTKeyPair,
+					jwtKeyPair,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Test that the manager is able to select the correct key and get a
+		// signer.
+		sshSigner, err := manager.GetSSHSigner(ctx, ca)
+		require.NoError(t, err, trace.DebugReport(err))
+		require.Equal(t, sshKeyPair.PublicKey, ssh.MarshalAuthorizedKey(sshSigner.PublicKey()))
+
+		tlsCert, tlsSigner, err := manager.GetTLSCertAndSigner(ctx, ca)
+		require.NoError(t, err)
+		require.Equal(t, tlsKeyPair.Cert, tlsCert)
+		require.NotNil(t, tlsSigner)
+
+		jwtSigner, err := manager.GetJWTSigner(ctx, ca)
+		require.NoError(t, err, trace.DebugReport(err))
+		pubkeyPem, err := utils.MarshalPublicKey(jwtSigner)
+		require.NoError(t, err)
+		require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
+
+		// Test what happens when the CA has only raw keys, which will be the
+		// initial state when migrating from software to a HSM/KMS backend.
+		ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:        types.HostCA,
+			ClusterName: clusterName,
+			ActiveKeys: types.CAKeySet{
+				SSH: []*types.SSHKeyPair{
+					testRawSSHKeyPair,
+				},
+				TLS: []*types.TLSKeyPair{
+					testRawTLSKeyPair,
+				},
+				JWT: []*types.JWTKeyPair{
+					testRawJWTKeyPair,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Manager should always be able to get a signer for software keys.
+		hasUsableKeys, err := manager.HasUsableActiveKeys(ctx, ca)
+		require.NoError(t, err)
+		require.True(t, hasUsableKeys)
+
+		sshSigner, err = manager.GetSSHSigner(ctx, ca)
+		require.NoError(t, err)
+		require.NotNil(t, sshSigner)
+
+		tlsCert, tlsSigner, err = manager.GetTLSCertAndSigner(ctx, ca)
+		require.NoError(t, err)
+		require.NotNil(t, tlsCert)
+		require.NotNil(t, tlsSigner)
+
+		jwtSigner, err = manager.GetJWTSigner(ctx, ca)
+		require.NoError(t, err)
+		require.NotNil(t, jwtSigner)
+
+		// Test a CA with only unusable keypairs - PKCS11 keypairs with a
+		// different hostID that this manager should not be able to use.
+		ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:        types.HostCA,
+			ClusterName: clusterName,
+			ActiveKeys: types.CAKeySet{
+				SSH: []*types.SSHKeyPair{
+					testPKCS11SSHKeyPair,
+				},
+				TLS: []*types.TLSKeyPair{
+					testPKCS11TLSKeyPair,
+				},
+				JWT: []*types.JWTKeyPair{
+					testPKCS11JWTKeyPair,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// The manager should not be able to select a key.
+		hasUsableKeys, err = manager.HasUsableActiveKeys(ctx, ca)
+		require.NoError(t, err)
+		require.False(t, hasUsableKeys)
+
+		_, err = manager.GetSSHSigner(ctx, ca)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+		_, _, err = manager.GetTLSCertAndSigner(ctx, ca)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+		_, err = manager.GetJWTSigner(ctx, ca)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+	}
+}
+
+type testPack struct {
+	backends []*backendDesc
+	clock    clockwork.FakeClock
+}
+
+type backendDesc struct {
+	name                string
+	config              Config
+	backend             backend
+	expectedKeyType     types.PrivateKeyType
+	unusedRawKey        []byte
+	deletionDoesNothing bool
+}
+
+func newTestPack(ctx context.Context, t *testing.T) *testPack {
+	clock := clockwork.NewFakeClock()
+	var backends []*backendDesc
+
+	hostUUID := uuid.NewString()
+	logger := utils.NewLoggerForTests()
+
+	unusedPKCS11Key, err := keyID{
+		HostID: hostUUID,
+		KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+	}.marshal()
+	require.NoError(t, err)
+
+	softwareConfig := Config{Software: SoftwareConfig{
+		RSAKeyPairSource: native.GenerateKeyPair,
+	}}
+	softwareBackend := newSoftwareKeyStore(&softwareConfig.Software, logger)
+	backends = append(backends, &backendDesc{
+		name:                "software",
+		config:              softwareConfig,
+		backend:             softwareBackend,
+		unusedRawKey:        testRawPrivateKey,
+		deletionDoesNothing: true,
+	})
+
+	if os.Getenv("SOFTHSM2_PATH") != "" {
+		config := SetupSoftHSMTest(t)
+		config.PKCS11.HostUUID = hostUUID
+		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		require.NoError(t, err)
+		backends = append(backends, &backendDesc{
+			name:            "softhsm",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_PKCS11,
+			unusedRawKey:    unusedPKCS11Key,
+		})
+	}
+
+	if yubiHSMPath := os.Getenv("YUBIHSM_PKCS11_PATH"); yubiHSMPath != "" {
+		slotNumber := 0
+		config := Config{
+			PKCS11: PKCS11Config{
+				Path:       os.Getenv(yubiHSMPath),
+				SlotNumber: &slotNumber,
+				Pin:        "0001password",
+				HostUUID:   hostUUID,
+			},
+		}
+		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		require.NoError(t, err)
+		backends = append(backends, &backendDesc{
+			name:            "yubihsm",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_PKCS11,
+			unusedRawKey:    unusedPKCS11Key,
+		})
+	}
+
+	if cloudHSMPin := os.Getenv("CLOUDHSM_PIN"); cloudHSMPin != "" {
+		config := Config{
+			PKCS11: PKCS11Config{
+				Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
+				TokenLabel: "cavium",
+				Pin:        cloudHSMPin,
+				HostUUID:   hostUUID,
+			},
+		}
+		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		require.NoError(t, err)
+		backends = append(backends, &backendDesc{
+			name:            "yubihsm",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_PKCS11,
+			unusedRawKey:    unusedPKCS11Key,
+		})
+	}
+
+	if gcpKMSKeyring := os.Getenv("TEST_GCP_KMS_KEYRING"); gcpKMSKeyring != "" {
+		config := Config{
+			GCPKMS: GCPKMSConfig{
+				HostUUID:        hostUUID,
+				ProtectionLevel: "HSM",
+				KeyRing:         gcpKMSKeyring,
+			},
+		}
+		backend, err := newGCPKMSKeyStore(ctx, &config.GCPKMS, logger)
+		require.NoError(t, err)
+		backends = append(backends, &backendDesc{
+			name:            "gcp_kms",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_GCP_KMS,
+			unusedRawKey: gcpKMSKeyID{
+				keyVersionName: gcpKMSKeyring + "/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
+			}.marshal(),
+		})
+	}
+	_, gcpKMSDialer := newTestGCPKMSService(t)
+	testGCPKMSClient := newTestGCPKMSClient(t, gcpKMSDialer)
+	fakeGCPKMSConfig := Config{
+		GCPKMS: GCPKMSConfig{
+			HostUUID:          hostUUID,
+			ProtectionLevel:   "HSM",
+			KeyRing:           "test-keyring",
+			kmsClientOverride: testGCPKMSClient,
+		},
+	}
+	fakeGCPKMSBackend, err := newGCPKMSKeyStore(ctx, &fakeGCPKMSConfig.GCPKMS, logger)
+	require.NoError(t, err)
+	backends = append(backends, &backendDesc{
+		name:            "fake_gcp_kms",
+		config:          fakeGCPKMSConfig,
+		backend:         fakeGCPKMSBackend,
+		expectedKeyType: types.PrivateKeyType_GCP_KMS,
+		unusedRawKey: gcpKMSKeyID{
+			keyVersionName: "test-keyring/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
+		}.marshal(),
+	})
+
+	awsKMSAccount := os.Getenv("TEST_AWS_KMS_ACCOUNT")
+	awsKMSRegion := os.Getenv("TEST_AWS_KMS_REGION")
+	if awsKMSAccount != "" && awsKMSRegion != "" {
+		config := Config{
+			AWSKMS: AWSKMSConfig{
+				Cluster:    "test-cluster",
+				AWSAccount: awsKMSAccount,
+				AWSRegion:  awsKMSRegion,
+			},
+		}
+		backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, logger)
+		require.NoError(t, err)
+		backends = append(backends, &backendDesc{
+			name:            "aws_kms",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_AWS_KMS,
+			unusedRawKey: awsKMSKeyID{
+				arn: arn.ARN{
+					Partition: "aws",
+					Service:   "kms",
+					Region:    awsKMSRegion,
+					AccountID: awsKMSAccount,
+					Resource:  "unused",
+				}.String(),
+				account: awsKMSAccount,
+				region:  awsKMSRegion,
+			}.marshal(),
+		})
+	}
+
+	fakeAWSKMSConfig := Config{
+		AWSKMS: AWSKMSConfig{
+			Cluster:    "test-cluster",
+			AWSAccount: "123456789012",
+			AWSRegion:  "us-west-2",
+			CloudClients: &cloud.TestCloudClients{
+				KMS: newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
+				STS: &fakeAWSSTSClient{
+					account: "123456789012",
+				},
+			},
+			clock: clock,
+		},
+	}
+	fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, &fakeAWSKMSConfig.AWSKMS, logger)
+	require.NoError(t, err)
+	backends = append(backends, &backendDesc{
+		name:            "fake_aws_kms",
+		config:          fakeAWSKMSConfig,
+		backend:         fakeAWSKMSBackend,
+		expectedKeyType: types.PrivateKeyType_AWS_KMS,
+		unusedRawKey: awsKMSKeyID{
+			arn: arn.ARN{
+				Partition: "aws",
+				Service:   "kms",
+				Region:    "us-west-2",
+				AccountID: "123456789012",
+				Resource:  "unused",
+			}.String(),
+			account: "123456789012",
+			region:  "us-west-2",
+		}.marshal(),
+	})
+
+	return &testPack{
+		backends: backends,
+		clock:    clock,
 	}
 }
