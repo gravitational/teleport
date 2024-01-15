@@ -223,7 +223,7 @@ func getUsersFromAPIOrFile(ctx context.Context, usernamesOrFileNames []string, c
 
 	for _, name := range flattenedUsernamesOrFileNames {
 		if _, err := os.Stat(name); os.IsNotExist(err) {
-			user, err := c.GetUser(ctx, name, false)
+			user, err := c.GetUser(name, false)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
