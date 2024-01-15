@@ -62,6 +62,9 @@ type FIDODevice interface {
 	// Close mirrors libfido2.Device.Close.
 	Close() error
 
+	// SetTimeout mirrors libfido2.Device.SetTimeout.
+	SetTimeout(time.Duration) error
+
 	// MakeCredential mirrors libfido2.Device.MakeCredential.
 	MakeCredential(
 		clientDataHash []byte,
@@ -903,6 +906,10 @@ func findDevices(knownPaths map[string]struct{}) ([]*deviceWithInfo, error) {
 		if err != nil {
 			return nil, trace.Wrap(err, "device %v: open", path)
 		}
+
+		// Set a timeout for assertions, credential creation, etc.
+		// Timed out methods fail with FIDO_ERR_RX.
+		dev.SetTimeout(fido2DeviceTimeout)
 
 		var info *libfido2.DeviceInfo
 		var u2f bool

@@ -2062,6 +2062,10 @@ func (f *fakeFIDO2Device) Close() error {
 	return nil
 }
 
+func (f *fakeFIDO2Device) SetTimeout(time.Duration) error {
+	return nil
+}
+
 func (f *fakeFIDO2Device) PromptPIN() (string, error) {
 	return f.pin, nil
 }
