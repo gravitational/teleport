@@ -40,6 +40,8 @@ import { DatabaseUri } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
+import { useWorkspaceContext } from '../Documents';
+
 export function ConnectServerActionButton(props: {
   server: Server;
 }): React.JSX.Element {
@@ -98,15 +100,21 @@ export function ConnectKubeActionButton(props: {
 }
 
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
-  const appContext = useAppContext();
+  const { clustersService } = useAppContext();
+  const { rootClusterUri } = useWorkspaceContext();
+  const { app } = props;
 
-  function connect(): void {
-    connectToApp(appContext, props.app, { origin: 'resource_table' });
-  }
+  const cluster = clustersService.findCluster(rootClusterUri);
+  const launchUrl = `https://${cluster.proxyHost}/web/launch/${app.publicAddr}/${cluster.name}/${app.publicAddr}`;
+  // TODO: Report usage?
+
+  // function connect(): void {
+  //   connectToApp(appContext, props.app, { origin: 'resource_table' });
+  // }
 
   return (
-    <ButtonBorder size="small" onClick={connect}>
-      Connect
+    <ButtonBorder as="a" size="small" href={launchUrl} target="_blank">
+      Launch
     </ButtonBorder>
   );
 }

@@ -36,7 +36,10 @@ export default function makeApp(json: any): App {
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
   const launchUrl = canCreateUrl
-    ? cfg.getAppLauncherRoute({ fqdn, clusterId, publicAddr })
+    ? // fqdn - needs to be returned from tshd
+      // clusterId - cluster name
+      // publicAddr - publicAddr
+      cfg.getAppLauncherRoute({ fqdn, clusterId, publicAddr })
     : '';
   const id = `${clusterId}-${name}-${publicAddr || uri}`;
   const labels = json.labels || [];
