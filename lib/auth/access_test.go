@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -28,12 +29,14 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 )
 
 func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
+	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
@@ -47,8 +50,10 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	// Creating a role should emit a RoleCreatedEvent.
 	err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleCreatedEvent)
-	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleCreate).Name, role.GetName())
+	require.Equal(t, events.RoleCreatedEvent, p.mockEmitter.LastEvent().GetType())
+	createEvt := p.mockEmitter.LastEvent().(*apievents.RoleCreate)
+	require.Equal(t, role.GetName(), createEvt.Name)
+	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
 	p.mockEmitter.Reset()
 
 	// Updating a role should emit a RoleCreatedEvent.
@@ -61,8 +66,10 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	// Deleting a role should emit a RoleDeletedEvent.
 	err = p.a.DeleteRole(ctx, role.GetName())
 	require.NoError(t, err)
-	require.Equal(t, p.mockEmitter.LastEvent().GetType(), events.RoleDeletedEvent)
-	require.Equal(t, p.mockEmitter.LastEvent().(*apievents.RoleDelete).Name, role.GetName())
+	require.Equal(t, events.RoleDeletedEvent, p.mockEmitter.LastEvent().GetType())
+	deleteEvt := p.mockEmitter.LastEvent().(*apievents.RoleDelete)
+	require.Equal(t, role.GetName(), deleteEvt.Name)
+	require.Equal(t, clientAddr.String(), deleteEvt.ConnectionMetadata.RemoteAddr)
 	p.mockEmitter.Reset()
 
 	// When deleting a nonexistent role, no event should be emitted.

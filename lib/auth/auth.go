@@ -140,6 +140,14 @@ const (
 	OSSDesktopsLimit    = 5
 )
 
+const (
+	dynamicLabelCheckPeriod  = time.Hour
+	dynamicLabelAlertID      = "dynamic-labels-in-deny-rules"
+	dynamicLabelAlertMessage = "One or more roles has deny rules that include dynamic/ labels. " +
+		"This is not recommended due to the volatitily of dynamic/ labels and is not allowed for new roles. " +
+		"(hint: use 'tctl get roles' to find roles that need updating)"
+)
+
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
 // ServerOption allows setting options as functional arguments to Server
@@ -1085,6 +1093,13 @@ func (a *Server) runPeriodicOperations() {
 		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
 	}
 
+	dynamicLabelsCheck := interval.New(interval.Config{
+		Duration:      dynamicLabelCheckPeriod,
+		FirstDuration: utils.HalfJitter(time.Second * 10),
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer dynamicLabelsCheck.Stop()
+
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -1148,6 +1163,8 @@ func (a *Server) runPeriodicOperations() {
 			go a.doInstancePeriodics(ctx)
 		case <-ossDesktopsCheck:
 			a.syncDesktopsLimitAlert(ctx)
+		case <-dynamicLabelsCheck.Next():
+			a.syncDynamicLabelsAlert(ctx)
 		}
 	}
 }
@@ -1569,6 +1586,25 @@ func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
 
+// GetClusterID returns the cluster ID.
+func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+	clusterName, err := a.GetClusterName(opts...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return clusterName.GetClusterID(), nil
+}
+
+// GetAnonymizationKey returns the anonymization key that identifies this client.
+// It falls back to the cluster ID if the anonymization key is not set in license file.
+func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+	if a.license == nil || len(a.license.AnonymizationKey) == 0 {
+		return a.GetClusterID(ctx, opts...)
+	}
+
+	return string(a.license.AnonymizationKey), nil
+}
+
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {
@@ -1741,6 +1777,9 @@ type certRequest struct {
 	// dbName is the optional database name which, if provided, will be used
 	// as a default database.
 	dbName string
+	// dbRoles is the optional list of database roles which, if provided, will
+	// be used instead of all database roles granted for the target database.
+	dbRoles []string
 	// mfaVerified is the UUID of an MFA device when this certRequest was
 	// created immediately after an MFA check.
 	mfaVerified string
@@ -1774,6 +1813,8 @@ type certRequest struct {
 	skipAttestation bool
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
+	// botName is the name of the bot requesting this cert, if any
+	botName string
 }
 
 // check verifies the cert request is valid.
@@ -2050,6 +2091,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		dbProtocol:     req.RouteToDatabase.Protocol,
 		dbUser:         req.RouteToDatabase.Username,
 		dbName:         req.RouteToDatabase.Database,
+		dbRoles:        req.RouteToDatabase.Roles,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2519,6 +2561,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
+		BotName:                 req.botName,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -2601,6 +2644,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 			Protocol:    req.dbProtocol,
 			Username:    req.dbUser,
 			Database:    req.dbName,
+			Roles:       req.dbRoles,
 		},
 		DatabaseNames:           dbNames,
 		DatabaseUsers:           dbUsers,
@@ -2615,6 +2659,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
+		BotName:                 req.botName,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3195,8 +3240,9 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			Code:        events.MFADeviceDeleteEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:      authz.ClientUserMetadataWithUser(ctx, user),
-		MFADeviceMetadata: mfaDeviceEventMetadata(deviceToDelete),
+		UserMetadata:       authz.ClientUserMetadataWithUser(ctx, user),
+		MFADeviceMetadata:  mfaDeviceEventMetadata(deviceToDelete),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3296,8 +3342,9 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 			Code:        events.MFADeviceAddEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:      authz.ClientUserMetadataWithUser(ctx, req.username),
-		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
+		UserMetadata:       authz.ClientUserMetadataWithUser(ctx, req.username),
+		MFADeviceMetadata:  mfaDeviceEventMetadata(dev),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit add mfa device event.")
 	}
@@ -4823,6 +4870,40 @@ func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
 	return false, trace.Wrap(desktops.Done())
 }
 
+func (a *Server) syncDynamicLabelsAlert(ctx context.Context) {
+	roles, err := a.GetRoles(ctx)
+	if err != nil {
+		log.Warnf("Can't get roles: %v", err)
+	}
+	var rolesWithDynamicDenyLabels bool
+	for _, role := range roles {
+		err := services.CheckDynamicLabelsInDenyRules(role)
+		if trace.IsBadParameter(err) {
+			rolesWithDynamicDenyLabels = true
+			break
+		}
+		if err != nil {
+			log.Warnf("Error checking labels in role %s: %v", role.GetName(), err)
+			continue
+		}
+	}
+	if !rolesWithDynamicDenyLabels {
+		return
+	}
+	alert, err := types.NewClusterAlert(
+		dynamicLabelAlertID,
+		dynamicLabelAlertMessage,
+		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindRole, types.VerbRead)),
+	)
+	if err != nil {
+		log.Warnf("Failed to build %s alert: %v (this is a bug)", dynamicLabelAlertID, err)
+	}
+	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+		log.Warnf("Failed to set %s alert: %v", dynamicLabelAlertID, err)
+	}
+}
+
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
@@ -5451,21 +5532,26 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 
-		autoCreate, _, err := checker.CheckDatabaseRoles(db)
-		if err != nil {
+		autoCreate, err := checker.DatabaseAutoUserMode(db)
+		switch {
+		case errors.Is(err, services.ErrSessionMFARequired):
+			noMFAAccessErr = err
+		case err != nil:
 			return nil, trace.Wrap(err)
+		default:
+			dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+				Database:       db,
+				DatabaseUser:   t.Database.Username,
+				DatabaseName:   t.Database.GetDatabase(),
+				AutoCreateUser: autoCreate.IsEnabled(),
+			})
+			noMFAAccessErr = checker.CheckAccess(
+				db,
+				services.AccessState{},
+				dbRoleMatchers...,
+			)
 		}
-		dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
-			Database:       db,
-			DatabaseUser:   t.Database.Username,
-			DatabaseName:   t.Database.GetDatabase(),
-			AutoCreateUser: autoCreate.IsEnabled(),
-		})
-		noMFAAccessErr = checker.CheckAccess(
-			db,
-			services.AccessState{},
-			dbRoleMatchers...,
-		)
+
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
 		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
 		if err != nil {

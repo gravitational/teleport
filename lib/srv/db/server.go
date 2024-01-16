@@ -1025,6 +1025,15 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		s.log.Debug("LoginIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
 	}
 
+	// Update database roles. It needs to be done here after engine is
+	// dispatched so the engine can propagate the error message to the client.
+	if sessionCtx.AutoCreateUserMode.IsEnabled() {
+		sessionCtx.DatabaseRoles, err = sessionCtx.Checker.CheckDatabaseRoles(sessionCtx.Database, sessionCtx.Identity.RouteToDatabase.Roles)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
 		connectionDiagnosticID := sessionCtx.Identity.ConnectionDiagnosticID
@@ -1121,7 +1130,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	autoCreate, databaseRoles, err := authContext.Checker.CheckDatabaseRoles(database)
+	autoCreate, err := authContext.Checker.DatabaseAutoUserMode(database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1139,7 +1148,6 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		AutoCreateUserMode: autoCreate,
 		DatabaseUser:       identity.RouteToDatabase.Username,
 		DatabaseName:       identity.RouteToDatabase.Database,
-		DatabaseRoles:      databaseRoles,
 		AuthContext:        authContext,
 		Checker:            authContext.Checker,
 		StartupParameters:  make(map[string]string),

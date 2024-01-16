@@ -927,7 +927,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindProxy, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
-						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindLock, services.RW()),
 					},
 				},
 			})
@@ -1437,4 +1437,18 @@ func IsLocalUser(authContext Context) bool {
 // IsCurrentUser checks if the identity is a local user matching the given username
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
+}
+
+// ConnectionMetadata returns a ConnectionMetadata suitable for events caused by
+// a remote client making a call. If ctx didn't pass through auth middleware or
+// did not come from an HTTP request, empty metadata is returned.
+func ConnectionMetadata(ctx context.Context) apievents.ConnectionMetadata {
+	remoteAddr, err := ClientSrcAddrFromContext(ctx)
+	if err != nil {
+		return apievents.ConnectionMetadata{}
+	}
+
+	return apievents.ConnectionMetadata{
+		RemoteAddr: remoteAddr.String(),
+	}
 }
