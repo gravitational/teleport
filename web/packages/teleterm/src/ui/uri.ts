@@ -214,6 +214,18 @@ export const routing = {
   },
 };
 
+export function isDatabaseUri(uri: string): uri is DatabaseUri {
+  return !!routing.parseDbUri(uri);
+}
+
+export function isServerUri(uri: string): uri is ServerUri {
+  return !!routing.parseServerUri(uri);
+}
+
+export function isKubeUri(uri: string): uri is KubeUri {
+  return !!routing.parseKubeUri(uri);
+}
+
 export type Params = {
   rootClusterId?: string;
   leafClusterId?: string;
