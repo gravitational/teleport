@@ -469,6 +469,9 @@ type CLIConf struct {
 	// It shouldn't be used outside testing.
 	KubeConfigPath string
 
+	// clearKubeConfig determines if kubectl config is cleared on tsh logout
+	clearKubeConfig bool
+
 	// Client only version display.  Skips checking proxy version.
 	clientOnlyVersionCheck bool
 
@@ -603,6 +606,7 @@ const (
 	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
 	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
 	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
+	clearKubeConfigEnvVar    = "TELEPORT_LOGOUT_CLEAR_KUBECONFIG"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -965,6 +969,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate.")
+	logout.Flag("clear-kubeconfig", "Determines if kube config is cleared on logout. Default is enabled").
+		Envar(clearKubeConfigEnvVar).
+		Default("true").
+		BoolVar(&cf.clearKubeConfig)
 
 	// latency
 	latency := app.Command("latency", "Run latency diagnostics.").Hidden()
@@ -2063,11 +2071,13 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		// Remove Teleport related entries from kubeconfig.
-		log.Debugf("Removing Teleport related entries with server '%v' from kubeconfig.", tc.KubeClusterAddr())
-		err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr())
-		if err != nil {
-			return trace.Wrap(err)
+		if cf.clearKubeConfig {
+			// Remove Teleport related entries from kubeconfig.
+			log.Debugf("Removing Teleport related entries with server '%v' from kubeconfig.", tc.KubeClusterAddr())
+			err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr())
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 
 		fmt.Printf("Logged out %v from %v.\n", cf.Username, proxyHost)
@@ -2078,17 +2088,19 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		log.Debugf("Removing Teleport related entries with server '%v' from kubeconfig.", tc.KubeClusterAddr())
-		if err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr()); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Remove Teleport related entries from kubeconfig for all clusters.
-		for _, profile := range profiles {
-			log.Debugf("Removing Teleport related entries for cluster '%v' from kubeconfig.", profile.Cluster)
-			err = kubeconfig.RemoveByClusterName("", profile.Cluster)
-			if err != nil {
+		if cf.clearKubeConfig {
+			log.Debugf("Removing Teleport related entries with server '%v' from kubeconfig.", tc.KubeClusterAddr())
+			if err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr()); err != nil {
 				return trace.Wrap(err)
+			}
+
+			// Remove Teleport related entries from kubeconfig for all clusters.
+			for _, profile := range profiles {
+				log.Debugf("Removing Teleport related entries for cluster '%v' from kubeconfig.", profile.Cluster)
+				err = kubeconfig.RemoveByClusterName("", profile.Cluster)
+				if err != nil {
+					return trace.Wrap(err)
+				}
 			}
 		}
 

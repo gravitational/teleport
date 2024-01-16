@@ -2917,6 +2917,39 @@ func TestEnvFlags(t *testing.T) {
 			},
 		}))
 	})
+
+	t.Run("tsh logout clear-kubeconfig env", func(t *testing.T) {
+		t.Run("nothing set", testEnvFlag(testCase{
+			outCLIConf: CLIConf{},
+		}))
+		t.Run("CLI flag is set", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				clearKubeConfig: true,
+			},
+			outCLIConf: CLIConf{
+				clearKubeConfig: true,
+			},
+		}))
+		t.Run("TELEPORT_LOGOUT_CLEAR_KUBECONFIG set", testEnvFlag(testCase{
+			envMap: map[string]string{
+				clearKubeConfigEnvVar: "true",
+			},
+			outCLIConf: CLIConf{
+				clearKubeConfig: true,
+			},
+		}))
+		t.Run("TELEPORT_LOGOUT_CLEAR_KUBECONFIG and CLI flag is set, prefer env", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				clearKubeConfig: false,
+			},
+			envMap: map[string]string{
+				clearKubeConfigEnvVar: "true",
+			},
+			outCLIConf: CLIConf{
+				clearKubeConfig: false,
+			},
+		}))
+	})
 }
 
 func TestKubeConfigUpdate(t *testing.T) {
