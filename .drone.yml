@@ -11901,6 +11901,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: a48f47f7c6bd1ab5e49222cc5e37d0980ec48cfa8fd42d0a54b39c4f07c1e5dc
+hmac: 0c8ac1cda6e9acdb2ed56c58fc69b85bbd65135d2ccb21c716540f288acc3223
 
 ...
