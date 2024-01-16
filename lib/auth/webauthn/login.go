@@ -67,12 +67,12 @@ type loginFlow struct {
 	sessionData sessionIdentity
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, ext mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
-	if ext.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && ext.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION {
-		return nil, trace.BadParameter("mfa challenges with scope %s cannot allow reuse", ext.Scope)
+func (f *loginFlow) begin(ctx context.Context, user string, requestedChallengeExt mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
+	if requestedChallengeExt.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && requestedChallengeExt.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION {
+		return nil, trace.BadParameter("mfa challenges with scope %s cannot allow reuse", requestedChallengeExt.Scope)
 	}
 
-	passwordless := ext.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+	passwordless := requestedChallengeExt.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
@@ -172,7 +172,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, ext mfav1.ChallengeE
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd.ChallengeExtensions = &ext
+	sd.ChallengeExtensions = &requestedChallengeExt
 
 	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {
 		return nil, trace.Wrap(err)
@@ -198,9 +198,9 @@ type LoginData struct {
 	User string
 	// Device is the MFA device used to authenticate the user.
 	Device *types.MFADevice
-	// Reusable is whether the webauthn challenge used for this login
+	// AllowReuse is whether the webauthn challenge used for this login
 	// can be reused by the user for subsequent logins.
-	Reusable bool
+	AllowReuse mfav1.ChallengeAllowReuse
 }
 
 func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions mfav1.ChallengeExtensions) (*LoginData, error) {
@@ -356,9 +356,9 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 
 	return &LoginData{
-		User:     user,
-		Device:   dev,
-		Reusable: sd.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		User:       user,
+		Device:     dev,
+		AllowReuse: sd.ChallengeExtensions.AllowReuse,
 	}, nil
 }
 

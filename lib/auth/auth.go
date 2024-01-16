@@ -5810,7 +5810,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 		// TODO(Joerger): Get extensions from caller.
 		ext := mfav1.ChallengeExtensions{
 			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
-			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_UNSPECIFIED,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 		}
 		assertion, err := webLogin.Begin(ctx, user, ext)
 		if err != nil {
@@ -5941,7 +5941,7 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 			// TODO(Joerger): Get extensions from caller.
 			ext := mfav1.ChallengeExtensions{
 				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
-				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_UNSPECIFIED,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 			}
 			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), ext)
 		}
