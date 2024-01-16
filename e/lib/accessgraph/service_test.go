@@ -71,6 +71,9 @@ func TestService_Query(t *testing.T) {
 }
 
 type serviceFake struct {
+	// Implements the AccessGraphServiceClient interface to avoid breaking changes
+	// when TAG API is updated.
+	accessgraphv1alpha.AccessGraphServiceClient
 	calledFunctions map[string]int // map of function name to number of times called
 }
 
