@@ -15,6 +15,7 @@ provider "teleport" {
 }
 
 resource "teleport_role" "terraform-test" {
+  version = "v7"
   metadata = {
     name        = "terraform-test"
     description = "Terraform test role"
@@ -68,6 +69,7 @@ resource "teleport_role" "terraform-test" {
 }
 
 resource "teleport_user" "terraform-test" {
+  version = "v2"
   metadata = {
     name        = "terraform-test"
     description = "Test terraform user"
