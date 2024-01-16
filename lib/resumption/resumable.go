@@ -92,12 +92,13 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 
 	var stopRequested atomic.Bool
 
-	r.requestDetach = func() {
+	requestDetach := func() {
 		nc.Close()
 		if !stopRequested.Swap(true) {
 			r.cond.Broadcast()
 		}
 	}
+	r.requestDetach = requestDetach
 	r.cond.Broadcast()
 
 	defer func() {
@@ -158,11 +159,7 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 	handshakeWatchdog.Stop()
 
 	eg, ctx := errgroup.WithContext(context.Background())
-	defer context.AfterFunc(ctx, func() {
-		if !stopRequested.Swap(true) {
-			r.cond.Broadcast()
-		}
-	})()
+	context.AfterFunc(ctx, requestDetach)
 
 	eg.Go(func() error {
 		return runResumeV1Read(r, ncReader, &stopRequested)
