@@ -625,7 +625,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client auth.ClientI) error 
 		return trace.Wrap(err)
 	}
 
-	log.Infof("Bot %q has been updated. Roles will take affect on its next renewal.", c.botName)
+	log.Infof("Bot %q has been updated. Roles will take effect on its next renewal.", c.botName)
 
 	return nil
 }
