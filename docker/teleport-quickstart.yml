@@ -3,7 +3,7 @@ services:
   # The configure container starts, generates a config, writes it to
   # /etc/teleport/teleport.yaml and then immediately exits.
   configure:
-    image: public.ecr.aws/gravitational/teleport:12
+    image: public.ecr.aws/gravitational/teleport:14
     container_name: teleport-configure
     entrypoint: /bin/sh
     hostname: localhost
@@ -14,7 +14,7 @@ services:
   # This container depends on the config written by the configure container above, so it
   # sleeps for a second on startup to allow the configure container to run first.
   teleport:
-    image: public.ecr.aws/gravitational/teleport:12
+    image: public.ecr.aws/gravitational/teleport:14
     container_name: teleport
     entrypoint: /bin/sh
     hostname: localhost

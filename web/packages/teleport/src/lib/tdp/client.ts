@@ -71,6 +71,7 @@ export enum TdpClientEvent {
   CLIENT_WARNING = 'client warning',
   WS_OPEN = 'ws open',
   WS_CLOSE = 'ws close',
+  RESET = 'reset',
 }
 
 export enum LogType {
@@ -90,7 +91,6 @@ export default class Client extends EventEmitterWebAuthnSender {
   protected codec: Codec;
   protected socket: WebSocket | undefined;
   private socketAddr: string;
-  protected spec?: ClientScreenSpec;
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
 
@@ -156,27 +156,21 @@ export default class Client extends EventEmitterWebAuthnSender {
     init_wasm_log(wasmLogLevel);
   }
 
-  private initFastPathProcessor(ioChannelId: number, userChannelId: number) {
-    if (!this.spec.width || !this.spec.height) {
-      this.logger.error(
-        'client screen spec must be set before initializing fast path processor'
-      );
-      this.handleError(
-        new Error('internal error'),
-        TdpClientEvent.CLIENT_ERROR
-      );
-    }
+  private initFastPathProcessor(
+    ioChannelId: number,
+    userChannelId: number,
+    spec: ClientScreenSpec
+  ) {
+    this.logger.debug(
+      `initializing fast path processor with screen spec ${spec.width} x ${spec.height}`
+    );
+
     this.fastPathProcessor = new FastPathProcessor(
-      this.spec.width,
-      this.spec.height,
+      spec.width,
+      spec.height,
       ioChannelId,
       userChannelId
     );
-  }
-
-  protected setClientScreenSpec(spec: ClientScreenSpec) {
-    this.spec = spec;
-    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
   // processMessage should be await-ed when called,
@@ -191,8 +185,8 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.PNG2_FRAME:
           this.handlePng2Frame(buffer);
           break;
-        case MessageType.RDP_CHANNEL_IDS:
-          this.handleRDPChannelIDs(buffer);
+        case MessageType.RDP_CONNECTION_INITIALIZED:
+          this.handleRDPConnectionInitialized(buffer);
           break;
         case MessageType.RDP_FASTPATH_PDU:
           this.handleRDPFastPathPDU(buffer);
@@ -315,21 +309,25 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleRDPChannelIDs(buffer: ArrayBuffer) {
-    const { ioChannelId, userChannelId } =
-      this.codec.decodeRDPChannelIDs(buffer);
+  handleRDPConnectionInitialized(buffer: ArrayBuffer) {
+    const { ioChannelId, userChannelId, screenWidth, screenHeight } =
+      this.codec.decodeRDPConnectionInitialied(buffer);
+    const spec = { width: screenWidth, height: screenHeight };
+    this.logger.info(
+      `setting screen spec received from server ${spec.width} x ${spec.height}`
+    );
 
-    this.initFastPathProcessor(ioChannelId, userChannelId);
+    this.initFastPathProcessor(ioChannelId, userChannelId, {
+      width: screenWidth,
+      height: screenHeight,
+    });
+
+    // Emit the spec to any listeners. Listeners can then resize
+    // the canvas to the size we're actually using in this session.
+    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
   handleRDPFastPathPDU(buffer: ArrayBuffer) {
-    if (!this.fastPathProcessor) {
-      this.handleError(
-        new Error("fastPathProcessor isn't initialized yet"),
-        TdpClientEvent.CLIENT_ERROR
-      );
-    }
-
     let rdpFastPathPDU = this.codec.decodeRDPFastPathPDU(buffer);
 
     // This should never happen but let's catch it with an error in case it does.
@@ -339,16 +337,20 @@ export default class Client extends EventEmitterWebAuthnSender {
         TdpClientEvent.CLIENT_ERROR
       );
 
-    this.fastPathProcessor.process(
-      rdpFastPathPDU,
-      this,
-      (bmpFrame: BitmapFrame) => {
-        this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
-      },
-      (responseFrame: ArrayBuffer) => {
-        this.sendRDPResponsePDU(responseFrame);
-      }
-    );
+    try {
+      this.fastPathProcessor.process(
+        rdpFastPathPDU,
+        this,
+        (bmpFrame: BitmapFrame) => {
+          this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
+        },
+        (responseFrame: ArrayBuffer) => {
+          this.sendRDPResponsePDU(responseFrame);
+        }
+      );
+    } catch (e) {
+      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
+    }
   }
 
   handleMfaChallenge(buffer: ArrayBuffer) {
@@ -575,7 +577,9 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
-    this.setClientScreenSpec(spec);
+    this.logger.info(
+      `requesting screen spec from client ${spec.width} x ${spec.height}`
+    );
     this.send(this.codec.encodeClientScreenSpec(spec));
   }
 

@@ -122,12 +122,12 @@ func newFixture(t *testing.T) *sshTestFixture {
 	return newCustomFixture(t, func(*auth.TestServerConfig) {})
 }
 
-func newFixtureWithoutDiskBasedLogging(t *testing.T) *sshTestFixture {
+func newFixtureWithoutDiskBasedLogging(t *testing.T, sshOpts ...ServerOption) *sshTestFixture {
 	t.Helper()
 
 	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
 		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
-	})
+	}, sshOpts...)
 
 	// use a sync recording mode because the disk-based uploader
 	// that runs in the background introduces races with test cleanup
@@ -2119,11 +2119,6 @@ func x11Handler(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewCha
 		return nil
 	}
 
-	if nch.ChannelType() == tracessh.TracingChannel {
-		nch.Reject(ssh.UnknownChannelType, "")
-		return x11Handler(ctx, conn, chs)
-	}
-
 	if nch.ChannelType() != teleport.ChanSession {
 		return trace.BadParameter("Unexpected channel type: %q", nch.ChannelType())
 	}
@@ -2229,6 +2224,212 @@ func requireNoErrors(t *testing.T, errsCh <-chan []error) {
 
 	case <-timeoutCtx.Done():
 		require.Fail(t, "Timed out waiting for errors")
+	}
+}
+
+// TestParseSubsystemRequest verifies parseSubsystemRequest accepts the correct subsystems in depending on the runtime configuration.
+func TestParseSubsystemRequest(t *testing.T) {
+	ctx := context.Background()
+
+	// start a listener to accept connections; this will be needed for the proxy test to pass, otherwise nothing will be there to handle the call.
+	agentlessListener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = agentlessListener.Close() })
+	go func() {
+		for {
+			// accept connections, but don't do anything else except for closing the connection on cleanup.
+			conn, err := agentlessListener.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() {
+				_ = conn.Close()
+			})
+		}
+	}()
+
+	agentlessSrv := types.ServerV2{
+		Kind:    types.KindNode,
+		SubKind: types.SubKindOpenSSHNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: uuid.NewString(),
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     agentlessListener.Addr().String(),
+			Hostname: "agentless",
+		},
+	}
+
+	getNonProxySession := func() func() *tracessh.Session {
+		f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
+		return func() *tracessh.Session {
+			se, err := f.ssh.clt.NewSession(context.Background())
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = se.Close() })
+			return se
+		}
+	}()
+
+	getProxySession := func() func() *tracessh.Session {
+		f := newFixtureWithoutDiskBasedLogging(t)
+		listener, _ := mustListen(t)
+
+		proxyClient, _ := newProxyClient(t, f.testSrv)
+		lockWatcher := newLockWatcher(ctx, t, proxyClient)
+		nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+		caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
+
+		reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
+			ClientTLS:                     proxyClient.TLSConfig(),
+			ID:                            hostID,
+			ClusterName:                   f.testSrv.ClusterName(),
+			Listener:                      listener,
+			HostSigners:                   []ssh.Signer{f.signer},
+			LocalAuthClient:               proxyClient,
+			LocalAccessPoint:              proxyClient,
+			NewCachingAccessPoint:         noCache,
+			NewCachingAccessPointOldProxy: noCache,
+			DataDir:                       t.TempDir(),
+			Emitter:                       proxyClient,
+			Log:                           logrus.StandardLogger(),
+			LockWatcher:                   lockWatcher,
+			NodeWatcher:                   nodeWatcher,
+			CertAuthorityWatcher:          caWatcher,
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, reverseTunnelServer.Start())
+		t.Cleanup(func() { _ = reverseTunnelServer.Close() })
+
+		nodeClient, _ := newNodeClient(t, f.testSrv)
+
+		_, err = nodeClient.UpsertNode(ctx, &agentlessSrv)
+		require.NoError(t, err)
+
+		router, err := libproxy.NewRouter(libproxy.RouterConfig{
+			ClusterName:         f.testSrv.ClusterName(),
+			Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+			RemoteClusterGetter: proxyClient,
+			SiteGetter:          reverseTunnelServer,
+			TracerProvider:      tracing.NoopProvider(),
+		})
+		require.NoError(t, err)
+
+		sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+			Semaphores:   proxyClient,
+			AccessPoint:  proxyClient,
+			LockEnforcer: lockWatcher,
+			Emitter:      proxyClient,
+			Component:    teleport.ComponentProxy,
+			ServerID:     hostID,
+		})
+		require.NoError(t, err)
+
+		proxy, err := New(
+			ctx,
+			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+			f.testSrv.ClusterName(),
+			[]ssh.Signer{f.signer},
+			proxyClient,
+			t.TempDir(),
+			"",
+			utils.NetAddr{},
+			proxyClient,
+			SetProxyMode("", reverseTunnelServer, proxyClient, router),
+			SetEmitter(nodeClient),
+			SetNamespace(apidefaults.Namespace),
+			SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+			SetBPF(&bpf.NOP{}),
+			SetRestrictedSessionManager(&restricted.NOP{}),
+			SetClock(f.clock),
+			SetLockWatcher(lockWatcher),
+			SetNodeWatcher(nodeWatcher),
+			SetSessionController(sessionController),
+		)
+		require.NoError(t, err)
+		require.NoError(t, proxy.Start())
+		t.Cleanup(func() { _ = proxy.Close() })
+
+		// set up SSH client using the user private key for signing
+		up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
+		require.NoError(t, err)
+
+		return func() *tracessh.Session {
+			sshConfig := &ssh.ClientConfig{
+				User:            f.user,
+				Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
+				HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+			}
+
+			// Connect SSH client to proxy
+			client, err := tracessh.Dial(ctx, "tcp", proxy.Addr(), sshConfig)
+
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = client.Close() })
+
+			se, err := client.NewSession(ctx)
+			require.NoError(t, err)
+
+			return se
+		}
+	}()
+
+	tests := []struct {
+		name                 string
+		subsystemOverride    string
+		wantErrInProxyMode   bool
+		wantErrInRegularMode bool
+	}{
+		{
+			name:                 "invalid",
+			wantErrInProxyMode:   true,
+			wantErrInRegularMode: true,
+		},
+		{
+			name:                 teleport.SFTPSubsystem,
+			wantErrInProxyMode:   true,
+			wantErrInRegularMode: false,
+		},
+		{
+			name:                 teleport.GetHomeDirSubsystem,
+			wantErrInProxyMode:   true,
+			wantErrInRegularMode: false,
+		},
+		{
+			name:                 "proxysites",
+			wantErrInProxyMode:   false,
+			wantErrInRegularMode: true,
+		},
+		{
+			name:                 "proxy:agentlessServer",
+			subsystemOverride:    "proxy:" + agentlessSrv.Spec.Addr,
+			wantErrInProxyMode:   false,
+			wantErrInRegularMode: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subsystem := tt.name
+			if tt.subsystemOverride != "" {
+				subsystem = tt.subsystemOverride
+			}
+
+			err := getProxySession().RequestSubsystem(ctx, subsystem)
+			if tt.wantErrInProxyMode {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			err = getNonProxySession().RequestSubsystem(ctx, subsystem)
+			if tt.wantErrInRegularMode {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 

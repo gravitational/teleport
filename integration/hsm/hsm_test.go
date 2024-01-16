@@ -142,13 +142,14 @@ func TestHSMRotation(t *testing.T) {
 	log.Debug("TestHSMRotation: starting auth server")
 	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log)
 	auth1 := newTeleportService(t, authConfig, "auth1")
-	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
-	})
 	allServices := teleportServices{auth1}
 
 	log.Debug("TestHSMRotation: waiting for auth server to start")
-	require.NoError(t, auth1.start(ctx))
+	err := auth1.start(ctx)
+	require.NoError(t, err, trace.DebugReport(err))
+	t.Cleanup(func() {
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
+	})
 
 	// start a proxy to make sure it can get creds at each stage of rotation
 	log.Debug("TestHSMRotation: starting proxy")
@@ -157,7 +158,7 @@ func TestHSMRotation(t *testing.T) {
 	allServices = append(allServices, proxy)
 
 	log.Debug("TestHSMRotation: sending rotation request init")
-	err := auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
@@ -166,7 +167,7 @@ func TestHSMRotation(t *testing.T) {
 	require.NoError(t, allServices.waitForPhaseChange(ctx))
 
 	log.Debug("TestHSMRotation: sending rotation request update_clients")
-	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
@@ -175,7 +176,7 @@ func TestHSMRotation(t *testing.T) {
 	require.NoError(t, allServices.waitForRestart(ctx))
 
 	log.Debug("TestHSMRotation: sending rotation request update_servers")
-	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
@@ -184,7 +185,7 @@ func TestHSMRotation(t *testing.T) {
 	require.NoError(t, allServices.waitForRestart(ctx))
 
 	log.Debug("TestHSMRotation: sending rotation request standby")
-	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
@@ -261,11 +262,9 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	require.NoError(t, authServices.start(ctx), "auth service failed initial startup")
 
 	log.Debug("TestHSMDualAuthRotation: Starting load balancer")
-	hostName, err := os.Hostname()
-	require.NoError(t, err)
 	lb, err := utils.NewLoadBalancer(
 		ctx,
-		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		*utils.MustParseAddr(net.JoinHostPort("localhost", "0")),
 		auth1.authAddr(t),
 	)
 	require.NoError(t, err)
@@ -334,7 +333,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	// do a full rotation
 	for _, stage := range stages {
 		log.Debugf("TestHSMDualAuthRotation: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,
@@ -353,7 +352,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	// Do another full rotation from the new auth server
 	for _, stage := range stages {
 		log.Debugf("TestHSMDualAuthRotation: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth2.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		require.NoError(t, auth2.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,
@@ -456,7 +455,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	}
 	for _, stage := range stages {
 		log.Debugf("TestHSMDualAuthRotation: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,
@@ -487,12 +486,15 @@ func TestHSMMigrate(t *testing.T) {
 	require.NoError(t, auth1.start(ctx))
 	require.NoError(t, auth2.start(ctx))
 
+	// Replace configured addresses with port set to 0 with the actual port
+	// number so they are stable across hard restarts.
+	auth1Config.Auth.ListenAddr = auth1.authAddr(t)
+	auth2Config.Auth.ListenAddr = auth2.authAddr(t)
+
 	log.Debug("TestHSMMigrate: Starting load balancer")
-	hostName, err := os.Hostname()
-	require.NoError(t, err)
 	lb, err := utils.NewLoadBalancer(
 		ctx,
-		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		*utils.MustParseAddr(net.JoinHostPort("localhost", "0")),
 		auth1.authAddr(t),
 		auth2.authAddr(t),
 	)
@@ -508,12 +510,11 @@ func TestHSMMigrate(t *testing.T) {
 	require.NoError(t, proxy.start(ctx))
 
 	testClient := func(t *testing.T) {
-		testAdminClient(t, auth2Config.DataDir, auth2.authAddrString(t))
+		testAdminClient(t, auth1Config.DataDir, lb.Addr().String())
 	}
 	testClient(t)
 
 	// Phase 1: migrate auth1 to HSM
-	lb.RemoveBackend(auth1.authAddr(t))
 	auth1.process.Close()
 	require.NoError(t, auth1.waitForShutdown(ctx))
 	auth1Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
@@ -560,10 +561,10 @@ func TestHSMMigrate(t *testing.T) {
 		},
 	}
 
-	// do a full rotation
+	// Do a full rotation to get HSM keys for auth1 into the CA.
 	for _, stage := range stages {
 		log.Debugf("TestHSMMigrate: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,
@@ -571,11 +572,7 @@ func TestHSMMigrate(t *testing.T) {
 		stage.verify(t)
 	}
 
-	// Safe to send traffic to new auth1 again
-	lb.AddBackend(auth1.authAddr(t))
-
 	// Phase 2: migrate auth2 to HSM
-	lb.RemoveBackend(auth2.authAddr(t))
 	auth2.process.Close()
 	require.NoError(t, auth2.waitForShutdown(ctx))
 	auth2Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
@@ -587,10 +584,10 @@ func TestHSMMigrate(t *testing.T) {
 
 	testClient(t)
 
-	// do a full rotation
+	// Do another full rotation to get HSM keys for auth2 into the CA.
 	for _, stage := range stages {
 		log.Debugf("TestHSMMigrate: Sending rotate request %s", stage.targetPhase)
-		require.NoError(t, auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+		require.NoError(t, auth2.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
 			TargetPhase: stage.targetPhase,
 			Mode:        types.RotationModeManual,
@@ -598,7 +595,5 @@ func TestHSMMigrate(t *testing.T) {
 		stage.verify(t)
 	}
 
-	// Safe to send traffic to new auth2 again
-	lb.AddBackend(auth2.authAddr(t))
 	testClient(t)
 }

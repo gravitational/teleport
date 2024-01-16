@@ -188,83 +188,6 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	})
 }
 
-// TestSSHLoadAllCAs verifies "tsh ssh" command with loadAllCAs=true.
-func TestSSHLoadAllCAs(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
-	tests := []struct {
-		name string
-		opts []testSuiteOptionFunc
-	}{
-		{
-			name: "TLS routing enabled",
-			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Version = defaults.TeleportConfigVersionV2
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-					cfg.Auth.LoadAllCAs = true
-				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Version = defaults.TeleportConfigVersionV2
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-				}),
-			},
-		},
-		// { // todo(lxea): unskip this test once flakiness is resolved
-		// 	name: "TLS routing disabled",
-		// 	opts: []testSuiteOptionFunc{
-		// 		withRootConfigFunc(func(cfg *servicecfg.Config) {
-		// 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-		// 			cfg.Auth.LoadAllCAs = true
-		// 		}),
-		// 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
-		// 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-		// 		}),
-		// 	},
-		// },
-	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			s := newTestSuite(t, tc.opts...)
-
-			leafProxySSHAddr, err := s.leaf.ProxySSHAddr()
-			require.NoError(t, err)
-
-			// Login to root
-			tshHome, _ := mustLogin(t, s)
-
-			require.Eventually(t, func() bool {
-				lnodes, _ := s.leaf.GetAuthServer().GetNodes(context.Background(), "default")
-				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
-				return len(lnodes) != 0 && len(rnodes) != 0
-			}, time.Second*30, time.Millisecond*100)
-
-			// Connect to leaf node
-			err = Run(context.Background(), []string{
-				"ssh", "-d",
-				"-p", strconv.Itoa(s.leaf.Config.SSH.Addr.Port(0)),
-				"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
-				s.leaf.Config.SSH.Addr.Host(),
-				"echo", "hello",
-			}, setHomePath(tshHome))
-			require.NoError(t, err)
-			// Connect to leaf node with Jump host
-			err = Run(context.Background(), []string{
-				"ssh", "-d",
-				"-J", leafProxySSHAddr.String(),
-				s.leaf.Config.Hostname,
-				"echo", "hello",
-			}, setHomePath(tshHome))
-			require.NoError(t, err)
-		})
-	}
-}
-
 // TestWithRsync tests that Teleport works with rsync.
 func TestWithRsync(t *testing.T) {
 	disableAgent(t)
@@ -1086,28 +1009,25 @@ func mustFailToRunOpenSSHCommand(t *testing.T, configFile string, sshConnString 
 	require.Error(t, err)
 }
 
-func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
-	now := time.Now()
-	ctx := context.Background()
-	events, _, err := auth.SearchEvents(ctx, events.SearchEventsRequest{
-		From:  now.Add(-time.Hour),
-		To:    now.Add(time.Hour),
-		Order: types.EventOrderDescending,
-	})
-
-	require.NoError(t, err)
-	return events
-}
-
 func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
-	av := mustSearchEvents(t, s.root.GetAuthServer())
-	for _, e := range av {
-		if e.GetCode() == events.AuthAttemptFailureCode {
-			require.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
-			return
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		now := time.Now()
+		ctx := context.Background()
+		es, _, err := s.root.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
+			From:  now.Add(-time.Hour),
+			To:    now.Add(time.Hour),
+			Order: types.EventOrderDescending,
+		})
+		assert.NoError(t, err)
+
+		for _, e := range es {
+			if e.GetCode() == events.AuthAttemptFailureCode {
+				assert.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
+				return
+			}
 		}
-	}
-	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
+		t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(es))
+	}, 5*time.Second, 500*time.Millisecond)
 }
 
 func TestFormatCommand(t *testing.T) {

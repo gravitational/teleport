@@ -39,6 +39,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/simple"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -92,6 +94,21 @@ var highVolumeResources = map[string]struct{}{
 func isHighVolumeResource(kind string) bool {
 	_, ok := highVolumeResources[kind]
 	return ok
+}
+
+// makeAllKnownCAsFilter makes a filter that matches all known CA types.
+// This should be installed by default on every CA watcher, unless a filter is
+// otherwise specified, to avoid complicated server-side hacks if/when we add
+// a new CA type.
+// This is different from a nil/empty filter in that all the CA types that the
+// client knows about will be returned rather than all the CA types that the
+// server knows about.
+func makeAllKnownCAsFilter() types.CertAuthorityFilter {
+	filter := make(types.CertAuthorityFilter, len(types.CertAuthTypes))
+	for _, t := range types.CertAuthTypes {
+		filter[t] = types.Wildcard
+	}
+	return filter
 }
 
 // ForAuth sets up watch configuration for the auth server
@@ -145,6 +162,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAuditQuery},
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
+		{Kind: types.KindAccessList},
+		{Kind: types.KindAccessListMember},
+		{Kind: types.KindAccessListReview},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -159,7 +179,7 @@ func ForAuth(cfg Config) Config {
 func ForProxy(cfg Config) Config {
 	cfg.target = "proxy"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -216,7 +236,7 @@ func ForProxy(cfg Config) Config {
 func ForRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -248,7 +268,7 @@ func ForRemoteProxy(cfg Config) Config {
 func ForOldRemoteProxy(cfg Config) Config {
 	cfg.target = "remote-proxy-old"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -308,7 +328,7 @@ func ForNode(cfg Config) Config {
 func ForKubernetes(cfg Config) Config {
 	cfg.target = "kube"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -328,7 +348,7 @@ func ForKubernetes(cfg Config) Config {
 func ForApps(cfg Config) Config {
 	cfg.target = "apps"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -350,7 +370,7 @@ func ForApps(cfg Config) Config {
 func ForDatabases(cfg Config) Config {
 	cfg.target = "db"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -372,7 +392,7 @@ func ForDatabases(cfg Config) Config {
 func ForWindowsDesktop(cfg Config) Config {
 	cfg.target = "windows_desktop"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -392,7 +412,7 @@ func ForWindowsDesktop(cfg Config) Config {
 func ForDiscovery(cfg Config) Config {
 	cfg.target = "discovery"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNode},
@@ -412,7 +432,7 @@ func ForOkta(cfg Config) Config {
 	cfg.target = "okta"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindClusterName},
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindUser},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -422,6 +442,8 @@ func ForOkta(cfg Config) Config {
 		{Kind: types.KindProxy},
 		{Kind: types.KindRole},
 		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindAccessList},
+		{Kind: types.KindAccessListMember},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
@@ -512,6 +534,7 @@ type Cache struct {
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	secReportsCache              services.SecReports
 	userLoginStateCache          services.UserLoginStates
+	accessListCache              *simple.AccessListService
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 
@@ -674,6 +697,8 @@ type Config struct {
 	UserLoginStates services.UserLoginStates
 	// SecEvents is the security report service.
 	SecReports services.SecReports
+	// AccessLists is the access lists service.
+	AccessLists services.AccessLists
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -864,6 +889,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	accessListCache, err := simple.NewAccessListService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
@@ -902,6 +933,7 @@ func New(config Config) (*Cache, error) {
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
 		secReportsCache:              secReprotsCache,
 		userLoginStateCache:          userLoginStatesCache,
+		accessListCache:              accessListCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		Logger: log.WithFields(log.Fields{
@@ -2245,7 +2277,19 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetAppSession(ctx, req)
+	sess, err := rg.reader.GetAppSession(ctx, req)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.AppSession.GetAppSession(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+
+	return sess, trace.Wrap(err)
 }
 
 // GetSnowflakeSession gets Snowflake web session.
@@ -2258,7 +2302,20 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetSnowflakeSession(ctx, req)
+
+	sess, err := rg.reader.GetSnowflakeSession(ctx, req)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+
+	return sess, trace.Wrap(err)
 }
 
 // GetSAMLIdPSession gets a SAML IdP session.
@@ -2271,7 +2328,20 @@ func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessi
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetSAMLIdPSession(ctx, req)
+
+	sess, err := rg.reader.GetSAMLIdPSession(ctx, req)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+
+	return sess, trace.Wrap(err)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
@@ -2323,7 +2393,20 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.Get(ctx, req)
+
+	sess, err := rg.reader.Get(ctx, req)
+
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if sess, err := c.Config.WebSession.Get(ctx, req); err == nil {
+			c.Logger.Warnf("Cache was forced to load session %v/%v from upstream. Frequent occurrence may indicate sync/perf issues.", sess.GetSubKind(), sess.GetName())
+			return sess, nil
+		}
+	}
+	return sess, trace.Wrap(err)
 }
 
 // GetWebToken gets a web token.
@@ -2790,6 +2873,90 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 	}
 	defer rg.Release()
 	return uls, trace.Wrap(err)
+}
+
+// GetAccessLists returns a list of all access lists.
+func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessLists")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessLists)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessLists(ctx)
+}
+
+// ListAccessLists returns a paginated list of access lists.
+func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessLists")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessLists)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessLists(ctx, pageSize, nextToken)
+}
+
+// GetAccessList returns the specified access list resource.
+func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessList")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessLists)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessList(ctx, name)
+}
+
+// ListAccessListMembers returns a paginated list of all access list members.
+// May return a DynamicAccessListError if the requested access list has an
+// implicit member list and the underlying implementation does not have
+// enough information to compute the dynamic member list.
+func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessListMembers(ctx, accessListName, pageSize, pageToken)
+}
+
+// GetAccessListMember returns the specified access list member resource.
+// May return a DynamicAccessListError if the requested access list has an
+// implicit member list and the underlying implementation does not have
+// enough information to compute the dynamic member record.
+func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessListMember(ctx, accessList, memberName)
+}
+
+// ListAccessListReviews will list access list reviews for a particular access list.
+func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListReviews")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListReviews)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessListReviews(ctx, accessList, pageSize, pageToken)
 }
 
 // ListResources is a part of auth.Cache implementation

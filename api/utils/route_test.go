@@ -17,6 +17,7 @@ package utils
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -101,5 +102,145 @@ func TestSSHRouteMatcherHostnameMatching(t *testing.T) {
 	for _, tt := range tts {
 		matcher := NewSSHRouteMatcher(tt.target, "", tt.insensitive)
 		require.Equal(t, tt.match, matcher.routeToHostname(tt.principal), "desc=%q", tt.desc)
+	}
+}
+
+type mockRouteableServer struct {
+	name       string
+	hostname   string
+	addr       string
+	useTunnel  bool
+	publicAddr []string
+}
+
+func (m mockRouteableServer) GetName() string {
+	return m.name
+}
+
+func (m mockRouteableServer) GetHostname() string {
+	return m.hostname
+}
+
+func (m mockRouteableServer) GetAddr() string {
+	return m.addr
+}
+
+func (m mockRouteableServer) GetUseTunnel() bool {
+	return m.useTunnel
+}
+
+func (m mockRouteableServer) GetPublicAddrs() []string {
+	return m.publicAddr
+}
+
+func TestRouteToServer(t *testing.T) {
+	t.Parallel()
+	testUUID := uuid.NewString()
+
+	matchAddrServer := mockRouteableServer{
+		name:       "test",
+		addr:       "example.com:1111",
+		publicAddr: []string{"node:1234", "public.example.com:1111"},
+	}
+
+	tests := []struct {
+		name    string
+		matcher SSHRouteMatcher
+		server  RouteableServer
+		assert  require.BoolAssertionFunc
+	}{
+		{
+			name:    "no match",
+			matcher: NewSSHRouteMatcher(testUUID, "", true),
+			server: mockRouteableServer{
+				name:       "test",
+				addr:       "localhost",
+				hostname:   "example.com",
+				publicAddr: []string{"example.com"},
+			},
+			assert: require.False,
+		},
+		{
+			name:    "match by server name",
+			matcher: NewSSHRouteMatcher(testUUID, "", true),
+			server: mockRouteableServer{
+				name:       testUUID,
+				addr:       "localhost",
+				hostname:   "example.com",
+				publicAddr: []string{"example.com"},
+			},
+			assert: require.True,
+		},
+		{
+			name:    "match by hostname over tunnel",
+			matcher: NewSSHRouteMatcher("example.com", "", true),
+			server: mockRouteableServer{
+				name:       testUUID,
+				addr:       "addr.example.com",
+				hostname:   "example.com",
+				publicAddr: []string{"public.example.com"},
+				useTunnel:  true,
+			},
+			assert: require.True,
+		},
+		{
+			name:    "mismatch hostname over tunnel",
+			matcher: NewSSHRouteMatcher("example.com", "", true),
+			server: mockRouteableServer{
+				name:       testUUID,
+				addr:       "example.com",
+				hostname:   "fake.example.com",
+				publicAddr: []string{"example.com"},
+				useTunnel:  true,
+			},
+			assert: require.False,
+		},
+		{
+			name:    "match addr",
+			matcher: NewSSHRouteMatcher("example.com", "1111", true),
+			server:  matchAddrServer,
+			assert:  require.True,
+		},
+		{
+			name:    "match addr with empty port",
+			matcher: NewSSHRouteMatcher("example.com", "", true),
+			server:  matchAddrServer,
+			assert:  require.True,
+		},
+		{
+			name:    "mismatch addr with wrong port",
+			matcher: NewSSHRouteMatcher("example.com", "2222", true),
+			server:  matchAddrServer,
+			assert:  require.False,
+		},
+		{
+			name:    "match first public addr",
+			matcher: NewSSHRouteMatcher("node", "1234", true),
+			server:  matchAddrServer,
+			assert:  require.True,
+		},
+		{
+			name:    "match second public addr",
+			matcher: NewSSHRouteMatcher("public.example.com", "1111", true),
+			server:  matchAddrServer,
+			assert:  require.True,
+		},
+		{
+			name:    "match public addr with empty port",
+			matcher: NewSSHRouteMatcher("public.example.com", "", true),
+			server:  matchAddrServer,
+			assert:  require.True,
+		},
+		{
+			name:    "mismatch public addr with wrong port",
+			matcher: NewSSHRouteMatcher("public.example.com", "2222", true),
+			server:  matchAddrServer,
+			assert:  require.False,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.assert(t, tc.matcher.RouteToServer(tc.server))
+		})
 	}
 }

@@ -54,3 +54,55 @@ func TestDeduplicateAny(t *testing.T) {
 		})
 	}
 }
+
+func TestContainSameUniqueElements(t *testing.T) {
+	tests := []struct {
+		name  string
+		s1    []string
+		s2    []string
+		check require.BoolAssertionFunc
+	}{
+		{
+			name:  "empty",
+			s1:    nil,
+			s2:    []string{},
+			check: require.True,
+		},
+		{
+			name:  "same",
+			s1:    []string{"a", "b", "c"},
+			s2:    []string{"a", "b", "c"},
+			check: require.True,
+		},
+		{
+			name:  "same with different order",
+			s1:    []string{"b", "c", "a"},
+			s2:    []string{"a", "b", "c"},
+			check: require.True,
+		},
+		{
+			name:  "same with duplicates",
+			s1:    []string{"a", "a", "b", "c"},
+			s2:    []string{"c", "c", "a", "b", "c", "c"},
+			check: require.True,
+		},
+		{
+			name:  "different",
+			s1:    []string{"a", "b"},
+			s2:    []string{"a", "b", "c"},
+			check: require.False,
+		},
+		{
+			name:  "different (same length)",
+			s1:    []string{"d", "a", "b"},
+			s2:    []string{"a", "b", "c"},
+			check: require.False,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.check(t, ContainSameUniqueElements(test.s1, test.s2))
+		})
+	}
+}

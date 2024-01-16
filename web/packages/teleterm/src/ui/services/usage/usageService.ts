@@ -20,7 +20,7 @@ import { ClusterOrResourceUri, ClusterUri, routing } from 'teleterm/ui/uri';
 import {
   Cluster,
   ReportUsageEventRequest,
-  TshClient,
+  TshdClient,
 } from 'teleterm/services/tshd/types';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { ConfigService } from 'teleterm/services/config';
@@ -38,7 +38,7 @@ export class UsageService {
   private logger = new Logger('UsageService');
 
   constructor(
-    private tshClient: TshClient,
+    private tshClient: TshdClient,
     private configService: ConfigService,
     private notificationsService: NotificationsService,
     // `findCluster` function - it is a workaround that allows to use `UsageEventService` in `ClustersService`.
@@ -73,7 +73,7 @@ export class UsageService {
 
   captureProtocolUse(
     uri: ClusterOrResourceUri,
-    protocol: 'ssh' | 'kube' | 'db',
+    protocol: 'ssh' | 'kube' | 'db' | 'app',
     origin: DocumentOrigin
   ): void {
     const clusterProperties = this.getClusterProperties(uri);

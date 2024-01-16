@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Emittery from 'emittery';
 import * as grpc from '@grpc/grpc-js';
 import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import * as apiService from 'gen-proto-js/teleport/lib/teleterm/v1/tshd_events_service_grpc_pb';
+import * as protobuf from 'google-protobuf';
 
 import * as uri from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
-import { SubscribeToTshdEvent } from 'teleterm/types';
+import { TshdEventContextBridgeService } from 'teleterm/types';
+import { filterSensitiveProperties } from 'teleterm/services/tshd/middleware';
 
 export interface ReloginRequest extends api.ReloginRequest.AsObject {
   rootClusterUri: uri.RootClusterUri;
@@ -44,6 +45,10 @@ export interface CannotProxyGatewayConnection
   targetUri: uri.DatabaseUri;
 }
 
+export type PromptMfaRequest = api.PromptMFARequest.AsObject & {
+  rootClusterUri: uri.RootClusterUri;
+};
+
 export interface SendPendingHeadlessAuthenticationRequest
   extends api.SendPendingHeadlessAuthenticationRequest.AsObject {
   rootClusterUri: uri.RootClusterUri;
@@ -51,15 +56,18 @@ export interface SendPendingHeadlessAuthenticationRequest
 
 /**
  * Starts tshd events server.
- * @return {Promise} Object containing the address the server is listening on and subscribeToEvent
- * function which lets UI code subscribe to events which are emitted when a client calls the server.
+ * @return {Promise} Object containing the address the server is listening on and
+ * setupTshdEventContextBridgeService function which lets UI code subscribe to events which are
+ * emitted when tshd calls the Electron app.
  */
 export async function createTshdEventsServer(
   requestedAddress: string,
   credentials: grpc.ServerCredentials
 ): Promise<{
   resolvedAddress: string;
-  subscribeToTshdEvent: SubscribeToTshdEvent;
+  setupTshdEventContextBridgeService: (
+    listener: TshdEventContextBridgeService
+  ) => void;
 }> {
   const logger = new Logger('tshd events');
   const { server, resolvedAddress } = await createServer(
@@ -67,7 +75,7 @@ export async function createTshdEventsServer(
     credentials,
     logger
   );
-  const { service, subscribeToTshdEvent } = createService(logger);
+  const { service, setupTshdEventContextBridgeService } = createService(logger);
 
   server.addService(
     apiService.TshdEventsServiceService,
@@ -81,7 +89,7 @@ export async function createTshdEventsServer(
     service
   );
 
-  return { resolvedAddress, subscribeToTshdEvent };
+  return { resolvedAddress, setupTshdEventContextBridgeService };
 }
 
 async function createServer(
@@ -118,100 +126,138 @@ async function createServer(
   });
 }
 
-// createService creates a service that can be added to tshd events server. It also
-// returns a function which lets UI code subscribe to events which are emitted when a client calls
-// this service.
-//
-// Why do we need to use an event emitter? The gRPC server is created in the preload script but we
-// need the UI to react to the events. We cannot create the service in the UI code because this
-// would mean that the service would need to cross the contextBridge. This is simply impossible
-// because the service is fed custom gRPC classes which can't be passed through the contextBridge.
-//
-// Instead, we create an event emitter and expose subscribeToEvent through the contextBridge.
-// subscribeToEvent lets UI code register a callback for a specific event. That callback receives
-// a simple JS object which can freely pass the contextBridge.
-//
-// # Async behavior
-//
-// The callback can return a promise. The service will not return a response until all callbacks
-// resolve. This lets us model behavior where tshd calls the Electron app and then blocks until it
-// receives a response, in case the Electron app needs to do some work before we want to unblock
-// tshd.
-//
-// If any of the callbacks return an error, the service will return that error immediately, without
-// waiting for other listeners.
+/**
+ * createService creates a service for the tshd events server. It sets up the preload part of the
+ * service and expects the UI to call setupTshdEventContextBridgeService to add the browser part of
+ * the service which interacts with the UI.
+ *
+ * See the JSDoc for TshdEventContextBridgeService for more details.
+ */
 function createService(logger: Logger): {
   service: apiService.ITshdEventsServiceServer;
-  subscribeToTshdEvent: SubscribeToTshdEvent;
+  setupTshdEventContextBridgeService: (
+    listener: TshdEventContextBridgeService
+  ) => void;
 } {
-  const emitter = new Emittery();
+  let contextBridgeService: TshdEventContextBridgeService;
 
-  const subscribeToTshdEvent: SubscribeToTshdEvent = (eventName, listener) => {
-    emitter.on(eventName, listener);
+  const setupTshdEventContextBridgeService = (
+    newListener: TshdEventContextBridgeService
+  ) => {
+    contextBridgeService = newListener;
   };
+
+  /**
+   * processEvent is a helper function encapsulating common operations done before and after sending
+   * the event to the browser through the context bridge.
+   *
+   * The last argument is a function which maps the response object (received from the browser
+   * through the context bridge) to a class instance (as expected by grpc-js).
+   */
+  function processEvent<
+    RpcName extends keyof apiService.ITshdEventsServiceServer,
+    Request extends protobuf.Message,
+    Response extends protobuf.Message
+  >(
+    rpcName: RpcName,
+    call: grpc.ServerUnaryCall<Request, Response>,
+    callback: (error: Error, response: Response) => void,
+    mapResponseObjectToResponseInstance: (
+      responseObject: ReturnType<Response['toObject']>
+    ) => Response
+  ) {
+    const request = call.request.toObject();
+
+    logger.info(`got ${rpcName}`, filterSensitiveProperties(request));
+
+    call.on('cancelled', () => {
+      logger.error(`canceled by client ${rpcName}`);
+    });
+
+    const onRequestCancelled = (callback: () => void) => {
+      call.on('cancelled', callback);
+    };
+
+    if (!contextBridgeService) {
+      throw new Error(
+        'tshd events context bridge service has not been set up yet'
+      );
+    }
+
+    const contextBridgeHandler = contextBridgeService[rpcName];
+
+    if (!contextBridgeHandler) {
+      throw new Error(`No context bridge handler for ${rpcName}`);
+    }
+
+    contextBridgeHandler({
+      // `as` is a workaround. We'd have to tell TypeScript somehow that `Request` is the same
+      // between `contextBridgeService` and `processEvent`, but it's not clear how to achieve that.
+      request: request as ReturnType<Request['toObject']>,
+      onRequestCancelled,
+    }).then(
+      response => {
+        if (call.cancelled) {
+          return;
+        }
+
+        callback(null, mapResponseObjectToResponseInstance(response));
+
+        logger.info(
+          `replied to ${rpcName}`,
+          filterSensitiveProperties(response)
+        );
+      },
+      error => {
+        if (call.cancelled) {
+          return;
+        }
+
+        let responseErr = error;
+        // TODO(ravicious): This is just an example of how cross-context errors can be signalled.
+        // A more elaborate implementation should use a TypeScript assertion function
+        // (isCrossContextError) and them somehow automatically build common gRPC status errors.
+        // https://github.com/gravitational/teleport.e/issues/853
+        // https://github.com/gravitational/teleport/issues/30753
+        if (error['isCrossContextError'] && error['name'] === 'AbortError') {
+          responseErr = new grpc.StatusBuilder()
+            .withCode(grpc.status.ABORTED)
+            .withDetails(error['message']);
+        }
+
+        callback(responseErr, null);
+
+        logger.error(`replied with error to ${rpcName}`, responseErr);
+      }
+    );
+  }
 
   const service: apiService.ITshdEventsServiceServer = {
-    relogin: (call, callback) => {
-      const request = call.request.toObject();
+    relogin: (call, callback) =>
+      processEvent('relogin', call, callback, () => new api.ReloginResponse()),
 
-      logger.info('Emitting relogin', request);
+    sendNotification: (call, callback) =>
+      processEvent(
+        'sendNotification',
+        call,
+        callback,
+        () => new api.SendNotificationResponse()
+      ),
 
-      const onCancelled = (callback: () => void) => {
-        call.on('cancelled', callback);
-      };
+    sendPendingHeadlessAuthentication: (call, callback) =>
+      processEvent(
+        'sendPendingHeadlessAuthentication',
+        call,
+        callback,
+        () => new api.SendPendingHeadlessAuthenticationResponse()
+      ),
 
-      emitter.emit('relogin', { request, onCancelled }).then(
-        () => {
-          callback(null, new api.ReloginResponse());
-        },
-        error => {
-          callback(error);
-        }
+    promptMFA: (call, callback) => {
+      processEvent('promptMFA', call, callback, response =>
+        new api.PromptMFAResponse().setTotpCode(response.totpCode)
       );
-    },
-    sendNotification: (call, callback) => {
-      const request = call.request.toObject();
-
-      logger.info('Emitting sendNotification', request);
-
-      const onCancelled = (callback: () => void) => {
-        call.on('cancelled', callback);
-      };
-
-      emitter.emit('sendNotification', { request, onCancelled }).then(
-        () => {
-          callback(null, new api.SendNotificationResponse());
-        },
-        error => {
-          callback(error);
-        }
-      );
-    },
-    sendPendingHeadlessAuthentication: (call, callback) => {
-      const request = call.request.toObject();
-
-      logger.info('Emitting sendPendingHeadlessAuthentication', request);
-
-      const onCancelled = (callback: () => void) => {
-        call.on('cancelled', callback);
-      };
-
-      emitter
-        .emit('sendPendingHeadlessAuthentication', { request, onCancelled })
-        .then(
-          () => {
-            callback(null, new api.SendPendingHeadlessAuthenticationResponse());
-          },
-          error => {
-            callback(error);
-          }
-        );
-    },
-    promptMFA: () => {
-      // TODO (joerger): Handle MFA prompt with totp/webauthn modal.
-      logger.info('Received prompt mfa request');
     },
   };
 
-  return { service, subscribeToTshdEvent };
+  return { service, setupTshdEventContextBridgeService };
 }

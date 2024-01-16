@@ -43,7 +43,7 @@ type ReconcilerConfig[T Reconciled] struct {
 	// OnCreate is called when a new resource is detected.
 	OnCreate func(context.Context, T) error
 	// OnUpdate is called when an existing resource is updated.
-	OnUpdate func(context.Context, T) error
+	OnUpdate func(ctx context.Context, new, old T) error
 	// OnDelete is called when an existing resource is deleted.
 	OnDelete func(context.Context, T) error
 	// Log is the reconciler's logger.
@@ -180,7 +180,7 @@ func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources
 	if CompareResources(newT, registered) != Equal {
 		if r.cfg.Matcher(newT) {
 			r.log.Infof("%v %v updated, updating.", kind, name)
-			if err := r.cfg.OnUpdate(ctx, newT); err != nil {
+			if err := r.cfg.OnUpdate(ctx, newT, registered); err != nil {
 				return trace.Wrap(err, "failed to update %v %v", kind, name)
 			}
 			return nil

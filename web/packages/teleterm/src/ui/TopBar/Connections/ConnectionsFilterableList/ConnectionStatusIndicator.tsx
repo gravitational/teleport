@@ -32,7 +32,7 @@ const StyledStatus = styled<Props>(Box)`
   ${props => {
     const { $connected, theme } = props;
     const backgroundColor = $connected
-      ? theme.colors.success
+      ? theme.colors.success.main
       : theme.colors.grey[300];
     return {
       backgroundColor,

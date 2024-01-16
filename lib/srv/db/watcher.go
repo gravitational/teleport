@@ -180,7 +180,7 @@ func (s *Server) onCreate(ctx context.Context, database types.Database) error {
 }
 
 // onUpdate is called by reconciler when an already proxied database is updated.
-func (s *Server) onUpdate(ctx context.Context, database types.Database) error {
+func (s *Server) onUpdate(ctx context.Context, database, _ types.Database) error {
 	// OnUpdate receives a "new" resource from s.monitoredDatabases. Make a
 	// copy here so that any attribute changes to the proxied database will not
 	// affect database objects tracked in s.monitoredDatabases.

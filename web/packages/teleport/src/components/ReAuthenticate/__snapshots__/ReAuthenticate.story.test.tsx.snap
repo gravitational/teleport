@@ -45,12 +45,12 @@ exports[`render failed state for re-authentication dialog 1`] = `
   box-sizing: border-box;
   margin-bottom: 0px;
   margin-right: 16px;
-  width: 50%;
+  width: 60%;
 }
 
 .c16 {
   box-sizing: border-box;
-  width: 50%;
+  width: 40%;
 }
 
 .c17 {
@@ -447,7 +447,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
             <div
               class="c13"
               data-testid="mfa-select"
-              width="50%"
+              width="60%"
             >
               <label
                 class="c14"
@@ -471,7 +471,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
                       <div
                         class="react-select__single-value css-1uccc91-singleValue"
                       >
-                        Hardware Key
+                        Passkey or Security Key
                       </div>
                       <input
                         aria-autocomplete="list"
@@ -512,7 +512,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
             </div>
             <div
               class="c16"
-              width="50%"
+              width="40%"
             />
           </div>
         </div>
@@ -561,12 +561,12 @@ exports[`render re-authentication dialog 1`] = `
   box-sizing: border-box;
   margin-bottom: 0px;
   margin-right: 16px;
-  width: 50%;
+  width: 60%;
 }
 
 .c15 {
   box-sizing: border-box;
-  width: 50%;
+  width: 40%;
 }
 
 .c16 {
@@ -956,7 +956,7 @@ exports[`render re-authentication dialog 1`] = `
             <div
               class="c12"
               data-testid="mfa-select"
-              width="50%"
+              width="60%"
             >
               <label
                 class="c13"
@@ -980,7 +980,7 @@ exports[`render re-authentication dialog 1`] = `
                       <div
                         class="react-select__single-value css-1uccc91-singleValue"
                       >
-                        Hardware Key
+                        Passkey or Security Key
                       </div>
                       <input
                         aria-autocomplete="list"
@@ -1021,7 +1021,7 @@ exports[`render re-authentication dialog 1`] = `
             </div>
             <div
               class="c15"
-              width="50%"
+              width="40%"
             />
           </div>
         </div>

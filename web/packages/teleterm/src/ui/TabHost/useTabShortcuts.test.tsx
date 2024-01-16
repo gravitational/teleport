@@ -63,6 +63,7 @@ function getMockDocuments(): Document[] {
       targetName: 'foobar',
       targetUser: 'foo',
       origin: 'resource_table',
+      status: '',
     },
     {
       kind: 'doc.gateway',
@@ -73,6 +74,7 @@ function getMockDocuments(): Document[] {
       targetName: 'foobar',
       targetUser: 'bar',
       origin: 'resource_table',
+      status: '',
     },
     makeDocumentCluster({
       uri: '/docs/test_uri_6',

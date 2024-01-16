@@ -32,6 +32,7 @@ import {
   CreateAccessRequestParams,
   GetRequestableRolesParams,
   ReviewAccessRequestParams,
+  PromoteAccessRequestParams,
 } from 'teleterm/services/tshd/types';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
@@ -54,7 +55,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   state: types.ClustersServiceState = createClusterServiceState();
 
   constructor(
-    public client: tsh.TshClient,
+    public client: tsh.TshdClient,
     private mainProcessClient: MainProcessClient,
     private notificationsService: NotificationsService,
     private usageService: UsageService
@@ -303,6 +304,12 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response;
   }
 
+  async promoteAccessRequest(params: PromoteAccessRequestParams) {
+    const response = await this.client.promoteAccessRequest(params);
+    this.usageService.captureAccessRequestReview(params.rootClusterUri);
+    return response;
+  }
+
   async createAccessRequest(params: CreateAccessRequestParams) {
     const cluster = this.state.clusters.get(params.rootClusterUri);
     // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
@@ -381,6 +388,9 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
   }
 
+  // DELETE IN 15.0.0 (gzdunek),
+  // since we will no longer have to support old kube connections.
+  // See call in `trackedConnectionOperationsFactory.ts` for more details.
   async removeKubeGateway(kubeUri: uri.KubeUri) {
     const gateway = this.findGatewayByConnectionParams(kubeUri, '');
     if (gateway) {
@@ -434,7 +444,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   findGatewayByConnectionParams(
-    targetUri: uri.DatabaseUri | uri.KubeUri,
+    targetUri: uri.GatewayTargetUri,
     targetUser: string
   ) {
     let found: Gateway;
@@ -600,4 +610,33 @@ export function makeKube(source: tsh.Kube) {
     name: source.name,
     labels: source.labelsList,
   };
+}
+
+export interface App extends tsh.App {
+  /**
+   * `addrWithProtocol` is an app protocol + a public address.
+   * If the public address is empty, it falls back to the endpoint URI.
+   *
+   * Always empty for SAML applications.
+   */
+  addrWithProtocol: string;
+}
+
+export function makeApp(source: tsh.App): App {
+  const { publicAddr, endpointUri } = source;
+
+  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
+  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
+  let addrWithProtocol = endpointUri;
+  if (publicAddr) {
+    if (isCloud) {
+      addrWithProtocol = `cloud://${publicAddr}`;
+    } else if (isTcp) {
+      addrWithProtocol = `tcp://${publicAddr}`;
+    } else {
+      addrWithProtocol = `https://${publicAddr}`;
+    }
+  }
+
+  return { ...source, addrWithProtocol };
 }

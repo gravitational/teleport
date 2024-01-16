@@ -274,6 +274,8 @@ message RouteToDatabase {
   string Username = 3 [(gogoproto.jsontag) = "username,omitempty"];
   // Database is an optional database name to embed.
   string Database = 4 [(gogoproto.jsontag) = "database,omitempty"];
+  // Roles is an optional list of database roles to embed.
+  repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
 }
 
 // RouteToWindowsDesktop combines parameters for windows desktop routing information.

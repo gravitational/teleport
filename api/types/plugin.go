@@ -442,8 +442,21 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("org_url must be set")
 	}
 
-	if s.EnableUserSync && s.SsoConnectorId == "" {
+	// If sync settings is not set, default to an empty config.
+	if s.SyncSettings == nil {
+		s.SyncSettings = &PluginOktaSyncSettings{}
+
+		// TODO(mdwn): Remove once modifications have been made in enterprise.
+		s.SyncSettings.SyncUsers = s.EnableUserSync
+		s.SyncSettings.SsoConnectorId = s.SsoConnectorId
+	}
+
+	if s.SyncSettings.SyncUsers && s.SsoConnectorId == "" {
 		return trace.BadParameter("sso_connector_id must be set when user sync enabled")
+	}
+
+	if s.SyncSettings.SyncAccessLists && len(s.SyncSettings.DefaultOwners) == 0 {
+		return trace.BadParameter("default owners must be set when access list import is enabled")
 	}
 
 	return nil

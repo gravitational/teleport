@@ -153,15 +153,8 @@ func (g *oktaImportRuleTestingPrimitives) ModifyKubernetesResource(ctx context.C
 }
 
 func (g *oktaImportRuleTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.OktaImportRule, kubeResource *resourcesv1.TeleportOktaImportRule) (bool, string) {
-	teleportMap, _ := teleportResourceToMap(tResource)
-	kubernetesMap, _ := teleportResourceToMap(kubeResource.ToTeleport())
-
-	equal := cmp.Equal(teleportMap["spec"], kubernetesMap["spec"])
-	if !equal {
-		return equal, cmp.Diff(teleportMap["spec"], kubernetesMap["spec"])
-	}
-
-	return equal, ""
+	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), testlib.CompareOptions()...)
+	return diff == "", diff
 }
 
 func TestOktaImportRuleCreation(t *testing.T) {

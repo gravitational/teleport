@@ -92,6 +92,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
+	// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
 	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
 
@@ -144,8 +145,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/tokens/register", srv.WithAuth(srv.registerUsingToken))
 
 	// Active sessions
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.WithAuth(srv.getSessionChunk))
-	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.WithAuth(srv.getSessionEvents))
+	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.WithAuth(srv.getSessionChunk))  // DELETE IN 16(zmb3)
+	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.WithAuth(srv.getSessionEvents)) // DELETE IN 16(zmb3)
 
 	// Namespaces
 	srv.POST("/:version/namespaces", srv.WithAuth(srv.upsertNamespace))
@@ -156,9 +157,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// cluster configuration
 	srv.GET("/:version/configuration/name", srv.WithAuth(srv.getClusterName))
 	srv.POST("/:version/configuration/name", srv.WithAuth(srv.setClusterName))
-	srv.GET("/:version/configuration/static_tokens", srv.WithAuth(srv.getStaticTokens))
-	srv.DELETE("/:version/configuration/static_tokens", srv.WithAuth(srv.deleteStaticTokens))
-	srv.POST("/:version/configuration/static_tokens", srv.WithAuth(srv.setStaticTokens))
 
 	// SSO validation handlers
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
@@ -574,8 +572,9 @@ func (s *APIServer) registerUsingToken(auth *ServerWithRoles, w http.ResponseWri
 	return certs, nil
 }
 
+// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
 func (s *APIServer) rotateCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req RotateRequest
+	var req types.RotateRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -910,48 +909,6 @@ func (s *APIServer) setClusterName(auth *ServerWithRoles, w http.ResponseWriter,
 	}
 
 	return message(fmt.Sprintf("cluster name set: %+v", cn)), nil
-}
-
-func (s *APIServer) getStaticTokens(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	st, err := auth.GetStaticTokens()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rawMessage(services.MarshalStaticTokens(st, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-func (s *APIServer) deleteStaticTokens(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteStaticTokens()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-type setStaticTokensReq struct {
-	StaticTokens json.RawMessage `json:"static_tokens"`
-}
-
-func (s *APIServer) setStaticTokens(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req setStaticTokensReq
-
-	err := httplib.ReadJSON(r, &req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	st, err := services.UnmarshalStaticTokens(req.StaticTokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.SetStaticTokens(st)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("static tokens set: %+v", st)), nil
 }
 
 type upsertTunnelConnectionRawReq struct {

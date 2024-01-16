@@ -244,9 +244,11 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 	var i int
 	for ; i < len(servers); i++ {
 		appServer := servers[i]
+		appServer.GetApp()
 		conn, err = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
 		if err != nil && isReverseTunnelDownError(err) {
-			t.c.log.Warnf("Failed to connect to application server %q: %v.", appServer, err)
+			t.c.log.WithFields(logrus.Fields{"app_server": appServer.GetName()}).
+				Warnf("Failed to connect to application server: %v", err)
 			// Continue to the next server if there is an issue
 			// establishing a connection because the tunnel is not
 			// healthy. Reset the error to avoid returning it if

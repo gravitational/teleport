@@ -20,16 +20,17 @@
   "dependencies": {
     "@gravitational/design": "1.0.0",
     "@gravitational/shared": "1.0.0",
-    "xterm": "^5.0.0",
-    "xterm-addon-fit": "^0.7.0",
-    "xterm-addon-web-links": "^0.8.0"
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0",
+    "xterm-addon-web-links": "^0.9.0"
   },
   "devDependencies": {
-    "babel-plugin-transform-import-meta": "^2.2.0",
-    "babel-plugin-transform-vite-meta-env": "^1.0.3",
     "@gravitational/build": "^1.0.0",
     "@types/wicg-file-system-access": "^2020.9.5",
+    "babel-plugin-transform-import-meta": "^2.2.0",
+    "babel-plugin-transform-vite-meta-env": "^1.0.3",
     "jest-canvas-mock": "^2.3.1",
+    "jest-websocket-mock": "^2.5.0",
     "ts-loader": "^9.4.2"
   }
 }

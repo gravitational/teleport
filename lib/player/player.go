@@ -116,7 +116,7 @@ func New(cfg *Config) (*Player, error) {
 		log:       log,
 		sessionID: cfg.SessionID,
 		streamer:  cfg.Streamer,
-		emit:      make(chan events.AuditEvent, 64),
+		emit:      make(chan events.AuditEvent, 1024),
 		playPause: make(chan chan struct{}, 1),
 		done:      make(chan struct{}),
 	}
@@ -185,7 +185,7 @@ func (p *Player) stream() {
 			}
 
 			currentDelay := getDelay(evt)
-			if currentDelay > 0 && currentDelay > lastDelay {
+			if currentDelay > 0 && currentDelay >= lastDelay {
 				switch adv := p.advanceTo.Load(); {
 				case adv >= currentDelay:
 					// no timing delay necessary, we are fast forwarding
@@ -215,12 +215,13 @@ func (p *Player) stream() {
 				lastDelay = currentDelay
 			}
 
-			select {
-			case p.emit <- evt:
-				p.lastPlayed.Store(currentDelay)
-			default:
-				p.log.Warnf("dropped event %v, reader too slow", evt.GetID())
-			}
+			// if the receiver can't keep up, let the channel throttle us
+			// (it's better for playback to be a little slower than realtime
+			// than to drop events)
+			//
+			// TODO: consider a select with a timeout to detect blocked readers?
+			p.emit <- evt
+			p.lastPlayed.Store(currentDelay)
 		}
 	}
 }

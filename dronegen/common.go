@@ -33,6 +33,9 @@ const (
 	// ProductionRegistry is the production image registry that hosts are customer facing container images.
 	ProductionRegistry = "public.ecr.aws"
 
+	// GitHubRegistory is the GitHub container registry used for GitHub Actions.
+	GitHubRegistry = "ghcr.io"
+
 	// Go version used by internal tools
 	GoVersion = "1.18"
 

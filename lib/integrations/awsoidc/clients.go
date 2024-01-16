@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
@@ -95,6 +96,15 @@ func newAWSConfig(ctx context.Context, req *AWSClientRequest) (*aws.Config, erro
 	return &cfg, nil
 }
 
+func newEKSClient(ctx context.Context, req *AWSClientRequest) (*eks.Client, error) {
+	cfg, err := newAWSConfig(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return eks.NewFromConfig(*cfg), nil
+}
+
 // newRDSClient creates an [rds.Client] using the provided Token, RoleARN and Region.
 func newRDSClient(ctx context.Context, req *AWSClientRequest) (*rds.Client, error) {
 	cfg, err := newAWSConfig(ctx, req)
@@ -145,7 +155,7 @@ func newEC2InstanceConnectClient(ctx context.Context, req *AWSClientRequest) (*e
 	return ec2instanceconnect.NewFromConfig(*cfg), nil
 }
 
-// newAWSCredentialsProvider creates an [aws.CredentialsRetriever] using the provided Token, RoleARN and Region.
+// newAWSCredentialsProvider creates an [aws.CredentialsProvider] using the provided Token, RoleARN and Region.
 func newAWSCredentialsProvider(ctx context.Context, req *AWSClientRequest) (aws.CredentialsProvider, error) {
 	cfg, err := newAWSConfig(ctx, req)
 	if err != nil {

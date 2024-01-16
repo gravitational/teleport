@@ -22,6 +22,8 @@ import React, {
   useEffect,
   useMemo,
   useState,
+  createContext,
+  useContext,
 } from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
@@ -40,22 +42,15 @@ import useTeleport from 'teleport/useTeleport';
 import { TopBar } from 'teleport/TopBar';
 import { BannerList } from 'teleport/components/BannerList';
 import { storageService } from 'teleport/services/storageService';
-
 import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
-
-import { Navigation } from 'teleport/Navigation';
-
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
-
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
-
 import {
   getFirstRouteForCategory,
-  NavigationProps,
+  Navigation,
 } from 'teleport/Navigation/Navigation';
-
 import { NavigationCategory } from 'teleport/Navigation/categories';
-
+import { TopBarProps } from 'teleport/TopBar/TopBar';
 import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
@@ -70,7 +65,7 @@ export interface MainProps {
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
   Questionnaire?: (props: QuestionnaireProps) => React.ReactElement;
-  navigationProps?: NavigationProps;
+  topBarProps?: TopBarProps;
   inviteCollaboratorsFeedback?: ReactNode;
 }
 
@@ -168,6 +163,13 @@ export function Main(props: MainProps) {
 
   return (
     <FeaturesContextProvider value={features}>
+      <TopBar
+        CustomLogo={
+          props.topBarProps?.showPoweredByLogo
+            ? props.topBarProps.CustomLogo
+            : null
+        }
+      />
       <BannerList
         banners={banners}
         customBanners={props.customBanners}
@@ -175,11 +177,10 @@ export function Main(props: MainProps) {
         onBannerDismiss={dismissAlert}
       >
         <MainContainer>
-          <Navigation {...props.navigationProps} />
+          <Navigation />
           <HorizontalSplit>
             <ContentMinWidth>
               <Suspense fallback={null}>
-                <TopBar />
                 <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>
@@ -265,12 +266,34 @@ function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
   return <Switch>{routes}</Switch>;
 }
 
-export const ContentMinWidth = styled.div`
-  min-width: 1250px;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-`;
+// This context allows children components to disable this min-width in case they want to be able to shrink smaller.
+type MinWidthContextState = {
+  setEnforceMinWidth: (enforceMinWidth: boolean) => void;
+};
+
+const ContentMinWidthContext = createContext<MinWidthContextState>(null);
+
+export const useContentMinWidthContext = () =>
+  useContext(ContentMinWidthContext);
+
+const ContentMinWidth = ({ children }: { children: ReactNode }) => {
+  const [enforceMinWidth, setEnforceMinWidth] = useState(true);
+
+  return (
+    <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
+      <div
+        css={`
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          ${enforceMinWidth ? 'min-width: 1250px;' : ''}
+        `}
+      >
+        {children}
+      </div>
+    </ContentMinWidthContext.Provider>
+  );
+};
 
 export const HorizontalSplit = styled.div`
   display: flex;

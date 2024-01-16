@@ -780,11 +780,11 @@ message ServerV2 {
 
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
+  reserved 2;
+  reserved "PublicAddr";
+
   // Addr is a host:port address where this server can be reached.
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
-  // PublicAddr is the public address where this server can be reached.
-  // DELETE IN 15.0. (joerger) Deprecated in favor of public_addrs.
-  string PublicAddr = 2 [(gogoproto.jsontag) = "public_addr,omitempty"];
   // Hostname is server hostname
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
   // CmdLabels is server dynamic labels
@@ -1003,6 +1003,8 @@ enum PrivateKeyType {
   PKCS11 = 1;
   // GCP_KMS is a private key backed by GCP KMS.
   GCP_KMS = 2;
+  // AWS_KMS is a private key backed by AWS KMS.
+  AWS_KMS = 3;
 }
 
 // SSHKeyPair is an SSH CA key pair.
@@ -2558,8 +2560,9 @@ enum CreateHostUserMode {
   HOST_USER_MODE_UNSPECIFIED = 0;
   // HOST_USER_MODE_OFF disables host user creation.
   HOST_USER_MODE_OFF = 1;
-  reserved 2; // HOST_USER_MODE_DROP replaced by HOST_USER_MODE_INSECURE_DROP.
-  reserved "HOST_USER_MODE_DROP";
+  // HOST_USER_MODE_DROP enables host user creation and deletes users at session end.
+  // Deprecated: replaced by HOST_USER_MODE_INSECURE_DROP.
+  HOST_USER_MODE_DROP = 2 [deprecated = true];
   // HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
   HOST_USER_MODE_KEEP = 3;
   // HOST_USER_MODE_INSECURE_DROP enables host user creation without a home directory and deletes
@@ -5618,11 +5621,40 @@ message PluginOktaSettings {
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
 
-  // EnableUserSync controls the user sync in the Okta integration service.
+  // EnableUserSync controls the user sync in the Okta integration service. Deprecated.
+  // TODO(mdwn): Remove once e changes have been made.
   bool enable_user_sync = 2;
 
-  // SSOConnectorID
+  // SSOConnectorID (deprecated)
+  // TODO(mdwn): Remove once e changes have been made.
   string sso_connector_id = 3;
+
+  // Sync settings controls the user and access list sync settings for Okta.
+  PluginOktaSyncSettings sync_settings = 4;
+}
+
+// Defines settings for syncing users and access lists from Okta.
+message PluginOktaSyncSettings {
+  option (gogoproto.equal) = true;
+
+  // SyncUsers controls the user sync in the Okta integration service.
+  bool sync_users = 1;
+
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Okta plugin
+  string sso_connector_id = 2;
+
+  // SyncAccessLists controls the access list sync in the Okta integration service.
+  bool sync_access_lists = 3;
+
+  // DefaultOwners are the default owners for all imported access lists.
+  repeated string default_owners = 4;
+
+  // AppID is the Okta-assigned ID of the Okta App that Teleport uses as a
+  // gateway to interact with Okta for SAML login, SCIM provisioning and user
+  // sync. When set, user sync will pull users from the assignment list for this
+  // app. When empty the plugin will fall back to the legacy behaviour of syncing
+  // users from the entre organization.
+  string app_id = 5;
 }
 
 // Defines a set of discord channel IDs

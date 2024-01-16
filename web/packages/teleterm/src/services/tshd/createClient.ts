@@ -43,10 +43,10 @@ import {
   UpdateHeadlessAuthenticationStateParams,
 } from './types';
 
-export default function createClient(
+export function createTshdClient(
   addr: string,
   credentials: grpc.ChannelCredentials
-) {
+): types.TshdClient {
   const logger = new Logger('tshd');
   const tshd = middleware(new TerminalServiceClient(addr, credentials), [
     withLogging(logger),
@@ -96,6 +96,38 @@ export default function createClient(
             reject(err);
           } else {
             resolve(response.toObject() as types.GetKubesResponse);
+          }
+        });
+      });
+    },
+
+    async getApps({
+      clusterUri,
+      search,
+      sort,
+      query,
+      searchAsRoles,
+      startKey,
+      limit,
+    }: types.GetResourcesParams) {
+      const req = new api.GetAppsRequest()
+        .setClusterUri(clusterUri)
+        .setSearchAsRoles(searchAsRoles)
+        .setStartKey(startKey)
+        .setSearch(search)
+        .setQuery(query)
+        .setLimit(limit);
+
+      if (sort) {
+        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
+      }
+
+      return new Promise<types.GetAppsResponse>((resolve, reject) => {
+        tshd.getApps(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject() as types.GetAppsResponse);
           }
         });
       });
@@ -849,6 +881,11 @@ export default function createClient(
                             kind: 'kube' as const,
                             resource: p.getKube().toObject() as types.Kube,
                           };
+                        case api.PaginatedResource.ResourceCase.APP:
+                          return {
+                            kind: 'app' as const,
+                            resource: p.getApp().toObject() as types.App,
+                          };
                         default:
                           logger.info(
                             `Ignoring unsupported resource ${JSON.stringify(
@@ -931,6 +968,53 @@ export default function createClient(
               resolve(res.userPreferences);
             }
           });
+        });
+      });
+    },
+    promoteAccessRequest(
+      params: api.PromoteAccessRequestRequest.AsObject,
+      abortSignal?: types.TshAbortSignal
+    ): Promise<types.AccessRequest> {
+      return withAbort(abortSignal, callRef => {
+        const req = new api.PromoteAccessRequestRequest()
+          .setRootClusterUri(params.rootClusterUri)
+          .setAccessRequestId(params.accessRequestId)
+          .setAccessListId(params.accessListId)
+          .setReason(params.reason);
+
+        return new Promise((resolve, reject) => {
+          callRef.current = tshd.promoteAccessRequest(req, (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              const res = response.toObject();
+              resolve(res.request);
+            }
+          });
+        });
+      });
+    },
+    getSuggestedAccessLists(
+      params: api.GetSuggestedAccessListsRequest.AsObject,
+      abortSignal?: types.TshAbortSignal
+    ): Promise<types.AccessList[]> {
+      return withAbort(abortSignal, callRef => {
+        const req = new api.GetSuggestedAccessListsRequest()
+          .setRootClusterUri(params.rootClusterUri)
+          .setAccessRequestId(params.accessRequestId);
+
+        return new Promise((resolve, reject) => {
+          callRef.current = tshd.getSuggestedAccessLists(
+            req,
+            (err, response) => {
+              if (err) {
+                reject(err);
+              } else {
+                const res = response.toObject();
+                resolve(res.accessListsList);
+              }
+            }
+          );
         });
       });
     },

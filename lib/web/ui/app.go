@@ -141,6 +141,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 }
 
 // MakeSAMLApp creates a SAMLIdPServiceProvider object for the WebUI.
+// Keep in sync with lib/teleterm/apiserver/handler/handler_apps.go.
 func MakeSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	resultApp := App{

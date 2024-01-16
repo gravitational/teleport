@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=15.0.0-dev
+VERSION=16.0.0-dev
 
 DOCKER_IMAGE ?= teleport
 
@@ -295,6 +295,11 @@ $(BUILDDIR)/tctl:
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+
+TELEPORT_ARGS ?= start
+.PHONY: teleport-hot-reload
+teleport-hot-reload:
+	CompileDaemon --graceful-kill=true --exclude-dir=".git" --exclude-dir="node_modules" --build="make $(BUILDDIR)/teleport" --command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
 
 # NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
 # 		we can use this Makefile for native Windows builds.
@@ -1141,13 +1146,17 @@ version: $(VERSRC)
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
-# make tag - prints a tag to use with git for the current version
-# 	To put a new release on Github:
-# 		- bump VERSION variable
-# 		- run make setver
-# 		- commit changes to git
-# 		- build binaries with 'make release'
-# 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
+# Pushes GITTAG and api/GITTAG to GitHub.
+#
+# Before running `make update-tag`, do:
+#
+# 1. Commit your changes
+# 2. Bump VERSION variable (eg, "vMAJOR.(MINOR+1).0-dev-$USER.1")
+# 3. Run `make update-version`
+# 4. Commit version changes to git
+# 5. Make sure it all builds (`make release` or equivalent)
+#
+# After the above is done, run `make update-tag` and follow your build on Drone.
 .PHONY: update-tag
 update-tag: TAG_REMOTE ?= origin
 update-tag:

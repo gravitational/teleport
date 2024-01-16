@@ -30,15 +30,18 @@ type LeafClusterId = string;
 type ServerId = string;
 type KubeId = string;
 type DbId = string;
+type AppId = string;
 export type RootClusterUri = `/clusters/${RootClusterId}`;
 export type RootClusterServerUri =
   `/clusters/${RootClusterId}/servers/${ServerId}`;
 export type RootClusterKubeUri = `/clusters/${RootClusterId}/kubes/${KubeId}`;
 export type RootClusterDatabaseUri = `/clusters/${RootClusterId}/dbs/${DbId}`;
+export type RootClusterAppUri = `/clusters/${RootClusterId}/apps/${AppId}`;
 export type RootClusterResourceUri =
   | RootClusterServerUri
   | RootClusterKubeUri
-  | RootClusterDatabaseUri;
+  | RootClusterDatabaseUri
+  | RootClusterAppUri;
 export type RootClusterOrResourceUri = RootClusterUri | RootClusterResourceUri;
 export type LeafClusterUri =
   `/clusters/${RootClusterId}/leaves/${LeafClusterId}`;
@@ -48,18 +51,23 @@ export type LeafClusterKubeUri =
   `/clusters/${RootClusterId}/leaves/${LeafClusterId}/kubes/${KubeId}`;
 export type LeafClusterDatabaseUri =
   `/clusters/${RootClusterId}/leaves/${LeafClusterId}/dbs/${DbId}`;
+export type LeafClusterAppUri =
+  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/apps/${AppId}`;
 export type LeafClusterResourceUri =
   | LeafClusterServerUri
   | LeafClusterKubeUri
-  | LeafClusterDatabaseUri;
+  | LeafClusterDatabaseUri
+  | LeafClusterAppUri;
 export type LeafClusterOrResourceUri = LeafClusterUri | LeafClusterResourceUri;
 
 export type ResourceUri = RootClusterResourceUri | LeafClusterResourceUri;
 export type ClusterUri = RootClusterUri | LeafClusterUri;
 export type ServerUri = RootClusterServerUri | LeafClusterServerUri;
 export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
+export type AppUri = RootClusterAppUri | LeafClusterAppUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
+export type GatewayTargetUri = DatabaseUri | KubeUri | AppUri;
 
 /*
  * Document URIs
@@ -87,6 +95,7 @@ export const paths = {
     '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
   kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
   db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
+  app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
   // Documents.
   docHome: '/docs/home',
   doc: '/docs/:docId',
@@ -115,6 +124,10 @@ export const routing = {
 
   parseKubeUri(uri: string) {
     return routing.parseUri(uri, paths.kube);
+  },
+
+  parseAppUri(uri: string) {
+    return routing.parseUri(uri, paths.app);
   },
 
   parseServerUri(uri: string) {
@@ -216,6 +229,22 @@ export const routing = {
   },
 };
 
+export function isAppUri(uri: string): uri is AppUri {
+  return !!routing.parseAppUri(uri);
+}
+
+export function isDatabaseUri(uri: string): uri is DatabaseUri {
+  return !!routing.parseDbUri(uri);
+}
+
+export function isServerUri(uri: string): uri is ServerUri {
+  return !!routing.parseServerUri(uri);
+}
+
+export function isKubeUri(uri: string): uri is KubeUri {
+  return !!routing.parseKubeUri(uri);
+}
+
 export type Params = {
   rootClusterId?: string;
   leafClusterId?: string;
@@ -226,4 +255,5 @@ export type Params = {
   tabId?: string;
   sid?: string;
   docId?: string;
+  appId?: string;
 };
