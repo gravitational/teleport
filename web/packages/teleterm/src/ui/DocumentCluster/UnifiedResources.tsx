@@ -65,7 +65,7 @@ import {
   ConnectDatabaseActionButton,
   ConnectAppActionButton,
 } from './actionButtons';
-import { useResourcesContext } from './resourcesContext';
+import { useResourcesContext, ResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
 
 export function UnifiedResources(props: {
@@ -75,50 +75,34 @@ export function UnifiedResources(props: {
 }) {
   const { userPreferencesAttempt, updateUserPreferences, userPreferences } =
     useUserPreferences(props.clusterUri);
+  const { documentsService, rootClusterUri } = useWorkspaceContext();
+  const { onResourcesRefreshRequest } = useResourcesContext();
+  const loggedInUser = useWorkspaceLoggedInUser();
 
   const { unifiedResourcePreferences } = userPreferences;
 
-  const mergedParams: UnifiedResourcesQueryParams = {
-    kinds: props.queryParams.resourceKinds,
-    sort: props.queryParams.sort,
-    pinnedOnly:
-      unifiedResourcePreferences.defaultTab === DefaultTab.DEFAULT_TAB_PINNED,
-    search: props.queryParams.advancedSearchEnabled
-      ? ''
-      : props.queryParams.search,
-    query: props.queryParams.advancedSearchEnabled
-      ? props.queryParams.search
-      : '',
-  };
-
-  return (
-    <Resources
-      queryParams={mergedParams}
-      docUri={props.docUri}
-      clusterUri={props.clusterUri}
-      userPreferencesAttempt={userPreferencesAttempt}
-      updateUserPreferences={updateUserPreferences}
-      userPreferences={userPreferences}
-      // Reset the component state when query params object change.
-      // JSON.stringify on the same object will always produce the same string.
-      key={JSON.stringify(mergedParams)}
-    />
+  const mergedParams: UnifiedResourcesQueryParams = useMemo(
+    () => ({
+      kinds: props.queryParams.resourceKinds,
+      sort: props.queryParams.sort,
+      pinnedOnly:
+        unifiedResourcePreferences.defaultTab === DefaultTab.DEFAULT_TAB_PINNED,
+      search: props.queryParams.advancedSearchEnabled
+        ? ''
+        : props.queryParams.search,
+      query: props.queryParams.advancedSearchEnabled
+        ? props.queryParams.search
+        : '',
+    }),
+    [
+      props.queryParams.advancedSearchEnabled,
+      props.queryParams.resourceKinds,
+      props.queryParams.search,
+      props.queryParams.sort,
+      unifiedResourcePreferences.defaultTab,
+    ]
   );
-}
 
-function Resources(props: {
-  clusterUri: uri.ClusterUri;
-  docUri: uri.DocumentUri;
-  queryParams: UnifiedResourcesQueryParams;
-  userPreferencesAttempt?: Attempt<void>;
-  userPreferences: UserPreferences;
-  updateUserPreferences(u: UserPreferences): Promise<void>;
-}) {
-  const appContext = useAppContext();
-  const { onResourcesRefreshRequest } = useResourcesContext();
-
-  const { documentsService, rootClusterUri } = useWorkspaceContext();
-  const loggedInUser = useWorkspaceLoggedInUser();
   const { canUse: hasPermissionsForConnectMyComputer, agentCompatibility } =
     useConnectMyComputerContext();
 
@@ -129,6 +113,57 @@ function Resources(props: {
     isRootCluster &&
     hasPermissionsForConnectMyComputer &&
     agentCompatibility === 'compatible';
+
+  const openConnectMyComputerDocument = useCallback(() => {
+    documentsService.openConnectMyComputerDocument({ rootClusterUri });
+  }, [documentsService, rootClusterUri]);
+
+  const onParamsChange = useCallback(
+    (newParams: UnifiedResourcesQueryParams): void => {
+      documentsService.update(props.docUri, (draft: DocumentCluster) => {
+        const { queryParams } = draft;
+        queryParams.sort = newParams.sort;
+        queryParams.resourceKinds =
+          newParams.kinds as DocumentClusterResourceKind[];
+        queryParams.search = newParams.search || newParams.query;
+        queryParams.advancedSearchEnabled = !!newParams.query;
+      });
+    },
+    [documentsService, props.docUri]
+  );
+
+  return (
+    <Resources
+      queryParams={mergedParams}
+      onParamsChange={onParamsChange}
+      clusterUri={props.clusterUri}
+      userPreferencesAttempt={userPreferencesAttempt}
+      updateUserPreferences={updateUserPreferences}
+      userPreferences={userPreferences}
+      canAddResources={canAddResources}
+      canUseConnectMyComputer={canUseConnectMyComputer}
+      openConnectMyComputerDocument={openConnectMyComputerDocument}
+      onResourcesRefreshRequest={onResourcesRefreshRequest}
+      // Reset the component state when query params object change.
+      // JSON.stringify on the same object will always produce the same string.
+      key={JSON.stringify(mergedParams)}
+    />
+  );
+}
+
+function Resources(props: {
+  clusterUri: uri.ClusterUri;
+  queryParams: UnifiedResourcesQueryParams;
+  onParamsChange(params: UnifiedResourcesQueryParams): void;
+  userPreferencesAttempt?: Attempt<void>;
+  userPreferences: UserPreferences;
+  updateUserPreferences(u: UserPreferences): Promise<void>;
+  canAddResources: boolean;
+  canUseConnectMyComputer: boolean;
+  openConnectMyComputerDocument(): void;
+  onResourcesRefreshRequest: ResourcesContext['onResourcesRefreshRequest'];
+}) {
+  const appContext = useAppContext();
 
   const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
@@ -175,6 +210,7 @@ function Resources(props: {
     ),
   });
 
+  const { onResourcesRefreshRequest } = props;
   useEffect(() => {
     const { cleanup } = onResourcesRefreshRequest(() => {
       clear();
@@ -182,21 +218,6 @@ function Resources(props: {
     });
     return cleanup;
   }, [onResourcesRefreshRequest, fetch, clear]);
-
-  function onParamsChange(newParams: UnifiedResourcesQueryParams): void {
-    const documentService =
-      appContext.workspacesService.getWorkspaceDocumentService(
-        uri.routing.ensureRootClusterUri(props.clusterUri)
-      );
-    documentService.update(props.docUri, (draft: DocumentCluster) => {
-      const { queryParams } = draft;
-      queryParams.sort = newParams.sort;
-      queryParams.resourceKinds =
-        newParams.kinds as DocumentClusterResourceKind[];
-      queryParams.search = newParams.search || newParams.query;
-      queryParams.advancedSearchEnabled = !!newParams.query;
-    });
-  }
 
   const resourceIdsList =
     props.userPreferences.clusterPreferences?.pinnedResources?.resourceIdsList;
@@ -219,7 +240,7 @@ function Resources(props: {
   return (
     <SharedUnifiedResources
       params={props.queryParams}
-      setParams={onParamsChange}
+      setParams={props.onParamsChange}
       unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
       unifiedResourcePreferences={
         props.userPreferences.unifiedResourcePreferences
@@ -251,11 +272,9 @@ function Resources(props: {
       ]}
       NoResources={
         <NoResources
-          canCreate={canAddResources}
-          canUseConnectMyComputer={canUseConnectMyComputer}
-          onConnectMyComputerCtaClick={() => {
-            documentsService.openConnectMyComputerDocument({ rootClusterUri });
-          }}
+          canCreate={props.canAddResources}
+          canUseConnectMyComputer={props.canUseConnectMyComputer}
+          onConnectMyComputerCtaClick={props.openConnectMyComputerDocument}
         />
       }
     />
