@@ -26,7 +26,7 @@ import React, {
   useContext,
 } from 'react';
 import styled from 'styled-components';
-import { Indicator } from 'design';
+import { Box, Indicator } from 'design';
 import { Failed } from 'design/CardError';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -170,23 +170,24 @@ export function Main(props: MainProps) {
             : null
         }
       />
-      <BannerList
-        banners={banners}
-        customBanners={props.customBanners}
-        billingBanners={featureFlags.billing && props.billingBanners}
-        onBannerDismiss={dismissAlert}
-      >
+      <Wrapper>
         <MainContainer>
           <Navigation />
           <HorizontalSplit>
             <ContentMinWidth>
+              <BannerList
+                banners={banners}
+                customBanners={props.customBanners}
+                billingBanners={featureFlags.billing && props.billingBanners}
+                onBannerDismiss={dismissAlert}
+              />
               <Suspense fallback={null}>
                 <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
         </MainContainer>
-      </BannerList>
+      </Wrapper>
       {displayOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
@@ -305,4 +306,11 @@ export const HorizontalSplit = styled.div`
 export const StyledIndicator = styled(HorizontalSplit)`
   align-items: center;
   justify-content: center;
+`;
+
+const Wrapper = styled(Box)<{ hasDockedElement: boolean }>`
+  display: flex;
+  height: 100vh;
+  flex-direction: column;
+  width: ${p => (p.hasDockedElement ? 'calc(100vw - 520px)' : '100vw')};
 `;
