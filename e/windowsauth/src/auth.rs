@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::{mem, ptr, slice};
 
-use anyhow::{ensure, Context, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 use log::{debug, error, info};
 use windows::{
     core::*, Win32::Foundation::*, Win32::NetworkManagement::NetManagement::*,
@@ -204,7 +204,7 @@ fn ensure_user(name: &str) -> Result<()> {
     match res {
         NERR_Success => {
             // User created, let's add it to Teleport Users group
-            let user = lookup_name(name)?;
+            let user = lookup_account(name, vec![SidTypeUser])?;
             let ugroup = UTF16::from(&group);
             let members_info = &LOCALGROUP_MEMBERS_INFO_0 {
                 lgrmi0_sid: user.psid(),
@@ -315,7 +315,7 @@ unsafe fn lsa_ap_logon_user(
     AllocateLocallyUniqueId(logon_id).context("Can't allocate logon id")?;
     create_logon_session(logon_id).context("Can't create logon session")?;
 
-    let user = lookup_name(&name)?;
+    let user = lookup_account(&name, vec![SidTypeUser])?;
     *authenticating_authority =
         lsa_string(&user.domain).context("Can't create authenticating authority")?;
 
@@ -441,7 +441,7 @@ unsafe fn copy_groups_to_token(
     ptr::write(
         token.Groups,
         TOKEN_GROUPS {
-            GroupCount: groups.len() as u32,
+            GroupCount: groups.len() as u32 + 1,
             Groups: Default::default(),
         },
     );
@@ -458,7 +458,13 @@ unsafe fn copy_groups_to_token(
 
     // put all requested groups' SIDs in array starting at index 1
     for (i, group) in groups.iter().enumerate() {
-        let group = lookup_name(group).context(format!("Can't lookup SID for group {}", group))?;
+        let group = lookup_account(
+            group,
+            // group can be represented by multiple different types,
+            // depending on if the group is built-in or created by user
+            vec![SidTypeGroup, SidTypeWellKnownGroup, SidTypeAlias],
+        )
+        .context(format!("Can't lookup SID for group {}", group))?;
         copy_sid(token_groups, i + 1, group.sid_length()?, group.psid())?;
     }
 
@@ -534,7 +540,6 @@ unsafe fn fill_profile_buffer(
 struct Account {
     sid: Vec<u8>,
     domain: String,
-    name_use: SID_NAME_USE,
 }
 
 impl Account {
@@ -562,13 +567,8 @@ fn is_domain_joined() -> Result<bool> {
 /// https://support.microsoft.com/en-us/help/297951/how-to-use-the-primarygroupid-attribute-to-find-the-primary-group-for
 /// The method follows this formula: domainRID + "-" + primaryGroupRID
 unsafe fn lookup_primary_group(name: &str, domain: &str) -> Result<Account> {
-    let mut domain_acc = lookup_name(domain).context(format!("Can't lookup domain {}", domain))?;
-    if domain_acc.name_use != SidTypeDomain {
-        return Err(Error::from(ERROR_INVALID_NAME)).context(format!(
-            "Lookup returned wrong SID type: {}",
-            domain_acc.name_use.0
-        ));
-    }
+    let mut domain_acc = lookup_account(domain, vec![SidTypeDomain])
+        .context(format!("Can't lookup domain {}", domain))?;
     let mut domain_rid = to_string(domain_acc.psid())?;
 
     let joined = is_domain_joined().context("Can't check domain join status")?;
@@ -597,11 +597,13 @@ unsafe fn lookup_primary_group(name: &str, domain: &str) -> Result<Account> {
         NetApiBufferFree(Some(info as _));
     }
     domain_acc.sid = to_sid(&domain_rid)?;
-    domain_acc.name_use = SidTypeGroup;
     Ok(domain_acc)
 }
 
-fn lookup_name(name: &str) -> Result<Account> {
+/// lookup_account gets account information for given name and checks if account is of correct type.
+/// Note: Windows treats many things as an account - user, group, domain, computer etc.
+/// See: https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-sid_name_use
+fn lookup_account(name: &str, sid_types: Vec<SID_NAME_USE>) -> Result<Account> {
     let mut cb = 0u32;
     let mut cd = 0u32;
     let mut name_use = SidTypeInvalid;
@@ -641,7 +643,15 @@ fn lookup_name(name: &str) -> Result<Account> {
         .context(format!("Can't lookup account name {}", name))?;
         account.domain = domain.to_string()?;
     }
-    account.name_use = name_use;
+    // in case we have user/group with the same name as computer LookupAccountNameW will return domain SID,
+    // we have to try again with DOMAIN\USER format
+    if name_use == SidTypeDomain && !sid_types.contains(&SidTypeDomain) {
+        let name = format!("{}\\{}", account.domain, name);
+        return lookup_account(&name, sid_types);
+    }
+    if !sid_types.contains(&name_use) {
+        return Err(anyhow!("Invalid SID type: {}", name_use.0));
+    }
     Ok(account)
 }
 
