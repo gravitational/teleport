@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, memo } from 'react';
 
 import {
   UnifiedResources as SharedUnifiedResources,
@@ -151,135 +151,138 @@ export function UnifiedResources(props: {
   );
 }
 
-function Resources(props: {
-  clusterUri: uri.ClusterUri;
-  queryParams: UnifiedResourcesQueryParams;
-  onParamsChange(params: UnifiedResourcesQueryParams): void;
-  userPreferencesAttempt?: Attempt<void>;
-  userPreferences: UserPreferences;
-  updateUserPreferences(u: UserPreferences): Promise<void>;
-  canAddResources: boolean;
-  canUseConnectMyComputer: boolean;
-  openConnectMyComputerDocument(): void;
-  onResourcesRefreshRequest: ResourcesContext['onResourcesRefreshRequest'];
-}) {
-  const appContext = useAppContext();
+const Resources = memo(
+  (props: {
+    clusterUri: uri.ClusterUri;
+    queryParams: UnifiedResourcesQueryParams;
+    onParamsChange(params: UnifiedResourcesQueryParams): void;
+    userPreferencesAttempt?: Attempt<void>;
+    userPreferences: UserPreferences;
+    updateUserPreferences(u: UserPreferences): Promise<void>;
+    canAddResources: boolean;
+    canUseConnectMyComputer: boolean;
+    openConnectMyComputerDocument(): void;
+    onResourcesRefreshRequest: ResourcesContext['onResourcesRefreshRequest'];
+  }) => {
+    const appContext = useAppContext();
 
-  const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
-    fetchFunc: useCallback(
-      async (paginationParams, signal) => {
-        const response = await retryWithRelogin(
-          appContext,
-          props.clusterUri,
-          () =>
-            appContext.resourcesService.listUnifiedResources(
-              {
-                clusterUri: props.clusterUri,
-                searchAsRoles: false,
-                sortBy: {
-                  isDesc: props.queryParams.sort.dir === 'DESC',
-                  field: props.queryParams.sort.fieldName,
+    const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
+      fetchFunc: useCallback(
+        async (paginationParams, signal) => {
+          const response = await retryWithRelogin(
+            appContext,
+            props.clusterUri,
+            () =>
+              appContext.resourcesService.listUnifiedResources(
+                {
+                  clusterUri: props.clusterUri,
+                  searchAsRoles: false,
+                  sortBy: {
+                    isDesc: props.queryParams.sort.dir === 'DESC',
+                    field: props.queryParams.sort.fieldName,
+                  },
+                  search: props.queryParams.search,
+                  kindsList: props.queryParams.kinds,
+                  query: props.queryParams.query,
+                  pinnedOnly: props.queryParams.pinnedOnly,
+                  startKey: paginationParams.startKey,
+                  limit: paginationParams.limit,
                 },
-                search: props.queryParams.search,
-                kindsList: props.queryParams.kinds,
-                query: props.queryParams.query,
-                pinnedOnly: props.queryParams.pinnedOnly,
-                startKey: paginationParams.startKey,
-                limit: paginationParams.limit,
-              },
-              signal
-            )
-        );
+                signal
+              )
+          );
 
-        return {
-          startKey: response.nextKey,
-          agents: response.resources,
-          totalCount: response.resources.length,
-        };
-      },
-      [
-        appContext,
-        props.queryParams.kinds,
-        props.queryParams.pinnedOnly,
-        props.queryParams.query,
-        props.queryParams.search,
-        props.queryParams.sort.dir,
-        props.queryParams.sort.fieldName,
-        props.clusterUri,
-      ]
-    ),
-  });
-
-  const { onResourcesRefreshRequest } = props;
-  useEffect(() => {
-    const { cleanup } = onResourcesRefreshRequest(() => {
-      clear();
-      fetch({ force: true });
+          return {
+            startKey: response.nextKey,
+            agents: response.resources,
+            totalCount: response.resources.length,
+          };
+        },
+        [
+          appContext,
+          props.queryParams.kinds,
+          props.queryParams.pinnedOnly,
+          props.queryParams.query,
+          props.queryParams.search,
+          props.queryParams.sort.dir,
+          props.queryParams.sort.fieldName,
+          props.clusterUri,
+        ]
+      ),
     });
-    return cleanup;
-  }, [onResourcesRefreshRequest, fetch, clear]);
 
-  const resourceIdsList =
-    props.userPreferences.clusterPreferences?.pinnedResources?.resourceIdsList;
-  const { updateUserPreferences } = props;
-  const pinning = useMemo<UnifiedResourcesPinning>(() => {
-    return resourceIdsList
-      ? {
-          kind: 'supported',
-          getClusterPinnedResources: async () => resourceIdsList,
-          updateClusterPinnedResources: pinnedIds =>
-            updateUserPreferences({
-              clusterPreferences: {
-                pinnedResources: { resourceIdsList: pinnedIds },
-              },
-            }),
+    const { onResourcesRefreshRequest } = props;
+    useEffect(() => {
+      const { cleanup } = onResourcesRefreshRequest(() => {
+        clear();
+        fetch({ force: true });
+      });
+      return cleanup;
+    }, [onResourcesRefreshRequest, fetch, clear]);
+
+    const resourceIdsList =
+      props.userPreferences.clusterPreferences?.pinnedResources
+        ?.resourceIdsList;
+    const { updateUserPreferences } = props;
+    const pinning = useMemo<UnifiedResourcesPinning>(() => {
+      return resourceIdsList
+        ? {
+            kind: 'supported',
+            getClusterPinnedResources: async () => resourceIdsList,
+            updateClusterPinnedResources: pinnedIds =>
+              updateUserPreferences({
+                clusterPreferences: {
+                  pinnedResources: { resourceIdsList: pinnedIds },
+                },
+              }),
+          }
+        : { kind: 'not-supported' };
+    }, [updateUserPreferences, resourceIdsList]);
+
+    return (
+      <SharedUnifiedResources
+        params={props.queryParams}
+        setParams={props.onParamsChange}
+        unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
+        unifiedResourcePreferences={
+          props.userPreferences.unifiedResourcePreferences
         }
-      : { kind: 'not-supported' };
-  }, [updateUserPreferences, resourceIdsList]);
-
-  return (
-    <SharedUnifiedResources
-      params={props.queryParams}
-      setParams={props.onParamsChange}
-      unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
-      unifiedResourcePreferences={
-        props.userPreferences.unifiedResourcePreferences
-      }
-      updateUnifiedResourcesPreferences={unifiedResourcePreferences =>
-        props.updateUserPreferences({ unifiedResourcePreferences })
-      }
-      pinning={pinning}
-      resources={resources.map(mapToSharedResource)}
-      resourcesFetchAttempt={attempt}
-      fetchResources={fetch}
-      availableKinds={[
-        {
-          kind: 'node',
-          disabled: false,
-        },
-        {
-          kind: 'app',
-          disabled: false,
-        },
-        {
-          kind: 'db',
-          disabled: false,
-        },
-        {
-          kind: 'kube_cluster',
-          disabled: false,
-        },
-      ]}
-      NoResources={
-        <NoResources
-          canCreate={props.canAddResources}
-          canUseConnectMyComputer={props.canUseConnectMyComputer}
-          onConnectMyComputerCtaClick={props.openConnectMyComputerDocument}
-        />
-      }
-    />
-  );
-}
+        updateUnifiedResourcesPreferences={unifiedResourcePreferences =>
+          props.updateUserPreferences({ unifiedResourcePreferences })
+        }
+        pinning={pinning}
+        resources={resources.map(mapToSharedResource)}
+        resourcesFetchAttempt={attempt}
+        fetchResources={fetch}
+        availableKinds={[
+          {
+            kind: 'node',
+            disabled: false,
+          },
+          {
+            kind: 'app',
+            disabled: false,
+          },
+          {
+            kind: 'db',
+            disabled: false,
+          },
+          {
+            kind: 'kube_cluster',
+            disabled: false,
+          },
+        ]}
+        NoResources={
+          <NoResources
+            canCreate={props.canAddResources}
+            canUseConnectMyComputer={props.canUseConnectMyComputer}
+            onConnectMyComputerCtaClick={props.openConnectMyComputerDocument}
+          />
+        }
+      />
+    );
+  }
+);
 
 const mapToSharedResource = (
   resource: UnifiedResourceResponse
