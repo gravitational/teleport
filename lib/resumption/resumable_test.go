@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/nettest"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
@@ -76,17 +77,21 @@ func TestResumableConnPipe(t *testing.T) {
 					}
 				}
 
+				var e errgroup.Group
 				r1.mu.Lock()
-				go runResumeV1Unlocking(r1, p1, tc.firstConn)
+				e.Go(func() error {
+					return runResumeV1Unlocking(r1, p1, tc.firstConn)
+				})
 
 				r2.mu.Lock()
-				go runResumeV1Unlocking(r2, p2, tc.firstConn)
+				e.Go(func() error {
+					return runResumeV1Unlocking(r2, p2, tc.firstConn)
+				})
 
 				return r1, r2, func() {
 					r1.Close()
 					r2.Close()
-					p1.Close()
-					p2.Close()
+					e.Wait()
 				}, nil
 			}
 

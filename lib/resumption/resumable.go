@@ -92,13 +92,15 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 
 	var stopRequested atomic.Bool
 
-	requestDetach := func() {
-		nc.Close()
+	requestStop := func() {
 		if !stopRequested.Swap(true) {
 			r.cond.Broadcast()
 		}
 	}
-	r.requestDetach = requestDetach
+	r.requestDetach = func() {
+		nc.Close()
+		requestStop()
+	}
 	r.cond.Broadcast()
 
 	defer func() {
@@ -159,9 +161,10 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 	handshakeWatchdog.Stop()
 
 	eg, ctx := errgroup.WithContext(context.Background())
-	context.AfterFunc(ctx, requestDetach)
+	context.AfterFunc(ctx, requestStop)
 
 	eg.Go(func() error {
+		defer nc.Close()
 		return runResumeV1Read(r, ncReader, &stopRequested)
 	})
 
@@ -292,14 +295,22 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, sentPos
 				break
 			}
 
-			if stopRequested.Load() || r.localClosed || r.remoteClosed {
-				localClosed := r.localClosed
+			if stopRequested.Load() {
+				r.mu.Unlock()
+				return trace.ConnectionProblem(nil, "disconnection requested")
+
+			}
+
+			if r.remoteClosed {
+				r.mu.Unlock()
+				return trace.ConnectionProblem(errBrokenPipe, "connection closed by peer")
+			}
+
+			if r.localClosed {
 				r.mu.Unlock()
 
-				if localClosed {
-					_, _ = nc.Write([]byte(errorTagUvarint))
-				}
-				return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer or disconnection requested")
+				_, _ = nc.Write([]byte(errorTagUvarint))
+				return trace.ConnectionProblem(net.ErrClosed, "connection closed")
 			}
 
 			r.cond.Wait()
