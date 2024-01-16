@@ -2034,81 +2034,6 @@ steps:
         git fetch origin +refs/tags/${DRONE_TAG}:
         git checkout -qf FETCH_HEAD
 
-  - name: Assume AMI Download AWS Role
-    image: amazon/aws-cli
-    commands:
-      - aws sts get-caller-identity
-      - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-          $(aws sts assume-role \
-            --role-arn "$AWS_ROLE" \
-            --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-            --output text) \
-          > /root/.aws/credentials
-      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity --profile default
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: AWS_SECRET_ACCESS_KEY
-      AWS_ROLE:
-        from_secret: AWS_ROLE
-    volumes:
-      - name: awsconfig
-        path: /root/.aws
-
-  - name: Download AMI timestamps
-    image: amazon/aws-cli
-    environment:
-      AWS_S3_BUCKET:
-        from_secret: AWS_S3_BUCKET
-    volumes:
-      - name: awsconfig
-        path: /root/.aws
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport/assets/aws/files/build
-      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ami/${DRONE_TAG##v}/ /go/src/github.com/gravitational/teleport/assets/aws/files/build
-
-  - name: Assume AMI Publish AWS Role
-    image: amazon/aws-cli
-    commands:
-      - aws sts get-caller-identity
-      - |-
-        printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-          $(aws sts assume-role \
-            --role-arn "$AWS_ROLE" \
-            --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-            --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-            --output text) \
-          > /root/.aws/credentials
-      - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-      - aws sts get-caller-identity --profile default
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
-      AWS_ROLE:
-        from_secret: PRODUCTION_AWS_ROLE
-    volumes:
-      - name: awsconfig
-        path: /root/.aws
-
-  - name: Make AMIs public
-    image: docker
-    volumes:
-      - name: awsconfig
-        path: /root/.aws
-    commands:
-      - apk add --no-cache aws-cli bash jq make
-      - cd /go/src/github.com/gravitational/teleport/assets/aws
-      - |
-        make change-amis-to-public-oss
-        make change-amis-to-public-ent
-        make change-amis-to-public-ent-fips
-
   - name: "Helm: Assume Download AWS Role"
     image: amazon/aws-cli
     commands:
@@ -11282,6 +11207,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 6e4c6a16187c623f3d86e3a7289f1802044d40e45d4d06346bc0962bc01cf97e
+hmac: 1d66c0283305aeadd63ca6b75c284d9f7c41d11dbf0f26488a8c6766fcd3abe0
 
 ...
