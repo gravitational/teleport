@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { debounce } from 'shared/utils/highbar';
+
 import {
   MainProcessClient,
   ElectronGlobals,
@@ -166,6 +168,7 @@ export default class AppContext implements IAppContext {
     );
 
     this.subscribeToDeepLinkLaunch();
+    this.notifyMainProcessAboutClusterListChanges();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
   }
@@ -185,5 +188,24 @@ export default class AppContext implements IAppContext {
         });
       };
     }
+  }
+
+  private notifyMainProcessAboutClusterListChanges() {
+    // Debounce the notifications sent to the main process so that we don't unnecessarily send more
+    // than one notification per frame.
+    //
+    // The main process doesn't need to know absolutely immediately after cluster list changes. The
+    // clusters map in ClustersService gets updated a bunch of times during the start of the app.
+    // Each time the renderer tells the main process to refresh the list, it sends a request to list
+    // root clusters and cancels any pending ones. Debouncing here helps to minimize those
+    // cancellations.
+    const refreshClusterList = debounce(
+      this.mainProcessClient.refreshClusterList,
+      16
+    );
+    this.clustersService.subscribeWithSelector(
+      state => state.clusters,
+      refreshClusterList
+    );
   }
 }
