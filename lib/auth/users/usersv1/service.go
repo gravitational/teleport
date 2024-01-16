@@ -293,6 +293,17 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
+	// ValidateUser is called a bit later by LegacyUpdateUser. However, it's clearer
+	// to do it here like the other verbs, plus it won't break again when we'll
+	// get rid of the legacy update function.
+	if err := services.ValidateUser(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	prevUser, err := s.cache.GetUser(ctx, req.User.GetName(), false)
 	var omitEditorEvent bool
 	if err != nil {
@@ -357,6 +368,14 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 	}
 
 	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUser(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
