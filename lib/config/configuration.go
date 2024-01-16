@@ -1638,10 +1638,10 @@ kubernetes matchers are present`)
 		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers, serviceMatcher)
 	}
 
-	seenAccounts := make(map[string]struct{})
-	for _, matcher := range fc.Discovery.AccessGraph {
+	if fc.Discovery.AccessGraph != nil {
+		seenAccounts := make(map[string]struct{})
 		var tMatcher types.AccessGraphSync
-		for _, awsMatcher := range matcher.AWS {
+		for _, awsMatcher := range fc.Discovery.AccessGraph.AWS {
 			if awsMatcher.AccountID == "" {
 				return trace.BadParameter("missing account_id in access_graph")
 			}
@@ -1660,7 +1660,7 @@ kubernetes matchers are present`)
 				ExternalID:    awsMatcher.ExternalID,
 			})
 		}
-		cfg.Discovery.AccessGraphSync = append(cfg.Discovery.AccessGraphSync, tMatcher)
+		cfg.Discovery.AccessGraphSync = &tMatcher
 	}
 	return nil
 }

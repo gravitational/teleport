@@ -1414,7 +1414,7 @@ type Discovery struct {
 	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
 
 	// AccessGraph is used to configure the AWS Account Sync to Access Graph.
-	AccessGraph []AccessGraphSync `yaml:"access_graph,omitempty"`
+	AccessGraph *AccessGraphSync `yaml:"access_graph,omitempty"`
 
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.

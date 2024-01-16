@@ -143,6 +143,7 @@ func newGCPHandler(ctx context.Context, config HandlerConfig) (*handler, error) 
 		reverseproxy.WithLogger(config.Log),
 		reverseproxy.WithErrorHandler(svc.formatForwardResponseError),
 	)
+
 	return svc, trace.Wrap(err)
 }
 

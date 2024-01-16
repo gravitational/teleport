@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"slices"
@@ -48,10 +49,12 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
+	tag_aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/tag-aws-sync"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
 
@@ -67,10 +70,12 @@ type Matchers struct {
 	GCP []types.GCPMatcher
 	// Kubernetes is a list of Kubernetes matchers to discovery resources.
 	Kubernetes []types.KubernetesMatcher
+	// AccessGraph is a list of access graph matchers to discovery resources.
+	AccessGraph *types.AccessGraphSync
 }
 
 func (m Matchers) IsEmpty() bool {
-	return len(m.GCP) == 0 && len(m.AWS) == 0 && len(m.Azure) == 0 && len(m.Kubernetes) == 0
+	return len(m.GCP) == 0 && len(m.AWS) == 0 && len(m.Azure) == 0 && len(m.Kubernetes) == 0 && (m.AccessGraph == nil || len(m.AccessGraph.AWS) == 0)
 }
 
 // ssmInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -124,6 +129,11 @@ type Config struct {
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
 	PollInterval time.Duration
+
+	// ServerCredentials is used to dial to the TAG service.
+	ServerCredentials *tls.Config
+	// AccessGraph is used to sync access graph with the discovery service.
+	AccessGraph servicecfg.AccessGraphConfig
 
 	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
 	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
@@ -264,6 +274,12 @@ type Server struct {
 	muDynamicServerGCPFetchers sync.RWMutex
 	staticServerGCPFetchers    []server.Fetcher
 
+	// dynamicTAGSyncFetchers holds the current TAG Fetchers for the Dynamic Matchers (those coming from DiscoveryConfig resource).
+	// The key is the DiscoveryConfig name.
+	dynamicTAGSyncFetchers   map[string][]tag_aws_sync.AWSSync
+	muDynamicTAGSyncFetchers sync.RWMutex
+	staticTAGSyncFetchers    []tag_aws_sync.AWSSync
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -274,6 +290,8 @@ type Server struct {
 	// usageEventCache keeps track of which instances the server has emitted
 	// usage events for.
 	usageEventCache map[string]struct{}
+
+	currentTAGResources *tag_aws_sync.PollResult
 }
 
 // New initializes a discovery Server
@@ -292,6 +310,8 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerAWSFetchers:   make(map[string][]server.Fetcher),
 		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
+		dynamicTAGSyncFetchers:     make(map[string][]tag_aws_sync.AWSSync),
+		currentTAGResources:        &tag_aws_sync.PollResult{},
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -325,6 +345,34 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 	if err := s.initKubeAppWatchers(cfg.Matchers.Kubernetes); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.Matchers.AccessGraph != nil && len(cfg.Matchers.AccessGraph.AWS) > 0 {
+		for _, awsFetcher := range cfg.Matchers.AccessGraph.AWS {
+			fetcher := tag_aws_sync.NewAWSFetcher(
+				tag_aws_sync.Config{
+					CloudClients: s.CloudClients,
+					AccountID:    awsFetcher.AccountID,
+					Regions:      awsFetcher.Regions,
+				},
+			)
+			s.staticTAGSyncFetchers = append(s.staticTAGSyncFetchers, fetcher)
+		}
+
+		go func() {
+			for {
+
+				if err := s.initializeAndWatchAccessGraph(ctx); err != nil {
+					s.Log.Warnf("Error initializing and watching access graph: %v", err)
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(30 * time.Second):
+				}
+			}
+		}()
 	}
 
 	return s, nil
@@ -1311,10 +1359,11 @@ func (s *Server) deleteDynamicFetchers(name string) {
 // upsertDynamicMatchers upserts the internal set of dynamic matchers given a particular discovery config.
 func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) error {
 	matchers := Matchers{
-		AWS:        dc.Spec.AWS,
-		Azure:      dc.Spec.Azure,
-		GCP:        dc.Spec.GCP,
-		Kubernetes: dc.Spec.Kube,
+		AWS:         dc.Spec.AWS,
+		Azure:       dc.Spec.Azure,
+		GCP:         dc.Spec.GCP,
+		Kubernetes:  dc.Spec.Kube,
+		AccessGraph: dc.Spec.AccessGraphSync,
 	}
 	s.discardUnsupportedMatchers(&matchers)
 

@@ -19,10 +19,13 @@
 package service
 
 import (
+	"crypto/tls"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/discovery"
 )
@@ -39,9 +42,13 @@ func (process *TeleportProcess) initDiscovery() {
 func (process *TeleportProcess) initDiscoveryService() error {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDiscovery, process.id))
-
 	conn, err := process.WaitForConnector(DiscoveryIdentityEvent, log)
 	if conn == nil {
+		return trace.Wrap(err)
+	}
+
+	tlsConfig, err := conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -58,20 +65,39 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		return trace.Wrap(err)
 	}
 
+	// FIXME: this is a hack to make sure that the discovery service
+	license, err := licensefile.NewLicenseFile(process.Config.Auth.LicenseFile)
+	if err != nil {
+		panic(err)
+	}
+	cert, err := tls.X509KeyPair(
+		license.KeyPair.CertPEM,
+		license.KeyPair.KeyPEM,
+	)
+	if err != nil {
+		panic(err)
+	}
+	tlsConfig = &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
 		IntegrationOnlyCredentials: process.integrationOnlyCredentials(),
 		Matchers: discovery.Matchers{
-			AWS:        process.Config.Discovery.AWSMatchers,
-			Azure:      process.Config.Discovery.AzureMatchers,
-			GCP:        process.Config.Discovery.GCPMatchers,
-			Kubernetes: process.Config.Discovery.KubernetesMatchers,
+			AWS:         process.Config.Discovery.AWSMatchers,
+			Azure:       process.Config.Discovery.AzureMatchers,
+			GCP:         process.Config.Discovery.GCPMatchers,
+			Kubernetes:  process.Config.Discovery.KubernetesMatchers,
+			AccessGraph: process.Config.Discovery.AccessGraphSync,
 		},
-		DiscoveryGroup: process.Config.Discovery.DiscoveryGroup,
-		Emitter:        asyncEmitter,
-		AccessPoint:    accessPoint,
-		Log:            process.log,
-		ClusterName:    conn.ClientIdentity.ClusterName,
-		PollInterval:   process.Config.Discovery.PollInterval,
+		DiscoveryGroup:    process.Config.Discovery.DiscoveryGroup,
+		Emitter:           asyncEmitter,
+		AccessPoint:       accessPoint,
+		Log:               process.log,
+		ClusterName:       conn.ClientIdentity.ClusterName,
+		PollInterval:      process.Config.Discovery.PollInterval,
+		ServerCredentials: tlsConfig,
+		AccessGraph:       process.Config.AccessGraph,
 	})
 	if err != nil {
 		return trace.Wrap(err)
