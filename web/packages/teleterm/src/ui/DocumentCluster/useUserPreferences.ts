@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 
 import {
   useAsync,
@@ -95,13 +95,16 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     useState<Attempt<void>>(makeEmptyAttempt());
 
   const [, runUpdateAttempt] = useAsync(
-    async (newPreferences: UserPreferences) =>
-      retryWithRelogin(appContext, clusterUri, () =>
-        appContext.tshd.updateUserPreferences({
-          clusterUri,
-          userPreferences: newPreferences,
-        })
-      )
+    useCallback(
+      async (newPreferences: UserPreferences) =>
+        retryWithRelogin(appContext, clusterUri, () =>
+          appContext.tshd.updateUserPreferences({
+            clusterUri,
+            userPreferences: newPreferences,
+          })
+        ),
+      [appContext, clusterUri]
+    )
   );
 
   const updateUnifiedResourcePreferencesStateAndWorkspace = useCallback(
@@ -190,15 +193,21 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   );
 
   return {
-    userPreferencesAttempt:
-      supersededInitialFetchAttempt.status !== ''
-        ? supersededInitialFetchAttempt
-        : mapAttempt(initialFetchAttempt, () => undefined),
+    userPreferencesAttempt: useMemo(
+      () =>
+        supersededInitialFetchAttempt.status !== ''
+          ? supersededInitialFetchAttempt
+          : mapAttempt(initialFetchAttempt, () => undefined),
+      [initialFetchAttempt, supersededInitialFetchAttempt]
+    ),
     updateUserPreferences,
-    userPreferences: {
-      unifiedResourcePreferences,
-      clusterPreferences,
-    },
+    userPreferences: useMemo(
+      () => ({
+        unifiedResourcePreferences,
+        clusterPreferences,
+      }),
+      [clusterPreferences, unifiedResourcePreferences]
+    ),
   };
 }
 
