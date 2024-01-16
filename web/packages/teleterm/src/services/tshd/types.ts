@@ -224,7 +224,7 @@ export type LoginPasswordlessRequest =
   Partial<apiService.LoginPasswordlessRequest.AsObject>;
 
 export type TshdClient = {
-  listRootClusters: () => Promise<Cluster[]>;
+  listRootClusters: (abortSignal?: TshAbortSignal) => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
   getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
   getApps: (params: GetResourcesParams) => Promise<GetAppsResponse>;
