@@ -26,6 +26,7 @@ import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/mfa/v1/mfa.proto";
 import "teleport/usageevents/v1/usageevents.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
@@ -1841,62 +1842,9 @@ message CreateAuthenticateChallengeRequest {
   // If you are issuing challenges from the root cluster, but accessing a leaf,
   // call [AuthService.IsMFARequired] in the leaf instead of setting this field.
   IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
-  // Extensions are extensions that will be apply to the issued MFA challenge.
-  // Extensions only apply to webauthn challenges currently. This field is required.
-  MFAChallengeExtensions Extensions = 6 [(gogoproto.jsontag) = "extensions,omitempty"];
-}
-
-// MFAChallengeExtensions contains MFA challenge extensions used by Teleport
-// during MFA authentication.
-message MFAChallengeExtensions {
-  // Scope is an authorization scope for this MFA challenge.
-  // This field is required.
-  MFAChallengeScope scope = 1;
-  // AllowReuse determines whether the MFA challenge allows reuse.
-  // Defaults to MFA_ALLOW_REUSE_NO.
-  //
-  // Note that reuse is only permitted for specific actions by the discretion
-  // of the server. See the server implementation for details.
-  MFAAllowReuse allow_reuse = 2;
-}
-
-// MFAChallengeScope is a scope authorized by an MFA challenge resolution.
-enum MFAChallengeScope {
-  // Unspecified.
-  MFA_CHALLENGE_SCOPE_UNSPECIFIED = 0;
-  // Standard webauthn login.
-  MFA_CHALLENGE_SCOPE_LOGIN = 1;
-  // Passwordless webauthn login.
-  MFA_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN = 2;
-  // Headless login.
-  MFA_CHALLENGE_SCOPE_HEADLESS_LOGIN = 3;
-  // MFA device management.
-  MFA_CHALLENGE_SCOPE_MANAGE_DEVICES = 4;
-  // Account recovery.
-  MFA_CHALLENGE_SCOPE_ACCOUNT_RECOVERY = 5;
-  // Used for per-session MFA and moderated session presence checks.
-  MFA_CHALLENGE_SCOPE_USER_SESSION = 6;
-  // Used for various administrative actions, such as adding, updating, or
-  // deleting administrative resources (users, roles, etc.).
-  //
-  // Note: this scope should not be used for new MFA capabilities that have
-  // more precise scope. Instead, new scopes should be added. This scope may
-  // also be split into multiple smaller scopes in the future.
-  MFA_CHALLENGE_SCOPE_ADMIN_ACTION = 7;
-}
-
-// MFAAllowReuse determines whether an MFA challenge response can be used
-// to authenticate the user more than once until the challenge expires.
-//
-// Reuse is only permitted for specific actions by the discretion of the server.
-// See the server implementation for details.
-enum MFAAllowReuse {
-  // Unspecified, treated as MFA_ALLOW_REUSE_NO.
-  MFA_ALLOW_REUSE_UNSPECIFIED = 0;
-  // Reuse is permitted.
-  MFA_ALLOW_REUSE_YES = 1;
-  // Reuse is not permitted.
-  MFA_ALLOW_REUSE_NO = 2;
+  // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
+  // ChallengeExtensions only apply to webauthn challenges currently. Required.
+  teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 6 [(gogoproto.jsontag) = "challenge_extensions,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
