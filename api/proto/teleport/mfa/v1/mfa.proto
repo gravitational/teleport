@@ -16,7 +16,11 @@ syntax = "proto3";
 
 package teleport.mfa.v1;
 
+import "gogoproto/gogo.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1;mfav1";
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
 
 // ChallengeExtensions contains MFA challenge extensions used by Teleport
 // during MFA authentication.
