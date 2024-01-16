@@ -38,6 +38,7 @@ import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { parseDeepLink } from 'teleterm/deepLinks';
 import { assertUnreachable } from 'teleterm/ui/utils';
+import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 
 // Set the app as a default protocol client only if it wasn't started through `electron .`.
 if (!process.defaultApp) {
@@ -147,16 +148,16 @@ function initializeApp(): void {
   // triggered on macOS if the app is not already running when the user opens a deep link.
   setUpDeepLinks(logger, windowsManager, settings);
 
-  (async () => {
-    await mainProcess.initTshdClient();
+  const rootClusterProxyHostAllowList = new Set<string>();
 
-    // TODO(ravicious): Keep a cluster list and refresh it when notified by the renderer process.
-    // Example:
-    // const tshdClient = await mainProcess.initTshdClient();
-    //
-    // ipcMain.on(MainProcessIpc.RefreshClusterList, () => {
-    //   tshdClient.listRootClusters();
-    // });
+  (async () => {
+    const tshdClient = await mainProcess.initTshdClient();
+
+    manageRootClusterProxyHostAllowList({
+      tshdClient,
+      logger,
+      allowList: rootClusterProxyHostAllowList,
+    });
   })().catch(error => {
     const message =
       'Could not initialize tsh daemon client in the main process';
@@ -229,6 +230,11 @@ function initializeApp(): void {
         ) {
           return true;
         }
+
+        // Allow opening links to the Web UIs of root clusters currently added in the app.
+        if (rootClusterProxyHostAllowList.has(url.host)) {
+          return true;
+        }
       }
 
       // Open links to documentation and GitHub issues in the external browser.
@@ -238,6 +244,10 @@ function initializeApp(): void {
       } else {
         logger.warn(
           `Opening a new window to ${url} blocked by 'setWindowOpenHandler'`
+        );
+        dialog.showErrorBox(
+          'Cannot open this link',
+          'The domain this link points to does not match any of the allowed domains. Check main.log for more details.'
         );
       }
 
