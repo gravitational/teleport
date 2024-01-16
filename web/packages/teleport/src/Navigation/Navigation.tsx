@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
-import { matchPath, useHistory, useLocation } from 'react-router';
-import { Image } from 'design';
+import React from 'react';
+import styled from 'styled-components';
+import { matchPath, useLocation, useHistory } from 'react-router';
 
-import { NavigationSwitcher } from 'teleport/Navigation/NavigationSwitcher';
 import cfg from 'teleport/config';
 import {
   NAVIGATION_CATEGORIES,
@@ -29,13 +27,6 @@ import {
 } from 'teleport/Navigation/categories';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCategoryContainer';
-import { NotificationKind } from 'teleport/stores/storeNotifications';
-
-import { useTeleport } from '..';
-
-import logoLight from './logoLight.svg';
-import logoDark from './logoDark.svg';
-import logoPoweredBy from './logoPoweredBy.svg';
 
 import type * as history from 'history';
 
@@ -104,74 +95,14 @@ function getCategoryForRoute(
   return feature.category;
 }
 
-export function Navigation({
-  CustomLogo,
-  showPoweredByLogo = false,
-}: NavigationProps) {
+export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
   const location = useLocation();
-  const ctx = useTeleport();
 
-  const [view, setView] = useState(
+  const view =
     getCategoryForRoute(features, history.location) ||
-      NavigationCategory.Resources
-  );
-
-  const [previousRoute, setPreviousRoute] = useState<{
-    [category: string]: string;
-  }>({});
-
-  const handleLocationChange = useCallback(
-    (next: history.Location<unknown> | Location) => {
-      const previousPathName = location.pathname;
-
-      const category = getCategoryForRoute(features, next);
-      const previousCategory = getCategoryForRoute(features, location);
-
-      if (category && category !== view) {
-        setView(category);
-
-        if (previousCategory) {
-          setPreviousRoute(previous => ({
-            ...previous,
-            [previousCategory]: previousPathName,
-          }));
-        }
-      }
-    },
-    [location, view]
-  );
-
-  useEffect(() => {
-    return history.listen(handleLocationChange);
-  }, [history, location.pathname, features, view]);
-
-  const handlePopState = useCallback(
-    (event: PopStateEvent) => {
-      handleLocationChange((event.currentTarget as Window).location);
-    },
-    [view]
-  );
-
-  useEffect(() => {
-    window.addEventListener('popstate', handlePopState);
-
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [handlePopState]);
-
-  const handleCategoryChange = useCallback(
-    (category: NavigationCategory) => {
-      if (view === category) {
-        return;
-      }
-
-      history.push(
-        previousRoute[category] || getFirstRouteForCategory(features, category)
-      );
-    },
-    [view, previousRoute]
-  );
+    NavigationCategory.Resources;
 
   const categories = NAVIGATION_CATEGORIES.map((category, index) => (
     <NavigationCategoryContainer
@@ -183,71 +114,16 @@ export function Navigation({
 
   const feature = getFeatureForRoute(features, location);
 
-  if (feature?.hideNavigation) {
+  if (
+    feature?.hideNavigation ||
+    feature?.category !== NavigationCategory.Management
+  ) {
     return null;
   }
 
   return (
     <NavigationContainer>
-      {CustomLogo ? <CustomLogo /> : <NavigationLogo />}
-
-      {ctx.getFeatureFlags().managementSection && (
-        <NavigationSwitcher
-          onChange={handleCategoryChange}
-          value={view}
-          items={[
-            { category: NavigationCategory.Resources },
-            {
-              category: NavigationCategory.Management,
-              requiresAttention: ctx.storeNotifications.hasNotificationsByKind(
-                NotificationKind.AccessList
-              ),
-            },
-          ]}
-        />
-      )}
-
       <CategoriesContainer>{categories}</CategoriesContainer>
-      {showPoweredByLogo && <PoweredByLogo />}
     </NavigationContainer>
   );
 }
-
-const NavigationLogo = () => {
-  const theme = useTheme();
-
-  return (
-    <Image
-      src={theme.type === 'dark' ? logoDark : logoLight}
-      height="32px"
-      width="fit-content"
-      style={{
-        marginTop: '20px',
-        marginLeft: '32px',
-        marginBottom: '20px',
-      }}
-      alt="teleport logo"
-    />
-  );
-};
-
-const PoweredByLogo = () => {
-  return (
-    <Image
-      src={logoPoweredBy}
-      height="48px"
-      width="fit-content"
-      style={{
-        marginTop: '28px',
-        marginLeft: '32px',
-        marginBottom: '36px',
-      }}
-      alt="powered by teleport"
-    />
-  );
-};
-
-export type NavigationProps = {
-  CustomLogo?: () => React.ReactElement;
-  showPoweredByLogo?: boolean;
-};

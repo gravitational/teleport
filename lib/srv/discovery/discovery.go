@@ -195,6 +195,12 @@ kubernetes matchers are present.`)
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
+
+	if c.DiscoveryGroup == "" {
+		c.Log.Warn("discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +
+			"Please set discovery_service.discovery_group according to the documentation: https://goteleport.com/docs/reference/config/#discovery-service")
+	}
+
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
 	return nil
 }
@@ -1465,4 +1471,16 @@ func splitMatchers[T types.Matcher](matchers []T, matcherTypeCheck func(string) 
 		}
 	}
 	return
+}
+
+func (s *Server) updatesEmptyDiscoveryGroup(getter func() (types.ResourceWithLabels, error)) bool {
+	if s.DiscoveryGroup == "" {
+		return false
+	}
+	old, err := getter()
+	if err != nil {
+		return false
+	}
+	oldDiscoveryGroup, _ := old.GetLabel(types.TeleportInternalDiscoveryGroupName)
+	return oldDiscoveryGroup == ""
 }

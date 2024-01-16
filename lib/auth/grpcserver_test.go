@@ -21,11 +21,11 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base32"
 	"encoding/pem"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +33,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -2170,6 +2169,29 @@ func TestGenerateHostCerts(t *testing.T) {
 	require.NotNil(t, certs)
 }
 
+func TestGenerateDatabaseCerts(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// Generate CSR once for speed sake.
+	priv, err := testauthority.New().GeneratePrivateKey()
+	require.NoError(t, err)
+	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
+	require.NoError(t, err)
+
+	certs, err := clt.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
+	require.NoError(t, err)
+	require.NotNil(t, certs)
+
+	certs, err = clt.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr, RequesterName: proto.DatabaseCertRequest_TCTL})
+	require.NoError(t, err)
+	require.NotNil(t, certs)
+}
+
 // TestInstanceCertAndControlStream uses an instance cert to send an
 // inventory ping via the control stream.
 func TestInstanceCertAndControlStream(t *testing.T) {
@@ -3984,13 +4006,9 @@ func TestRoleVersions(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
-
-	originalLabels := map[string]string{"env": "staging"}
 	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
 		role, err := types.NewRoleWithVersion(name, version, spec)
 		meta := role.GetMetadata()
-		meta.Labels = maps.Clone(originalLabels)
 		role.SetMetadata(meta)
 		require.NoError(t, err)
 		return role
@@ -3998,73 +4016,16 @@ func TestRoleVersions(t *testing.T) {
 
 	role := newRole("test_role_1", types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			NodeLabels:               wildcardLabels,
-			AppLabels:                wildcardLabels,
-			AppLabelsExpression:      `labels["env"] == "staging"`,
-			DatabaseLabelsExpression: `labels["env"] == "staging"`,
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, services.RW()),
 			},
-			KubernetesLabels: wildcardLabels,
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Name:      types.Wildcard,
-					Verbs:     []string{types.VerbList},
-				},
-			},
 		},
-		Deny: types.RoleConditions{
-			KubernetesLabels:               types.Labels{"env": {"prod"}},
-			ClusterLabels:                  types.Labels{"env": {"prod"}},
-			ClusterLabelsExpression:        `labels["env"] == "prod"`,
-			WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Name:      types.Wildcard,
-				},
-			},
+		Options: types.RoleOptions{
+			CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 		},
 	})
 
-	roleV7Wildcard := newRole("test_role_2", types.V7, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			NodeLabels:               wildcardLabels,
-			AppLabels:                wildcardLabels,
-			AppLabelsExpression:      `labels["env"] == "staging"`,
-			DatabaseLabelsExpression: `labels["env"] == "staging"`,
-			Rules: []types.Rule{
-				types.NewRule(types.KindRole, services.RW()),
-			},
-			KubernetesLabels: wildcardLabels,
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Name:      types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-				},
-			},
-		},
-		Deny: types.RoleConditions{
-			KubernetesLabels:               types.Labels{"env": {"prod"}},
-			ClusterLabels:                  types.Labels{"env": {"prod"}},
-			ClusterLabelsExpression:        `labels["env"] == "prod"`,
-			WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Name:      types.Wildcard,
-				},
-			},
-		},
-	})
-
-	user, err := CreateUser(context.Background(), srv.Auth(), "user", role, roleV7Wildcard)
+	user, err := CreateUser(context.Background(), srv.Auth(), "user", role)
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(TestUser(user.GetName()))
@@ -4081,107 +4042,27 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date",
 			clientVersions: []string{
-				"14.0.0-alpha.1", "15.1.2", api.Version, "",
+				"15.1.2", api.Version, "",
 			},
 			inputRole:    role,
 			expectedRole: role,
 		},
 		{
-			desc: "downgrade role to v6 with wildcard on kube resources but supports label expressions",
+			desc: "downgrade host user creation mode only",
 			clientVersions: []string{
-				minSupportedLabelExpressionVersion.String(), "13.3.0",
-			},
-			inputRole: roleV7Wildcard,
-			expectedRole: newRole(roleV7Wildcard.GetName(), types.V6, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					NodeLabels:       wildcardLabels,
-					AppLabels:        wildcardLabels,
-					KubernetesLabels: wildcardLabels,
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Namespace: types.Wildcard,
-							Name:      types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-					AppLabelsExpression:      `labels["env"] == "staging"`,
-					DatabaseLabelsExpression: `labels["env"] == "staging"`,
-					Rules: []types.Rule{
-						types.NewRule(types.KindRole, services.RW()),
-					},
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels:               wildcardLabels,
-					ClusterLabels:                  types.Labels{"env": {"prod"}},
-					ClusterLabelsExpression:        `labels["env"] == "prod"`,
-					WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade role to v6 but supports label expressions",
-			clientVersions: []string{
-				minSupportedLabelExpressionVersion.String(), "13.3.0",
+				"14.0.0-alpha.1",
 			},
 			inputRole: role,
-			expectedRole: newRole(role.GetName(), types.V6, types.RoleSpecV6{
+			expectedRole: newRole(role.GetName(), types.V7, types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					NodeLabels:               wildcardLabels,
-					AppLabels:                wildcardLabels,
-					AppLabelsExpression:      `labels["env"] == "staging"`,
-					DatabaseLabelsExpression: `labels["env"] == "staging"`,
 					Rules: []types.Rule{
 						types.NewRule(types.KindRole, services.RW()),
 					},
 				},
-				Deny: types.RoleConditions{
-					KubernetesLabels:               wildcardLabels,
-					ClusterLabels:                  types.Labels{"env": {"prod"}},
-					ClusterLabelsExpression:        `labels["env"] == "prod"`,
-					WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+				Options: types.RoleOptions{
+					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
 				},
 			}),
-			expectDowngraded: true,
-		},
-		{
-			desc:           "bad client versions",
-			clientVersions: []string{"Not a version", "13", "13.1"},
-			expectError:    true,
-			inputRole:      role,
-		},
-		{
-			desc:           "label expressions downgraded",
-			clientVersions: []string{"13.0.11", "12.4.3", "6.0.0"},
-			inputRole:      role,
-			expectedRole: newRole(
-				role.GetName(),
-				types.V6,
-				types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						// None of the allow labels change
-						NodeLabels:               wildcardLabels,
-						AppLabels:                wildcardLabels,
-						AppLabelsExpression:      `labels["env"] == "staging"`,
-						DatabaseLabelsExpression: `labels["env"] == "staging"`,
-						Rules: []types.Rule{
-							types.NewRule(types.KindRole, services.RW()),
-						},
-					},
-					Deny: types.RoleConditions{
-						// These fields don't change
-						KubernetesLabels:               wildcardLabels,
-						ClusterLabelsExpression:        `labels["env"] == "prod"`,
-						WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
-						// These all get set to wildcard deny because there is
-						// either an allow or deny label expression for them.
-						AppLabels:            wildcardLabels,
-						DatabaseLabels:       wildcardLabels,
-						ClusterLabels:        wildcardLabels,
-						WindowsDesktopLabels: wildcardLabels,
-					},
-				}),
 			expectDowngraded: true,
 		},
 	} {
@@ -4286,15 +4167,6 @@ func TestRoleVersions(t *testing.T) {
 							require.NoError(t, err)
 						}
 					}
-
-					// Call maybeDowngrade directly to make sure the original
-					// role isn't modified
-					sv, err := semver.NewVersion(clientVersion)
-					if err == nil {
-						_, err := maybeDowngradeRoleToV6(ctx, tc.inputRole.(*types.RoleV6), sv)
-						require.NoError(t, err)
-						require.Equal(t, originalLabels, tc.inputRole.GetMetadata().Labels)
-					}
 				})
 			}
 		})
@@ -4386,4 +4258,106 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	ctx = authz.ContextWithUser(parentCtx, node.I)
 	_, err = client.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
+}
+
+func TestDropDBClientCAEvents(t *testing.T) {
+	server := newTestTLSServer(t)
+	client, err := server.NewClient(TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleDatabase,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+			},
+			Username: server.ClusterName(),
+		},
+	})
+	require.NoError(t, err)
+
+	dbClientCAs, err := client.GetCertAuthorities(context.Background(), types.DatabaseClientCA, false)
+	require.NoError(t, err)
+	require.Len(t, dbClientCAs, 1)
+
+	dbCAs, err := client.GetCertAuthorities(context.Background(), types.DatabaseCA, false)
+	require.NoError(t, err)
+	require.Len(t, dbCAs, 1)
+
+	tests := []struct {
+		desc          string
+		clientVersion string
+		filter        map[string]string
+		expectDrop    bool
+	}{
+		{
+			desc:          "send db client CA events to supported client",
+			clientVersion: dbClientCACutoffVersion.String(),
+		},
+		{
+			desc:          "drop db client CA events to unsupported client",
+			clientVersion: "14.0.0",
+			expectDrop:    true,
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			defer cancel()
+			clientCtx := metadata.AddMetadataToContext(ctx,
+				map[string]string{
+					metadata.VersionKey: test.clientVersion,
+				})
+
+			requestedKind := types.WatchKind{Kind: types.KindCertAuthority, LoadSecrets: false}
+			watcher, err := client.NewWatcher(clientCtx, types.Watch{
+				Name:  "cas",
+				Kinds: []types.WatchKind{requestedKind},
+			})
+			require.NoError(t, err)
+			defer watcher.Close()
+
+			// Swallow the init event
+			e := <-watcher.Events()
+			require.Equal(t, types.OpInit, e.Type)
+			status, ok := e.Resource.(types.WatchStatus)
+			require.True(t, ok)
+			require.NotNil(t, status)
+			kinds := status.GetKinds()
+			for _, k := range kinds {
+				if k.Kind == types.KindCertAuthority {
+					require.Equal(t, requestedKind, k)
+				}
+			}
+
+			// update the db client ca so the watcher gets an OpPut event
+			dbClientCAs[0].SetName(fmt.Sprintf("stub_%v", i))
+			err = server.Auth().UpsertCertAuthority(ctx, dbClientCAs[0])
+			require.NoError(t, err)
+
+			// update the db ca so the watcher gets an OpPut event
+			dbCAs[0].SetName(fmt.Sprintf("stub_%v", i))
+			err = server.Auth().UpsertCertAuthority(ctx, dbCAs[0])
+			require.NoError(t, err)
+
+			gotCA, err := func() (types.CertAuthority, error) {
+				for {
+					select {
+					case <-watcher.Done():
+						return nil, watcher.Error()
+					case e := <-watcher.Events():
+						if ca, ok := e.Resource.(types.CertAuthority); ok {
+							return ca, nil
+						}
+					}
+				}
+			}()
+			require.NoError(t, err)
+			if test.expectDrop {
+				// the watcher should only see the second ca event.
+				require.Equal(t, types.DatabaseCA, gotCA.GetType(), "db client CA event was supposed to be dropped")
+				return
+			}
+			// watcher should see the first event if it wasn't dropped.
+			require.Equal(t, types.DatabaseClientCA, gotCA.GetType(), "db client CA event was not supposed to be dropped")
+		})
+	}
 }

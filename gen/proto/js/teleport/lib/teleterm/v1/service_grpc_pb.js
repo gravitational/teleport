@@ -298,6 +298,28 @@ function deserialize_teleport_lib_teleterm_v1_GetAccessRequestsResponse(buffer_a
   return teleport_lib_teleterm_v1_service_pb.GetAccessRequestsResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_GetAppsRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAppsRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAppsRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetAppsRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetAppsRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_GetAppsResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAppsResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAppsResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetAppsResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetAppsResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_GetAuthSettingsRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAuthSettingsRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAuthSettingsRequest');
@@ -1009,6 +1031,18 @@ getKubes: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetKubesRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_GetKubesResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetKubesResponse,
+  },
+  // GetApps returns a filtered and paginated list of apps.
+getApps: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/GetApps',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.GetAppsRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.GetAppsResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_GetAppsRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetAppsRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_GetAppsResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetAppsResponse,
   },
   // AddCluster adds a cluster to profile
 addCluster: {

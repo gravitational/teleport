@@ -385,6 +385,62 @@ $ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
 $ tctl auth sign --user=admin --out=identity.pem
 ```
 
+## tctl bots add
+
+Create a new Machine ID Bot:
+
+```code
+$ tctl bots add <name> [<flags>]
+```
+
+### Arguments
+
+- `<name>` - name of Machine ID Bot to create.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--roles` | none | Comma-separated list of roles to assign to the Bot. | Required. Specifies the roles that the Bot should be able to impersonate and include in generated credentials. |
+| `--logins` | none | Comma-separated list of allowed SSH logins to set Bot's login trait to. | Optional. Specifies the values that should be configured as the Bot's logins trait for the purpose of role templating. |
+| `--token` | none | String name of an existing join token. | Optional. Specifies an existing join token to be used rather than creating one as part of the Bot creation. |
+| `--ttl` | 15m | Duration. | Optional. Overrides the TTL of the token that will be created if `--token` is not specified. |
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots ls
+
+Lists all Machine ID Bots:
+
+```code
+$ tctl bots ls [<flags>]
+```
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+## tctl bots rm
+
+Delete a Machine ID Bot:
+
+```code
+$ tctl bots rm <name> [<flags>]
+```
+
+### Arguments
+
+- `<name>` - name of Machine ID Bot to delete.
+
+### Global flags
+
+These flags are available for all commands: `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
 ## tctl create
 
 Create or update a Teleport resource from a YAML file.

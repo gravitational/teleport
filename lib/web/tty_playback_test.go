@@ -24,9 +24,16 @@ import (
 )
 
 func FuzzHandlePlaybackAction(f *testing.F) {
+	f.Add([]byte{0x3, 0x0, 0x1, 0x0})                                    // Play
+	f.Add([]byte{0x3, 0x0, 0x1, 0x1})                                    // Pause
+	f.Add([]byte{0x4, 0x0, 0x8, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x8, 0x0}) // Seek
+	f.Add([]byte{0x0, 0x0})                                              // Invalid length
+	f.Add([]byte{0x0, 0xF, 0x0, 0x0})                                    // Invalid encoded size
+	f.Add([]byte{0x30, 0xff, 0xff, 0x30})                                // Size uint16 overflow
+
 	player := nopPlayer{}
 	f.Fuzz(func(t *testing.T, b []byte) {
-		handlePlaybackAction(b, player)
+		_ = handlePlaybackAction(b, player)
 	})
 }
 

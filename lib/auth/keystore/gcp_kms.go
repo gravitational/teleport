@@ -231,7 +231,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 	return true, nil
 }
 
-// DeleteUnusedKeys deletes all keys from the configured KMS keyring if they:
+// deleteUnusedKeys deletes all keys from the configured KMS keyring if they:
 //  1. Are not included in the argument activeKeys
 //  2. Are labeled with hostLabel (teleport_auth_host)
 //  3. The hostLabel value matches the local host UUID
@@ -248,7 +248,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 // or a simpler case where: the other auth server is running in a completely
 // different Teleport cluster and the keys it's actively using will never appear
 // in the activeKeys argument.
-func (g *gcpKMSKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	// Make a map of currently active key versions, this is used for lookups to
 	// check which keys in KMS are unused.
 	activeKmsKeyVersions := make(map[string]int)

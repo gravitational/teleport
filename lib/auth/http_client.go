@@ -338,12 +338,6 @@ func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	return &re, nil
 }
 
-// RotateCertAuthority starts or restarts certificate authority rotation process.
-func (c *HTTPClient) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
-	_, err := c.PostJSON(ctx, c.Endpoint("authorities", string(req.Type), "rotate"), req)
-	return trace.Wrap(err)
-}
-
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is used to update only public keys and certificates of the
 // the certificate authorities of trusted clusters.
@@ -953,42 +947,6 @@ func (c *HTTPClient) SetClusterName(cn types.ClusterName) error {
 	}
 
 	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "name"), &setClusterNameReq{ClusterName: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// DeleteStaticTokens deletes static tokens
-func (c *HTTPClient) DeleteStaticTokens() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("configuration", "static_tokens"))
-	return trace.Wrap(err)
-}
-
-// GetStaticTokens returns a list of static register tokens
-func (c *HTTPClient) GetStaticTokens() (types.StaticTokens, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("configuration", "static_tokens"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	st, err := services.UnmarshalStaticTokens(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return st, err
-}
-
-// SetStaticTokens sets a list of static register tokens
-func (c *HTTPClient) SetStaticTokens(st types.StaticTokens) error {
-	data, err := services.MarshalStaticTokens(st)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "static_tokens"), &setStaticTokensReq{StaticTokens: data})
 	if err != nil {
 		return trace.Wrap(err)
 	}

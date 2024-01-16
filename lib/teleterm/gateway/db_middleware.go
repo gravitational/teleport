@@ -59,9 +59,8 @@ func (m *dbMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy,
 	return trace.Wrap(m.onExpiredCert(ctx))
 }
 
-// OnStart is a noop. client.DBCertChecker.OnStart checks cert validity too. However in Connect
-// there's no flow which would allow the user to create a local proxy without valid
-// certs.
+// OnStart is a noop. client.DBCertChecker.OnStart checks cert validity. However in Connect there's
+// no flow which would allow the user to create a local proxy without valid certs.
 func (m *dbMiddleware) OnStart(context.Context, *alpn.LocalProxy) error {
 	return nil
 }

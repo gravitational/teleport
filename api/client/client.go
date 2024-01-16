@@ -38,6 +38,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -1686,8 +1687,9 @@ func (c *Client) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	return resp, nil
 }
 
-// GenerateDatabaseCert generates client certificate used by a database
-// service to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	resp, err := c.grpc.GenerateDatabaseCert(ctx, req)
 	if err != nil {
@@ -2489,40 +2491,10 @@ func (c *Client) SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC ti
 
 	response, err := c.grpc.GetUnstructuredEvents(ctx, request)
 	if err != nil {
-		err = trace.Wrap(err)
-		// If the server does not support the unstructured events API,
-		// fallback to the legacy API.
-		if trace.IsNotImplemented(err) {
-			return c.searchUnstructuredEventsFallback(ctx, fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
-		}
-		return nil, "", err
-	}
-
-	return response.Items, response.LastKey, nil
-}
-
-// searchUnstructuredEventsFallback is a fallback implementation of the
-// SearchUnstructuredEvents method that is used when the server does not
-// support the unstructured events API.
-// This method converts the events at event handler plugin side, which can cause
-// the plugin to miss some events if the plugin is not updated to the latest
-// version.
-// TODO(tigrato): DELETE IN 15.0.0
-func (c *Client) searchUnstructuredEventsFallback(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error) {
-	eventsRcv, next, err := c.SearchEvents(ctx, fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
-	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	items := make([]*auditlogpb.EventUnstructured, 0, len(eventsRcv))
-	for _, evt := range eventsRcv {
-		item, err := events.ToUnstructured(evt)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		items = append(items, item)
-	}
-	return items, next, nil
+	return response.Items, response.LastKey, nil
 }
 
 // StreamUnstructuredSessionEvents streams audit events from a given session recording in an unstructured format.
@@ -2539,17 +2511,7 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 
 	stream, err := c.grpc.StreamUnstructuredSessionEvents(ctx, request)
 	if err != nil {
-		if trace.IsNotImplemented(trace.Wrap(err)) {
-			// If the server does not support the unstructured events API,
-			// fallback to the legacy API.
-			// This code patch shouldn't be triggered because the server
-			// returns the error only if the client calls Recv() on the stream.
-			// However, we keep this code patch here just in case there is a bug
-			// on the client grpc side.
-			c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
-		} else {
-			e <- trace.Wrap(trace.Wrap(err))
-		}
+		e <- trace.Wrap(trace.Wrap(err))
 		return ch, e
 	}
 	go func() {
@@ -2557,20 +2519,6 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 			event, err := stream.Recv()
 			if err != nil {
 				if err != io.EOF {
-					// If the server does not support the unstructured events API, it will
-					// return an error with code Unimplemented. This error is received
-					// the first time the client calls Recv() on the stream.
-					// If the client receives this error, it should fallback to the legacy
-					// API that spins another goroutine to convert the events to the
-					// unstructured format and sends them to the channel ch.
-					// Once we decide to spin the goroutine, we can leave this loop without
-					// reporting any error to the caller.
-					if trace.IsNotImplemented(trace.Wrap(err)) {
-						// If the server does not support the unstructured events API,
-						// fallback to the legacy API.
-						go c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
-						return
-					}
 					e <- trace.Wrap(trace.Wrap(err))
 				} else {
 					close(ch)
@@ -2588,61 +2536,6 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 	}()
 
 	return ch, e
-}
-
-// streamUnstructuredSessionEventsFallback is a fallback implementation of the
-// StreamUnstructuredSessionEvents method that is used when the server does not
-// support the unstructured events API. This method uses the old API to stream
-// events from the server and converts them to the unstructured format. This
-// method converts the events at event handler plugin side, which can cause
-// the plugin to miss some events if the plugin is not updated to the latest
-// version.
-// TODO(tigrato): DELETE IN 15.0.0
-func (c *Client) streamUnstructuredSessionEventsFallback(ctx context.Context, sessionID string, startIndex int64, ch chan *auditlogpb.EventUnstructured, e chan error) {
-	request := &proto.StreamSessionEventsRequest{
-		SessionID:  sessionID,
-		StartIndex: int32(startIndex),
-	}
-
-	stream, err := c.grpc.StreamSessionEvents(ctx, request)
-	if err != nil {
-		e <- trace.Wrap(err)
-		return
-	}
-
-	go func() {
-		for {
-			oneOf, err := stream.Recv()
-			if err != nil {
-				if err != io.EOF {
-					e <- trace.Wrap(trace.Wrap(err))
-				} else {
-					close(ch)
-				}
-
-				return
-			}
-
-			event, err := events.FromOneOf(*oneOf)
-			if err != nil {
-				e <- trace.Wrap(trace.Wrap(err))
-				return
-			}
-
-			unstructedEvent, err := events.ToUnstructured(event)
-			if err != nil {
-				e <- trace.Wrap(err)
-				return
-			}
-
-			select {
-			case ch <- unstructedEvent:
-			case <-ctx.Done():
-				e <- trace.Wrap(ctx.Err())
-				return
-			}
-		}
-	}()
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
@@ -4424,6 +4317,30 @@ func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority
 	})
 
 	return out, trace.Wrap(err)
+}
+
+// RotateCertAuthority updates or inserts new cert authority
+func (c *Client) RotateCertAuthority(ctx context.Context, rr types.RotateRequest) error {
+	req := &trustpb.RotateCertAuthorityRequest{
+		Type:        string(rr.Type),
+		TargetPhase: rr.TargetPhase,
+		Mode:        rr.Mode,
+	}
+
+	if rr.GracePeriod != nil {
+		req.GracePeriod = durationpb.New(*rr.GracePeriod)
+	}
+
+	if rr.Schedule != nil {
+		req.Schedule = &trustpb.RotationSchedule{
+			UpdateClients: timestamppb.New(rr.Schedule.UpdateClients),
+			UpdateServers: timestamppb.New(rr.Schedule.UpdateServers),
+			Standby:       timestamppb.New(rr.Schedule.Standby),
+		}
+	}
+
+	_, err := c.TrustClient().RotateCertAuthority(ctx, req)
+	return trace.Wrap(err)
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.

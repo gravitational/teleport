@@ -506,7 +506,7 @@ func makeEKSKubeCluster(t *testing.T, name, region, accountID, overrideLabel str
 			overrideLabel: aws.String(name),
 		},
 	}
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(eksCluster)
+	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
 	require.NoError(t, err)
 	require.True(t, kubeCluster.IsAWS())
 	return kubeCluster

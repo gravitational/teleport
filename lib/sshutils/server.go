@@ -243,6 +243,10 @@ func NewServer(
 	s.cfg.PasswordCallback = ah.Password
 	s.cfg.NoClientAuth = ah.NoClient
 
+	if s.fips {
+		s.cfg.PublicKeyAuthAlgorithms = defaults.FIPSPubKeyAuthAlgorithms
+	}
+
 	// Teleport servers need to identify as such to allow passing of the client
 	// IP from the client to the proxy to the destination node.
 	s.cfg.ServerVersion = SSHVersionPrefix
@@ -625,24 +629,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			if nch == nil {
 				connClosed()
 				return
-			}
-
-			// This is a request from clients to determine if tracing is enabled.
-			// Handle here so that we always alert clients that we can handle tracing envelopes.
-			if nch.ChannelType() == tracessh.TracingChannel {
-				ch, _, err := nch.Accept()
-				if err != nil {
-					s.log.Warnf("Unable to accept channel: %v", err)
-					if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-						s.log.Warnf("Failed to reject channel: %v", err)
-					}
-					continue
-				}
-
-				if err := ch.Close(); err != nil {
-					s.log.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-				}
-				continue
 			}
 
 			chanCtx, nch := tracessh.ContextFromNewChannel(nch)

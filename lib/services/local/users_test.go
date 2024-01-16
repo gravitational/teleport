@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"encoding/base32"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"slices"
@@ -44,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -765,34 +763,6 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	}
 }
 
-func TestIdentityService_WebauthnSessionDataExpiry(t *testing.T) {
-	t.Parallel()
-	clock := clockwork.NewFakeClock()
-	identity := newIdentityService(t, clock)
-	identity.SetDesyncedClockForTesting(clock)
-
-	ctx := context.Background()
-	sessionData := &wanpb.SessionData{Challenge: []byte("challenge"), UserId: []byte("userid")}
-	err := identity.UpsertWebauthnSessionData(ctx, "user", "login", sessionData)
-	require.NoError(t, err)
-
-	got, err := identity.GetWebauthnSessionData(ctx, "user", "login")
-	require.NoError(t, err)
-	require.Equal(t, sessionData, got)
-
-	// If the session data is expired but not automatically removed from
-	// the backend, it should be manually deleted on retrieval attempt.
-	// Advance the identity service clock and not the backend clock to
-	// emulate this occurrence.
-	clock.Advance(10 * time.Minute)
-	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
-	require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
-
-	// Another retrieval should result in a not found error since it was deleted during the last get.
-	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
-	require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
-}
-
 func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) {
 	// Don't t.Parallel()!
 
@@ -938,43 +908,6 @@ Tirv9LjajEBxUnuV+wIDAQAB
 			require.Equal(t, attestationData, retrievedAttestationData, "GetKeyAttestationData mismatch")
 		})
 	}
-}
-
-// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
-func TestIdentityService_GetKeyAttestationDataV11Fingerprint(t *testing.T) {
-	t.Parallel()
-	identity := newIdentityService(t, clockwork.NewFakeClock())
-	ctx := context.Background()
-
-	key, err := native.GenerateRSAPrivateKey()
-	require.NoError(t, err)
-
-	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
-	require.NoError(t, err)
-
-	attestationData := &keys.AttestationData{
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-		PublicKeyDER:     pubDER,
-	}
-
-	// manually insert attestation data with old style fingerprint.
-	value, err := json.Marshal(attestationData)
-	require.NoError(t, err)
-
-	backendKey, err := local.KeyAttestationDataFingerprintV11(key.Public())
-	require.NoError(t, err)
-
-	item := backend.Item{
-		Key:   backend.Key("key_attestations", backendKey),
-		Value: value,
-	}
-	_, err = identity.Put(ctx, item)
-	require.NoError(t, err)
-
-	// Should be able to retrieve attestation data despite old fingerprint.
-	retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, key.Public())
-	require.NoError(t, err)
-	require.Equal(t, attestationData, retrievedAttestationData)
 }
 
 func TestIdentityService_UpdateAndSwapUser(t *testing.T) {

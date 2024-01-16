@@ -200,7 +200,7 @@ func (c *Client) Run(ctx context.Context) error {
 	case err := <-rustRDPReturnCh:
 		// Ensure the startInputStreaming goroutine returns.
 		close(stopCh)
-		return err
+		return trace.Wrap(err)
 	case err := <-inputStreamingReturnCh:
 		// Ensure the startRustRDP goroutine returns.
 		stopErr := c.stopRustRDP()
@@ -340,7 +340,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 
 		msg, err := c.cfg.Conn.ReadMessage()
 		if utils.IsOKNetworkError(err) {
-			return err
+			return nil
 		} else if tdp.IsNonFatalErr(err) {
 			c.cfg.Conn.SendNotification(err.Error(), tdp.SeverityWarning)
 			continue
@@ -639,21 +639,30 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	return C.ErrCodeSuccess
 }
 
-//export cgo_handle_rdp_channel_ids
-func cgo_handle_rdp_channel_ids(handle C.uintptr_t, io_channel_id C.uint16_t, user_channel_id C.uint16_t) C.CGOErrCode {
+//export cgo_handle_rdp_connection_initialized
+func cgo_handle_rdp_connection_initialized(
+	handle C.uintptr_t,
+	io_channel_id C.uint16_t,
+	user_channel_id C.uint16_t,
+	screen_width C.uint16_t,
+	screen_height C.uint16_t,
+) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.handleRDPChannelIDs(io_channel_id, user_channel_id)
+	return client.handleRDPConnectionInitialized(io_channel_id, user_channel_id, screen_width, screen_height)
 }
 
-func (c *Client) handleRDPChannelIDs(ioChannelID, userChannelID C.uint16_t) C.CGOErrCode {
+func (c *Client) handleRDPConnectionInitialized(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
 	c.cfg.Log.Debugf("Received RDP channel IDs: io_channel_id=%d, user_channel_id=%d", ioChannelID, userChannelID)
+	c.cfg.Log.Debugf("RDP server provided resolution of %dx%d", screenWidth, screenHeight)
 
-	if err := c.cfg.Conn.WriteMessage(tdp.RDPChannelIDs{
+	if err := c.cfg.Conn.WriteMessage(tdp.ConnectionInitialized{
 		IOChannelID:   uint16(ioChannelID),
 		UserChannelID: uint16(userChannelID),
+		ScreenWidth:   uint16(screenWidth),
+		ScreenHeight:  uint16(screenHeight),
 	}); err != nil {
 		c.cfg.Log.Errorf("failed handling RDPChannelIDs: %v", err)
 		return C.ErrCodeFailure

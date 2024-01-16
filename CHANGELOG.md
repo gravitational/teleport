@@ -13,6 +13,18 @@ be able to run Teleport in FedRAMP/FIPS mode on ARM64.
 
 Teleport 15 now provides hardened AWS AMIs on ARM64.
 
+#### Streaming session playback
+
+Prior to Teleport 15, `tsh play` and the web UI would download the entire
+session recording before starting playback. As a result, playback of large
+recordings could be slow to start, and may fail to play at all in the browser.
+
+In Teleport 15, session recordings are streamed from the auth server, allowing
+playback to start before the entire session is downloaded and unpacked.
+
+Additionally, `tsh play` now supports a `--speed` flag for adjusting the
+playback speed.
+
 ### Breaking changes and deprecations
 
 #### RDP engine requires RemoteFX
@@ -52,17 +64,6 @@ is now labeled with the hostname of the node it was written by. Users that
 rely on parsing the output from multiple nodes should pass the `--log-dir` flag
 to `tsh ssh`, which will create a directory where the separated output of each node
 will be written.
-
-#### `tsh play` now streams PTY playback
-
-Prior to Teleport 15, `tsh play` would download the entire session recording
-before starting playback. As a result, playback of large recordings could be
-slow to start. In Teleport 15 session recordings are streamed from the auth
-server, allowing playback to start before the entire session is downloaded and
-unpacked.
-
-Additionally, `tsh play` now supports a `--speed` flag for adjusting the
-playback speed.
 
 #### `drop` host user creation mode
 
@@ -175,6 +176,16 @@ and instance type has been changed to ARM64/Graviton.
 
 As a result of this modernization, the legacy monitoring stack configuration
 used with the legacy AMIs has been removed.
+
+### Other changes
+
+#### Increased password length
+
+The minimum password length has been increased to 12 characters.
+
+#### Increased account lockout interval
+
+The account lockout interval has been increased to 30 minutes.
 
 ## 14.0.0 (09/20/23)
 
