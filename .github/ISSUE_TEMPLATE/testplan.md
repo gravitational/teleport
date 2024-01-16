@@ -1445,6 +1445,30 @@ Assist test plan is in the core section instead of WebUI as most functionality i
   - [ ] A Bash command can be generated in the above window.
   - [ ] When an output is selected in the Terminal "Explain" option is available, and it generates the summary.
 
+## IGS:
+- [ ] Access Monitoring
+  - [ ] Verify that users can run custom audit queries.
+  - [ ] Verify that the Privileged Access Report is generated and periodically refreshed.
+
+- [ ] Access List
+  - [ ] Verify Access List membership/ownership/expiration date.
+    - [ ] Verify permissions granted by Access List membership.
+    - [ ] Verify permissions granted by Access List ownership.
+    - [ ] Verify Access List Review.
+    - [ ] verify Access LIst Promotion.
+    - [ ] Verify that owners can only add/remove members and not change other properties.
+
+- [ ] Verify Okta Sync Service
+  - [ ] Verify OKTA Plugin configuration.
+    - [ ] Verify that the OKTA Plugin can be configured.
+    - [ ] Verify the Single Sign-On (SSO) connector created by the OKTA Plugin.
+  - [ ] Verify OKTA users/apps/groups sync.
+    - [ ] Verify that users/apps/groups are synced from OKTA to Teleport.
+    - [ ] Verify the custom `okta_import_rule` rule configuration.
+    - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
+  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in OKTA.
+  - [ ] Verify access to OKTA apps granted by access_list/access_request.
+
 ## Resources
 
 [Quick GitHub/SAML/OIDC Setup Tips]
