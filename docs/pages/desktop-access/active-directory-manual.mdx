@@ -678,6 +678,51 @@ To change the default domain policy:
 1. Double-click the  **Add workstations to domain** policy and ensure that the
    **Authenticated Users** group is not present.
 
+## Multiple domains
+
+Each `windows_desktop_service` is designed to support connecting to hosts in a
+single Active Directory domain. If you have multiple independent domains, you
+can deploy multiple Teleport agents to service them.
+
+If you have multiple domains with a trust relationship between them, you can
+configure Teleport to perform PKI operations against one domain, while generating
+certificates for users in another domain.
+
+In order for this to work, the hosts that you want to connect to and the AD
+users that you want to connect as must reside in the same domain.
+
+For example, suppose you have a root domain at `example.com` and a child domain
+for developers at `dev.example.com`. If your PKI is configured at the root, but
+you want to allow users in the child domain to connect to hosts in the child
+domain, you would do the following:
+
+1. Import Teleport's CA certificate as a trusted root certificate in the root
+   domain's group policy and add the certificate to the NTAuth store as
+   described in the
+   [section above](#publish-the-teleport-ca-to-the-ntauth-store).
+1. Configure Teleport to perform PKI against the root domain, while
+   issuing certificates for users and hosts in the child domain:
+
+  ```yaml
+  windows_desktop_service:
+    enabled: yes
+
+    # configure LDAP settings to point at the child domain
+    ldap:
+      addr: dev.example.com:636
+      username: 'DEV\svc-teleport'
+
+    # optional: configure discovery for the child domain
+    discovery:
+      base_dn: CN=Computers,DC=dev,DC=example,DC=com
+
+    # perform PKI against the root domain
+    pki_domain: root.example.com
+  ```
+
+With this configuration, Teleport will generate certificates for users in
+`dev.example.com`, but it will publish its CA and CRLs to `example.com`.
+
 ## Next steps
 
 If you encounter any issues, see [Troubleshooting](./troubleshooting.mdx) for common problems and

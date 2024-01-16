@@ -394,7 +394,8 @@ const (
 	// KindConnectionDiagnostic is a resource that tracks the result of testing a connection
 	KindConnectionDiagnostic = "connection_diagnostic"
 
-	// KindDatabaseCertificate is a resource to control Database Certificates generation
+	// KindDatabaseCertificate is a resource to control db CA cert
+	// generation.
 	KindDatabaseCertificate = "database_certificate"
 
 	// KindInstaller is a resource that holds a node installer script
@@ -696,6 +697,10 @@ const (
 	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
 	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
 	DiscoveryAppNameLabel = TeleportNamespace + "/name"
+	// DiscoveryAppInsecureSkipVerify specifies the TLS verification enforcement for a discovered app created from Kubernetes service.
+	DiscoveryAppInsecureSkipVerify = TeleportNamespace + "/insecure-skip-verify"
+	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.
+	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
 
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
@@ -835,6 +840,10 @@ const (
 	//
 	// See also TeleportNamespace and TeleportInternalLabelPrefix.
 	TeleportHiddenLabelPrefix = "teleport.hidden/"
+
+	// TeleportDynamicLabelPrefix is the prefix used by labels that can change
+	// over time and should not be used as part of a role's deny rules.
+	TeleportDynamicLabelPrefix = "dynamic/"
 
 	// DiscoveredNameLabel is a resource metadata label name used to identify
 	// the discovered name of a resource, i.e. the name of a resource before a
@@ -1173,4 +1182,11 @@ const (
 	// DefaultInstallerScriptNameAgentless is the name of the by default populated, EC2
 	// installer script when agentless mode is enabled for a matcher
 	DefaultInstallerScriptNameAgentless = "default-agentless-installer"
+)
+
+const (
+	// ApplicationProtocolHTTP is the HTTP (Web) apps protocol
+	ApplicationProtocolHTTP = "HTTP"
+	// ApplicationProtocolTCP is the TCP apps protocol.
+	ApplicationProtocolTCP = "TCP"
 )

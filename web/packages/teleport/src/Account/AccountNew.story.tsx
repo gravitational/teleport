@@ -104,6 +104,7 @@ const props: AccountProps = {
   isAddDeviceVisible: false,
   isRemoveDeviceVisible: false,
   isSso: false,
+  restrictNewDeviceUsage: null,
   devices: [
     {
       id: '1',

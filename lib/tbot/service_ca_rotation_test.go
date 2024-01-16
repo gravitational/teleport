@@ -181,7 +181,7 @@ func rotate( //nolint:unused // used in skipped test
 ) {
 	t.Helper()
 	log.Infof("Triggering rotation: %s", phase)
-	err := svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err := svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		// only rotate Host CA as to avoid race condition serverside when
 		// multiple CAs are rotated at once and the database closes off.
 		Type:        types.HostCA,

@@ -72,7 +72,7 @@ export function PasswordBox({
       <SingleRowBox>
         <Header
           title="Password"
-          icon={<Icon.Lock />}
+          icon={<Icon.Password />}
           actions={
             <ActionButton
               disabled={changeDisabled}

@@ -73,6 +73,11 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return nil, trace.Wrap(err)
 	}
 
+	// No prompt to run, no-op.
+	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn {
+		return &proto.MFAAuthenticateResponse{}, nil
+	}
+
 	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
 	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- libmfa.MFAGoroutineResponse) {
 		ctx, cancel := context.WithCancelCause(ctx)

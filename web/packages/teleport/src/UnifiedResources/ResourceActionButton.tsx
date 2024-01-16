@@ -23,7 +23,7 @@ import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
 
-import AwsLaunchButton from 'teleport/Apps/AppList/AwsLaunchButton';
+import AwsLaunchButton from 'teleport/UnifiedResources/AwsLaunchButton/AwsLaunchButton';
 import useTeleport from 'teleport/useTeleport';
 import { Database } from 'teleport/services/databases';
 import { openNewTab } from 'teleport/lib/util';

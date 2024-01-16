@@ -134,15 +134,15 @@ describe('teleport/components/Welcome', () => {
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
 
     // fill out input boxes and trigger submit
-    fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
-    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
+    fireEvent.change(pwdField, { target: { value: 'pwd_value_123' } });
+    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value_123' } });
     fireEvent.click(screen.getByRole('button'));
 
     expect(auth.resetPassword).toHaveBeenCalledWith(
       expect.objectContaining({
         req: {
           tokenId: '5182',
-          password: 'pwd_value',
+          password: 'pwd_value_123',
           otpCode: '',
           deviceName: '',
         },
@@ -161,8 +161,8 @@ describe('teleport/components/Welcome', () => {
     // Fill out password.
     const pwdField = await screen.findByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
-    fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
-    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
+    fireEvent.change(pwdField, { target: { value: 'pwd_value_123' } });
+    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value_123' } });
 
     // Go to the next view.
     fireEvent.click(screen.getByText(/next/i));
@@ -176,7 +176,7 @@ describe('teleport/components/Welcome', () => {
       expect.objectContaining({
         req: {
           tokenId: '5182',
-          password: 'pwd_value',
+          password: 'pwd_value_123',
           otpCode: '2222',
           deviceName: 'otp-device',
         },
@@ -195,8 +195,8 @@ describe('teleport/components/Welcome', () => {
     // Fill out password.
     const pwdField = await screen.findByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
-    fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
-    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
+    fireEvent.change(pwdField, { target: { value: 'pwd_value_123' } });
+    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value_123' } });
 
     // Go to the next view.
     fireEvent.click(screen.getByText(/next/i));
@@ -208,7 +208,7 @@ describe('teleport/components/Welcome', () => {
       expect.objectContaining({
         req: {
           tokenId: '5182',
-          password: 'pwd_value',
+          password: 'pwd_value_123',
           deviceName: 'webauthn-device',
         },
       })
@@ -279,8 +279,8 @@ describe('teleport/components/Welcome', () => {
     // Fill out password to get to the next screen.
     const pwdField = await screen.findByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
-    fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
-    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
+    fireEvent.change(pwdField, { target: { value: 'pwd_value_123' } });
+    fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value_123' } });
     fireEvent.click(screen.getByText(/next/i));
 
     // Default radio selection should be webauthn.

@@ -25,12 +25,8 @@ ironrdp-tls.workspace = true
 ironrdp-tokio.workspace = true
 iso7816 = "0.1.2"
 iso7816-tlv = "0.4.3"
-libc = "0.2.151"
 log = "0.4.20"
-num-derive = "0.4.1"
-num-traits = "0.2.17"
 parking_lot = "0.12.1"
-png = "0.17.10"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rsa = "0.9.6"
@@ -40,7 +36,6 @@ tokio = { version = "1.35", features = ["full"] }
 tokio-boring = { version = "4.3.0", optional = true }
 utf16string = "0.2.0"
 uuid = { version = "1.6.1", features = ["v4"] }
-x509-parser = "0.15"
 
 [build-dependencies]
 cbindgen = "0.26.0"

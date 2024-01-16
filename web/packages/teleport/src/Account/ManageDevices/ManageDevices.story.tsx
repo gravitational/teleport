@@ -105,6 +105,7 @@ const props: State = {
   isReAuthenticateVisible: false,
   isAddDeviceVisible: false,
   isRemoveDeviceVisible: false,
+  restrictNewDeviceUsage: null,
   devices: [
     {
       id: '1',

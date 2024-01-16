@@ -25,7 +25,11 @@ import Slider from './Slider';
 export default function ProgressBar(props: ProgressBarProps) {
   const Icon = props.isPlaying ? Icons.CirclePause : Icons.CirclePlay;
   return (
-    <StyledProgessBar style={props.style} id={props.id}>
+    <StyledProgessBar
+      style={props.style}
+      id={props.id}
+      disabled={props.disabled}
+    >
       <ActionButton onClick={props.toggle} disabled={props.disabled}>
         <Icon />
       </ActionButton>
@@ -154,7 +158,7 @@ const ActionButton = styled.button`
     opacity: 1;
 
     .icon {
-      color: ${props => props.theme.colors.success};
+      color: ${props => props.theme.colors.success.main};
     }
   }
 
@@ -183,7 +187,11 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .handle {
-    background-color: ${props => props.theme.colors.text.main};
+    background-color: ${props =>
+      props.disabled
+        ? props.theme.colors.text.disabled
+        : props.theme.colors.success.main};
+
     border-radius: 200px;
     box-shadow: 0 0 4px rgba(0, 0, 0, 0.12), 0 4px 4px rgba(0, 0, 0, 0.24);
     width: 16px;
@@ -193,11 +201,17 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .bar-0 {
-    background-color: ${props => props.theme.colors.success};
+    background-color: ${props =>
+      props.disabled
+        ? props.theme.colors.text.disabled
+        : props.theme.colors.success.main};
     box-shadow: none;
   }
 
   .grv-slider .bar-1 {
-    background-color: ${props => props.theme.colors.spotBackground[2]};
+    background-color: ${props =>
+      props.disabled
+        ? props.theme.colors.text.disabled
+        : props.theme.colors.spotBackground[2]};
   }
 `;

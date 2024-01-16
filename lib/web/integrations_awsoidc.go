@@ -392,6 +392,42 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	return nil, trace.Wrap(err)
 }
 
+// awsOIDCListEKSClusters returns a list of EKS clusters using the ListEKSClusters action of the AWS OIDC integration.
+func (h *Handler) awsOIDCListEKSClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCListEKSClustersRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listClient, err := awsoidc.NewListEKSClustersClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListEKSClusters(ctx,
+		listClient,
+		awsoidc.ListEKSClustersRequest{
+			Region:    req.Region,
+			NextToken: req.NextToken,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCListEKSClustersResponse{
+		NextToken: resp.NextToken,
+		Clusters:  ui.MakeEKSClusters(resp.Clusters),
+	}, nil
+}
+
 // awsOIDCListEC2 returns a list of EC2 Instances using the ListEC2 action of the AWS OIDC Integration.
 func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
@@ -606,11 +642,16 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	vpcIds := req.VPCIDs
+	if len(vpcIds) == 0 {
+		vpcIds = []string{req.VPCID}
+	}
+
 	resp, err := awsoidc.ListEC2ICE(ctx,
 		listEC2ICEClient,
 		awsoidc.ListEC2ICERequest{
 			Region:    req.Region,
-			VPCID:     req.VPCID,
+			VPCIDs:    vpcIds,
 			NextToken: req.NextToken,
 		},
 	)
@@ -619,8 +660,9 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	return ui.AWSOIDCListEC2ICEResponse{
-		NextToken: resp.NextToken,
-		EC2ICEs:   resp.EC2ICEs,
+		NextToken:     resp.NextToken,
+		DashboardLink: resp.DashboardLink,
+		EC2ICEs:       resp.EC2ICEs,
 	}, nil
 }
 

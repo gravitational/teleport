@@ -150,7 +150,7 @@ type ForwarderConfig struct {
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	PROXYSigner multiplexer.PROXYHeaderSigner
 	// log is the logger function
-	log utils.FieldLoggerWithWriter
+	log logrus.FieldLogger
 	// TracerProvider is used to create tracers capable
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
@@ -328,7 +328,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 // however some requests like exec sessions it intercepts and records.
 type Forwarder struct {
 	mu     sync.Mutex
-	log    utils.FieldLoggerWithWriter
+	log    logrus.FieldLogger
 	router http.Handler
 	cfg    ForwarderConfig
 	// activeRequests is a map used to serialize active CSR requests to the auth server
@@ -1189,27 +1189,34 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 		client := &websocketClientStreams{stream}
 		party := newParty(*ctx, stream.Mode, client)
+		defer party.CloseConnection()
 
 		err = session.join(party, true /* emitSessionJoinEvent */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		closeC := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(1)
 		go func() {
-			defer close(closeC)
+			defer wg.Done()
 			select {
 			case <-stream.Done():
-				party.InformClose()
-			case <-party.closeC:
+				party.InformClose(trace.BadParameter("websocket connection closed"))
+			case <-closeC:
 				return
 			}
 		}()
-		<-party.closeC
+
+		err = <-party.closeC
+		close(closeC)
+
 		if _, err := session.leave(party.ID); err != nil {
 			f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
 		}
-		<-closeC
-		return nil
+		wg.Wait()
+
+		return trace.Wrap(err)
 	}(); err != nil {
 		writeErr := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
 		if writeErr != nil {
@@ -1416,12 +1423,10 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, role
 }
 
 // execNonInteractive handles all exec sessions without a TTY.
-func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) (resp any, err error) {
-	defer proxy.Close()
-
+func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) error {
 	roles, err := getRolesByName(f, ctx.Context.Identity.GetIdentity().Groups)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	var policySets []*types.SessionTrackerPolicySet
@@ -1433,10 +1438,10 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
 	canStart, _, err := authorizer.FulfilledFor(nil)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	if !canStart {
-		return nil, trace.AccessDenied("insufficient permissions to launch non-interactive session")
+		return trace.AccessDenied("insufficient permissions to launch non-interactive session")
 	}
 
 	eventPodMeta := request.eventPodMeta(request.context, sess.kubeAPICreds)
@@ -1477,6 +1482,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 
 	if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
 		f.log.WithError(err).Warn("Failed to emit event.")
+		return trace.Wrap(err)
 	}
 
 	execEvent := &apievents.Exec{
@@ -1530,29 +1536,22 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
 		f.log.WithError(err).Warning("Failed creating executor.")
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	streamOptions := proxy.options()
 	err = executor.StreamWithContext(req.Context(), streamOptions)
-	// send the status back to the client when forwarding mode is enabled
-	// sendStatus sends a payload even if the error is nil to make sure the client
-	// receives the status and can close the connection.
-	if sendErr := proxy.sendStatus(err); sendErr != nil {
-		f.log.WithError(sendErr).Warning("Failed to send status. Exec command was aborted by client.")
-	}
 	if err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
-		return nil, nil
+		return trace.Wrap(err)
 	}
 
 	execEvent.Code = events.ExecCode
 
-	return nil, nil
+	return nil
 }
 
 func exitCode(err error) (errMsg, code string) {
@@ -1648,80 +1647,56 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 		return nil, trace.Wrap(err)
 	}
 
-	proxy, err := createRemoteCommandProxy(request)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// proxy.Close closes the underlying connection and releases the resources.
-	defer proxy.Close()
-	if sess.noAuditEvents {
-		// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
-		return f.remoteExec(authCtx, w, req, p, sess, request, proxy)
-	}
+	return upgradeRequestToRemoteCommandProxy(request,
+		func(proxy *remoteCommandProxy) error {
+			if sess.noAuditEvents {
+				// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
+				return f.remoteExec(authCtx, w, req, p, sess, request, proxy)
+			}
 
-	if !request.tty {
-		resp, err = f.execNonInteractive(authCtx, w, req, p, request, proxy, sess)
-		if err != nil {
-			// will hang waiting for the response.
-			proxy.sendStatus(err)
-		}
-		return nil, nil
-	}
+			if !request.tty {
+				return f.execNonInteractive(authCtx, w, req, p, request, proxy, sess)
+			}
 
-	client := newKubeProxyClientStreams(proxy)
-	party := newParty(*authCtx, types.SessionPeerMode, client)
-	session, err := newSession(*authCtx, f, req, p, party, sess)
-	if err != nil {
-		// This error must be forwarded to SPDY error stream, otherwise the client
-		// will hang waiting for the response.
-		proxy.sendStatus(err)
-		return nil, nil
-	}
+			client := newKubeProxyClientStreams(proxy)
+			party := newParty(*authCtx, types.SessionPeerMode, client)
+			session, err := newSession(*authCtx, f, req, p, party, sess)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
-	f.setSession(session.id, session)
-	// When Teleport attaches the original session creator terminal streams to the
-	// session, we don't wan't to emmit session.join event since it won't be required.
-	err = session.join(party, false /* emitSessionJoinEvent */)
-	if err != nil {
-		// This error must be forwarded to SPDY error stream, otherwise the client
-		// will hang waiting for the response.
-		proxy.sendStatus(err)
-		return nil, nil
-	}
+			f.setSession(session.id, session)
+			// When Teleport attaches the original session creator terminal streams to the
+			// session, we don't want to emit session.join event since it won't be required.
+			if err = session.join(party, false /* emitSessionJoinEvent */); err != nil {
+				return trace.Wrap(err)
+			}
 
-	<-party.closeC
+			err = <-party.closeC
 
-	if _, err := session.leave(party.ID); err != nil {
-		f.log.WithError(err).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
-	}
+			if _, errLeave := session.leave(party.ID); errLeave != nil {
+				f.log.WithError(errLeave).Debugf("Participant %q was unable to leave session %s", party.ID, session.id)
+			}
 
-	return nil, nil
+			return trace.Wrap(err)
+		},
+	)
 }
 
 // remoteExec forwards an exec request to a remote cluster.
-func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession, request remoteCommandRequest, proxy *remoteCommandProxy) (resp any, err error) {
-	defer proxy.Close()
-
+func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession, request remoteCommandRequest, proxy *remoteCommandProxy) error {
 	executor, err := f.getExecutor(sess, req)
 	if err != nil {
 		f.log.WithError(err).Warning("Failed creating executor.")
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
 	err = executor.StreamWithContext(req.Context(), streamOptions)
-	// send the status back to the client when forwarding mode is enabled
-	// sendStatus sends a payload even if the error is nil to make sure the client
-	// receives the status and can close the connection.
-	if sendErr := proxy.sendStatus(err); sendErr != nil {
-		f.log.WithError(sendErr).Warning("Failed to send status. Exec command was aborted by client.")
-	}
 	if err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
-		return nil, nil
 	}
 
-	return nil, nil
+	return trace.Wrap(err)
 }
 
 // portForward starts port forwarding to the remote cluster

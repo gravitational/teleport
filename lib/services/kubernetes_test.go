@@ -116,7 +116,7 @@ func TestNewKubeClusterFromAWSEKS(t *testing.T) {
 					"env":         aws.String("prod"),
 				},
 			}
-			actual, err := NewKubeClusterFromAWSEKS(cluster)
+			actual, err := NewKubeClusterFromAWSEKS(aws.StringValue(cluster.Name), aws.StringValue(cluster.Arn), cluster.Tags)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(expected, actual))
 			require.NoError(t, err)

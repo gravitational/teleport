@@ -53,6 +53,7 @@ RUN yum install --nogpgcheck -y \
 
 # Needed for boring-rs
 ENV CMAKE=cmake3
+RUN ln -s /usr/bin/cmake3 /usr/local/bin/cmake
 
 ## GIT2 ###################################################################
 

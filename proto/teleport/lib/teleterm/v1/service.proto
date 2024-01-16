@@ -82,6 +82,8 @@ service TerminalService {
 
   // GetKubes returns filtered, sorted, and paginated kubes
   rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
+  // GetApps returns a filtered and paginated list of apps.
+  rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
   // RemoveCluster removes a cluster from profile
@@ -471,6 +473,22 @@ message GetKubesRequest {
 
 message GetKubesResponse {
   repeated Kube agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
+}
+
+message GetAppsRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
+message GetAppsResponse {
+  repeated App agents = 1;
   int32 total_count = 2;
   string start_key = 3;
 }

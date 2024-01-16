@@ -22,10 +22,8 @@ import { Indicator, Flex, Box } from 'design';
 import { Danger } from 'design/Alert';
 
 import cfg from 'teleport/config';
-import TtyPlayer, {
-  StatusEnum,
-  StatusEnum as TtyStatusEnum,
-} from 'teleport/lib/term/ttyPlayer';
+import TtyPlayer from 'teleport/lib/term/ttyPlayer';
+import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import ProgressBar from './ProgressBar';
@@ -36,9 +34,10 @@ export default function Player({ sid, clusterId, durationMs }) {
     clusterId,
     sid
   );
-  const isError = playerStatus === TtyStatusEnum.ERROR;
-  const isLoading = playerStatus === TtyStatusEnum.LOADING;
-  const isPlaying = playerStatus === TtyStatusEnum.PLAYING;
+  const isError = playerStatus === StatusEnum.ERROR;
+  const isLoading = playerStatus === StatusEnum.LOADING;
+  const isPlaying = playerStatus === StatusEnum.PLAYING;
+  const isComplete = isError || playerStatus === StatusEnum.COMPLETE;
 
   if (isError) {
     return (
@@ -65,14 +64,11 @@ export default function Player({ sid, clusterId, durationMs }) {
         min={0}
         max={durationMs}
         current={time}
-        disabled={
-          playerStatus === TtyStatusEnum.ERROR ||
-          playerStatus === TtyStatusEnum.COMPLETE
-        }
+        disabled={isComplete}
         isPlaying={isPlaying}
         time={formatDisplayTime(time)}
-        onRestart={window.location.reload}
-        onStartMove={tty.suspendTimeUpdates}
+        onRestart={() => window.location.reload()}
+        onStartMove={() => tty.suspendTimeUpdates()}
         move={pos => {
           tty.move(pos);
           tty.resumeTimeUpdates();
@@ -124,20 +120,4 @@ function useStreamingSshPlayer(clusterId: string, sid: string) {
   }, [tty]);
 
   return { tty, playerStatus, statusText, time };
-}
-
-function formatDisplayTime(ms: number) {
-  if (ms <= 0) {
-    return '00:00';
-  }
-
-  const totalSec = Math.floor(ms / 1000);
-  const totalDays = (totalSec % 31536000) % 86400;
-  const h = Math.floor(totalDays / 3600);
-  const m = Math.floor((totalDays % 3600) / 60);
-  const s = (totalDays % 3600) % 60;
-
-  return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s
-    .toString()
-    .padStart(2, '0')}`;
 }

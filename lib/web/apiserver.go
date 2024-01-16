@@ -325,7 +325,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request has a session cookie or a client cert, forward to
 	// application handlers. If the request is requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
-	if h.appHandler != nil && (app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r)) {
+	if h.appHandler != nil && (app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r)) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
@@ -535,8 +535,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 			httplib.SetNoCacheHeaders(w.Header())
 
-			// app access needs to make a CORS fetch request, so we only set the default CSP on that page
+			// DELETE IN 17.0: Delete the first if block. Keep the else case.
+			// Kept for backwards compatibility.
+			//
+			// This case only adds an additional CSP `content-src` value of the
+			// app URL which allows requesting to the app domain required by
+			// the legacy app access.
 			if strings.HasPrefix(r.URL.Path, "/web/launch/") {
+				// legacy app access needs to make a CORS fetch request,
+				// so we only set the default CSP on that page
 				parts := strings.Split(r.URL.Path, "/")
 				// grab the FQDN from the URL to allow in the connect-src CSP
 				applicationURL := "https://" + parts[3] + ":*"
@@ -545,6 +552,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			} else {
 				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
 			}
+
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
 			}
@@ -844,6 +852,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deploydatabaseservices", h.WithClusterAuth(h.awsOIDCDeployDatabaseServices))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/eksclusters", h.WithClusterAuth(h.awsOIDCListEKSClusters))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
@@ -1606,7 +1615,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		TunnelPublicAddress:            tunnelPublicAddr,
 		RecoveryCodesEnabled:           clusterFeatures.GetRecoveryCodes(),
 		UI:                             h.getUIConfig(r.Context()),
-		IsDashboard:                    isDashboard(clusterFeatures),
+		IsDashboard:                    services.IsDashboard(clusterFeatures),
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
@@ -2065,7 +2074,7 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 //
 // POST /v1/webapi/sessions/web
 //
-// {"user": "alex", "pass": "abc123", "second_factor_token": "token", "second_factor_type": "totp"}
+// {"user": "alex", "pass": "abcdef123456", "second_factor_token": "token", "second_factor_type": "totp"}
 //
 // # Response
 //
@@ -2373,7 +2382,7 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 //
 // POST /webapi/mfa/login/begin
 //
-// {"user": "alex", "pass": "abc123"}
+// {"user": "alex", "pass": "abcdef123456"}
 // {"passwordless": true}
 //
 // Successful response:
@@ -4334,17 +4343,6 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
 	// It also handles the Range negotiation
 	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
-}
-
-// isDashboard returns a bool indicating if the cluster is a
-// dashboard cluster.
-// Dashboard is a cluster running on cloud infrastructure that
-// isn't a Teleport Cloud cluster
-func isDashboard(features proto.Features) bool {
-	// TODO(matheus): for now, we assume dashboard based on
-	// the presence of recovery codes, which are never enabled
-	// in OSS or self-hosted Teleport.
-	return !features.GetCloud() && features.GetRecoveryCodes()
 }
 
 const robots = `User-agent: *
