@@ -720,7 +720,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx = authz.ContextWithUser(s.closeContext, user)
+	ctx = authz.ContextWithUser(ctx, user)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
 	authCtx, _, err := s.authorizeContext(ctx)
 
@@ -748,12 +748,15 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	// differently than HTTP requests from web apps.
 	if app.IsTCP() {
 		identity := authCtx.Identity.GetIdentity()
-		return nil, s.handleTCPApp(ctx, tlsConn, &identity, app)
+		defer cancel()
+		return nil, trace.Wrap(s.handleTCPApp(ctx, tlsConn, &identity, app))
 	}
 
-	return func() {
+	cleanup := func() {
+		cancel()
 		s.deleteConnAuth(tlsConn)
-	}, s.handleHTTPApp(ctx, tlsConn)
+	}
+	return cleanup, trace.Wrap(s.handleHTTPApp(ctx, tlsConn))
 }
 
 // handleTCPApp handles connection for a TCP application.
