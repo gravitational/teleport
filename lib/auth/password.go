@@ -171,11 +171,6 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 func (a *Server) checkPasswordWOToken(user string, password []byte) error {
 	const errMsg = "invalid username or password"
 
-	err := services.VerifyPassword(password)
-	if err != nil {
-		return trace.BadParameter(errMsg)
-	}
-
 	hash, err := a.GetPasswordHash(user)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)

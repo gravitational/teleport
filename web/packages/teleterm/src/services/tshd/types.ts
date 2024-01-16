@@ -223,7 +223,7 @@ export type WebauthnLoginCredentialPrompt = {
 export type LoginPasswordlessRequest =
   Partial<apiService.LoginPasswordlessRequest.AsObject>;
 
-export type TshClient = {
+export type TshdClient = {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
   getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
@@ -339,6 +339,8 @@ export type TshClient = {
     params: PromoteAccessRequestParams,
     abortSignal?: TshAbortSignal
   ) => Promise<AccessRequest>;
+
+  updateTshdEventsServerAddress: (address: string) => Promise<void>;
 };
 
 export type TshAbortController = {

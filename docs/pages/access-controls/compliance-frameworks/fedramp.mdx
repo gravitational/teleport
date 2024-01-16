@@ -153,7 +153,7 @@ When using `teleport start --fips`, Teleport will start in FIPS mode.
   binaries are compiled with the appropriate cryptographic module
   (BoringCrypto).
 - If no TLS or SSH cryptographic primitives are specified, Teleport will
-  default to FIPS compliant cryptographic algorithms.
+  default to FIPS-compliant cryptographic algorithms.
 - If TLS or SSH cryptographic primitives are not FIPS 140-2 compliant, Teleport
   will fail to start.
 - Teleport will always enable at-rest encryption for both DynamoDB and S3.
@@ -168,28 +168,42 @@ In FIPS mode, Teleport will use the following cryptographic algorithms by defaul
 
 Default FIPS ciphers for SSH:
 
+- `aes128-gcm@openssh.com`
+- `aes256-gcm@openssh.com`
 - `aes128-ctr`
 - `aes192-ctr`
 - `aes256-ctr`
-- `aes128-gcm@openssh.com`
 
 Default FIPS Key Exchange Algorithms (KEX) for SSH:
 
 - `ecdh-sha2-nistp256`
 - `ecdh-sha2-nistp384`
-- `ecdh-sha2-nistp521`
 
 Default FIPS Message Authentication Codes (MAC) for SSH:
 
 - `hmac-sha2-256-etm@openssh.com`
+- `hmac-sha2-512-etm@openssh.com`
 - `hmac-sha2-256`
+- `hmac-sha2-512`
 
-Default FIPS ciphersuites for TLS:
+Default FIPS Public Key Authentication Algorithms for SSH:
 
-- `tls-ecdhe-rsa-with-aes-128-gcm-sha256`
+- `ecdsa-sha2-nistp256`
+- `ecdsa-sha2-nistp384`
+- `rsa-sha2-256`
+- `rsa-sha2-512`
+
+Default FIPS cipher suites for TLS 1.2:
+
 - `tls-ecdhe-ecdsa-with-aes-128-gcm-sha256`
-- `tls-ecdhe-rsa-with-aes-256-gcm-sha384`
+- `tls-ecdhe-rsa-with-aes-128-gcm-sha256`
 - `tls-ecdhe-ecdsa-with-aes-256-gcm-sha384`
+- `tls-ecdhe-rsa-with-aes-256-gcm-sha384`
+
+Default FIPS cipher suites for TLS 1.3:
+
+- `tls-aes-128-gcm-sha256`
+- `tls-aes-256-gcm-sha384`
 
 ## FedRAMP audit log
 
@@ -198,7 +212,7 @@ is emitted to the Audit Log.
 
 ## What else does the Teleport FIPS binary enforce?
 
-- TLS protocol version is restricted to TLS 1.2.
+- TLS protocol version is restricted to TLS 1.2 and TLS 1.3.
 - All uses of non-compliant algorithms such as NaCl are removed and replaced with compliant algorithms such as AES-GCM.
 - Teleport is compiled with [BoringCrypto](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4407).
 - User, host, and CA certificates (and host keys for recording proxy mode) only use 2048-bit RSA private keys.
