@@ -179,6 +179,14 @@ export interface Cluster extends apiCluster.Cluster.AsObject {
    * user is yet to log in, loggedInUser is not present.
    */
   loggedInUser?: LoggedInUser;
+  /**
+   * Address of the proxy used to connect to this cluster. Always includes port number. Present only
+   * for root clusters.
+   *
+   * @example
+   * "teleport-14-ent.example.com:3090"
+   */
+  proxyHost: string;
 }
 
 /**
