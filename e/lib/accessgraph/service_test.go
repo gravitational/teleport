@@ -95,6 +95,16 @@ func (s *serviceFake) EventsStream(_ context.Context, _ ...grpc.CallOption) (acc
 	return nil, nil
 }
 
+func (s *serviceFake) Register(ctx context.Context, in *accessgraphv1alpha.RegisterRequest, opts ...grpc.CallOption) (*accessgraphv1alpha.RegisterResponse, error) {
+	s.calledFunctions["Register"]++
+	return &accessgraphv1alpha.RegisterResponse{}, nil
+}
+
+func (s *serviceFake) ReplaceCAs(ctx context.Context, in *accessgraphv1alpha.ReplaceCAsRequest, opts ...grpc.CallOption) (*accessgraphv1alpha.ReplaceCAsResponse, error) {
+	s.calledFunctions["ReplaceCAs"]++
+	return &accessgraphv1alpha.ReplaceCAsResponse{}, nil
+}
+
 func setup(ctx context.Context, t *testing.T) (*Service, *local.AccessService, *local.IdentityService, *serviceFake) {
 	t.Helper()
 
