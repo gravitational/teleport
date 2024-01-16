@@ -159,7 +159,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 			// Did we update the device in storage?
 			require.NotEmpty(t, identity.UpdatedDevices)
 			got := identity.UpdatedDevices[len(identity.UpdatedDevices)-1]
-			if diff := cmp.Diff(loginData, got); diff != "" {
+			if diff := cmp.Diff(loginData.Device, got); diff != "" {
 				t.Errorf("Updated device mismatch (-want +got):\n%s", diff)
 			}
 			// Did we delete the challenge?
@@ -440,6 +440,10 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 				AllowCredentials: [][]uint8{}, // aka unset
 				ResidentKey:      false,       // irrelevant for login
 				UserVerification: string(protocol.VerificationRequired),
+				ChallengeExtensions: mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+				},
 			}
 			if diff := cmp.Diff(wantSD, sd); diff != "" {
 				t.Fatalf("SessionData mismatch (-want +got):\n%s", diff)
