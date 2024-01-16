@@ -165,6 +165,23 @@ as well as an upgrade of the previous version of Teleport.
     sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
     ```
 
+- [ ] External Audit Storage
+
+    External Audit Storage must be tested on an Enterprise Cloud tenant.
+    Instructions for deploying a custom release to a cloud staging tenant: https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md
+
+  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/choose-an-edition/teleport-cloud/external-audit-storage/
+    - [ ] Docs (including screenshots) are up to date
+    - [ ] Discover flow works with or without an existing AWS OIDC integration
+    - [ ] Draft configuration can be resumed after navigating away
+    - [ ] Bootstrap step (oneoff command pasted into CloudShell) works to create infra
+    - [ ] Created IAM policy (attached to AWS OIDC integration role) matches docs example
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) are stored in configured S3 buckets
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) can be queried and played in the web UI
+    - [ ] `tsh play <session-id>` works
+  - [ ] Existing EAS configuration can be replaced with a new one via Discover flow
+  - [ ] Existing EAS configuration can be deleted (disabling EAS)
+
 - [ ] Interact with a cluster using `tsh`
 
    These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
@@ -757,6 +774,11 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
   - [ ] Make sure docs/links are up to date
   - [ ] New cluster with CloudHSM CA works
   - [ ] Migrating a software cluster to CloudHSM works
+  - [ ] CA rotation works
+- [ ] AWS KMS Support
+  - [ ] Make sure docs/links are up to date
+  - [ ] New cluster with AWS KMS CA works
+  - [ ] Migrating a software cluster to AWS KMS works
   - [ ] CA rotation works
 - [ ] GCP KMS Support
   - [ ] Make sure docs/links are up to date

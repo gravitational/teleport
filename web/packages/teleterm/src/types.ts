@@ -18,7 +18,7 @@
 
 import { ITshdEventsServiceServer } from 'gen-proto-js/teleport/lib/teleterm/v1/tshd_events_service_grpc_pb';
 
-import { TshClient } from 'teleterm/services/tshd/types';
+import { TshdClient } from 'teleterm/services/tshd/types';
 import { PtyServiceClient } from 'teleterm/services/pty';
 import { RuntimeSettings, MainProcessClient } from 'teleterm/mainProcess/types';
 import { FileStorage } from 'teleterm/services/fileStorage';
@@ -103,7 +103,7 @@ export type TshdEventContextBridgeService = {
 
 export type ElectronGlobals = {
   readonly mainProcessClient: MainProcessClient;
-  readonly tshClient: TshClient;
+  readonly tshClient: TshdClient;
   readonly ptyServiceClient: PtyServiceClient;
   readonly setupTshdEventContextBridgeService: (
     listener: TshdEventContextBridgeService
