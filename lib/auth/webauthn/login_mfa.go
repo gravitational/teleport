@@ -92,6 +92,9 @@ type LoginFlow struct {
 // assertion.
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
+// Requested challenge extensions will be stored on the stored webauthn challenge
+// record. These extensions indicate additional rules/properties of the webauthn
+// challenge that can be validated in the final login step.
 func (f *LoginFlow) Begin(ctx context.Context, user string, challengeExtensions mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
@@ -103,9 +106,12 @@ func (f *LoginFlow) Begin(ctx context.Context, user string, challengeExtensions 
 }
 
 // Finish is the second and last step of the LoginFlow.
-// It returns the MFADevice used to solve the challenge. If login is successful,
-// Finish has the side effect of updating the counter and last used timestamp of
-// the returned device.
+// Expected challenge extensions will be validated against the stored webauthn
+// challenge record.
+// It returns the MFADevice used to solve the challenge, the associated Teleport
+// user name, and other login properties. If login is successful, Finish has the
+// side effect of updating the counter and last used timestamp of the MFADevice
+// used.
 func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions mfav1.ChallengeExtensions) (*LoginData, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
