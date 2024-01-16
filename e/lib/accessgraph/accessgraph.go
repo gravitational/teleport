@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -118,6 +119,19 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 				return trace.Wrap(err)
 			}
 
+			header, err := stream.Header()
+			if err != nil {
+				log.WithError(err).Error("Failed to get access graph service stream header")
+				return trace.Wrap(err)
+			}
+			const (
+				supportedResourcesKey = "supported-kinds"
+			)
+			supportedKinds := header.Get(supportedResourcesKey)
+			if len(supportedKinds) == 0 {
+				return trace.BadParameter("access graph service did not return supported kinds")
+			}
+
 			newCtx, cancel := context.WithCancel(ctx)
 			defer cancel()
 			// Start a goroutine to watch the access graph service connection state.
@@ -137,12 +151,12 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 				// Start watching the auth server for events.
 				// Subscribe for new events before sending all resources.
 				// Otherwise, we might miss some events.
-				errc <- startWatching(eventWatcher, authServer)
+				errc <- startWatching(eventWatcher, authServer, supportedKinds)
 			}()
 
 			log.Debug("Sending teleport resources to access graph service")
 			// Send all teleport resources to the access graph service.
-			if err := sendTeleportResources(ctx, stream, authServer); err != nil {
+			if err := sendTeleportResources(ctx, stream, authServer, supportedKinds); err != nil {
 				log.WithError(err).Error("Failed to send teleport resources to access graph service")
 				return trace.Wrap(err)
 			}
@@ -178,36 +192,54 @@ func newTagEventWatcher(ctx context.Context, stream accessGraphSender) *tagEvent
 }
 
 // sendTeleportResources sends all teleport resources to the access graph service.
-func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, authServer *auth.Server) error {
-	if err := sendRoles(ctx, authServer, stream); err != nil {
-		return trace.Wrap(err)
+func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamClient, authServer *auth.Server, serverSupportedKinds []string) error {
+	if slices.Contains(serverSupportedKinds, types.KindRole) {
+		if err := sendRoles(ctx, authServer, stream); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	if err := sendUsers(ctx, authServer, stream); err != nil {
-		return trace.Wrap(err)
+	if slices.Contains(serverSupportedKinds, types.KindUser) {
+		if err := sendUsers(ctx, authServer, stream); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	if err := sendAccessRequests(ctx, authServer, stream); err != nil {
-		return trace.Wrap(err)
+	if slices.Contains(serverSupportedKinds, types.KindAccessRequest) {
+		if err := sendAccessRequests(ctx, authServer, stream); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	teleportSupportedKinds := []string{
+		types.KindNode,
+		types.KindAppServer,
+		types.KindDatabaseServer,
+		types.KindWindowsDesktop,
+		types.KindKubeServer,
+	}
+	var supportedUnifiedResources []string
+	for _, kind := range teleportSupportedKinds {
+		if !slices.Contains(serverSupportedKinds, kind) {
+			continue
+		}
+		supportedUnifiedResources = append(supportedUnifiedResources, kind)
 	}
 
 	if err := pushResourcesViaUnifiedResourcesCache(
 		ctx,
 		authServer,
 		stream,
-		types.KindNode,
-		types.KindAppServer,
-		types.KindDatabaseServer,
-		types.KindWindowsDesktop,
-		types.KindKubeServer,
+		supportedUnifiedResources...,
 	); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := sendAccessLists(ctx, authServer, stream); err != nil {
-		return trace.Wrap(err)
+	if slices.Contains(serverSupportedKinds, types.KindAccessList) {
+		if err := sendAccessLists(ctx, authServer, stream); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-
 	// Send end event to indicate that initialization is done.
 	err := stream.Send(
 		&accessgraphv1.EventsStreamRequest{
@@ -220,18 +252,10 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 }
 
 // startWatching starts watching the auth server for events and sends them to the access graph service.
-func startWatching(eventWatcher *tagEventWatcher, authServer *auth.Server) error {
-	observedKinds := []types.WatchKind{
-		{Kind: types.KindNode},
-		{Kind: types.KindUser},
-		{Kind: types.KindRole},
-		{Kind: types.KindAccessRequest},
-		{Kind: types.KindKubeServer},
-		{Kind: types.KindAppServer},
-		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindWindowsDesktop},
-		{Kind: types.KindAccessListMember},
-		{Kind: types.KindAccessList},
+func startWatching(eventWatcher *tagEventWatcher, authServer *auth.Server, serverSupportedKinds []string) error {
+	var observedKinds []types.WatchKind
+	for _, kind := range serverSupportedKinds {
+		observedKinds = append(observedKinds, types.WatchKind{Kind: kind})
 	}
 
 	watcher, err := authServer.Services.NewWatcher(
