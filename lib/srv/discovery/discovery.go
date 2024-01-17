@@ -361,7 +361,8 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 		go func() {
 			for {
-
+				// reset the currentTAGResources to force a full sync
+				s.currentTAGResources = &tag_aws_sync.PollResult{}
 				if err := s.initializeAndWatchAccessGraph(ctx); err != nil {
 					s.Log.Warnf("Error initializing and watching access graph: %v", err)
 				}
