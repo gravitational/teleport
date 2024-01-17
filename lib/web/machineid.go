@@ -28,6 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
+type ListBotsResponse struct {
+	// Items is a list of resources retrieved.
+	Items []*machineidv1.Bot `json:"items"`
+}
+
 type CreateBotRequest struct {
 	// BotName is the name of the bot
 	BotName string `json:"botName"`
@@ -38,6 +43,36 @@ type CreateBotRequest struct {
 	// Where multiple specified with the same name, these will be merged by the
 	// server.
 	Traits []*machineidv1.Trait `json:"traits"`
+}
+
+// listBots returns a list of bots for a given cluster site. It does not leverage pagination from the UI. Due to the
+// nature of the bot:user relationship, pagination is not yet supported. This endpoint will return all bots.
+func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var items []*machineidv1.Bot
+	for pageToken := ""; ; {
+		bots, err := clt.BotServiceClient().ListBots(r.Context(), &machineidv1.ListBotsRequest{
+			PageSize:  int32(1000),
+			PageToken: pageToken,
+		})
+		// todo (michellescripts) consider returning partial results
+		if err != nil {
+			return nil, trace.Wrap(err, "error getting bots")
+		}
+		items = append(items, bots.Bots...)
+		pageToken = bots.NextPageToken
+		if pageToken == "" {
+			break
+		}
+	}
+
+	return ListBotsResponse{
+		Items: items,
+	}, nil
 }
 
 // createBot creates a bot
@@ -64,6 +99,25 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "error creating bot")
+	}
+
+	return OK(), nil
+}
+
+func (h *Handler) deleteBot(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	name := params.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("missing bot name")
+	}
+
+	_, err = clt.BotServiceClient().DeleteBot(r.Context(), &machineidv1.DeleteBotRequest{BotName: name})
+	if err != nil {
+		return nil, trace.Wrap(err, "error deleting bot")
 	}
 
 	return OK(), nil
