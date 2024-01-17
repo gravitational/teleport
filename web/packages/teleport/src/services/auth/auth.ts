@@ -240,13 +240,7 @@ const auth = {
 
   headlessSSOAccept(transactionId: string) {
     return auth
-      .checkWebauthnSupport()
-      .then(() => api.post(cfg.api.mfaAuthnChallengePath))
-      .then(res =>
-        navigator.credentials.get({
-          publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
-        })
-      )
+      .fetchWebauthnChallenge(MFAChallengeScope.HEADLESS_LOGIN)
       .then(res => {
         const request = {
           action: 'accept',
@@ -269,7 +263,11 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  async fetchWebauthnChallenge(isMFARequiredRequest?: IsMfaRequiredRequest) {
+  async fetchWebauthnChallenge(
+    scope: MFAChallengeScope,
+    allowReuse?: boolean,
+    isMFARequiredRequest?: IsMfaRequiredRequest
+  ) {
     // TODO(Joerger): DELETE IN 16.0.0
     // the create mfa challenge endpoint below supports
     // MFARequired requests without the extra roundtrip.
@@ -293,6 +291,8 @@ const auth = {
         api
           .post(cfg.api.mfaAuthnChallengePath, {
             is_mfa_required: isMFARequiredRequest,
+            challenge_scope: scope,
+            challenge_allow_reuse: allowReuse,
           })
           .then(makeMfaAuthenticateChallenge)
       )
@@ -303,8 +303,8 @@ const auth = {
       );
   },
 
-  createPrivilegeTokenWithWebauthn() {
-    return auth.fetchWebauthnChallenge().then(res =>
+  createPrivilegeTokenWithWebauthn(scope) {
+    return auth.fetchWebauthnChallenge(scope).then(res =>
       api.post(cfg.api.createPrivilegeTokenPath, {
         webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
       })
@@ -315,9 +315,13 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
-  getWebauthnResponse(isMFARequiredRequest?: IsMfaRequiredRequest) {
+  getWebauthnResponse(
+    scope: MFAChallengeScope,
+    allowReuse?: boolean,
+    isMFARequiredRequest?: IsMfaRequiredRequest
+  ) {
     return auth
-      .fetchWebauthnChallenge(isMFARequiredRequest)
+      .fetchWebauthnChallenge(scope, allowReuse, isMFARequiredRequest)
       .then(res => makeWebauthnAssertionResponse(res));
   },
 };
@@ -394,3 +398,15 @@ export type IsMFARequiredAdminAction = {
     name: string;
   };
 };
+
+// MFAChallengeScope is an mfa challenge scope. Possible values are defined in mfa.proto
+export enum MFAChallengeScope {
+  UNSPECIFIED = 0,
+  LOGIN = 1,
+  PASSWORDLESS_LOGIN = 2,
+  HEADLESS_LOGIN = 3,
+  MANAGE_DEVICES = 4,
+  ACCOUNT_RECOVERY = 5,
+  USER_SESSION = 6,
+  ADMIN_ACTION = 7,
+}
