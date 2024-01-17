@@ -3,8 +3,8 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     -- Only drop if the user doesn't have other active sessions.
-    IF EXISTS (SELECT usename FROM pg_stat_activity WHERE usename = username) THEN
-        RAISE NOTICE 'User has active connections';
+    IF EXISTS (SELECT user_name FROM stv_sessions WHERE user_name = CONCAT('IAM:', username)) THEN
+        RAISE EXCEPTION 'TP000: User has active connections';
     ELSE
         BEGIN
             EXECUTE 'DROP USER ' || QUOTE_IDENT(username);
