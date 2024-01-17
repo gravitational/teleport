@@ -665,7 +665,7 @@ func (a *Server) syncUsableKeysAlert(ctx context.Context, usableKeysResults map[
 			// customers if Cloud ends up enabling an HSM/KMS by default in
 			// existing configurations. It's fine to never rotate in this case
 			// and continue using software keys. But if this is an on-prem
-			// cluster where the admin manually configured and HSM or KMS, they
+			// cluster where the admin manually configured an HSM or KMS, they
 			// probably want to use it, so hopefully they'll appreciate the
 			// alert reminding them to rotate the CAs.
 			return nil
