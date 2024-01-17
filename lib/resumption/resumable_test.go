@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
-func TestResumableConnPipe(t *testing.T) {
+func TestConnNetTest(t *testing.T) {
 	testCases := []struct {
 		testName  string
 		firstConn bool
@@ -100,7 +100,7 @@ func TestResumableConnPipe(t *testing.T) {
 	}
 }
 
-func TestResumableConn(t *testing.T) {
+func TestConnResume(t *testing.T) {
 	testCases := []struct {
 		testName string
 		syncPipe bool
@@ -119,12 +119,12 @@ func TestResumableConn(t *testing.T) {
 		tc := tc
 		t.Run(tc.testName, func(t *testing.T) {
 			t.Parallel()
-			testResumableConn(t, tc.syncPipe)
+			testConnResume(t, tc.syncPipe)
 		})
 	}
 }
 
-func testResumableConn(t *testing.T, syncPipe bool) {
+func testConnResume(t *testing.T, syncPipe bool) {
 	require := require.New(t)
 
 	r1 := newResumableConn(nil, nil)
