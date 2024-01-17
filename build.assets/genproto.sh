@@ -46,6 +46,7 @@ main() {
     --path=api/proto/teleport/legacy/ \
     --path=api/proto/teleport/attestation/ \
     --path=api/proto/teleport/usageevents/ \
+    --path=api/proto/teleport/mfa/ \
     --path=proto/teleport/lib/web/envelope.proto \
     --exclude-path=api/proto/teleport/legacy/client/proto/event.proto
   cp -r gogogen/github.com/gravitational/teleport/. .
@@ -58,6 +59,7 @@ main() {
     --exclude-path=api/proto/teleport/legacy/ \
     --exclude-path=api/proto/teleport/attestation/ \
     --exclude-path=api/proto/teleport/usageevents/ \
+    --exclude-path=api/proto/teleport/mfa/ \
     --exclude-path=proto/teleport/lib/web/envelope.proto \
     --exclude-path=proto/prehog/
 
