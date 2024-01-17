@@ -212,7 +212,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
           </Flex>
         </>
       )}
-      {feature?.hideFromNavigation && (
+      {feature?.hideNavigation && (
         <ButtonIconContainer onClick={handleBack}>
           <ArrowLeft size="medium" />
         </ButtonIconContainer>
