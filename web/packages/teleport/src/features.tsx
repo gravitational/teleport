@@ -23,9 +23,9 @@ import {
   CirclePlay,
   ClipboardUser,
   Cluster,
-  EqualizersVertical,
   Integrations as IntegrationsIcon,
   Laptop,
+  ListAddCheck,
   ListThin,
   Lock,
   Question,
@@ -90,7 +90,7 @@ class AccessRequests implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AccessRequests,
-    icon: EqualizersVertical,
+    icon: ListAddCheck,
     exact: true,
     getLink() {
       return cfg.routes.accessRequest;

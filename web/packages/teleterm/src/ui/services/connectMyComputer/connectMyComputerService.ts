@@ -22,7 +22,7 @@ import {
   CreateConnectMyComputerRoleResponse,
   Server,
   TshAbortSignal,
-  TshClient,
+  TshdClient,
 } from 'teleterm/services/tshd/types';
 
 import type * as uri from 'teleterm/ui/uri';
@@ -30,7 +30,7 @@ import type * as uri from 'teleterm/ui/uri';
 export class ConnectMyComputerService {
   constructor(
     private mainProcessClient: MainProcessClient,
-    private tshClient: TshClient
+    private tshClient: TshdClient
   ) {}
 
   async downloadAgent(): Promise<void> {
