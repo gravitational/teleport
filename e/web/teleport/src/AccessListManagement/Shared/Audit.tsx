@@ -6,6 +6,7 @@ import { Calendar as CalendarIcon } from 'design/Icon';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
+import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import {
   ReviewDayOfMonth,
@@ -116,6 +117,10 @@ export const CalendarDateSelect = ({
   label: string;
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const dayPickerRef = useRefClickOutside<HTMLDivElement>({
+    open: showDatePicker,
+    setOpen: setShowDatePicker,
+  });
 
   const { valid, message } = useRule(rule(date ? date.toDateString() : ''));
   const hasError = Boolean(!valid);
@@ -140,8 +145,8 @@ export const CalendarDateSelect = ({
       </CalendarInput>
       {showDatePicker && (
         <DatePicker
+          ref={dayPickerRef}
           selectedDate={date}
-          onClose={() => setShowDatePicker(false)}
           onPickDate={newDate => {
             onChange(newDate);
             setShowDatePicker(false);
