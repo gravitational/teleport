@@ -96,6 +96,10 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 		panic("firstConn for resume V1 is not actually unused")
 	}
 
+	// stopRequested is used by the read and write goroutines to know if a stop
+	// was requested in loops that don't perform I/O on nc - any request to
+	// detach will also close the connection, so exiting on I/O errors will
+	// naturally follow stop requests.
 	var stopRequested atomic.Bool
 	requestStop := func() {
 		if !stopRequested.Swap(true) {
@@ -197,6 +201,10 @@ func resumeV1Handshake(r *Conn, nc net.Conn, ncReader byteReaderReader, localPos
 
 func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) error {
 	for {
+		// a frame consists of a variable length integer acknowledging received
+		// data, then a variable length integer containing the length of the
+		// immediately-following data buffer
+
 		ack, err := binary.ReadUvarint(nc)
 		if err != nil {
 			return trace.Wrap(err, "reading ack")
@@ -209,6 +217,10 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 				r.cond.Broadcast()
 				r.mu.Unlock()
 
+				// if the other side has sent us the error tag for remote close
+				// then it has been done for a while; there's no need to be
+				// graceful and send our own data anymore, so we just kill the
+				// connection outright
 				return trace.Wrap(net.ErrClosed, "peer signaled connection close")
 			}
 
@@ -222,18 +234,23 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 			r.mu.Unlock()
 		}
 
-		size, err := binary.ReadUvarint(nc)
+		remainingSize, err := binary.ReadUvarint(nc)
 		if err != nil {
 			return trace.Wrap(err, "reading size")
 		}
 
-		if size > maxFrameSize {
-			return trace.BadParameter("got data size bigger than limit (%v, expected up to %v)", size, maxFrameSize)
+		if remainingSize > maxFrameSize {
+			return trace.BadParameter("got data size bigger than limit (%v, expected up to %v)", remainingSize, maxFrameSize)
 		}
 
 		r.mu.Lock()
 
-		for size > 0 {
+		// we don't necessarily have enough space in the receiveBuffer to read
+		// all the data, so we just loop until we've exhausted the data and we
+		// can start again with the next ack
+		for remainingSize > 0 {
+			// we are responsible for setting r.remoteClosed and we return
+			// immediately after setting it, so we don't need to check for that
 			for r.receiveBuffer.len() >= receiveBufferSize && !r.localClosed && !stopRequested.Load() {
 				r.cond.Wait()
 			}
@@ -244,11 +261,17 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 			}
 
 			if r.localClosed {
+				// if the Conn is locally closed the application will never read
+				// from the buffer, but we still need to go through the data
+				// from the peer to acknowledge it while we send the last of our
+				// own data; so we just discard it, instead
 				r.mu.Unlock()
 
-				n, err := io.Copy(io.Discard, io.LimitReader(nc, int64(size)))
+				n, err := io.Copy(io.Discard, io.LimitReader(nc, int64(remainingSize)))
 
 				r.mu.Lock()
+				// bump the position of our receive buffer so we will
+				// acknowledge the received data
 				r.receiveBuffer.end += uint64(n)
 				r.receiveBuffer.start = r.receiveBuffer.end
 				r.cond.Broadcast()
@@ -259,20 +282,29 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 				break
 			}
 
-			next := min(receiveBufferSize-r.receiveBuffer.len(), size)
+			next := min(receiveBufferSize-r.receiveBuffer.len(), remainingSize)
 			r.receiveBuffer.reserve(next)
+			// if there's space (and we just reserved space), the first of the
+			// two free slices is going to be non-empty (see [buffer.free]), so
+			// we can just ignore the second one, and let the next iterations of
+			// the remainingSize loop take care of completing the read of this
+			// frame, if necessary
 			tail, _ := r.receiveBuffer.free()
-			if len64(tail) > size {
-				tail = tail[:size]
+			if len64(tail) > remainingSize {
+				tail = tail[:remainingSize]
 			}
 			r.mu.Unlock()
 
 			n, err := io.ReadFull(nc, tail)
 
 			r.mu.Lock()
+			// the number returned by I/O functions is always meaningful even if there's an error
 			if n > 0 {
+				// this will not actually copy any data, since tail was
+				// subsliced from the buffer that we're about to copy into, and
+				// copy() will be a noop in that case
 				r.receiveBuffer.append(tail[:n])
-				size -= uint64(n)
+				remainingSize -= uint64(n)
 				r.cond.Broadcast()
 			}
 
@@ -286,20 +318,34 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 }
 
 func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, localPosition, peerPosition uint64) error {
-	var headerBuf [2 * binary.MaxVarintLen64]byte
-	var dataBuf [maxFrameSize]byte
+	// headerBuf and dataBuf are allocated only once because the compiler can't
+	// prove that I/O functions won't let the slices escape; by allocating these
+	// once and reusing them, we avoid allocating buffers on every loop
+	var (
+		headerBuf [2 * binary.MaxVarintLen64]byte
+		dataBuf   [maxFrameSize]byte
+	)
 
 	for {
 		var frameAck uint64
 		var frameData []byte
 
 		r.mu.Lock()
+		// here we wait until we have some data to acknowledge, some data to
+		// send, or we should exit
 		for {
+			// localPosition is the position we have acknowledged so far, so we
+			// need to acknowledge until the end of receiveBuffer
 			frameAck = r.receiveBuffer.end - localPosition
 
 			frameData = nil
 			if r.sendBuffer.end > peerPosition {
 				skip := peerPosition - r.sendBuffer.start
+				// we need to send as much data as possible starting from
+				// peerPosition, but it's convenient to only act on just one of
+				// the potential two contiguous slices of data in the buffer;
+				// it's ok to send less than all the possible data in a single
+				// frame, after all
 				d1, d2 := r.sendBuffer.buffered()
 				if len64(d1) <= skip {
 					frameData = d2[skip-len64(d1):]
@@ -307,6 +353,11 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, localPo
 					frameData = d1[skip:]
 				}
 			}
+
+			// TODO(espadolini): check if we'll benefit from only acknowledging
+			// above a certain amount of bytes, both in terms of bandwidth
+			// (likely very minor) and in terms of reducing two-byte syscalls
+			// (we shouldn't do the same with data, however)
 			if frameAck > 0 || len(frameData) > 0 {
 				break
 			}
@@ -314,7 +365,6 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, localPo
 			if stopRequested.Load() {
 				r.mu.Unlock()
 				return trace.Wrap(net.ErrClosed, "disconnection requested")
-
 			}
 
 			if r.remoteClosed {
@@ -325,21 +375,31 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, localPo
 			if r.localClosed {
 				r.mu.Unlock()
 
+				// if we got here we have no data to send, and since the
+				// connection was locally closed, we will never have data to
+				// send in the future, so we can signal the peer that we're done
 				_, _ = nc.Write(binary.AppendUvarint(nil, errorTag))
 				return trace.Wrap(net.ErrClosed, "connection closed")
 			}
 
 			r.cond.Wait()
 		}
+		// we can't Write() the slice from the sendBuffer here because otherwise
+		// there's no protection against the remote side acknowledging data that
+		// we're in the middle of sending, which might result in memory getting
+		// overwritten as the application writes more data in the buffer
+		//
+		// TODO(espadolini): remove this copy, perhaps reserving the outbound
+		// data in flight in the buffer
 		frameData = dataBuf[:copy(dataBuf[:], frameData)]
 		r.mu.Unlock()
 
 		frameHeader := binary.AppendUvarint(headerBuf[:0], frameAck)
 		frameHeader = binary.AppendUvarint(frameHeader, len64(frameData))
-
 		if _, err := nc.Write(frameHeader); err != nil {
 			return trace.Wrap(err, "writing frame header")
 		}
+
 		if _, err := nc.Write(frameData); err != nil {
 			return trace.Wrap(err, "writing frame data")
 		}
