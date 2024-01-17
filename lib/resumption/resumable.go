@@ -213,10 +213,9 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 
 		r.mu.Lock()
 
+	Outer:
 		for size > 0 {
 			if r.localClosed {
-				r.receiveBuffer.advance(r.receiveBuffer.len())
-				r.cond.Broadcast()
 				r.mu.Unlock()
 
 				n, err := io.Copy(io.Discard, io.LimitReader(nc, int64(size)))
@@ -240,6 +239,21 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 						return trace.ConnectionProblem(net.ErrClosed, "disconnection requested")
 					}
 					return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer")
+				}
+				if r.localClosed {
+					r.mu.Unlock()
+
+					n, err := io.Copy(io.Discard, io.LimitReader(nc, int64(size)))
+
+					r.mu.Lock()
+					r.receiveBuffer.start += uint64(n)
+					r.receiveBuffer.end = r.receiveBuffer.start
+					r.cond.Broadcast()
+					if err != nil {
+						r.mu.Unlock()
+						return trace.Wrap(err, "reading data to discard")
+					}
+					break Outer
 				}
 			}
 
