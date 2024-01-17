@@ -40,10 +40,13 @@ export const CustomRange = forwardRef<
     onChange(from: Date, to: Date): void;
   }
 >(({ initialRange, onChange }, ref) => {
-  // selectedRange has to be unitialized so we can properly
-  // intialize it later with the pickers built in `addToRange`
-  // function.
-  const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
+  // selectedRange is initially undefined since
+  // it represents the "new" range which upon
+  // initial render, nothing has been selected yet.
+  const [selectedRange, setSelectedRange] = useState<DateRange>({
+    from: undefined,
+    to: undefined,
+  });
 
   function handleDayClick(selectedDay: Date) {
     // Don't let select date past today.
@@ -56,15 +59,7 @@ export const CustomRange = forwardRef<
       return;
     }
 
-    let newRange;
-    if (!selectedRange) {
-      newRange = addToRange(selectedDay, { from: undefined, to: undefined });
-    } else {
-      newRange = addToRange(selectedDay, {
-        from: selectedRange.from,
-        to: selectedRange.to,
-      });
-    }
+    const newRange = addToRange(selectedDay, selectedRange);
 
     if (newRange.from) {
       newRange.from = startOfDay(newRange.from);
@@ -90,7 +85,7 @@ export const CustomRange = forwardRef<
         disabled={{
           after: new Date(),
         }}
-        selected={selectedRange || initialRange}
+        selected={selectedRange.from ? selectedRange : initialRange}
         onDayClick={handleDayClick}
       />
     </StyledDateRange>
