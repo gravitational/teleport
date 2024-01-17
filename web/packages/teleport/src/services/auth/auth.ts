@@ -274,10 +274,10 @@ const auth = {
     // the create mfa challenge endpoint below supports
     // MFARequired requests without the extra roundtrip.
     if (isMFARequiredRequest) {
-      let isMFARequired;
+      let isMFARequired: IsMfaRequiredResponse;
       try {
         isMFARequired = await checkMfaRequired(isMFARequiredRequest);
-        if (!isMFARequired) {
+        if (!isMFARequired.required) {
           return;
         }
       } catch {
@@ -325,7 +325,7 @@ const auth = {
 
 function checkMfaRequired(
   params: IsMfaRequiredRequest
-): Promise<{ required: boolean }> {
+): Promise<IsMfaRequiredResponse> {
   return api.post(cfg.getMfaRequiredUrl(), params);
 }
 
@@ -346,6 +346,10 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredKube
   | IsMfaRequiredWindowsDesktop
   | IsMFARequiredAdminAction;
+
+export type IsMfaRequiredResponse = {
+  required: boolean;
+};
 
 export type IsMfaRequiredDatabase = {
   database: {
