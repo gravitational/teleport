@@ -82,7 +82,7 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 		if r.remoteClosed {
 			r.mu.Unlock()
 
-			return trace.ConnectionProblem(errBrokenPipe, "attempting to resume a connection already closed by the peer")
+			return trace.Wrap(net.ErrClosed, "resuming a connection already closed by the peer")
 		}
 	} else if r.requestDetach != nil || r.remoteClosed || r.localClosed || r.receiveBuffer.end > 0 || r.sendBuffer.start > 0 {
 		r.mu.Unlock()
@@ -120,7 +120,7 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 	if !firstConn {
 		p, err := resumeV1Handshake(r, nc, ncReader, localPosition)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "handshake")
 		}
 		peerPosition = p
 	}
@@ -134,7 +134,7 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 		// that the peer has already been done with the connection for a while
 		// now, so anything we're going to write is going to be useless anyway
 		defer nc.Close()
-		return runResumeV1Read(r, ncReader, &stopRequested)
+		return trace.Wrap(runResumeV1Read(r, ncReader, &stopRequested), "read loop")
 	})
 
 	eg.Go(func() error {
@@ -142,7 +142,7 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 		// we shouldn't close the connection when exiting from the write loop,
 		// because the read loop might have data still worth parsing (if we
 		// exited because of I/O errors)
-		return runResumeV1Write(r, nc, &stopRequested, localPosition, peerPosition)
+		return trace.Wrap(runResumeV1Write(r, nc, &stopRequested, localPosition, peerPosition), "write loop")
 	})
 
 	return trace.Wrap(eg.Wait())
@@ -202,7 +202,7 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 				r.cond.Broadcast()
 				r.mu.Unlock()
 
-				return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer")
+				return trace.Wrap(net.ErrClosed, "peer signaled connection close")
 			}
 
 			if maxAck := r.sendBuffer.len(); ack > maxAck {
@@ -217,7 +217,7 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 
 		size, err := binary.ReadUvarint(nc)
 		if err != nil {
-			return trace.Wrap(err, "reading data size")
+			return trace.Wrap(err, "reading size")
 		}
 
 		if size > maxFrameSize {
@@ -233,7 +233,7 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 
 			if stopRequested.Load() {
 				r.mu.Unlock()
-				return trace.ConnectionProblem(net.ErrClosed, "disconnection requested")
+				return trace.Wrap(net.ErrClosed, "disconnection requested")
 			}
 
 			if r.localClosed {
@@ -247,7 +247,7 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 				r.cond.Broadcast()
 				if err != nil {
 					r.mu.Unlock()
-					return trace.Wrap(err, "reading data to discard")
+					return trace.Wrap(err, "discarding data")
 				}
 				break
 			}
@@ -306,20 +306,20 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, localPo
 
 			if stopRequested.Load() {
 				r.mu.Unlock()
-				return trace.ConnectionProblem(nil, "disconnection requested")
+				return trace.Wrap(net.ErrClosed, "disconnection requested")
 
 			}
 
 			if r.remoteClosed {
 				r.mu.Unlock()
-				return trace.ConnectionProblem(errBrokenPipe, "connection closed by peer")
+				return trace.Wrap(net.ErrClosed, "connection closed by peer")
 			}
 
 			if r.localClosed {
 				r.mu.Unlock()
 
 				_, _ = nc.Write([]byte(errorTagUvarint))
-				return trace.ConnectionProblem(net.ErrClosed, "connection closed")
+				return trace.Wrap(net.ErrClosed, "connection closed")
 			}
 
 			r.cond.Wait()
