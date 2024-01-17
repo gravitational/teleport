@@ -20,7 +20,7 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, globalShortcut, shell, nativeTheme } from 'electron';
+import { app, dialog, globalShortcut, shell, nativeTheme } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
 
@@ -147,19 +147,51 @@ function initializeApp(): void {
   // triggered on macOS if the app is not already running when the user opens a deep link.
   setUpDeepLinks(logger, windowsManager, settings);
 
-  app.whenReady().then(() => {
-    if (mainProcess.settings.dev) {
-      // allow restarts on F6
-      globalShortcut.register('F6', () => {
-        devRelaunchScheduled = true;
-        app.quit();
-      });
-    }
+  (async () => {
+    await mainProcess.initTshdClient();
 
-    enableWebHandlersProtection();
-
-    windowsManager.createWindow();
+    // TODO(ravicious): Keep a cluster list and refresh it when notified by the renderer process.
+    // Example:
+    // const tshdClient = await mainProcess.initTshdClient();
+    //
+    // ipcMain.on(MainProcessIpc.RefreshClusterList, () => {
+    //   tshdClient.listRootClusters();
+    // });
+  })().catch(error => {
+    const message =
+      'Could not initialize tsh daemon client in the main process';
+    logger.error(message, error);
+    dialog.showErrorBox(
+      'Error during main process startup',
+      `${message}: ${error}`
+    );
+    app.quit();
   });
+
+  app
+    .whenReady()
+    .then(() => {
+      if (mainProcess.settings.dev) {
+        // allow restarts on F6
+        globalShortcut.register('F6', () => {
+          devRelaunchScheduled = true;
+          app.quit();
+        });
+      }
+
+      enableWebHandlersProtection();
+
+      windowsManager.createWindow();
+    })
+    .catch(error => {
+      const message = 'Could not initialize the app';
+      logger.error(message, error);
+      dialog.showErrorBox(
+        'Error during app initialization',
+        `${message}: ${error}`
+      );
+      app.quit();
+    });
 
   // Limit navigation capabilities to reduce the attack surface.
   // See TEL-Q122-19 from "Teleport Core Testing Q1 2022" security audit.
