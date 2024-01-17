@@ -10436,7 +10436,8 @@ type CreateAuthenticateChallengeRequest struct {
 	// call [AuthService.IsMFARequired] in the leaf instead of setting this field.
 	MFARequiredCheck *IsMFARequiredRequest `protobuf:"bytes,5,opt,name=MFARequiredCheck,proto3" json:"mfa_required_check,omitempty"`
 	// ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
-	// ChallengeExtensions only apply to webauthn challenges currently. Required.
+	// ChallengeExtensions only apply to webauthn challenges currently. Required, except
+	// for v15 clients and older.
 	ChallengeExtensions  *v11.ChallengeExtensions `protobuf:"bytes,6,opt,name=ChallengeExtensions,proto3" json:"challenge_extensions,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
 	XXX_unrecognized     []byte                   `json:"-"`

@@ -1843,7 +1843,8 @@ message CreateAuthenticateChallengeRequest {
   // call [AuthService.IsMFARequired] in the leaf instead of setting this field.
   IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
   // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
-  // ChallengeExtensions only apply to webauthn challenges currently. Required.
+  // ChallengeExtensions only apply to webauthn challenges currently. Required, except
+  // for v15 clients and older.
   teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 6 [(gogoproto.jsontag) = "challenge_extensions,omitempty"];
 }
 
