@@ -488,11 +488,8 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
-	// If used as part of the recovery flow, getting new recovery codes marks the end of the flow in the UI.
-	if token.GetSubKind() == UserTokenTypeRecoveryApproved {
-		if err := a.deleteUserTokens(ctx, token.GetUser()); err != nil {
-			log.Error(trace.DebugReport(err))
-		}
+	if err := a.deleteUserTokens(ctx, token.GetUser()); err != nil {
+		log.Error(trace.DebugReport(err))
 	}
 
 	return newRecovery, nil

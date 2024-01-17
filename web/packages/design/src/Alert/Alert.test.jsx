@@ -54,7 +54,7 @@ describe('design/Alert', () => {
   test('"kind" success renders bg == theme.colors.success', () => {
     const { container } = render(<Success />);
     expect(container.firstChild).toHaveStyle({
-      background: theme.colors.success,
+      background: theme.colors.success.main,
     });
   });
 });

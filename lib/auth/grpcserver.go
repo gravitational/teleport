@@ -64,6 +64,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
@@ -435,6 +436,7 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
+	opInitHandler := maybeFilterCertAuthorityWatches(stream.Context(), &servicesWatch)
 	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -449,8 +451,15 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 
 	for events.Next() {
 		event := events.Item()
+		if event.Type == types.OpInit && opInitHandler != nil {
+			opInitHandler(&event)
+		}
 		if role, ok := event.Resource.(*types.RoleV6); ok {
-			event.Resource = role
+			downgraded, err := maybeDowngradeRole(stream.Context(), role)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			event.Resource = downgraded
 		}
 		out, err := client.EventToGRPC(event)
 		if err != nil {
@@ -468,6 +477,123 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 
 	// deferred cleanup func will inject stream error if needed
 	return nil
+}
+
+// dbClientCAVersionCutoff is the version starting from which we stop
+// injecting a filter that drops DatabaseClientCA events.
+var dbClientCACutoffVersion = semver.Version{Major: 14, Minor: 3, Patch: 1}
+
+// maybeFilterCertAuthorityWatches will inject a CA filter and return a
+// function that removes the filter from the OpInit event if the client version
+// does not support DatabaseClientCA type and if the client's CA WatchKind is
+// trivial, i.e. it's not already filtering. Otherwise we assume that the client
+// knows what it's doing and this function does nothing.
+// This is a hack to avoid client cache re-init during CA rotation in older
+// services that don't use a CA watch filter, i.e. every service except Node
+// since v9.
+// The returned function, if non-nil, must be called on the OpInit event, to
+// remove the injected filter from the OpInit event's WatchStatus. This is to
+// maintain the illusion to the client that CA events have not been filtered.
+// If we did not remove the injected filter, then validateWatchRequest would
+// fail on the client side because the confirmed kind filter is not as narrow or
+// narrower than a trivial WatchKind.
+//
+// TODO(gavin): DELETE IN 16.0.0 - no supported clients will require this at
+// that point.
+func maybeFilterCertAuthorityWatches(ctx context.Context, watch *types.Watch) func(*types.Event) {
+	// check client version to see if it knows the DatabaseClientCA type.
+	clientVersion, err := getClientVersion(ctx)
+	if err != nil {
+		log.Debugf("Unable to determine client version: %v", err)
+		return nil
+	}
+	if versionHandlesDatabaseClientCAEvents(*clientVersion) {
+		// don't need to inject a CA filter if the client support DB Client CA.
+		return nil
+	}
+
+	// search for trivial CA WatchKinds to inject a filter into - all of them
+	// must be trivial so we can remove the filter(s) from OpInit later.
+	var targets []*types.WatchKind
+	for i, k := range watch.Kinds {
+		if k.Kind != types.KindCertAuthority {
+			continue
+		}
+
+		if !k.IsTrivial() {
+			// We need to remove the injected filter(s) from the OpInit event
+			// later.
+			// As a precaution, do nothing when any of the CA WatchKind(s) are
+			// non-trivial.
+			log.Debugf("Cannot inject filter into non-trivial CertAuthority watcher with client version %s.", clientVersion)
+			return nil
+		}
+		targets = append(targets, &watch.Kinds[i])
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+
+	// create a CA filter that excludes DatabaseClientCA.
+	caFilter := make(types.CertAuthorityFilter, len(types.CertAuthTypes)-1)
+	for _, caType := range types.CertAuthTypes {
+		// exclude db client CA.
+		if caType == types.DatabaseClientCA {
+			continue
+		}
+		caFilter[caType] = types.Wildcard
+	}
+
+	log.Debugf("Injecting filter for CertAuthority watcher with client version %s.", clientVersion)
+	for _, t := range targets {
+		t.Filter = caFilter.IntoMap()
+	}
+
+	// return a func that removes the injected filter from the OpInit event.
+	// otherwise, client watchers may get confused by the upstream confirmed
+	// kinds.
+	return removeOpInitWatchStatusCAFilters
+}
+
+func getClientVersion(ctx context.Context) (*semver.Version, error) {
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		return nil, trace.NotFound("no client version found in grpc context")
+	}
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	return clientVersion, trace.Wrap(err)
+}
+
+// versionHandlesDatabaseClientCAEvents returns true if the client version can
+// handle the DatabaseClientCA, either because the client knows of the
+// DatabaseClientCA or it uses a CA filter. This CA was introduced in backports.
+// Client version in the intervals [v12.x, v13.0), [v13.y, v14.0), [v14.z, inf)
+// can handle the DatabaseClientCA type, where x, y, z are the minor release
+// versions that the DatabaseClientCA is backported to.
+func versionHandlesDatabaseClientCAEvents(v semver.Version) bool {
+	v.PreRelease = "" // ignore pre-release tags
+	return !v.LessThan(dbClientCACutoffVersion)
+}
+
+func removeOpInitWatchStatusCAFilters(e *types.Event) {
+	// this is paranoid, but make sure we don't panic or modify events that
+	// aren't OpInit.
+	if e == nil || e.Resource == nil || e.Type != types.OpInit {
+		return
+	}
+	status, ok := e.Resource.(types.WatchStatus)
+	if !ok || status == nil {
+		return
+	}
+
+	kinds := status.GetKinds()
+	for i, k := range kinds {
+		if k.Kind != types.KindCertAuthority {
+			continue
+		}
+		kinds[i].Filter = nil
+	}
+	status.SetKinds(kinds)
 }
 
 // resourceLabel returns the label for the provided types.Event
@@ -1399,8 +1525,9 @@ func (g *GRPCServer) SignDatabaseCSR(ctx context.Context, req *authpb.DatabaseCS
 	return response, nil
 }
 
-// GenerateDatabaseCert generates client certificate used by a database
-// service to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 func (g *GRPCServer) GenerateDatabaseCert(ctx context.Context, req *authpb.DatabaseCertRequest) (*authpb.DatabaseCertResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2037,6 +2164,73 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *authpb
 	return &emptypb.Empty{}, nil
 }
 
+// maybeDowngradeRole tests the client version passed through the gRPC metadata,
+// and if the client version is unknown or less than the minimum supported
+// version for some features of the role returns a shallow copy of the given
+// role downgraded for compatibility with the older version.
+func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6, error) {
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		// This client is not reporting its version via gRPC metadata. Teleport
+		// clients have been reporting their version for long enough that older
+		// clients won't even support v6 roles at all, so this is likely a
+		// third-party client, and we shouldn't assume that downgrading the role
+		// will do more good than harm.
+		return role, nil
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+	}
+
+	role = maybeDowngradeRoleHostUserCreationMode(role, clientVersion)
+	return role, nil
+}
+
+var minSupportedInsecureDropModeVersions = map[int64]semver.Version{
+	12: {Major: 12, Minor: 4, Patch: 30},
+	13: {Major: 13, Minor: 4, Patch: 11},
+	14: {Major: 14, Minor: 2, Patch: 2},
+}
+
+// maybeDowngradeRoleHostUserCreationMode tests the client version passed through the gRPC metadata, and
+// if the client version is less than the minimum supported version for the insecure-drop
+// host user creation mode returns a shallow copy of the role with mode drop. If the
+// passed in role does not have mode insecure-drop or the client is a supported version,
+// the role is returned unchanged.
+func maybeDowngradeRoleHostUserCreationMode(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	if role.GetOptions().CreateHostUserMode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
+		return role
+	}
+	minSupportedVersion, ok := minSupportedInsecureDropModeVersions[clientVersion.Major]
+	// Check if insecure-drop is supported. insecure-drop is not supported below
+	// v12, supported for some versions of v12 through v14, and supported for v15+.
+	if clientVersion.Major >= 12 && (!ok || !clientVersion.LessThan(minSupportedVersion)) {
+		return role
+	}
+
+	// Make a shallow copy of the role so that we don't mutate the original.
+	// This is necessary because the role is shared
+	// between multiple clients sessions when notifying about changes in watchers.
+	// If we mutate the original role, it will be mutated for all clients
+	// which can cause panics since it causes a race condition.
+	role = apiutils.CloneProtoMsg(role)
+	options := role.GetOptions()
+	options.CreateHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_DROP
+	role.SetOptions(options)
+
+	reason := fmt.Sprintf(`Client version %q does not support the host creation user mode `+
+		`'insecure-drop'. Role %q will be downgraded to use 'drop' mode instead. `+
+		`In order to support 'insecure-drop', all clients must be updated to version %q or higher.`,
+		clientVersion, role.GetName(), minSupportedVersion)
+	if role.Metadata.Labels == nil {
+		role.Metadata.Labels = make(map[string]string, 1)
+	}
+	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+	return role
+}
+
 // GetRole retrieves a role by name.
 func (g *GRPCServer) GetRole(ctx context.Context, req *authpb.GetRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
@@ -2052,7 +2246,11 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *authpb.GetRoleRequest) (*
 		return nil, trace.Errorf("encountered unexpected role type: %T", role)
 	}
 
-	return role, nil
+	downgraded, err := maybeDowngradeRole(ctx, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return downgraded, nil
 }
 
 // GetRoles retrieves all roles.
@@ -2071,7 +2269,11 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*authpb.Ge
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", r)
 		}
-		roles = append(roles, role)
+		downgraded, err := maybeDowngradeRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, downgraded)
 	}
 	return &authpb.GetRolesResponse{
 		Roles: roles,

@@ -165,6 +165,23 @@ as well as an upgrade of the previous version of Teleport.
     sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
     ```
 
+- [ ] External Audit Storage
+
+    External Audit Storage must be tested on an Enterprise Cloud tenant.
+    Instructions for deploying a custom release to a cloud staging tenant: https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md
+
+  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/choose-an-edition/teleport-cloud/external-audit-storage/
+    - [ ] Docs (including screenshots) are up to date
+    - [ ] Discover flow works with or without an existing AWS OIDC integration
+    - [ ] Draft configuration can be resumed after navigating away
+    - [ ] Bootstrap step (oneoff command pasted into CloudShell) works to create infra
+    - [ ] Created IAM policy (attached to AWS OIDC integration role) matches docs example
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) are stored in configured S3 buckets
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) can be queried and played in the web UI
+    - [ ] `tsh play <session-id>` works
+  - [ ] Existing EAS configuration can be replaced with a new one via Discover flow
+  - [ ] Existing EAS configuration can be deleted (disabling EAS)
+
 - [ ] Interact with a cluster using `tsh`
 
    These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
@@ -235,14 +252,6 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Connect to a OpenSSH node
   - [ ] Connect to a Agentless node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
-
-- [ ] `tsh` CA loading
-
-  Create a trusted cluster pair with a node in the leaf cluster. Log into the root cluster.
-  - [ ] `load_all_cas` on the root auth server is `false` (default) -
-  `tsh ssh leaf.node.example.com` results in access denied.
-  - [ ] `load_all_cas` on the root auth server is `true` - `tsh ssh leaf.node.example.com`
-  succeeds.
 
 - [ ] X11 Forwarding
   - Install `xeyes` and `xclip`:
@@ -472,6 +481,16 @@ connectors are accepted, invalid are rejected with sensible error messages.
     - [ ] OIDC
         - [ ] Google Workspace
         - [ ] Non-Google IdP
+
+### SSO login on remote host
+
+- [ ] SSO login on a remote host
+
+`tsh` should be running on a remote host (e.g. over an SSH session) and use the
+local browser to complete and SSO login. Run
+`tsh login --callback <remote.host>:<port> --bind-addr localhost:<port> --auth <auth>`
+on the remote host. Note that the `--callback` URL must be able to resolve to the
+`--bind-addr` over HTTPS.
 
 ### Teleport Plugins
 
@@ -755,6 +774,11 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
   - [ ] Make sure docs/links are up to date
   - [ ] New cluster with CloudHSM CA works
   - [ ] Migrating a software cluster to CloudHSM works
+  - [ ] CA rotation works
+- [ ] AWS KMS Support
+  - [ ] Make sure docs/links are up to date
+  - [ ] New cluster with AWS KMS CA works
+  - [ ] Migrating a software cluster to AWS KMS works
   - [ ] CA rotation works
 - [ ] GCP KMS Support
   - [ ] Make sure docs/links are up to date

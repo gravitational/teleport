@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -42,7 +43,7 @@ type SoftwareConfig struct {
 
 func (cfg *SoftwareConfig) CheckAndSetDefaults() error {
 	if cfg.RSAKeyPairSource == nil {
-		return trace.BadParameter("must provide RSAKeyPairSource")
+		cfg.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	return nil
 }
@@ -84,16 +85,14 @@ func (s *softwareKeyStore) canSignWithKey(ctx context.Context, _ []byte, keyType
 	return keyType == types.PrivateKeyType_RAW, nil
 }
 
-// deleteKey deletes the given key from the KeyStore. This is a no-op for
-// softwareKeyStore.
+// deleteKey is a no-op for softwareKeyStore because the keys are not actually
+// stored in any external backend.
 func (s *softwareKeyStore) deleteKey(_ context.Context, _ []byte) error {
 	return nil
 }
 
-// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
-// 1. Labeled by this KeyStore when they were created
-// 2. Not included in the argument activeKeys
-// This is a no-op for rawKeyStore.
-func (s *softwareKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+// deleteUnusedKeys is a no-op for softwareKeyStore because the keys are not
+// actually stored in any external backend.
+func (s *softwareKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	return nil
 }

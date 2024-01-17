@@ -385,6 +385,12 @@ func TestUpdateUser(t *testing.T) {
 	createEvent, ok = event.(*apievents.UserCreate)
 	require.True(t, ok, "expected a UserCreate event got %T", event)
 	assert.Equal(t, "alice", createEvent.UserMetadata.User)
+
+	// Attempt to update an existing user and set invalid roles
+	updated.User.AddRole("does-not-exist")
+	_, err = env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: updated.User})
+	assert.True(t, trace.IsNotFound(err), "expected a not found error, got %T", err)
+	require.Error(t, err, "user allowed to be updated with a role that does not exist")
 }
 
 func TestUpsertUser(t *testing.T) {
@@ -427,6 +433,12 @@ func TestUpsertUser(t *testing.T) {
 	createEvent, ok = event.(*apievents.UserCreate)
 	require.True(t, ok, "expected a UserCreate event got %T", event)
 	assert.Equal(t, "alice", createEvent.UserMetadata.User)
+
+	// Attempt to upsert a  user and set invalid roles
+	updated.User.AddRole("does-not-exist")
+	_, err = env.UpsertUser(ctx, &userspb.UpsertUserRequest{User: updated.User})
+	assert.True(t, trace.IsNotFound(err), "expected a not found error, got %T", err)
+	require.Error(t, err, "user allowed to be upserted with a role that does not exist")
 }
 
 func TestListUsers(t *testing.T) {

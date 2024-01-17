@@ -45,6 +45,7 @@ export type CrossClusterResourceSearchResult = {
 
 const SUPPORTED_RESOURCE_TYPES: ResourceTypeFilter[] = [
   'node',
+  'app',
   'db',
   'kube_cluster',
 ];
@@ -397,6 +398,7 @@ function getLengthScore(searchTerm: string, matchedValue: string): number {
 
 export const resourceTypeToReadableName: Record<ResourceTypeFilter, string> = {
   db: 'databases',
+  app: 'apps',
   node: 'servers',
   kube_cluster: 'kubes',
 };

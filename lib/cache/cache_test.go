@@ -2702,6 +2702,25 @@ func TestCache_Backoff(t *testing.T) {
 
 // TestSetupConfigFns ensures that all WatchKinds used in setup config functions are present in ForAuth() as well.
 func TestSetupConfigFns(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Mirror:  true,
+	})
+	require.NoError(t, err)
+	defer bk.Close()
+
+	clusterConfigCache, err := local.NewClusterConfigurationService(bk)
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	require.NoError(t, err)
+	err = clusterConfigCache.UpsertClusterName(clusterName)
+	require.NoError(t, err)
+
 	setupFuncs := map[string]SetupConfigFn{
 		"ForProxy":          ForProxy,
 		"ForRemoteProxy":    ForRemoteProxy,
@@ -2716,20 +2735,27 @@ func TestSetupConfigFns(t *testing.T) {
 	}
 
 	authKindMap := make(map[resourceKind]types.WatchKind)
-	for _, wk := range ForAuth(Config{}).Watches {
+	for _, wk := range ForAuth(Config{ClusterConfig: clusterConfigCache}).Watches {
 		authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}] = wk
 	}
 
 	for name, f := range setupFuncs {
 		t.Run(name, func(t *testing.T) {
-			for _, wk := range f(Config{}).Watches {
+			for _, wk := range f(Config{ClusterConfig: clusterConfigCache}).Watches {
 				authWK, ok := authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}]
 				if !ok || !authWK.Contains(wk) {
 					t.Errorf("%s includes WatchKind %s that is missing from ForAuth", name, wk.String())
 				}
+				if wk.Kind == types.KindCertAuthority {
+					require.NotEmpty(t, wk.Filter, "every setup fn except auth should have a CA filter")
+				}
 			}
 		})
 	}
+
+	authCAWatchKind, ok := authKindMap[resourceKind{kind: types.KindCertAuthority}]
+	require.True(t, ok)
+	require.Empty(t, authCAWatchKind.Filter, "auth should not use a CA filter")
 }
 
 type proxyEvents struct {
@@ -3306,3 +3332,86 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
    </md:SPSSODescriptor>
 </md:EntityDescriptor>
 `
+
+// TestCAWatcherFilters tests cache CA watchers with filters are not rejected
+// by auth, even if a CA filter includes a "new" CA type.
+func TestCAWatcherFilters(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	allCAsAndNewCAFilter := makeAllKnownCAsFilter()
+	// auth will never send such an event, but it won't reject the watch request
+	// either since auth cache's confirmedKinds dont have a CA filter.
+	allCAsAndNewCAFilter["someBackportedCAType"] = "*"
+
+	tests := []struct {
+		desc    string
+		filter  types.CertAuthorityFilter
+		watcher types.Watcher
+	}{
+		{
+			desc: "empty filter",
+		},
+		{
+			desc:   "all CAs filter",
+			filter: makeAllKnownCAsFilter(),
+		},
+		{
+			desc:   "all CAs and a new CA filter",
+			filter: allCAsAndNewCAFilter,
+		},
+	}
+
+	// setup watchers for each test case before we generate events.
+	for i := range tests {
+		test := &tests[i]
+		w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
+			{
+				Kind:   types.KindCertAuthority,
+				Filter: test.filter.IntoMap(),
+			},
+		}})
+		require.NoError(t, err)
+		test.watcher = w
+		t.Cleanup(func() {
+			require.NoError(t, w.Close())
+		})
+	}
+
+	// generate an OpPut event.
+	ca := suite.NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
+
+	const fetchTimeout = time.Second
+	for _, test := range tests {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			event := fetchEvent(t, test.watcher, fetchTimeout)
+			require.Equal(t, types.OpInit, event.Type)
+
+			event = fetchEvent(t, test.watcher, fetchTimeout)
+			require.Equal(t, types.OpPut, event.Type)
+			require.Equal(t, types.KindCertAuthority, event.Resource.GetKind())
+			gotCA, ok := event.Resource.(*types.CertAuthorityV2)
+			require.True(t, ok)
+			require.Equal(t, types.UserCA, gotCA.GetType())
+		})
+	}
+}
+
+func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Event {
+	t.Helper()
+	timeoutC := time.After(timeout)
+	var ev types.Event
+	select {
+	case <-timeoutC:
+		require.Fail(t, "Timeout waiting for event", w.Error())
+	case <-w.Done():
+		require.Fail(t, "Watcher exited with error", w.Error())
+	case ev = <-w.Events():
+	}
+	return ev
+}

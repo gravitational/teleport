@@ -392,17 +392,16 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 		records = append(records, record)
 	}
 
-	for len(records) > 0 {
-		report, err := prepareUserActivityReport(r.clusterName, r.hostID, startTime, records)
-		if err != nil {
-			r.log.WithError(err).WithFields(logrus.Fields{
-				"start_time":   startTime,
-				"lost_records": len(records),
-			}).Error("Failed to prepare user activity report, dropping data.")
-			return
-		}
-		records = records[len(report.Records):]
+	reports, err := prepareUserActivityReports(r.clusterName, r.hostID, startTime, records)
+	if err != nil {
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time":   startTime,
+			"lost_records": len(records),
+		}).Error("Failed to prepare user activity report, dropping data.")
+		return
+	}
 
+	for _, report := range reports {
 		if err := r.svc.upsertUserActivityReport(ctx, report, reportTTL); err != nil {
 			r.log.WithError(err).WithFields(logrus.Fields{
 				"start_time":   startTime,

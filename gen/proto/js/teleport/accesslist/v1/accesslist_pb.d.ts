@@ -84,6 +84,12 @@ export class AccessListSpec extends jspb.Message {
     setOwnership(value: string): AccessListSpec;
 
 
+    hasOwnerGrants(): boolean;
+    clearOwnerGrants(): void;
+    getOwnerGrants(): AccessListGrants | undefined;
+    setOwnerGrants(value?: AccessListGrants): AccessListSpec;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListSpec.AsObject;
     static toObject(includeInstance: boolean, msg: AccessListSpec): AccessListSpec.AsObject;
@@ -105,6 +111,7 @@ export namespace AccessListSpec {
         title: string,
         membership: string,
         ownership: string,
+        ownerGrants?: AccessListGrants.AsObject,
     }
 }
 

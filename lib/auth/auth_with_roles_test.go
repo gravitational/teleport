@@ -29,8 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -1090,7 +1088,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 }
 
 // TestGenerateDatabaseCert makes sure users and services with appropriate
-// permissions can generate certificates for self-hosted databases.
+// permissions can generate database certificates.
 func TestGenerateDatabaseCert(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1111,22 +1109,26 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		desc     string
-		identity TestIdentity
-		err      string
+		desc      string
+		identity  TestIdentity
+		requester proto.DatabaseCertRequest_Requester
+		err       string
 	}{
 		{
-			desc:     "user can't sign database certs",
-			identity: TestUser(userWithoutAccess.GetName()),
-			err:      "access denied",
+			desc:      "user can't sign database certs",
+			identity:  TestUser(userWithoutAccess.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
+			err:       "access denied",
 		},
 		{
-			desc:     "user can impersonate Db and sign database certs",
-			identity: TestUser(userImpersonateDb.GetName()),
+			desc:      "user can impersonate Db and sign database certs",
+			identity:  TestUser(userImpersonateDb.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
-			desc:     "built-in admin can sign database certs",
-			identity: TestAdmin(),
+			desc:      "built-in admin can sign database certs",
+			identity:  TestAdmin(),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
 			desc:     "database service can sign database certs",
@@ -1146,7 +1148,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 			client, err := srv.NewClient(test.identity)
 			require.NoError(t, err)
 
-			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
+			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr, RequesterName: test.requester})
 			if test.err != "" {
 				require.ErrorContains(t, err, test.err)
 			} else {
@@ -2041,11 +2043,11 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	discoveryClt, err := srv.NewClient(TestBuiltin(types.RoleDiscovery))
 	require.NoError(t, err)
 
-	eksCluster, err := services.NewKubeClusterFromAWSEKS(&eks.Cluster{
-		Name:   aws.String("eks-cluster1"),
-		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
-		Status: aws.String(eks.ClusterStatusActive),
-	})
+	eksCluster, err := services.NewKubeClusterFromAWSEKS(
+		"eks-cluster1",
+		"arn:aws:eks:eu-west-1:accountID:cluster/cluster1",
+		nil,
+	)
 	require.NoError(t, err)
 	eksCluster.SetOrigin(types.OriginCloud)
 
@@ -2061,11 +2063,11 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	require.NoError(t, srv.Auth().CreateKubernetesCluster(ctx, nonCloudCluster))
 
 	// Discovery service cannot create cluster with dynamic labels.
-	clusterWithDynamicLabels, err := services.NewKubeClusterFromAWSEKS(&eks.Cluster{
-		Name:   aws.String("eks-cluster2"),
-		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
-		Status: aws.String(eks.ClusterStatusActive),
-	})
+	clusterWithDynamicLabels, err := services.NewKubeClusterFromAWSEKS(
+		"eks-cluster2",
+		"arn:aws:eks:eu-west-1:accountID:cluster/cluster2",
+		nil,
+	)
 	require.NoError(t, err)
 	clusterWithDynamicLabels.SetOrigin(types.OriginCloud)
 	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{

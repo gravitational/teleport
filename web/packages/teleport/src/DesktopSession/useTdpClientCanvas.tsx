@@ -167,7 +167,7 @@ export default function useTdpClientCanvas(props: Props) {
     setClipboardSharingEnabled(false);
     setTdpConnection({
       status: 'failed',
-      statusText: error.message,
+      statusText: error.message || error.toString(),
     });
   };
 

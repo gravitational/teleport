@@ -281,13 +281,11 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 	b.session.Config.HTTPClient = httpClient
 
-	// create DynamoDB service:
+	// Create DynamoDB service.
 	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Backend, dynamodb.New(b.session, &aws.Config{
 		// Setting this on the individual service instead of the session, as DynamoDB Streams
 		// and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
 		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
-		// TODO(reed): This can be simplified once https://github.com/aws/aws-sdk-go/pull/5078
-		// is available (or whenever AWS adds the missing FIPS endpoints).
 		UseFIPSEndpoint: useFIPSEndpoint,
 	}))
 	if err != nil {

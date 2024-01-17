@@ -31,16 +31,19 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestAWSKMS_DeleteUnusedKeys tests the AWS KMS keystore's DeleteUnusedKeys
+// TestAWSKMS_deleteUnusedKeys tests the AWS KMS keystore's deleteUnusedKeys
 // method under conditions where the ListKeys response is paginated and/or
 // includes keys created by other clusters.
 //
@@ -57,8 +60,13 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			Cluster:    "test-cluster",
 			AWSAccount: "123456789012",
 			AWSRegion:  "us-west-2",
-			KMS:        fakeKMS,
-			clock:      clock,
+			CloudClients: &cloud.TestCloudClients{
+				KMS: fakeKMS,
+				STS: &fakeAWSSTSClient{
+					account: "123456789012",
+				},
+			},
+			clock: clock,
 		},
 	}
 	keyStore, err := NewManager(ctx, cfg)
@@ -110,14 +118,93 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 	}
 }
 
+func TestAWSKMS_WrongAccount(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	cfg := Config{
+		AWSKMS: AWSKMSConfig{
+			Cluster:    "test-cluster",
+			AWSAccount: "111111111111",
+			AWSRegion:  "us-west-2",
+			CloudClients: &cloud.TestCloudClients{
+				KMS: newFakeAWSKMSService(t, clock, "222222222222", "us-west-2", 1000),
+				STS: &fakeAWSSTSClient{
+					account: "222222222222",
+				},
+			},
+		},
+	}
+	_, err := NewManager(context.Background(), cfg)
+	require.ErrorIs(t, err, trace.BadParameter(`configured AWS KMS account "111111111111" does not match AWS account of ambient credentials "222222222222"`))
+}
+
+func TestAWSKMS_RetryWhilePending(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	kms := &fakeAWSKMSService{
+		clock:     clock,
+		account:   "111111111111",
+		region:    "us-west-2",
+		pageLimit: 1000,
+	}
+	cfg := Config{
+		AWSKMS: AWSKMSConfig{
+			Cluster:    "test-cluster",
+			AWSAccount: "111111111111",
+			AWSRegion:  "us-west-2",
+			CloudClients: &cloud.TestCloudClients{
+				KMS: kms,
+				STS: &fakeAWSSTSClient{
+					account: "111111111111",
+				},
+			},
+			clock: clock,
+		},
+	}
+	manager, err := NewManager(context.Background(), cfg)
+	require.NoError(t, err)
+
+	// Test with one retry required.
+	kms.keyPendingDuration = pendingKeyBaseRetryInterval
+	go func() {
+		clock.BlockUntil(2)
+		clock.Advance(kms.keyPendingDuration)
+	}()
+	_, err = manager.NewSSHKeyPair(ctx)
+	require.NoError(t, err)
+
+	// Test with two retries required.
+	kms.keyPendingDuration = 4 * pendingKeyBaseRetryInterval
+	go func() {
+		clock.BlockUntil(2)
+		clock.Advance(kms.keyPendingDuration / 2)
+		clock.BlockUntil(2)
+		clock.Advance(kms.keyPendingDuration / 2)
+	}()
+	_, err = manager.NewSSHKeyPair(ctx)
+	require.NoError(t, err)
+
+	// Test a timeout.
+	kms.keyPendingDuration = 2 * pendingKeyTimeout
+	go func() {
+		clock.BlockUntil(2)
+		clock.Advance(pendingKeyBaseRetryInterval)
+		clock.BlockUntil(2)
+		clock.Advance(pendingKeyTimeout)
+	}()
+	_, err = manager.NewSSHKeyPair(ctx)
+	require.Error(t, err)
+}
+
 type fakeAWSKMSService struct {
 	kmsiface.KMSAPI
 
-	keys      []*fakeAWSKMSKey
-	clock     clockwork.Clock
-	account   string
-	region    string
-	pageLimit int
+	keys               []*fakeAWSKMSKey
+	clock              clockwork.Clock
+	account            string
+	region             string
+	pageLimit          int
+	keyPendingDuration time.Duration
 }
 
 func newFakeAWSKMSService(t *testing.T, clock clockwork.Clock, account string, region string, pageLimit int) *fakeAWSKMSService {
@@ -145,11 +232,15 @@ func (f *fakeAWSKMSService) CreateKey(input *kms.CreateKeyInput) (*kms.CreateKey
 		AccountID: f.account,
 		Resource:  id,
 	}
+	state := "Enabled"
+	if f.keyPendingDuration > 0 {
+		state = "Pending"
+	}
 	f.keys = append(f.keys, &fakeAWSKMSKey{
 		arn:          a.String(),
 		tags:         input.Tags,
 		creationDate: f.clock.Now(),
-		state:        "Enabled",
+		state:        state,
 	})
 	return &kms.CreateKeyOutput{
 		KeyMetadata: &kms.KeyMetadata{
@@ -159,10 +250,10 @@ func (f *fakeAWSKMSService) CreateKey(input *kms.CreateKeyInput) (*kms.CreateKey
 	}, nil
 }
 
-func (f *fakeAWSKMSService) GetPublicKey(input *kms.GetPublicKeyInput) (*kms.GetPublicKeyOutput, error) {
-	key, ok := f.findKey(aws.StringValue(input.KeyId))
-	if !ok {
-		return nil, trace.NotFound("key %q not found", aws.StringValue(input.KeyId))
+func (f *fakeAWSKMSService) GetPublicKeyWithContext(ctx context.Context, input *kms.GetPublicKeyInput, opts ...request.Option) (*kms.GetPublicKeyOutput, error) {
+	key, err := f.findKey(aws.StringValue(input.KeyId))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if key.state != "Enabled" {
 		return nil, trace.NotFound("key %q is not enabled", aws.StringValue(input.KeyId))
@@ -173,9 +264,9 @@ func (f *fakeAWSKMSService) GetPublicKey(input *kms.GetPublicKeyInput) (*kms.Get
 }
 
 func (f *fakeAWSKMSService) Sign(input *kms.SignInput) (*kms.SignOutput, error) {
-	key, ok := f.findKey(aws.StringValue(input.KeyId))
-	if !ok {
-		return nil, trace.NotFound("key %q not found", aws.StringValue(input.KeyId))
+	key, err := f.findKey(aws.StringValue(input.KeyId))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if key.state != "Enabled" {
 		return nil, trace.NotFound("key %q is not enabled", aws.StringValue(input.KeyId))
@@ -203,9 +294,9 @@ func (f *fakeAWSKMSService) Sign(input *kms.SignInput) (*kms.SignOutput, error) 
 }
 
 func (f *fakeAWSKMSService) ScheduleKeyDeletion(input *kms.ScheduleKeyDeletionInput) (*kms.ScheduleKeyDeletionOutput, error) {
-	key, ok := f.findKey(aws.StringValue(input.KeyId))
-	if !ok {
-		return nil, trace.NotFound("key %q not found", aws.StringValue(input.KeyId))
+	key, err := f.findKey(aws.StringValue(input.KeyId))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	key.state = "PendingDeletion"
 	return &kms.ScheduleKeyDeletionOutput{}, nil
@@ -231,14 +322,13 @@ func (f *fakeAWSKMSService) ListKeysWithContext(ctx aws.Context, input *kms.List
 		output.NextMarker = aws.String(strconv.Itoa(i))
 		output.Truncated = aws.Bool(true)
 	}
-	fmt.Println("NIC ListKeys", aws.StringValue(input.Marker), len(output.Keys), output.NextMarker)
 	return output, nil
 }
 
 func (f *fakeAWSKMSService) ListResourceTagsWithContext(ctx aws.Context, input *kms.ListResourceTagsInput, opts ...request.Option) (*kms.ListResourceTagsOutput, error) {
-	key, ok := f.findKey(aws.StringValue(input.KeyId))
-	if !ok {
-		return nil, trace.NotFound("key %q not found", aws.StringValue(input.KeyId))
+	key, err := f.findKey(aws.StringValue(input.KeyId))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &kms.ListResourceTagsOutput{
 		Tags: key.tags,
@@ -246,9 +336,9 @@ func (f *fakeAWSKMSService) ListResourceTagsWithContext(ctx aws.Context, input *
 }
 
 func (f *fakeAWSKMSService) DescribeKeyWithContext(ctx aws.Context, input *kms.DescribeKeyInput, opts ...request.Option) (*kms.DescribeKeyOutput, error) {
-	key, ok := f.findKey(aws.StringValue(input.KeyId))
-	if !ok {
-		return nil, trace.NotFound("key %q not found", aws.StringValue(input.KeyId))
+	key, err := f.findKey(aws.StringValue(input.KeyId))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &kms.DescribeKeyOutput{
 		KeyMetadata: &kms.KeyMetadata{
@@ -258,10 +348,35 @@ func (f *fakeAWSKMSService) DescribeKeyWithContext(ctx aws.Context, input *kms.D
 	}, nil
 }
 
-func (f *fakeAWSKMSService) findKey(arn string) (*fakeAWSKMSKey, bool) {
+func (f *fakeAWSKMSService) findKey(arn string) (*fakeAWSKMSKey, error) {
 	i := slices.IndexFunc(f.keys, func(k *fakeAWSKMSKey) bool { return k.arn == arn })
 	if i < 0 {
-		return nil, false
+		return nil, &kms.NotFoundException{
+			Message_: aws.String(fmt.Sprintf("key %q not found", arn)),
+		}
 	}
-	return f.keys[i], true
+	key := f.keys[i]
+	if key.state != "Pending" {
+		return key, nil
+	}
+	if f.clock.Now().Before(key.creationDate.Add(f.keyPendingDuration)) {
+		return nil, &kms.NotFoundException{
+			Message_: aws.String(fmt.Sprintf("key %q not found", arn)),
+		}
+	}
+	key.state = "Enabled"
+	return key, nil
+}
+
+type fakeAWSSTSClient struct {
+	stsiface.STSAPI
+	account, arn, userID string
+}
+
+func (f *fakeAWSSTSClient) GetCallerIdentity(*sts.GetCallerIdentityInput) (*sts.GetCallerIdentityOutput, error) {
+	return &sts.GetCallerIdentityOutput{
+		Account: aws.String(f.account),
+		Arn:     aws.String(f.arn),
+		UserId:  aws.String(f.userID),
+	}, nil
 }

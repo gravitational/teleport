@@ -61,7 +61,7 @@ pub fn init_wasm_log(log_level: &str) {
             .with(level_filter)
             .init();
 
-        debug!("IronRDP wasm log is ready");
+        debug!("WASM log is ready");
         // TODO(isaiah): is it possible to set up logging for IronRDP trace logs like so: https://github.com/Devolutions/IronRDP/blob/c71ada5783fee13eea512d5d3d8ac79606716dc5/crates/ironrdp-client/src/main.rs#L47-L78
     }
 }

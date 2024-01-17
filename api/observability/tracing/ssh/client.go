@@ -49,9 +49,9 @@ const (
 // NewClient creates a new Client.
 //
 // The server being connected to is probed to determine if it supports
-// ssh tracing. This is done by attempting to open a TracingChannel channel.
-// If the channel is successfully opened then all payloads delivered to the
-// server will be wrapped in an Envelope with tracing context. All Session
+// ssh tracing. This is done by inspecting the version the server provides
+// during the handshake, if it comes from a Teleport ssh server, then all
+// payloads will be wrapped in an Envelope with tracing context. All Session
 // and Channel created from the returned Client will honor the clients view
 // of whether they should provide tracing context.
 func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request, opts ...tracing.Option) *Client {

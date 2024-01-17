@@ -92,7 +92,7 @@ import (
 )
 
 const (
-	mockHeadlessPassword = "password"
+	mockHeadlessPassword = "password1234"
 	staticToken          = "test-static-token"
 	// tshBinMainTestEnv allows to execute tsh main function from test binary.
 	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
@@ -5346,6 +5346,78 @@ func TestLogout(t *testing.T) {
 			require.NoError(t, err)
 			_, err = f.Readdir(1)
 			require.ErrorIs(t, err, io.EOF)
+		})
+	}
+}
+
+func Test_formatActiveDB(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		active      tlsca.RouteToDatabase
+		displayName string
+		expect      string
+	}{
+		{
+			name: "no route details",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+			},
+			displayName: "my-db",
+			expect:      "> my-db",
+		},
+		{
+			name: "different display name",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+			},
+			displayName: "display-name",
+			expect:      "> display-name",
+		},
+		{
+			name: "user only",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Username:    "alice",
+			},
+			displayName: "my-db",
+			expect:      "> my-db (user: alice)",
+		},
+		{
+			name: "db only",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Database:    "sales",
+			},
+			displayName: "my-db",
+			expect:      "> my-db (db: sales)",
+		},
+		{
+			name: "user & db",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Username:    "alice",
+				Database:    "sales",
+			},
+			displayName: "my-db",
+			expect:      "> my-db (user: alice, db: sales)",
+		},
+		{
+			name: "db & roles",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Database:    "sales",
+				Roles:       []string{"reader", "writer"},
+			},
+			displayName: "my-db",
+			expect:      "> my-db (db: sales, roles: [reader writer])",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expect, formatActiveDB(test.active, test.displayName))
 		})
 	}
 }

@@ -24,7 +24,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
@@ -195,6 +194,8 @@ var allowedCertificateTypes = []string{
 	"windows",
 	"db",
 	"db-der",
+	"db-client",
+	"db-client-der",
 	"openssh",
 	"saml-idp",
 }
@@ -204,6 +205,7 @@ var allowedCertificateTypes = []string{
 var allowedCRLCertificateTypes = []string{
 	string(types.HostCA),
 	string(types.DatabaseCA),
+	string(types.DatabaseClientCA),
 	string(types.UserCA),
 }
 
@@ -357,20 +359,11 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 		return trace.Wrap(err)
 	}
 
-	cn, err := clusterAPI.GetClusterName()
+	dbClientCA, err := getDatabaseClientCA(ctx, clusterAPI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	certAuthID := types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: cn.GetClusterName(),
-	}
-	databaseCA, err := clusterAPI.GetCertAuthority(ctx, certAuthID, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	key.TrustedCerts = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA)}}
+	key.TrustedCerts = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(dbClientCA)}}
 
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
@@ -389,7 +382,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
 func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client auth.ClientI) error {
-	req := auth.RotateRequest{
+	req := types.RotateRequest{
 		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
 		TargetPhase: a.rotateTargetPhase,
@@ -532,7 +525,7 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		Password:           a.password,
 		IdentityFileWriter: a.identityWriter,
 	}
-	filesWritten, err := db.GenerateDatabaseCertificates(ctx, dbCertReq)
+	filesWritten, err := db.GenerateDatabaseServerCertificates(ctx, dbCertReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -569,9 +562,21 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		"output":    output,
 		"tarOutput": tarOutput,
 	}
-	if outputFormat == defaults.ProtocolOracle {
+	switch outputFormat {
+	case defaults.ProtocolCockroachDB:
+		tplVars["clientCAPath"] = "/path/to/client-ca.key"
+	case defaults.ProtocolOracle:
 		tplVars["manualOrapkiFlow"] = len(filesWritten) != 1
-		tplVars["walletDir"] = filepath.Dir(output)
+		// use a generic example path since they will have to copy the files
+		// to the oracle server.
+		tplVars["walletDir"] = "/path/to/oracleWalletDir"
+		var caCertPaths []string
+		for _, f := range filesWritten {
+			if strings.HasSuffix(f, ".crt") {
+				caCertPaths = append(caCertPaths, f)
+			}
+		}
+		tplVars["caCertPaths"] = caCertPaths
 	}
 
 	return trace.Wrap(tpl.Execute(writer, tplVars))
@@ -624,12 +629,31 @@ net:
 `))
 	cockroachAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
 
-To enable mutual TLS on your CockroachDB server, point it to the certs
-directory using --certs-dir flag:
+To enable mutual TLS on your CockroachDB server, generate a client CA and client
+certs for your node:
+
+# --overwrite flag prepends the client CA cert to {{.output}}/ca-client.crt
+cockroach cert create-client-ca \
+    --certs-dir={{.output}} \
+    --ca-key={{.clientCAPath}} \
+    --overwrite
+
+cockroach cert create-client node \
+    --certs-dir={{.output}}
+    --ca-key={{.clientCAPath}}
+
+Then point cockroach to the certs directory using the --certs-dir flag:
 
 cockroach start \
   --certs-dir={{.output}} \
   # other flags...
+
+For more information about creating a client CA and issuing certs, see:
+https://www.cockroachlabs.com/docs/stable/cockroach-cert
+
+Teleport uses a split CA architecture for database access.
+For more information about using a split CA with CockroachDB, see:
+https://www.cockroachlabs.com/docs/stable/authentication#using-split-ca-certificates
 `))
 
 	redisAuthSignTpl = template.Must(template.New("").Parse(
@@ -647,6 +671,9 @@ tls-ca-cert-file /path/to/{{.output}}.cas
 tls-cert-file /path/to/{{.output}}.crt
 tls-key-file /path/to/{{.output}}.key
 tls-protocols "TLSv1.2 TLSv1.3"
+
+For information on enabling Redis Cluster bus communication TLS, see:
+https://goteleport.com/docs/database-access/guides/redis-cluster
 `))
 
 	snowflakeAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
@@ -717,9 +744,12 @@ $ tctl auth sign ${FLAGS} | tar -x
 {{- if .manualOrapkiFlow}}
 Orapki binary was not found. Please create oracle wallet file manually by running the following commands on the Oracle server:
 
-orapki wallet create -wallet {{.walletDir}} -auto_login_only
-orapki wallet import_pkcs12 -wallet {{.walletDir}} -auto_login_only -pkcs12file {{.output}}.p12 -pkcs12pwd {{.password}}
-orapki wallet add -wallet {{.walletDir}} -trusted_cert -auto_login_only -cert {{.output}}.crt
+WALLET_DIR="{{.walletDir}}"
+orapki wallet create -wallet "$WALLET_DIR" -auto_login_only
+orapki wallet import_pkcs12 -wallet "$WALLET_DIR" -auto_login_only -pkcs12file {{.output}}.p12 -pkcs12pwd {{.password}}
+{{- range $certPath := .caCertPaths }}
+orapki wallet add -wallet "$WALLET_DIR" -trusted_cert -auto_login_only -cert {{ $certPath }}
+{{- end}}
 
 If copying these files to your Oracle server, ensure the cert file permissions are readable by the "oracle" user.
 {{else}}
@@ -728,7 +758,7 @@ Oracle wallet stored in {{.output}} directory created with Oracle Orapki.
 {{end}}
 To enable mutual TLS on your Oracle server, add the following settings to Oracle sqlnet.ora configuration file:
 
-WALLET_LOCATION = (SOURCE = (METHOD = FILE)(METHOD_DATA = (DIRECTORY = /path/to/oracleWalletDir)))
+WALLET_LOCATION = (SOURCE = (METHOD = FILE)(METHOD_DATA = (DIRECTORY = {{.walletDir}})))
 SSL_CLIENT_AUTHENTICATION = TRUE
 SQLNET.AUTHENTICATION_SERVICES = (TCPS)
 
@@ -742,7 +772,7 @@ LISTENER =
     )
   )
 
-WALLET_LOCATION = (SOURCE = (METHOD = FILE)(METHOD_DATA = (DIRECTORY = /path/to/oracleWalletDir)))
+WALLET_LOCATION = (SOURCE = (METHOD = FILE)(METHOD_DATA = (DIRECTORY = {{.walletDir}})))
 SSL_CLIENT_AUTHENTICATION = TRUE
 `))
 
@@ -1146,4 +1176,29 @@ func (a *AuthCommand) helperMsgDst() io.Writer {
 		return os.Stderr
 	}
 	return os.Stdout
+}
+
+// TODO(gavin): DELETE IN 16.0.0
+func getDatabaseClientCA(ctx context.Context, clusterAPI auth.ClientI) (types.CertAuthority, error) {
+	cn, err := clusterAPI.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbClientCA, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseClientCA,
+		DomainName: cn.GetClusterName(),
+	}, false)
+	if err == nil {
+		return dbClientCA, nil
+	}
+	if !types.IsUnsupportedAuthorityErr(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// fallback to DatabaseCA if DatabaseClientCA isn't supported by backend.
+	dbServerCA, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: cn.GetClusterName(),
+	}, false)
+	return dbServerCA, trace.Wrap(err)
 }

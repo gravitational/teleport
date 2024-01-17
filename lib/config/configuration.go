@@ -993,10 +993,19 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if fc.Auth.CAKeyParams.GoogleCloudKMS != nil {
 			return trace.BadParameter("cannot set both pkcs11 and gcp_kms in file config")
 		}
+		if fc.Auth.CAKeyParams.AWSKMS != nil {
+			return trace.BadParameter("cannot set both pkcs11 and aws_kms in file config")
+		}
 		return trace.Wrap(applyPKCS11Config(fc.Auth.CAKeyParams.PKCS11, cfg))
 	}
 	if fc.Auth.CAKeyParams.GoogleCloudKMS != nil {
+		if fc.Auth.CAKeyParams.AWSKMS != nil {
+			return trace.BadParameter("cannot set both gpc_kms and aws_kms in file config")
+		}
 		return trace.Wrap(applyGoogleCloudKMSConfig(fc.Auth.CAKeyParams.GoogleCloudKMS, cfg))
+	}
+	if fc.Auth.CAKeyParams.AWSKMS != nil {
+		return trace.Wrap(applyAWSKMSConfig(fc.Auth.CAKeyParams.AWSKMS, cfg))
 	}
 	return nil
 }
@@ -1060,6 +1069,18 @@ func applyGoogleCloudKMSConfig(kmsConfig *GoogleCloudKMS, cfg *servicecfg.Config
 		return trace.BadParameter("must set protection_level in ca_key_params.gcp_kms")
 	}
 	cfg.Auth.KeyStore.GCPKMS.ProtectionLevel = kmsConfig.ProtectionLevel
+	return nil
+}
+
+func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
+	if kmsConfig.Account == "" {
+		return trace.BadParameter("must set account in ca_key_params.aws_kms")
+	}
+	cfg.Auth.KeyStore.AWSKMS.AWSAccount = kmsConfig.Account
+	if kmsConfig.Region == "" {
+		return trace.BadParameter("must set region in ca_key_params.aws_kms")
+	}
+	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
 	return nil
 }
 
@@ -2793,10 +2814,21 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.NewAggregate(trace.BadParameter("error trying to find file %s", fc.Okta.APITokenPath), err)
 	}
 
+	syncSettings, err := fc.Okta.Sync.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// For backwards compatibility, if SyncPeriod is specified, use that in the sync settings.
+	if syncSettings.AppGroupSyncPeriod == 0 {
+		syncSettings.AppGroupSyncPeriod = fc.Okta.SyncPeriod
+	}
+
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
 	cfg.Okta.SyncPeriod = fc.Okta.SyncPeriod
+	cfg.Okta.SyncSettings = *syncSettings
 	return nil
 }
 
