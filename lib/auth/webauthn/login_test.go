@@ -684,141 +684,181 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	tests := []struct {
-		name          string
-		challengeExt  *mfav1.ChallengeExtensions
-		wantBeginErr  error
-		requiredExt   *mfav1.ChallengeExtensions
-		wantFinishErr error
-	}{
-		{
-			name:         "NOK challenge extensions not provided",
-			challengeExt: nil,
-			wantBeginErr: trace.BadParameter("requested challenge extensions must be supplied."),
-		}, {
-			name: "NOK required challenge extensions not provided",
-			challengeExt: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+	t.Run("Begin", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			challengeExt *mfav1.ChallengeExtensions
+			assertErr    require.ErrorAssertionFunc
+		}{
+			{
+				name:         "NOK challenge extensions not provided",
+				challengeExt: nil,
+				assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
+					require.ErrorContains(t, err, "extensions must be supplied")
+				},
 			},
-			requiredExt:   nil,
-			wantFinishErr: trace.BadParameter("requested challenge extensions must be supplied."),
-		}, {
-			name: "NOK scope not satisfied",
-			challengeExt: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			{
+				name: "NOK reuse not allowed for scope",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+				assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
+					require.ErrorContains(t, err, "cannot allow reuse")
+				},
 			},
-			requiredExt: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-			},
-			wantFinishErr: trace.AccessDenied("required scope %q is not satisfied by the given webauthn session with scope %q", mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN, mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION),
-		}, {
-			// Old clients do not yet provide a scope, so we only enforce scope
-			// opportunistically during login finish.
-			// TODO(Joerger): DELETE IN v16.0.0 - change to NOK
-			name: "OK scope not specified",
-			challengeExt: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
-			},
-			requiredExt: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-			},
-		}, {
-			name: "OK scope not required",
-			challengeExt: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-			},
-			requiredExt: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
-			},
-		}, {
-			name: "OK required scope satisfied",
-			challengeExt: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-			},
-			requiredExt: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-			},
-		}, {
-			name: "NOK reuse not allowed for scope",
-			challengeExt: &mfav1.ChallengeExtensions{
-				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-			},
-			wantBeginErr: trace.BadParameter("mfa challenges with scope %s cannot allow reuse", mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN),
-		}, {
-			name: "NOK reuse requested but not allowed",
-			challengeExt: &mfav1.ChallengeExtensions{
-				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-			},
-			requiredExt: &mfav1.ChallengeExtensions{
-				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
-			},
-			wantFinishErr: trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context"),
-		}, {
-			name: "OK reuse not requested but allowed",
-			challengeExt: &mfav1.ChallengeExtensions{
-				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
-			},
-			requiredExt: &mfav1.ChallengeExtensions{
-				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-			},
-		}, {
-			name: "OK reuse requested and allowed",
-			challengeExt: &mfav1.ChallengeExtensions{
-				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-			},
-			requiredExt: &mfav1.ChallengeExtensions{
-				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			identity := webIdentity
-			user := webUser
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				user := webUser
 
-			webLogin := &wanlib.LoginFlow{
-				Webauthn: webConfig,
-				Identity: webIdentity,
-			}
+				webLogin := &wanlib.LoginFlow{
+					Webauthn: webConfig,
+					Identity: webIdentity,
+				}
 
-			assertion, err := webLogin.Begin(ctx, user, test.challengeExt)
-			if test.wantBeginErr != nil {
-				require.ErrorIs(t, err, test.wantBeginErr)
-				return
-			}
-			require.NoError(t, err)
-
-			assertionResp, err := webKey.SignAssertion(webOrigin, assertion)
-			require.NoError(t, err)
-
-			loginData, err := webLogin.Finish(ctx, user, assertionResp, test.requiredExt)
-			if test.wantFinishErr != nil {
-				require.ErrorIs(t, err, test.wantFinishErr)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, loginData, &wanlib.LoginData{
-				Device:     device,
-				User:       user,
-				AllowReuse: loginData.AllowReuse,
+				_, err := webLogin.Begin(ctx, user, test.challengeExt)
+				if test.assertErr != nil {
+					test.assertErr(t, err)
+					return
+				}
+				require.NoError(t, err)
 			})
+		}
+	})
 
-			// Session data should only be deleted if reuse was not requested on begin.
-			if test.challengeExt.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
-				require.NotEmpty(t, identity.SessionData)
-			} else {
-				require.Empty(t, identity.SessionData)
-			}
-		})
-	}
+	t.Run("Finish", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			challengeExt *mfav1.ChallengeExtensions
+			requiredExt  *mfav1.ChallengeExtensions
+			assertErr    require.ErrorAssertionFunc
+		}{
+			{
+				name: "NOK required challenge extensions not provided",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+				requiredExt: nil,
+				assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
+					require.ErrorContains(t, err, "extensions must be supplied")
+				},
+			}, {
+				name: "NOK scope not satisfied",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				},
+				assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
+					require.ErrorContains(t, err, "is not satisfied")
+				},
+			}, {
+				// Old clients do not yet provide a scope, so we only enforce scope
+				// opportunistically during login finish.
+				// TODO(Joerger): DELETE IN v16.0.0 - change to NOK
+				name: "OK scope not specified",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+			}, {
+				name: "OK scope not required",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+				},
+			}, {
+				name: "OK required scope satisfied",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				},
+			}, {
+				name: "NOK reuse requested but not allowed",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+				},
+				assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
+					require.ErrorContains(t, err, "reuse is not permitted")
+				},
+			}, {
+				name: "OK reuse not requested but allowed",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+			}, {
+				name: "OK reuse requested and allowed",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				identity := webIdentity
+				user := webUser
+
+				webLogin := &wanlib.LoginFlow{
+					Webauthn: webConfig,
+					Identity: webIdentity,
+				}
+
+				assertion, err := webLogin.Begin(ctx, user, test.challengeExt)
+				require.NoError(t, err)
+
+				assertionResp, err := webKey.SignAssertion(webOrigin, assertion)
+				require.NoError(t, err)
+
+				loginData, err := webLogin.Finish(ctx, user, assertionResp, test.requiredExt)
+				if test.assertErr != nil {
+					test.assertErr(t, err)
+					return
+				}
+
+				require.NoError(t, err)
+				require.Equal(t, loginData, &wanlib.LoginData{
+					Device:     device,
+					User:       user,
+					AllowReuse: loginData.AllowReuse,
+				})
+
+				// Session data should only be deleted if reuse was not requested on begin.
+				if test.challengeExt.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+					require.NotEmpty(t, identity.SessionData)
+				} else {
+					require.Empty(t, identity.SessionData)
+				}
+			})
+		}
+	})
 }
 
 type fakeIdentity struct {
