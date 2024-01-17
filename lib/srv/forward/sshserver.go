@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -503,13 +502,6 @@ func (s *Server) GetHostUsers() srv.HostUsers {
 // sudoer file provisioning, unimplemented for the forwarder server.
 func (s *Server) GetHostSudoers() srv.HostSudoers {
 	return &srv.HostSudoersNotImplemented{}
-}
-
-// GetRestrictedSessionManager returns a NOP manager since for a
-// forwarding server it makes no sense (it has to run on the actual
-// node).
-func (s *Server) GetRestrictedSessionManager() restricted.Manager {
-	return &restricted.NOP{}
 }
 
 // GetInfo returns a services.Server that represents this server.
