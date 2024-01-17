@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 type BotsCommand struct {
@@ -505,37 +506,37 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 		traits[t.Name] = t.Values
 	}
 
-	var currentLogins map[string]struct{}
+	var currentLogins set.Set[string]
 	if logins, exists := traits[constants.TraitLogins]; exists {
-		currentLogins = arrayToSet(logins)
+		currentLogins = set.New(logins...)
 	} else {
-		currentLogins = map[string]struct{}{}
+		currentLogins = set.Empty[string]()
 	}
 
-	var desiredLogins map[string]struct{}
+	var desiredLogins set.Set[string]
 	if c.setLogins != "" {
-		desiredLogins = arrayToSet(splitEntries(c.setLogins))
+		desiredLogins = set.New(splitEntries(c.setLogins)...)
 	} else {
-		desiredLogins = setUnion(currentLogins)
+		desiredLogins = currentLogins.Clone()
 	}
 
 	addLogins := splitEntries(c.addLogins)
 	if len(addLogins) > 0 {
-		desiredLogins = setUnion(desiredLogins, arrayToSet(addLogins))
+		desiredLogins = desiredLogins.Union(set.New(addLogins...))
 	}
 
-	if setsEqual(currentLogins, desiredLogins) {
-		log.Infof("Requested logins match existing, nothing to do: %+v", setToArray(desiredLogins))
+	if currentLogins.Equals(desiredLogins) {
+		log.Infof("Requested logins match existing, nothing to do: %+v", desiredLogins.ToArray())
 		return nil
 	}
 
-	log.Infof("Desired logins for bot %q: %+v", c.botName, setToArray(desiredLogins))
+	log.Infof("Desired logins for bot %q: %+v", c.botName, desiredLogins.ToArray())
 
 	if len(desiredLogins) == 0 {
 		delete(traits, constants.TraitLogins)
 		log.Infof("Removing logins trait from bot user")
 	} else {
-		traits[constants.TraitLogins] = setToArray(desiredLogins)
+		traits[constants.TraitLogins] = desiredLogins.ToArray()
 	}
 
 	traitsArray := []*machineidv1pb.Trait{}
@@ -554,25 +555,25 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
 func (c *BotsCommand) updateBotRoles(ctx context.Context, client auth.ClientI, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
-	currentRoles := arrayToSet(bot.Spec.Roles)
+	currentRoles := set.New(bot.Spec.Roles...)
 
-	var desiredRoles map[string]struct{}
+	var desiredRoles set.Set[string]
 	if c.botRoles != "" {
-		desiredRoles = arrayToSet(splitEntries(c.botRoles))
+		desiredRoles = set.New(splitEntries(c.botRoles)...)
 	} else {
-		desiredRoles = setUnion(currentRoles)
+		desiredRoles = currentRoles.Clone()
 	}
 
 	if c.addRoles != "" {
-		desiredRoles = setUnion(desiredRoles, arrayToSet(splitEntries(c.addRoles)))
+		desiredRoles = set.New(splitEntries(c.addRoles)...).Union(desiredRoles)
 	}
 
-	if setsEqual(currentRoles, desiredRoles) {
-		log.Infof("Requested roles match existing, nothing to do: %+v", setToArray(desiredRoles))
+	if currentRoles.Equals(desiredRoles) {
+		log.Infof("Requested roles match existing, nothing to do: %+v", desiredRoles.ToArray())
 		return nil
 	}
 
-	log.Infof("Desired roles for bot %q:  %+v", c.botName, setToArray(desiredRoles))
+	log.Infof("Desired roles for bot %q:  %+v", c.botName, desiredRoles.ToArray())
 
 	// Validate roles (server does not do this yet).
 	for roleName := range desiredRoles {
@@ -581,7 +582,7 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client auth.ClientI, b
 		}
 	}
 
-	bot.Spec.Roles = setToArray(desiredRoles)
+	bot.Spec.Roles = desiredRoles.ToArray()
 
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.roles"))
 }
@@ -642,53 +643,4 @@ func splitEntries(flag string) []string {
 		roles = append(roles, s)
 	}
 	return roles
-}
-
-// setsEqual determines if two sets contain the same keys.
-func setsEqual[T comparable](a map[T]struct{}, b map[T]struct{}) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for k := range a {
-		if _, ok := b[k]; !ok {
-			return false
-		}
-	}
-
-	return true
-}
-
-// setToArray converts a set to an array
-func setToArray[T comparable](m map[T]struct{}) []T {
-	var ret []T
-	for entry := range m {
-		ret = append(ret, entry)
-	}
-
-	return ret
-}
-
-// arrayToSet converts an array to a set, removing duplicates
-func arrayToSet[T comparable](arr []T) map[T]struct{} {
-	ret := make(map[T]struct{})
-
-	for _, entry := range arr {
-		ret[entry] = struct{}{}
-	}
-
-	return ret
-}
-
-// setUnion returns a new set containing a union of all provided sets. If only
-// one set is given, it is effectively shallow copied.
-func setUnion[T comparable](sets ...map[T]struct{}) map[T]struct{} {
-	ret := make(map[T]struct{})
-	for _, set := range sets {
-		for key := range set {
-			ret[key] = struct{}{}
-		}
-	}
-
-	return ret
 }
