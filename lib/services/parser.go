@@ -53,6 +53,9 @@ var (
 	// CertAuthorityTypeExpr is a function call that returns
 	// cert authority type.
 	CertAuthorityTypeExpr = builder.Identifier(`system.catype()`)
+	// HostCertClusterNameExpr is the identifier that specifies
+	// the cluster name of a host certificate.
+	HostCertClusterNameExpr = builder.Identifier("host_cert.cluster_name")
 )
 
 // predicateAllEndWith is a custom function to test if a string ends with a

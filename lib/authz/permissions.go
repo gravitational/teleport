@@ -640,7 +640,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindInstaller, services.RO()),
 					types.NewRule(types.KindUIConfig, services.RO()),
 					types.NewRule(types.KindDatabaseService, services.RO()),
-					// this rule allows remote proxy to update the cluster's certificate authorities
+					// This rule allows remote proxies to update the cluster's certificate authorities
 					// during certificates renewal
 					{
 						Resources: []string{types.KindCertAuthority},
@@ -651,8 +651,15 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 						// matching the cluster name only
 						Where: builder.Equals(services.ResourceNameExpr, builder.String(r.ClusterName)).String(),
 					},
-					// TODO: lock down access to host certs of this cluster only?
-					types.NewRule(types.KindHostCert, services.RW()),
+					// This rule allows remote proxies to create host certificates when connecting to
+					// a leaf agentless node
+					{
+						Resources: []string{types.KindHostCert},
+						// The remote proxy should only be able to create new host certificates
+						Verbs: []string{types.VerbCreate},
+						// The remote proxy should only be able to create host certificates for this cluster
+						Where: builder.Equals(services.HostCertClusterNameExpr, builder.String(a.clusterName)).String(),
+					},
 				},
 			},
 		})
