@@ -106,7 +106,7 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
             <Text m="auto" mt={10} textAlign="center">
               Cannot create a gateway for the target "{doc.targetUri}".
               <br />
-              Only database and kube targets are supported.
+              Only database targets are supported.
             </Text>
           </Document>
         );
