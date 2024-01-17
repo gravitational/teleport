@@ -651,6 +651,8 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 						// matching the cluster name only
 						Where: builder.Equals(services.ResourceNameExpr, builder.String(r.ClusterName)).String(),
 					},
+					// TODO: lock down access to host certs of this cluster only?
+					types.NewRule(types.KindHostCert, services.RW()),
 				},
 			},
 		})
