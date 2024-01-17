@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"time"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -83,12 +84,20 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		}
 	}
 
+	// We map the zero protobuf time (nil) to the zero go time.
+	// NewAccessList will handle this properly and set a time in the future
+	// based on the recurrence rules.
+	var nextAuditDate time.Time
+	if msg.Spec.Audit.NextAuditDate != nil {
+		nextAuditDate = msg.Spec.Audit.NextAuditDate.AsTime()
+	}
+
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
 		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
 		Owners:      owners,
 		Audit: accesslist.Audit{
-			NextAuditDate: msg.Spec.Audit.NextAuditDate.AsTime(),
+			NextAuditDate: nextAuditDate,
 			Recurrence:    recurrence,
 			Notifications: notifications,
 		},
@@ -149,6 +158,12 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		ownerGrants.Traits = traitv1.ToProto(accessList.Spec.OwnerGrants.Traits)
 	}
 
+	// We map the zero go time to the zero protobuf time (nil).
+	var nextAuditDate *timestamppb.Timestamp
+	if !accessList.Spec.Audit.NextAuditDate.IsZero() {
+		nextAuditDate = timestamppb.New(accessList.Spec.Audit.NextAuditDate)
+	}
+
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
@@ -158,7 +173,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			Membership:  string(accessList.Spec.Membership),
 			Owners:      owners,
 			Audit: &accesslistv1.AccessListAudit{
-				NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),
+				NextAuditDate: nextAuditDate,
 				Recurrence: &accesslistv1.Recurrence{
 					Frequency:  accesslistv1.ReviewFrequency(accessList.Spec.Audit.Recurrence.Frequency),
 					DayOfMonth: accesslistv1.ReviewDayOfMonth(accessList.Spec.Audit.Recurrence.DayOfMonth),
