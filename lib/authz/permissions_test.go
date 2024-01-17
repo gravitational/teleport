@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -50,8 +51,7 @@ import (
 )
 
 const (
-	clusterName   = "test-cluster"
-	validTOTPCode = "valid"
+	clusterName = "test-cluster"
 )
 
 func TestContextLockTargets(t *testing.T) {
@@ -444,14 +444,16 @@ func hostFQDN(hostUUID, clusterName string) string {
 	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
-type fakeMFAAuthentictor struct{}
+type fakeMFAAuthentictor struct {
+	mfaData map[string]*MFAAuthData
+}
 
-func (a *fakeMFAAuthentictor) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	if resp.GetTOTP().Code == validTOTPCode {
-		return &types.MFADevice{}, "", nil
+func (a *fakeMFAAuthentictor) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*MFAAuthData, error) {
+	mfaData, ok := a.mfaData[resp.GetTOTP().GetCode()]
+	if !ok {
+		return nil, trace.AccessDenied("invalid MFA")
 	}
-
-	return nil, "", trace.AccessDenied("invalid MFA")
+	return mfaData, nil
 }
 
 func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
@@ -489,12 +491,23 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	_, err = client.CreateUser(ctx, bot)
 	require.NoError(t, err)
 
+	validTOTPCode := "valid"
+	validReusableTOTPCode := "valid-reusable"
+	fakeMFAAuthentictor := &fakeMFAAuthentictor{
+		mfaData: map[string]*MFAAuthData{
+			validTOTPCode: {},
+			validReusableTOTPCode: {
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			},
+		},
+	}
+
 	// Create a new authorizer.
 	authorizer, err := NewAuthorizer(AuthorizerOpts{
 		ClusterName:      clusterName,
 		AccessPoint:      client,
 		LockWatcher:      watcher,
-		MFAAuthenticator: &fakeMFAAuthentictor{},
+		MFAAuthenticator: fakeMFAAuthentictor,
 	})
 	require.NoError(t, err, "NewAuthorizer failed")
 

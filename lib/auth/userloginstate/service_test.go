@@ -202,7 +202,6 @@ type testClient struct {
 	services.UserGetter
 }
 
-
 func initSvc(t *testing.T) (userContext context.Context, noAccessContext context.Context, svc *Service) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
