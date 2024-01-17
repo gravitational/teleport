@@ -211,10 +211,18 @@ func AccessListMutateExistingTest(t *testing.T, clt *client.Client) {
 	}
 	require.NoError(t, setup.K8sClient.Get(ctx, key, kubeAccessList))
 
-	reconciler := resources.NewAccessListReconciler(setup.K8sClient, clt)
+	reconciler, err := resources.NewAccessListReconciler(setup.K8sClient, clt)
+	require.NoError(t, err)
+
+	// TODO: remove this hack when the role controller uses the teleport reconciler
+	// and we can simplify Do, UpsertExternal, Upsert and Reconcile
+	r, ok := reconciler.(interface {
+		Upsert(context.Context, kclient.Object) error
+	})
+	require.True(t, ok)
 
 	// Test execution: we trigger a single reconciliation
-	require.NoError(t, reconciler.Upsert(ctx, kubeAccessList))
+	require.NoError(t, r.Upsert(ctx, kubeAccessList))
 
 	// Then we check if the AccessList audit date has been preserved in teleport
 	accessList, err = clt.AccessListClient().GetAccessList(ctx, name)
