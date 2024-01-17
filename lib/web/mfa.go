@@ -26,6 +26,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -160,6 +161,11 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 			ContextUser: &proto.ContextUser{},
 		},
 		MFARequiredCheck: isMFARequiredProtoReq,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			// TODO(Joerger): Web client needs to provide scope and allow reuse
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_UNSPECIFIED,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
