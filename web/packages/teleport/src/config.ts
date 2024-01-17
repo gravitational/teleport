@@ -129,6 +129,7 @@ const cfg = {
     desktops: '/web/cluster/:clusterId/desktops',
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
+    bots: '/web/cluster/:clusterId/bots',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -317,6 +318,8 @@ const cfg = {
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
+
+    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -476,6 +479,11 @@ const cfg = {
   getUsersRoute() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.routes.users, { clusterId });
+  },
+
+  getBotsRoute() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.routes.bots, { clusterId });
   },
 
   getAppsRoute(clusterId: string) {
@@ -989,6 +997,10 @@ const cfg = {
         ...params,
       })
     );
+  },
+
+  getBotsUrl(clusterId: string) {
+    return generatePath(cfg.api.botsPath, { clusterId });
   },
 
   init(backendConfig = {}) {

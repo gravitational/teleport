@@ -19,16 +19,108 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"slices"
+	"net/http"
+	"net/url"
+	"strconv"
 	"testing"
 
+	"slices"
+
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
+
+func TestListBotsPagination(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+	)
+
+	// create bots to test pagination against
+	n := 1
+	for n < 25 {
+		n += 1
+		_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
+			BotName: "test-bot-" + strconv.Itoa(n),
+			Roles:   []string{""},
+		})
+		require.NoError(t, err)
+	}
+
+	tt := []struct {
+		name                string
+		pageSize            string
+		expectedSize        int
+		pageTwoExpectedSize int
+	}{
+		{
+			name:                "defaults to 20",
+			pageSize:            "0",
+			expectedSize:        20,
+			pageTwoExpectedSize: 5, // there are only 25 bots created
+		},
+		{
+			name:                "set size",
+			pageSize:            "5",
+			expectedSize:        5,
+			pageTwoExpectedSize: 5,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			page1, err := pack.clt.Get(ctx, endpoint, url.Values{
+				"page_token": []string{""}, // default to the start
+				"page_size":  []string{tc.pageSize},
+			})
+			require.NoError(t, err)
+
+			var page1Bots ListBotsResponse
+			require.NoError(t, json.Unmarshal(page1.Bytes(), &page1Bots), "invalid response received")
+			assert.Equal(t, http.StatusOK, page1.Code(), "unexpected status code getting connectors")
+
+			// todo (michellescripts) re-evaluate assertions once we agree on a pagination approach
+			assert.Greater(t, len(page1Bots.Items), 0)
+		})
+	}
+}
+
+func TestListBots_UnauthenticatedError(t *testing.T) {
+	ctx := context.Background()
+	s := newWebSuite(t)
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+	)
+
+	publicClt := s.client(t)
+	_, err := publicClt.Get(ctx, endpoint, url.Values{
+		"page_token": []string{""},
+		"page_size":  []string{""},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+}
 
 func TestCreateBot(t *testing.T) {
 	s := newWebSuite(t)
