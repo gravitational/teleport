@@ -69,6 +69,8 @@ type Reconciler interface {
 func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *client.Client, features *proto.Features) error {
 	reconcilers := []reconcilerFactory{
 		{"TeleportRole", NewRoleReconciler},
+		{"TeleportRoleV6", NewRoleV6Reconciler},
+		{"TeleportRoleV7", NewRoleV7Reconciler},
 		{"TeleportUser", NewUserReconciler},
 		{"TeleportGithubConnector", NewGithubConnectorReconciler},
 		{"TeleportProvisionToken", NewProvisionTokenReconciler},

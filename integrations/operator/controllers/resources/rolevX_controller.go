@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -20,16 +20,20 @@ package resources
 
 import (
 	"context"
+	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 )
 
 // roleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile roles
+// Currently the same client is used by all role versions. If we need to treat
+// them differently at some point, for example by introducing Mutate or MutateExisting
+// functions, we can always split the client into separate clients.
 type roleClient struct {
 	teleportClient *client.Client
 }
@@ -57,13 +61,41 @@ func (r roleClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(r.teleportClient.DeleteRole(ctx, name))
 }
 
-// NewRoleReconciler instantiates a new Kubernetes controller reconciling role resources
+// NewRoleReconciler instantiates a new Kubernetes controller reconciling legacy role v5 resources
 func NewRoleReconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
 	roleClient := &roleClient{
 		teleportClient: tClient,
 	}
 
 	resourceReconciler, err := NewTeleportResourceReconciler[types.Role, *resourcesv5.TeleportRole](
+		client,
+		roleClient,
+	)
+
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
+}
+
+// NewRoleV6Reconciler instantiates a new Kubernetes controller reconciling role v6 resources
+func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+	roleClient := &roleClient{
+		teleportClient: tClient,
+	}
+
+	resourceReconciler, err := NewTeleportResourceReconciler[types.Role, *resourcesv1.TeleportRoleV6](
+		client,
+		roleClient,
+	)
+
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
+}
+
+// NewRoleV7Reconciler instantiates a new Kubernetes controller reconciling role v7 resources
+func NewRoleV7Reconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+	roleClient := &roleClient{
+		teleportClient: tClient,
+	}
+
+	resourceReconciler, err := NewTeleportResourceReconciler[types.Role, *resourcesv1.TeleportRoleV7](
 		client,
 		roleClient,
 	)
