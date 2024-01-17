@@ -103,7 +103,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
             css={`
               margin-left: auto;
               @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.medium}px) {
+                p.theme.breakpoints.medium}px) {
                 margin-left: 0;
                 margin-right: auto;
               }
@@ -232,7 +232,7 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
           transition: background-color 0.1s linear;
           &:hover {
             background-color: ${p =>
-              p.theme.colors.interactive.tonal.primary[0]};
+            p.theme.colors.interactive.tonal.primary[0]};
           }
           align-items: center;
         `}
@@ -249,12 +249,12 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
               padding-left: ${props => props.theme.space[3]}px;
               height: 18px;
               @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.medium}px) {
+                p.theme.breakpoints.medium}px) {
                 height: 28px;
                 padding-left: ${props => props.theme.space[4]}px;
               }
               @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.large}px) {
+                p.theme.breakpoints.large}px) {
                 height: 30px;
               }
             `}
@@ -306,8 +306,8 @@ const NavigationButton = ({
           background-color: ${selected ? selectedBackground : 'inherit'};
           &:hover {
             background-color: ${selected
-              ? selectedBackground
-              : theme.colors.buttons.secondary.default};
+            ? selectedBackground
+            : theme.colors.buttons.secondary.default};
           }
         `}
         {...props}
