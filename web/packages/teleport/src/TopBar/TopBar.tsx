@@ -25,7 +25,7 @@ import { matchPath, useHistory } from 'react-router';
 
 import { BrainIcon } from 'design/SVGIcon';
 
-import { ArrowLeft, Server, SlidersVertical } from 'design/Icon';
+import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import useTeleport from 'teleport/useTeleport';
@@ -87,6 +87,8 @@ export function TopBar({ CustomLogo }: TopBarProps) {
     history?.location?.pathname === cfg.getUnifiedResourcesRoute(clusterId);
   const managementTabSelected =
     feature?.category === NavigationCategory.Management;
+  const downloadTabSelected =
+    history?.location?.pathname === cfg.routes.downloadCenter;
 
   return (
     <TopBarContainer
@@ -107,30 +109,57 @@ export function TopBar({ CustomLogo }: TopBarProps) {
               }
             `}
           >
-            <NavigationButton
-              selected={resourceTabSelected}
-              to={cfg.getUnifiedResourcesRoute(clusterId)}
-              title="Resources"
-            >
-              <Server
-                color={resourceTabSelected ? 'text.main' : 'text.muted'}
-              />
-              <Text
-                ml={3}
-                fontSize={18}
-                fontWeight={500}
-                css={`
-                  display: none;
-                  @media screen and (min-width: ${p =>
-                      p.theme.breakpoints.medium}px) {
-                    display: block;
-                  }
-                `}
-                color={resourceTabSelected ? 'text.main' : 'text.muted'}
+            {cfg.isDashboard ? (
+              <NavigationButton
+                selected={downloadTabSelected}
+                to={cfg.routes.downloadCenter}
+                title="Downloads"
               >
-                Resources
-              </Text>
-            </NavigationButton>
+                <Download
+                  color={downloadTabSelected ? 'text.main' : 'text.muted'}
+                />
+                <Text
+                  ml={3}
+                  fontSize={18}
+                  fontWeight={500}
+                  css={`
+                    display: none;
+                    @media screen and (min-width: ${p =>
+                        p.theme.breakpoints.medium}px) {
+                      display: block;
+                    }
+                  `}
+                  color={downloadTabSelected ? 'text.main' : 'text.muted'}
+                >
+                  Downloads
+                </Text>
+              </NavigationButton>
+            ) : (
+              <NavigationButton
+                selected={resourceTabSelected}
+                to={cfg.getUnifiedResourcesRoute(clusterId)}
+                title="Resources"
+              >
+                <Server
+                  color={resourceTabSelected ? 'text.main' : 'text.muted'}
+                />
+                <Text
+                  ml={3}
+                  fontSize={18}
+                  fontWeight={500}
+                  css={`
+                    display: none;
+                    @media screen and (min-width: ${p =>
+                        p.theme.breakpoints.medium}px) {
+                      display: block;
+                    }
+                  `}
+                  color={resourceTabSelected ? 'text.main' : 'text.muted'}
+                >
+                  Resources
+                </Text>
+              </NavigationButton>
+            )}
             <NavigationButton
               selected={managementTabSelected}
               to={getFirstRouteForCategory(

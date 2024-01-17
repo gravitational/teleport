@@ -129,10 +129,9 @@ export function Main(props: MainProps) {
   if (
     matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
   ) {
-    const indexRoute = getFirstRouteForCategory(
-      features,
-      NavigationCategory.Resources
-    );
+    const indexRoute = cfg.isDashboard
+      ? cfg.routes.downloadCenter
+      : getFirstRouteForCategory(features, NavigationCategory.Resources);
 
     return <Redirect to={indexRoute} />;
   }
