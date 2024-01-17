@@ -129,13 +129,19 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 
 	eg.Go(func() error {
 		defer requestStop()
-		// the read loop
+		// the read loop exits on I/O errors (which will kill the write loop
+		// too) but also upon receiving an error tag from the remote, signaling
+		// that the peer has already been done with the connection for a while
+		// now, so anything we're going to write is going to be useless anyway
 		defer nc.Close()
 		return runResumeV1Read(r, ncReader, &stopRequested)
 	})
 
 	eg.Go(func() error {
 		defer requestStop()
+		// we shouldn't close the connection when exiting from the write loop,
+		// because the read loop might have data still worth parsing (if we
+		// exited because of I/O errors)
 		return runResumeV1Write(r, nc, &stopRequested, localPosition, peerPosition)
 	})
 
