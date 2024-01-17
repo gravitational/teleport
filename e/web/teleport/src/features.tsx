@@ -261,11 +261,9 @@ export class FeatureInvoiceSettings implements TeleportFeature {
 // ****************************
 
 class FeatureDownloadCenter implements TeleportFeature {
-  category = NavigationCategory.Resources;
-
   route = {
     title: 'Downloads',
-    path: cfg.routes.downloadCenter,
+    path: cfg.oss.routes.downloadCenter,
     exact: true,
     component: Downloads,
   };
@@ -278,7 +276,7 @@ class FeatureDownloadCenter implements TeleportFeature {
     title: NavTitle.Downloads,
     icon: Download,
     getLink() {
-      return cfg.routes.downloadCenter;
+      return cfg.oss.routes.downloadCenter;
     },
   };
   topMenuItem = this.navigationItem;
