@@ -417,9 +417,9 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 			}
 			wantSD := &wantypes.SessionData{
 				Challenge:        sd.Challenge,
-				UserId:           nil,   // aka unset
-				AllowCredentials: nil,   // aka unset
-				ResidentKey:      false, // irrelevant for login
+				UserId:           nil,         // aka unset
+				AllowCredentials: [][]uint8{}, // aka unset
+				ResidentKey:      false,       // irrelevant for login
 				UserVerification: string(protocol.VerificationRequired),
 			}
 			if diff := cmp.Diff(wantSD, sd); diff != "" {
