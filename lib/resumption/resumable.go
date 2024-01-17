@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"io"
+	"math"
 	"net"
 	"sync/atomic"
 	"time"
@@ -55,11 +56,12 @@ var _ net.Conn = (*Conn)(nil)
 
 const handshakeTimeout = 5 * time.Second
 
-const (
-	errorTag        = ^uint64(0)
-	errorTagUvarint = "\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01"
-)
+// errorTag is the acknowledgement value used to signal a connection close
+// or a failed handshake.
+const errorTag = math.MaxUint64
 
+// maxFrameSize is the maximum amount of data that can be transmitted at once;
+// picked for sanity's sake, and to allow acks to be sent relatively frequently.
 const maxFrameSize = 128 * 1024
 
 // runResumeV1Unlocking runs the symmetric resumption v1 protocol for r, using
@@ -175,7 +177,7 @@ func resumeV1Handshake(r *Conn, nc net.Conn, ncReader byteReaderReader, localPos
 		r.cond.Broadcast()
 		r.mu.Unlock()
 
-		_, _ = nc.Write([]byte(errorTagUvarint))
+		_, _ = nc.Write(binary.AppendUvarint(nil, errorTag))
 		return 0, trace.BadParameter("got incompatible resume position (%v, expected %v to %v)", peerPosition, minPos, maxPos)
 	}
 
@@ -318,7 +320,7 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, localPo
 			if r.localClosed {
 				r.mu.Unlock()
 
-				_, _ = nc.Write([]byte(errorTagUvarint))
+				_, _ = nc.Write(binary.AppendUvarint(nil, errorTag))
 				return trace.Wrap(net.ErrClosed, "connection closed")
 			}
 
