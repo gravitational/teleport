@@ -158,8 +158,6 @@ const cfg = {
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
     githubHandler: '/v1/webapi/github/*',
-
-    downloadCenter: '/web/downloads',
   },
 
   api: {
