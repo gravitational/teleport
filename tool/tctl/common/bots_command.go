@@ -97,10 +97,10 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 	c.botsUpdate = bots.Command("update", "Update an existing bot.")
 	c.botsUpdate.Arg("name", "Name of an existing bot to update.").Required().StringVar(&c.botName)
-	c.botsUpdate.Flag("set-roles", "A comma-separated list of roles to replace.").StringVar(&c.botRoles)
-	c.botsUpdate.Flag("add-roles", "A comma-separated list of roles to add to an existing bot.").StringVar(&c.addRoles)
-	c.botsUpdate.Flag("set-logins", "A comma-separated list of allowed logins to replace").StringVar(&c.setLogins)
-	c.botsUpdate.Flag("add-logins", "A comma-separated list of logins to add to an existing bot.").StringVar(&c.addLogins)
+	c.botsUpdate.Flag("set-roles", "Sets the bot's roles to the given comma-separated list, replacing any existing roles.").StringVar(&c.botRoles)
+	c.botsUpdate.Flag("add-roles", "Adds a comma-separated list of roles to an existing bot.").StringVar(&c.addRoles)
+	c.botsUpdate.Flag("set-logins", "Sets the bot's logins to the given comma-separated list, replacing any existing logins.").StringVar(&c.setLogins)
+	c.botsUpdate.Flag("add-logins", "Adds a comma-separated list of logins to an existing bot.").StringVar(&c.addLogins)
 }
 
 // TryRun attempts to run subcommands.
