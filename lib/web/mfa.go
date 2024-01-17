@@ -26,6 +26,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -138,7 +139,13 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{})
+	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			// TODO(Joerger): Web client needs to provide scope and allow reuse
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_UNSPECIFIED,
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -291,7 +298,8 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 					Protocol:    r.Database.Protocol,
 					Database:    r.Database.DatabaseName,
 					Username:    r.Database.Username,
-				}},
+				},
+			},
 		}
 	}
 
@@ -322,7 +330,8 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 				WindowsDesktop: &proto.RouteToWindowsDesktop{
 					WindowsDesktop: r.WindowsDesktop.DesktopName,
 					Login:          r.WindowsDesktop.Login,
-				}},
+				},
+			},
 		}
 	}
 
@@ -340,7 +349,8 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 				Node: &proto.NodeLogin{
 					Login: r.Node.Login,
 					Node:  r.Node.NodeName,
-				}},
+				},
+			},
 		}
 	}
 

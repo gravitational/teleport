@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -158,7 +159,18 @@ type AuthorizerAccessPoint interface {
 // MFAAuthenticator authenticates MFA responses.
 type MFAAuthenticator interface {
 	// ValidateMFAAuthResponse validates an MFA challenge response.
-	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
+	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*MFAAuthData, error)
+}
+
+// MFAAuthData contains a user's MFA authentication data for a validated MFA response.
+type MFAAuthData struct {
+	// User is the authenticated Teleport User.
+	User string
+	// Device is the user's MFA device used to authenticate.
+	Device *types.MFADevice
+	// AllowReuse determines whether the MFA challenge response used to authenticate
+	// can be reused. AllowReuse MFAAuthData may be denied for specific actions.
+	AllowReuse mfav1.ChallengeAllowReuse
 }
 
 // authorizer creates new local authorizer
@@ -382,7 +394,8 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 
 // checkAdminActionVerification checks if this auth request is verified for admin actions.
 func (a *authorizer) checkAdminActionVerification(ctx context.Context, authContext *Context) error {
-	if err := a.authorizeAdminAction(ctx, authContext); err != nil {
+	err := a.authorizeAdminAction(ctx, authContext)
+	if err != nil {
 		if trace.IsNotFound(err) {
 			// missing MFA verification should be a noop.
 			return nil
@@ -449,10 +462,17 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	if _, _, err := a.mfaAuthentictor.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false); err != nil {
+	if a.mfaAuthentictor == nil {
+		return trace.AccessDenied("failed to validate MFA auth response, authorizer missing mfaAuthenticator field")
+	}
+
+	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION}
+	_, err = a.mfaAuthentictor.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), requiredExt)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	authContext.AdminActionAuthorized = true
 	return nil
 }
 
