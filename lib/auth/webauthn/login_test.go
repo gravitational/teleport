@@ -654,6 +654,162 @@ func TestCredentialRPID(t *testing.T) {
 	})
 }
 
+func TestLogin_scopeAndReuse(t *testing.T) {
+	// webUser gets a newly registered device and a webID.
+	const webUser = "llama"
+	webIdentity := newFakeIdentity(webUser)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+
+	const webOrigin = "https://example.com"
+	ctx := context.Background()
+
+	// Register a Webauthn device.
+	// Last registration step creates the user webID and adds the new device to
+	// identity.
+	webKey, err := mocku2f.Create()
+	require.NoError(t, err)
+	webKey.PreferRPID = true // Webauthn-registered device
+	webRegistration := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+	cc, err := webRegistration.Begin(ctx, webUser, false /* passwordless */)
+	require.NoError(t, err)
+	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
+	require.NoError(t, err)
+	device, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             webUser,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		challengeExt  mfav1.ChallengeExtensions
+		wantBeginErr  error
+		requiredExt   mfav1.ChallengeExtensions
+		wantFinishErr error
+	}{
+		{
+			name: "NOK scope not satisfied",
+			challengeExt: mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			},
+			requiredExt: mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
+			wantFinishErr: trace.AccessDenied("required scope %q is not satisfied by the given webauthn session with scope %q", mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN, mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION),
+		}, {
+			// Old clients do not yet provide a scope, so we only enforce scope
+			// opportunistically during login finish.
+			// TODO(Joerger): DELETE IN v16.0.0 - change to NOK
+			name: "OK scope not specified",
+			challengeExt: mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+			},
+			requiredExt: mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			},
+		}, {
+			name: "OK scope not required",
+			challengeExt: mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			},
+			requiredExt: mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+			},
+		}, {
+			name: "OK required scope satisfied",
+			challengeExt: mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			},
+			requiredExt: mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			},
+		}, {
+			name: "NOK reuse not allowed for scope",
+			challengeExt: mfav1.ChallengeExtensions{
+				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			},
+			wantBeginErr: trace.BadParameter("mfa challenges with scope %s cannot allow reuse", mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN),
+		}, {
+			name: "NOK reuse requested but not allowed",
+			challengeExt: mfav1.ChallengeExtensions{
+				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			},
+			requiredExt: mfav1.ChallengeExtensions{
+				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+			},
+			wantFinishErr: trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context"),
+		}, {
+			name: "OK reuse not requested but allowed",
+			challengeExt: mfav1.ChallengeExtensions{
+				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+			},
+			requiredExt: mfav1.ChallengeExtensions{
+				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			},
+		}, {
+			name: "OK reuse requested and allowed",
+			challengeExt: mfav1.ChallengeExtensions{
+				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			},
+			requiredExt: mfav1.ChallengeExtensions{
+				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			identity := webIdentity
+			user := webUser
+
+			webLogin := &wanlib.LoginFlow{
+				Webauthn: webConfig,
+				Identity: webIdentity,
+			}
+
+			assertion, err := webLogin.Begin(ctx, user, test.challengeExt)
+			if test.wantBeginErr != nil {
+				require.ErrorIs(t, err, test.wantBeginErr)
+				return
+			}
+			require.NoError(t, err)
+
+			assertionResp, err := webKey.SignAssertion(webOrigin, assertion)
+			require.NoError(t, err)
+
+			loginData, err := webLogin.Finish(ctx, user, assertionResp, test.requiredExt)
+			if test.wantFinishErr != nil {
+				require.ErrorIs(t, err, test.wantFinishErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, loginData, &wanlib.LoginData{
+				Device:     device,
+				User:       user,
+				AllowReuse: loginData.AllowReuse,
+			})
+
+			// Session data should only be deleted if reuse was not requested on begin.
+			if test.challengeExt.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+				require.NotEmpty(t, identity.SessionData)
+			} else {
+				require.Empty(t, identity.SessionData)
+			}
+		})
+	}
+}
+
 type fakeIdentity struct {
 	User *types.UserV2
 	// MappedUser is used as the reply to GetTeleportUserByWebauthnID.
