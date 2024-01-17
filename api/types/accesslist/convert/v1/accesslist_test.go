@@ -253,9 +253,9 @@ func TestNextAuditDateZeroTime(t *testing.T) {
 	converted, err := FromProto(accessList)
 
 	require.NoError(t, err)
-	require.False(
+	require.NotZero(
 		t,
-		converted.Spec.Audit.NextAuditDate.Unix() == 0,
+		converted.Spec.Audit.NextAuditDate.Unix(),
 		"next audit date should not be epoch",
 	)
 
