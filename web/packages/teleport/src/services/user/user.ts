@@ -61,12 +61,12 @@ const service = {
   },
 
   createUser(user: User) {
-    return api.post(cfg.getUsersUrl(), user).then(makeUser);
+    return api.post(cfg.getUsersUrl(), user, null).then(makeUser);
   },
 
   createResetPasswordToken(name: string, type: ResetPasswordType) {
     return api
-      .post(cfg.api.resetPasswordTokenPath, { name, type })
+      .post(cfg.api.resetPasswordTokenPath, { name, type }, null)
       .then(makeResetToken);
   },
 
