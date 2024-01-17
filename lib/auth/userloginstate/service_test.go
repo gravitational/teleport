@@ -28,7 +28,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
@@ -203,9 +202,6 @@ type testClient struct {
 	services.UserGetter
 }
 
-func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	return nil, "", nil
-}
 
 func initSvc(t *testing.T) (userContext context.Context, noAccessContext context.Context, svc *Service) {
 	ctx := context.Background()

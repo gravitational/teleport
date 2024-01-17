@@ -73,10 +73,11 @@ type DeviceAuthorizationOpts struct {
 
 // AuthorizerOpts holds creation options for [NewAuthorizer].
 type AuthorizerOpts struct {
-	ClusterName string
-	AccessPoint AuthorizerAccessPoint
-	LockWatcher *services.LockWatcher
-	Logger      logrus.FieldLogger
+	ClusterName      string
+	AccessPoint      AuthorizerAccessPoint
+	MFAAuthenticator MFAAuthenticator
+	LockWatcher      *services.LockWatcher
+	Logger           logrus.FieldLogger
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -98,9 +99,11 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	if logger == nil {
 		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
 	}
+
 	return &authorizer{
 		clusterName:             opts.ClusterName,
 		accessPoint:             opts.AccessPoint,
+		mfaAuthentictor:         opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
@@ -150,18 +153,21 @@ type AuthorizerAccessPoint interface {
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+}
 
-	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-	// Returns the device used to solve the challenge (if applicable) and the username.
+// MFAAuthenticator authenticates MFA responses.
+type MFAAuthenticator interface {
+	// ValidateMFAAuthResponse validates an MFA challenge response.
 	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
 }
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	clusterName string
-	accessPoint AuthorizerAccessPoint
-	lockWatcher *services.LockWatcher
-	logger      logrus.FieldLogger
+	clusterName     string
+	accessPoint     AuthorizerAccessPoint
+	mfaAuthentictor MFAAuthenticator
+	lockWatcher     *services.LockWatcher
+	logger          logrus.FieldLogger
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -443,7 +449,7 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	if _, _, err := a.accessPoint.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false); err != nil {
+	if _, _, err := a.mfaAuthentictor.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false); err != nil {
 		return trace.Wrap(err)
 	}
 
