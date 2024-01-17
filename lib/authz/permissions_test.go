@@ -444,6 +444,16 @@ func hostFQDN(hostUUID, clusterName string) string {
 	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
+type fakeMFAAuthentictor struct{}
+
+func (a *fakeMFAAuthentictor) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+	if resp.GetTOTP().Code == validTOTPCode {
+		return &types.MFADevice{}, "", nil
+	}
+
+	return nil, "", trace.AccessDenied("invalid MFA")
+}
+
 func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	ctx := context.Background()
 	client, watcher, _ := newTestResources(t)
@@ -481,9 +491,10 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 
 	// Create a new authorizer.
 	authorizer, err := NewAuthorizer(AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: client,
-		LockWatcher: watcher,
+		ClusterName:      clusterName,
+		AccessPoint:      client,
+		LockWatcher:      watcher,
+		MFAAuthenticator: &fakeMFAAuthentictor{},
 	})
 	require.NoError(t, err, "NewAuthorizer failed")
 
@@ -1081,14 +1092,6 @@ type testClient struct {
 	services.Access
 	services.Identity
 	types.Events
-}
-
-func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	if resp.GetTOTP().Code == validTOTPCode {
-		return &types.MFADevice{}, "", nil
-	}
-
-	return nil, "", trace.AccessDenied("invalid MFA")
 }
 
 func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authorizer) {
