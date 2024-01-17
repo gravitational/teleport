@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -76,9 +77,13 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 	defer nc.Close()
 
 	if !firstConn {
+		t0 := time.Now()
 		for !r.remoteClosed && r.requestDetach != nil {
 			r.requestDetach()
 			r.cond.Wait()
+		}
+		if dt := time.Since(t0); dt > time.Second {
+			logrus.WithField("elapsed", dt.String()).Warn("Slow resumable connection detach took over one second.")
 		}
 
 		if r.remoteClosed {
