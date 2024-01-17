@@ -18,7 +18,6 @@ package resumption
 
 import (
 	"bufio"
-	"context"
 	"encoding/binary"
 	"io"
 	"net"
@@ -91,7 +90,6 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 	}
 
 	var stopRequested atomic.Bool
-
 	requestStop := func() {
 		if !stopRequested.Swap(true) {
 			r.cond.Broadcast()
@@ -110,7 +108,7 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 		r.cond.Broadcast()
 	}()
 
-	sentPosition := r.receiveBuffer.end
+	localPosition := r.receiveBuffer.end
 	r.mu.Unlock()
 
 	ncReader, ok := nc.(byteReaderReader)
@@ -119,25 +117,47 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 	}
 
 	var peerPosition uint64
+	if !firstConn {
+		p, err := resumeV1Handshake(r, nc, ncReader, localPosition)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		peerPosition = p
+	}
 
+	var eg errgroup.Group
+
+	eg.Go(func() error {
+		defer requestStop()
+		// the read loop
+		defer nc.Close()
+		return runResumeV1Read(r, ncReader, &stopRequested)
+	})
+
+	eg.Go(func() error {
+		defer requestStop()
+		return runResumeV1Write(r, nc, &stopRequested, localPosition, peerPosition)
+	})
+
+	return trace.Wrap(eg.Wait())
+}
+
+func resumeV1Handshake(r *Conn, nc net.Conn, ncReader byteReaderReader, localPosition uint64) (peerPosition uint64, err error) {
 	handshakeWatchdog := time.AfterFunc(handshakeTimeout, func() { nc.Close() })
 	defer handshakeWatchdog.Stop()
 
-	if !firstConn {
-		errC := make(chan error, 1)
-		go func() {
-			_, err := nc.Write(binary.AppendUvarint(nil, sentPosition))
-			errC <- err
-		}()
+	var eg errgroup.Group
+	eg.Go(func() error {
+		_, err := nc.Write(binary.AppendUvarint(nil, localPosition))
+		return trace.Wrap(err, "writing local receive position")
+	})
+	eg.Go(func() error {
 		var err error
 		peerPosition, err = binary.ReadUvarint(ncReader)
-		if err != nil {
-			return trace.Wrap(err, "reading peer receive position")
-		}
-		err = <-errC
-		if err != nil {
-			return trace.Wrap(err, "writing receive position")
-		}
+		return trace.Wrap(err, "reading peer receive position")
+	})
+	if err := eg.Wait(); err != nil {
+		return 0, trace.Wrap(err)
 	}
 
 	r.mu.Lock()
@@ -150,29 +170,16 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 		r.mu.Unlock()
 
 		_, _ = nc.Write([]byte(errorTagUvarint))
-		return trace.BadParameter("got incompatible resume position (%v, expected %v to %v)", peerPosition, minPos, maxPos)
+		return 0, trace.BadParameter("got incompatible resume position (%v, expected %v to %v)", peerPosition, minPos, maxPos)
 	}
+
 	if r.sendBuffer.start != peerPosition {
 		r.sendBuffer.advance(peerPosition - r.sendBuffer.start)
 		r.cond.Broadcast()
 	}
 	r.mu.Unlock()
 
-	handshakeWatchdog.Stop()
-
-	eg, ctx := errgroup.WithContext(context.Background())
-	context.AfterFunc(ctx, requestStop)
-
-	eg.Go(func() error {
-		defer nc.Close()
-		return runResumeV1Read(r, ncReader, &stopRequested)
-	})
-
-	eg.Go(func() error {
-		return runResumeV1Write(r, nc, &stopRequested, sentPosition, peerPosition)
-	})
-
-	return trace.Wrap(eg.Wait())
+	return peerPosition, nil
 }
 
 func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) error {
@@ -214,33 +221,29 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 		r.mu.Lock()
 
 		for size > 0 {
+			for r.receiveBuffer.len() >= receiveBufferSize && !r.localClosed && !stopRequested.Load() {
+				r.cond.Wait()
+			}
+
+			if stopRequested.Load() {
+				r.mu.Unlock()
+				return trace.ConnectionProblem(net.ErrClosed, "disconnection requested")
+			}
+
 			if r.localClosed {
-				r.receiveBuffer.advance(r.receiveBuffer.len())
-				r.cond.Broadcast()
 				r.mu.Unlock()
 
 				n, err := io.Copy(io.Discard, io.LimitReader(nc, int64(size)))
 
 				r.mu.Lock()
-				r.receiveBuffer.start += uint64(n)
-				r.receiveBuffer.end = r.receiveBuffer.start
+				r.receiveBuffer.end += uint64(n)
+				r.receiveBuffer.start = r.receiveBuffer.end
 				r.cond.Broadcast()
 				if err != nil {
 					r.mu.Unlock()
 					return trace.Wrap(err, "reading data to discard")
 				}
 				break
-			}
-
-			for r.receiveBuffer.len() >= receiveBufferSize {
-				r.cond.Wait()
-				if stopRequested.Load() || r.remoteClosed {
-					r.mu.Unlock()
-					if stopRequested.Load() {
-						return trace.ConnectionProblem(net.ErrClosed, "disconnection requested")
-					}
-					return trace.ConnectionProblem(net.ErrClosed, "connection closed by peer")
-				}
 			}
 
 			next := min(receiveBufferSize-r.receiveBuffer.len(), size)
@@ -269,7 +272,7 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 	}
 }
 
-func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, sentPosition, peerPosition uint64) error {
+func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, localPosition, peerPosition uint64) error {
 	var headerBuf [2 * binary.MaxVarintLen64]byte
 	var dataBuf [maxFrameSize]byte
 
@@ -279,7 +282,7 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, sentPos
 
 		r.mu.Lock()
 		for {
-			frameAck = r.receiveBuffer.end - sentPosition
+			frameAck = r.receiveBuffer.end - localPosition
 
 			frameData = nil
 			if r.sendBuffer.end > peerPosition {
@@ -328,7 +331,7 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, sentPos
 			return trace.Wrap(err, "writing frame data")
 		}
 
-		sentPosition += frameAck
+		localPosition += frameAck
 		peerPosition += len64(frameData)
 	}
 }
