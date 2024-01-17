@@ -20,11 +20,15 @@ package resources
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"slices"
 
 	"github.com/gravitational/trace"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -53,6 +57,7 @@ type TeleportKubernetesResource[T TeleportResource] interface {
 type TeleportResourceReconciler[T TeleportResource, K TeleportKubernetesResource[T]] struct {
 	ResourceBaseReconciler
 	resourceClient TeleportResourceClient[T]
+	gvk            schema.GroupVersionKind
 }
 
 // TeleportResourceClient is a CRUD client for a specific Teleport resource.
@@ -82,28 +87,51 @@ type TeleportExistingResourceMutator[T TeleportResource] interface {
 func NewTeleportResourceReconciler[T TeleportResource, K TeleportKubernetesResource[T]](
 	client kclient.Client,
 	resourceClient TeleportResourceClient[T],
-) *TeleportResourceReconciler[T, K] {
+) (*TeleportResourceReconciler[T, K], error) {
+	gvk, err := gvkFromScheme[T, K](Scheme)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	reconciler := &TeleportResourceReconciler[T, K]{
 		ResourceBaseReconciler: ResourceBaseReconciler{Client: client},
 		resourceClient:         resourceClient,
+		gvk:                    gvk,
 	}
 	reconciler.ResourceBaseReconciler.UpsertExternal = reconciler.Upsert
 	reconciler.ResourceBaseReconciler.DeleteExternal = reconciler.Delete
-	return reconciler
+	return reconciler, nil
 }
 
-// Upsert is the TeleportResourceReconciler of the ResourceBaseReconciler UpsertExertal
+// Upsert is the TeleportResourceReconciler of the ResourceBaseReconciler UpsertExternal
 // It contains the logic to check if the resource already exists, if it is owned by the operator and what
 // to do to reconcile the Teleport resource based on the Kubernetes one.
 func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object) error {
-	k8sResource, ok := obj.(K)
+	u, ok := obj.(*unstructured.Unstructured)
 	if !ok {
-		return trace.BadParameter("failed to convert Object into resource object: %T", obj)
+		return fmt.Errorf("failed to convert Object into resource object: %T", obj)
 	}
+	k8sResource := newKubeResource[T, K]()
+
+	// If an error happens we want to put it in status.conditions before returning.
+	err := runtime.DefaultUnstructuredConverter.FromUnstructuredWithValidation(
+		u.Object,
+		k8sResource,
+		true, /* returnUnknownFields */
+	)
+	updateErr := updateStatus(updateStatusConfig{
+		ctx:         ctx,
+		client:      r.Client,
+		k8sResource: k8sResource,
+		condition:   getStructureConditionFromError(err),
+	})
+	if err != nil || updateErr != nil {
+		return trace.NewAggregate(err, updateErr)
+	}
+
 	teleportResource := k8sResource.ToTeleport()
 
 	existingResource, err := r.resourceClient.Get(ctx, teleportResource.GetName())
-	updateErr := updateStatus(updateStatusConfig{
+	updateErr = updateStatus(updateStatusConfig{
 		ctx:         ctx,
 		client:      r.Client,
 		k8sResource: k8sResource,
@@ -176,20 +204,47 @@ func (r TeleportResourceReconciler[T, K]) Delete(ctx context.Context, obj kclien
 
 // Reconcile allows the TeleportResourceReconciler to implement the reconcile.Reconciler interface
 func (r TeleportResourceReconciler[T, K]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	kubeResource := newKubeResource[T, K]()
-	return r.Do(ctx, req, kubeResource)
+	obj, err := GetUnstructuredObjectFromGVK(r.gvk)
+	if err != nil {
+		return ctrl.Result{}, trace.Wrap(err, "creating object in which the CR will be unmarshalled")
+	}
+	return r.Do(ctx, req, obj)
 }
 
 // SetupWithManager have a controllerruntime.Manager run the TeleportResourceReconciler
 func (r TeleportResourceReconciler[T, K]) SetupWithManager(mgr ctrl.Manager) error {
-	kubeResource := newKubeResource[T, K]()
+	// The TeleportResourceReconciler uses unstructured objects because of a silly json marshaling
+	// issue. Teleport's utils.String is a list of strings, but marshals as a single string if there's a single item.
+	// This is a questionable design as it breaks the openapi schema, but we're stuck with it. We had to relax openapi
+	// validation in those CRD fields, and use an unstructured object for the client, else JSON unmarshalling fails.
+	obj, err := GetUnstructuredObjectFromGVK(r.gvk)
+	if err != nil {
+		return trace.Wrap(err, "creating the model object for the manager watcher/client")
+	}
 	return ctrl.
 		NewControllerManagedBy(mgr).
-		For(kubeResource).
+		For(obj).
 		WithEventFilter(
 			buildPredicate(),
 		).
 		Complete(r)
+}
+
+// gvkFromScheme looks up the GVK from the a runtime scheme.
+// The structured type must have been registered before in the scheme. This function is used when you have a structured
+// type, a scheme containing this structured type, and want to build an unstructured object for the same GVK.
+func gvkFromScheme[T TeleportResource, K TeleportKubernetesResource[T]](scheme *runtime.Scheme) (schema.GroupVersionKind, error) {
+	structuredObj := newKubeResource[T, K]()
+	gvks, _, err := scheme.ObjectKinds(structuredObj)
+	if err != nil {
+		return schema.GroupVersionKind{}, trace.Wrap(err, "looking up gvk in scheme for type %T", structuredObj)
+	}
+	if len(gvks) != 1 {
+		return schema.GroupVersionKind{}, trace.CompareFailed(
+			"failed GVK lookup in scheme, looked up %T and got %d matches, expected 1", structuredObj, len(gvks),
+		)
+	}
+	return gvks[0], nil
 }
 
 // newKubeResource creates a new TeleportKubernetesResource

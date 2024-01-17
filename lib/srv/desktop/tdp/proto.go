@@ -79,6 +79,7 @@ const (
 	TypeRDPFastPathPDU                = MessageType(29)
 	TypeRDPResponsePDU                = MessageType(30)
 	TypeRDPConnectionInitialized      = MessageType(31)
+	TypeSyncKeys                      = MessageType(32)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -131,6 +132,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeMouseWheel(in)
 	case TypeKeyboardButton:
 		return decodeKeyboardButton(in)
+	case TypeSyncKeys:
+		return decodeSyncKeys(in)
 	case TypeClientUsername:
 		return decodeClientUsername(in)
 	case TypeClipboardData:
@@ -384,6 +387,30 @@ func decodeConnectionInitialized(in byteReader) (ConnectionInitialized, error) {
 	var ids ConnectionInitialized
 	err := binary.Read(in, binary.BigEndian, &ids)
 	return ids, trace.Wrap(err)
+}
+
+// | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+type SyncKeys struct {
+	ScrollLockState ButtonState
+	NumLockState    ButtonState
+	CapsLockState   ButtonState
+	KanaLockState   ButtonState
+}
+
+func (k SyncKeys) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSyncKeys))
+	buf.WriteByte(byte(k.ScrollLockState))
+	buf.WriteByte(byte(k.NumLockState))
+	buf.WriteByte(byte(k.CapsLockState))
+	buf.WriteByte(byte(k.KanaLockState))
+	return buf.Bytes(), nil
+}
+
+func decodeSyncKeys(in byteReader) (SyncKeys, error) {
+	var k SyncKeys
+	err := binary.Read(in, binary.BigEndian, &k)
+	return k, trace.Wrap(err)
 }
 
 // MouseMove is the mouse movement message.

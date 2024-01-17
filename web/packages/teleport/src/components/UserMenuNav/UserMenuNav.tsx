@@ -135,7 +135,9 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
   const initial =
     username && username.length ? username.trim().charAt(0).toUpperCase() : '';
 
-  const topMenuItems = features.filter(feature => Boolean(feature.topMenuItem));
+  const topMenuItems = features.filter(
+    feature => Boolean(feature.topMenuItem) && feature.category === undefined
+  );
 
   const items = [];
 
