@@ -198,12 +198,12 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 
 // LoginData is data gathered from a successful webauthn login.
 type LoginData struct {
-	// User is a Teleport user.
+	// User is the Teleport user.
 	User string
 	// Device is the MFA device used to authenticate the user.
 	Device *types.MFADevice
 	// AllowReuse is whether the webauthn challenge used for this login
-	// can be reused by the user for subsequent logins.
+	// can be reused by the user for subsequent logins, until it expires.
 	AllowReuse mfav1.ChallengeAllowReuse
 }
 
@@ -357,6 +357,8 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 
 	// The user just solved the challenge, so let's make sure it won't be used
 	// again, unless reuse is explicitly allowed.
+	// Note that even reusable sessions are deleted when their expiration time
+	// passes.
 	if sd.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
 		if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
 			log.Warnf("WebAuthn: failed to delete login SessionData for user %v (scope = %s)", user, sd.ChallengeExtensions.Scope)
