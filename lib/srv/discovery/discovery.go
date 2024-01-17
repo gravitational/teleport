@@ -290,8 +290,6 @@ type Server struct {
 	// usageEventCache keeps track of which instances the server has emitted
 	// usage events for.
 	usageEventCache map[string]struct{}
-
-	currentTAGResources *tag_aws_sync.PollResult
 }
 
 // New initializes a discovery Server
@@ -311,7 +309,6 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 		dynamicTAGSyncFetchers:     make(map[string][]tag_aws_sync.AWSSync),
-		currentTAGResources:        &tag_aws_sync.PollResult{},
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -362,7 +359,6 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		go func() {
 			for {
 				// reset the currentTAGResources to force a full sync
-				s.currentTAGResources = &tag_aws_sync.PollResult{}
 				if err := s.initializeAndWatchAccessGraph(ctx); err != nil {
 					s.Log.Warnf("Error initializing and watching access graph: %v", err)
 				}

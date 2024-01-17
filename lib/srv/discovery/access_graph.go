@@ -37,7 +37,7 @@ import (
 	tag_aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/tag-aws-sync"
 )
 
-func (s *Server) reconcileAccessGraph(ctx context.Context, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient) {
+func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *tag_aws_sync.PollResult, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient) {
 	errG, ctx := errgroup.WithContext(ctx)
 	errs := make([]error, 0, len(s.staticTAGSyncFetchers))
 	results := make([]*tag_aws_sync.PollResult, 0, len(s.staticTAGSyncFetchers))
@@ -70,13 +70,13 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, stream accessgraphv1a
 	}
 	result := tag_aws_sync.MergePollResults(results...)
 	// Merge all results into a single result
-	upsert, delete := tag_aws_sync.ReconcilePollResult(s.currentTAGResources, result)
+	upsert, delete := tag_aws_sync.ReconcilePollResult(currentTAGResources, result)
 	err = push(stream, upsert, delete)
 	if err != nil {
 		s.Log.WithError(err).Error("Error pushing TAGs")
 		return
 	}
-	s.currentTAGResources = result
+	*currentTAGResources = *result
 }
 
 const batchSize = 500
@@ -210,10 +210,11 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context) error {
 		}
 	}()
 
+	currentTAGResources := &tag_aws_sync.PollResult{}
 	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
 	for {
-		s.reconcileAccessGraph(ctx, stream)
+		s.reconcileAccessGraph(ctx, currentTAGResources, stream)
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
