@@ -141,7 +141,7 @@ func TestLogin(t *testing.T) {
 			}
 			test.setUserPresence.SetUserPresence(true)
 
-			assertion, err := loginFlow.Begin(ctx, username, mfav1.ChallengeExtensions{
+			assertion, err := loginFlow.Begin(ctx, username, &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			})
 			require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestLogin(t *testing.T) {
 			require.NotNil(t, mfaResp.GetWebauthn())
 			require.Equal(t, test.wantRawID, mfaResp.GetWebauthn().RawId)
 
-			_, err = loginFlow.Finish(ctx, username, wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()), mfav1.ChallengeExtensions{
+			_, err = loginFlow.Finish(ctx, username, wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()), &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			})
 			require.NoError(t, err)
@@ -187,7 +187,7 @@ func TestLogin_errors(t *testing.T) {
 	const user = "llama"
 	const origin = "https://localhost"
 	ctx := context.Background()
-	okAssertion, err := loginFlow.Begin(ctx, user, mfav1.ChallengeExtensions{
+	okAssertion, err := loginFlow.Begin(ctx, user, &mfav1.ChallengeExtensions{
 		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 	})
 	require.NoError(t, err)
@@ -222,7 +222,7 @@ func TestLogin_errors(t *testing.T) {
 			name:   "NOK assertion missing challenge",
 			origin: origin,
 			getAssertion: func() *wantypes.CredentialAssertion {
-				assertion, err := loginFlow.Begin(ctx, user, mfav1.ChallengeExtensions{
+				assertion, err := loginFlow.Begin(ctx, user, &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				})
 				require.NoError(t, err)
@@ -234,7 +234,7 @@ func TestLogin_errors(t *testing.T) {
 			name:   "NOK assertion missing RPID",
 			origin: origin,
 			getAssertion: func() *wantypes.CredentialAssertion {
-				assertion, err := loginFlow.Begin(ctx, user, mfav1.ChallengeExtensions{
+				assertion, err := loginFlow.Begin(ctx, user, &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				})
 				require.NoError(t, err)
@@ -246,7 +246,7 @@ func TestLogin_errors(t *testing.T) {
 			name:   "NOK assertion missing credentials",
 			origin: origin,
 			getAssertion: func() *wantypes.CredentialAssertion {
-				assertion, err := loginFlow.Begin(ctx, user, mfav1.ChallengeExtensions{
+				assertion, err := loginFlow.Begin(ctx, user, &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				})
 				require.NoError(t, err)
@@ -258,7 +258,7 @@ func TestLogin_errors(t *testing.T) {
 			name:   "NOK assertion invalid user verification requirement",
 			origin: origin,
 			getAssertion: func() *wantypes.CredentialAssertion {
-				assertion, err := loginFlow.Begin(ctx, user, mfav1.ChallengeExtensions{
+				assertion, err := loginFlow.Begin(ctx, user, &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				})
 				require.NoError(t, err)
