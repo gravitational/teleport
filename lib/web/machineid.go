@@ -28,6 +28,13 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
+type ListBotsResponse struct {
+	// Items is a list of resources retrieved.
+	Items []*machineidv1.Bot `json:"items"`
+	// StartKey is the position to resume search events.
+	StartKey string `json:"startKey"`
+}
+
 type CreateBotRequest struct {
 	// BotName is the name of the bot
 	BotName string `json:"botName"`
@@ -38,6 +45,28 @@ type CreateBotRequest struct {
 	// Where multiple specified with the same name, these will be merged by the
 	// server.
 	Traits []*machineidv1.Trait `json:"traits"`
+}
+
+// listBots returns a paginated list of bots for a given cluster site
+func (h *Handler) listBots(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	bots, err := clt.BotServiceClient().ListBots(r.Context(), &machineidv1.ListBotsRequest{
+		// todo (mberg) re-evaluate once we agree on a pagination approach
+		PageSize:  int32(1000),
+		PageToken: "",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "error getting bots")
+	}
+
+	return ListBotsResponse{
+		Items:    bots.Bots,
+		StartKey: bots.NextPageToken,
+	}, nil
 }
 
 // createBot creates a bot
