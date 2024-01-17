@@ -156,14 +156,6 @@ function getKindName(connection: ExtendedTrackedConnection): string {
       // For example, the user can open an app connection in Connect v15
       // and then downgrade to a version that doesn't support apps.
       // That connection should be shown as 'UNKNOWN' in the connection list.
-      //
-      // `connection satisfies never` checks if we handled all cases,
-      // and if not, it causes a compile-time error.
-      // It is a pure TS check.
-      //
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const _ = connection satisfies never;
-
       return 'UNKNOWN';
   }
 }
