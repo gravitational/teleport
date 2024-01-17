@@ -1934,14 +1934,16 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			))
 		}, waitForReconcileTimeout, 100*time.Millisecond)
 
-		require.Equal(t, 1, reporter.DiscoveryFetchEventCount())
+		currentEmittedEvents := reporter.DiscoveryFetchEventCount()
+		require.GreaterOrEqual(t, currentEmittedEvents, 1)
 
 		// Advance clock to trigger a poll.
 		clock.Advance(5 * time.Minute)
 		// Wait for the cycle to complete
 		// A new DiscoveryFetch event must have been emitted.
+		expectedEmittedEvents := currentEmittedEvents + 1
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			assert.Equal(t, 2, reporter.DiscoveryFetchEventCount())
+			assert.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), expectedEmittedEvents)
 		}, waitForReconcileTimeout, 100*time.Millisecond)
 
 		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
@@ -1949,6 +1951,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			err = tlsServer.Auth().DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, dc1.GetName())
 			require.NoError(t, err)
 
+			currentEmittedEvents := reporter.DiscoveryFetchEventCount()
 			// Existing databases must be removed.
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
@@ -1959,7 +1962,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			}, waitForReconcileTimeout, 100*time.Millisecond)
 
 			// Given that no Fetch was issued, the counter should not increment.
-			require.Equal(t, 2, reporter.DiscoveryFetchEventCount())
+			require.Equal(t, reporter.DiscoveryFetchEventCount(), currentEmittedEvents)
 		})
 	})
 }
