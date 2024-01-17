@@ -73,6 +73,7 @@ const props: State = {
   canvasOnMouseUp: () => {},
   canvasOnMouseWheelScroll: () => {},
   canvasOnContextMenu: () => false,
+  canvasOnFocusOut: () => {},
   clientOnClipboardData: async () => {},
   setTdpConnection: () => {},
   webauthn: {
@@ -87,7 +88,6 @@ const props: State = {
   setShowAnotherSessionActiveDialog: () => {},
   warnings: [],
   onRemoveWarning: () => {},
-  onFocusOut: () => {},
 };
 
 export const Processing = () => (
