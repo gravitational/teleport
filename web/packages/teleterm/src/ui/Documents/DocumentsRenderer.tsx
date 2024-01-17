@@ -18,6 +18,7 @@ import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
 import styled from 'styled-components';
+import { Text } from 'design';
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 // @ts-ignore
 import { DocumentAccessRequests } from 'e-teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
@@ -41,7 +42,7 @@ import {
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 
 import Document from 'teleterm/ui/Document';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, isDatabaseUri } from 'teleterm/ui/uri';
 
 import { ResourcesContextProvider } from '../DocumentCluster/resourcesContext';
 
@@ -121,8 +122,21 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
     switch (doc.kind) {
       case 'doc.cluster':
         return <DocumentCluster doc={doc} visible={visible} />;
-      case 'doc.gateway':
-        return <DocumentGateway doc={doc} visible={visible} />;
+      case 'doc.gateway': {
+        if (isDatabaseUri(doc.targetUri)) {
+          return <DocumentGateway doc={doc} visible={visible} />;
+        }
+        return (
+          <Document visible={visible}>
+            <Text m="auto" mt={10} textAlign="center">
+              Cannot create a gateway for the target "{doc.targetUri}".
+              <br />
+              Only database and kube targets are supported.
+            </Text>
+          </Document>
+        );
+      }
+
       case 'doc.gateway_cli_client':
         return <DocumentGatewayCliClient doc={doc} visible={visible} />;
       case 'doc.gateway_kube':
@@ -140,7 +154,9 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
       default:
         return (
           <Document visible={visible}>
-            Document kind "{doc.kind}" is not supported
+            <Text m="auto" mt={10} textAlign="center">
+              Document kind "{doc.kind}" is not supported.
+            </Text>
           </Document>
         );
     }
