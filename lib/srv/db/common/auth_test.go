@@ -903,6 +903,9 @@ type authClientMock struct {
 
 // GenerateDatabaseCert generates a cert using fixtures TLS CA.
 func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	if req.GetRequesterName() != proto.DatabaseCertRequest_UNSPECIFIED {
+		return nil, trace.BadParameter("db agent should not specify requester name")
+	}
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return nil, trace.Wrap(err)

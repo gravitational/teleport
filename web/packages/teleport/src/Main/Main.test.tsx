@@ -98,7 +98,7 @@ test('renders without questionnaire prop', () => {
     </MemoryRouter>
   );
 
-  expect(screen.getByTestId('title')).toBeInTheDocument();
+  expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
 });
 
 test('displays invite collaborators feedback if present', () => {
@@ -142,5 +142,5 @@ test('renders without invite collaborators feedback enabled', () => {
     </MemoryRouter>
   );
 
-  expect(screen.getByTestId('title')).toBeInTheDocument();
+  expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
 });

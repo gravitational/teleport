@@ -159,7 +159,8 @@ traits:
 
 			userName := validRandomResourceName("user-")
 
-			obj := resources.GetUnstructuredObjectFromGVK(teleportUserGVK)
+			obj, err := resources.GetUnstructuredObjectFromGVK(teleportUserGVK)
+			require.NoError(t, err)
 			obj.Object["spec"] = userManifest
 			obj.SetName(userName)
 			obj.SetNamespace(setup.Namespace.Name)

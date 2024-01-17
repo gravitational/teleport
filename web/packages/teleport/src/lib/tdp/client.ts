@@ -53,6 +53,7 @@ import type {
   SharedDirectoryCreateResponse,
   SharedDirectoryDeleteResponse,
   FileSystemObject,
+  SyncKeys,
 } from './codec';
 import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
@@ -71,6 +72,7 @@ export enum TdpClientEvent {
   CLIENT_WARNING = 'client warning',
   WS_OPEN = 'ws open',
   WS_CLOSE = 'ws close',
+  RESET = 'reset',
 }
 
 export enum LogType {
@@ -327,13 +329,6 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   handleRDPFastPathPDU(buffer: ArrayBuffer) {
-    if (!this.fastPathProcessor) {
-      this.handleError(
-        new Error("fastPathProcessor isn't initialized yet"),
-        TdpClientEvent.CLIENT_ERROR
-      );
-    }
-
     let rdpFastPathPDU = this.codec.decodeRDPFastPathPDU(buffer);
 
     // This should never happen but let's catch it with an error in case it does.
@@ -343,16 +338,20 @@ export default class Client extends EventEmitterWebAuthnSender {
         TdpClientEvent.CLIENT_ERROR
       );
 
-    this.fastPathProcessor.process(
-      rdpFastPathPDU,
-      this,
-      (bmpFrame: BitmapFrame) => {
-        this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
-      },
-      (responseFrame: ArrayBuffer) => {
-        this.sendRDPResponsePDU(responseFrame);
-      }
-    );
+    try {
+      this.fastPathProcessor.process(
+        rdpFastPathPDU,
+        this,
+        (bmpFrame: BitmapFrame) => {
+          this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
+        },
+        (responseFrame: ArrayBuffer) => {
+          this.sendRDPResponsePDU(responseFrame);
+        }
+      );
+    } catch (e) {
+      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
+    }
   }
 
   handleMfaChallenge(buffer: ArrayBuffer) {
@@ -601,6 +600,10 @@ export default class Client extends EventEmitterWebAuthnSender {
     // Only send message if key is recognized, otherwise do nothing.
     const msg = this.codec.encodeKeyboardInput(code, state);
     if (msg) this.send(msg);
+  }
+
+  sendSyncKeys(syncKeys: SyncKeys) {
+    this.send(this.codec.encodeSyncKeys(syncKeys));
   }
 
   sendClipboardData(clipboardData: ClipboardData) {

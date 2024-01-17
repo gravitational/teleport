@@ -33,6 +33,7 @@ import {
   Kube,
   GatewayProtocol,
   Database,
+  App,
 } from 'teleterm/services/tshd/types';
 
 import { DatabaseUri } from 'teleterm/ui/uri';
@@ -96,9 +97,11 @@ export function ConnectKubeActionButton(props: {
   );
 }
 
-export function ConnectAppActionButton(): React.JSX.Element {
+export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
+  const appContext = useAppContext();
+
   function connect(): void {
-    connectToApp();
+    connectToApp(appContext, props.app, { origin: 'resource_table' });
   }
 
   return (

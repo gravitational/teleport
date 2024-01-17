@@ -22,9 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -48,9 +46,9 @@ func (d createDBAuthority) Name() string {
 	return "create_db_cas"
 }
 
-// Up creates a Database CA for all known clusters. If a Database CA
-// already exist for a cluster, it is skipped. If no Host or Database CA
-// exist for a cluster, it is also skipped.
+// Up creates a new CA for all known clusters as a copy of the old CA.
+// If the new CA already exists for a cluster, it is skipped.
+// If neither the old nor the new CA exist for a cluster, it is also skipped.
 func (d createDBAuthority) Up(ctx context.Context, b backend.Backend) error {
 	ctx, span := tracer.Start(ctx, "createDBAuthority/Up")
 	defer span.End()
@@ -81,10 +79,6 @@ func (d createDBAuthority) Up(ctx context.Context, b backend.Backend) error {
 	}
 	presenceSvc := d.presenceServiceFn(b)
 
-	return trace.Wrap(d.up(ctx, configSvc, trustSvc, presenceSvc))
-}
-
-func (d createDBAuthority) up(ctx context.Context, configSvc services.ClusterConfiguration, trustSvc services.Trust, presenceSvc services.Presence) error {
 	localClusterName, err := configSvc.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -102,65 +96,17 @@ func (d createDBAuthority) up(ctx context.Context, configSvc services.ClusterCon
 	}
 
 	for _, cluster := range allClusters {
-		_, err := trustSvc.GetCertAuthority(ctx, types.CertAuthID{Type: types.DatabaseCA, DomainName: cluster}, false)
-		// The migration for this cluster can be skipped since
-		// a Database CA already exists.
-		if err == nil {
-			continue
-		}
-
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-
-		// The Database CA does not exists, so we must check to
-		// see if the Host CA exists before proceeding with the migration.
-		// If both the Database and Host CA do not exist, then this cluster
-		// is brand new and the migration can be avoided because they will
-		// both automatically be created. If the Host CA does exist, then
-		// a new Database CA should be constructed from it.
-		hostCA, err := trustSvc.GetCertAuthority(ctx, types.CertAuthID{Type: types.HostCA, DomainName: cluster}, false)
-		if trace.IsNotFound(err) {
-			continue
-		}
+		err := migrateDBAuthority(ctx, trustSvc, cluster, types.HostCA, types.DatabaseCA)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		logrus.Infof("Migrating Database CA cluster: %s", cluster)
-
-		ca, ok := hostCA.(*types.CertAuthorityV2)
-		if !ok {
-			return trace.BadParameter("expected host CA to be *types.CertAuthorityV2, got %T", hostCA)
-		}
-
-		dbCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.DatabaseCA,
-			ClusterName: cluster,
-			ActiveKeys: types.CAKeySet{
-				TLS: ca.Spec.ActiveKeys.TLS,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = trustSvc.CreateCertAuthority(ctx, dbCA)
-		if trace.IsAlreadyExists(err) {
-			logrus.Warn("Database CA has already been created by a different Auth instance")
-			continue
-		} else if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-
 	return nil
 }
 
-// Down deletes existing Database CAs for all clusters.
+// Down deletes any existing CAs of the new CA type for all clusters.
 func (d createDBAuthority) Down(ctx context.Context, b backend.Backend) error {
-	tracer := tracing.NewTracer("migrations")
-	_, span := tracer.Start(ctx, "migrations/CreateDBAuthorityDown")
+	_, span := tracer.Start(ctx, "CreateDBAuthorityDown")
 	defer span.End()
 
 	if d.trustServiceFn == nil {
@@ -171,4 +117,73 @@ func (d createDBAuthority) Down(ctx context.Context, b backend.Backend) error {
 
 	trustSvc := d.trustServiceFn(b)
 	return trace.Wrap(trustSvc.DeleteAllCertAuthorities(types.DatabaseCA))
+}
+
+// MigrateDBClientAuthority performs a migration which creates the db_client CA
+// as a copy of the existing db CA for backwards compatibility.
+func MigrateDBClientAuthority(ctx context.Context, trustSvc services.Trust, cluster string) error {
+	err := migrateDBAuthority(ctx, trustSvc, cluster, types.DatabaseCA, types.DatabaseClientCA)
+	return trace.Wrap(err)
+}
+
+// migrateDBAuthority performs a migration which creates a new CA from an
+// existing CA.
+// The new CA is created as a copy of the existing CA for backwards
+// compatibility.
+// This func is generalized for copying db/db_client CAs, although it may appear
+// to be usable for other CA types - that's why it is unexported.
+func migrateDBAuthority(ctx context.Context, trustSvc services.Trust, cluster string, fromType, toType types.CertAuthType) error {
+	_, err := trustSvc.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       toType,
+		DomainName: cluster,
+	}, false)
+	// The migration for this cluster can be skipped since
+	// the new CA already exists.
+	if err == nil {
+		log.Debugf("Migrations: cert authority %q already exists.", toType)
+		return nil
+	}
+	if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	// The new CA type does not exist, so we must check to
+	// see if the existing CA exists before proceeding with the split migration.
+	// If both the existing and new CA do not exist, then this cluster
+	// is brand new and the migration can be avoided because they will
+	// both automatically be created. If the existing CA does exist, then
+	// a new CA should be constructed from it as a copy.
+	existingCA, err := trustSvc.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       fromType,
+		DomainName: cluster,
+	}, true)
+	if trace.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Migrating %s CA for cluster: %s", toType, cluster)
+
+	existingCAV2, ok := existingCA.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("expected %s CA to be *types.CertAuthorityV2, got %T", fromType, existingCA)
+	}
+
+	newCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        toType,
+		ClusterName: cluster,
+		ActiveKeys:  existingCAV2.Spec.ActiveKeys,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = trustSvc.CreateCertAuthority(ctx, newCA)
+	if trace.IsAlreadyExists(err) {
+		log.Warnf("%s CA has already been created by a different Auth instance", toType)
+		return nil
+	}
+	return trace.Wrap(err)
 }

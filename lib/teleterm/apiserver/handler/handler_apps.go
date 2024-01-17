@@ -17,12 +17,47 @@
 package handler
 
 import (
+	"context"
 	"sort"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
+
+// GetApps gets apps with filters and returns paginated results
+func (s *Handler) GetApps(ctx context.Context, req *api.GetAppsRequest) (*api.GetAppsResponse, error) {
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := cluster.GetApps(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &api.GetAppsResponse{
+		StartKey:   resp.StartKey,
+		TotalCount: int32(resp.TotalCount),
+	}
+
+	for _, app := range resp.Apps {
+		var apiApp *api.App
+		if app.App != nil {
+			apiApp = newAPIApp(*app.App)
+		} else if app.SAMLIdPServiceProvider != nil {
+			apiApp = newSAMLIdPServiceProviderAPIApp(*app.SAMLIdPServiceProvider)
+		} else {
+			return nil, trace.Errorf("expected an app server or a SAML IdP provider")
+		}
+		response.Agents = append(response.Agents, apiApp)
+	}
+
+	return response, nil
+}
 
 func newAPIApp(clusterApp clusters.App) *api.App {
 	app := clusterApp.App

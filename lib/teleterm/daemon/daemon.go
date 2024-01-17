@@ -447,6 +447,10 @@ func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, erro
 		cmd, err := cmd.NewKubeCLICommand(gateway)
 		return cmd, trace.Wrap(err)
 
+	case targetURI.IsApp():
+		cmd, err := cmd.NewAppCLICommand(gateway)
+		return cmd, trace.Wrap(err)
+
 	default:
 		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
 	}

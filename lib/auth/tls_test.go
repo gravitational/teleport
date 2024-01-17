@@ -214,7 +214,7 @@ func TestRemoteRotation(t *testing.T) {
 	gracePeriod := time.Hour
 	remoteServer.AuthServer.privateKey, ok = fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
-	err = remoteServer.AuthServer.RotateCertAuthority(ctx, RotateRequest{
+	err = remoteServer.AuthServer.RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -223,7 +223,7 @@ func TestRemoteRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// moves to update clients
-	err = remoteServer.AuthServer.RotateCertAuthority(ctx, RotateRequest{
+	err = remoteServer.AuthServer.RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -349,7 +349,7 @@ func TestAutoRotation(t *testing.T) {
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		Mode:        types.RotationModeAuto,
@@ -450,7 +450,7 @@ func TestAutoFallback(t *testing.T) {
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		Mode:        types.RotationModeAuto,
@@ -471,7 +471,7 @@ func TestAutoFallback(t *testing.T) {
 	require.Equal(t, types.RotationModeAuto, ca.GetRotation().Mode)
 
 	// rollback rotation
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseRollback,
@@ -510,7 +510,7 @@ func TestManualRotation(t *testing.T) {
 	gracePeriod := time.Hour
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
@@ -519,7 +519,7 @@ func TestManualRotation(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 
 	// starts rotation
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -532,7 +532,7 @@ func TestManualRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// clients reconnect
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -552,7 +552,7 @@ func TestManualRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// can't jump to standy
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
@@ -561,7 +561,7 @@ func TestManualRotation(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 
 	// advance rotation:
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
@@ -578,7 +578,7 @@ func TestManualRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// complete rotation
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
@@ -620,7 +620,7 @@ func TestRollback(t *testing.T) {
 	gracePeriod := time.Hour
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -629,7 +629,7 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// move to update clients phase
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -645,7 +645,7 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// advance rotation:
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
@@ -654,7 +654,7 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// rollback rotation
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseRollback,
@@ -668,7 +668,7 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// can't jump to other phases
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -677,7 +677,7 @@ func TestRollback(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 
 	// complete rollback
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
@@ -741,7 +741,7 @@ func TestAppTokenRotation(t *testing.T) {
 	// Start rotation and move to initial phase. A new CA will be added (for
 	// verification), but requests will continue to be signed by the old CA.
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -764,7 +764,7 @@ func TestAppTokenRotation(t *testing.T) {
 
 	// Move rotation into the update client phase. In this phase, requests will
 	// be signed by the new CA, but the old CA will be around to verify requests.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -803,7 +803,7 @@ func TestAppTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Move rotation into update servers phase.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
@@ -827,7 +827,7 @@ func TestAppTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Complete rotation. The old CA will be removed.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
@@ -895,7 +895,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	// Start rotation and move to initial phase. A new CA will be added (for
 	// verification), but requests will continue to be signed by the old CA.
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.OIDCIdPCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -918,7 +918,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 
 	// Move rotation into the update client phase. In this phase, requests will
 	// be signed by the new CA, but the old CA will be around to verify requests.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.OIDCIdPCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -950,7 +950,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Move rotation into update servers phase.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.OIDCIdPCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
@@ -974,7 +974,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Complete rotation. The old CA will be removed.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.OIDCIdPCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
@@ -1980,6 +1980,11 @@ func TestGetCertAuthority(t *testing.T) {
 	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: testSrv.ClusterName(),
 		Type:       types.DatabaseCA,
+	}, true)
+	require.True(t, trace.IsAccessDenied(err))
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: testSrv.ClusterName(),
+		Type:       types.DatabaseClientCA,
 	}, true)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -3605,7 +3610,7 @@ func TestEventsPermissions(t *testing.T) {
 
 	// start rotation
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -3798,6 +3803,7 @@ func TestEvents(t *testing.T) {
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS:       clt,
+		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
 		PresenceS:     clt,
 		CAS:           clt,
@@ -3838,7 +3844,7 @@ func TestEventsClusterConfig(t *testing.T) {
 
 	// start rotation
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,

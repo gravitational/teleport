@@ -90,7 +90,7 @@ allow:
   - ubuntu
   - root
 options:
-  create_host_user_mode: 4
+  create_host_user_mode: 3
 `,
 			shouldFail: false,
 			expectedSpec: &types.RoleSpecV6{
@@ -98,7 +98,7 @@ options:
 					Logins: []string{"ubuntu", "root"},
 				},
 				Options: types.RoleOptions{
-					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 				},
 			},
 		},
@@ -190,7 +190,8 @@ allow:
 
 			roleName := validRandomResourceName("role-")
 
-			obj := resources.GetUnstructuredObjectFromGVK(resources.TeleportRoleGVKV5)
+			obj, err := resources.GetUnstructuredObjectFromGVK(resources.TeleportRoleGVKV5)
+			require.NoError(t, err)
 			obj.Object["spec"] = roleManifest
 			obj.SetName(roleName)
 			obj.SetNamespace(setup.Namespace.Name)
