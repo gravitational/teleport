@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"text/template"
@@ -45,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 type BotsCommand struct {
@@ -506,37 +506,47 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 		traits[t.Name] = t.Values
 	}
 
-	var currentLogins set.Set[string]
+	currentLogins := make(map[string]struct{})
 	if logins, exists := traits[constants.TraitLogins]; exists {
-		currentLogins = set.New(logins...)
-	} else {
-		currentLogins = set.Empty[string]()
+		for _, login := range logins {
+			currentLogins[login] = struct{}{}
+		}
 	}
 
-	var desiredLogins set.Set[string]
+	var desiredLogins map[string]struct{}
 	if c.setLogins != "" {
-		desiredLogins = set.New(splitEntries(c.setLogins)...)
+		desiredLogins = make(map[string]struct{})
+		for _, login := range splitEntries(c.setLogins) {
+			desiredLogins[login] = struct{}{}
+		}
 	} else {
-		desiredLogins = currentLogins.Clone()
+		desiredLogins = maps.Clone(currentLogins)
 	}
 
 	addLogins := splitEntries(c.addLogins)
 	if len(addLogins) > 0 {
-		desiredLogins = desiredLogins.Union(set.New(addLogins...))
+		for _, login := range addLogins {
+			desiredLogins[login] = struct{}{}
+		}
 	}
 
-	if currentLogins.Equals(desiredLogins) {
-		log.Infof("Requested logins match existing, nothing to do: %+v", desiredLogins.ToArray())
+	var desiredLoginsArray []string
+	for login := range desiredLogins {
+		desiredLoginsArray = append(desiredLoginsArray, login)
+	}
+
+	if maps.Equal(currentLogins, desiredLogins) {
+		log.Infof("Logins will be left unchanged: %+v", desiredLoginsArray)
 		return nil
 	}
 
-	log.Infof("Desired logins for bot %q: %+v", c.botName, desiredLogins.ToArray())
+	log.Infof("Desired logins for bot %q: %+v", c.botName, desiredLoginsArray)
 
 	if len(desiredLogins) == 0 {
 		delete(traits, constants.TraitLogins)
 		log.Infof("Removing logins trait from bot user")
 	} else {
-		traits[constants.TraitLogins] = desiredLogins.ToArray()
+		traits[constants.TraitLogins] = desiredLoginsArray
 	}
 
 	traitsArray := []*machineidv1pb.Trait{}
@@ -555,25 +565,38 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
 func (c *BotsCommand) updateBotRoles(ctx context.Context, client auth.ClientI, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
-	currentRoles := set.New(bot.Spec.Roles...)
+	currentRoles := make(map[string]struct{})
+	for _, role := range bot.Spec.Roles {
+		currentRoles[role] = struct{}{}
+	}
 
-	var desiredRoles set.Set[string]
+	var desiredRoles map[string]struct{}
 	if c.botRoles != "" {
-		desiredRoles = set.New(splitEntries(c.botRoles)...)
+		desiredRoles = make(map[string]struct{})
+		for _, role := range splitEntries(c.botRoles) {
+			desiredRoles[role] = struct{}{}
+		}
 	} else {
-		desiredRoles = currentRoles.Clone()
+		desiredRoles = maps.Clone(currentRoles)
 	}
 
 	if c.addRoles != "" {
-		desiredRoles = set.New(splitEntries(c.addRoles)...).Union(desiredRoles)
+		for _, role := range splitEntries(c.addRoles) {
+			desiredRoles[role] = struct{}{}
+		}
 	}
 
-	if currentRoles.Equals(desiredRoles) {
-		log.Infof("Requested roles match existing, nothing to do: %+v", desiredRoles.ToArray())
+	var desiredRolesArray []string
+	for role := range desiredRoles {
+		desiredRolesArray = append(desiredRolesArray, role)
+	}
+
+	if maps.Equal(currentRoles, desiredRoles) {
+		log.Infof("Roles will be left unchanged: %+v", desiredRolesArray)
 		return nil
 	}
 
-	log.Infof("Desired roles for bot %q:  %+v", c.botName, desiredRoles.ToArray())
+	log.Infof("Desired roles for bot %q:  %+v", c.botName, desiredRolesArray)
 
 	// Validate roles (server does not do this yet).
 	for roleName := range desiredRoles {
@@ -582,7 +605,7 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client auth.ClientI, b
 		}
 	}
 
-	bot.Spec.Roles = desiredRoles.ToArray()
+	bot.Spec.Roles = desiredRolesArray
 
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.roles"))
 }
