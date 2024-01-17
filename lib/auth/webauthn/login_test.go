@@ -119,7 +119,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 			}
 
 			// 1st step of the login ceremony.
-			assertion, err := webLogin.Begin(ctx, user, mfav1.ChallengeExtensions{
+			assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			})
 			require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 
 			// 2nd and last step of the login ceremony.
 			beforeLastUsed := time.Now().Add(-1 * time.Second)
-			loginData, err := webLogin.Finish(ctx, user, assertionResp, mfav1.ChallengeExtensions{
+			loginData, err := webLogin.Finish(ctx, user, assertionResp, &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			})
 			require.NoError(t, err)
@@ -225,7 +225,7 @@ func TestLoginFlow_Begin_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webLogin.Begin(ctx, test.user, mfav1.ChallengeExtensions{
+			_, err := webLogin.Begin(ctx, test.user, &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			})
 			require.True(t, test.assertErrType(err), "got err = %v, want BadParameter", err)
@@ -265,7 +265,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 		Webauthn: webConfig,
 		Identity: identity,
 	}
-	assertion, err := webLogin.Begin(ctx, user, mfav1.ChallengeExtensions{
+	assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
 		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 	})
 	require.NoError(t, err)
@@ -296,7 +296,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with bad origin",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user, mfav1.ChallengeExtensions{
+				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				})
 				require.NoError(t, err)
@@ -309,7 +309,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with bad RPID",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user, mfav1.ChallengeExtensions{
+				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				})
 				require.NoError(t, err)
@@ -324,7 +324,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion signed by unknown device",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user, mfav1.ChallengeExtensions{
+				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				})
 				require.NoError(t, err)
@@ -343,7 +343,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with invalid signature",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user, mfav1.ChallengeExtensions{
+				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				})
 				require.NoError(t, err)
@@ -359,7 +359,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webLogin.Finish(ctx, test.user, test.createResp(), mfav1.ChallengeExtensions{
+			_, err := webLogin.Finish(ctx, test.user, test.createResp(), &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			})
 			require.Error(t, err)
@@ -440,7 +440,7 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 				AllowCredentials: [][]uint8{}, // aka unset
 				ResidentKey:      false,       // irrelevant for login
 				UserVerification: string(protocol.VerificationRequired),
-				ChallengeExtensions: mfav1.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},
@@ -588,7 +588,7 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		_, err := webLogin.Begin(ctx, user, mfav1.ChallengeExtensions{
+		_, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		})
 		assert.NoError(t, err, "Begin failed, expected assertion for `dev1`")
@@ -600,7 +600,7 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		assertion, err := webLogin.Begin(ctx, user, mfav1.ChallengeExtensions{
+		assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		})
 		require.NoError(t, err, "Begin failed")
@@ -608,7 +608,7 @@ func TestCredentialRPID(t *testing.T) {
 		car, err := dev1Key.SignAssertion(origin, assertion)
 		require.NoError(t, err, "SignAssertion failed")
 
-		loginData, err := webLogin.Finish(ctx, user, car, mfav1.ChallengeExtensions{
+		loginData, err := webLogin.Finish(ctx, user, car, &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		})
 		require.NoError(t, err, "Finish failed")
@@ -621,7 +621,7 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		_, err := webLogin.Begin(ctx, user, mfav1.ChallengeExtensions{
+		_, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		})
 		assert.ErrorIs(t, err, wanlib.ErrInvalidCredentials, "Begin error mismatch")
@@ -640,7 +640,7 @@ func TestCredentialRPID(t *testing.T) {
 			Webauthn: webOtherRP,
 			Identity: identity,
 		}
-		assertion, err := webLogin.Begin(ctx, user, mfav1.ChallengeExtensions{
+		assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		})
 		require.NoError(t, err, "Begin failed, expected assertion for device `other1`")
@@ -686,17 +686,28 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		challengeExt  mfav1.ChallengeExtensions
+		challengeExt  *mfav1.ChallengeExtensions
 		wantBeginErr  error
-		requiredExt   mfav1.ChallengeExtensions
+		requiredExt   *mfav1.ChallengeExtensions
 		wantFinishErr error
 	}{
 		{
-			name: "NOK scope not satisfied",
-			challengeExt: mfav1.ChallengeExtensions{
+			name:         "NOK challenge extensions not provided",
+			challengeExt: nil,
+			wantBeginErr: trace.BadParameter("requested challenge extensions must be supplied."),
+		}, {
+			name: "NOK required challenge extensions not provided",
+			challengeExt: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 			},
-			requiredExt: mfav1.ChallengeExtensions{
+			requiredExt:   nil,
+			wantFinishErr: trace.BadParameter("requested challenge extensions must be supplied."),
+		}, {
+			name: "NOK scope not satisfied",
+			challengeExt: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+			},
+			requiredExt: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			},
 			wantFinishErr: trace.AccessDenied("required scope %q is not satisfied by the given webauthn session with scope %q", mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN, mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION),
@@ -705,63 +716,63 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 			// opportunistically during login finish.
 			// TODO(Joerger): DELETE IN v16.0.0 - change to NOK
 			name: "OK scope not specified",
-			challengeExt: mfav1.ChallengeExtensions{
+			challengeExt: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
 			},
-			requiredExt: mfav1.ChallengeExtensions{
+			requiredExt: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 			},
 		}, {
 			name: "OK scope not required",
-			challengeExt: mfav1.ChallengeExtensions{
+			challengeExt: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 			},
-			requiredExt: mfav1.ChallengeExtensions{
+			requiredExt: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
 			},
 		}, {
 			name: "OK required scope satisfied",
-			challengeExt: mfav1.ChallengeExtensions{
+			challengeExt: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 			},
-			requiredExt: mfav1.ChallengeExtensions{
+			requiredExt: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 			},
 		}, {
 			name: "NOK reuse not allowed for scope",
-			challengeExt: mfav1.ChallengeExtensions{
+			challengeExt: &mfav1.ChallengeExtensions{
 				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 			},
 			wantBeginErr: trace.BadParameter("mfa challenges with scope %s cannot allow reuse", mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN),
 		}, {
 			name: "NOK reuse requested but not allowed",
-			challengeExt: mfav1.ChallengeExtensions{
+			challengeExt: &mfav1.ChallengeExtensions{
 				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 			},
-			requiredExt: mfav1.ChallengeExtensions{
+			requiredExt: &mfav1.ChallengeExtensions{
 				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 			},
 			wantFinishErr: trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context"),
 		}, {
 			name: "OK reuse not requested but allowed",
-			challengeExt: mfav1.ChallengeExtensions{
+			challengeExt: &mfav1.ChallengeExtensions{
 				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 			},
-			requiredExt: mfav1.ChallengeExtensions{
+			requiredExt: &mfav1.ChallengeExtensions{
 				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 			},
 		}, {
 			name: "OK reuse requested and allowed",
-			challengeExt: mfav1.ChallengeExtensions{
+			challengeExt: &mfav1.ChallengeExtensions{
 				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 			},
-			requiredExt: mfav1.ChallengeExtensions{
+			requiredExt: &mfav1.ChallengeExtensions{
 				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 			},

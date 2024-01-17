@@ -55,7 +55,7 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAsser
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
 	}
-	chalExt := mfav1.ChallengeExtensions{
+	chalExt := &mfav1.ChallengeExtensions{
 		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 	}
@@ -71,7 +71,7 @@ func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.Credential
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
 	}
-	requiredExt := mfav1.ChallengeExtensions{
+	requiredExt := &mfav1.ChallengeExtensions{
 		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 	}

@@ -5808,7 +5808,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
 		// TODO(Joerger): Get extensions from caller.
-		ext := mfav1.ChallengeExtensions{
+		ext := &mfav1.ChallengeExtensions{
 			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
 			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 		}
@@ -5939,7 +5939,7 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 				Identity: a.Services,
 			}
 			// TODO(Joerger): Get extensions from caller.
-			ext := mfav1.ChallengeExtensions{
+			ext := &mfav1.ChallengeExtensions{
 				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
 				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 			}

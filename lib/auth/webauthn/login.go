@@ -67,12 +67,16 @@ type loginFlow struct {
 	sessionData sessionIdentity
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, requestedChallengeExt mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
-	if requestedChallengeExt.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && requestedChallengeExt.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION {
-		return nil, trace.BadParameter("mfa challenges with scope %s cannot allow reuse", requestedChallengeExt.Scope)
+func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
+	if challengeExtensions == nil {
+		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
 
-	passwordless := requestedChallengeExt.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+	if challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && challengeExtensions.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION {
+		return nil, trace.BadParameter("mfa challenges with scope %s cannot allow reuse", challengeExtensions.Scope)
+	}
+
+	passwordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
@@ -172,7 +176,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, requestedChallengeEx
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd.ChallengeExtensions = &requestedChallengeExt
+	sd.ChallengeExtensions = challengeExtensions
 
 	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {
 		return nil, trace.Wrap(err)
@@ -203,7 +207,11 @@ type LoginData struct {
 	AllowReuse mfav1.ChallengeAllowReuse
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions mfav1.ChallengeExtensions) (*LoginData, error) {
+func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*LoginData, error) {
+	if requiredExtensions == nil {
+		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
+	}
+
 	passwordless := requiredExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	switch {
