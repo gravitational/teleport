@@ -51,7 +51,7 @@ export function AgentWaitingDialog({
   function hintMessage() {
     if (showHint && !result) {
       return (
-        <Box mb={3}>
+        <Box textAlign={'left'} mb={3}>
           <HintBox header="We're still looking for your server">
             <Text mb={3}>
               There are a few of possible reasons for why we haven't been able
