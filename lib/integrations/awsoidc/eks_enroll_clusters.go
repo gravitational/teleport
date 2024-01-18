@@ -22,12 +22,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/google/uuid"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"net/http"
 	"net/url"
 	"os"
@@ -40,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -51,7 +46,13 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -472,7 +473,7 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 	installCmd.CreateNamespace = true
 	vals := map[string]any{}
 	vals["proxyAddr"] = proxyAddr
-	vals["kubeClusterName"] = aws.ToString(eksCluster.Name)
+
 	vals["roles"] = "kube"
 	if req.EnableAppDiscovery {
 		vals["roles"] = "kube,app,discovery"
@@ -499,6 +500,9 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 	labels := kubeCluster.GetStaticLabels()
 	labels[types.InternalResourceIDLabel] = resourceId
 	vals["labels"] = labels
+
+	common.ApplyEKSNameSuffix(kubeCluster)
+	vals["kubeClusterName"] = kubeCluster.GetName()
 
 	if _, err := installCmd.RunWithContext(ctx, agentChart, vals); err != nil {
 		return trace.Wrap(err, "could not install Helm chart.")

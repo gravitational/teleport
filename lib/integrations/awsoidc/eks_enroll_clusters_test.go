@@ -21,7 +21,6 @@ package awsoidc
 import (
 	"context"
 	"fmt"
-	"github.com/gravitational/teleport/api/types"
 	"slices"
 	"strings"
 	"testing"
@@ -38,6 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
