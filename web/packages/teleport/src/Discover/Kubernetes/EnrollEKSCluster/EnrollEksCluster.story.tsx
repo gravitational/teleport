@@ -242,7 +242,6 @@ const Component = () => {
     eventState: null,
   };
 
-  cfg.proxyCluster = 'localhost';
   return (
     <MemoryRouter
       initialEntries={[
