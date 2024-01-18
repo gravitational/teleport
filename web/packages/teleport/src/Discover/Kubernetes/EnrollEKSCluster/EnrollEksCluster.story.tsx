@@ -39,6 +39,7 @@ import { createTeleportContext, getUserContext } from 'teleport/mocks/contexts';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
+import { DiscoverEventResource } from 'teleport/services/userEvent/types';
 import { Kube } from 'teleport/services/kube';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 
@@ -220,7 +221,11 @@ const Component = () => {
     agentMeta: {
       resourceName: 'db-name',
       agentMatcherLabels: [],
-      kube: {} as any,
+      kube: {
+        kind: 'kube_cluster',
+        name: '',
+        labels: [],
+      },
       awsIntegration: {
         kind: IntegrationKind.AwsOidc,
         name: integrationName,
@@ -237,7 +242,11 @@ const Component = () => {
     onSelectResource: () => null,
     resourceSpec: {
       name: 'Eks',
-    } as any,
+      kind: ResourceKind.Kubernetes,
+      icon: 'Eks',
+      keywords: '',
+      event: DiscoverEventResource.KubernetesEks,
+    },
     exitFlow: () => null,
     viewConfig: null,
     indexedViews: [],

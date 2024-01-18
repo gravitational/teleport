@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
-import { AnimatedProgressBar, Box, ButtonPrimary, Text } from 'design';
+import { AnimatedProgressBar, Box, ButtonPrimary, Text, Flex } from 'design';
 import React from 'react';
 
 import * as Icons from 'design/Icon';

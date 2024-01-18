@@ -27,10 +27,11 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { ContextProvider } from 'teleport';
 
+import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
+
 import { ManualHelmDialog } from './ManualHelmDialog';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
 import { EnrollmentDialog } from './EnrollmentDialog';
-import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 
 export default {
   title: 'Teleport/Discover/Kube/EnrollEksClusters/Dialogs',
