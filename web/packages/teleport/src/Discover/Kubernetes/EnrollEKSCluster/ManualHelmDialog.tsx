@@ -17,7 +17,7 @@
  */
 
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
-import { Box, ButtonPrimary, ButtonSecondary, Text } from 'design';
+import { Box, Flex, ButtonPrimary, ButtonSecondary, Text } from 'design';
 
 import React from 'react';
 
@@ -61,9 +61,9 @@ export function ManualHelmDialog({
             <>
               <Text bold>Step 2</Text>
               <Text typography="subtitle1" mb={3}>
-                Run the command below on the server your target EKS cluster is at. It
-                may take up to a minute for the Teleport Service to join after
-                running the command.
+                Run the command below on the server your target EKS cluster is
+                at. It may take up to a minute for the Teleport Service to join
+                after running the command.
               </Text>
             </>
           }
@@ -71,11 +71,11 @@ export function ManualHelmDialog({
           <TextSelectCopyMulti lines={[{ text: command }]} />
         </CommandBox>
       </DialogContent>
-      <DialogFooter alignItems="center">
-        <ButtonPrimary width="45%" onClick={confirmedCommands} mr={'10%'}>
+      <DialogFooter alignItems="center" as={Flex} gap={4}>
+        <ButtonPrimary width="50%" onClick={confirmedCommands}>
           I ran these commands
         </ButtonPrimary>
-        <ButtonSecondary width="45%" onClick={cancel}>
+        <ButtonSecondary width="50%" onClick={cancel}>
           Cancel
         </ButtonSecondary>
       </DialogFooter>
