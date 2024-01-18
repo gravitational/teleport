@@ -72,7 +72,6 @@ export const AgentWaitingDialogStory = () => (
     </ContextProvider>
   </MemoryRouter>
 );
-// cfg.api.kubernetesPath
 AgentWaitingDialogStory.storyName = 'AgentWaitingDialog';
 AgentWaitingDialogStory.parameters = {
   msw: {
