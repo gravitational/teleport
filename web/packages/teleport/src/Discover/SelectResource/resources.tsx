@@ -136,6 +136,13 @@ export const KUBERNETES: ResourceSpec[] = [
     icon: 'Kube',
     event: DiscoverEventResource.Kubernetes,
   },
+  {
+    name: 'EKS',
+    kind: ResourceKind.Kubernetes,
+    keywords: 'kubernetes cluster kubes eks',
+    icon: 'Aws',
+    event: DiscoverEventResource.Kubernetes,
+  },
 ];
 
 const BASE_RESOURCES: ResourceSpec[] = [
@@ -180,6 +187,8 @@ export function getResourcePretitle(r: ResourceSpec) {
       break;
     case ResourceKind.Desktop:
       return 'Windows Desktop';
+    case ResourceKind.Kubernetes:
+      return r.name === 'EKS' ? 'Amazon Web Services (AWS)' : '';
     case ResourceKind.Server:
       if (r.nodeMeta?.location === ServerLocation.Aws) {
         return 'Amazon Web Services (AWS)';

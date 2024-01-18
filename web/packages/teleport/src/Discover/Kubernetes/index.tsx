@@ -18,9 +18,11 @@
 
 import React from 'react';
 
-import { Finished, ResourceKind } from 'teleport/Discover/Shared';
+import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DiscoverEvent } from 'teleport/services/userEvent';
+import { ResourceSpec } from 'teleport/Discover/SelectResource';
+import { EnrollEksCluster } from 'teleport/Discover/Kubernetes/EnrollEKSCluster';
 
 import { KubeWrapper } from './KubeWrapper';
 import { SetupAccess } from './SetupAccess';
@@ -32,28 +34,62 @@ export const KubernetesResource: ResourceViewConfig = {
   wrapper: (component: React.ReactNode) => (
     <KubeWrapper>{component}</KubeWrapper>
   ),
-  views: [
-    {
-      title: 'Configure Resource',
-      component: HelmChart,
-      eventName: DiscoverEvent.DeployService,
-    },
-    {
-      title: 'Set Up Access',
-      component: SetupAccess,
-      eventName: DiscoverEvent.PrincipalsConfigure,
-    },
-    {
-      title: 'Test Connection',
-      component: TestConnection,
-      eventName: DiscoverEvent.TestConnection,
-      manuallyEmitSuccessEvent: true,
-    },
-    {
-      title: 'Finished',
-      component: Finished,
-      hide: true,
-      eventName: DiscoverEvent.Completed,
-    },
-  ],
+  views(resource: ResourceSpec) {
+    if (resource.name === 'EKS') {
+      return [
+        {
+          title: 'Connect AWS Account',
+          component: AwsAccount,
+          eventName: DiscoverEvent.IntegrationAWSOIDCConnectEvent,
+        },
+        {
+          title: 'Enroll EKS Clusters',
+          component: EnrollEksCluster,
+          eventName: DiscoverEvent.KubeEKSEnrollEvent,
+        },
+        {
+          title: 'Set Up Access',
+          component: SetupAccess,
+          eventName: DiscoverEvent.PrincipalsConfigure,
+        },
+        {
+          title: 'Test Connection',
+          component: TestConnection,
+          eventName: DiscoverEvent.TestConnection,
+          manuallyEmitSuccessEvent: true,
+        },
+        {
+          title: 'Finished',
+          component: Finished,
+          hide: true,
+          eventName: DiscoverEvent.Completed,
+        },
+      ];
+    }
+
+    return [
+      {
+        title: 'Configure Resource',
+        component: HelmChart,
+        eventName: DiscoverEvent.DeployService,
+      },
+      {
+        title: 'Set Up Access',
+        component: SetupAccess,
+        eventName: DiscoverEvent.PrincipalsConfigure,
+      },
+      {
+        title: 'Test Connection',
+        component: TestConnection,
+        eventName: DiscoverEvent.TestConnection,
+        manuallyEmitSuccessEvent: true,
+      },
+      {
+        title: 'Finished',
+        component: Finished,
+        hide: true,
+        eventName: DiscoverEvent.Completed,
+      },
+    ];
+  },
 };

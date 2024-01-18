@@ -24,6 +24,7 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
+import { ResourceLabel } from 'teleport/services/agents';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { CatchError } from 'teleport/components/CatchError';
 import {
@@ -318,7 +319,7 @@ const StepTwo = ({
   );
 };
 
-const generateCmd = (data: {
+export function GenerateCmd(data: {
   namespace: string;
   clusterName: string;
   proxyAddr: string;
@@ -329,10 +330,15 @@ const generateCmd = (data: {
   isCloud: boolean;
   automaticUpgradesEnabled: boolean;
   automaticUpgradesTargetVersion: string;
-}) => {
+  joinLabels?: ResourceLabel[];
+  disableAppDiscovery?: boolean;
+}) {
   let extraYAMLConfig = '';
   let deployVersion = data.clusterVersion;
   let roles: JoinRole[] = ['Kube', 'App', 'Discovery'];
+  if (data.disableAppDiscovery) {
+    roles = ['Kube'];
+  }
 
   if (data.isEnterprise) {
     extraYAMLConfig += 'enterprise: true\n';
@@ -364,6 +370,10 @@ const generateCmd = (data: {
 
   const yamlRoles = roles.join(',').toLowerCase();
 
+  const joinLabelsText = data.joinLabels
+    ? data.joinLabels.map(l => `    ${l.name}: ${l.value}`).join('\n')
+    : '';
+
   return `cat << EOF > prod-cluster-values.yaml
 roles: ${yamlRoles}
 authToken: ${data.tokenId}
@@ -371,10 +381,12 @@ proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
 labels:
     teleport.internal/resource-id: ${data.resourceId}
+${joinLabelsText}
 ${extraYAMLConfig}EOF
  
-helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version ${deployVersion} --create-namespace --namespace ${data.namespace}`;
-};
+helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version ${deployVersion} \\
+--create-namespace --namespace ${data.namespace}`;
+}
 
 const InstallHelmChart = ({
   namespace,
@@ -458,7 +470,7 @@ const InstallHelmChart = ({
     nextStep();
   }
 
-  const command = generateCmd({
+  const command = GenerateCmd({
     namespace,
     clusterName,
     proxyAddr: host,
