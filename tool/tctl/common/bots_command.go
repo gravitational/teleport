@@ -530,10 +530,7 @@ func (c *BotsCommand) updateBotLogins(bot *machineidv1pb.Bot, mask *fieldmaskpb.
 		}
 	}
 
-	var desiredLoginsArray []string
-	for login := range desiredLogins {
-		desiredLoginsArray = append(desiredLoginsArray, login)
-	}
+	desiredLoginsArray := utils.StringsSliceFromSet(desiredLogins)
 
 	if maps.Equal(currentLogins, desiredLogins) {
 		log.Infof("Logins will be left unchanged: %+v", desiredLoginsArray)
@@ -591,10 +588,7 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGette
 		}
 	}
 
-	var desiredRolesArray []string
-	for role := range desiredRoles {
-		desiredRolesArray = append(desiredRolesArray, role)
-	}
+	desiredRolesArray := utils.StringsSliceFromSet(desiredRoles)
 
 	if maps.Equal(currentRoles, desiredRoles) {
 		log.Infof("Roles will be left unchanged: %+v", desiredRolesArray)
