@@ -316,7 +316,7 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 	if alreadyInstalled, err := clt.CheckAgentAlreadyInstalled(kubeClientGetter, log); err != nil {
 		return "", trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
 	} else if alreadyInstalled {
-		return "", trace.BadParameter("teleport-kube-agent is already installed on the cluster %q", clusterName)
+		return "", trace.AlreadyExists("teleport-kube-agent is already installed on the cluster %q", clusterName)
 	}
 
 	joinToken, resourceId, err := getToken(ctx, clock, clt.CreateToken)
