@@ -500,7 +500,7 @@ func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
 
 // updateBotLogins applies updates from CLI arguments to a bot's logins trait,
 // updating the field mask if any updates were made.
-func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
+func (c *BotsCommand) updateBotLogins(bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
 	traits := map[string][]string{}
 	for _, t := range bot.Spec.GetTraits() {
 		traits[t.Name] = t.Values
@@ -562,9 +562,14 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.traits"))
 }
 
+// clientRoleGetter is a minimal mockable interface for the client API
+type clientRoleGetter interface {
+	GetRole(context.Context, string) (types.Role, error)
+}
+
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
-func (c *BotsCommand) updateBotRoles(ctx context.Context, client auth.ClientI, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
+func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGetter, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
 	currentRoles := make(map[string]struct{})
 	for _, role := range bot.Spec.Roles {
 		currentRoles[role] = struct{}{}
@@ -625,7 +630,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client auth.ClientI) error 
 	}
 
 	if c.setLogins != "" || c.addLogins != "" {
-		if err := c.updateBotLogins(ctx, bot, fieldMask); err != nil {
+		if err := c.updateBotLogins(bot, fieldMask); err != nil {
 			return trace.Wrap(err)
 		}
 	}
