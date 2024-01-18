@@ -310,7 +310,7 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 	kubeClientGetter, err := getKubeClientGetter(ctx, clock.Now(), credsProvider, clusterName, req.Region,
 		aws.ToString(eksCluster.CertificateAuthority.Data), aws.ToString(eksCluster.Endpoint))
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.Wrap(err, "unable to build kubernetes client for EKS cluster %q", clusterName)
 	}
 
 	if alreadyInstalled, err := clt.CheckAgentAlreadyInstalled(kubeClientGetter, log); err != nil {
