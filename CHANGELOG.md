@@ -72,6 +72,11 @@ by `insecure-drop`, which still creates temporary users but does not create a
 home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
 or use PAM.
 
+#### Remove restricted sessions for SSH
+
+The restricted session feature for SSH has been deprecated since Teleport 14 and 
+has been removed in Teleport 15. There is no replacement for this feature.
+
 #### Packages no longer published to legacy Debian and RPM repos
 
 `deb.releases.teleport.dev` and `rpm.releases.teleport.dev` were deprecated in
