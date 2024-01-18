@@ -670,10 +670,22 @@ func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
 
 // IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
-	// Assume that failed handshake is a result of expired credentials.
+	// Ignore any failures resulting from RPCs.
+	// These were all materialized as status.Error here before
+	// https://github.com/gravitational/teleport/pull/30578.
+	var remoteErr *interceptors.RemoteError
+	if errors.As(err, &remoteErr) {
+		return false
+	}
+
 	return keys.IsPrivateKeyPolicyError(err) ||
+		// TODO(codingllama): Retrying BadParameter is a terrible idea.
+		//  We should fix this and remove the RemoteError condition above as well.
+		//  Any retriable error should be explicitly marked as such.
+		trace.IsBadParameter(err) ||
 		trace.IsTrustError(err) ||
 		utils.IsCertExpiredError(err) ||
+		// Assume that failed handshake is a result of expired credentials.
 		utils.IsHandshakeFailedError(err) ||
 		IsNoCredentialsError(err)
 }
