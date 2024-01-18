@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/siddontang/go-log/log"
 	"net/http"
 	"net/url"
 	"os"
@@ -172,7 +173,16 @@ func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, e
 		return trace.Wrap(err)
 	}
 
-	return installKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, actionConfig, getHelmSettings(), req)
+	return installKubeAgent(ctx, installKubeAgentParams{
+		eksCluster:   eksCluster,
+		proxyAddr:    proxyAddr,
+		joinToken:    joinToken,
+		resourceID:   resourceId,
+		actionConfig: actionConfig,
+		settings:     getHelmSettings(),
+		req:          req,
+		log:          log,
+	})
 }
 
 // CreateToken creates provisioning token on the auth server. That token can be used to install kube agent to an EKS cluster.
@@ -463,22 +473,36 @@ func checkAgentAlreadyInstalled(actionConfig *action.Configuration) (bool, error
 	return false, nil
 }
 
+type installKubeAgentParams struct {
+	eksCluster   *eksTypes.Cluster
+	proxyAddr    string
+	joinToken    string
+	resourceID   string
+	actionConfig *action.Configuration
+	settings     *helmCli.EnvSettings
+	req          EnrollEKSClustersRequest
+	log          logrus.FieldLogger
+}
+
 // installKubeAgent installs teleport-kube-agent chart to the target EKS cluster.
-func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, actionConfig *action.Configuration, settings *helmCli.EnvSettings, req EnrollEKSClustersRequest) error {
-	installCmd := action.NewInstall(actionConfig)
+func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
+	installCmd := action.NewInstall(cfg.actionConfig)
 	installCmd.RepoURL = agentRepoURL
-	installCmd.Version = req.AgentVersion
+	installCmd.Version = cfg.req.AgentVersion
 	if strings.Contains(installCmd.Version, "dev") {
 		installCmd.Version = "" // For testing during development.
 	}
 
-	chartPath, err := installCmd.LocateChart(agentName, settings)
+	chartPath, err := installCmd.LocateChart(agentName, cfg.settings)
 	if err != nil {
 		return trace.Wrap(err, "could not locate chart")
 	}
 	defer func() {
 		// Clean up downloaded chart.
-		_ = os.Remove(chartPath)
+		err := os.Remove(chartPath)
+		if err != nil && cfg.log != nil {
+			log.Warnf("could not delete temporary chart file at the path %q", chartPath)
+		}
 	}()
 
 	agentChart, err := loader.Load(chartPath)
@@ -489,16 +513,16 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 	installCmd.Namespace = agentNamespace
 	installCmd.CreateNamespace = true
 	vals := map[string]any{}
-	vals["proxyAddr"] = proxyAddr
+	vals["proxyAddr"] = cfg.proxyAddr
 
 	vals["roles"] = "kube"
 	// todo(anton): Remove check for 13 once Teleport cloud is unblocked to move from v13 chart.
-	if req.EnableAppDiscovery && !strings.HasPrefix(installCmd.Version, "13") {
+	if cfg.req.EnableAppDiscovery && !strings.HasPrefix(installCmd.Version, "13") {
 		vals["roles"] = "kube,app,discovery"
 	}
-	vals["authToken"] = joinToken
+	vals["authToken"] = cfg.joinToken
 
-	if req.IsCloud && req.EnableAutoUpgrades {
+	if cfg.req.IsCloud && cfg.req.EnableAutoUpgrades {
 		vals["updater"] = map[string]any{"enabled": true, "releaseChannel": "stable/cloud"}
 
 		vals["highAvailability"] = map[string]any{"replicaCount": 2,
@@ -506,11 +530,11 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 		}
 	}
 
-	eksTags := make(map[string]*string, len(eksCluster.Tags))
-	for k, v := range eksCluster.Tags {
+	eksTags := make(map[string]*string, len(cfg.eksCluster.Tags))
+	for k, v := range cfg.eksCluster.Tags {
 		eksTags[k] = aws.String(v)
 	}
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksTags)
+	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -518,7 +542,7 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 	vals["kubeClusterName"] = kubeCluster.GetName()
 
 	labels := kubeCluster.GetStaticLabels()
-	labels[types.InternalResourceIDLabel] = resourceId
+	labels[types.InternalResourceIDLabel] = cfg.resourceID
 	vals["labels"] = labels
 
 	if _, err := installCmd.RunWithContext(ctx, agentChart, vals); err != nil {
