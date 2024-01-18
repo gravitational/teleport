@@ -27,7 +27,7 @@ export enum ItemStatus {
 
 export const StatusLight = styled(Box)`
   border-radius: 50%;
-  margin-right: 6px;
+  margin-right: ${props => props.theme.space[2]}px;
   width: 8px;
   height: 8px;
   background-color: ${({ status, theme }) => {
