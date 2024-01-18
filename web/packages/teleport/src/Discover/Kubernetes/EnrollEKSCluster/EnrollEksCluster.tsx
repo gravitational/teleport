@@ -181,7 +181,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       const errMsg = getErrMessage(err);
       setFetchClustersAttempt({ status: 'failed', statusText: errMsg });
       setTableData(data); // fallback to previous data
-      emitErrorEvent(`database fetch error: ${errMsg}`);
+      emitErrorEvent(`EKS clusters fetch error: ${errMsg}`);
     }
   }
 
@@ -291,7 +291,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
         <Danger mt={3}>{fetchClustersAttempt.statusText}</Danger>
       )}
       <Text mt={4}>
-        Select the AWS Region you would like to see databases for:
+        Select the AWS Region you would like to see EKS clusters for:
       </Text>
       <AwsRegionSelector
         onFetch={fetchClustersWithNewRegion}
