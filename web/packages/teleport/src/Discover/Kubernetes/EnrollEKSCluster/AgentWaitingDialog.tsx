@@ -22,13 +22,12 @@ import React from 'react';
 import * as Icons from 'design/Icon';
 
 import { Kube } from 'teleport/services/kube';
-import { JoinToken } from 'teleport/services/joinToken';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { Mark, TextIcon, useShowHint } from 'teleport/Discover/Shared';
 import { HintBox } from 'teleport/Discover/Shared/HintBox';
 
 type AgentWaitingDialogProps = {
-  joinToken: JoinToken;
+  joinResourceId: string;
   status: string;
   clusterName: string;
   updateWaitingResult(cluster: Kube): void;
@@ -37,14 +36,23 @@ type AgentWaitingDialogProps = {
 };
 
 export function AgentWaitingDialog({
-  joinToken,
+  joinResourceId,
   status,
   clusterName,
   updateWaitingResult,
   cancel,
   next,
 }: AgentWaitingDialogProps) {
-  const { result, active } = usePingTeleport<Kube>(joinToken);
+  const { result, active } = usePingTeleport<Kube>({
+    internalResourceId: joinResourceId,
+
+    // These are not used by usePingTeleport
+    // todo(anton): Refactor usePingTeleport to not require full join token.
+    expiry: undefined,
+    expiryText: '',
+    id: '',
+    suggestedLabels: [],
+  });
   if (result) {
     updateWaitingResult(result);
   }

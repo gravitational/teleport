@@ -96,6 +96,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
   const [isAgentWaitingDialogShown, setIsAgentWaitingDialogShown] =
     useState(false);
   const [isManualHelmDialogShown, setIsManualHelmDialogShown] = useState(false);
+  const [waitingResourceId, setWaitingResourceId] = useState('');
   const ctx = useTeleport();
 
   const { joinToken } = useJoinTokenSuspender([
@@ -239,6 +240,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       } else {
         setEnrollmentState({ status: 'awaitingAgent' });
         setIsAgentWaitingDialogShown(true);
+        setWaitingResourceId(result.resourceId);
       }
     } catch (err) {
       setEnrollmentState({
@@ -384,7 +386,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       )}
       {isAgentWaitingDialogShown && (
         <AgentWaitingDialog
-          joinToken={joinToken}
+          joinResourceId={waitingResourceId || joinToken.internalResourceId}
           status={enrollmentState.status}
           clusterName={selectedCluster.name}
           updateWaitingResult={(result: Kube) => {

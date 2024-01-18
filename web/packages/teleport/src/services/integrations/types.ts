@@ -323,7 +323,11 @@ export type EnrollEksClustersRequest = {
 };
 
 export type EnrollEksClustersResponse = {
-  results: { clusterName: string; error: { message: string } }[];
+  results: {
+    clusterName: string;
+    resourceId: string;
+    error: { message: string };
+  }[];
 };
 
 export type ListEksClustersRequest = {
