@@ -62,7 +62,7 @@ func newNativeImpl() *nativeImpl {
 		return n
 	}
 
-	v, err := checkIfDLLExistsAndGetAPIVersionNumber()
+	v, err := webAuthNGetApiVersionNumber()
 	if err != nil {
 		log.WithError(err).Debug("WebAuthnWin: failed to check version")
 		return n
@@ -183,13 +183,6 @@ func (n *nativeImpl) MakeCredential(origin string, in *makeCredentialRequest) (*
 			AttestationObject: bytesFromCBytes(out.cbAttestationObject, out.pbAttestationObject),
 		},
 	}, nil
-}
-
-// checkIfDLLExistsAndGetAPIVersionNumber checks if dll exists and tries to load
-// it's version via API call. This function makes sure to not panic if dll is
-// missing.
-func checkIfDLLExistsAndGetAPIVersionNumber() (int, error) {
-	return webAuthNGetApiVersionNumber()
 }
 
 func getErrorNameOrLastErr(in uintptr, lastError error) error {
