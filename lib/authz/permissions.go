@@ -472,7 +472,6 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	authContext.AdminActionAuthorized = true
 	return nil
 }
 
