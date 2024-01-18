@@ -68,7 +68,7 @@ export const AgentWaitingDialogStory = () => (
           status={'awaitingAgent'}
           clusterName={'EKS1'}
           updateWaitingResult={() => {}}
-          close={() => {}}
+          cancel={() => {}}
         />
       </PingTeleportProvider>
     </ContextProvider>
@@ -103,7 +103,7 @@ export const AgentWaitingDialogSuccess = () => (
           status={'success'}
           clusterName={'EKS1'}
           updateWaitingResult={() => {}}
-          close={() => {}}
+          cancel={() => {}}
         />
       </PingTeleportProvider>
     </ContextProvider>

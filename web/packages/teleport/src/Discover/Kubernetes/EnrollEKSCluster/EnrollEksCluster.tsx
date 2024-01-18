@@ -43,7 +43,7 @@ import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSusp
 import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 import { Kube } from 'teleport/services/kube';
 
-import { ActionButtons, Header, ResourceKind } from '../../Shared';
+import { Header, ResourceKind } from '../../Shared';
 
 import { ClustersList } from './EksClustersList';
 import { ManualHelmDialog } from './ManualHelmDialog';
@@ -389,24 +389,15 @@ export function EnrollEksCluster(props: AgentStepProps) {
               setEnrollmentState({ status: 'success' });
             }
           }}
-          close={() => {
+          cancel={() => {
             if (enrollmentState.status != 'success') {
               setEnrollmentState({ status: 'notStarted' });
             }
             setIsAgentWaitingDialogShown(false);
           }}
+          next={handleOnProceed}
         />
       )}
-
-      <ActionButtons
-        onProceed={handleOnProceed}
-        disableProceed={
-          fetchClustersAttempt.status === 'processing' ||
-          !selectedCluster ||
-          hasIamPermError ||
-          !confirmedCluster
-        }
-      />
     </Box>
   );
 }

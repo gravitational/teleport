@@ -32,7 +32,8 @@ type AgentWaitingDialogProps = {
   status: string;
   clusterName: string;
   updateWaitingResult(cluster: Kube): void;
-  close(): void;
+  cancel(): void;
+  next(): void;
 };
 
 export function AgentWaitingDialog({
@@ -40,7 +41,8 @@ export function AgentWaitingDialog({
   status,
   clusterName,
   updateWaitingResult,
-  close,
+  cancel,
+  next,
 }: AgentWaitingDialogProps) {
   const { result, active } = usePingTeleport<Kube>(joinToken);
   updateWaitingResult(result);
@@ -99,7 +101,7 @@ export function AgentWaitingDialog({
             </Text>
           </TextIcon>
           {hintMessage()}
-          <ButtonPrimary width="100%" onClick={close}>
+          <ButtonPrimary width="100%" onClick={cancel}>
             Cancel
           </ButtonPrimary>
         </>
@@ -114,8 +116,8 @@ export function AgentWaitingDialog({
             <Icons.Check size="small" ml={1} mr={2} color="success.main" />
             Cluster "{clusterName}" was successfully enrolled.
           </Flex>
-          <ButtonPrimary width="100%" onClick={close}>
-            Close
+          <ButtonPrimary width="100%" onClick={next}>
+            Next
           </ButtonPrimary>
         </>
       );
