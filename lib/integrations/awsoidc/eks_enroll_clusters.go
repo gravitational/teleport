@@ -265,7 +265,7 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 		Name: aws.String(clusterName),
 	})
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.Wrap(err, "unable to describe EKS cluster")
 	}
 	eksCluster := eksClusterInfo.Cluster
 
