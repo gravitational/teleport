@@ -372,7 +372,7 @@ export function generateCmd(data: {
 
   // whitespace in the beginning if a string is intentional, to correctly align in yaml.
   const joinLabelsText = data.joinLabels
-    ? data.joinLabels.map(l => `    ${l.name}: ${l.value}`).join('\n')
+    ? '\n' + data.joinLabels.map(l => `    ${l.name}: ${l.value}`).join('\n')
     : '';
 
   return `cat << EOF > prod-cluster-values.yaml
@@ -381,8 +381,7 @@ authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
 labels:
-    teleport.internal/resource-id: ${data.resourceId}
-${joinLabelsText}
+    teleport.internal/resource-id: ${data.resourceId}${joinLabelsText}
 ${extraYAMLConfig}EOF
  
 helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version ${deployVersion} \\
