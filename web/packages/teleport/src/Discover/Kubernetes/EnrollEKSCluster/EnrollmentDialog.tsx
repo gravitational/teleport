@@ -70,7 +70,7 @@ export function EnrollmentDialog({
               <Text>{error}</Text>
             </Flex>
             <Flex>
-              <ButtonPrimary mr={3} width="50%" onClick={retry}>
+              <ButtonPrimary gap={4} width="50%" onClick={retry}>
                 Retry
               </ButtonPrimary>
               <ButtonSecondary width="50%" onClick={close}>
