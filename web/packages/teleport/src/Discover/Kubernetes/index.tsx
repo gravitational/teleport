@@ -34,6 +34,17 @@ export const KubernetesResource: ResourceViewConfig = {
   wrapper: (component: React.ReactNode) => (
     <KubeWrapper>{component}</KubeWrapper>
   ),
+  shouldPrompt(currentStep, resourceSpec) {
+    if (resourceSpec?.kubeMeta?.location === KubeLocation.Aws) {
+      // Allow user to bypass prompting on this step (Connect AWS Account)
+      // on exit because users might need to change route to setup an
+      // integration.
+      if (currentStep === 0) {
+        return false;
+      }
+    }
+    return true;
+  },
   views(resource: ResourceSpec) {
     let configuredResourceViews = [
       {
