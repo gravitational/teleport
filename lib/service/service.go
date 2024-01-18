@@ -121,7 +121,6 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/clusterdial"
 	"github.com/gravitational/teleport/lib/proxy/peer"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -2505,12 +2504,6 @@ func (process *TeleportProcess) initSSH() error {
 				"the cluster level, then restart Teleport.")
 		}
 
-		// Restricted session requires BPF (enhanced recording)
-		if cfg.SSH.RestrictedSession.Enabled && !cfg.SSH.BPF.Enabled {
-			return trace.BadParameter("restricted_session requires enhanced_recording " +
-				"to be enabled")
-		}
-
 		// If BPF is enabled in file configuration, but the operating system does
 		// not support enhanced session recording (like macOS), exit right away.
 		if cfg.SSH.BPF.Enabled && !bpf.SystemHasBPF() {
@@ -2522,20 +2515,11 @@ func (process *TeleportProcess) initSSH() error {
 		// Start BPF programs. This is blocking and if the BPF programs fail to
 		// load, the node will not start. If BPF is not enabled, this will simply
 		// return a NOP struct that can be used to discard BPF data.
-		ebpf, err := bpf.New(cfg.SSH.BPF, cfg.SSH.RestrictedSession)
+		ebpf, err := bpf.New(cfg.SSH.BPF)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer func() { warnOnErr(ebpf.Close(restartingOnGracefulShutdown), log) }()
-
-		// Start access control programs. This is blocking and if the BPF programs fail to
-		// load, the node will not start. If access control is not enabled, this will simply
-		// return a NOP struct.
-		rm, err := restricted.New(cfg.SSH.RestrictedSession, conn.Client)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// TODO: are we missing rm.Close()
 
 		// make sure the default namespace is used
 		if ns := cfg.SSH.Namespace; ns != "" && ns != apidefaults.Namespace {
@@ -2640,7 +2624,6 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetUseTunnel(conn.UseTunnel()),
 			regular.SetFIPS(cfg.FIPS),
 			regular.SetBPF(ebpf),
-			regular.SetRestrictedSessionManager(rm),
 			regular.SetOnHeartbeat(process.OnHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
