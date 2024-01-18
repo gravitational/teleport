@@ -421,6 +421,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	// todo(anton): get auth server version and use it instead of this proxy teleport.version.
 	agentVersion := teleport.Version
 	if h.ClusterFeatures.GetAutomaticUpgrades() {
 		upgradesVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
