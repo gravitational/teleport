@@ -136,7 +136,7 @@ func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(clientGetter
 	return checkAgentAlreadyInstalled(actionConfig)
 }
 
-const eksJoinTokenTTL = 15 * time.Minute
+const eksJoinTokenTTL = 30 * time.Minute
 
 func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreator) (string, string, error) {
 	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
