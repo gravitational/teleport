@@ -29,9 +29,10 @@ import {
   DATABASES_UNGUIDED_DOC,
 } from './databases';
 import {
-  ResourceSpec,
-  DatabaseLocation,
   DatabaseEngine,
+  DatabaseLocation,
+  KubeLocation,
+  ResourceSpec,
   ServerLocation,
 } from './types';
 import { SAML_APPLICATIONS } from './resourcesE';
@@ -143,6 +144,7 @@ export const KUBERNETES: ResourceSpec[] = [
     keywords: awsKeywords + 'kubernetes cluster kubes eks',
     icon: 'Aws',
     event: DiscoverEventResource.Kubernetes,
+    kubeMeta: { location: KubeLocation.Aws },
   },
 ];
 
@@ -189,7 +191,9 @@ export function getResourcePretitle(r: ResourceSpec) {
     case ResourceKind.Desktop:
       return 'Windows Desktop';
     case ResourceKind.Kubernetes:
-      return r.name === 'EKS' ? 'Amazon Web Services (AWS)' : '';
+      return r.kubeMeta?.location === KubeLocation.Aws
+        ? 'Amazon Web Services (AWS)'
+        : '';
     case ResourceKind.Server:
       if (r.nodeMeta?.location === ServerLocation.Aws) {
         return 'Amazon Web Services (AWS)';

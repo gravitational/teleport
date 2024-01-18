@@ -60,9 +60,14 @@ export enum ServerLocation {
   Aws,
 }
 
+export enum KubeLocation {
+  Aws,
+}
+
 export interface ResourceSpec {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
   nodeMeta?: { location: ServerLocation };
+  kubeMeta?: { location: KubeLocation };
   name: string;
   popular?: boolean;
   kind: ResourceKind;
