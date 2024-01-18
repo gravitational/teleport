@@ -357,7 +357,7 @@ func maybeAddAccessEntry(ctx context.Context, clusterName, roleArn string, clt E
 	return err == nil, trace.Wrap(err)
 }
 
-// getPresignURL returns specially formatted URL that can be presigned and used in EKS authentication.
+// getPresignURL returns a specially formatted URL that can be presigned and used in EKS authentication.
 func getPresignURL() url.URL {
 	endpoint := "sts.amazonaws.com"
 	q := url.Values{}
