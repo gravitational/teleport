@@ -408,10 +408,9 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 
 			// Get request with authn.
 			mfaChallenge, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-					Username: u.username,
-					Password: u.password,
-				}},
+				Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{
+					RecoveryStartTokenID: startToken.GetName(),
+				},
 			})
 			require.NoError(t, err)
 			req := c.createValidReq(mfaChallenge)
@@ -1072,10 +1071,9 @@ func TestAccountRecoveryFlow(t *testing.T) {
 
 			// Step 2: Obtain an approval token using the start token.
 			mfaChallenge, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-					Username: user.username,
-					Password: user.password,
-				}},
+				Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{
+					RecoveryStartTokenID: startToken.GetName(),
+				},
 			})
 			require.NoError(t, err)
 			approvedToken, err := srv.Auth().VerifyAccountRecovery(ctx, c.getApproveRequest(user, mfaChallenge, startToken.GetName()))
