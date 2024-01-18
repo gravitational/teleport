@@ -304,7 +304,9 @@ export type AwsEksCluster = {
     | 'failed'
     | 'updating'
     | 'deleting';
-  // labels contains this cluster's tags.
+  /**
+   * labels contains this cluster's tags.
+   */
   labels: Label[];
   // joinLabels contains labels that should be injected into teleport kube agent, if EKS cluster is being enrolled.
   joinLabels: Label[];
