@@ -21,20 +21,14 @@ package auth
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509/pkix"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestClient_DialTimeout(t *testing.T) {
@@ -90,85 +84,4 @@ func TestClient_DialTimeout(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestClient_RequestTimeout(t *testing.T) {
-	t.Parallel()
-
-	testDone := make(chan struct{})
-	sawRoot := make(chan bool, 1)
-	sawSlow := make(chan bool, 1)
-
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/v2/authorities/host/rotate/external":
-			sawRoot <- true
-			http.Redirect(w, r, "/slow", http.StatusFound)
-		case "/slow":
-			sawSlow <- true
-			w.Write([]byte("Hello"))
-			w.(http.Flusher).Flush()
-			<-testDone
-		}
-	}))
-	t.Cleanup(func() {
-		close(testDone)
-		srv.Close()
-	})
-
-	srv.TLS = &tls.Config{InsecureSkipVerify: true}
-
-	cfg := apiclient.Config{
-		Addrs: []string{srv.Listener.Addr().String()},
-		Credentials: []apiclient.Credentials{
-			apiclient.LoadTLS(srv.TLS),
-		},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
-	}
-	clt, err := NewClient(cfg)
-	require.NoError(t, err)
-
-	srv.StartTLS()
-
-	ca := newCertAuthority(t, "test", types.HostCA)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	t.Cleanup(cancel)
-
-	err = clt.RotateExternalCertAuthority(ctx, ca)
-	require.ErrorIs(t, trace.Unwrap(err), context.DeadlineExceeded)
-
-	close(sawRoot)
-	require.True(t, <-sawRoot, "handler never got /v2/authorities/host/rotate/external request")
-
-	close(sawSlow)
-	require.True(t, <-sawSlow, "handler never got /slow request")
-}
-
-func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
-	ta := testauthority.New()
-	priv, pub, err := ta.GenerateKeyPair()
-	require.NoError(t, err)
-
-	// CA for cluster1 with 1 key pair.
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: name}, nil, time.Minute)
-	require.NoError(t, err)
-
-	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        caType,
-		ClusterName: name,
-		ActiveKeys: types.CAKeySet{
-			SSH: []*types.SSHKeyPair{{
-				PrivateKey:     priv,
-				PrivateKeyType: types.PrivateKeyType_RAW,
-				PublicKey:      pub,
-			}},
-			TLS: []*types.TLSKeyPair{{
-				Cert: cert,
-				Key:  key,
-			}},
-		},
-	})
-	require.NoError(t, err)
-	return ca
 }

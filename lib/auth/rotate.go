@@ -175,6 +175,7 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is called by remote trusted cluster and is used to update
 // only public keys and certificates of the certificate authority.
+// TODO(Joerger): DELETE IN v16.0.0, moved to Trust service
 func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if ca == nil {
 		return trace.BadParameter("missing certificate authority")
