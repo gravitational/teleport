@@ -491,7 +491,8 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 	vals["proxyAddr"] = proxyAddr
 
 	vals["roles"] = "kube"
-	if req.EnableAppDiscovery {
+	// todo(anton): Remove check for 13 once Teleport cloud is unblocked to move from v13 chart.
+	if req.EnableAppDiscovery && !strings.HasPrefix(installCmd.Version, "13") {
 		vals["roles"] = "kube,app,discovery"
 	}
 	vals["authToken"] = joinToken
