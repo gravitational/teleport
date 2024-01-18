@@ -238,14 +238,13 @@ type AWSOIDCDeployDatabaseServiceResponse struct {
 type AWSOIDCEnrollEKSClustersRequest struct {
 	Region             string   `json:"region"`
 	ClusterNames       []string `json:"clusterNames"`
-	JoinToken          string   `json:"joinToken"`
-	ResourceID         string   `json:"resourceId"`
 	EnableAppDiscovery bool     `json:"enableAppDiscovery"`
 }
 
 // EKSClusterEnrollmentResult contains result/error for a single cluster enrollment.
 type EKSClusterEnrollmentResult struct {
 	ClusterName string `json:"clusterName"`
+	ResourceId  string `json:"resourceId"`
 	Error       string `json:"error"`
 }
 

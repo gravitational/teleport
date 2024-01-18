@@ -22,7 +22,12 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/google/uuid"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 	"net/http"
 	"net/url"
 	"os"
@@ -64,6 +69,8 @@ const (
 type EnrollEKSClusterResult struct {
 	// ClusterName is the name of an EKS cluster.
 	ClusterName string
+	// ResourceId is resource ID for the cluster, it is taken from the join token used to enroll the cluster.
+	ResourceId string
 	// Error contains an error that happened during enrollment, if there was one.
 	Error error
 }
@@ -98,12 +105,16 @@ type EnrollEKSCLusterClient interface {
 	CheckAgentAlreadyInstalled(genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
 
 	// InstallKubeAgent installs teleport-kube-agent Helm chart to the EKS cluster.
-	InstallKubeAgent(context.Context, *eksTypes.Cluster, string, genericclioptions.RESTClientGetter, logrus.FieldLogger, EnrollEKSClustersRequest) error
+	InstallKubeAgent(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, logrus.FieldLogger, EnrollEKSClustersRequest) error
+
+	// CreateToken creates provisioning token on the auth server. That token can be used to install kube agent to an EKS cluster.
+	CreateToken(context.Context, types.ProvisionToken) error
 }
 
 type defaultEnrollEKSClustersClient struct {
 	*eks.Client
-	stsClient *sts.Client
+	stsClient    *sts.Client
+	tokenCreator TokenCreator
 }
 
 func (d *defaultEnrollEKSClustersClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
@@ -119,17 +130,51 @@ func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(kubeconfig g
 	return checkAgentAlreadyInstalled(actionConfig)
 }
 
-func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr string, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger, req EnrollEKSClustersRequest) error {
+func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreator) (string, string, error) {
+	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	expires := clock.Now().UTC().Add(defaults.NodeJoinTokenTTL)
+
+	resourceId := uuid.NewString()
+	req := types.ProvisionTokenSpecV2{
+		SuggestedLabels: types.Labels{
+			types.InternalResourceIDLabel: apiutils.Strings{resourceId},
+		},
+		Roles: []types.SystemRole{types.RoleKube, types.RoleApp, types.RoleDiscovery},
+	}
+
+	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+
+	err = tokenCreator(ctx, provisionToken)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+
+	return provisionToken.GetName(), resourceId, trace.Wrap(err)
+}
+
+func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger, req EnrollEKSClustersRequest) error {
 	actionConfig, err := getHelmActionConfig(kubeconfig, log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return installKubeAgent(ctx, eksCluster, proxyAddr, actionConfig, getHelmSettings(), req)
+	return installKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, actionConfig, getHelmSettings(), req)
 }
 
+func (d *defaultEnrollEKSClustersClient) CreateToken(ctx context.Context, token types.ProvisionToken) error {
+	return nil
+}
+
+type TokenCreator func(ctx context.Context, token types.ProvisionToken) error
+
 // NewEnrollEKSClustersClient returns new client that can be used to enroll EKS clusters into Teleport.
-func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest) (EnrollEKSCLusterClient, error) {
+func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest, tokenCreator TokenCreator) (EnrollEKSCLusterClient, error) {
 	eksClient, err := newEKSClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -139,8 +184,9 @@ func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest) (Enr
 		return nil, trace.Wrap(err)
 	}
 	clt := defaultEnrollEKSClustersClient{
-		Client:    eksClient,
-		stsClient: stsClient,
+		Client:       eksClient,
+		stsClient:    stsClient,
+		tokenCreator: tokenCreator,
 	}
 
 	return &clt, nil
@@ -153,12 +199,6 @@ type EnrollEKSClustersRequest struct {
 
 	// ClusterNames is name of the EKS cluster to enroll.
 	ClusterNames []string
-
-	// JoinToken is the token that will be used by the agent to join Teleport cluster.
-	JoinToken string
-
-	// ResourceID is the resource ID that will be put as a label to the enrolled cluster.
-	ResourceID string
 
 	// EnableAppDiscovery specifies if we should enable Kubernetes App Discovery inside the enrolled EKS cluster.
 	EnableAppDiscovery bool
@@ -185,14 +225,14 @@ func EnrollEKSClusters(ctx context.Context, log logrus.FieldLogger, clock clockw
 		eksClusterName := eksClusterName
 
 		group.Go(func() error {
-			err := enrollEKSCluster(groupCtx, log, clock, credsProvider, clt, proxyAddr, eksClusterName, req)
+			resourceId, err := enrollEKSCluster(groupCtx, log, clock, credsProvider, clt, proxyAddr, eksClusterName, req)
 			if err != nil {
 				log.WithError(err).Debugf("failed to enroll EKS cluster %q", eksClusterName)
 			}
 
 			mu.Lock()
 			defer mu.Unlock()
-			results = append(results, EnrollEKSClusterResult{ClusterName: eksClusterName, Error: trace.Wrap(err)})
+			results = append(results, EnrollEKSClusterResult{ClusterName: eksClusterName, ResourceId: resourceId, Error: trace.Wrap(err)})
 
 			return nil
 		})
@@ -203,27 +243,27 @@ func EnrollEKSClusters(ctx context.Context, log logrus.FieldLogger, clock clockw
 	return &EnrollEKSClusterResponse{Results: results}
 }
 
-func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwork.Clock, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, proxyAddr, clusterName string, req EnrollEKSClustersRequest) error {
+func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwork.Clock, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, proxyAddr, clusterName string, req EnrollEKSClustersRequest) (string, error) {
 	eksClusterInfo, err := clt.DescribeCluster(ctx, &eks.DescribeClusterInput{
 		Name: aws.String(clusterName),
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	eksCluster := eksClusterInfo.Cluster
 
 	if eksCluster.Status != eksTypes.ClusterStatusActive {
-		return trace.BadParameter(`can't enroll EKS cluster %q - expected "ACTIVE" state, got %q.`, clusterName, eksCluster.Status)
+		return "", trace.BadParameter(`can't enroll EKS cluster %q - expected "ACTIVE" state, got %q.`, clusterName, eksCluster.Status)
 	}
 
 	principalArn, err := getAccessEntryPrincipalArn(ctx, clt.GetCallerIdentity)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	wasAdded, err := maybeAddAccessEntry(ctx, clusterName, principalArn, clt)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	if wasAdded {
 		// If we added access entry, we'll clean it up when function stops executing.
@@ -247,26 +287,31 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 		PrincipalArn: aws.String(principalArn),
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	kubeConfig, err := getKubeconfig(ctx, clock.Now(), credsProvider, clusterName, req.Region,
 		aws.ToString(eksCluster.CertificateAuthority.Data), aws.ToString(eksCluster.Endpoint))
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	if alreadyInstalled, err := clt.CheckAgentAlreadyInstalled(kubeConfig, log); err != nil {
-		return trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
+		return "", trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
 	} else if alreadyInstalled {
-		return trace.BadParameter("teleport-kube-agent is already installed on the cluster %q", clusterName)
+		return "", trace.BadParameter("teleport-kube-agent is already installed on the cluster %q", clusterName)
 	}
 
-	if err := clt.InstallKubeAgent(ctx, eksCluster, proxyAddr, kubeConfig, log, req); err != nil {
-		return trace.Wrap(err)
+	joinToken, resourceId, err := getToken(ctx, clock, clt.CreateToken)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
-	return nil
+	if err := clt.InstallKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeConfig, log, req); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resourceId, nil
 }
 
 type IdentityGetter func(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
@@ -406,7 +451,7 @@ func checkAgentAlreadyInstalled(actionConfig *action.Configuration) (bool, error
 }
 
 // installKubeAgent installs teleport-kube-agent chart to the target EKS cluster.
-func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr string, actionConfig *action.Configuration, settings *helmCli.EnvSettings, req EnrollEKSClustersRequest) error {
+func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, actionConfig *action.Configuration, settings *helmCli.EnvSettings, req EnrollEKSClustersRequest) error {
 	installCmd := action.NewInstall(actionConfig)
 	installCmd.RepoURL = agentRepoURL
 	installCmd.Version = req.AgentVersion
@@ -433,7 +478,7 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 	if req.EnableAppDiscovery {
 		vals["roles"] = "kube,app,discovery"
 	}
-	vals["authToken"] = req.JoinToken
+	vals["authToken"] = joinToken
 
 	if req.IsCloud && req.EnableAutoUpgrades {
 		vals["updater"] = map[string]any{"enabled": true, "releaseChannel": "stable/cloud"}
@@ -453,9 +498,7 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 	}
 
 	labels := kubeCluster.GetStaticLabels()
-	if req.ResourceID != "" {
-		labels[types.InternalResourceIDLabel] = req.ResourceID
-	}
+	labels[types.InternalResourceIDLabel] = resourceId
 	vals["labels"] = labels
 
 	if _, err := installCmd.RunWithContext(ctx, agentChart, vals); err != nil {

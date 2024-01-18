@@ -21,6 +21,9 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/api/types"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,8 +97,6 @@ func TestEnrollEKSClusters(t *testing.T) {
 	}
 	baseRequest := EnrollEKSClustersRequest{
 		Region:             "us-east-1",
-		JoinToken:          "test-token",
-		ResourceID:         "test-resource",
 		EnableAppDiscovery: true,
 	}
 
@@ -116,7 +117,10 @@ func TestEnrollEKSClusters(t *testing.T) {
 			request:             baseRequest,
 			requestClusterNames: []string{"EKS1"},
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
-				require.ElementsMatch(t, []EnrollEKSClusterResult{{ClusterName: "EKS1", Error: nil}}, response.Results)
+				require.Len(t, response.Results, 1)
+				require.Equal(t, "EKS1", response.Results[0].ClusterName)
+				require.Empty(t, response.Results[0].Error)
+				require.NotEmpty(t, response.Results[0].ResourceId)
 			},
 		},
 		{
@@ -126,10 +130,16 @@ func TestEnrollEKSClusters(t *testing.T) {
 			request:             baseRequest,
 			requestClusterNames: []string{"EKS1", "EKS2"},
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
-				require.ElementsMatch(t, []EnrollEKSClusterResult{
-					{ClusterName: "EKS1", Error: nil},
-					{ClusterName: "EKS2", Error: nil},
-				}, response.Results)
+				require.Len(t, response.Results, 2)
+				slices.SortFunc(response.Results, func(a, b EnrollEKSClusterResult) int {
+					return strings.Compare(a.ClusterName, b.ClusterName)
+				})
+				require.Equal(t, "EKS1", response.Results[0].ClusterName)
+				require.Empty(t, response.Results[0].Error)
+				require.NotEmpty(t, response.Results[0].ResourceId)
+				require.Equal(t, "EKS2", response.Results[1].ClusterName)
+				require.Empty(t, response.Results[1].Error)
+				require.NotEmpty(t, response.Results[1].ResourceId)
 			},
 		},
 		{
@@ -267,7 +277,8 @@ func TestEnrollEKSClusters(t *testing.T) {
 		response := EnrollEKSClusters(
 			ctx, utils.NewLoggerForTests().WithField("test", t.Name()), clock, proxyAddr, credsProvider, mockClt, req)
 
-		require.ElementsMatch(t, []EnrollEKSClusterResult{{ClusterName: "EKS1", Error: nil}}, response.Results)
+		require.Len(t, response.Results, 1)
+		require.Equal(t, "EKS1", response.Results[0].ClusterName)
 		require.True(t, createCalled)
 		require.True(t, deleteCalled)
 	})
@@ -406,7 +417,8 @@ type mockEnrollEKSClusterClient struct {
 	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
 	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 	checkAgentAlreadyInstalled func(genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
-	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, genericclioptions.RESTClientGetter, logrus.FieldLogger, EnrollEKSClustersRequest) error
+	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, logrus.FieldLogger, EnrollEKSClustersRequest) error
+	createToken                func(ctx context.Context, token types.ProvisionToken) error
 }
 
 func (m *mockEnrollEKSClusterClient) CreateAccessEntry(ctx context.Context, params *eks.CreateAccessEntryInput, optFns ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
@@ -458,10 +470,14 @@ func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(kubeconfig gener
 	return false, nil
 }
 
-func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr string, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger, req EnrollEKSClustersRequest) error {
+func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger, req EnrollEKSClustersRequest) error {
 	if m.installKubeAgent != nil {
-		return m.installKubeAgent(ctx, eksCluster, proxyAddr, kubeconfig, log, req)
+		return m.installKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeconfig, log, req)
 	}
+	return nil
+}
+
+func (m *mockEnrollEKSClusterClient) CreateToken(ctx context.Context, token types.ProvisionToken) error {
 	return nil
 }
 

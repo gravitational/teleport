@@ -406,7 +406,12 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq)
+	clt, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, clt.CreateToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -430,8 +435,6 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		awsoidc.EnrollEKSClustersRequest{
 			Region:             req.Region,
 			ClusterNames:       req.ClusterNames,
-			JoinToken:          req.JoinToken,
-			ResourceID:         req.ResourceID,
 			EnableAppDiscovery: req.EnableAppDiscovery,
 			EnableAutoUpgrades: h.ClusterFeatures.GetAutomaticUpgrades(),
 			IsCloud:            h.ClusterFeatures.GetCloud(),
@@ -440,7 +443,11 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 
 	var data []ui.EKSClusterEnrollmentResult
 	for _, result := range resp.Results {
-		data = append(data, ui.EKSClusterEnrollmentResult{ClusterName: result.ClusterName, Error: trace.UserMessage(result.Error)})
+		data = append(data, ui.EKSClusterEnrollmentResult{
+			ClusterName: result.ClusterName,
+			Error:       trace.UserMessage(result.Error),
+			ResourceId:  result.ResourceId},
+		)
 	}
 
 	return ui.AWSOIDCEnrollEKSClustersResponse{
