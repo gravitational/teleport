@@ -68,7 +68,7 @@ const (
 	concurrentEKSEnrollingLimit = 3
 )
 
-// EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be empty
+// EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
 // otherwise it will contain an error happened during enrollment.
 type EnrollEKSClusterResult struct {
 	// ClusterName is the name of an EKS cluster.
