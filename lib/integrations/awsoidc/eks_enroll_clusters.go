@@ -508,7 +508,7 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 
 	eksTags := make(map[string]*string, len(eksCluster.Tags))
 	for k, v := range eksCluster.Tags {
-		eksTags[k] = &v
+		eksTags[k] = aws.String(v)
 	}
 	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksTags)
 	if err != nil {
