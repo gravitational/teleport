@@ -225,6 +225,7 @@ provider "teleport" {
 }
 
 resource "teleport_role" "terraform_test" {
+  version = "v7"
   metadata = {
     name        = "terraform-test"
     description = "Terraform test role"

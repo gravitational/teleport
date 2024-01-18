@@ -58,23 +58,3 @@ func (c *BPFConfig) CheckAndSetDefaults() error {
 
 	return nil
 }
-
-// RestrictedSessionConfig holds configuration for the RestrictedSession service.
-type RestrictedSessionConfig struct {
-	// Enabled if this service will try and install BPF programs on this system.
-	Enabled bool
-
-	// EventsBufferSize is the size (in pages) of the perf buffer for events.
-	EventsBufferSize *int
-}
-
-// CheckAndSetDefaults checks BPF configuration.
-func (c *RestrictedSessionConfig) CheckAndSetDefaults() error {
-	var perfBufferPageCount = defaults.PerfBufferPageCount
-
-	if c.EventsBufferSize == nil {
-		c.EventsBufferSize = &perfBufferPageCount
-	}
-
-	return nil
-}
