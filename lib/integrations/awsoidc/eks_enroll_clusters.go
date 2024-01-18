@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/siddontang/go-log/log"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,7 +30,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -498,7 +497,7 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 		// Clean up temporary chart cache directory.
 		err := os.RemoveAll(cfg.settings.RepositoryCache)
 		if err != nil && cfg.log != nil {
-			log.Warnf("could not delete temporary chart cache directory at the path %q", cfg.settings.RepositoryCache)
+			cfg.log.Warnf("could not delete temporary chart cache directory at the path %q", cfg.settings.RepositoryCache)
 		}
 	}()
 
