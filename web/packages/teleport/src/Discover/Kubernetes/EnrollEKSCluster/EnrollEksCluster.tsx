@@ -205,7 +205,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
     });
   }
 
-  async function handleOnEnroll() {
+  async function enroll() {
     const integrationName = (agentMeta as EksMeta).awsIntegration.name;
     setEnrollmentState({ status: 'enrolling' });
 
@@ -331,7 +331,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
             <ButtonSecondary
               width="215px"
               type="submit"
-              onClick={handleOnEnroll}
+              onClick={enroll}
               disabled={enrollmentNotAllowed}
               mt={2}
               mb={2}
@@ -366,7 +366,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
         <EnrollmentDialog
           clusterName={selectedCluster.name}
           close={closeEnrollmentDialog}
-          retry={handleOnEnroll}
+          retry={enroll}
           error={enrollmentState.error}
           status={enrollmentState.status}
         />
