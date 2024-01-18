@@ -161,13 +161,17 @@ export default class AppContext implements IAppContext {
   }
 
   async pullInitialState(): Promise<void> {
+    console.log('here11');
     this.setupTshdEventContextBridgeService(
       createTshdEventsContextBridgeService(this)
     );
-
+    console.log('here12');
     this.subscribeToDeepLinkLaunch();
+    console.log('here13');
     this.clustersService.syncGatewaysAndCatchErrors();
+    console.log('here14');
     await this.clustersService.syncRootClustersAndCatchErrors();
+    console.log('here15');
   }
 
   private subscribeToDeepLinkLaunch() {

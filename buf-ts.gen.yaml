@@ -1,0 +1,7 @@
+version: v1
+plugins:
+  - name: typescript
+    out: gen/proto/ts
+    opt: long_type_number,eslint_disable,add_pb_suffix,client_grpc1,server_grpc1,ts_nocheck
+    path: /usr/local/lib/node_modules/@protobuf-ts/plugin/bin/protoc-gen-ts
+    strategy: all

@@ -37,9 +37,9 @@ import * as icons from 'design/Icon';
 import Image from 'design/Image';
 import stack from 'design/assets/resources/stack.png';
 
-import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
-
 import { Attempt } from 'shared/hooks/useAsync';
+
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import {
   UnifiedResourceResponse,
@@ -85,8 +85,7 @@ export function UnifiedResources(props: {
     () => ({
       kinds: props.queryParams.resourceKinds,
       sort: props.queryParams.sort,
-      pinnedOnly:
-        unifiedResourcePreferences.defaultTab === DefaultTab.DEFAULT_TAB_PINNED,
+      pinnedOnly: unifiedResourcePreferences.defaultTab === DefaultTab.PINNED,
       search: props.queryParams.advancedSearchEnabled
         ? ''
         : props.queryParams.search,
@@ -182,7 +181,7 @@ const Resources = memo(
                     field: props.queryParams.sort.fieldName,
                   },
                   search: props.queryParams.search,
-                  kindsList: props.queryParams.kinds,
+                  kinds: props.queryParams.kinds,
                   query: props.queryParams.query,
                   pinnedOnly: props.queryParams.pinnedOnly,
                   startKey: paginationParams.startKey,
@@ -220,24 +219,23 @@ const Resources = memo(
       return cleanup;
     }, [onResourcesRefreshRequest, fetch, clear]);
 
-    const resourceIdsList =
-      props.userPreferences.clusterPreferences?.pinnedResources
-        ?.resourceIdsList;
+    const resourceIds =
+      props.userPreferences.clusterPreferences?.pinnedResources?.resourceIds;
     const { updateUserPreferences } = props;
     const pinning = useMemo<UnifiedResourcesPinning>(() => {
-      return resourceIdsList
+      return resourceIds
         ? {
             kind: 'supported',
-            getClusterPinnedResources: async () => resourceIdsList,
+            getClusterPinnedResources: async () => resourceIds,
             updateClusterPinnedResources: pinnedIds =>
               updateUserPreferences({
                 clusterPreferences: {
-                  pinnedResources: { resourceIdsList: pinnedIds },
+                  pinnedResources: { resourceIds: pinnedIds },
                 },
               }),
           }
         : { kind: 'not-supported' };
-    }, [updateUserPreferences, resourceIdsList]);
+    }, [updateUserPreferences, resourceIds]);
 
     return (
       <SharedUnifiedResources
@@ -293,7 +291,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'node' as const,
-          labels: server.labelsList,
+          labels: server.labels,
           id: server.name,
           hostname: server.hostname,
           addr: server.addr,
@@ -310,7 +308,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'db' as const,
-          labels: database.labelsList,
+          labels: database.labels,
           description: database.desc,
           name: database.name,
           type: formatDatabaseInfo(
@@ -330,7 +328,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'kube_cluster' as const,
-          labels: kube.labelsList,
+          labels: kube.labels,
           name: kube.name,
         },
         ui: {
@@ -344,7 +342,7 @@ const mapToSharedResource = (
       return {
         resource: {
           kind: 'app' as const,
-          labels: app.labelsList,
+          labels: app.labels,
           name: app.name,
           id: app.name,
           addrWithProtocol: app.addrWithProtocol,

@@ -108,6 +108,7 @@ export default class MainProcess {
       this.settings,
       path.join(__dirname, 'agentCleanupDaemon.js'),
       (rootClusterUri, state) => {
+        console.log('hello!');
         const window = this.windowsManager.getWindow();
         if (window.isDestroyed()) {
           return;

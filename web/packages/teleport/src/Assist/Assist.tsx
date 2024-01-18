@@ -19,6 +19,8 @@
 import React, { useEffect, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 
+import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
+
 import { Header } from 'teleport/Assist/Header';
 import { ConversationHistory } from 'teleport/Assist/ConversationHistory';
 import {
@@ -27,7 +29,6 @@ import {
 } from 'teleport/Assist/context/AssistContext';
 import { ConversationList } from 'teleport/Assist/ConversationList';
 import { useLayout } from 'teleport/Main/LayoutContext';
-import { ViewMode } from 'teleport/Assist/types';
 import { Settings } from 'teleport/Assist/Settings';
 import { ErrorBanner, ErrorList } from 'teleport/Assist/ErrorBanner';
 import { useUser } from 'teleport/User/UserContext';
@@ -57,9 +58,9 @@ const slideIn = keyframes`
   }
 `;
 
-function variables(props: { viewMode: ViewMode }) {
+function variables(props: { viewMode: AssistViewMode }) {
   switch (props.viewMode) {
-    case ViewMode.Popup:
+    case AssistViewMode.POPUP:
       return {
         '--assist-gutter': '20px',
         '--assist-border-radius': '15px',
@@ -73,8 +74,8 @@ function variables(props: { viewMode: ViewMode }) {
         '--assist-bottom-padding': '5px',
       };
 
-    case ViewMode.PopupExpanded:
-    case ViewMode.PopupExpandedSidebarVisible:
+    case AssistViewMode.POPUP_EXPANDED:
+    case AssistViewMode.POPUP_EXPANDED_SIDEBAR_VISIBLE:
       return {
         '--assist-gutter': '20px',
         '--assist-border-radius': '15px',
@@ -88,7 +89,7 @@ function variables(props: { viewMode: ViewMode }) {
         '--assist-bottom-padding': '5px',
       };
 
-    case ViewMode.Docked:
+    case AssistViewMode.DOCKED:
       return {
         '--assist-gutter': '0',
         '--assist-border-radius': '0',
@@ -105,11 +106,11 @@ function variables(props: { viewMode: ViewMode }) {
 }
 
 function sidebarVariables(props: {
-  viewMode: ViewMode;
+  viewMode: AssistViewMode;
   sidebarVisible: boolean;
 }) {
   switch (props.viewMode) {
-    case ViewMode.Popup:
+    case AssistViewMode.POPUP:
       if (props.sidebarVisible) {
         return {
           '--conversation-width': '550px',
@@ -131,8 +132,8 @@ function sidebarVariables(props: {
         '--conversation-list-position': 'absolute',
       };
 
-    case ViewMode.PopupExpanded:
-    case ViewMode.PopupExpandedSidebarVisible:
+    case AssistViewMode.POPUP_EXPANDED:
+    case AssistViewMode.POPUP_EXPANDED_SIDEBAR_VISIBLE:
       if (props.sidebarVisible) {
         return {
           '--conversation-list-margin': '0',
@@ -154,7 +155,7 @@ function sidebarVariables(props: {
         '--conversation-list-position': 'absolute',
       };
 
-    case ViewMode.Docked:
+    case AssistViewMode.DOCKED:
       if (props.sidebarVisible) {
         return {
           '--conversation-width': '520px',
@@ -278,11 +279,17 @@ function AssistContent(props: AssistProps) {
   const { hasDockedElement, setHasDockedElement } = useLayout();
 
   useEffect(() => {
-    if (!hasDockedElement && preferences.assist.viewMode === ViewMode.Docked) {
+    if (
+      !hasDockedElement &&
+      preferences.assist.viewMode === AssistViewMode.DOCKED
+    ) {
       setHasDockedElement(true);
     }
 
-    if (hasDockedElement && preferences.assist.viewMode !== ViewMode.Docked) {
+    if (
+      hasDockedElement &&
+      preferences.assist.viewMode !== AssistViewMode.DOCKED
+    ) {
       setHasDockedElement(false);
     }
   }, [hasDockedElement, preferences.assist.viewMode]);
@@ -297,8 +304,8 @@ function AssistContent(props: AssistProps) {
     }
 
     if (
-      preferences.assist.viewMode === ViewMode.Popup ||
-      preferences.assist.viewMode === ViewMode.Docked
+      preferences.assist.viewMode === AssistViewMode.POPUP ||
+      preferences.assist.viewMode === AssistViewMode.DOCKED
     ) {
       toggleSidebar(false);
     }
@@ -310,7 +317,8 @@ function AssistContent(props: AssistProps) {
 
     if (
       sidebarVisible &&
-      preferences.assist.viewMode !== ViewMode.PopupExpandedSidebarVisible
+      preferences.assist.viewMode !==
+        AssistViewMode.POPUP_EXPANDED_SIDEBAR_VISIBLE
     ) {
       toggleSidebar(false);
     }
@@ -345,7 +353,7 @@ function AssistContent(props: AssistProps) {
   return (
     <Container
       onClick={handleClose}
-      docked={preferences.assist.viewMode === ViewMode.Docked}
+      docked={preferences.assist.viewMode === AssistViewMode.DOCKED}
     >
       {settingsOpen && (
         <Settings

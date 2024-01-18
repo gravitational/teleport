@@ -18,14 +18,14 @@
 
 import { DeprecatedThemeOption } from 'design/theme/types';
 
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+
+import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
-
-import {
-  OnboardUserPreferences,
-  ThemePreference,
-  UserPreferences,
-} from 'teleport/services/userPreferences/types';
 
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
 
@@ -161,7 +161,7 @@ export const storageService = {
     window.localStorage.removeItem(KeysEnum.CLOUD_USER_INVITES);
   },
 
-  getThemePreference(): ThemePreference {
+  getThemePreference(): Theme {
     const userPreferences = storageService.getUserPreferences();
     if (userPreferences) {
       return userPreferences.theme;
@@ -169,10 +169,10 @@ export const storageService = {
 
     const theme = this.getDeprecatedThemePreference();
     if (theme) {
-      return theme === 'light' ? ThemePreference.Light : ThemePreference.Dark;
+      return theme === 'light' ? Theme.LIGHT : Theme.DARK;
     }
 
-    return ThemePreference.Light;
+    return Theme.LIGHT;
   },
 
   getOnboardUserPreference(): OnboardUserPreferences {

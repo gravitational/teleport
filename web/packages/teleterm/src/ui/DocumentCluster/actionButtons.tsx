@@ -47,7 +47,7 @@ export function ConnectServerActionButton(props: {
 
   function getSshLogins(): string[] {
     const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
-    return cluster?.loggedInUser?.sshLoginsList || [];
+    return cluster?.loggedInUser?.sshLogins || [];
   }
 
   function connect(login: string): void {

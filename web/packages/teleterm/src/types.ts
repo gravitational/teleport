@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ITshdEventsServiceServer } from 'gen-proto-js/teleport/lib/teleterm/v1/tshd_events_service_grpc_pb';
+import { ITshdEventsService } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
 
-import { TshdClient } from 'teleterm/services/tshd/types';
-import { PtyServiceClient } from 'teleterm/services/pty';
-import { RuntimeSettings, MainProcessClient } from 'teleterm/mainProcess/types';
-import { FileStorage } from 'teleterm/services/fileStorage';
+import { sendUnaryData, ServerUnaryCall } from 'grpc';
+
 import { Logger, LoggerService } from 'teleterm/services/logger/types';
+import { FileStorage } from 'teleterm/services/fileStorage';
+import { MainProcessClient, RuntimeSettings } from 'teleterm/mainProcess/types';
+import { PtyServiceClient } from 'teleterm/services/pty';
+import { TshdClient } from 'teleterm/services/tshd/types';
 
 export type {
   Logger,
@@ -77,14 +79,21 @@ export type {
  * utilize the returned object. This helps with keeping type safety in cases where the handler
  * actually uses the returned object.
  */
+
+export type ExtractRequestType<T> = T extends ServerUnaryCall<infer Req, any>
+  ? Req
+  : never;
+
+export type ExtractResponseType<T> = T extends sendUnaryData<infer Res>
+  ? Res
+  : never;
+
 export type TshdEventContextBridgeService = {
-  [RpcName in keyof ITshdEventsServiceServer]: (args: {
+  [RpcName in keyof ITshdEventsService]: (args: {
     /**
      * request is the result of calling call.request.toObject() in a gRPC handler.
      */
-    request: ReturnType<
-      Parameters<ITshdEventsServiceServer[RpcName]>[0]['request']['toObject']
-    >;
+    request: ExtractRequestType<Parameters<ITshdEventsService[RpcName]>[0]>;
     /**
      * onRequestCancelled sets up a callback that is called when the request gets canceled by the
      * client (tshd in this case).
@@ -93,11 +102,7 @@ export type TshdEventContextBridgeService = {
   }) => Promise<
     // The following type maps to the object version of the response type expected as the second
     // argument to the callback function in a gRPC handler.
-    ReturnType<
-      Parameters<
-        Parameters<ITshdEventsServiceServer[RpcName]>[1]
-      >[1]['toObject']
-    >
+    ExtractResponseType<Parameters<ITshdEventsService[RpcName]>[1]>
   >;
 };
 

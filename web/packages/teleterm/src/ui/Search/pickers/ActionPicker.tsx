@@ -958,7 +958,7 @@ function Labels(
     scoreMap.set(match.labelName, currentScore + match.score);
   });
 
-  const sortedLabelsList = [...searchResult.resource.labelsList];
+  const sortedLabelsList = [...searchResult.resource.labels];
   sortedLabelsList.sort(
     (a, b) =>
       // Highest score first.

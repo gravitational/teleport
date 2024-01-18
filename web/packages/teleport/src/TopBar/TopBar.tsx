@@ -28,6 +28,8 @@ import { BrainIcon } from 'design/SVGIcon';
 import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
+import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
+
 import useTeleport from 'teleport/useTeleport';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import { useFeatures } from 'teleport/FeaturesContext';
@@ -38,7 +40,6 @@ import cfg from 'teleport/config';
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 import { useUser } from 'teleport/User/UserContext';
-import { ViewMode } from 'teleport/Assist/types';
 
 import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
@@ -93,7 +94,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   return (
     <TopBarContainer
       navigationHidden={feature?.hideNavigation}
-      dockedView={showAssist && viewMode === ViewMode.Docked}
+      dockedView={showAssist && viewMode === AssistViewMode.DOCKED}
     >
       {!feature?.hideNavigation && (
         <>

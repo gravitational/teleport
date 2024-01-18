@@ -16,26 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as unifiedResourcePreferences from 'shared/services/unifiedResourcePreferences';
+import {
+  DefaultTab,
+  LabelsViewMode,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
+import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
+
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
+import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
+
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-import { ViewMode } from 'teleport/Assist/types';
 
 import { KeysEnum } from '../storageService';
 
-import { ThemePreference } from './types';
-
-import type {
-  GetUserPreferencesResponse,
-  UserClusterPreferences,
-  UserPreferences,
-} from 'teleport/services/userPreferences/types';
-
 export async function getUserPreferences() {
-  const res: GetUserPreferencesResponse = await api.get(
-    cfg.api.userPreferencesPath
-  );
+  const res: UserPreferences = await api.get(cfg.api.userPreferencesPath);
 
   return res;
 }
@@ -77,9 +78,9 @@ export function updateUserPreferences(preferences: Partial<UserPreferences>) {
 
 export function makeDefaultUserPreferences(): UserPreferences {
   return {
-    theme: ThemePreference.Light,
+    theme: Theme.LIGHT,
     assist: {
-      viewMode: ViewMode.Docked,
+      viewMode: AssistViewMode.DOCKED,
       preferredLogins: [],
     },
     onboard: {
@@ -92,17 +93,18 @@ export function makeDefaultUserPreferences(): UserPreferences {
       },
     },
     unifiedResourcePreferences: {
-      defaultTab: unifiedResourcePreferences.DefaultTab.DEFAULT_TAB_ALL,
-      viewMode: unifiedResourcePreferences.ViewMode.VIEW_MODE_CARD,
-      labelsViewMode:
-        unifiedResourcePreferences.LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+      defaultTab: DefaultTab.ALL,
+      viewMode: ViewMode.CARD,
+      labelsViewMode: LabelsViewMode.COLLAPSED,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
   };
 }
 
-export function makeDefaultUserClusterPreferences(): UserClusterPreferences {
+export function makeDefaultUserClusterPreferences(): ClusterUserPreferences {
   return {
-    pinnedResources: [],
+    pinnedResources: {
+      resourceIds: [],
+    },
   };
 }
