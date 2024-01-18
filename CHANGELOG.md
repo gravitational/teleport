@@ -75,7 +75,8 @@ or use PAM.
 #### Remove restricted sessions for SSH
 
 The restricted session feature for SSH has been deprecated since Teleport 14 and 
-has been removed in Teleport 15. There is no replacement for this feature.
+has been removed in Teleport 15. We recommend implementing network restrictions 
+outside of Teleport (iptables, security groups, etc).
 
 #### Packages no longer published to legacy Debian and RPM repos
 
