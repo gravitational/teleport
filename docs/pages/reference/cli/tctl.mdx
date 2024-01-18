@@ -476,7 +476,7 @@ $ tctl bots update <bot> [<flags>]
 Replace the bot `example` roles and add a new allowed Unix login:
 
 ```code
-$ tctl bots update example --add-logins root --set-roles=access
+$ tctl bots update example --add-logins=root --set-roles=access
 ```
 
 Remove all implicitly allowed Unix logins from a bot named `example` by passing
