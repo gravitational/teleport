@@ -341,9 +341,11 @@ func TestGetKubeClientGetter(t *testing.T) {
 			config, err := getKubeClientGetter(context.Background(), tc.timestamp, credsProvider, "EKS1", tc.region, tc.caData, tc.endpoint)
 
 			if tc.errorCheck == nil {
+				cfg, err := config.ToRESTConfig()
 				require.NoError(t, err)
-				require.Equal(t, tc.expectedToken, aws.ToString(config.BearerToken))
-				require.Equal(t, tc.endpoint, aws.ToString(config.APIServer))
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedToken, cfg.BearerToken)
+				require.Equal(t, tc.endpoint, cfg.Host)
 			} else {
 				tc.errorCheck(t, err)
 			}
