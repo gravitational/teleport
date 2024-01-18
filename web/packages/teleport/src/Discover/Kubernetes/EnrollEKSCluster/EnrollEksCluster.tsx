@@ -144,24 +144,13 @@ export function EnrollEksCluster(props: AgentStepProps) {
       // Check if fetched EKS clusters have a Kube
       // server for it, to prevent user from enrolling
       // the same cluster.
-      const query = fetchedEKSClusters
-        .map(cluster => `name == "${cluster.name}"`)
-        .join(' || ');
+      const query = `labels["region"] == "${fetchedEKSClusters[0].region}"`;
       const existingKubeServers = await fetchKubeServers(query, 0);
       const checkedEksClusters: CheckedEksCluster[] = fetchedEKSClusters.map(
         cluster => {
-          const serverExists = existingKubeServers.agents.some(k => {
-            const regionLabel = k.labels?.find(l => l.name === 'region')?.value;
-            const accountLabel = k.labels?.find(
-              l => l.name === 'account-id'
-            )?.value;
-
-            return (
-              cluster.name === k.name &&
-              cluster.region === regionLabel &&
-              cluster.accountId === accountLabel
-            );
-          });
+          const serverExists = existingKubeServers.agents.some(k =>
+            k.name.startsWith(`${cluster.name}-${cluster.region}`)
+          );
 
           return {
             ...cluster,
