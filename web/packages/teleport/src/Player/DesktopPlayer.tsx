@@ -172,34 +172,33 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     [setPlayerStatus, setStatusText]
   );
 
-  const clientOnClientScreenSpec = (
-    cli: TdpClient,
-    canvas: HTMLCanvasElement,
-    spec: ClientScreenSpec
-  ) => {
-    const { width, height } = spec;
+  const clientOnClientScreenSpec = useCallback(
+    (_cli: TdpClient, canvas: HTMLCanvasElement, spec: ClientScreenSpec) => {
+      const { width, height } = spec;
 
-    const styledPlayer = canvas.parentElement;
-    const progressBar = styledPlayer.children.namedItem(PROGRESS_BAR_ID);
+      const styledPlayer = canvas.parentElement;
+      const progressBar = styledPlayer.children.namedItem(PROGRESS_BAR_ID);
 
-    const fullWidth = styledPlayer.clientWidth;
-    const fullHeight = styledPlayer.clientHeight - progressBar.clientHeight;
-    const originalAspectRatio = width / height;
-    const currentAspectRatio = fullWidth / fullHeight;
+      const fullWidth = styledPlayer.clientWidth;
+      const fullHeight = styledPlayer.clientHeight - progressBar.clientHeight;
+      const originalAspectRatio = width / height;
+      const currentAspectRatio = fullWidth / fullHeight;
 
-    if (originalAspectRatio > currentAspectRatio) {
-      // Use the full width of the screen and scale the height.
-      canvas.style.height = `${(fullWidth * height) / width}px`;
-    } else if (originalAspectRatio < currentAspectRatio) {
-      // Use the full height of the screen and scale the width.
-      canvas.style.width = `${(fullHeight * width) / height}px`;
-    }
+      if (originalAspectRatio > currentAspectRatio) {
+        // Use the full width of the screen and scale the height.
+        canvas.style.height = `${(fullWidth * height) / width}px`;
+      } else if (originalAspectRatio < currentAspectRatio) {
+        // Use the full height of the screen and scale the width.
+        canvas.style.width = `${(fullHeight * width) / height}px`;
+      }
 
-    canvas.width = width;
-    canvas.height = height;
+      canvas.width = width;
+      canvas.height = height;
 
-    setCanvasSizeIsSet(true);
-  };
+      setCanvasSizeIsSet(true);
+    },
+    [setCanvasSizeIsSet]
+  );
 
   useEffect(() => {
     return playerClient.shutdown;

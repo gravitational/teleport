@@ -18,10 +18,8 @@
 
 import React, { memo, useEffect, useRef } from 'react';
 
-import { TdpClientEvent } from 'teleport/lib/tdp';
+import { TdpClientEvent, TdpClient } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
-
-import { TdpClient } from 'teleport/lib/tdp';
 
 import type { CSSProperties } from 'react';
 import type {
@@ -55,14 +53,19 @@ function TdpClientCanvas(props: Props) {
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  if (canvasRef.current) {
-    // Make the canvas a focusable keyboard listener
-    // https://stackoverflow.com/a/51267699/6277051
-    // https://stackoverflow.com/a/16492878/6277051
-    canvasRef.current.tabIndex = -1;
-    canvasRef.current.style.outline = 'none';
-    canvasRef.current.focus();
-  }
+  useEffect(() => {
+    // Empty dependency array ensures this runs only once after initial render.
+    // This code will run after the component has been mounted and the canvasRef has been assigned.
+    const canvas = canvasRef.current;
+    if (canvas) {
+      // Make the canvas a focusable keyboard listener
+      // https://stackoverflow.com/a/51267699/6277051
+      // https://stackoverflow.com/a/16492878/6277051
+      canvas.tabIndex = -1;
+      canvas.style.outline = 'none';
+      canvas.focus();
+    }
+  }, []);
 
   useEffect(() => {
     if (client && clientOnPngFrame) {
