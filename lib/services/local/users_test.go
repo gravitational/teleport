@@ -773,6 +773,7 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 		local.GlobalSessionDataMaxEntries = sdMax
 		local.SessionDataLimiter.Clock = sdClock
 		local.SessionDataLimiter.ResetPeriod = sdReset
+		local.SessionDataLimiter.Reset()
 	}()
 	fakeClock := clockwork.NewFakeClock()
 	period := 1 * time.Minute // arbitrary, applied to fakeClock
