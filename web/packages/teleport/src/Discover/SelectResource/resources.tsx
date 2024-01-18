@@ -18,9 +18,10 @@
 
 import { Platform } from 'design/platform';
 
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
+
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
-import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 

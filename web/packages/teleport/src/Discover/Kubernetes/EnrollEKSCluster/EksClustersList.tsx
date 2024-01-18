@@ -17,13 +17,13 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Flex, Box } from 'design';
 import Table from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
 
 import {
   DisableableCell as Cell,
+  StatusCell,
+  ItemStatus,
   RadioCell,
   Labels,
   labelMatcher,
@@ -39,8 +39,6 @@ type Props = {
   onSelectCluster(item: CheckedEksCluster): void;
   selectedCluster?: CheckedEksCluster;
 };
-
-const disabledText = `This EKS cluster is already enrolled`;
 
 export const ClustersList = ({
   items = [],
@@ -60,13 +58,12 @@ export const ClustersList = ({
             const isChecked = item.name === selectedCluster?.name;
             return (
               <RadioCell<CheckedEksCluster>
-                disabledText={disabledText}
                 item={item}
                 key={`${item.name}${item.region}`}
                 isChecked={isChecked}
                 onChange={onSelectCluster}
-                disabled={item.kubeServerExists}
                 value={item.name}
+                {...disabledStates(item)}
               />
             );
           },
@@ -74,25 +71,27 @@ export const ClustersList = ({
         {
           key: 'name',
           headerText: 'Name',
-          render: ({ name, kubeServerExists }) => (
-            <Cell disabledText={disabledText} disabled={kubeServerExists}>
-              {name}
-            </Cell>
-          ),
+          render: item => <Cell {...disabledStates(item)}>{item.name}</Cell>,
         },
         {
           key: 'labels',
           headerText: 'Labels',
-          render: ({ labels, kubeServerExists }) => (
-            <Cell disabledText={disabledText} disabled={kubeServerExists}>
-              <Labels labels={labels} />
+          render: item => (
+            <Cell {...disabledStates(item)}>
+              <Labels labels={item.labels} />
             </Cell>
           ),
         },
         {
           key: 'status',
           headerText: 'Status',
-          render: item => <StatusCell item={item} />,
+          render: item => (
+            <StatusCell
+              status={getStatus(item)}
+              statusText={item.status}
+              {...disabledStates(item)}
+            />
+          ),
         },
       ]}
       emptyText="No Results"
@@ -104,53 +103,41 @@ export const ClustersList = ({
   );
 };
 
-const StatusCell = ({ item }: { item: CheckedEksCluster }) => {
-  const status = getStatus(item);
-
-  return (
-    <Cell disabledText={disabledText} disabled={item.kubeServerExists}>
-      <Flex alignItems="center">
-        <StatusLight status={status} />
-        {item.status}
-      </Flex>
-    </Cell>
-  );
-};
-
-enum Status {
-  Success,
-  Warning,
-  Error,
-}
-
 function getStatus(item: CheckedEksCluster) {
   switch (item.status.toLowerCase()) {
     case 'active':
-      return Status.Success;
+      return ItemStatus.Success;
 
     case 'failed':
     case 'deleting':
-      return Status.Error;
+      return ItemStatus.Error;
+
+    default:
+      return ItemStatus.Warning;
   }
 }
 
-// TODO(lisa): copy from IntegrationList.tsx
-// move to common file for both files.
-const StatusLight = styled(Box)`
-  border-radius: 50%;
-  margin-right: 6px;
-  width: 8px;
-  height: 8px;
-  background-color: ${({ status, theme }) => {
-    if (status === Status.Success) {
-      return theme.colors.success;
-    }
-    if (status === Status.Error) {
-      return theme.colors.error.main;
-    }
-    if (status === Status.Warning) {
-      return theme.colors.warning;
-    }
-    return theme.colors.grey[300]; // Unknown
-  }};
-`;
+function disabledStates(item: CheckedEksCluster) {
+  const disabled =
+    getStatus(item) !== ItemStatus.Success || item.kubeServerExists;
+
+  let disabledText = `This EKS cluster is already enrolled and is a part of this cluster`;
+  switch (item.status) {
+    case 'failed':
+    case 'pending':
+    case 'creating':
+    case 'updating':
+      disabledText = 'Not available, try refreshing the list';
+      break;
+    case 'deleting':
+      disabledText = 'Not available';
+  }
+
+  if (item.status === 'failed') {
+    disabledText = 'Not available, try refreshing the list';
+  } else if (item.status === 'deleting') {
+    disabledText = 'Not available';
+  }
+
+  return { disabled, disabledText };
+}
