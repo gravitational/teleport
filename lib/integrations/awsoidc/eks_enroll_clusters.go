@@ -121,8 +121,8 @@ func (d *defaultEnrollEKSClustersClient) GetCallerIdentity(ctx context.Context, 
 	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
 }
 
-func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
-	actionConfig, err := getHelmActionConfig(kubeconfig, log)
+func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(clientGetter genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
+	actionConfig, err := getHelmActionConfig(clientGetter, log)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -158,8 +158,8 @@ func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCrea
 	return provisionToken.GetName(), resourceId, trace.Wrap(err)
 }
 
-func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger, req EnrollEKSClustersRequest) error {
-	actionConfig, err := getHelmActionConfig(kubeconfig, log)
+func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, clientGetter genericclioptions.RESTClientGetter, log logrus.FieldLogger, req EnrollEKSClustersRequest) error {
+	actionConfig, err := getHelmActionConfig(clientGetter, log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -290,13 +290,13 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 		return "", trace.Wrap(err)
 	}
 
-	kubeConfig, err := getKubeconfig(ctx, clock.Now(), credsProvider, clusterName, req.Region,
+	kubeClientGetter, err := getKubeClientGetter(ctx, clock.Now(), credsProvider, clusterName, req.Region,
 		aws.ToString(eksCluster.CertificateAuthority.Data), aws.ToString(eksCluster.Endpoint))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	if alreadyInstalled, err := clt.CheckAgentAlreadyInstalled(kubeConfig, log); err != nil {
+	if alreadyInstalled, err := clt.CheckAgentAlreadyInstalled(kubeClientGetter, log); err != nil {
 		return "", trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
 	} else if alreadyInstalled {
 		return "", trace.BadParameter("teleport-kube-agent is already installed on the cluster %q", clusterName)
@@ -307,7 +307,7 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 		return "", trace.Wrap(err)
 	}
 
-	if err := clt.InstallKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeConfig, log, req); err != nil {
+	if err := clt.InstallKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeClientGetter, log, req); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -367,8 +367,8 @@ func getPresignURL() url.URL {
 	}
 }
 
-// getKubeconfig returns kubeconfig that can be used to access target EKS cluster
-func getKubeconfig(ctx context.Context, timestamp time.Time, credsProvider aws.CredentialsProvider, clusterName, region, clusterCA, clusterEndpoint string) (*genericclioptions.ConfigFlags, error) {
+// getKubeClientGetter returns client getter for kube that can be used to access target EKS cluster
+func getKubeClientGetter(ctx context.Context, timestamp time.Time, credsProvider aws.CredentialsProvider, clusterName, region, clusterCA, clusterEndpoint string) (*genericclioptions.ConfigFlags, error) {
 	targetUrl := getPresignURL()
 
 	r, err := http.NewRequest(http.MethodGet, targetUrl.String(), nil)
@@ -401,19 +401,19 @@ func getKubeconfig(ctx context.Context, timestamp time.Time, credsProvider aws.C
 		},
 	}
 
-	kubeConfig := genericclioptions.NewConfigFlags(false)
-	kubeConfig.APIServer = &restConfig.Host
-	kubeConfig.BearerToken = &restConfig.BearerToken
-	kubeConfig.WithWrapConfigFn(func(*rest.Config) *rest.Config {
+	configFlags := genericclioptions.NewConfigFlags(false)
+	configFlags.APIServer = &restConfig.Host
+	configFlags.BearerToken = &restConfig.BearerToken
+	configFlags.WithWrapConfigFn(func(*rest.Config) *rest.Config {
 		return restConfig
 	})
 
-	return kubeConfig, nil
+	return configFlags, nil
 }
 
-func getHelmActionConfig(kubeConfig genericclioptions.RESTClientGetter, log logrus.FieldLogger) (*action.Configuration, error) {
+func getHelmActionConfig(clientGetter genericclioptions.RESTClientGetter, log logrus.FieldLogger) (*action.Configuration, error) {
 	actionConfig := new(action.Configuration)
-	if err := actionConfig.Init(kubeConfig, agentNamespace, "secret", log.WithField("source", "helm").Debugf); err != nil {
+	if err := actionConfig.Init(clientGetter, agentNamespace, "secret", log.WithField("source", "helm").Debugf); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

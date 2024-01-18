@@ -284,7 +284,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 	})
 }
 
-func TestGetKubeConfig(t *testing.T) {
+func TestGetKubeClientGetter(t *testing.T) {
 	credsProvider := &mockCredentialsProvider{}
 	testCAData := "VGVzdENBREFUQQ=="
 
@@ -338,7 +338,7 @@ func TestGetKubeConfig(t *testing.T) {
 
 	for c, tc := range testCases {
 		t.Run(fmt.Sprintf("test#%d", c), func(t *testing.T) {
-			config, err := getKubeconfig(context.Background(), tc.timestamp, credsProvider, "EKS1", tc.region, tc.caData, tc.endpoint)
+			config, err := getKubeClientGetter(context.Background(), tc.timestamp, credsProvider, "EKS1", tc.region, tc.caData, tc.endpoint)
 
 			if tc.errorCheck == nil {
 				require.NoError(t, err)
