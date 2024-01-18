@@ -92,12 +92,10 @@ export function EnrollEksCluster(props: AgentStepProps) {
     useState<EKSClusterEnrollmentState>({
       status: 'notStarted',
     });
-  const [isAppDiscoveryEnabled, setAppDiscoveryEnabled] =
-    useState<boolean>(true);
+  const [isAppDiscoveryEnabled, setAppDiscoveryEnabled] = useState(true);
   const [isAgentWaitingDialogShown, setIsAgentWaitingDialogShown] =
-    useState<boolean>(false);
-  const [isManualHelmDialogShown, setIsManualHelmDialogShown] =
-    useState<boolean>(false);
+    useState(false);
+  const [isManualHelmDialogShown, setIsManualHelmDialogShown] = useState(false);
   const ctx = useTeleport();
 
   const { joinToken } = useJoinTokenSuspender([
