@@ -42,7 +42,7 @@ export const KubernetesResource: ResourceViewConfig = {
         eventName: DiscoverEvent.DeployService,
       },
     ];
-    if (resource?.kubeMeta.location === KubeLocation.Aws) {
+    if (resource?.kubeMeta?.location === KubeLocation.Aws) {
       configuredResourceViews = [
         {
           title: 'Connect AWS Account',
