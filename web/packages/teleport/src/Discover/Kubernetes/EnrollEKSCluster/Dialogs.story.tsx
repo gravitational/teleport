@@ -45,6 +45,7 @@ export const EnrollmentDialogStory = () => (
       status={'enrolling'}
       error={''}
       close={() => {}}
+      retry={() => {}}
     />
   </MemoryRouter>
 );
@@ -69,6 +70,7 @@ export const AgentWaitingDialogStory = () => (
           clusterName={'EKS1'}
           updateWaitingResult={() => {}}
           cancel={() => {}}
+          next={() => {}}
         />
       </PingTeleportProvider>
     </ContextProvider>
@@ -104,6 +106,7 @@ export const AgentWaitingDialogSuccess = () => (
           clusterName={'EKS1'}
           updateWaitingResult={() => {}}
           cancel={() => {}}
+          next={() => {}}
         />
       </PingTeleportProvider>
     </ContextProvider>
