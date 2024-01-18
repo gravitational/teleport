@@ -304,7 +304,7 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 		PrincipalArn: aws.String(principalArn),
 	})
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.Wrap(err, "unable to associate EKS Access Policy to cluster %q", clusterName)
 	}
 
 	kubeClientGetter, err := getKubeClientGetter(ctx, clock.Now(), credsProvider, clusterName, req.Region,
