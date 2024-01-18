@@ -29,6 +29,8 @@ import { Theme } from 'design/theme/themes/types';
 import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
+import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
+
 import useTeleport from 'teleport/useTeleport';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import { useFeatures } from 'teleport/FeaturesContext';

@@ -20,6 +20,8 @@ import { pluralize } from 'shared/utils/text';
 
 import { makeApp, App } from 'teleterm/ui/services/clusters';
 
+import { ExcludesFalse } from 'teleterm/helpers';
+
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
@@ -38,7 +40,7 @@ export class ResourcesService {
     hostname: string
   ): Promise<types.Server | undefined> {
     const query = `name == "${hostname}"`;
-    const { agentsList: servers } = await this.fetchServers({
+    const { agents: servers } = await this.fetchServers({
       clusterUri,
       query,
       limit: 2,
@@ -94,7 +96,7 @@ export class ResourcesService {
     const getServers = () =>
       this.fetchServers(params).then(
         res =>
-          res.agentsList.map(resource => ({
+          res.agents.map(resource => ({
             kind: 'server' as const,
             resource,
           })),
@@ -104,7 +106,7 @@ export class ResourcesService {
     const getApps = () =>
       this.fetchApps(params).then(
         res =>
-          res.agentsList.map(resource => ({
+          res.agents.map(resource => ({
             kind: 'app' as const,
             resource: makeApp(resource),
           })),
@@ -113,7 +115,7 @@ export class ResourcesService {
     const getDatabases = () =>
       this.fetchDatabases(params).then(
         res =>
-          res.agentsList.map(resource => ({
+          res.agents.map(resource => ({
             kind: 'database' as const,
             resource,
           })),
@@ -123,7 +125,7 @@ export class ResourcesService {
     const getKubes = () =>
       this.fetchKubes(params).then(
         res =>
-          res.agentsList.map(resource => ({
+          res.agents.map(resource => ({
             kind: 'kube' as const,
             resource,
           })),
@@ -136,7 +138,7 @@ export class ResourcesService {
           filters.includes('app') && getApps(),
           filters.includes('db') && getDatabases(),
           filters.includes('kube_cluster') && getKubes(),
-        ].filter(Boolean)
+        ].filter(ExcludesFalse)
       : [getServers(), getApps(), getDatabases(), getKubes()];
 
     return Promise.allSettled(promises);
@@ -204,7 +206,7 @@ export class ResourceSearchError extends Error {
     getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string
   ) {
     return `${this.messageWithClusterName(getClusterName)}:\n${
-      this.cause['message']
+      (this.cause as Record<string, string>)['message']
     }`;
   }
 }

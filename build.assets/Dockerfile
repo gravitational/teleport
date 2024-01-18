@@ -291,9 +291,8 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install JS gRPC tools.
-ARG NODE_GRPC_TOOLS_VERSION # eg, "1.12.4"
-ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
-RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
+ARG PROTOBUF_TS_PLUGIN_VERSION  # eg, "2.9.3"
+RUN npm install --global "@protobuf-ts/plugin@$PROTOBUF_TS_PLUGIN_VERSION"
 
 # Install protoc.
 ARG PROTOC_VERSION # eg, "3.20.2"

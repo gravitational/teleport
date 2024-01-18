@@ -19,6 +19,5 @@ DEVTOOLSET ?= devtoolset-12
 BUF_VERSION ?= v1.28.0
 # Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
-NODE_GRPC_TOOLS_VERSION ?= 1.12.4
-NODE_PROTOC_TS_VERSION ?= 5.0.1
+PROTOBUF_TS_PLUGIN_VERSION ?= 2.9.3
 PROTOC_VERSION ?= 3.20.3
