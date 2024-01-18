@@ -89,7 +89,7 @@ export function AgentWaitingDialog({
           </Text>
           <AnimatedProgressBar mb={3} />
           <TextIcon mb={3}>
-            <Icons.Check size="medium" />
+            <Icons.Check size="medium" color="success.main" />
             <Text>1. Installing Teleport agent</Text>
           </TextIcon>
           <TextIcon mb={3}>
