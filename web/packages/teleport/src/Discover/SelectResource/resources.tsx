@@ -37,6 +37,7 @@ import {
 import { SAML_APPLICATIONS } from './resourcesE';
 
 const baseServerKeywords = 'server node';
+const awsKeywords = 'aws amazon ';
 export const SERVERS: ResourceSpec[] = [
   {
     name: 'Ubuntu 14.04+',
@@ -139,7 +140,7 @@ export const KUBERNETES: ResourceSpec[] = [
   {
     name: 'EKS',
     kind: ResourceKind.Kubernetes,
-    keywords: 'kubernetes cluster kubes eks',
+    keywords: awsKeywords + 'kubernetes cluster kubes eks',
     icon: 'Aws',
     event: DiscoverEventResource.Kubernetes,
   },
