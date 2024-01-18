@@ -136,9 +136,9 @@ func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(clientGetter
 	return checkAgentAlreadyInstalled(actionConfig)
 }
 
-const eksJoinTokenTTL = 30 * time.Minute
-
 func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreator) (string, string, error) {
+	const eksJoinTokenTTL = 30 * time.Minute
+
 	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 	if err != nil {
 		return "", "", trace.Wrap(err)
@@ -172,6 +172,10 @@ func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, e
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	settings, err := getHelmSettings()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	return installKubeAgent(ctx, installKubeAgentParams{
 		eksCluster:   eksCluster,
@@ -179,7 +183,7 @@ func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, e
 		joinToken:    joinToken,
 		resourceID:   resourceId,
 		actionConfig: actionConfig,
-		settings:     getHelmSettings(),
+		settings:     settings,
 		req:          req,
 		log:          log,
 	})
