@@ -3883,9 +3883,6 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
-	// create agentless node in leaf cluster
-	node := createAgentlessNode(t, leaf.Process.GetAuthServer(), clusterAux, "leaf-agentless-node")
-
 	// connect to leaf agentless node
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:        main.Process,
@@ -3912,7 +3909,11 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	testAgentlessConn(t, leafTC, tc, node)
+	node1 := createAgentlessNode(t, leaf.Process.GetAuthServer(), clusterAux, "leaf-agentless-node1")
+	testAgentlessConn(t, leafTC, tc, node1, false)
+
+	node2 := createAgentlessNode(t, leaf.Process.GetAuthServer(), clusterAux, "leaf-agentless-node2")
+	testAgentlessConn(t, leafTC, tc, node2, true)
 
 	// Stop clusters and remaining nodes.
 	require.NoError(t, main.StopAll())
@@ -8056,7 +8057,6 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 
 	// get OpenSSH CA public key and create host certs
 	authSrv := teleInst.Process.GetAuthServer()
-	node := createAgentlessNode(t, authSrv, helpers.Site, "agentless-node")
 
 	// create client
 	tc, err := teleInst.NewClient(helpers.ClientConfig{
@@ -8066,7 +8066,11 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	testAgentlessConn(t, tc, tc, node)
+	node1 := createAgentlessNode(t, authSrv, helpers.Site, "agentless-node1")
+	testAgentlessConn(t, tc, tc, node1, false)
+
+	node2 := createAgentlessNode(t, authSrv, helpers.Site, "agentless-node2")
+	testAgentlessConn(t, tc, tc, node2, true)
 }
 
 func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {
@@ -8125,7 +8129,7 @@ func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	require.NoError(t, err)
 
 	// wait for node resource to be written to the backend
-	timedCtx, cancel := context.WithTimeout(ctx, time.Second)
+	timedCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	t.Cleanup(cancel)
 	w, err := authServer.NewWatcher(timedCtx, types.Watch{
 		Name: "node-create watcher",
@@ -8234,7 +8238,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 	return lis.Addr().String()
 }
 
-func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *types.ServerV2) {
+func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *types.ServerV2, emulateOpenSSH bool) {
 	t.Helper()
 
 	// connect to cluster
@@ -8260,25 +8264,53 @@ func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *ty
 	require.NoError(t, err)
 	uuidAddr := net.JoinHostPort(node.Metadata.Name, port)
 
-	nodeClient, err := tc.ConnectToNode(
-		ctx,
-		clt,
-		client.NodeDetails{
-			Addr:      uuidAddr,
-			Namespace: tc.Namespace,
-			Cluster:   tc.SiteName,
-		},
-		tc.Username,
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		// ignore the error here, nodeClient is closed below if the
-		// test passes
-		_ = nodeClient.Close()
-	})
+	var sshClient *ssh.Client
+	var closer io.Closer
+	if emulateOpenSSH {
+		var conn net.Conn
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			targetConn, _, err := clt.ProxyClient.DialHost(ctx, uuidAddr, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
+			assert.NoError(c, err)
+			conn = targetConn
+		}, 5*time.Second, 100*time.Millisecond)
+		t.Cleanup(func() {
+			// ignore the error here, conn is closed below if the
+			// test passes
+			_ = conn.Close()
+		})
+
+		sshConfig := clt.ProxyClient.SSHConfig(tc.Username)
+		sconn, chans, reqs, err := ssh.NewClientConn(conn, uuidAddr, sshConfig)
+		require.NoError(t, err)
+		sshClient = ssh.NewClient(sconn, chans, reqs)
+		t.Cleanup(func() {
+			// ignore the error here, sshClient is closed below if the
+			// test passes
+			_ = sshClient.Close()
+		})
+		closer = sshClient
+	} else {
+		nodeClient, err := tc.ConnectToNode(
+			ctx,
+			clt,
+			client.NodeDetails{
+				Addr:      uuidAddr,
+				Namespace: tc.Namespace,
+				Cluster:   tc.SiteName,
+			},
+			tc.Username,
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			// ignore the error here, nodeClient is closed below if the
+			// test passes
+			_ = nodeClient.Close()
+		})
+		sshClient = nodeClient.Client.Client
+		closer = nodeClient
+	}
 
 	// forward SSH agent
-	sshClient := nodeClient.Client.Client
 	s, err := sshClient.NewSession()
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -8314,15 +8346,17 @@ func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *ty
 	require.NoError(t, s.Shell())
 
 	var sessTracker types.SessionTracker
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		trackers, err := joinClt.AuthClient.GetActiveSessionTrackers(ctx)
-		require.NoError(t, err)
-		if len(trackers) == 1 {
-			sessTracker = trackers[0]
-			return true
+		assert.NoError(c, err)
+		if assert.NotEmpty(c, trackers) {
+			// return the latest session tracker
+			slices.SortFunc(trackers, func(a, b types.SessionTracker) int {
+				return a.GetCreated().Compare(b.GetCreated())
+			})
+			sessTracker = trackers[len(trackers)-1]
 		}
-		return false
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 
 	// test that attempting to join the session returns an error
 	err = joinTC.Join(ctx, types.SessionPeerMode, tc.Namespace, session.ID(sessTracker.GetSessionID()), nil)
@@ -8337,7 +8371,7 @@ func testAgentlessConn(t *testing.T, tc, joinTC *client.TeleportClient, node *ty
 		require.Fail(t, "timeout waiting for SSH agent channel to be closed")
 	}
 
-	require.NoError(t, nodeClient.Close())
+	require.NoError(t, closer.Close())
 }
 
 // TestProxySSHPortMultiplexing ensures that the Proxy SSH port
