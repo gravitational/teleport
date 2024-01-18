@@ -513,13 +513,12 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	common.ApplyEKSNameSuffix(kubeCluster)
+	vals["kubeClusterName"] = kubeCluster.GetName()
 
 	labels := kubeCluster.GetStaticLabels()
 	labels[types.InternalResourceIDLabel] = resourceId
 	vals["labels"] = labels
-
-	common.ApplyEKSNameSuffix(kubeCluster)
-	vals["kubeClusterName"] = kubeCluster.GetName()
 
 	if _, err := installCmd.RunWithContext(ctx, agentChart, vals); err != nil {
 		return trace.Wrap(err, "could not install Helm chart.")
