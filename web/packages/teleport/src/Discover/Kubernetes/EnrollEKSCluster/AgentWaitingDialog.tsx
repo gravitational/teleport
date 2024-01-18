@@ -45,7 +45,10 @@ export function AgentWaitingDialog({
   next,
 }: AgentWaitingDialogProps) {
   const { result, active } = usePingTeleport<Kube>(joinToken);
-  updateWaitingResult(result);
+  if (result) {
+    updateWaitingResult(result);
+  }
+
   const showHint = useShowHint(active);
 
   function hintMessage() {

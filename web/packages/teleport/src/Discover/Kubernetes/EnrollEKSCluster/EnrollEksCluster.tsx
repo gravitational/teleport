@@ -388,10 +388,8 @@ export function EnrollEksCluster(props: AgentStepProps) {
           status={enrollmentState.status}
           clusterName={selectedCluster.name}
           updateWaitingResult={(result: Kube) => {
-            if (result) {
-              setConfirmedCluster(result);
-              setEnrollmentState({ status: 'success' });
-            }
+            setConfirmedCluster(result);
+            setEnrollmentState({ status: 'success' });
           }}
           cancel={() => {
             if (enrollmentState.status != 'success') {
