@@ -229,11 +229,13 @@ export function EnrollEksCluster(props: AgentStepProps) {
           status: 'error',
           error: `Cluster "${selectedCluster.name}" enrollment result is unknown.`,
         });
+        emitErrorEvent('unknown error during EKS enrollment.');
       } else if (result.error) {
         setEnrollmentState({
           status: 'error',
           error: `Cluster enrollment error: ${result.error}`,
         });
+        emitErrorEvent(`failed to enroll EKS cluster: ${result.error}`);
       } else {
         setEnrollmentState({ status: 'awaitingAgent' });
         setIsAgentWaitingDialogShown(true);
@@ -243,6 +245,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
         status: 'error',
         error: `Cluster enrollment error: ${getErrMessage(err)}.`,
       });
+      emitErrorEvent(`failed to enroll EKS cluster: ${getErrMessage(err)}`);
     }
   }
 
