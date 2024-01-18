@@ -110,10 +110,10 @@ export function AgentWaitingDialog({
           <Text bold caps mb={4}>
             EKS Cluster Enrollment
           </Text>
-          <Text mb={3} style={{ display: 'flex' }}>
-            <Icons.Check size="small" ml={1} mr={2} color="success" />
+          <Flex mb={3}>
+            <Icons.Check size="small" ml={1} mr={2} color="success.main" />
             Cluster "{clusterName}" was successfully enrolled.
-          </Text>
+          </Flex>
           <ButtonPrimary width="100%" onClick={close}>
             Close
           </ButtonPrimary>
