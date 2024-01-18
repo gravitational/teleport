@@ -1123,7 +1123,10 @@ type ResourceHeader struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind,omitempty"`
 	// SubKind is an optional resource sub kind, used in some resources
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is version
+	// Version is the API version used to create the resource. It must be
+	// specified. Based on this version, Teleport will apply different defaults on
+	// resource creation or deletion. It must be an integer prefixed by "v".
+	// For example: `v1`
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version,omitempty"`
 	// Metadata is resource metadata
 	Metadata             Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata,omitempty"`
@@ -1314,7 +1317,8 @@ type DatabaseV3 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource subkind.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is the resource version.
+	// Version is the resource version. It must be specified.
+	// Supported values are: `v3`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata is the database metadata.
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -2915,7 +2919,8 @@ type AppV3 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource subkind.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is the resource version.
+	// Version is the resource version. It must be specified.
+	// Supported values are:`v3`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata is the app resource metadata.
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -3685,7 +3690,8 @@ type ProvisionTokenV2 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is version
+	// Version is the resource version. It must be specified.
+	// Supported values are:`v2`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata is resource metadata
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -4999,7 +5005,8 @@ type ClusterNetworkingConfigV2 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is a resource version
+	// Version is the resource version. It must be specified.
+	// Supported values are:`v2`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata is resource metadata
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -5294,7 +5301,8 @@ type SessionRecordingConfigV2 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is a resource version
+	// Version is the resource version. It must be specified.
+	// Supported values are:`v2`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata is resource metadata
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -5390,7 +5398,8 @@ type AuthPreferenceV2 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is a resource version
+	// Version is the resource version. It must be specified.
+	// Supported values are: `v2`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata is resource metadata
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -6872,7 +6881,8 @@ type RoleV6 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is version
+	// Version is the resource version. It must be specified.
+	// Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata is resource metadata
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -7900,7 +7910,8 @@ type UserV2 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is version
+	// Version is the resource version. It must be specified.
+	// Supported values are: `v2`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata is resource metadata
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -10478,7 +10489,8 @@ type OIDCConnectorV3 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is a resource version.
+	// Version is the resource version. It must be specified.
+	// Supported values are: `v3`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata holds resource metadata.
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -10781,7 +10793,8 @@ type SAMLConnectorV2 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is a resource version.
+	// Version is the resource version. It must be specified.
+	// Supported values are: `v2`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata holds resource metadata.
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -11115,7 +11128,8 @@ type GithubConnectorV3 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is a resource version.
+	// Version is the resource version. It must be specified.
+	// Supported values are: `v3`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata holds resource metadata.
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -11716,7 +11730,8 @@ type TrustedClusterV2 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is a resource version.
+	// Version is the resource version. It must be specified.
+	// Supported values are: `v2`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata holds resource metadata.
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
@@ -11866,7 +11881,8 @@ type LockV2 struct {
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
 	// SubKind is an optional resource sub kind, used in some resources.
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
-	// Version is a resource version.
+	// Version is the resource version. It must be specified.
+	// Supported values are: `v2`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata holds resource metadata.
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
