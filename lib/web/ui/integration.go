@@ -236,12 +236,13 @@ type AWSOIDCDeployDatabaseServiceResponse struct {
 
 // AWSOIDCEnrollEKSClustersRequest is a request to ListEKSClusters using the AWS OIDC Integration.
 type AWSOIDCEnrollEKSClustersRequest struct {
-	// Region is the AWS Region.
 	Region             string   `json:"region"`
 	ClusterNames       []string `json:"clusterNames"`
 	JoinToken          string   `json:"joinToken"`
 	ResourceID         string   `json:"resourceId"`
 	EnableAppDiscovery bool     `json:"enableAppDiscovery"`
+	EnableAutoUpgrades bool     `json:"enableAutoUpgrades"`
+	IsCloud            bool     `json:"isCloud"`
 }
 
 // EKSClusterEnrollmentResult contains result/error for a single cluster enrollment.

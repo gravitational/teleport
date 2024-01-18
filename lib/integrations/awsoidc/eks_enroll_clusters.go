@@ -163,6 +163,12 @@ type EnrollEKSClustersRequest struct {
 
 	// EnableAppDiscovery specifies if we should enable Kubernetes App Discovery inside the enrolled EKS cluster.
 	EnableAppDiscovery bool
+
+	// EnableAutoUpgrades specifies if we should enable agent auto upgrades.
+	EnableAutoUpgrades bool
+
+	// IsCloud specifies if enrollment is done for the Teleport Cloud client.
+	IsCloud bool
 }
 
 // EnrollEKSClusters enrolls an EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
@@ -434,6 +440,14 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 		vals["roles"] = "kube,app,discovery"
 	}
 	vals["authToken"] = req.JoinToken
+
+	if req.IsCloud && req.EnableAutoUpgrades {
+		vals["updater"] = map[string]any{"enabled": true, "releaseChannel": "stable/cloud"}
+
+		vals["highAvailability.replicaCount"] = map[string]any{"replicaCount": 2,
+			"podDisruptionBudget": map[string]any{"enabled": true, "minAvailable": 1},
+		}
+	}
 
 	eksTags := make(map[string]*string, len(eksCluster.Tags))
 	for k, v := range eksCluster.Tags {
