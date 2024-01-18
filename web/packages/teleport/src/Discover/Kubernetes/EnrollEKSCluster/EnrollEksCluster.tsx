@@ -383,7 +383,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
           joinToken={joinToken}
           status={enrollmentState.status}
           clusterName={selectedCluster.name}
-          setWaitingResult={(result: Kube) => {
+          updateWaitingResult={(result: Kube) => {
             if (result) {
               setConfirmedCluster(result);
               setEnrollmentState({ status: 'success' });

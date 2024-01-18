@@ -31,7 +31,7 @@ type AgentWaitingDialogProps = {
   joinToken: JoinToken;
   status: string;
   clusterName: string;
-  setWaitingResult(cluster: Kube): void;
+  updateWaitingResult(cluster: Kube): void;
   close(): void;
 };
 
@@ -39,11 +39,11 @@ export function AgentWaitingDialog({
   joinToken,
   status,
   clusterName,
-  setWaitingResult,
+  updateWaitingResult,
   close,
 }: AgentWaitingDialogProps) {
   const { result, active } = usePingTeleport<Kube>(joinToken);
-  setWaitingResult(result);
+  updateWaitingResult(result);
   const showHint = useShowHint(active);
 
   function hintMessage() {
