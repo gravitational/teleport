@@ -234,6 +234,28 @@ type AWSOIDCDeployDatabaseServiceResponse struct {
 	ClusterDashboardURL string `json:"clusterDashboardUrl"`
 }
 
+// AWSOIDCEnrollEKSClustersRequest is a request to ListEKSClusters using the AWS OIDC Integration.
+type AWSOIDCEnrollEKSClustersRequest struct {
+	// Region is the AWS Region.
+	Region             string   `json:"region"`
+	ClusterNames       []string `json:"clusterNames"`
+	JoinToken          string   `json:"joinToken"`
+	ResourceID         string   `json:"resourceId"`
+	EnableAppDiscovery bool     `json:"enableAppDiscovery"`
+}
+
+// EKSClusterEnrollmentResult contains result/error for a single cluster enrollment.
+type EKSClusterEnrollmentResult struct {
+	ClusterName string `json:"clusterName"`
+	Error       string `json:"error"`
+}
+
+// AWSOIDCEnrollEKSClustersResponse is a response to enrolling EKS cluster
+type AWSOIDCEnrollEKSClustersResponse struct {
+	// Results contains enrollment result per EKS cluster.
+	Results []EKSClusterEnrollmentResult `json:"results"`
+}
+
 // AWSOIDCListEKSClustersRequest is a request to ListEKSClusters using the AWS OIDC Integration.
 type AWSOIDCListEKSClustersRequest struct {
 	// Region is the AWS Region.

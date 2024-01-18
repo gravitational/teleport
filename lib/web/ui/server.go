@@ -163,6 +163,7 @@ type EKSCluster struct {
 	Name       string  `json:"name"`
 	Region     string  `json:"region"`
 	Labels     []Label `json:"labels"`
+	JoinLabels []Label `json:"joinLabels"`
 	Status     string  `json:"status"`
 }
 

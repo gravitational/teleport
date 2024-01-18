@@ -392,6 +392,49 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	return nil, trace.Wrap(err)
 }
 
+// awsOIDCEnrollEKSClusters enroll EKS clusters by installing teleport-kube-agent Helm chart on them.
+func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCEnrollEKSClustersRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := awsoidc.EnrollEKSClusters(ctx, log, h.clock, h.cfg.PublicProxyAddr, credsProvider, enrollEKSClient,
+		awsoidc.EnrollEKSClustersRequest{
+			Region:             req.Region,
+			ClusterNames:       req.ClusterNames,
+			JoinToken:          req.JoinToken,
+			ResourceID:         req.ResourceID,
+			EnableAppDiscovery: req.EnableAppDiscovery,
+		})
+
+	var data []ui.EKSClusterEnrollmentResult
+	for _, result := range resp.Results {
+		data = append(data, ui.EKSClusterEnrollmentResult{ClusterName: result.ClusterName, Error: trace.UserMessage(result.Error)})
+	}
+
+	return ui.AWSOIDCEnrollEKSClustersResponse{
+		Results: data,
+	}, nil
+}
+
 // awsOIDCListEKSClusters returns a list of EKS clusters using the ListEKSClusters action of the AWS OIDC integration.
 func (h *Handler) awsOIDCListEKSClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
