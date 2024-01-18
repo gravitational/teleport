@@ -17,7 +17,7 @@
  */
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 import { AnimatedProgressBar, Box, ButtonPrimary, Text, Flex } from 'design';
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import * as Icons from 'design/Icon';
 
@@ -53,9 +53,11 @@ export function AgentWaitingDialog({
     id: '',
     suggestedLabels: [],
   });
-  if (result) {
-    updateWaitingResult(result);
-  }
+  useEffect(() => {
+    if (result) {
+      updateWaitingResult(result);
+    }
+  }, [result]);
 
   const showHint = useShowHint(active);
 
