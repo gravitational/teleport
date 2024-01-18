@@ -295,7 +295,7 @@ export type AwsOidcDeployDatabaseServicesRequest = {
 
 export type AwsEksCluster = {
   name: string;
-  region: string;
+  region: Regions;
   accountId: string;
   status:
     | 'active'
