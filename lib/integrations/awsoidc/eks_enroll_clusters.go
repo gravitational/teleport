@@ -338,23 +338,17 @@ func maybeAddAccessEntry(ctx context.Context, clusterName, roleArn string, clt E
 		return false, trace.Wrap(err)
 	}
 
-	teleportEntryPresent := false
 	for _, entry := range entries.AccessEntries {
 		if entry == roleArn {
-			teleportEntryPresent = true
-			break
+			return false, nil
 		}
 	}
 
-	if !teleportEntryPresent {
-		_, err = clt.CreateAccessEntry(ctx, &eks.CreateAccessEntryInput{
-			ClusterName:  aws.String(clusterName),
-			PrincipalArn: aws.String(roleArn),
-		})
-		return err == nil, trace.Wrap(err)
-	}
-
-	return false, nil
+	_, err = clt.CreateAccessEntry(ctx, &eks.CreateAccessEntryInput{
+		ClusterName:  aws.String(clusterName),
+		PrincipalArn: aws.String(roleArn),
+	})
+	return err == nil, trace.Wrap(err)
 }
 
 // getPresignURL returns specially formatted URL that can be presigned and used in EKS authentication.
