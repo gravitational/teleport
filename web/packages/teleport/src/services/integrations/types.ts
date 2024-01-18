@@ -308,7 +308,9 @@ export type AwsEksCluster = {
    * labels contains this cluster's tags.
    */
   labels: Label[];
-  // joinLabels contains labels that should be injected into teleport kube agent, if EKS cluster is being enrolled.
+  /**
+   * joinLabels contains labels that should be injected into teleport kube agent, if EKS cluster is being enrolled.
+   */
   joinLabels: Label[];
 };
 
@@ -330,7 +332,9 @@ export type ListEksClustersRequest = {
 };
 
 export type ListEksClustersResponse = {
-  // clusters is the list of EKS clusters.
+  /**
+   * clusters is the list of EKS clusters.
+   */
   clusters: AwsEksCluster[];
   nextToken?: string;
 };
