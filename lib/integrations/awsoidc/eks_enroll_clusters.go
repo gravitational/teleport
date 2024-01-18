@@ -458,6 +458,10 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 	if err != nil {
 		return trace.Wrap(err, "could not locate chart")
 	}
+	defer func() {
+		// Clean up downloaded chart.
+		_ = os.Remove(chartPath)
+	}()
 
 	agentChart, err := loader.Load(chartPath)
 	if err != nil {
