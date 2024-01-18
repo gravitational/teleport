@@ -219,7 +219,9 @@ export function EnrollEksCluster(props: AgentStepProps) {
           status: 'error',
           error: `Cluster "${selectedCluster.name}" enrollment result is unknown.`,
         });
-        emitErrorEvent('unknown error during EKS enrollment.');
+        emitErrorEvent(
+          'unknown error: no results came back from enrolling the EKS cluster.'
+        );
       } else if (result.error) {
         setEnrollmentState({
           status: 'error',
