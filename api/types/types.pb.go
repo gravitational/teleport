@@ -3930,7 +3930,7 @@ type ProvisionTokenSpecV2GitHub struct {
 	// be specified if `enterprise_server_host` is specified.
 	//
 	// See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
-	// for more information about customised issuer values.
+	// for more information about customized issuer values.
 	EnterpriseSlug       string   `protobuf:"bytes,3,opt,name=EnterpriseSlug,proto3" json:"enterprise_slug,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
