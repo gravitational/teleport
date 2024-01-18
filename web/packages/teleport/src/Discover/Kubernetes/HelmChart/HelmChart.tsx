@@ -319,7 +319,7 @@ const StepTwo = ({
   );
 };
 
-export type generateCmdProps = {
+export type GenerateCmdProps = {
   namespace: string;
   clusterName: string;
   proxyAddr: string;
@@ -334,7 +334,7 @@ export type generateCmdProps = {
   disableAppDiscovery?: boolean;
 };
 
-export function generateCmd(data: generateCmdProps) {
+export function generateCmd(data: GenerateCmdProps) {
   let extraYAMLConfig = '';
   let deployVersion = data.clusterVersion;
   let roles: JoinRole[] = ['Kube', 'App', 'Discovery'];

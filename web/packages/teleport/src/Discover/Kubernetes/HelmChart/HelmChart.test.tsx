@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { generateCmd, generateCmdProps } from './HelmChart';
+import { generateCmd, GenerateCmdProps } from './HelmChart';
 
 describe('generateCmd', () => {
-  const baseParams: generateCmdProps = {
+  const baseParams: GenerateCmdProps = {
     namespace: 'teleport-agent',
     clusterName: 'EKS1',
     proxyAddr: 'proxyaddr.example.com:1234',
@@ -33,7 +33,7 @@ describe('generateCmd', () => {
   };
   const testCases: {
     name: string;
-    params: generateCmdProps;
+    params: GenerateCmdProps;
     expected: string;
   }[] = [
     {
