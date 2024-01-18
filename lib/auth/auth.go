@@ -2942,6 +2942,18 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		challengeExtensions = req.ChallengeExtensions
 	}
 
+	validateAndSetScope := func(challengeExtensions *mfav1.ChallengeExtensions, expectedScope mfav1.ChallengeScope) error {
+		if challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+			challengeExtensions.Scope = expectedScope
+		} else if challengeExtensions.Scope != expectedScope {
+			// scope doesn't need to be specified when the challenge request type is
+			// tied to a specific scope, but we validate it anyways as a sanity check.
+			return trace.BadParameter("invalid scope %q, expected %q", challengeExtensions.Scope, expectedScope)
+		}
+
+		return nil
+	}
+
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
 		username = req.GetUserCredentials().GetUsername()
@@ -2952,8 +2964,8 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return nil, trace.Wrap(err)
 		}
 
-		if challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
-			challengeExtensions.Scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN
+		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN); err != nil {
+			return nil, trace.Wrap(ErrDone)
 		}
 
 	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
@@ -2968,13 +2980,16 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 
 		username = token.GetUser()
-		if challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
-			challengeExtensions.Scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY
+
+		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY); err != nil {
+			return nil, trace.Wrap(ErrDone)
 		}
+
 	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
-		if challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
-			challengeExtensions.Scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN); err != nil {
+			return nil, trace.Wrap(ErrDone)
 		}
+
 	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
 		// TODO(Joerger): in v16.0.0, require scope to be specified in the request.
 		var err error
@@ -5901,7 +5916,7 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 	return true, nil
 }
 
-// ValidateMFAAuthResponse validates an MFA or passwordless challenge. If provided,
+// ValidateMFAAuthResponse validates an MFA or passwordless challenge. The provided
 // required challenge extensions will be checked against the stored challenge when
 // applicable (webauthn only). Returns the authentication data derived from the solved
 // challenge.
@@ -5970,7 +5985,7 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 		return &authz.MFAAuthData{
 			Device: dev,
 			User:   user,
-			// We store the last used token to prevent OTP reuse.
+			// We store the last used token so OTP reuse is never allowed.
 			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 		}, nil
 
