@@ -319,7 +319,7 @@ const StepTwo = ({
   );
 };
 
-export function generateCmd(data: {
+export type generateCmdProps = {
   namespace: string;
   clusterName: string;
   proxyAddr: string;
@@ -332,7 +332,9 @@ export function generateCmd(data: {
   automaticUpgradesTargetVersion: string;
   joinLabels?: ResourceLabel[];
   disableAppDiscovery?: boolean;
-}) {
+};
+
+export function generateCmd(data: generateCmdProps) {
   let extraYAMLConfig = '';
   let deployVersion = data.clusterVersion;
   let roles: JoinRole[] = ['Kube', 'App', 'Discovery'];
