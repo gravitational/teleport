@@ -45,7 +45,6 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -169,6 +168,9 @@ type EnrollEKSClustersRequest struct {
 
 	// IsCloud specifies if enrollment is done for the Teleport Cloud client.
 	IsCloud bool
+
+	// AgentVersion specifies version of the Helm chart that will be installed during enrollment.
+	AgentVersion string
 }
 
 // EnrollEKSClusters enrolls an EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
@@ -407,9 +409,9 @@ func checkAgentAlreadyInstalled(actionConfig *action.Configuration) (bool, error
 func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr string, actionConfig *action.Configuration, settings *helmCli.EnvSettings, req EnrollEKSClustersRequest) error {
 	installCmd := action.NewInstall(actionConfig)
 	installCmd.RepoURL = agentRepoURL
-	installCmd.Version = teleport.Version
-	if strings.Contains(teleport.Version, "dev") {
-		installCmd.Version = "14.3.0" // For testing during development.
+	installCmd.Version = req.AgentVersion
+	if strings.Contains(installCmd.Version, "dev") {
+		installCmd.Version = "" // For testing during development.
 	}
 
 	chartPath, err := installCmd.LocateChart(agentName, settings)

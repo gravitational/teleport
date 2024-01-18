@@ -416,6 +416,16 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
+	agentVersion := teleport.Version
+	if h.ClusterFeatures.GetAutomaticUpgrades() {
+		upgradesVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		agentVersion = strings.TrimPrefix(upgradesVersion, "v")
+	}
+
 	resp := awsoidc.EnrollEKSClusters(ctx, log, h.clock, h.cfg.PublicProxyAddr, credsProvider, enrollEKSClient,
 		awsoidc.EnrollEKSClustersRequest{
 			Region:             req.Region,
@@ -425,6 +435,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 			EnableAppDiscovery: req.EnableAppDiscovery,
 			EnableAutoUpgrades: h.ClusterFeatures.GetAutomaticUpgrades(),
 			IsCloud:            h.ClusterFeatures.GetCloud(),
+			AgentVersion:       agentVersion,
 		})
 
 	var data []ui.EKSClusterEnrollmentResult
