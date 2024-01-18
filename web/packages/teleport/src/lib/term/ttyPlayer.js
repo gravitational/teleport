@@ -19,18 +19,12 @@
 import { throttle } from 'shared/utils/highbar';
 import Logger from 'shared/libs/logger';
 
+import { StatusEnum } from 'teleport/lib/player';
+
 import Tty from './tty';
 import { TermEvent, WebsocketCloseCode } from './enums';
 
 const logger = Logger.create('TtyPlayer');
-
-export const StatusEnum = {
-  PLAYING: 'PLAYING',
-  ERROR: 'ERROR',
-  PAUSED: 'PAUSED',
-  LOADING: 'LOADING',
-  COMPLETE: 'COMPLETE',
-};
 
 const messageTypePty = 1;
 const messageTypeError = 2;
@@ -155,7 +149,6 @@ export default class TtyPlayer extends Tty {
 
           // schedule the next time update (in case this
           // part of the recording is dead time)
-          // TODO(zmb3): implement this for desktops too
           if (!this._paused) {
             this.scheduleNextUpdate(delay);
           }

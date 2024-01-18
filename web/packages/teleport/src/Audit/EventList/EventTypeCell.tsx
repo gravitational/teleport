@@ -22,7 +22,6 @@ import { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
 
 import { eventCodes, Event, EventCode } from 'teleport/services/audit';
-import cfg from 'teleport/config';
 
 const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
@@ -257,44 +256,13 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
-export default function renderTypeCell(event: Event, clusterId: string) {
+export default function renderTypeCell(event: Event) {
   const Icon = EventIconMap[event.code] || Icons.ListThin;
 
   const iconProps = {
     p: 1,
     mr: 3,
   };
-
-  // use button for interactive ssh sessions
-  if (
-    event.code === eventCodes.SESSION_END &&
-    event.raw.interactive &&
-    event.raw.session_recording !== 'off'
-  ) {
-    return (
-      <Cell style={{ verticalAlign: 'inherit' }}>
-        <StyledEventType>
-          <a
-            title="Open Session Player"
-            href={cfg.getPlayerRoute(
-              {
-                clusterId,
-                sid: event.raw.sid,
-              },
-              {
-                recordingType: 'ssh',
-              }
-            )}
-            target="_blank"
-            style={{ textDecoration: 'none' }}
-          >
-            <StyledCliIcon {...iconProps} />
-          </a>
-          {event.codeDesc}
-        </StyledEventType>
-      </Cell>
-    );
-  }
 
   return (
     <Cell style={{ verticalAlign: 'inherit' }}>
@@ -305,35 +273,6 @@ export default function renderTypeCell(event: Event, clusterId: string) {
     </Cell>
   );
 }
-
-const StyledCliIcon = styled(Icons.Cli)(
-  props => `
-  background: ${props.theme.colors.levels.deep};
-  border: 2px solid ${props.theme.colors.brand};
-  color: ${props.theme.colors.text.slightlyMuted};
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border-radius: 100px;
-  transition: all 0.3s;
-
-  &:hover,
-  &:active,
-  &:focus {
-    background: ${props.theme.colors.levels.sunken};
-    color: ${props.theme.colors.text.main};
-  }
-
-  &:active {
-    box-shadow: none;
-    opacity: 0.56;
-  }
-`
-);
 
 const StyledEventType = styled.div`
   display: flex;

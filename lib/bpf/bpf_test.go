@@ -154,7 +154,7 @@ func TestRootWatch(t *testing.T) {
 	service, err := New(&servicecfg.BPFConfig{
 		Enabled:    true,
 		CgroupPath: cgroupPath,
-	}, &servicecfg.RestrictedSessionConfig{})
+	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

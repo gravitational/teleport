@@ -243,6 +243,10 @@ func NewServer(
 	s.cfg.PasswordCallback = ah.Password
 	s.cfg.NoClientAuth = ah.NoClient
 
+	if s.fips {
+		s.cfg.PublicKeyAuthAlgorithms = defaults.FIPSPubKeyAuthAlgorithms
+	}
+
 	// Teleport servers need to identify as such to allow passing of the client
 	// IP from the client to the proxy to the destination node.
 	s.cfg.ServerVersion = SSHVersionPrefix

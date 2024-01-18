@@ -21,13 +21,13 @@ import { FileTransferListeners } from 'shared/components/FileTransfer';
 import {
   FileTransferDirection,
   FileTransferRequest,
-  TshClient,
+  TshdClient,
 } from 'teleterm/services/tshd/types';
 import { UsageService } from 'teleterm/ui/services/usage';
 
 export class FileTransferService {
   constructor(
-    private tshClient: TshClient,
+    private tshClient: TshdClient,
     private usageService: UsageService
   ) {}
 

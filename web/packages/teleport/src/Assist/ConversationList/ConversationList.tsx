@@ -69,19 +69,21 @@ export function ConversationList(props: ConversationListProps) {
       return;
     }
 
+    const scrollRefCurrent = scrollRef.current;
+
     function onscroll() {
       const scrollPosition = scrollRef.current.scrollTop;
       const maxScrollPosition =
-        scrollRef.current.scrollHeight - scrollRef.current.clientHeight;
+        scrollRefCurrent.scrollHeight - scrollRefCurrent.clientHeight;
 
       // if the user has scrolled more than 50px from the bottom of the chat, assume they don't want the message list
       // to auto scroll.
       shouldScroll.current = scrollPosition > maxScrollPosition - 50;
     }
 
-    scrollRef.current.addEventListener('wheel', onscroll);
+    scrollRefCurrent.addEventListener('wheel', onscroll);
 
-    return () => scrollRef.current.removeEventListener('wheel', onscroll);
+    return () => scrollRefCurrent.removeEventListener('wheel', onscroll);
   }, []);
 
   useEffect(() => {
