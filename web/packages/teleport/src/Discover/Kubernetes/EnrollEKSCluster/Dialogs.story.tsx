@@ -59,13 +59,7 @@ export const AgentWaitingDialogStory = () => (
         resourceKind={ResourceKind.Kubernetes}
       >
         <AgentWaitingDialog
-          joinToken={{
-            id: 'token-id',
-            expiry: null,
-            expiryText: '',
-            internalResourceId: 'resource-id',
-            suggestedLabels: [],
-          }}
+          joinResourceId="resource-id"
           status={'awaitingAgent'}
           clusterName={'EKS1'}
           updateWaitingResult={() => {}}
@@ -95,13 +89,7 @@ export const AgentWaitingDialogSuccess = () => (
         resourceKind={ResourceKind.Kubernetes}
       >
         <AgentWaitingDialog
-          joinToken={{
-            id: 'token-id',
-            expiry: null,
-            expiryText: '',
-            internalResourceId: 'resource-id',
-            suggestedLabels: [],
-          }}
+          joinResourceId="resource-id"
           status={'success'}
           clusterName={'EKS1'}
           updateWaitingResult={() => {}}
