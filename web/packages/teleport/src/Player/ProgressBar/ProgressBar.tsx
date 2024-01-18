@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import * as Icons from 'design/Icon';
 import React from 'react';
 import styled from 'styled-components';
-import * as Icons from 'design/Icon';
 
 import Slider from './Slider';
 
@@ -33,7 +33,10 @@ export default function ProgressBar(props: ProgressBarProps) {
       <ActionButton onClick={props.toggle} disabled={props.disabled}>
         <Icon />
       </ActionButton>
-      <PlaySpeedSelector onChange={props.onPlaySpeedChange} />
+      <PlaySpeedSelector
+        onChange={props.onPlaySpeedChange}
+        disabled={props.disabled}
+      />
       <TimeText>{props.time}</TimeText>
       <SliderContainer>
         <Slider
@@ -86,7 +89,10 @@ export type ProgressBarProps = {
   onRestart?: () => void;
 };
 
-function PlaySpeedSelector(props: { onChange?: (speed: number) => void }) {
+function PlaySpeedSelector(props: {
+  disabled?: boolean;
+  onChange?: (speed: number) => void;
+}) {
   if (!props.onChange) {
     return null;
   }
@@ -96,7 +102,11 @@ function PlaySpeedSelector(props: { onChange?: (speed: number) => void }) {
   };
 
   return (
-    <PlaySpeedSelectorItem onChange={handleChange} defaultValue={'1.0'}>
+    <PlaySpeedSelectorItem
+      disabled={props.disabled}
+      onChange={handleChange}
+      defaultValue={'1.0'}
+    >
       <option value="0.25">0.25x</option>
       <option value="0.5">0.5x</option>
       <option value="1.0">1.0x</option>
