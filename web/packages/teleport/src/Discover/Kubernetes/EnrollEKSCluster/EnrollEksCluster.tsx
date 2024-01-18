@@ -151,7 +151,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       const existingKubeServers = await fetchKubeServers(query, 0);
       const checkedEksClusters: CheckedEksCluster[] = fetchedEKSClusters.map(
         cluster => {
-          let serverExists = existingKubeServers.agents.some(k => {
+          const serverExists = existingKubeServers.agents.some(k => {
             const regionLabel = k.labels?.find(l => l.name === 'region')?.value;
             const accountLabel = k.labels?.find(
               l => l.name === 'account-id'
