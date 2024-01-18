@@ -155,8 +155,8 @@ func newEC2InstanceConnectClient(ctx context.Context, req *AWSClientRequest) (*e
 	return ec2instanceconnect.NewFromConfig(*cfg), nil
 }
 
-// newAWSCredentialsProvider creates an [aws.CredentialsProvider] using the provided Token, RoleARN and Region.
-func newAWSCredentialsProvider(ctx context.Context, req *AWSClientRequest) (aws.CredentialsProvider, error) {
+// NewAWSCredentialsProvider creates an [aws.CredentialsProvider] using the provided Token, RoleARN and Region.
+func NewAWSCredentialsProvider(ctx context.Context, req *AWSClientRequest) (aws.CredentialsProvider, error) {
 	cfg, err := newAWSConfig(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
