@@ -61,6 +61,7 @@ export enum ServerLocation {
 }
 
 export enum KubeLocation {
+  SelfHosted,
   Aws,
 }
 

@@ -1295,6 +1295,13 @@ exports[`render with all access 1`] = `
           class="c14"
         >
           <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
             class="c16"
           >
             Kubernetes
@@ -3678,6 +3685,13 @@ exports[`render with no access 1`] = `
           class="c15"
         >
           <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
             class="c17"
           >
             Kubernetes
@@ -5127,6 +5141,13 @@ exports[`render with partial access 1`] = `
         <div
           class="c14"
         >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
           <div
             class="c16"
           >

@@ -20,6 +20,7 @@ import { Platform } from 'design/platform';
 
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -137,6 +138,7 @@ export const KUBERNETES: ResourceSpec[] = [
     keywords: 'kubernetes cluster kubes',
     icon: 'Kube',
     event: DiscoverEventResource.Kubernetes,
+    kubeMeta: { location: KubeLocation.SelfHosted },
   },
   {
     name: 'EKS',
@@ -191,9 +193,17 @@ export function getResourcePretitle(r: ResourceSpec) {
     case ResourceKind.Desktop:
       return 'Windows Desktop';
     case ResourceKind.Kubernetes:
-      return r.kubeMeta?.location === KubeLocation.Aws
-        ? 'Amazon Web Services (AWS)'
-        : '';
+      if (r.kubeMeta) {
+        switch (r.kubeMeta.location) {
+          case KubeLocation.Aws:
+            return 'Amazon Web Services (AWS)';
+          case KubeLocation.SelfHosted:
+            return 'Self-Hosted';
+          default:
+            assertUnreachable(r.kubeMeta.location);
+        }
+      }
+      break;
     case ResourceKind.Server:
       if (r.nodeMeta?.location === ServerLocation.Aws) {
         return 'Amazon Web Services (AWS)';
