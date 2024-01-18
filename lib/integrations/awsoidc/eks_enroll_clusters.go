@@ -222,7 +222,15 @@ type EnrollEKSClustersRequest struct {
 	AgentVersion string
 }
 
-// EnrollEKSClusters enrolls an EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
+// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
+// It returns list of result individually for each EKS cluster. Clusters are enrolled concurrently. If an error occurs
+// during a cluster enrollment an error message will be present in the result for this cluster. Otherwise result will
+// contain resource ID - this is ID from the join token used by the enrolled cluster and can be used by UI to check
+// when agent joins Teleport cluster.
+//
+// During enrollment we create access entry for an EKS cluster if needed and cluster admin policy is associated with that entry,
+// so our AWS integration can access the target EKS cluster during the chart installation. After enrollment is done we remove
+// the access entry (if it was created by us), since we don't need it anymore.
 func EnrollEKSClusters(ctx context.Context, log logrus.FieldLogger, clock clockwork.Clock, proxyAddr string, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, req EnrollEKSClustersRequest) *EnrollEKSClusterResponse {
 	var mu sync.Mutex
 	var results []EnrollEKSClusterResult
