@@ -49,7 +49,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -136,12 +135,14 @@ func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(clientGetter
 	return checkAgentAlreadyInstalled(actionConfig)
 }
 
+const eksJoinTokenTTL = 15 * time.Minute
+
 func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreator) (string, string, error) {
 	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	expires := clock.Now().UTC().Add(defaults.NodeJoinTokenTTL)
+	expires := clock.Now().UTC().Add(eksJoinTokenTTL)
 
 	resourceId := uuid.NewString()
 	req := types.ProvisionTokenSpecV2{
