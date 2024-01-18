@@ -370,6 +370,7 @@ export function generateCmd(data: {
 
   const yamlRoles = roles.join(',').toLowerCase();
 
+  // whitespace in the beginning if a string is intentional, to correctly align in yaml.
   const joinLabelsText = data.joinLabels
     ? data.joinLabels.map(l => `    ${l.name}: ${l.value}`).join('\n')
     : '';
