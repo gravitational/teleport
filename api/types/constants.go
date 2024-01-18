@@ -788,7 +788,7 @@ const (
 	DiscoveryLabelWorkgroup = "workgroup"
 	// DiscoveryLabelStatus is the label key containing the database status, e.g. "available"
 	DiscoveryLabelStatus = "status"
-	// DiscoveryLabelAWSArn is an internal label that contains AWC Arn of the resource.
+	// DiscoveryLabelAWSArn is an internal label that contains AWS Arn of the resource.
 	DiscoveryLabelAWSArn = TeleportInternalLabelPrefix + "aws-arn"
 
 	// DiscoveryLabelAzureSubscriptionID is the label key for Azure subscription ID.
