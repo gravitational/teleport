@@ -57,10 +57,10 @@ export function EnrollmentDialog({
       case 'error':
         return (
           <>
-            <Text mb={5} alignItems="center">
+            <Flex mb={5} alignItems="center">
               <Icons.Warning size="large" ml={1} mr={2} color="error.main" />
               <Text>{error}</Text>
-            </Text>
+            </Flex>
             <ButtonPrimary width="100%" onClick={close}>
               Close
             </ButtonPrimary>
