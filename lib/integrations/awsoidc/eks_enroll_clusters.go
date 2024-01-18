@@ -64,7 +64,7 @@ const (
 	agentName                   = "teleport-kube-agent"
 	awsKubePrefix               = "k8s-aws-v1."
 	awsHeaderClusterName        = "x-k8s-aws-id"
-	concurrentEKSEnrollingLimit = 3
+	concurrentEKSEnrollingLimit = 5
 )
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
