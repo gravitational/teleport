@@ -144,7 +144,7 @@ export const KUBERNETES: ResourceSpec[] = [
   {
     name: 'EKS',
     kind: ResourceKind.Kubernetes,
-    keywords: awsKeywords + 'kubernetes cluster kubes eks',
+    keywords: awsKeywords + 'kubernetes cluster kubes eks elastic service',
     icon: 'Aws',
     event: DiscoverEventResource.KubernetesEks,
     kubeMeta: { location: KubeLocation.Aws },
