@@ -319,7 +319,7 @@ const StepTwo = ({
   );
 };
 
-export function GenerateCmd(data: {
+export function generateCmd(data: {
   namespace: string;
   clusterName: string;
   proxyAddr: string;
@@ -470,7 +470,7 @@ const InstallHelmChart = ({
     nextStep();
   }
 
-  const command = GenerateCmd({
+  const command = generateCmd({
     namespace,
     clusterName,
     proxyAddr: host,

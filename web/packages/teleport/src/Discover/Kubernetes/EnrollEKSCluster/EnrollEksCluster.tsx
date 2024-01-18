@@ -40,7 +40,7 @@ import { AgentStepProps } from 'teleport/Discover/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { GenerateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
+import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 import { Kube } from 'teleport/services/kube';
 
 import { ActionButtons, Header, ResourceKind } from '../../Shared';
@@ -270,7 +270,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
 
   let command = '';
   if (selectedCluster) {
-    command = GenerateCmd({
+    command = generateCmd({
       namespace: 'teleport-agent',
       clusterName: selectedCluster.name,
       proxyAddr: ctx.storeUser.state.cluster.publicURL,
