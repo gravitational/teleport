@@ -478,7 +478,7 @@ func installKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAd
 	if req.IsCloud && req.EnableAutoUpgrades {
 		vals["updater"] = map[string]any{"enabled": true, "releaseChannel": "stable/cloud"}
 
-		vals["highAvailability.replicaCount"] = map[string]any{"replicaCount": 2,
+		vals["highAvailability"] = map[string]any{"replicaCount": 2,
 			"podDisruptionBudget": map[string]any{"enabled": true, "minAvailable": 1},
 		}
 	}
