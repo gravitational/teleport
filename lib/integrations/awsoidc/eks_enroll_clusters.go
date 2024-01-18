@@ -55,7 +55,10 @@ import (
 )
 
 const (
-	eksClusterAdminPolicy       = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+	// https://docs.aws.amazon.com/eks/latest/userguide/access-policies.html
+	// We use cluster admin policy to create namespace and cluster role.
+	eksClusterAdminPolicy = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
 	agentRepoURL                = "https://charts.releases.teleport.dev"
 	agentNamespace              = "teleport-agent"
 	agentName                   = "teleport-kube-agent"
