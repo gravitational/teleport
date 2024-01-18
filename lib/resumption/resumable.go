@@ -22,7 +22,6 @@ import (
 	"io"
 	"math"
 	"net"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -47,10 +46,11 @@ func newResumableConn(localAddr, remoteAddr net.Addr) *Conn {
 type Conn struct {
 	managedConn
 
-	// requestDetach is non-nil if and only if there is an underlying connection
-	// attached; calling it should eventually result in the connection becoming
-	// detached, signaled by the field becoming nil.
-	requestDetach func()
+	// requestDetachLocked is non-nil if and only if there is an underlying
+	// connection attached; calling it should eventually result in the
+	// connection becoming detached, signaled by the field becoming nil. It must
+	// only be called while mu is held.
+	requestDetachLocked func()
 }
 
 var _ net.Conn = (*Conn)(nil)
@@ -78,8 +78,8 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 
 	if !firstConn {
 		t0 := time.Now()
-		for !r.remoteClosed && r.requestDetach != nil {
-			r.requestDetach()
+		for !r.remoteClosed && r.requestDetachLocked != nil {
+			r.requestDetachLocked()
 			r.cond.Wait()
 		}
 		if dt := time.Since(t0); dt > time.Second {
@@ -91,7 +91,7 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 
 			return trace.Wrap(net.ErrClosed, "resuming a connection already closed by the peer")
 		}
-	} else if r.requestDetach != nil || r.remoteClosed || r.localClosed || r.receiveBuffer.end > 0 || r.sendBuffer.start > 0 {
+	} else if r.requestDetachLocked != nil || r.remoteClosed || r.localClosed || r.receiveBuffer.end > 0 || r.sendBuffer.start > 0 {
 		r.mu.Unlock()
 		panic("firstConn for resume V1 is not actually unused")
 	}
@@ -100,22 +100,24 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 	// was requested in loops that don't perform I/O on nc - any request to
 	// detach will also close the connection, so exiting on I/O errors will
 	// naturally follow stop requests.
-	var stopRequested atomic.Bool
-	requestStop := func() {
-		if !stopRequested.Swap(true) {
-			r.cond.Broadcast()
+	stopRequested := new(bool)
+	requestStopLocked := func() {
+		if *stopRequested {
+			return
 		}
+		*stopRequested = true
+		r.cond.Broadcast()
 	}
-	r.requestDetach = func() {
+	r.requestDetachLocked = func() {
 		nc.Close()
-		requestStop()
+		requestStopLocked()
 	}
 	r.cond.Broadcast()
 
 	defer func() {
 		r.mu.Lock()
 		defer r.mu.Unlock()
-		r.requestDetach = nil
+		r.requestDetachLocked = nil
 		r.cond.Broadcast()
 	}()
 
@@ -139,21 +141,29 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 	var eg errgroup.Group
 
 	eg.Go(func() error {
-		defer requestStop()
+		defer func() {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			requestStopLocked()
+		}()
 		// the read loop exits on I/O errors (which will kill the write loop
 		// too) but also upon receiving an error tag from the remote, signaling
 		// that the peer has already been done with the connection for a while
 		// now, so anything we're going to write is going to be useless anyway
 		defer nc.Close()
-		return trace.Wrap(runResumeV1Read(r, ncReader, &stopRequested), "read loop")
+		return trace.Wrap(runResumeV1Read(r, ncReader, stopRequested), "read loop")
 	})
 
 	eg.Go(func() error {
-		defer requestStop()
+		defer func() {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			requestStopLocked()
+		}()
 		// we shouldn't close the connection when exiting from the write loop,
 		// because the read loop might have data still worth parsing (if we
 		// exited because of I/O errors)
-		return trace.Wrap(runResumeV1Write(r, nc, &stopRequested, localPosition, peerPosition), "write loop")
+		return trace.Wrap(runResumeV1Write(r, nc, stopRequested, localPosition, peerPosition), "write loop")
 	})
 
 	return trace.Wrap(eg.Wait())
@@ -199,7 +209,7 @@ func resumeV1Handshake(r *Conn, nc net.Conn, ncReader byteReaderReader, localPos
 	return peerPosition, nil
 }
 
-func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) error {
+func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *bool) error {
 	for {
 		// a frame consists of a variable length integer acknowledging received
 		// data, then a variable length integer containing the length of the
@@ -251,11 +261,11 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 		for remainingSize > 0 {
 			// we are responsible for setting r.remoteClosed and we return
 			// immediately after setting it, so we don't need to check for that
-			for r.receiveBuffer.len() >= receiveBufferSize && !r.localClosed && !stopRequested.Load() {
+			for r.receiveBuffer.len() >= receiveBufferSize && !r.localClosed && !(*stopRequested) {
 				r.cond.Wait()
 			}
 
-			if stopRequested.Load() {
+			if *stopRequested {
 				r.mu.Unlock()
 				return trace.Wrap(net.ErrClosed, "disconnection requested")
 			}
@@ -317,7 +327,7 @@ func runResumeV1Read(r *Conn, nc byteReaderReader, stopRequested *atomic.Bool) e
 	}
 }
 
-func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, localPosition, peerPosition uint64) error {
+func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *bool, localPosition, peerPosition uint64) error {
 	// headerBuf and dataBuf are allocated only once because the compiler can't
 	// prove that I/O functions won't let the slices escape; by allocating these
 	// once and reusing them, we avoid allocating buffers on every loop
@@ -362,7 +372,7 @@ func runResumeV1Write(r *Conn, nc io.Writer, stopRequested *atomic.Bool, localPo
 				break
 			}
 
-			if stopRequested.Load() {
+			if *stopRequested {
 				r.mu.Unlock()
 				return trace.Wrap(net.ErrClosed, "disconnection requested")
 			}
