@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import React from 'react';
-import { AnimatedProgressBar, ButtonPrimary, Text, Flex } from 'design';
+import {
+  AnimatedProgressBar,
+  ButtonPrimary,
+  Text,
+  Flex,
+  ButtonSecondary,
+} from 'design';
 
 import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
@@ -28,12 +34,14 @@ type EnrollmentDialogProps = {
   status: string;
   error: string;
   close(): void;
+  retry(): void;
 };
 
 export function EnrollmentDialog({
   status,
   error,
   close,
+  retry,
 }: EnrollmentDialogProps) {
   function dialogContent() {
     switch (status) {
@@ -61,9 +69,14 @@ export function EnrollmentDialog({
               <Icons.Warning size="large" ml={1} mr={2} color="error.main" />
               <Text>{error}</Text>
             </Flex>
-            <ButtonPrimary width="100%" onClick={close}>
-              Close
-            </ButtonPrimary>
+            <Flex>
+              <ButtonPrimary mr={3} width="50%" onClick={retry}>
+                Retry
+              </ButtonPrimary>
+              <ButtonSecondary width="50%" onClick={close}>
+                Close
+              </ButtonSecondary>
+            </Flex>
           </>
         );
     }

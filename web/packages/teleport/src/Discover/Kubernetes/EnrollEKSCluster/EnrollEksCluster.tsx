@@ -363,6 +363,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
         <EnrollmentDialog
           clusterName={selectedCluster.name}
           close={closeEnrollmentDialog}
+          retry={handleOnEnroll}
           error={enrollmentState.error}
           status={enrollmentState.status}
         />
