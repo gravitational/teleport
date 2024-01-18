@@ -405,8 +405,6 @@ func getKubeClientGetter(ctx context.Context, timestamp time.Time, credsProvider
 	}
 
 	configFlags := genericclioptions.NewConfigFlags(false)
-	configFlags.APIServer = &restConfig.Host
-	configFlags.BearerToken = &restConfig.BearerToken
 	configFlags.WithWrapConfigFn(func(*rest.Config) *rest.Config {
 		return restConfig
 	})
