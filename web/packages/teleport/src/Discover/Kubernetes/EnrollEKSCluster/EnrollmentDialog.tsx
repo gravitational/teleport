@@ -41,12 +41,7 @@ export function EnrollmentDialog({
         return (
           <>
             <AnimatedProgressBar mb={3} />
-            <TextIcon
-              mb={3}
-              css={`
-                white-space: pre;
-              `}
-            >
+            <TextIcon mb={3}>
               <Icons.Clock size="medium" />
               <Text>1. Installing Teleport agent...</Text>
             </TextIcon>

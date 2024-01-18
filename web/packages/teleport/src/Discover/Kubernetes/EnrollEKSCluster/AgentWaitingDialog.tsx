@@ -88,21 +88,11 @@ export function AgentWaitingDialog({
             EKS Cluster Enrollment
           </Text>
           <AnimatedProgressBar mb={3} />
-          <TextIcon
-            mb={3}
-            css={`
-              white-space: pre;
-            `}
-          >
+          <TextIcon mb={3}>
             <Icons.Check size="medium" />
             <Text>1. Installing Teleport agent</Text>
           </TextIcon>
-          <TextIcon
-            mb={3}
-            css={`
-              white-space: pre;
-            `}
-          >
+          <TextIcon mb={3}>
             <Icons.Clock size="medium" />
             <Text>
               2. Waiting for the Teleport agent to come online (1-5 minutes)...
