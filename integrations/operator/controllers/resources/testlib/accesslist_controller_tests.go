@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
@@ -221,8 +223,14 @@ func AccessListMutateExistingTest(t *testing.T, clt *client.Client) {
 	})
 	require.True(t, ok)
 
+	// Also a hack: convert the structured object into an unstructured one
+	// to accommodate the teleport reconciler that casts first as an
+	// unstructured object before converting into the final struct.
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(kubeAccessList)
+	require.NoError(t, err)
+	obj := &unstructured.Unstructured{Object: content}
 	// Test execution: we trigger a single reconciliation
-	require.NoError(t, r.Upsert(ctx, kubeAccessList))
+	require.NoError(t, r.Upsert(ctx, obj))
 
 	// Then we check if the AccessList audit date has been preserved in teleport
 	accessList, err = clt.AccessListClient().GetAccessList(ctx, name)
