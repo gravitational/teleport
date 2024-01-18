@@ -218,14 +218,14 @@ func EnrollEKSClusters(ctx context.Context, log logrus.FieldLogger, clock clockw
 	var mu sync.Mutex
 	var results []EnrollEKSClusterResult
 
-	group, groupCtx := errgroup.WithContext(ctx)
+	group, ctx := errgroup.WithContext(ctx)
 	group.SetLimit(concurrentEKSEnrollingLimit)
 
 	for _, eksClusterName := range req.ClusterNames {
 		eksClusterName := eksClusterName
 
 		group.Go(func() error {
-			resourceId, err := enrollEKSCluster(groupCtx, log, clock, credsProvider, clt, proxyAddr, eksClusterName, req)
+			resourceId, err := enrollEKSCluster(ctx, log, clock, credsProvider, clt, proxyAddr, eksClusterName, req)
 			if err != nil {
 				log.WithError(err).Debugf("failed to enroll EKS cluster %q", eksClusterName)
 			}
