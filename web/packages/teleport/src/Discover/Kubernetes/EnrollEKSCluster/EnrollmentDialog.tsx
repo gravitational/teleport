@@ -69,8 +69,8 @@ export function EnrollmentDialog({
               <Icons.Warning size="large" ml={1} mr={2} color="error.main" />
               <Text>{error}</Text>
             </Flex>
-            <Flex>
-              <ButtonPrimary gap={4} width="50%" onClick={retry}>
+            <Flex gap={4}>
+              <ButtonPrimary width="50%" onClick={retry}>
                 Retry
               </ButtonPrimary>
               <ButtonSecondary width="50%" onClick={close}>
