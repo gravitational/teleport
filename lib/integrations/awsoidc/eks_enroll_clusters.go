@@ -449,12 +449,16 @@ func getHelmActionConfig(clientGetter genericclioptions.RESTClientGetter, log lo
 	return actionConfig, nil
 }
 
-func getHelmSettings() *helmCli.EnvSettings {
+func getHelmSettings() (*helmCli.EnvSettings, error) {
 	helmSettings := helmCli.New()
-	helmSettings.RepositoryCache = os.TempDir()
+	dir, err := os.MkdirTemp(os.TempDir(), "teleport-eks-chart-")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	helmSettings.RepositoryCache = dir
 	helmSettings.SetNamespace(agentNamespace)
 
-	return helmSettings
+	return helmSettings, nil
 }
 
 // checkAgentAlreadyInstalled checks through the Helm if teleport-kube-agent chart was already installed in the EKS cluster.
@@ -486,6 +490,14 @@ type installKubeAgentParams struct {
 
 // installKubeAgent installs teleport-kube-agent chart to the target EKS cluster.
 func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
+	defer func() {
+		// Clean up temporary chart cache directory.
+		err := os.RemoveAll(cfg.settings.RepositoryCache)
+		if err != nil && cfg.log != nil {
+			log.Warnf("could not delete temporary chart cache directory at the path %q", cfg.settings.RepositoryCache)
+		}
+	}()
+
 	installCmd := action.NewInstall(cfg.actionConfig)
 	installCmd.RepoURL = agentRepoURL
 	installCmd.Version = cfg.req.AgentVersion
@@ -497,13 +509,6 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	if err != nil {
 		return trace.Wrap(err, "could not locate chart")
 	}
-	defer func() {
-		// Clean up downloaded chart.
-		err := os.Remove(chartPath)
-		if err != nil && cfg.log != nil {
-			log.Warnf("could not delete temporary chart file at the path %q", chartPath)
-		}
-	}()
 
 	agentChart, err := loader.Load(chartPath)
 	if err != nil {
