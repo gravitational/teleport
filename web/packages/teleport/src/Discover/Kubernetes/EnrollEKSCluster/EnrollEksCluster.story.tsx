@@ -49,7 +49,7 @@ const { worker } = window.msw;
 const integrationName = 'test-oidc';
 
 initialize();
-const defaultIsCloud = false;
+const defaultIsCloud = cfg.isCloud;
 
 export default {
   title: 'Teleport/Discover/Kube/EnrollEksClusters',
