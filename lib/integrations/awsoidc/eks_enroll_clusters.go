@@ -121,10 +121,12 @@ type defaultEnrollEKSClustersClient struct {
 	tokenCreator TokenCreator
 }
 
+// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
 func (d *defaultEnrollEKSClustersClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
 	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
 }
 
+// CheckAgentAlreadyInstalled checks if teleport-kube-agent Helm chart is already installed on the EKS cluster.
 func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(clientGetter genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
 	actionConfig, err := getHelmActionConfig(clientGetter, log)
 	if err != nil {
@@ -162,6 +164,7 @@ func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCrea
 	return provisionToken.GetName(), resourceId, trace.Wrap(err)
 }
 
+// InstallKubeAgent installs teleport-kube-agent Helm chart to the EKS cluster.
 func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, clientGetter genericclioptions.RESTClientGetter, log logrus.FieldLogger, req EnrollEKSClustersRequest) error {
 	actionConfig, err := getHelmActionConfig(clientGetter, log)
 	if err != nil {
@@ -171,10 +174,12 @@ func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, e
 	return installKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, actionConfig, getHelmSettings(), req)
 }
 
+// CreateToken creates provisioning token on the auth server. That token can be used to install kube agent to an EKS cluster.
 func (d *defaultEnrollEKSClustersClient) CreateToken(ctx context.Context, token types.ProvisionToken) error {
-	return nil
+	return d.tokenCreator(ctx, token)
 }
 
+// TokenCreator creates join token on the auth server.
 type TokenCreator func(ctx context.Context, token types.ProvisionToken) error
 
 // NewEnrollEKSClustersClient returns new client that can be used to enroll EKS clusters into Teleport.
@@ -318,6 +323,7 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 	return resourceId, nil
 }
 
+// IdentityGetter returns AWS identity of the caller.
 type IdentityGetter func(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 
 func getAccessEntryPrincipalArn(ctx context.Context, identityGetter IdentityGetter) (string, error) {
