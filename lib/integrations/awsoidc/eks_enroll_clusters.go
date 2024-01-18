@@ -324,10 +324,12 @@ func getAccessEntryPrincipalArn(ctx context.Context, identityGetter IdentityGett
 	ident, err := identityGetter(ctx, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
-
 	}
 
 	parsedIdentity, err := awslib.IdentityFromArn(aws.ToString(ident.Arn))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 
 	return fmt.Sprintf("arn:aws:iam::%s:role/%s", parsedIdentity.GetAccountID(), parsedIdentity.GetName()), nil
 }

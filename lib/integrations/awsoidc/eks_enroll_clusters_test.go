@@ -478,6 +478,9 @@ func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCl
 }
 
 func (m *mockEnrollEKSClusterClient) CreateToken(ctx context.Context, token types.ProvisionToken) error {
+	if m.createToken != nil {
+		return m.createToken(ctx, token)
+	}
 	return nil
 }
 
