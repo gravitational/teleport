@@ -38,7 +38,7 @@ export function ManualHelmDialog({
   confirmedCommands,
 }: ManualHelmDialogProps) {
   return (
-    <Dialog disableEscapeKeyDown={false} onClose={cancel} open={true}>
+    <Dialog onClose={cancel} open={true}>
       <DialogContent width="850px" mb={0}>
         <Text bold caps mb={4}>
           Manual EKS Cluster Enrollment
