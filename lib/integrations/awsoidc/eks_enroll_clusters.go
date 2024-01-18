@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"net/http"
 	"net/url"
 	"os"
@@ -30,7 +31,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
@@ -276,17 +276,9 @@ func getAccessEntryPrincipalArn(ctx context.Context, identityGetter IdentityGett
 
 	}
 
-	parsedARN, err := arn.Parse(aws.ToString(ident.Arn))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	parsedIdentity, err := awslib.IdentityFromArn(aws.ToString(ident.Arn))
 
-	roleParts := strings.Split(parsedARN.Resource, "/")
-	if len(roleParts) < 2 {
-		return "", trace.BadParameter("can't get role name from arn %q", parsedARN.String())
-	}
-
-	return fmt.Sprintf("arn:aws:iam::%s:role/%s", parsedARN.AccountID, roleParts[1]), nil
+	return fmt.Sprintf("arn:aws:iam::%s:role/%s", parsedIdentity.GetAccountID(), parsedIdentity.GetName()), nil
 }
 
 // maybeAddAccessEntry checks list of access entries for the EKS cluster and adds one for Teleport if it's missing.
