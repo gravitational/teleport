@@ -36,7 +36,7 @@ export const StatusCell = ({
 }) => {
   return (
     <Cell disabled={disabled} disabledText={disabledText}>
-      <Flex alignItems="center">
+      <Flex alignItems="baseline">
         <StatusLight status={status} />
         {statusText}
       </Flex>
