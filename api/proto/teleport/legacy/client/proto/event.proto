@@ -145,5 +145,7 @@ message Event {
     teleport.secreports.v1.Report Report = 51;
     // SecurityReportState is a security report state resource.
     teleport.secreports.v1.ReportState ReportState = 52;
+    // AccessListReview is an access list review resource.
+    teleport.accesslist.v1.Review AccessListReview = 53;
   }
 }

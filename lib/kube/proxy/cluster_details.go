@@ -121,7 +121,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 	}
 	var isClusterOffline bool
 	// Create the codec factory and the list of supported types for RBAC.
-	codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(creds.getKubeClient())
+	codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
 	if err != nil {
 		cfg.log.WithError(err).Warn("Failed to create cluster schema. Possibly the cluster is offline.")
 		// If the cluster is offline, we will not be able to create the codec factory
@@ -153,7 +153,7 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (_ *kubeDe
 			case <-ctx.Done():
 				return
 			case <-ticker.Chan():
-				codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(creds.getKubeClient())
+				codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(cfg.log, creds.getKubeClient())
 				if err != nil {
 					cfg.log.WithError(err).Error("Failed to update cluster schema")
 					continue

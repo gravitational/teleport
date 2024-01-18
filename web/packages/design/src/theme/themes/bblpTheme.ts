@@ -75,16 +75,18 @@ const levels = {
   popout: '#373737',
 };
 
+const neutralColors = [
+  'rgba(255,255,255,0.07)',
+  'rgba(255,255,255,0.13)',
+  'rgba(255,255,255,0.18)',
+];
+
 const colors: ThemeColors = {
   ...sharedColors,
 
   levels,
 
-  spotBackground: [
-    'rgba(255,255,255,0.07)',
-    'rgba(255,255,255,0.13)',
-    'rgba(255,255,255,0.18)',
-  ],
+  spotBackground: neutralColors,
 
   brand: '#FFA028',
 
@@ -95,6 +97,12 @@ const colors: ThemeColors = {
         'rgba(255,160,40, 0.18)',
         'rgba(255,160,40, 0.25)',
       ],
+      success: [
+        'rgba(0, 162, 35, 0.1)',
+        'rgba(0, 162, 35, 0.18)',
+        'rgba(0, 162, 35, 0.25)',
+      ],
+      neutral: neutralColors,
     },
   },
 
@@ -431,7 +439,12 @@ const colors: ThemeColors = {
   },
 
   link: '#66ABFF',
-  success: '#00BFA5',
+
+  success: {
+    main: '#00A223',
+    hover: '#35D655',
+    active: '#00851C',
+  },
 
   dataVisualisation: dataVisualisationColors,
 };

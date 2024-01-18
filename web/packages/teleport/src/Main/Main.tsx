@@ -22,9 +22,11 @@ import React, {
   useEffect,
   useMemo,
   useState,
+  createContext,
+  useContext,
 } from 'react';
 import styled from 'styled-components';
-import { Indicator } from 'design';
+import { Box, Indicator } from 'design';
 import { Failed } from 'design/CardError';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -40,22 +42,15 @@ import useTeleport from 'teleport/useTeleport';
 import { TopBar } from 'teleport/TopBar';
 import { BannerList } from 'teleport/components/BannerList';
 import { storageService } from 'teleport/services/storageService';
-
 import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
-
-import { Navigation } from 'teleport/Navigation';
-
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
-
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
-
 import {
   getFirstRouteForCategory,
-  NavigationProps,
+  Navigation,
 } from 'teleport/Navigation/Navigation';
-
 import { NavigationCategory } from 'teleport/Navigation/categories';
-
+import { TopBarProps } from 'teleport/TopBar/TopBar';
 import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
@@ -70,7 +65,7 @@ export interface MainProps {
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
   Questionnaire?: (props: QuestionnaireProps) => React.ReactElement;
-  navigationProps?: NavigationProps;
+  topBarProps?: TopBarProps;
   inviteCollaboratorsFeedback?: ReactNode;
 }
 
@@ -134,10 +129,9 @@ export function Main(props: MainProps) {
   if (
     matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
   ) {
-    const indexRoute = getFirstRouteForCategory(
-      features,
-      NavigationCategory.Resources
-    );
+    const indexRoute = cfg.isDashboard
+      ? cfg.routes.downloadCenter
+      : getFirstRouteForCategory(features, NavigationCategory.Resources);
 
     return <Redirect to={indexRoute} />;
   }
@@ -168,24 +162,31 @@ export function Main(props: MainProps) {
 
   return (
     <FeaturesContextProvider value={features}>
-      <BannerList
-        banners={banners}
-        customBanners={props.customBanners}
-        billingBanners={featureFlags.billing && props.billingBanners}
-        onBannerDismiss={dismissAlert}
-      >
+      <TopBar
+        CustomLogo={
+          props.topBarProps?.showPoweredByLogo
+            ? props.topBarProps.CustomLogo
+            : null
+        }
+      />
+      <Wrapper>
         <MainContainer>
-          <Navigation {...props.navigationProps} />
+          <Navigation />
           <HorizontalSplit>
             <ContentMinWidth>
+              <BannerList
+                banners={banners}
+                customBanners={props.customBanners}
+                billingBanners={featureFlags.billing && props.billingBanners}
+                onBannerDismiss={dismissAlert}
+              />
               <Suspense fallback={null}>
-                <TopBar />
                 <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
         </MainContainer>
-      </BannerList>
+      </Wrapper>
       {displayOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
@@ -265,12 +266,34 @@ function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
   return <Switch>{routes}</Switch>;
 }
 
-export const ContentMinWidth = styled.div`
-  min-width: 1250px;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-`;
+// This context allows children components to disable this min-width in case they want to be able to shrink smaller.
+type MinWidthContextState = {
+  setEnforceMinWidth: (enforceMinWidth: boolean) => void;
+};
+
+const ContentMinWidthContext = createContext<MinWidthContextState>(null);
+
+export const useContentMinWidthContext = () =>
+  useContext(ContentMinWidthContext);
+
+const ContentMinWidth = ({ children }: { children: ReactNode }) => {
+  const [enforceMinWidth, setEnforceMinWidth] = useState(true);
+
+  return (
+    <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
+      <div
+        css={`
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          ${enforceMinWidth ? 'min-width: 1250px;' : ''}
+        `}
+      >
+        {children}
+      </div>
+    </ContentMinWidthContext.Provider>
+  );
+};
 
 export const HorizontalSplit = styled.div`
   display: flex;
@@ -282,4 +305,11 @@ export const HorizontalSplit = styled.div`
 export const StyledIndicator = styled(HorizontalSplit)`
   align-items: center;
   justify-content: center;
+`;
+
+const Wrapper = styled(Box)<{ hasDockedElement: boolean }>`
+  display: flex;
+  height: 100vh;
+  flex-direction: column;
+  width: ${p => (p.hasDockedElement ? 'calc(100vw - 520px)' : '100vw')};
 `;

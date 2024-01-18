@@ -42,8 +42,9 @@ export type ThemeColors = {
   /**
     Spot backgrounds are used as highlights, for example
     to indicate a hover or active state for an item in a menu.
+    @deprecated Use `interactive.tonal.neutral` instead.
   */
-  spotBackground: [string, string, string];
+  spotBackground: string[];
 
   brand: string;
 
@@ -57,6 +58,8 @@ export type ThemeColors = {
   interactive: {
     tonal: {
       primary: string[];
+      neutral: string[];
+      success: string[];
     };
   };
 
@@ -134,6 +137,12 @@ export type ThemeColors = {
     active: string;
   };
 
+  success: {
+    main: string;
+    hover: string;
+    active: string;
+  };
+
   notice: {
     background: string;
   };
@@ -181,7 +190,6 @@ export type ThemeColors = {
   };
 
   link: string;
-  success: string;
 
   dataVisualisation: DataVisualisationColors;
   accessGraph: AccessGraphColors;
@@ -240,6 +248,7 @@ interface AccessGraphEdgeColors {
 export type SharedColors = {
   dark: string;
   light: string;
+  interactionHandle: string;
   grey: typeof blueGrey;
   subtle: string;
   bgTerminal: string;
@@ -270,7 +279,11 @@ export type SharedStyles = {
     mobile: number;
     tablet: number;
     desktop: number;
+    small: number;
+    medium: number;
+    large: number;
   };
+  topBarHeight: number[];
   space: number[];
   borders: (string | number)[];
   typography: typeof typography;

@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type testConfigFiles struct {
@@ -906,6 +905,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, "https://some-endpoint", cfg.Okta.APIEndpoint)
 	require.Equal(t, oktaAPITokenPath, cfg.Okta.APITokenPath)
 	require.Equal(t, time.Second*300, cfg.Okta.SyncPeriod)
+	require.True(t, cfg.Okta.SyncSettings.SyncAccessLists)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -2948,62 +2948,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 	}
 }
 
-func TestTextFormatter(t *testing.T) {
-	tests := []struct {
-		comment      string
-		formatConfig []string
-		assertErr    require.ErrorAssertionFunc
-	}{
-		{
-			comment:      "invalid key (does not exist)",
-			formatConfig: []string{"level", "invalid key"},
-			assertErr:    require.Error,
-		},
-		{
-			comment:      "valid keys and formatting",
-			formatConfig: []string{"level", "component", "timestamp"},
-			assertErr:    require.NoError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &logutils.TextFormatter{
-				ExtraFields: tt.formatConfig,
-			}
-			tt.assertErr(t, formatter.CheckAndSetDefaults())
-		})
-	}
-}
-
-func TestJSONFormatter(t *testing.T) {
-	tests := []struct {
-		comment     string
-		extraFields []string
-		assertErr   require.ErrorAssertionFunc
-	}{
-		{
-			comment:     "invalid key (does not exist)",
-			extraFields: []string{"level", "invalid key"},
-			assertErr:   require.Error,
-		},
-		{
-			comment:     "valid keys and formatting",
-			extraFields: []string{"level", "caller", "component", "timestamp"},
-			assertErr:   require.NoError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &logutils.JSONFormatter{
-				ExtraFields: tt.extraFields,
-			}
-			tt.assertErr(t, formatter.CheckAndSetDefaults())
-		})
-	}
-}
-
 func TestTLSCert(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpCA := path.Join(tmpDir, "ca.pem")
@@ -3841,7 +3785,7 @@ func TestApplyOktaConfig(t *testing.T) {
 		errAssertionFunc require.ErrorAssertionFunc
 	}{
 		{
-			desc:            "valid config",
+			desc:            "valid config (import defaults to false)",
 			createTokenFile: true,
 			oktaConfig: Okta{
 				Service: Service{
@@ -3852,6 +3796,32 @@ func TestApplyOktaConfig(t *testing.T) {
 			expectedOkta: servicecfg.OktaConfig{
 				Enabled:     true,
 				APIEndpoint: "https://test-endpoint",
+				SyncSettings: servicecfg.OktaSyncSettings{
+					SyncAccessLists: false,
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:            "valid config (import enabled)",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+					DefaultOwners:       []string{"owner1"},
+				},
+			},
+			expectedOkta: servicecfg.OktaConfig{
+				Enabled:     true,
+				APIEndpoint: "https://test-endpoint",
+				SyncSettings: servicecfg.OktaSyncSettings{
+					SyncAccessLists: true,
+					DefaultOwners:   []string{"owner1"},
+				},
 			},
 			errAssertionFunc: require.NoError,
 		},
@@ -3929,6 +3899,22 @@ func TestApplyOktaConfig(t *testing.T) {
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter(`error trying to find file %s`, i...))
+			},
+		},
+		{
+			desc:            "no default owners",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+				},
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("default owners must be set when access list import is enabled"))
 			},
 		},
 	}

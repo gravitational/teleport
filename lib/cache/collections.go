@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -178,6 +179,9 @@ type cacheCollections struct {
 	auditQueries             collectionReader[services.SecurityAuditQueryGetter]
 	secReports               collectionReader[services.SecurityReportGetter]
 	secReportsStates         collectionReader[services.SecurityReportStateGetter]
+	accessLists              collectionReader[accessListsGetter]
+	accessListMembers        collectionReader[accessListMembersGetter]
+	accessListReviews        collectionReader[accessListReviewsGetter]
 	apps                     collectionReader[services.AppGetter]
 	nodes                    collectionReader[nodeGetter]
 	tunnelConnections        collectionReader[tunnelConnectionGetter]
@@ -633,6 +637,24 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.userLoginStates = &genericCollection[*userloginstate.UserLoginState, services.UserLoginStatesGetter, userLoginStateExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.userLoginStates
+		case types.KindAccessList:
+			if c.AccessLists == nil {
+				return nil, trace.BadParameter("missing parameter AccessLists")
+			}
+			collections.accessLists = &genericCollection[*accesslist.AccessList, accessListsGetter, accessListExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessLists
+		case types.KindAccessListMember:
+			if c.AccessLists == nil {
+				return nil, trace.BadParameter("missing parameter AccessLists")
+			}
+			collections.accessListMembers = &genericCollection[*accesslist.AccessListMember, accessListMembersGetter, accessListMemberExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessListMembers
+		case types.KindAccessListReview:
+			if c.AccessLists == nil {
+				return nil, trace.BadParameter("missing parameter AccessLists")
+			}
+			collections.accessListReviews = &genericCollection[*accesslist.Review, accessListReviewsGetter, accessListReviewExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessListReviews
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -988,8 +1010,11 @@ func (e certAuthorityExecutor) getAll(ctx context.Context, cache *Cache, loadSec
 		cas, err := cache.Trust.GetCertAuthorities(ctx, caType, loadSecrets)
 		// if caType was added in this major version we might get a BadParameter
 		// error if we're connecting to an older upstream that doesn't know about it
-		if err != nil && !(caType.NewlyAdded() && trace.IsBadParameter(err)) {
-			return nil, trace.Wrap(err)
+		if err != nil {
+			if !(types.IsUnsupportedAuthorityErr(err) && caType.NewlyAdded()) {
+				return nil, trace.Wrap(err)
+			}
+			continue
 		}
 
 		// this can be removed once we get the ability to fetch CAs with a filter,
@@ -2586,3 +2611,166 @@ func (userLoginStateExecutor) getReader(cache *Cache, cacheOK bool) services.Use
 }
 
 var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] = userLoginStateExecutor{}
+
+type accessListExecutor struct{}
+
+func (accessListExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessList, error) {
+	var resources []*accesslist.AccessList
+	var nextToken string
+	for {
+		var page []*accesslist.AccessList
+		var err error
+		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (accessListExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessList) error {
+	_, err := cache.accessListCache.UpsertAccessList(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessListExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessListCache.DeleteAllAccessLists(ctx)
+}
+
+func (accessListExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.accessListCache.DeleteAccessList(ctx, resource.GetName())
+}
+
+func (accessListExecutor) isSingleton() bool { return false }
+
+func (accessListExecutor) getReader(cache *Cache, cacheOK bool) accessListsGetter {
+	if cacheOK {
+		return cache.accessListCache
+	}
+	return cache.Config.AccessLists
+}
+
+type accessListsGetter interface {
+	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
+	ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error)
+	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
+}
+
+type accessListMemberExecutor struct{}
+
+func (accessListMemberExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
+	var resources []*accesslist.AccessListMember
+	var nextToken string
+	for {
+		var page []*accesslist.AccessListMember
+		var err error
+		page, nextToken, err = cache.AccessLists.ListAllAccessListMembers(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (accessListMemberExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessListMember) error {
+	_, err := cache.accessListCache.UpsertAccessListMember(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessListMemberExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessListCache.DeleteAllAccessListMembers(ctx)
+}
+
+func (accessListMemberExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.accessListCache.DeleteAccessListMember(ctx,
+		resource.GetMetadata().Description, // Cache passes access  ID via description field.
+		resource.GetName())
+}
+
+func (accessListMemberExecutor) isSingleton() bool { return false }
+
+func (accessListMemberExecutor) getReader(cache *Cache, cacheOK bool) accessListMembersGetter {
+	if cacheOK {
+		return cache.accessListCache
+	}
+	return cache.Config.AccessLists
+}
+
+type accessListMembersGetter interface {
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error)
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+}
+
+type accessListReviewExecutor struct{}
+
+func (accessListReviewExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.Review, error) {
+	var resources []*accesslist.Review
+	var nextToken string
+	for {
+		var page []*accesslist.Review
+		var err error
+		page, nextToken, err = cache.AccessLists.ListAllAccessListReviews(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (accessListReviewExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.Review) error {
+	if _, _, err := cache.accessListCache.CreateAccessListReview(ctx, resource); err != nil {
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+
+		if err := cache.accessListCache.DeleteAccessListReview(ctx, resource.Spec.AccessList, resource.GetName()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, _, err := cache.accessListCache.CreateAccessListReview(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (accessListReviewExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessListCache.DeleteAllAccessListReviews(ctx)
+}
+
+func (accessListReviewExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.accessListCache.DeleteAccessListReview(ctx,
+		resource.GetMetadata().Description, // Cache passes access  ID via description field.
+		resource.GetName())
+}
+
+func (accessListReviewExecutor) isSingleton() bool { return false }
+
+func (accessListReviewExecutor) getReader(cache *Cache, cacheOK bool) accessListReviewsGetter {
+	if cacheOK {
+		return cache.accessListCache
+	}
+	return cache.Config.AccessLists
+}
+
+type accessListReviewsGetter interface {
+	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+}

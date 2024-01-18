@@ -40,6 +40,7 @@ import (
 	v2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
 const teleportUserKind = "TeleportUser"
@@ -158,7 +159,8 @@ traits:
 
 			userName := validRandomResourceName("user-")
 
-			obj := resources.GetUnstructuredObjectFromGVK(teleportUserGVK)
+			obj, err := resources.GetUnstructuredObjectFromGVK(teleportUserGVK)
+			require.NoError(t, err)
 			obj.Object["spec"] = userManifest
 			obj.SetName(userName)
 			obj.SetNamespace(setup.Namespace.Name)
@@ -410,9 +412,10 @@ func getUserStatusConditionError(object map[string]interface{}) []metav1.Conditi
 }
 
 func compareRoles(expected, actual []string) bool {
+	opts := testlib.CompareOptions(cmpopts.SortSlices(func(a, b string) bool { return a < b }))
 	return cmp.Diff(
 		expected,
 		actual,
-		cmpopts.SortSlices(func(a, b string) bool { return a < b }),
+		opts...,
 	) == ""
 }

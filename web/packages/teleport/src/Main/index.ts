@@ -18,7 +18,7 @@
 
 export {
   Main as default,
-  ContentMinWidth,
+  useContentMinWidthContext,
   HorizontalSplit,
   StyledIndicator,
 } from './Main';

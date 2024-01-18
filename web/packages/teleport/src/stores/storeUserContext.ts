@@ -157,12 +157,20 @@ export default class StoreUserContext extends Store<UserContext> {
   // has access to download either teleport binaries or the license.
   // Since the page is used to download both of them, having access to one
   // is enough to show access this page.
-  // This page is only available for `dashboards`.
+  // This page is only available for `dashboards` and cloud customers.
   hasDownloadCenterListAccess() {
     return (
-      cfg.isDashboard &&
-      (this.state.acl.license.read || this.state.acl.download.list)
+      cfg.isCloud ||
+      (cfg.isDashboard &&
+        (this.state.acl.license.read || this.state.acl.download.list))
     );
+  }
+
+  // hasSupportPageLinkAccess checks if the user
+  // has access to a Support external link in the side menu.
+  // This should only be displayed on `dashboards`.
+  hasSupportPageLinkAccess() {
+    return cfg.isDashboard;
   }
 
   // hasAccessToAgentQuery checks for at least one valid query permission.

@@ -101,8 +101,10 @@ export interface DocumentTshKube extends DocumentBase {
 
 export interface DocumentGateway extends DocumentBase {
   kind: 'doc.gateway';
+  // status is used merely to show a progress bar when the gateway is being set up.
+  status: '' | 'connecting' | 'connected' | 'error';
   gatewayUri?: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.AppUri;
   targetUser: string;
   targetName: string;
   targetSubresourceName?: string;
@@ -149,6 +151,8 @@ export interface DocumentGatewayKube extends DocumentBase {
   leafClusterId: string | undefined;
   targetUri: uri.KubeUri;
   origin: DocumentOrigin;
+  // status is used merely to show a progress bar when the gateway is being set up.
+  status: '' | 'connecting' | 'connected' | 'error';
 }
 
 export interface DocumentCluster extends DocumentBase {
@@ -180,7 +184,7 @@ export interface DocumentClusterQueryParams {
 // `DocumentClusterQueryParams` uses values of this type and documents are stored to disk.
 export type DocumentClusterResourceKind = Extract<
   SharedUnifiedResource['resource']['kind'],
-  'node' | 'kube_cluster' | 'db'
+  'node' | 'app' | 'kube_cluster' | 'db'
 >;
 
 export interface DocumentAccessRequests extends DocumentBase {
@@ -243,7 +247,7 @@ export function isDocumentTshNodeWithServerId(
 
 export type CreateGatewayDocumentOpts = {
   gatewayUri?: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.AppUri;
   targetName: string;
   targetUser: string;
   targetSubresourceName?: string;

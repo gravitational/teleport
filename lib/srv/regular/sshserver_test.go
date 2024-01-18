@@ -2119,11 +2119,6 @@ func x11Handler(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewCha
 		return nil
 	}
 
-	if nch.ChannelType() == tracessh.TracingChannel {
-		nch.Reject(ssh.UnknownChannelType, "")
-		return x11Handler(ctx, conn, chs)
-	}
-
 	if nch.ChannelType() != teleport.ChanSession {
 		return trace.BadParameter("Unexpected channel type: %q", nch.ChannelType())
 	}

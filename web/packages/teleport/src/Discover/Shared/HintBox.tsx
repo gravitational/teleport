@@ -49,7 +49,7 @@ export const SuccessInfo = styled(Box)`
   background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
-  border: 2px solid ${props => props.theme.colors.success};
+  border: 2px solid ${props => props.theme.colors.success.main};
   display: flex;
   align-items: center;
 `;
@@ -91,7 +91,7 @@ export function SuccessBox(props: { children: React.ReactNode }) {
       >
         <Icons.CircleCheck size="medium" color="success" />
       </TextIcon>
-      {props.children}
+      <Box>{props.children}</Box>
     </SuccessInfo>
   );
 }

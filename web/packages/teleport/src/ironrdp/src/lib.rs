@@ -29,7 +29,6 @@ use ironrdp_session::{
 };
 use js_sys::Uint8Array;
 use log::{debug, warn};
-use std::convert::TryFrom;
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
 
@@ -62,7 +61,7 @@ pub fn init_wasm_log(log_level: &str) {
             .with(level_filter)
             .init();
 
-        debug!("IronRDP wasm log is ready");
+        debug!("WASM log is ready");
         // TODO(isaiah): is it possible to set up logging for IronRDP trace logs like so: https://github.com/Devolutions/IronRDP/blob/c71ada5783fee13eea512d5d3d8ac79606716dc5/crates/ironrdp-client/src/main.rs#L47-L78
     }
 }
@@ -285,7 +284,7 @@ fn extract_smallest_rectangle(
 ) -> (InclusiveRectangle, Vec<u8>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
-    let image_width = usize::try_from(image.width()).unwrap();
+    let image_width = usize::from(image.width());
     let image_stride = image_width * pixel_size;
 
     let region_top = usize::from(region.top);
@@ -321,7 +320,7 @@ fn extract_whole_rows(
 ) -> (InclusiveRectangle, Vec<u8>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
-    let image_width = usize::try_from(image.width()).unwrap();
+    let image_width = usize::from(image.width());
     let image_stride = image_width * pixel_size;
 
     let region_top = usize::from(region.top);

@@ -51,6 +51,10 @@ RUN yum install --nogpgcheck -y \
         ${DEVTOOLSET}-make && \
     yum clean all
 
+# Needed for boring-rs
+ENV CMAKE=cmake3
+RUN ln -s /usr/bin/cmake3 /usr/local/bin/cmake
+
 ## GIT2 ###################################################################
 
 # git2 packages are not available on ARM64, so we need to build it from source.
@@ -303,6 +307,10 @@ COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy the pre-built CentOS 7 assets with clang. Needed to build BoringSSL and BPF tools.
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
+
+# Libclang is needed by boring-rs to generate bindings. libclang is kept in /opt/llvm/lib
+# and without this environment variable, boring-rs will not be able to find it.
+ENV LIBCLANG_PATH=/opt/llvm/lib/
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

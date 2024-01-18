@@ -19,7 +19,6 @@
 package keystore
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -189,12 +188,12 @@ func (g *gcpKMSKeyStore) generateRSA(ctx context.Context, opts ...RSAKeyOption) 
 }
 
 // getSigner returns a crypto.Signer for the given pem-encoded private key.
-func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
+func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
 	keyID, err := parseGCPKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer, err := g.newKmsSigner(ctx, keyID)
+	signer, err := g.newKmsSignerWithPublicKey(ctx, keyID, publicKey)
 	return signer, trace.Wrap(err)
 }
 
@@ -232,7 +231,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 	return true, nil
 }
 
-// DeleteUnusedKeys deletes all keys from the configured KMS keyring if they:
+// deleteUnusedKeys deletes all keys from the configured KMS keyring if they:
 //  1. Are not included in the argument activeKeys
 //  2. Are labeled with hostLabel (teleport_auth_host)
 //  3. The hostLabel value matches the local host UUID
@@ -249,7 +248,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 // or a simpler case where: the other auth server is running in a completely
 // different Teleport cluster and the keys it's actively using will never appear
 // in the activeKeys argument.
-func (g *gcpKMSKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	// Make a map of currently active key versions, this is used for lookups to
 	// check which keys in KMS are unused.
 	activeKmsKeyVersions := make(map[string]int)
@@ -354,14 +353,18 @@ func (g *gcpKMSKeyStore) newKmsSigner(ctx context.Context, keyID gcpKMSKeyID) (*
 	}
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, trace.Wrap(err, "unexpected error parsing public key pem")
+		return nil, trace.Wrap(err, "unexpected error parsing public key PEM")
 	}
 
+	return g.newKmsSignerWithPublicKey(ctx, keyID, pub)
+}
+
+func (g *gcpKMSKeyStore) newKmsSignerWithPublicKey(ctx context.Context, keyID gcpKMSKeyID, publicKey crypto.PublicKey) (*kmsSigner, error) {
 	return &kmsSigner{
 		ctx:    ctx,
 		g:      g,
 		keyID:  keyID,
-		public: pub,
+		public: publicKey,
 	}, nil
 }
 
@@ -399,10 +402,7 @@ type gcpKMSKeyID struct {
 }
 
 func (g gcpKMSKeyID) marshal() []byte {
-	var buf bytes.Buffer
-	buf.WriteString(gcpkmsPrefix)
-	buf.WriteString(g.keyVersionName)
-	return buf.Bytes()
+	return []byte(gcpkmsPrefix + g.keyVersionName)
 }
 
 func parseGCPKMSKeyID(key []byte) (gcpKMSKeyID, error) {

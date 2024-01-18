@@ -36,7 +36,7 @@ const StyledStatus = styled<Props>(Box)`
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   ${props => {
     const { $connected, theme } = props;
-    const backgroundColor = $connected ? theme.colors.success : null;
+    const backgroundColor = $connected ? theme.colors.success.main : null;
     const border = $connected
       ? null
       : `1px solid ${theme.colors.text.slightlyMuted}`;

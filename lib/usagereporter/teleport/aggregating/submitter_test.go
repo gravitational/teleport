@@ -72,6 +72,9 @@ func TestSubmitOnce(t *testing.T) {
 	reportFresh := newReport(time.Now().UTC())
 	require.NoError(t, svc.upsertUserActivityReport(ctx, reportFresh, reportTTL))
 
+	resCountReport := newResourcePresenceReport(time.Now().UTC())
+	require.NoError(t, svc.upsertResourcePresenceReport(ctx, resCountReport, reportTTL))
+
 	// successful submit, no alerts, no leftover reports
 	submitOnce(ctx, scfg)
 	require.Len(t, submitted, 1)
@@ -79,6 +82,10 @@ func TestSubmitOnce(t *testing.T) {
 	reports, err := svc.listUserActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, reports)
+	rReports, err := svc.listResourcePresenceReports(ctx, 10)
+	require.NoError(t, err)
+	require.Empty(t, rReports)
+
 	submitted = nil
 
 	alerts, err := scfg.Status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{

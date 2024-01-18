@@ -44,7 +44,7 @@ export async function getUserClusterPreferences(clusterId: string) {
   return await api
     .get(cfg.getUserClusterPreferencesUrl(clusterId))
     .then(res => {
-      // TODO (avatus) DELETE IN 15
+      // TODO (avatus) DELETE IN 16
       // this item is used to disabled the pinned resources button if they
       // haven't upgraded to 14.1.0 yet. Anything lower than 14 doesn't matter
       // because the unified resource view isn't enabled so pinning isn't there either

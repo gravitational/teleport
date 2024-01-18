@@ -38,6 +38,8 @@ export type SearchResultDatabase =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultDatabase>;
 export type SearchResultKube =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultKube>;
+export type SearchResultApp =
+  ResourceSearchResultBase<resourcesServiceTypes.SearchResultApp>;
 export type SearchResultCluster = {
   kind: 'cluster-filter';
   resource: Cluster;
@@ -64,7 +66,8 @@ export type DisplayResults = {
 export type ResourceSearchResult =
   | SearchResultServer
   | SearchResultDatabase
-  | SearchResultKube;
+  | SearchResultKube
+  | SearchResultApp;
 
 export type FilterSearchResult = SearchResultResourceType | SearchResultCluster;
 
@@ -99,6 +102,7 @@ export const mainResourceField: {
   server: 'hostname',
   database: 'name',
   kube: 'name',
+  app: 'name',
 } as const;
 
 // The usage of Exclude here is a workaround to make sure that the fields in the array point only to
@@ -114,6 +118,10 @@ export const searchableFields: {
   server: ['name', 'hostname', 'addr'],
   database: ['name', 'desc', 'protocol', 'type'],
   kube: ['name'],
+  // Right now, friendlyName is set only for Okta apps (api/types/resource.go).
+  // The friendly name is constructed *after* fetching apps, but since it is
+  // made from the value of a label, the server-side search can find it.
+  app: ['name', 'friendlyName', 'desc', 'addrWithProtocol'],
 } as const;
 
 export interface ResourceTypeSearchFilter {

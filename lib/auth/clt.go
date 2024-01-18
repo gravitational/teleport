@@ -502,6 +502,21 @@ func (c *Client) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 	return nil, "", trace.NotImplemented(notImplementedMessage)
 }
 
+// DeleteStaticTokens deletes static tokens
+func (c *Client) DeleteStaticTokens() error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetStaticTokens returns a list of static register tokens
+func (c *Client) GetStaticTokens() (types.StaticTokens, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// SetStaticTokens sets a list of static register tokens
+func (c *Client) SetStaticTokens(st types.StaticTokens) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -796,7 +811,7 @@ type ClientI interface {
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 
 	// RotateCertAuthority starts or restarts certificate authority rotation process.
-	RotateCertAuthority(ctx context.Context, req RotateRequest) error
+	RotateCertAuthority(ctx context.Context, req types.RotateRequest) error
 
 	// RotateExternalCertAuthority rotates external certificate authority,
 	// this method is used to update only public keys and certificates of the
@@ -847,8 +862,9 @@ type ClientI interface {
 	// sessions created by the SAML identity provider.
 	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
 
-	// GenerateDatabaseCert generates client certificate used by a database
-	// service to authenticate with the database instance.
+	// GenerateDatabaseCert generates a client certificate used by a database
+	// service to authenticate with the database instance, or a server certificate
+	// for configuring a self-hosted database, depending on the requester_name.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 
 	// GetWebSession queries the existing web session described with req.

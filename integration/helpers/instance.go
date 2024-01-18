@@ -36,7 +36,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -64,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -194,6 +192,21 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	dbClientCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseClientCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Key:     s.PrivKey,
+				KeyType: types.PrivateKeyType_RAW,
+				Cert:    s.TLSCACert,
+			}},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	osshCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.OpenSSHCA,
 		ClusterName: s.SiteName,
@@ -209,7 +222,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return []types.CertAuthority{hostCA, userCA, dbCA, osshCA}, nil
+	return []types.CertAuthority{hostCA, userCA, dbCA, dbClientCA, osshCA}, nil
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
@@ -1552,33 +1565,7 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 	}
 
 	defer resp.Body.Close()
-	ty, raw, err := ws.ReadMessage()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if ty != websocket.BinaryMessage {
-		return nil, trace.BadParameter("unexpected websocket message; got %d want %d", ty, websocket.BinaryMessage)
-	}
-
-	var env web.Envelope
-	err = proto.Unmarshal(raw, &env)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	type siteSessionGenerateResponse struct {
-		Session session.Session `json:"session"`
-	}
-
-	var sessResp siteSessionGenerateResponse
-	err = json.Unmarshal([]byte(env.Payload), &sessResp)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	stream := web.NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
-	return stream, nil
+	return web.NewTerminalStream(context.Background(), web.TerminalStreamConfig{WS: ws}), nil
 }
 
 // AddClientCredentials adds authenticated credentials to a client.

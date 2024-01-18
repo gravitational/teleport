@@ -140,7 +140,12 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 			Token:    req.SecondFactorToken,
 		}
 	}
-	if _, _, err := a.authenticateUser(ctx, authReq); err != nil {
+	verifyMFALocks, _, _, err := a.authenticateUser(ctx, authReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Verify if the MFA device used is locked.
+	if err := verifyMFALocks(verifyMFADeviceLocksParams{}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -153,7 +158,8 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 			Type: events.UserPasswordChangeEvent,
 			Code: events.UserPasswordChangeCode,
 		},
-		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user),
+		UserMetadata:       authz.ClientUserMetadataWithUser(ctx, user),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit password change event.")
 	}
@@ -164,11 +170,6 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 // used in case of SSH authentication, when token has been validated.
 func (a *Server) checkPasswordWOToken(user string, password []byte) error {
 	const errMsg = "invalid username or password"
-
-	err := services.VerifyPassword(password)
-	if err != nil {
-		return trace.BadParameter(errMsg)
-	}
 
 	hash, err := a.GetPasswordHash(user)
 	if err != nil && !trace.IsNotFound(err) {
@@ -310,16 +311,27 @@ func (a *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.BadParameter("expired token")
 	}
 
-	err = a.changeUserSecondFactor(ctx, req, token)
-	if err != nil {
+	// Check if the user still exists before potentially recreating the user
+	// below. If the user was deleted, do NOT honor the request and delete any
+	// other tokens associated with the user.
+	if _, err := a.GetUser(ctx, token.GetUser(), false); err != nil {
+		if trace.IsNotFound(err) {
+			// Delete any remaining tokens for users that no longer exist.
+			if err := a.deleteUserTokens(ctx, token.GetUser()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.changeUserSecondFactor(ctx, req, token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	username := token.GetUser()
 	// Delete this token first to minimize the chances
 	// of partially updated user with still valid token.
-	err = a.deleteUserTokens(ctx, username)
-	if err != nil {
+	if err := a.deleteUserTokens(ctx, username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

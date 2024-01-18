@@ -119,11 +119,11 @@ To create the service account:
    # Allow Teleport to write the certificateRevocationList property in the CDP/Teleport container.
    dsacls "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN " /I:T /G "$($SamAccountName):WP;certificateRevocationList;"
 
-   # Allow Teleport to create and delete certificationAuthority objects in the NTAuthCertificates container.
-   dsacls "CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):CCDC;certificationAuthority;"
+   # Allow Teleport to read certificationAuthority objects in the NTAuthCertificates container.
+   dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):GR;certificationAuthority;"
 
-   # Allow Teleport to write the cACertificate property in the NTAuthCertificates container.
-   dsacls "CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):WP;cACertificate;"
+   # Allow Teleport to read the cACertificate property in the NTAuthCertificates container.
+   dsacls "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,$DomainDN" /I:T /G "$($SamAccountName):RP;cACertificate;"
    ```
 
 1. Get the security identifier for the new service account.
@@ -197,16 +197,9 @@ logins.
 
 1. Repeat these steps for **Deny log on through Remote Desktop Services**.
 
-   For added security, you can disable username and password authentication completely.
-   If you disable username and password authentication, only the Teleport virtual smart
-   card can be used to access Windows computers in the domain.
-
-1. To ensure your GPO update takes effect immediately on this host,
-   open PowerShell and run the following command (optional):
-
-   ```powershell
-   gpupdate.exe /force
-   ```
+  For added security, you can disable username and password authentication completely.
+  If you disable username and password authentication, only the Teleport virtual smart
+  card can be used to access Windows computers in the domain.
 
 ## Step 3/7. Configure a GPO to allow Teleport connections
 
@@ -266,8 +259,8 @@ To configure the group policy object:
    ![AWS Managed AD OU Location](../../img/desktop-access/aws-managed-ad.png)
    </Figure>
 
-1. Open **Group Policy Management** and expand **`Forest > Domains > $YOUR_DOMAIN > Group Policy Objects`**
-   to locate the GPO you just created.
+1. Open **Group Policy Management** and expand Forest, Domains, your domain, and
+   Group Policy Objects to locate the GPO you just created.
 
 1. Select the new GPO—for example, `Teleport Access Policy`, right-click, then select **Edit**.
 
@@ -389,7 +382,8 @@ Next you need to configure policies that allow remote connections to domain comp
    Because the PIN is never provided to the Teleport user, the **Always prompt for password
    upon connection** policy must be **disabled** for authentication to succeed.
 
-1. Expand **`Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall with Advanced Security`**.
+1. Expand Computer Configuration, Policies, Windows Settings, Security Settings to select
+   **Windows Firewall with Advanced Security**.
 
 1. Right-click **Inbound Rules**, select **New Rule**.
 
@@ -431,8 +425,8 @@ the performance of remote desktop connections.
 
 1. Again left-click **Remote Session Environment** in the left pane, and from the items in the right pane, right-click **Limit maximum color depth**, select **Edit**, select **Enabled**, then click **OK**.
 
-1. To ensure your GPO update takes effect immediately on this host,
-   open PowerShell and run the following command (optional):
+1. Open PowerShell and run the following command to update your Teleport
+   group policy object:
 
    ```powershell
    gpupdate.exe /force
@@ -443,14 +437,15 @@ the performance of remote desktop connections.
 The Teleport RDP client requires secure cryptographic algorithms to make
 TLS connections. However, Windows Server 2012 R2 doesn't support these algorithms
 by default.
-You can configure Windows Server 2012 R2 domain controllers to support the
+
+You can configure Windows Server 2012 R2 to support the
 required algorithms by doing the following:
 
 - Create a new certificate template that uses elliptic curve cryptography.
 - Update the Teleport group policy object to use the new certificate template
   when issuing certificates for remote desktop connections.
 
-If your domain controllers support the required algorithms, you can skip this step
+If your hosts support the required algorithms, you can skip this step
 and go to [Export your LDAP CA certificate](#step-57-export-your-ldap-ca-certificate).
 
 ### Create a certificate template
@@ -512,13 +507,14 @@ To update the Teleport group policy object to use the new certificate template:
    ![RDP Certificate Template](../../img/desktop-access/rdp-certificate-template.png)
    </Figure>
 
-1. Expand **`Computer Configuration > Policies > Windows Settings > Public Key Policies`**.
+1. Expand Computer Configuration, Policies, and Windows Settings to select
+   **Public Key Policies**.
 
 1. Double-click **Certificate Services Client - Auto-Enrollment**, then select
    **Enabled** in the Configuration Model.
 
-1. To ensure your GPO update takes effect immediately on this host,
-   open PowerShell and run the following command (optional):
+1. Open PowerShell and run the following command to update your Teleport
+   group policy object:
 
    ```powershell
    gpupdate.exe /force
@@ -676,10 +672,56 @@ To change the default domain policy:
 1. Open **Group Policy Management** and expand Forest, Domains, your domain, and
    Group Policy Objects.
 1. Right-click **Default Domain Controller Policy**, then select **Edit**.
-1. In the group policy editor, expand
-   **`Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment`**.
+1. In the group policy editor, expand Computer Configuration, Policies, Windows
+   Settings, Security Settings, Local Policies, and User Rights Assignment to select
+   **Add workstations to domain**.
 1. Double-click the  **Add workstations to domain** policy and ensure that the
    **Authenticated Users** group is not present.
+
+## Multiple domains
+
+Each `windows_desktop_service` is designed to support connecting to hosts in a
+single Active Directory domain. If you have multiple independent domains, you
+can deploy multiple Teleport agents to service them.
+
+If you have multiple domains with a trust relationship between them, you can
+configure Teleport to perform PKI operations against one domain, while generating
+certificates for users in another domain.
+
+In order for this to work, the hosts that you want to connect to and the AD
+users that you want to connect as must reside in the same domain.
+
+For example, suppose you have a root domain at `example.com` and a child domain
+for developers at `dev.example.com`. If your PKI is configured at the root, but
+you want to allow users in the child domain to connect to hosts in the child
+domain, you would do the following:
+
+1. Import Teleport's CA certificate as a trusted root certificate in the root
+   domain's group policy and add the certificate to the NTAuth store as
+   described in the
+   [section above](#publish-the-teleport-ca-to-the-ntauth-store).
+1. Configure Teleport to perform PKI against the root domain, while
+   issuing certificates for users and hosts in the child domain:
+
+  ```yaml
+  windows_desktop_service:
+    enabled: yes
+
+    # configure LDAP settings to point at the child domain
+    ldap:
+      addr: dev.example.com:636
+      username: 'DEV\svc-teleport'
+
+    # optional: configure discovery for the child domain
+    discovery:
+      base_dn: CN=Computers,DC=dev,DC=example,DC=com
+
+    # perform PKI against the root domain
+    pki_domain: root.example.com
+  ```
+
+With this configuration, Teleport will generate certificates for users in
+`dev.example.com`, but it will publish its CA and CRLs to `example.com`.
 
 ## Next steps
 

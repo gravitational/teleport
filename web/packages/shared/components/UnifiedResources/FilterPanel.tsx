@@ -20,7 +20,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { SortDir } from 'design/DataTable/types';
-import { Text, Flex, Box } from 'design';
+import { Text, Flex } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { StyledCheckbox } from 'design/Checkbox';
 import {
@@ -64,6 +64,12 @@ interface FilterPanelProps {
   setCurrentViewMode: (viewMode: ViewMode) => void;
   expandAllLabels: boolean;
   setExpandAllLabels: (expandAllLabels: boolean) => void;
+  hideViewModeOptions: boolean;
+  /*
+   * ClusterDropdown is an optional prop to add a ClusterDropdown to the
+   * FilterPanel component. This is useful to turn off in Connect and use on web only
+   */
+  ClusterDropdown?: JSX.Element;
 }
 
 export function FilterPanel({
@@ -77,6 +83,8 @@ export function FilterPanel({
   setCurrentViewMode,
   expandAllLabels,
   setExpandAllLabels,
+  hideViewModeOptions,
+  ClusterDropdown = null,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -118,36 +126,42 @@ export function FilterPanel({
           availableKinds={availableKinds}
           kindsFromParams={kinds || []}
         />
+        {ClusterDropdown}
       </Flex>
       <Flex gap={2} alignItems="center">
-        <Box mr={1}>{BulkActions}</Box>
-        {currentViewMode === ViewMode.VIEW_MODE_LIST && (
-          <ButtonBorder
-            size="small"
-            css={`
-              border: none;
-              color: ${props => props.theme.colors.text.slightlyMuted};
-              text-transform: none;
-              padding-left: ${props => props.theme.space[2]}px;
-              padding-right: ${props => props.theme.space[2]}px;
-              height: 22px;
-            `}
-            onClick={() => setExpandAllLabels(!expandAllLabels)}
-          >
-            <Flex alignItems="center" width="100%">
-              {expandAllLabels ? (
-                <ArrowsIn size="small" mr={1} />
-              ) : (
-                <ArrowsOut size="small" mr={1} />
-              )}
-              {expandAllLabels ? 'Collapse ' : 'Expand '} All Labels
-            </Flex>
-          </ButtonBorder>
+        <Flex mr={1}>{BulkActions}</Flex>
+        {!hideViewModeOptions && (
+          <>
+            {currentViewMode === ViewMode.VIEW_MODE_LIST && (
+              <ButtonBorder
+                size="small"
+                css={`
+                  border: none;
+                  color: ${props => props.theme.colors.text.slightlyMuted};
+                  text-transform: none;
+                  padding-left: ${props => props.theme.space[2]}px;
+                  padding-right: ${props => props.theme.space[2]}px;
+                  height: 22px;
+                  font-size: 12px;
+                `}
+                onClick={() => setExpandAllLabels(!expandAllLabels)}
+              >
+                <Flex alignItems="center" width="100%">
+                  {expandAllLabels ? (
+                    <ArrowsIn size="small" mr={1} />
+                  ) : (
+                    <ArrowsOut size="small" mr={1} />
+                  )}
+                  {expandAllLabels ? 'Collapse ' : 'Expand '} All Labels
+                </Flex>
+              </ButtonBorder>
+            )}
+            <ViewModeSwitch
+              currentViewMode={currentViewMode}
+              setCurrentViewMode={setCurrentViewMode}
+            />
+          </>
         )}
-        <ViewModeSwitch
-          currentViewMode={currentViewMode}
-          setCurrentViewMode={setCurrentViewMode}
-        />
         <SortMenu
           onDirChange={onSortOrderButtonClicked}
           onChange={onSortFieldChange}

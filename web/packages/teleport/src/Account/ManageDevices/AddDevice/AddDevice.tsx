@@ -64,7 +64,9 @@ const deviceUsageOpts: DeviceusageOpt[] = [
 export default function Container(props: Props) {
   const ctx = useTeleport();
   const state = useAddDevice(ctx, props);
-  return <AddDevice {...state} />;
+  return (
+    <AddDevice {...state} restrictDeviceUsage={props.restrictDeviceUsage} />
+  );
 }
 
 export function AddDevice({
@@ -77,6 +79,7 @@ export function AddDevice({
   qrCode,
   auth2faType,
   isPasswordlessEnabled,
+  restrictDeviceUsage,
 }: State) {
   const [otpToken, setOtpToken] = useState('');
   const [deviceName, setDeviceName] = useState('');
@@ -89,6 +92,8 @@ export function AddDevice({
   const [mfaOption, setMfaOption] = useState(mfaOptions[0]);
   const [usageOption, setUsageOption] = useState(deviceUsageOpts[0]);
 
+  const resolvedDeviceUsage = restrictDeviceUsage ?? usageOption.value;
+
   function onSetMfaOption(option: MfaOption) {
     setOtpToken('');
     clearAttempt();
@@ -99,7 +104,7 @@ export function AddDevice({
     e.preventDefault();
 
     if (mfaOption.value === 'webauthn') {
-      addWebauthnDevice(deviceName, usageOption.value);
+      addWebauthnDevice(deviceName, resolvedDeviceUsage);
     }
     if (mfaOption.value === 'otp') {
       addTotpDevice(otpToken, deviceName);
@@ -110,6 +115,11 @@ export function AddDevice({
   if (addDeviceAttempt.status === 'processing') {
     hardwareInstructions = 'Follow the prompts from your browser.';
   }
+
+  const dialogTitle =
+    restrictDeviceUsage === 'passwordless'
+      ? 'Add New Passkey'
+      : 'Add New Two-Factor Device';
 
   return (
     <Validation>
@@ -122,7 +132,7 @@ export function AddDevice({
         >
           <form>
             <DialogHeader style={{ flexDirection: 'column' }}>
-              <DialogTitle>Add New Two-Factor Device</DialogTitle>
+              <DialogTitle>{dialogTitle}</DialogTitle>
             </DialogHeader>
             {addDeviceAttempt.status === 'failed' && (
               <Danger mt={2} width="100%">
@@ -191,47 +201,51 @@ export function AddDevice({
                   </>
                 )}
               </Flex>
-              <Flex alignItems="center">
-                <FieldSelect
-                  maxWidth="50%"
-                  width="100%"
-                  label="Two-factor Type"
-                  data-testid="mfa-select"
-                  value={mfaOption}
-                  options={mfaOptions}
-                  onChange={(o: MfaOption) => {
-                    validator.reset();
-                    onSetMfaOption(o);
-                  }}
-                  mr={3}
-                  isDisabled={addDeviceAttempt.status === 'processing'}
-                  elevated={true}
-                />
-                {mfaOption.value === 'otp' && (
-                  <FieldInput
-                    width="50%"
-                    label="Authenticator Code"
-                    rule={requiredToken}
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    value={otpToken}
-                    onChange={e => setOtpToken(e.target.value)}
-                    placeholder="123 456"
-                    readonly={addDeviceAttempt.status === 'processing'}
-                  />
-                )}
-                {mfaOption.value === 'webauthn' && isPasswordlessEnabled && (
+              {restrictDeviceUsage !== 'passwordless' && (
+                <Flex alignItems="center">
                   <FieldSelect
-                    width="50%"
-                    label="Allow Passwordless Login?"
-                    value={usageOption}
-                    options={deviceUsageOpts}
-                    onChange={(o: DeviceusageOpt) => setUsageOption(o)}
+                    maxWidth="50%"
+                    width="100%"
+                    label="Two-factor Type"
+                    data-testid="mfa-select"
+                    value={mfaOption}
+                    options={mfaOptions}
+                    onChange={(o: MfaOption) => {
+                      validator.reset();
+                      onSetMfaOption(o);
+                    }}
+                    mr={3}
                     isDisabled={addDeviceAttempt.status === 'processing'}
                     elevated={true}
                   />
-                )}
-              </Flex>
+                  {mfaOption.value === 'otp' && (
+                    <FieldInput
+                      width="50%"
+                      label="Authenticator Code"
+                      rule={requiredToken}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={otpToken}
+                      onChange={e => setOtpToken(e.target.value)}
+                      placeholder="123 456"
+                      readonly={addDeviceAttempt.status === 'processing'}
+                    />
+                  )}
+                  {mfaOption.value === 'webauthn' &&
+                    isPasswordlessEnabled &&
+                    !restrictDeviceUsage && (
+                      <FieldSelect
+                        width="50%"
+                        label="Allow Passwordless Login?"
+                        value={usageOption}
+                        options={deviceUsageOpts}
+                        onChange={(o: DeviceusageOpt) => setUsageOption(o)}
+                        isDisabled={addDeviceAttempt.status === 'processing'}
+                        elevated={true}
+                      />
+                    )}
+                </Flex>
+              )}
               <FieldInput
                 rule={requiredField('Device name is required')}
                 label="Device Name"
