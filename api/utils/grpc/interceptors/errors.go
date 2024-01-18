@@ -16,6 +16,7 @@ package interceptors
 
 import (
 	"context"
+	"io"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -56,7 +57,11 @@ func (s *grpcClientStreamWrapper) SendMsg(m interface{}) error {
 
 // RecvMsg wraps around ClientStream.RecvMsg
 func (s *grpcClientStreamWrapper) RecvMsg(m interface{}) error {
-	if err := s.ClientStream.RecvMsg(m); err != nil {
+	switch err := s.ClientStream.RecvMsg(m); {
+	case err == io.EOF:
+		// Do not wrap io.EOF errors, they are often used as stop guards for streams.
+		return err
+	case err != nil:
 		return &RemoteError{Err: trace.Unwrap(trail.FromGRPC(s.ClientStream.RecvMsg(m)))}
 	}
 	return nil
