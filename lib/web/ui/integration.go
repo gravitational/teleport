@@ -236,16 +236,23 @@ type AWSOIDCDeployDatabaseServiceResponse struct {
 
 // AWSOIDCEnrollEKSClustersRequest is a request to ListEKSClusters using the AWS OIDC Integration.
 type AWSOIDCEnrollEKSClustersRequest struct {
-	Region             string   `json:"region"`
-	ClusterNames       []string `json:"clusterNames"`
-	EnableAppDiscovery bool     `json:"enableAppDiscovery"`
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// ClusterNames are names of the EKS clusters to enroll
+	ClusterNames []string `json:"clusterNames"`
+	// EnableAppDiscovery specifies if Teleport Kubernetes App discovery should be enabled inside enrolled clusters.
+	EnableAppDiscovery bool `json:"enableAppDiscovery"`
 }
 
 // EKSClusterEnrollmentResult contains result/error for a single cluster enrollment.
 type EKSClusterEnrollmentResult struct {
+	// ClusterName is the name of EKS cluster that was enrolled.
 	ClusterName string `json:"clusterName"`
-	ResourceId  string `json:"resourceId"`
-	Error       string `json:"error"`
+	// ResourceId is the label with resource ID from the join token for the enrolled cluster, UI can check
+	// if when enrolled cluster appears in Teleport by using this ID.
+	ResourceId string `json:"resourceId"`
+	// Error is an error message, if enrollment was not successful.
+	Error string `json:"error"`
 }
 
 // AWSOIDCEnrollEKSClustersResponse is a response to enrolling EKS cluster
