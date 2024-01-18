@@ -61,7 +61,7 @@ export function ManualHelmDialog({
             <>
               <Text bold>Step 2</Text>
               <Text typography="subtitle1" mb={3}>
-                Run the command below on the server your target EKS cluster. It
+                Run the command below on the server your target EKS cluster is at. It
                 may take up to a minute for the Teleport Service to join after
                 running the command.
               </Text>
