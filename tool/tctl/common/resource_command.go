@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
@@ -850,6 +851,19 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if sp.GetEntityDescriptor() != "" {
+		// verify that entity descriptor parses
+		ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+		if err != nil {
+			return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
+		}
+
+		// issue warning about unsupported ACS bindings.
+		if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+			log.Warnf("Entity descriptor for SAML IdP service provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
+		}
 	}
 
 	serviceProviderName := sp.GetName()
