@@ -21,7 +21,7 @@ import React from 'react';
 import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DiscoverEvent } from 'teleport/services/userEvent';
-import { ResourceSpec } from 'teleport/Discover/SelectResource';
+import { KubeLocation, ResourceSpec } from 'teleport/Discover/SelectResource';
 import { EnrollEksCluster } from 'teleport/Discover/Kubernetes/EnrollEKSCluster';
 
 import { KubeWrapper } from './KubeWrapper';
@@ -35,8 +35,15 @@ export const KubernetesResource: ResourceViewConfig = {
     <KubeWrapper>{component}</KubeWrapper>
   ),
   views(resource: ResourceSpec) {
-    if (resource.name === 'EKS') {
-      return [
+    let configuredResourceViews = [
+      {
+        title: 'Configure Resource',
+        component: HelmChart,
+        eventName: DiscoverEvent.DeployService,
+      },
+    ];
+    if (resource?.kubeMeta.location === KubeLocation.Aws) {
+      configuredResourceViews = [
         {
           title: 'Connect AWS Account',
           component: AwsAccount,
@@ -47,32 +54,11 @@ export const KubernetesResource: ResourceViewConfig = {
           component: EnrollEksCluster,
           eventName: DiscoverEvent.KubeEKSEnrollEvent,
         },
-        {
-          title: 'Set Up Access',
-          component: SetupAccess,
-          eventName: DiscoverEvent.PrincipalsConfigure,
-        },
-        {
-          title: 'Test Connection',
-          component: TestConnection,
-          eventName: DiscoverEvent.TestConnection,
-          manuallyEmitSuccessEvent: true,
-        },
-        {
-          title: 'Finished',
-          component: Finished,
-          hide: true,
-          eventName: DiscoverEvent.Completed,
-        },
       ];
     }
 
     return [
-      {
-        title: 'Configure Resource',
-        component: HelmChart,
-        eventName: DiscoverEvent.DeployService,
-      },
+      ...configuredResourceViews,
       {
         title: 'Set Up Access',
         component: SetupAccess,
