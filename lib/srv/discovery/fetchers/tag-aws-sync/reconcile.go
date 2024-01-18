@@ -214,7 +214,7 @@ func reconcileGroupInlinePolicies(
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
 	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSGroupInlinePolicyV1) string {
-		return fmt.Sprintf("%s;%s", policy.GroupName, policy.PolicyName)
+		return fmt.Sprintf("%s;%s;%s", policy.GroupName, policy.PolicyName, policy.AccountId)
 	})
 	for _, policy := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
