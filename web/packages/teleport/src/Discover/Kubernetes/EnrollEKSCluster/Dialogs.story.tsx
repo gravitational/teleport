@@ -30,6 +30,7 @@ import { ContextProvider } from 'teleport';
 import { ManualHelmDialog } from './ManualHelmDialog';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
 import { EnrollmentDialog } from './EnrollmentDialog';
+import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 
 export default {
   title: 'Teleport/Discover/Kube/EnrollEksClusters/Dialogs',
@@ -117,20 +118,24 @@ AgentWaitingDialogSuccess.parameters = {
   },
 };
 
-const helmCommand = `cat << EOF > prod-cluster-values.yaml
-roles: kube,app,discovery
-authToken: token-id
-proxyAddr: some-long-cluster-public-url-name.cloud.teleport.gravitational.io:1234
-kubeClusterName: EKS1
-labels:
-    teleport.internal/resource-id: resource-id
-    teleport.dev/cloud: AWS
-    region: us-east-1
-    account-id: 1234567789012
-EOF
- 
-helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml \\
---version 14.3.2  --create-namespace --namespace teleport-agent`;
+const helmCommand = generateCmd({
+  namespace: 'teleport-agent',
+  clusterName: 'EKS1',
+  proxyAddr: 'teleport-proxy.example.com:1234',
+  tokenId: 'token-id',
+  clusterVersion: '14.3.2',
+  resourceId: 'resource-id',
+  isEnterprise: false,
+  isCloud: false,
+  automaticUpgradesEnabled: false,
+  automaticUpgradesTargetVersion: '',
+  joinLabels: [
+    { name: 'teleport.dev/cloud', value: 'AWS' },
+    { name: 'region', value: 'us-east-1' },
+    { name: 'account-id', value: '1234567789012' },
+  ],
+});
+
 export const ManualHelmDialogStory = () => (
   <MemoryRouter initialEntries={[{ state: { discover: {} } }]}>
     <ManualHelmDialog
