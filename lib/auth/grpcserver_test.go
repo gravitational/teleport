@@ -2533,11 +2533,11 @@ func TestNodesCRUD(t *testing.T) {
 
 			// GetNode should fail if node name isn't provided
 			_, err = clt.GetNode(ctx, apidefaults.Namespace, "")
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter failed: err=%v (%T)", err, trace.Unwrap(err))
 
 			// GetNode should fail if namespace isn't provided
 			_, err = clt.GetNode(ctx, "", "node1")
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter failed: err=%v (%T)", err, trace.Unwrap(err))
 		})
 	})
 

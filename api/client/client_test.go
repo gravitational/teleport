@@ -454,7 +454,7 @@ func TestListResources(t *testing.T) {
 				ResourceType: test.resourceType,
 			})
 			require.Error(t, err)
-			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 		})
 	}
 
@@ -509,7 +509,7 @@ func TestGetResources(t *testing.T) {
 				ResourceType: test.resourceType,
 			})
 			require.Error(t, err)
-			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 
 			// Test getting all resources by chunks to handle limit exceeded.
 			resources, err := GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
