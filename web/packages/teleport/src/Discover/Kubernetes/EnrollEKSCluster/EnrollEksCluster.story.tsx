@@ -50,6 +50,9 @@ const integrationName = 'test-oidc';
 
 initialize();
 const defaultIsCloud = cfg.isCloud;
+const defaultAutomaticUpgrades = cfg.automaticUpgrades;
+const defaultAutomaticUpgradesTargetVersion =
+  cfg.automaticUpgradesTargetVersion;
 
 export default {
   title: 'Teleport/Discover/Kube/EnrollEksClusters',
@@ -63,6 +66,9 @@ export default {
         // Clean up
         return () => {
           cfg.isCloud = defaultIsCloud;
+          cfg.automaticUpgrades = defaultAutomaticUpgrades;
+          cfg.automaticUpgradesTargetVersion =
+            defaultAutomaticUpgradesTargetVersion;
         };
       }, []);
       return <Story />;
