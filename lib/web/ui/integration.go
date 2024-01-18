@@ -241,8 +241,6 @@ type AWSOIDCEnrollEKSClustersRequest struct {
 	JoinToken          string   `json:"joinToken"`
 	ResourceID         string   `json:"resourceId"`
 	EnableAppDiscovery bool     `json:"enableAppDiscovery"`
-	EnableAutoUpgrades bool     `json:"enableAutoUpgrades"`
-	IsCloud            bool     `json:"isCloud"`
 }
 
 // EKSClusterEnrollmentResult contains result/error for a single cluster enrollment.

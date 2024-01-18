@@ -423,8 +423,8 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 			JoinToken:          req.JoinToken,
 			ResourceID:         req.ResourceID,
 			EnableAppDiscovery: req.EnableAppDiscovery,
-			EnableAutoUpgrades: req.EnableAutoUpgrades,
-			IsCloud:            req.IsCloud,
+			EnableAutoUpgrades: h.ClusterFeatures.GetAutomaticUpgrades(),
+			IsCloud:            h.ClusterFeatures.GetCloud(),
 		})
 
 	var data []ui.EKSClusterEnrollmentResult
