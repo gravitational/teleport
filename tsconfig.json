@@ -32,6 +32,7 @@
       "e-teleport/*": ["e/web/teleport/src/*"],
       "e-teleterm/*": ["e/web/teleterm/src/*"],
       "gen-proto-ts/*": ["gen/proto/ts/*"],
+      "access-graph": ["e/web/teleport/src/AccessGraph/Loader.tsx"],
     },
     "outDir": "dist"
   },
