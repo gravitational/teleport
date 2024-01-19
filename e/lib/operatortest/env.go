@@ -11,12 +11,20 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 )
 
 // startAuthServer starts an enterprise auth server which will be cleaned up at
 // the end of the test. It returns an admin client for the auth server.
 func startAuthServer(t *testing.T) *client.Client {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			OIDC:                    true,
+			SAML:                    true,
+			AdvancedAccessWorkflows: true,
+		},
+	})
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir: t.TempDir(),
 	})
