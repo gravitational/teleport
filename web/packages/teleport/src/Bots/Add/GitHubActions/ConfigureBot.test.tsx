@@ -99,9 +99,17 @@ describe('configureBot Component', () => {
   it('shows an error if the bot name already exists', async () => {
     const ctx = setup({ access: { ...allAccessAcl } });
     jest.spyOn(ctx.botService, 'getBot').mockResolvedValue({
-      name: 'existing-bot',
-      roles: [],
       traits: [],
+      kind: 'GitHub Actions',
+      name: 'bot-name',
+      roles: ['bot-github-actions-bot'],
+      namespace: '',
+      description: '',
+      labels: null,
+      revision: '',
+      status: '',
+      subKind: '',
+      version: '',
     });
 
     const botNameInput = screen.getByPlaceholderText('ex. github-actions-cd');

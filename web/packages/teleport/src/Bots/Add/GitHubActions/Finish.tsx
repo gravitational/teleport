@@ -31,7 +31,7 @@ import cfg from 'teleport/config';
 import { useGitHubFlow } from './useGitHubFlow';
 
 export function Finish() {
-  const { botConfig } = useGitHubFlow();
+  const { createBotRequest } = useGitHubFlow();
 
   return (
     <Flex
@@ -50,8 +50,8 @@ export function Finish() {
         Your Machine User is Added to Teleport
       </Text>
       <Text mb={3}>
-        Machine User {botConfig.botName} has been successfully added to this
-        Teleport Cluster. You can see bot-{botConfig.botName} in the Teleport
+        Machine User {createBotRequest.botName} has been successfully added to this
+        Teleport Cluster. You can see bot-{createBotRequest.botName} in the Teleport
         Users page and you can always find the sample GitHub Actions workflow
         again from the machine user's options.
       </Text>

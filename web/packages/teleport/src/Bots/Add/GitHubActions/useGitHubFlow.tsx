@@ -21,17 +21,16 @@ import { Option } from 'shared/components/Select';
 
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { BotConfig } from 'teleport/services/bot/types';
-
 import { ResourceLabel } from 'teleport/services/agents';
+import { CreateBotRequest } from 'teleport/services/bot/types';
 
 import { GitHubRepoRule, RefType } from 'teleport/services/joinToken';
 import useTeleport from 'teleport/useTeleport';
 
 type GitHubFlowContext = {
   attempt: Attempt;
-  botConfig: BotConfig;
-  setBotConfig: React.Dispatch<React.SetStateAction<BotConfig>>;
+  createBotRequest: CreateBotRequest;
+  setCreateBotRequest: React.Dispatch<React.SetStateAction<CreateBotRequest>>;
   repoRules: Rule[];
   setRepoRules: React.Dispatch<React.SetStateAction<Rule[]>>;
   addEmptyRepoRule: () => void;
@@ -54,10 +53,10 @@ export const initialBotState = {
 export function GitHubFlowProvider({
   children,
   bot = initialBotState,
-}: { bot?: BotConfig } & React.PropsWithChildren) {
+}: { bot?: CreateBotRequest } & React.PropsWithChildren) {
   const { botService, resourceService, joinTokenService } = useTeleport();
   const { attempt, run } = useAttempt();
-  const [botConfig, setBotConfig] = useState<BotConfig>(bot);
+  const [createBotRequest, setCreateBotRequest] = useState<CreateBotRequest>(bot);
   const [repoRules, setRepoRules] = useState<Rule[]>([defaultRule]);
   const [tokenName, setTokenName] = useState('');
 
@@ -75,7 +74,7 @@ export function GitHubFlowProvider({
     return run(() =>
       resourceService
         .createRole(
-          getRoleYaml(botConfig.botName, botConfig.labels, botConfig.login)
+          getRoleYaml(createBotRequest.botName, createBotRequest.labels, createBotRequest.login)
         )
         .then(() => {
           let repoHost = '';
@@ -93,7 +92,7 @@ export function GitHubFlowProvider({
           return joinTokenService
             .fetchJoinToken({
               roles: ['Bot'],
-              botName: botConfig.botName,
+              botName: createBotRequest.botName,
               method: 'github',
               enterpriseServerHost: repoHost,
               gitHub: {
@@ -113,7 +112,7 @@ export function GitHubFlowProvider({
             })
             .then(token => {
               setTokenName(token.id);
-              return botService.createBot(botConfig);
+              return botService.createBot(createBotRequest);
             });
         })
     );
@@ -121,8 +120,8 @@ export function GitHubFlowProvider({
 
   const value: GitHubFlowContext = {
     attempt,
-    botConfig,
-    setBotConfig,
+    createBotRequest,
+    setCreateBotRequest,
     repoRules,
     setRepoRules,
     addEmptyRepoRule,

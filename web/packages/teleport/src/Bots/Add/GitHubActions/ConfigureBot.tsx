@@ -47,7 +47,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
   const [missingLabels, setMissingLabels] = useState(false);
   const [alreadyExistErr, setAlreadyExistErr] = useState(false);
 
-  const { botConfig, setBotConfig } = useGitHubFlow();
+  const { createBotRequest, setCreateBotRequest } = useGitHubFlow();
   const { attempt, run } = useAttempt();
   const isLoading = attempt.status === 'processing';
 
@@ -62,14 +62,14 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
       return;
     }
 
-    if (botConfig.labels.length < 1 || botConfig.labels[0].name === '') {
+    if (createBotRequest.labels.length < 1 || createBotRequest.labels[0].name === '') {
       setMissingLabels(true);
       return;
     }
 
     // check if a bot with that name already exist
     run(async () => {
-      const bot = await botService.getBot(botConfig.botName);
+      const bot = await botService.getBot(createBotRequest.botName);
       if (bot === null) {
         nextStep();
         return;
@@ -119,9 +119,9 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                 </Text>
               )}
               <LabelsInput
-                labels={botConfig.labels}
+                labels={createBotRequest.labels}
                 setLabels={labels =>
-                  setBotConfig({ ...botConfig, labels: labels })
+                  setCreateBotRequest({ ...createBotRequest, labels: labels })
                 }
                 disableBtns={false} // TODO
               />
@@ -140,9 +140,9 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               <FieldInput
                 mb={3}
                 placeholder="ex. ubuntu"
-                value={botConfig.login}
+                value={createBotRequest.login}
                 onChange={e =>
-                  setBotConfig({ ...botConfig, login: e.target.value })
+                  setCreateBotRequest({ ...createBotRequest, login: e.target.value })
                 }
               />
             </FormItem>
@@ -153,9 +153,9 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                 rule={requiredField('Name for Machine User is required')}
                 mb={3}
                 placeholder="ex. github-actions-cd"
-                value={botConfig.botName}
+                value={createBotRequest.botName}
                 onChange={e =>
-                  setBotConfig({ ...botConfig, botName: e.target.value })
+                  setCreateBotRequest({ ...createBotRequest, botName: e.target.value })
                 }
               />
             </FormItem>

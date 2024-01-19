@@ -320,7 +320,7 @@ const cfg = {
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
 
-    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot',
+    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -1005,9 +1005,8 @@ const cfg = {
     );
   },
 
-  getBotsUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botsPath, { clusterId });
+  getBotsUrl(clusterId: string, name: string = null) {
+    return generatePath(cfg.api.botsPath, { clusterId, name });
   },
 
   init(backendConfig = {}) {

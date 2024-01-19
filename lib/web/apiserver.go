@@ -931,6 +931,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// GET Machine ID bots
 	h.GET("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.listBots))
+	// GET Machine ID bot by name
+	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
 	// Create Machine ID bots
 	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
 }
