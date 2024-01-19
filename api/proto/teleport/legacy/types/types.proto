@@ -168,7 +168,10 @@ message ResourceHeader {
   string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the API version used to create the resource. It must be
+  // specified. Based on this version, Teleport will apply different defaults on
+  // resource creation or deletion. It must be an integer prefixed by "v".
+  // For example: `v1`
   string Version = 3 [(gogoproto.jsontag) = "version,omitempty"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -249,7 +252,8 @@ message DatabaseV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is the resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is the database metadata.
   Metadata Metadata = 4 [
@@ -902,7 +906,8 @@ message AppV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is the resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is the app resource metadata.
   Metadata Metadata = 4 [
@@ -1161,7 +1166,8 @@ message ProvisionTokenV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1305,7 +1311,7 @@ message ProvisionTokenSpecV2GitHub {
   // be specified if `enterprise_server_host` is specified.
   //
   // See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
-  // for more information about customised issuer values.
+  // for more information about customized issuer values.
   string EnterpriseSlug = 3 [(gogoproto.jsontag) = "enterprise_slug,omitempty"];
 }
 
@@ -1651,7 +1657,8 @@ message ClusterNetworkingConfigV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1770,7 +1777,8 @@ message SessionRecordingConfigV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1808,7 +1816,8 @@ message AuthPreferenceV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -2519,7 +2528,8 @@ message RoleV6 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -3156,7 +3166,8 @@ message UserV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -4038,7 +4049,8 @@ message OIDCConnectorV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4202,7 +4214,8 @@ message SAMLConnectorV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4357,7 +4370,8 @@ message GithubConnectorV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4657,7 +4671,8 @@ message TrustedClusterV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4709,7 +4724,8 @@ message LockV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [

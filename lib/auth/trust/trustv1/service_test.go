@@ -63,10 +63,15 @@ func newTestPack(t *testing.T) *testPack {
 }
 
 type fakeAuthorizer struct {
-	checker *fakeChecker
+	authzCtx *authz.Context
+	checker  *fakeChecker
 }
 
 func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
+	if f.authzCtx != nil {
+		return f.authzCtx, nil
+	}
+
 	return &authz.Context{
 		Checker:               f.checker,
 		AdminActionAuthorized: true,
@@ -74,11 +79,16 @@ func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 }
 
 type fakeAuthServer struct {
+	clusterName          types.ClusterName
 	generateHostCertData map[string]struct {
 		cert []byte
 		err  error
 	}
 	rotateCertAuthorityData map[string]error
+}
+
+func (f *fakeAuthServer) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+	return f.clusterName, nil
 }
 
 func (f *fakeAuthServer) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
@@ -809,6 +819,129 @@ func TestRotateCertAuthority(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestRotateExternalCertAuthority(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+	trust := local.NewCAService(p.mem)
+
+	localCA := newCertAuthority(t, types.HostCA, "local").(*types.CertAuthorityV2)
+	externalCA := newCertAuthority(t, types.HostCA, "external").(*types.CertAuthorityV2)
+	require.NoError(t, trust.UpsertCertAuthority(ctx, externalCA))
+
+	authorizedCtx := &authz.Context{
+		UnmappedIdentity: authz.BuiltinRole{},
+		Checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindCertAuthority, types.VerbRotate}: true,
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		authzCtx    *authz.Context
+		ca          *types.CertAuthorityV2
+		assertError require.ErrorAssertionFunc
+	}{
+		{
+			name: "NOK unauthorized user",
+			authzCtx: &authz.Context{
+				UnmappedIdentity: authz.LocalUser{},
+				Checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbRotate}: true,
+					},
+				},
+			},
+			ca: externalCA,
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+		}, {
+			name: "NOK unauthorized service",
+			authzCtx: &authz.Context{
+				UnmappedIdentity: authz.BuiltinRole{},
+				Checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbRotate}: false,
+					},
+				},
+			},
+			ca: externalCA,
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+		}, {
+			name:     "NOK no ca",
+			authzCtx: authorizedCtx,
+			ca:       nil,
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		}, {
+			name:     "NOK invalid ca",
+			authzCtx: authorizedCtx,
+			ca:       &types.CertAuthorityV2{},
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		}, {
+			name:     "NOK rotate local ca",
+			authzCtx: authorizedCtx,
+			ca:       localCA,
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		}, {
+			name:     "NOK nonexistent ca",
+			authzCtx: authorizedCtx,
+			ca:       newCertAuthority(t, types.HostCA, "na").(*types.CertAuthorityV2),
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		}, {
+			name:        "OK rotate external ca",
+			authzCtx:    authorizedCtx,
+			ca:          newCertAuthority(t, types.HostCA, "external").(*types.CertAuthorityV2),
+			assertError: require.NoError,
+		}, {
+			name:        "OK equivalent external ca",
+			authzCtx:    authorizedCtx,
+			ca:          externalCA,
+			assertError: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &ServiceConfig{
+				Cache:   trust,
+				Backend: trust,
+				Authorizer: &fakeAuthorizer{
+					authzCtx: test.authzCtx,
+				},
+				AuthServer: &fakeAuthServer{
+					clusterName: &types.ClusterNameV2{
+						Spec: types.ClusterNameSpecV2{
+							ClusterName: "local",
+						},
+					},
+				},
+			}
+
+			service, err := NewService(cfg)
+			require.NoError(t, err)
+
+			_, err = service.RotateExternalCertAuthority(ctx, &trustpb.RotateExternalCertAuthorityRequest{
+				CertAuthority: test.ca,
+			})
+			test.assertError(t, err, "RotateExternalCertAuthority error mismatch")
 		})
 	}
 }

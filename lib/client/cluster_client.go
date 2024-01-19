@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -313,6 +314,9 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 			ContextUser: &proto.ContextUser{},
 		},
 		MFARequiredCheck: mfaRequiredReq,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

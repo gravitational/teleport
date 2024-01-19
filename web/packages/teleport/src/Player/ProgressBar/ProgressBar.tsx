@@ -189,7 +189,7 @@ const StyledProgessBar = styled.div`
   .grv-slider .handle {
     background-color: ${props =>
       props.disabled
-        ? props.theme.colors.text.disabled
+        ? props.theme.colors.text.main
         : props.theme.colors.success.main};
 
     border-radius: 200px;

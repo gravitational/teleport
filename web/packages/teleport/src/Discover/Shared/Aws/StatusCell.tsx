@@ -1,9 +1,6 @@
-//go:build !bpf || 386
-// +build !bpf 386
-
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,11 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package restrictedsession
+import { Flex } from 'design';
+import React from 'react';
 
-import "github.com/gravitational/teleport/lib/service/servicecfg"
+import { DisableableCell as Cell } from 'teleport/Discover/Shared';
 
-// New returns a new NOP service. Note this function does nothing.
-func New(config *servicecfg.RestrictedSessionConfig, wc RestrictionsWatcherClient) (Manager, error) {
-	return &NOP{}, nil
-}
+import { StatusLight, ItemStatus } from '../StatusLight';
+
+export const StatusCell = ({
+  status,
+  statusText,
+  disabled,
+  disabledText,
+}: {
+  status: ItemStatus;
+  statusText: string;
+  disabled: boolean;
+  disabledText: string;
+}) => {
+  return (
+    <Cell disabled={disabled} disabledText={disabledText}>
+      <Flex alignItems="baseline">
+        <StatusLight status={status} />
+        {statusText}
+      </Flex>
+    </Cell>
+  );
+};

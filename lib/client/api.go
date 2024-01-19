@@ -58,6 +58,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -597,7 +598,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	for _, o := range opts {
 		o(&opt)
 	}
-	log.Debugf("Activating relogin on %v.", fnErr)
+	log.Debugf("Activating relogin on error=%q (type=%T)", fnErr, trace.Unwrap(fnErr))
 
 	if keys.IsPrivateKeyPolicyError(fnErr) {
 		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
@@ -668,11 +669,26 @@ func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
 	}
 }
 
+// IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
-	// Assume that failed handshake is a result of expired credentials.
-	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) ||
-		trace.IsBadParameter(err) || trace.IsTrustError(err) ||
-		keys.IsPrivateKeyPolicyError(err) || IsNoCredentialsError(err)
+	// Ignore any failures resulting from RPCs.
+	// These were all materialized as status.Error here before
+	// https://github.com/gravitational/teleport/pull/30578.
+	var remoteErr *interceptors.RemoteError
+	if errors.As(err, &remoteErr) {
+		return false
+	}
+
+	return keys.IsPrivateKeyPolicyError(err) ||
+		// TODO(codingllama): Retrying BadParameter is a terrible idea.
+		//  We should fix this and remove the RemoteError condition above as well.
+		//  Any retriable error should be explicitly marked as such.
+		trace.IsBadParameter(err) ||
+		trace.IsTrustError(err) ||
+		utils.IsCertExpiredError(err) ||
+		// Assume that failed handshake is a result of expired credentials.
+		utils.IsHandshakeFailedError(err) ||
+		IsNoCredentialsError(err)
 }
 
 // GetProfile gets the profile for the specified proxy address, or
@@ -5235,6 +5251,9 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	chal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 		},
 	})
 	if err != nil {

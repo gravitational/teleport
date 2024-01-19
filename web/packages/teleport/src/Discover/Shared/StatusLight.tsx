@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,26 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package restrictedsession
+import { Box } from 'design';
+import styled from 'styled-components';
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
-
-func FuzzParseIPSpec(f *testing.F) {
-	f.Add("127.0.0.111")
-	f.Add("127.0.0.111/8")
-	f.Add("192.168.0.0/16")
-	f.Add("2001:0db8:85a3:0000:0000:8a2e:0370:7334")
-	f.Add("2001:0db8:85a3:0000:0000:8a2e:0370:7334/64")
-	f.Add("2001:db8::ff00:42:8329")
-	f.Add("2001:db8::ff00:42:8329/48")
-
-	f.Fuzz(func(t *testing.T, cidr string) {
-		require.NotPanics(t, func() {
-			ParseIPSpec(cidr)
-		})
-	})
+export enum ItemStatus {
+  Success,
+  Warning,
+  Error,
 }
+
+export const StatusLight = styled(Box)`
+  border-radius: 50%;
+  margin-right: ${props => props.theme.space[2]}px;
+  width: 8px;
+  height: 8px;
+  background-color: ${({ status, theme }) => {
+    if (status === ItemStatus.Success) {
+      return theme.colors.success.main;
+    }
+    if (status === ItemStatus.Error) {
+      return theme.colors.error.main;
+    }
+    if (status === ItemStatus.Warning) {
+      return theme.colors.warning;
+    }
+    return theme.colors.grey[300]; // Unknown
+  }};
+`;
