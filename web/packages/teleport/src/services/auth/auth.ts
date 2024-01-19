@@ -274,9 +274,8 @@ const auth = {
     // the create mfa challenge endpoint below supports
     // MFARequired requests without the extra roundtrip.
     if (isMFARequiredRequest) {
-      let isMFARequired: IsMfaRequiredResponse;
       try {
-        isMFARequired = await checkMfaRequired(isMFARequiredRequest);
+        const isMFARequired = await checkMfaRequired(isMFARequiredRequest);
         if (!isMFARequired.required) {
           return;
         }
