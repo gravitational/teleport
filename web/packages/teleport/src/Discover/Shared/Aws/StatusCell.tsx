@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { DisableableCell } from './DisableableCell';
-export { Labels, labelMatcher } from './Labels';
-export { RadioCell } from './RadioCell';
-export { StatusCell } from './StatusCell';
+import { Flex } from 'design';
+import React from 'react';
+
+import { DisableableCell as Cell } from 'teleport/Discover/Shared';
+
+import { StatusLight, ItemStatus } from '../StatusLight';
+
+export const StatusCell = ({
+  status,
+  statusText,
+  disabled,
+  disabledText,
+}: {
+  status: ItemStatus;
+  statusText: string;
+  disabled: boolean;
+  disabledText: string;
+}) => {
+  return (
+    <Cell disabled={disabled} disabledText={disabledText}>
+      <Flex alignItems="baseline">
+        <StatusLight status={status} />
+        {statusText}
+      </Flex>
+    </Cell>
+  );
+};
