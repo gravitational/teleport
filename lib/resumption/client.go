@@ -162,26 +162,20 @@ func WrapSSHClientConn(ctx context.Context, nc net.Conn, redial redialFunc) (net
 	resumableConn := newResumableConn(conn.LocalAddr(), conn.RemoteAddr())
 	// runClientResumable expects a brand new, locked *Conn
 	resumableConn.mu.Lock()
-	go runClientResumable(ctx, resumableConn, conn, token, hostID, redial)
+	go runClientResumableUnlocking(ctx, resumableConn, conn, token, hostID, redial)
 
 	return resumableConn, nil
 }
 
-// runClientResumable expects firstConn to be ready to be passed to
+// runClientResumableUnlocking expects firstConn to be ready to be passed to
 // runResumeV1Unlocking, and will drive resumableConn until the connection is
 // impossible to resume further or connCtx is done.
-func runClientResumable(ctx context.Context, resumableConn *Conn, firstConn net.Conn, token resumptionToken, hostID string, redial redialFunc) {
+func runClientResumableUnlocking(ctx context.Context, resumableConn *Conn, firstConn net.Conn, token resumptionToken, hostID string, redial redialFunc) {
 	defer resumableConn.Close()
 
 	// detached is held open by the current underlying connection
-	detached := make(chan struct{})
-	go func(done chan struct{}) {
-		defer close(done)
-		logrus.Debug("Attaching new resumable connection.")
-		const isFirstConn = true
-		err := runResumeV1Unlocking(resumableConn, firstConn, isFirstConn)
-		logrus.Debugf("Handling new resumable connection: %v", err.Error())
-	}(detached)
+	const isFirstConn = true
+	detached := goAttachResumableUnlocking(resumableConn, firstConn, isFirstConn)
 
 	reconnectTicker := time.NewTicker(replacementInterval)
 	defer reconnectTicker.Stop()
@@ -210,15 +204,8 @@ func runClientResumable(ctx context.Context, resumableConn *Conn, firstConn net.
 				return
 			}
 
-			detached = make(chan struct{})
-			go func(done chan struct{}) {
-				defer close(done)
-				logrus.Debug("Attaching existing resumable connection.")
-				const notFirstConn = false
-				resumableConn.mu.Lock()
-				err := runResumeV1Unlocking(resumableConn, newConn, notFirstConn)
-				logrus.Debugf("Handling existing resumable connection: %v", err.Error())
-			}(detached)
+			const isNotFirstConn = false
+			detached = goAttachResumableUnlocking(resumableConn, newConn, isNotFirstConn)
 
 			continue
 
@@ -260,15 +247,9 @@ func runClientResumable(ctx context.Context, resumableConn *Conn, firstConn net.
 				return
 			}
 
-			detached = make(chan struct{})
-			go func(done chan struct{}) {
-				defer close(done)
-				logrus.Debug("Attaching existing resumable connection.")
-				resumableConn.mu.Lock()
-				const notFirstConn = false
-				err := runResumeV1Unlocking(resumableConn, newConn, notFirstConn)
-				logrus.Debugf("Handling existing resumable connection: %v", err.Error())
-			}(detached)
+			resumableConn.mu.Lock()
+			const isNotFirstConn = false
+			detached = goAttachResumableUnlocking(resumableConn, newConn, isNotFirstConn)
 
 			break
 		}
@@ -279,6 +260,32 @@ func runClientResumable(ctx context.Context, resumableConn *Conn, firstConn net.
 		default:
 		}
 	}
+}
+
+// goAttachResumableUnlocking runs the resumable protocol over nc in a
+// background goroutine, with some client-friendly logging, returning a channel
+// that gets closed at the end of the goroutine. resumableConn is expected to be
+// locked, like runResumeV1Unlocking.
+func goAttachResumableUnlocking(resumableConn *Conn, nc net.Conn, firstConn bool) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		if firstConn {
+			logrus.Debug("Attaching new resumable connection.")
+		} else {
+			logrus.Debug("Attaching existing resumable connection.")
+		}
+
+		err := runResumeV1Unlocking(resumableConn, nc, firstConn)
+
+		if firstConn {
+			logrus.Debugf("Handling new resumable connection: %v", err.Error())
+		} else {
+			logrus.Debugf("Handling existing resumable connection: %v", err.Error())
+		}
+	}()
+	return done
 }
 
 // dialResumable attempts to resume a connection with a given token. A return
