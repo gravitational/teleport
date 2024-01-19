@@ -4,17 +4,27 @@ description: How to map user attributes to custom SAML response
 h1: SAML Attribute Mapping
 ---
 
-Attribute mapping configures Teleport SAML Identity Provider to assert custom user attributes in SAML response
+### Prerequisites
+
+(!docs/pages/includes/no-oss-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- User with permission to create Service Provider resource. The preset `editor` role has this permission.
+
+## Concepts
+Attribute mapping configures Teleport SAML Identity Provider to assert custom user attributes in SAML response.
 The Teleport SAML IdP supports three configurable fields for attribute mapping:
 - `name`: Name of the outgoing attribute. Required. Name should be unique across attribute mapping.
-- `value`: Value defined using a predicate expression, which can reference Teleport usernames, roles or traits. Required.
+- `value`: Value defined using a [predicate expression](../../reference/predicate-language.mdx), which can reference
+Teleport usernames, roles or traits. Required.
 - `name_format`: SAML attribute name format. Optional. The following formats are supported:
     - `unspecified`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified`. Used as a default value.
     - `uri`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:uri`.
     - `basic`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:basic`.
 
-The values can be configured with `saml_idp_service_provider` spec.
-```
+Attribute mapping can be configured when adding a SAML application in Teleport web UI, or with `saml_idp_service_provider`
+resource spec created with `tctl create` or via API.
+```yaml
 kind: saml_idp_service_provider
 metadata:
   name: example.com
@@ -38,28 +48,29 @@ Attribute values are authored using predicate expressions. During an SSO request
 Service Provider metadata and passed to predicate evaluator for evaluation with the authenticated user context.
 The resulting values are asserted in the SAML response under the requested attribute name.
 
-Given a correct and supported predicate expression, attributes will be mapped as long as the requested attributes are present in Teleport.
+Given a correct and supported predicate expression, attributes will be mapped as long as the requested attributes are present
+in Teleport.
 Attribute mapping that points to a non-existent value will not be included in SAML assertion.
 
 ## Evaluation context
 
 The following user attributes are available for mapping between Teleport IdP and Service Providers:
 
-| Attributes | Description                   | Syntax                                                       |
-| ---------- | ------------------------------| ------------------------------------------------------------ |
-| Username   | User name.                    | `uid` or `user.metadata.name`.                               |
-| Roles      | User roles.                   | `eduPersonAffiliation` or `user.spec.roles`.                 |
-| Traits     | All values under user traits. | `user.spec.traits.firstname`, `user.spec.traits.groups` etc. |
+| Attributes | Syntax                                                       |
+| ---------- | ------------------------------------------------------------ |
+| Username   | `uid` or `user.metadata.name`.                               |
+| Roles      | `eduPersonAffiliation` or `user.spec.roles`.                 |
+| Traits     | `user.spec.traits.firstname`, `user.spec.traits.groups` etc. |
 
 
 ## Predicate expressions
 
-Predicate expressions for attribute mapping are evaluated against user attributes that can be accessed using evaluation context listed above.
+Predicate expressions for attribute mapping are evaluated against user attributes that can be accessed using
+evaluation context listed above.
 
-Expression syntax are similar to how expressions are used in [Login Rules](../login-rules/reference.mdx). But not all of the
-functions and methods are available for attribute mapping. The supported functions and methods are listed below, along with
-the usage syntax and it's result, evaluated against the following reference user spec file:
-```
+The supported functions and methods are listed below, along with the usage syntax and it's result, evaluated 
+against the following reference user spec file:
+```yaml
 # reference user spec file
 kind: user
 metadata:
@@ -70,7 +81,6 @@ spec:
     - editor
     - dev-ssh
   traits:
-    aws_role_arns: null
     firstname:
       - foo
     lastname:
@@ -153,12 +163,6 @@ Expression | Result
 
 
 ## Testing attribute mapping
-### Prerequisites
-
-(!docs/pages/includes/no-oss-prereqs-tabs.mdx!)
-
-- (!docs/pages/includes/tctl.mdx!)
-- User with permission to create Service Provider resource. The preset `editor` role has this permission.
 
 ### `test-attribute-mapping` command
 
