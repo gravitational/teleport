@@ -154,12 +154,12 @@ const cfg = {
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
 
+    downloadCenter: '/web/downloads',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
     githubHandler: '/v1/webapi/github/*',
-
-    downloadCenter: '/web/downloads',
   },
 
   api: {
@@ -320,7 +320,7 @@ const cfg = {
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
 
-    botsPath: '/v1/webapi/bots',
+    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {

@@ -26,9 +26,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/smithy-go/middleware"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -159,6 +159,7 @@ func TestListEKSClusters(t *testing.T) {
 				{
 					Name:   "EKS",
 					Region: region,
+					Arn:    baseArn,
 					Labels: map[string]string{"label": "value"},
 					JoinLabels: map[string]string{
 						"account-id":         "880713328506",
@@ -190,6 +191,7 @@ func TestListEKSClusters(t *testing.T) {
 				{
 					Name:   "EKS",
 					Region: region,
+					Arn:    baseArn,
 					Labels: map[string]string{"label": "value"},
 					JoinLabels: map[string]string{
 						"account-id":         "880713328506",
@@ -201,6 +203,7 @@ func TestListEKSClusters(t *testing.T) {
 				{
 					Name:   "EKS2",
 					Region: region,
+					Arn:    baseArn + "2",
 					Labels: map[string]string{"label2": "value2"},
 					JoinLabels: map[string]string{
 						"account-id":         "880713328506",
@@ -232,6 +235,7 @@ func TestListEKSClusters(t *testing.T) {
 				{
 					Name:   "EKS",
 					Region: region,
+					Arn:    baseArn,
 					Labels: map[string]string{"label": "value"},
 					JoinLabels: map[string]string{
 						"account-id":         "880713328506",

@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -73,11 +74,13 @@ func TestGRPCErrorWrapping(t *testing.T) {
 
 	t.Run("unary interceptor", func(t *testing.T) {
 		resp, err := client.Ping(context.Background(), &proto.PingRequest{})
-		require.Nil(t, resp)
-		require.True(t, trace.IsNotFound(err))
-		require.Equal(t, "not found", err.Error())
+		assert.Nil(t, resp, "resp is non-nil")
+		assert.True(t, trace.IsNotFound(err), "trace.IsNotFound failed: err=%v (%T)", err, trace.Unwrap(err))
+		assert.Equal(t, "not found", err.Error())
 		_, ok := err.(*trace.TraceErr)
-		require.False(t, ok, "client error should not include traces originating in the middleware")
+		assert.False(t, ok, "client error should not include traces originating in the middleware")
+		var remoteErr *interceptors.RemoteError
+		assert.ErrorAs(t, err, &remoteErr, "Remote error is not marked as an interceptors.RemoteError")
 	})
 
 	t.Run("stream interceptor", func(t *testing.T) {
@@ -97,9 +100,12 @@ func TestGRPCErrorWrapping(t *testing.T) {
 		}
 
 		_, err = stream.Recv()
-		require.True(t, trace.IsAlreadyExists(err))
-		require.Equal(t, "already exists", err.Error())
+		assert.True(t, trace.IsAlreadyExists(err), "trace.IsAlreadyExists failed: err=%v (%T)", err, trace.Unwrap(err))
+		assert.Equal(t, "already exists", err.Error())
 		_, ok := err.(*trace.TraceErr)
-		require.False(t, ok, "client error should not include traces originating in the middleware")
+		assert.False(t, ok, "client error should not include traces originating in the middleware")
+		assert.True(t, trace.IsAlreadyExists(err), "trace.IsAlreadyExists failed: err=%v (%T)", err, trace.Unwrap(err))
+		var remoteErr *interceptors.RemoteError
+		assert.ErrorAs(t, err, &remoteErr, "Remote error is not marked as an interceptors.RemoteError")
 	})
 }

@@ -48,14 +48,14 @@ type CreateBotRequest struct {
 }
 
 // listBots returns a paginated list of bots for a given cluster site
-func (h *Handler) listBots(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	bots, err := clt.BotServiceClient().ListBots(r.Context(), &machineidv1.ListBotsRequest{
-		// todo (mberg) re-evaluate once we agree on a pagination approach
+		// todo (michellescripts) re-evaluate once we agree on a pagination approach
 		PageSize:  int32(1000),
 		PageToken: "",
 	})

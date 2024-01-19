@@ -84,6 +84,22 @@ provider "teleport" {
 }
 ```
 
+## Provider resource versioning
+
+Teleport resource APIs are versioned. Based on the provided version, Teleport will
+set different defaults. The Terraform provider might not see the changes caused
+by a resource version increase as version is used to set defaults on creation.
+However those changes will take effect as soon as Terraform will need to update
+the resource for any other reason.
+
+Since Teleport 15, you MUST set the version on each resource. This is not
+enforced on previous Teleport provider versions but we highly recommend doing
+so. If it's not specified, Terraform will pick the latest one by default. When
+this happens, you will face unexpected changes when doing major Terraform
+provider upgrades, potentially introducing new resource versions
+and changing the behaviour of your existing TF code.
+
+
 ## teleport_access_list
 
 |  Name  |  Type  | Required |                  Description                   |
@@ -95,12 +111,12 @@ provider "teleport" {
 
 header is the header for the resource.
 
-|   Name   |  Type  | Required |                            Description                             |
-|----------|--------|----------|--------------------------------------------------------------------|
-| kind     | string |          | kind is a resource kind.                                           |
-| metadata | object |          | metadata is resource metadata.                                     |
-| sub_kind | string |          | sub_kind is an optional resource sub kind, used in some resources. |
-| version  | string |          | version is version.                                                |
+|   Name   |  Type  | Required |                                                                                                              Description                                                                                                              |
+|----------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| kind     | string |          | kind is a resource kind.                                                                                                                                                                                                              |
+| metadata | object |          | metadata is resource metadata.                                                                                                                                                                                                        |
+| sub_kind | string |          | sub_kind is an optional resource sub kind, used in some resources.                                                                                                                                                                    |
+| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It ust be an integer prefixed by "v". For example: `v1` |
 
 #### header.metadata
 
@@ -119,24 +135,45 @@ metadata is resource metadata.
 
 spec is the specification for the access list.
 
-|        Name         |  Type  | Required |                                                                                                                 Description                                                                                                                  |
-|---------------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| audit               | object |          | audit describes the frequency that this access list must be audited.                                                                                                                                                                         |
-| description         | string |          | description is an optional plaintext description of the access list.                                                                                                                                                                         |
-| grants              | object | *        | grants describes the access granted by membership to this access list.                                                                                                                                                                       |
-| membership_requires | object | *        | membership_requires describes the requirements for a user to be a member of the access list. For a membership to an access list to be effective, the user must meet the requirements of Membership_requires and must be in the members list. |
-| owners              | object | *        | owners is a list of owners of the access list.                                                                                                                                                                                               |
-| ownership_requires  | object | *        | ownership_requires describes the requirements for a user to be an owner of the access list. For ownership of an access list to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.       |
-| title               | string |          | title is a plaintext short description of the access list.                                                                                                                                                                                   |
+|        Name         |  Type  | Required |                                                                                                                                                                                         Description                                                                                                                                                                                         |
+|---------------------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| audit               | object |          | audit describes the frequency that this access list must be audited.                                                                                                                                                                                                                                                                                                                        |
+| description         | string |          | description is an optional plaintext description of the access list.                                                                                                                                                                                                                                                                                                                        |
+| grants              | object | *        | grants describes the access granted by membership to this access list.                                                                                                                                                                                                                                                                                                                      |
+| membership          | string |          | membership defines how list membership is applied. There are two possible values: `explicit` (default): To be considered ag member of the access list, a user must both meet the `membership_requires` conditions AND be explicitly added to the list. `implicit`: Any user meeting the `membership_requires` conditions will automatically be considered a member of this list.             |
+| membership_requires | object |          | membership_requires describes the requirements for a user to be a member of the access list. For a membership to an access list to be effective, the user must meet the requirements of Membership_requires and must be in the members list.                                                                                                                                                |
+| owner_grants        | object |          | owner_grants describes the access granted by owners to this access list.                                                                                                                                                                                                                                                                                                                    |
+| owners              | object | *        | owners is a list of owners of the access list.                                                                                                                                                                                                                                                                                                                                              |
+| ownership           | string |          | ownership defines how list ownership of this list is determined. There are two possible values: `explicit` (default): To be considered an owner of the access list, a user must both meet the `ownership_requires` conditions AND be explicitly added to the list. `implicit`: Any user meeting the `ownership_requires` conditions will automatically be considered an owner of this list. |
+| ownership_requires  | object |          | ownership_requires describes the requirements for a user to be an owner of the access list. For ownership of an access list to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.                                                                                                                                                      |
+| title               | string |          | title is a plaintext short description of the access list.                                                                                                                                                                                                                                                                                                                                  |
 
 #### spec.audit
 
 audit describes the frequency that this access list must be audited.
 
-|      Name       |     Type     | Required | Description |
-|-----------------|--------------|----------|-------------|
-| frequency       | duration     |          |             |
-| next_audit_date | RFC3339 time |          |             |
+|      Name       |     Type     | Required |                       Description                       |
+|-----------------|--------------|----------|---------------------------------------------------------|
+| next_audit_date | RFC3339 time |          |                                                         |
+| notifications   | object       |          | notifications is the configuration for notifying users. |
+| recurrence      | object       |          | recurrence is the recurrence definition                 |
+
+##### spec.audit.notifications
+
+notifications is the configuration for notifying users.
+
+| Name  |   Type   | Required | Description |
+|-------|----------|----------|-------------|
+| start | duration |          |             |
+
+##### spec.audit.recurrence
+
+recurrence is the recurrence definition
+
+|     Name     |  Type  | Required |                             Description                             |
+|--------------|--------|----------|---------------------------------------------------------------------|
+| day_of_month | number |          | day_of_month is the day of month that reviews will be scheduled on. |
+| frequency    | number |          | frequency is the frequency of reviews.                              |
 
 #### spec.grants
 
@@ -168,6 +205,24 @@ membership_requires describes the requirements for a user to be a member of the 
 ##### spec.membership_requires.traits
 
 traits are the traits that must be present for the user to obtain access.
+
+|  Name  |       Type       | Required |             Description             |
+|--------|------------------|----------|-------------------------------------|
+| key    | string           |          | key is the name of the trait.       |
+| values | array of strings |          | values is the list of trait values. |
+
+#### spec.owner_grants
+
+owner_grants describes the access granted by owners to this access list.
+
+|  Name  |       Type       | Required |                                     Description                                     |
+|--------|------------------|----------|-------------------------------------------------------------------------------------|
+| roles  | array of strings |          | roles are the roles that are granted to users who are members of the access list.   |
+| traits | object           |          | traits are the traits that are granted to users who are members of the access list. |
+
+##### spec.owner_grants.traits
+
+traits are the traits that are granted to users who are members of the access list.
 
 |  Name  |       Type       | Required |             Description             |
 |--------|------------------|----------|-------------------------------------|
@@ -245,12 +300,12 @@ resource "teleport_access_list" "crane-operation" {
 
 ## teleport_app
 
-|   Name   |  Type  | Required |               Description                |
-|----------|--------|----------|------------------------------------------|
-| metadata | object |          | Metadata is the app resource metadata.   |
-| spec     | object |          | Spec is the app resource spec.           |
-| sub_kind | string |          | SubKind is an optional resource subkind. |
-| version  | string |          | Version is the resource version.         |
+|   Name   |  Type  | Required |                                    Description                                    |
+|----------|--------|----------|-----------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is the app resource metadata.                                            |
+| spec     | object |          | Spec is the app resource spec.                                                    |
+| sub_kind | string |          | SubKind is an optional resource subkind.                                          |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are:`v3`. |
 
 ### metadata
 
@@ -339,12 +394,12 @@ resource "teleport_app" "example" {
 
 ## teleport_auth_preference
 
-|   Name   |  Type  | Required |                           Description                            |
-|----------|--------|----------|------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                    |
-| spec     | object | *        | Spec is an AuthPreference specification                          |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
-| version  | string |          | Version is a resource version                                    |
+|   Name   |  Type  | Required |                                    Description                                     |
+|----------|--------|----------|------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                      |
+| spec     | object | *        | Spec is an AuthPreference specification                                            |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                   |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v2`. |
 
 ### metadata
 
@@ -375,6 +430,7 @@ Spec is an AuthPreference specification
 | locking_mode            | string   |          | LockingMode is the cluster-wide locking mode default.                                                                                  |
 | message_of_the_day      | string   |          |                                                                                                                                        |
 | okta                    | object   |          | Okta is a set of options related to the Okta service in Teleport. Requires Teleport Enterprise.                                        |
+| piv_slot                | string   |          | PIVSlot is a PIV slot that Teleport clients should use instead of the default based on private key policy. For example, "9a" or "9e".  |
 | require_session_mfa     | number   |          | RequireMFAType is the type of MFA requirement enforced for this cluster: 0:Off, 1:Session, 2:SessionAndHardwareKey, 3:HardwareKeyTouch |
 | second_factor           | string   |          | SecondFactor is the type of second factor.                                                                                             |
 | type                    | string   |          | Type is the type of authentication.                                                                                                    |
@@ -389,7 +445,7 @@ DeviceTrust holds settings related to trusted device verification. Requires Tele
 |--------------------|------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | auto_enroll        | bool             |          | Enable device auto-enroll. Auto-enroll lets any user issue a device enrollment token for a known device that is not already enrolled. `tsh` takes advantage of auto-enroll to automatically enroll devices on user login, when appropriate. The effective cluster Mode still applies: AutoEnroll=true is meaningless if Mode="off".                                                                                                                      |
 | ekcert_allowed_cas | array of strings |          | Allow list of EKCert CAs in PEM format. If present, only TPM devices that present an EKCert that is signed by a CA specified here may be enrolled (existing enrollments are unchanged).  If not present, then the CA of TPM EKCerts will not be checked during enrollment, this allows any device to enroll.                                                                                                                                             |
-| mode               | string           |          | Mode of verification for trusted devices.  The following modes are supported:  - "off": disables both device authentication and authorization. - "optional": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - "required": enforces the presence of device extensions for sensitive endpoints.  Mode is always "off" for Teleport Community Edition. Defaults to "optional" for Enterprise. |
+| mode               | string           |          | Mode of verification for trusted devices.  The following modes are supported:  - "off": disables both device authentication and authorization. - "optional": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - "required": enforces the presence of device extensions for sensitive endpoints.  Mode is always "off" for OSS. Defaults to "optional" for Enterprise. |
 
 #### spec.idp
 
@@ -511,13 +567,13 @@ resource "teleport_bot" "example" {
 
 ## teleport_cluster_maintenance_config
 
-|   Name   |  Type  | Required |                                                        Description                                                         |
-|----------|--------|----------|----------------------------------------------------------------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                                                                              |
-| nonce    | number |          | Nonce is used to protect against concurrent modification of the maintenance window. Clients should treat nonces as opaque. |
-| spec     | object |          |                                                                                                                            |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                                                           |
-| version  | string |          | Version is version                                                                                                         |
+|   Name   |  Type  | Required |                                                                                                              Description                                                                                                              |
+|----------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                                                                                                                                                                         |
+| nonce    | number |          | Nonce is used to protect against concurrent modification of the maintenance window. Clients should treat nonces as opaque.                                                                                                            |
+| spec     | object |          |                                                                                                                                                                                                                                       |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                                                                                                                                                                      |
+| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It ust be an integer prefixed by "v". For example: `v1` |
 
 ### metadata
 
@@ -570,12 +626,12 @@ resource "teleport_cluster_maintenance_config" "example" {
 
 ## teleport_cluster_networking_config
 
-|   Name   |  Type  | Required |                           Description                            |
-|----------|--------|----------|------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                    |
-| spec     | object |          | Spec is a ClusterNetworkingConfig specification                  |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
-| version  | string |          | Version is a resource version                                    |
+|   Name   |  Type  | Required |                                    Description                                    |
+|----------|--------|----------|-----------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                     |
+| spec     | object |          | Spec is a ClusterNetworkingConfig specification                                   |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                  |
+| version  | string |          | Version is the resource version. It must be specified. Supported values are:`v2`. |
 
 ### metadata
 
@@ -655,12 +711,12 @@ resource "teleport_cluster_networking_config" "example" {
 
 ## teleport_database
 
-|   Name   |  Type  | Required |               Description                |
-|----------|--------|----------|------------------------------------------|
-| metadata | object |          | Metadata is the database metadata.       |
-| spec     | object |          | Spec is the database spec.               |
-| sub_kind | string |          | SubKind is an optional resource subkind. |
-| version  | string |          | Version is the resource version.         |
+|   Name   |  Type  | Required |                                    Description                                     |
+|----------|--------|----------|------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is the database metadata.                                                 |
+| spec     | object |          | Spec is the database spec.                                                         |
+| sub_kind | string |          | SubKind is an optional resource subkind.                                           |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v3`. |
 
 ### metadata
 
@@ -712,29 +768,31 @@ AD is the Active Directory configuration for the database.
 
 AdminUser is the database admin user for automatic user provisioning.
 
-| Name |  Type  | Required |                      Description                      |
-|------|--------|----------|-------------------------------------------------------|
-| name | string |          | Name is the username of the privileged database user. |
+|       Name       |  Type  | Required |                                                                                                 Description                                                                                                 |
+|------------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| default_database | string |          | DefaultDatabase is the database that the privileged database user logs into by default.  Depending on the database type, this database may be used to store procedures or data for managing database users. |
+| name             | string |          | Name is the username of the privileged database user.                                                                                                                                                       |
 
 #### spec.aws
 
 AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 
-|        Name         |  Type  | Required |                                                                                                                                     Description                                                                                                                                      |
-|---------------------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| account_id          | string |          | AccountID is the AWS account ID this database belongs to.                                                                                                                                                                                                                            |
-| assume_role_arn     | string |          | AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.                                                                                                                                   |
-| elasticache         | object |          | ElastiCache contains AWS ElastiCache Redis specific metadata.                                                                                                                                                                                                                        |
-| external_id         | string |          | ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.                                                                                                                                                                                       |
-| iam_policy_status   | number |          | IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database. |
-| memorydb            | object |          | MemoryDB contains AWS MemoryDB specific metadata.                                                                                                                                                                                                                                    |
-| opensearch          | object |          | OpenSearch contains AWS OpenSearch specific metadata.                                                                                                                                                                                                                                |
-| rds                 | object |          | RDS contains RDS specific metadata.                                                                                                                                                                                                                                                  |
-| rdsproxy            | object |          | RDSProxy contains AWS Proxy specific metadata.                                                                                                                                                                                                                                       |
-| redshift            | object |          | Redshift contains Redshift specific metadata.                                                                                                                                                                                                                                        |
-| redshift_serverless | object |          | RedshiftServerless contains AWS Redshift Serverless specific metadata.                                                                                                                                                                                                               |
-| region              | string |          | Region is a AWS cloud region.                                                                                                                                                                                                                                                        |
-| secret_store        | object |          | SecretStore contains secret store configurations.                                                                                                                                                                                                                                    |
+|        Name         |      Type      | Required |                                                                                                                                     Description                                                                                                                                      |
+|---------------------|----------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| account_id          | string         |          | AccountID is the AWS account ID this database belongs to.                                                                                                                                                                                                                            |
+| assume_role_arn     | string         |          | AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.                                                                                                                                   |
+| elasticache         | object         |          | ElastiCache contains AWS ElastiCache Redis specific metadata.                                                                                                                                                                                                                        |
+| external_id         | string         |          | ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.                                                                                                                                                                                       |
+| iam_policy_status   | number         |          | IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database. |
+| memorydb            | object         |          | MemoryDB contains AWS MemoryDB specific metadata.                                                                                                                                                                                                                                    |
+| opensearch          | object         |          | OpenSearch contains AWS OpenSearch specific metadata.                                                                                                                                                                                                                                |
+| rds                 | object         |          | RDS contains RDS specific metadata.                                                                                                                                                                                                                                                  |
+| rdsproxy            | object         |          | RDSProxy contains AWS Proxy specific metadata.                                                                                                                                                                                                                                       |
+| redshift            | object         |          | Redshift contains Redshift specific metadata.                                                                                                                                                                                                                                        |
+| redshift_serverless | object         |          | RedshiftServerless contains AWS Redshift Serverless specific metadata.                                                                                                                                                                                                               |
+| region              | string         |          | Region is a AWS cloud region.                                                                                                                                                                                                                                                        |
+| secret_store        | object         |          | SecretStore contains secret store configurations.                                                                                                                                                                                                                                    |
+| session_tags        | map of strings |          | SessionTags is a list of AWS STS session tags.                                                                                                                                                                                                                                       |
 
 ##### spec.aws.elasticache
 
@@ -913,12 +971,12 @@ resource "teleport_database" "example" {
 
 ## teleport_github_connector
 
-|   Name   |  Type  | Required |                            Description                            |
-|----------|--------|----------|-------------------------------------------------------------------|
-| metadata | object |          | Metadata holds resource metadata.                                 |
-| spec     | object | *        | Spec is an Github connector specification.                        |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
-| version  | string |          | Version is a resource version.                                    |
+|   Name   |  Type  | Required |                                    Description                                     |
+|----------|--------|----------|------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata holds resource metadata.                                                  |
+| spec     | object | *        | Spec is an Github connector specification.                                         |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources.                  |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v3`. |
 
 ### metadata
 
@@ -1069,12 +1127,12 @@ resource "teleport_login_rule" "example" {
 
 ## teleport_oidc_connector
 
-|   Name   |  Type  | Required |                            Description                            |
-|----------|--------|----------|-------------------------------------------------------------------|
-| metadata | object |          | Metadata holds resource metadata.                                 |
-| spec     | object | *        | Spec is an OIDC connector specification.                          |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
-| version  | string |          | Version is a resource version.                                    |
+|   Name   |  Type  | Required |                                    Description                                     |
+|----------|--------|----------|------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata holds resource metadata.                                                  |
+| spec     | object | *        | Spec is an OIDC connector specification.                                           |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources.                  |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v3`. |
 
 ### metadata
 
@@ -1157,12 +1215,12 @@ resource "teleport_oidc_connector" "example" {
 
 ## teleport_okta_import_rule
 
-|   Name   |  Type  | Required |                           Description                            |
-|----------|--------|----------|------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                    |
-| spec     | object | *        | Spec is the specification for the Okta import rule.              |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
-| version  | string |          | Version is version                                               |
+|   Name   |  Type  | Required |                                                                                                              Description                                                                                                              |
+|----------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                                                                                                                                                                         |
+| spec     | object | *        | Spec is the specification for the Okta import rule.                                                                                                                                                                                   |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                                                                                                                                                                      |
+| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It ust be an integer prefixed by "v". For example: `v1` |
 
 ### metadata
 
@@ -1272,12 +1330,12 @@ resource "teleport_okta_import_rule" "example" {
 
 ## teleport_provision_token
 
-|   Name   |  Type  | Required |                           Description                            |
-|----------|--------|----------|------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                    |
-| spec     | object | *        | Spec is a provisioning token V2 spec                             |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
-| version  | string |          | Version is version                                               |
+|   Name   |  Type  | Required |                                    Description                                    |
+|----------|--------|----------|-----------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                     |
+| spec     | object | *        | Spec is a provisioning token V2 spec                                              |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                  |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are:`v2`. |
 
 ### metadata
 
@@ -1309,6 +1367,7 @@ Spec is a provisioning token V2 spec
 | join_method                    | string               |          | JoinMethod is the joining method required in order to use this token. Supported joining methods include "token", "ec2", and "iam".                      |
 | kubernetes                     | object               |          | Kubernetes allows the configuration of options specific to the "kubernetes" join method.                                                                |
 | roles                          | array of strings     | *        | Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token |
+| spacelift                      | object               |          | Spacelift allows the configuration of options specific to the "spacelift" join method.                                                                  |
 | suggested_agent_matcher_labels | map of string arrays |          |                                                                                                                                                         |
 | suggested_labels               | map of string arrays |          |                                                                                                                                                         |
 
@@ -1380,10 +1439,11 @@ Allow is a list of Rules, nodes using this token must match one allow rule to us
 
 GitHub allows the configuration of options specific to the "github" join method.
 
-|          Name          |  Type  | Required |                                                                                                                                                                                                                                             Description                                                                                                                                                                                                                                             |
-|------------------------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| allow                  | object |          | Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.                                                                                                                                                                                                                                                                                                                                                                                                  |
-| enterprise_server_host | string |          | EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Server. |
+|          Name          |  Type  | Required |                                                                                                                                                                                                                                                                                                                                        Description                                                                                                                                                                                                                                                                                                                                         |
+|------------------------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| allow                  | object |          | Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| enterprise_server_host | string |          | EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Server.                                                                                                                                                                                        |
+| enterprise_slug        | string |          | EnterpriseSlug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values. |
 
 ##### spec.github.allow
 
@@ -1413,15 +1473,24 @@ GitLab allows the configuration of options specific to the "gitlab" join method.
 
 Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.
 
-|      Name       |  Type  | Required |                                                                                    Description                                                                                     |
-|-----------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| environment     | string |          | Environment limits access by the environment the job deploys to (if one is associated)                                                                                             |
-| namespace_path  | string |          | NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`                                                                                    |
-| pipeline_source | string |          | PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`                       |
-| project_path    | string |          | ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`                                                                       |
-| ref             | string |          | Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.                                                         |
-| ref_type        | string |          | RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`                                                                       |
-| sub             | string |          | Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:{group}/{project}:ref_type:{type}:ref:{branch_name} |
+|         Name          |  Type  | Required |                                                                                                                                                        Description                                                                                                                                                         |
+|-----------------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ci_config_ref_uri     | string |          | CIConfigRefURI is the ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.                                                                                                                                                                  |
+| ci_config_sha         | string |          | CIConfigSHA is the git commit SHA for the ci_config_ref_uri.                                                                                                                                                                                                                                                               |
+| deployment_tier       | string |          | DeploymentTier is the deployment tier of the environment the job specifies                                                                                                                                                                                                                                                 |
+| environment           | string |          | Environment limits access by the environment the job deploys to (if one is associated)                                                                                                                                                                                                                                     |
+| environment_protected | bool   |          |                                                                                                                                                                                                                                                                                                                            |
+| namespace_path        | string |          | NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                                                    |
+| pipeline_source       | string |          | PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`                                                                                                                                                               |
+| project_path          | string |          | ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                                       |
+| project_visibility    | string |          | ProjectVisibility is the visibility of the project where the pipeline is running. Can be internal, private, or public.                                                                                                                                                                                                     |
+| ref                   | string |          | Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                         |
+| ref_protected         | bool   |          |                                                                                                                                                                                                                                                                                                                            |
+| ref_type              | string |          | RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`                                                                                                                                                                                                               |
+| sub                   | string |          | Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character. |
+| user_email            | string |          | UserEmail is the email of the user executing the job                                                                                                                                                                                                                                                                       |
+| user_id               | string |          | UserID is the ID of the user executing the job                                                                                                                                                                                                                                                                             |
+| user_login            | string |          | UserLogin is the username of the user executing the job                                                                                                                                                                                                                                                                    |
 
 #### spec.kubernetes
 
@@ -1448,6 +1517,26 @@ StaticJWKS is the configuration specific to the `static_jwks` type.
 | Name |  Type  | Required |                                                                                             Description                                                                                              |
 |------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | jwks | string |          | JWKS should be the JSON Web Key Set formatted public keys of that the Kubernetes Cluster uses to sign service account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server. |
+
+#### spec.spacelift
+
+Spacelift allows the configuration of options specific to the "spacelift" join method.
+
+|   Name   |  Type  | Required |                                                   Description                                                    |
+|----------|--------|----------|------------------------------------------------------------------------------------------------------------------|
+| allow    | object |          | Allow is a list of Rules, nodes using this token must match one allow rule to use this token.                    |
+| hostname | string |          | Hostname is the hostname of the Spacelift tenant that tokens will originate from. E.g `example.app.spacelift.io` |
+
+##### spec.spacelift.allow
+
+Allow is a list of Rules, nodes using this token must match one allow rule to use this token.
+
+|    Name     |  Type  | Required |                                                                Description                                                                |
+|-------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| caller_id   | string |          | CallerID is the ID of the caller, ie. the stack or module that generated the run.                                                         |
+| caller_type | string |          | CallerType is the type of the caller, ie. the entity that owns the run - either `stack` or `module`.                                      |
+| scope       | string |          | Scope is the scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes |
+| space_id    | string |          | SpaceID is the ID of the space in which the run that owns the token was executed.                                                         |
 
 Example:
 
@@ -1488,12 +1577,12 @@ resource "teleport_provision_token" "iam-token" {
 
 ## teleport_role
 
-|   Name   |  Type  | Required |                           Description                            |
-|----------|--------|----------|------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                    |
-| spec     | object |          | Spec is a role specification                                     |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
-| version  | string |          | Version is version                                               |
+|   Name   |  Type  | Required |                                                Description                                                 |
+|----------|--------|----------|------------------------------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                                              |
+| spec     | object |          | Spec is a role specification                                                                               |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                                           |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`. |
 
 ### metadata
 
@@ -1838,6 +1927,7 @@ Options is for OpenSSH options like agent forwarding.
 | cert_format                | string           |          | CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.                                                        |
 | client_idle_timeout        | duration         |          | ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.                            |
 | create_db_user             | bool             |          |                                                                                                                                                                            |
+| create_db_user_mode        | number           |          | CreateDatabaseUserMode allows users to be automatically created on a database when not set to off.                                                                         |
 | create_desktop_user        | bool             |          |                                                                                                                                                                            |
 | create_host_user           | bool             |          |                                                                                                                                                                            |
 | create_host_user_mode      | number           |          | CreateHostUserMode allows users to be automatically created on a host when not set to off                                                                                  |
@@ -1956,12 +2046,12 @@ resource "teleport_role" "example" {
 
 ## teleport_saml_connector
 
-|   Name   |  Type  | Required |                            Description                            |
-|----------|--------|----------|-------------------------------------------------------------------|
-| metadata | object |          | Metadata holds resource metadata.                                 |
-| spec     | object | *        | Spec is an SAML connector specification.                          |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
-| version  | string |          | Version is a resource version.                                    |
+|   Name   |  Type  | Required |                                    Description                                     |
+|----------|--------|----------|------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata holds resource metadata.                                                  |
+| spec     | object | *        | Spec is an SAML connector specification.                                           |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources.                  |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v2`. |
 
 ### metadata
 
@@ -2075,12 +2165,12 @@ resource "teleport_saml_connector" "example" {
 
 ## teleport_session_recording_config
 
-|   Name   |  Type  | Required |                           Description                            |
-|----------|--------|----------|------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                    |
-| spec     | object |          | Spec is a SessionRecordingConfig specification                   |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
-| version  | string |          | Version is a resource version                                    |
+|   Name   |  Type  | Required |                                    Description                                    |
+|----------|--------|----------|-----------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                     |
+| spec     | object |          | Spec is a SessionRecordingConfig specification                                    |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                  |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are:`v2`. |
 
 ### metadata
 
@@ -2125,12 +2215,12 @@ resource "teleport_session_recording_config" "example" {
 
 ## teleport_trusted_cluster
 
-|   Name   |  Type  | Required |                            Description                            |
-|----------|--------|----------|-------------------------------------------------------------------|
-| metadata | object |          | Metadata holds resource metadata.                                 |
-| spec     | object | *        | Spec is a Trusted Cluster specification.                          |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
-| version  | string |          | Version is a resource version.                                    |
+|   Name   |  Type  | Required |                                    Description                                     |
+|----------|--------|----------|------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata holds resource metadata.                                                  |
+| spec     | object | *        | Spec is a Trusted Cluster specification.                                           |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources.                  |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v2`. |
 
 ### metadata
 
@@ -2197,11 +2287,11 @@ resource "teleport_trusted_cluster" "cluster" {
 
 ## teleport_trusted_device
 
-|   Name   |  Type  | Required |          Description          |
-|----------|--------|----------|-------------------------------|
-| metadata | object |          | Metadata is resource metadata |
-| spec     | object |          | Specification of the device.  |
-| version  | string |          | Version is version            |
+|   Name   |  Type  | Required |                                                                                                              Description                                                                                                              |
+|----------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                                                                                                                                                                         |
+| spec     | object |          | Specification of the device.                                                                                                                                                                                                          |
+| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It ust be an integer prefixed by "v". For example: `v1` |
 
 ### metadata
 
@@ -2223,23 +2313,7 @@ Specification of the device.
 | enroll_status | string |          |             |
 | os_type       | string | *        |             |
 | owner         | string |          |             |
-| profile       | object |          |             |
 | source        | object |          |             |
-
-#### spec.profile
-
-
-
-|         Name          |       Type       | Required | Description |
-|-----------------------|------------------|----------|-------------|
-| external_id           | string           |          |             |
-| jamf_binary_version   | string           |          |             |
-| model_identifier      | string           |          |             |
-| os_build              | string           |          |             |
-| os_build_supplemental | string           |          |             |
-| os_usernames          | array of strings |          |             |
-| os_version            | string           |          |             |
-| update_time           | RFC3339 time     |          |             |
 
 #### spec.source
 
@@ -2266,12 +2340,12 @@ resource "teleport_trusted_device" "TESTDEVICE1" {
 
 ## teleport_user
 
-|   Name   |  Type  | Required |                           Description                            |
-|----------|--------|----------|------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                    |
-| spec     | object |          | Spec is a user specification                                     |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
-| version  | string |          | Version is version                                               |
+|   Name   |  Type  | Required |                                    Description                                     |
+|----------|--------|----------|------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                      |
+| spec     | object |          | Spec is a user specification                                                       |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                   |
+| version  | string | *        | Version is the resource version. It must be specified. Supported values are: `v2`. |
 
 ### metadata
 

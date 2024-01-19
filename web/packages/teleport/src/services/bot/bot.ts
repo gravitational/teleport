@@ -27,7 +27,7 @@ import type { Bot, FetchBotsRequest, CreateBotRequest } from './types';
 export const botService = {
   fetchBots({ signal }: FetchBotsRequest): Promise<BotsResponse> {
     return api
-      .get(cfg.getBotsUrl(), signal)
+      .get(cfg.getBotsUrl(cfg.proxyCluster), signal)
       .then(json => {
         const items = json?.items || [];
         return {

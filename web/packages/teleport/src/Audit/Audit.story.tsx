@@ -61,7 +61,6 @@ export const Failed = () => {
 
 export const AllPossibleEvents = () => (
   <EventList
-    clusterId="im-a-cluster"
     events={events}
     fetchMore={() => null}
     fetchStatus={''}

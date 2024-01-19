@@ -21,9 +21,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"slices"
 	"strconv"
 	"testing"
+
+	"slices"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -90,11 +95,8 @@ func TestListBotsPagination(t *testing.T) {
 			require.NoError(t, json.Unmarshal(page1.Bytes(), &page1Bots), "invalid response received")
 			assert.Equal(t, http.StatusOK, page1.Code(), "unexpected status code getting connectors")
 
-			// todo (mberg) re-evaluate assertions once we agree on a pagination approach
-			assert.True(t, len(page1Bots.Items) > 0)
-			//assert.Equal(t, tc.expectedSize, len(page1Bots.Items))
-			//assert.Equal(t, "test-bot-0", page1Bots.Items[0].Status.UserName)
-			//assert.Equal(t, "test-bot-"+tc.pageSize, page1Bots.StartKey)
+			// todo (michellescripts) re-evaluate assertions once we agree on a pagination approach
+			assert.Greater(t, len(page1Bots.Items), 0)
 		})
 	}
 }

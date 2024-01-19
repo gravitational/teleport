@@ -120,7 +120,6 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/proxy"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/secret"
@@ -341,7 +340,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
@@ -446,7 +444,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetNodeWatcher(proxyNodeWatcher),
@@ -613,7 +610,6 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
@@ -7625,7 +7621,6 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),
 		regular.SetSessionController(nodeSessionController),
@@ -7870,7 +7865,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetNodeWatcher(proxyNodeWatcher),

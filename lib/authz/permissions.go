@@ -1043,6 +1043,23 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RW()),
+						// Okta can manage access lists and roles it creates.
+						{
+							Resources: []string{types.KindRole},
+							Verbs:     services.RW(),
+							Where: builder.Equals(
+								builder.Identifier(`resource.metadata.labels["`+types.OriginLabel+`"]`),
+								builder.String(types.OriginOkta),
+							).String(),
+						},
+						{
+							Resources: []string{types.KindAccessList},
+							Verbs:     services.RW(),
+							Where: builder.Equals(
+								builder.Identifier(`resource.metadata.labels["`+types.OriginLabel+`"]`),
+								builder.String(types.OriginOkta),
+							).String(),
+						},
 					},
 				},
 			})
@@ -1583,6 +1600,16 @@ func IsLocalUser(authContext Context) bool {
 func IsLocalOrRemoteUser(authContext Context) bool {
 	switch authContext.UnmappedIdentity.(type) {
 	case LocalUser, RemoteUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsLocalOrRemoteService checks if the identity is either a local or remote service.
+func IsLocalOrRemoteService(authContext Context) bool {
+	switch authContext.UnmappedIdentity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
 		return true
 	default:
 		return false
