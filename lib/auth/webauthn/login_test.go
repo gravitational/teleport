@@ -445,8 +445,9 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},
 			}
-			require.Empty(t, cmp.Diff(wantSD, sd), "SessionData mismatch")
-
+			if diff := cmp.Diff(wantSD, sd); diff != "" {
+				t.Fatalf("SessionData mismatch (-want +got):\n%s", diff)
+			}
 			// User interaction would happen here.
 			assertionResp, err := test.key.SignAssertion(test.origin, assertion)
 			require.NoError(t, err)

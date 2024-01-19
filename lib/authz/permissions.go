@@ -104,7 +104,7 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	return &authorizer{
 		clusterName:             opts.ClusterName,
 		accessPoint:             opts.AccessPoint,
-		mfaAuthentictor:         opts.MFAAuthenticator,
+		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
@@ -175,11 +175,11 @@ type MFAAuthData struct {
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	clusterName     string
-	accessPoint     AuthorizerAccessPoint
-	mfaAuthentictor MFAAuthenticator
-	lockWatcher     *services.LockWatcher
-	logger          logrus.FieldLogger
+	clusterName      string
+	accessPoint      AuthorizerAccessPoint
+	mfaAuthenticator MFAAuthenticator
+	lockWatcher      *services.LockWatcher
+	logger           logrus.FieldLogger
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -462,12 +462,12 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	if a.mfaAuthentictor == nil {
-		return trace.AccessDenied("failed to validate MFA auth response, authorizer missing mfaAuthenticator field")
+	if a.mfaAuthenticator == nil {
+		return trace.Errorf("failed to validate MFA auth response, authorizer missing mfaAuthenticator field")
 	}
 
 	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION}
-	_, err = a.mfaAuthentictor.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), requiredExt)
+	_, err = a.mfaAuthenticator.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), requiredExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
