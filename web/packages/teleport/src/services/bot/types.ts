@@ -15,6 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+import { ResourceLabel } from '../agents';
+
 export type Bot = {
   name: string;
   roles: string[];
@@ -23,4 +26,11 @@ export type Bot = {
 
 export type FetchBotsRequest = {
   signal?: AbortSignal;
+};
+
+export type CreateBotRequest = {
+  botName: string;
+  labels: ResourceLabel[];
+  roles: string[];
+  login: string;
 };

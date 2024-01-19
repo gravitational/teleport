@@ -16,7 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// export as default for use with React.lazy
-export { Integrations as default } from './Integrations';
-export { IntegrationList } from './IntegrationList';
-export { IntegrationTile } from './Enroll/common';
+export { GitHubActions as default, GitHubActionsFlow } from './GitHubActions';
+export { ConnectGitHub as ConfigureBot } from './ConnectGitHub';

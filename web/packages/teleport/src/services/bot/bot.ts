@@ -22,7 +22,7 @@ import cfg from 'teleport/config';
 import { makeBot } from 'teleport/services/bot/consts';
 import { BotsResponse } from 'teleport/Bots/types';
 
-import type { FetchBotsRequest } from './types';
+import type { Bot, FetchBotsRequest, CreateBotRequest } from './types';
 
 export const botService = {
   fetchBots({ signal }: FetchBotsRequest): Promise<BotsResponse> {
@@ -39,5 +39,21 @@ export const botService = {
       .catch(res => {
         throw res;
       });
+  },
+
+  createBot(config: CreateBotRequest): Promise<void> {
+    return api.post(cfg.getBotsUrl(), config);
+  },
+
+  async getBot(name: string): Promise<Bot | null> {
+    try {
+      return await api.get(cfg.getBotsUrl(name)).then(makeBot);
+    } catch (err) {
+      // capture the not found error response and return null instead of throwing
+      if (err?.response?.status === 404) {
+        return null;
+      }
+      throw err;
+    }
   },
 };

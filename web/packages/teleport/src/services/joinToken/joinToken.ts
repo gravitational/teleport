@@ -39,6 +39,9 @@ class JoinTokenService {
           suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
             req.suggestedAgentMatcherLabels
           ),
+          bot_name: req.botName,
+          github: req.gitHub,
+          enterprise_server_host: req.enterpriseServerHost,
         },
         signal
       )

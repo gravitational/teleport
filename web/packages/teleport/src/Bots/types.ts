@@ -60,3 +60,7 @@ export type BotOptionsCellProps = {
 export type BotListParams = {
   bots: FlatBot[];
 };
+
+export enum BotType {
+  GitHubActions = 'github-actions',
+}
