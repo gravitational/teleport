@@ -1,107 +1,72 @@
-import { bytecodePlugin, defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import { resolve } from 'path';
-import { cspPlugin } from '../build/vite/csp';
-import { getConnectCsp } from './csp';
-import { getStyledComponentsConfig } from '../build/vite/styled';
+
+import { existsSync, readFileSync } from 'fs';
+
 import react from '@vitejs/plugin-react-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
-import { existsSync, readFileSync } from 'fs';
+import { defineConfig, externalizeDepsPlugin, UserConfig } from 'electron-vite';
+
+import { cspPlugin } from '../build/vite/csp';
+
+import { getStyledComponentsConfig } from '../build/vite/styled';
+
+import { getConnectCsp } from './csp';
 
 const rootDirectory = resolve(__dirname, '../../..');
 const outputDirectory = resolve(__dirname, 'build');
+
+// these dependencies don't play well unless they're externalized
+// if Vite complains about a dependency, add it here
+const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 
 const config = defineConfig(env => {
   const tsConfigPathsPlugin = tsconfigPaths({
     projects: [resolve(rootDirectory, 'tsconfig.json')],
   });
 
-  const certsDirectory = resolve(__dirname, 'certs');
+  const commonPlugins = [
+    externalizeDepsPlugin({ exclude: externalizeDeps }),
+    tsConfigPathsPlugin,
+  ];
 
-  if (!existsSync(certsDirectory)) {
-    throw new Error(
-      'Could not find SSL certificates. Please follow web/README.md to generate certificates.'
-    );
-  }
-
-  const keyPath = resolve(certsDirectory, 'server.key');
-  const certPath = resolve(certsDirectory, 'server.crt');
-
-  return {
+  const config: UserConfig = {
     main: {
       build: {
         outDir: resolve(outputDirectory, 'main'),
         rollupOptions: {
           input: {
             index: resolve(__dirname, 'src/main.ts'),
-            sharedProcess: resolve(__dirname, 'src/sharedProcess/sharedProcess.ts'),
-            agentCleanupDaemon: resolve(__dirname, 'src/agentCleanupDaemon/agentCleanupDaemon.js'),
+            sharedProcess: resolve(
+              __dirname,
+              'src/sharedProcess/sharedProcess.ts'
+            ),
+            agentCleanupDaemon: resolve(
+              __dirname,
+              'src/agentCleanupDaemon/agentCleanupDaemon.js'
+            ),
           },
-          onwarn(warning, warn) {
-            if (warning.code === 'EVAL') {
-              return;
-            }
-
-            warn(warning)
-          },
+          onwarn,
           output: {
-            manualChunks(id) {
-              if (id.includes('strip-ansi')) {
-                return 'strip-ansi';
-              }
-
-              if (id.includes('ansi-regex')) {
-                return 'ansi-regex';
-              }
-
-              if (id.includes('d3-color')) {
-                return 'd3-color';
-              }
-            }
-          }
-        }
+            manualChunks,
+          },
+        },
       },
-      plugins: [
-        externalizeDepsPlugin({ exclude: ['strip-ansi', 'ansi-regex', 'd3-color'] }),
-        tsConfigPathsPlugin,
-      ],
+      plugins: commonPlugins,
     },
     preload: {
       build: {
         outDir: resolve(outputDirectory, 'preload'),
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'src/preload.ts')
+            index: resolve(__dirname, 'src/preload.ts'),
           },
-          onwarn(warning, warn) {
-            if (warning.code === 'EVAL') {
-              return;
-            }
-
-            warn(warning)
-          },
+          onwarn,
           output: {
-            manualChunks(id) {
-              if (id.includes('strip-ansi')) {
-                return 'strip-ansi';
-              }
-
-              if (id.includes('ansi-regex')) {
-                return 'ansi-regex';
-              }
-
-              if (id.includes('d3-color')) {
-                return 'd3-color';
-              }
-            }
-          }
+            manualChunks,
+          },
         },
       },
-      plugins: [
-        externalizeDepsPlugin({
-          exclude: ['strip-ansi', 'ansi-regex', 'd3-color']
-        }),
-        tsConfigPathsPlugin,
-      ],
+      plugins: commonPlugins,
     },
     renderer: {
       root: '.',
@@ -109,7 +74,7 @@ const config = defineConfig(env => {
         outDir: resolve(outputDirectory, 'renderer'),
         rollupOptions: {
           input: {
-            index: resolve(__dirname, 'index.html')
+            index: resolve(__dirname, 'index.html'),
           },
         },
       },
@@ -119,25 +84,68 @@ const config = defineConfig(env => {
         fs: {
           allow: [rootDirectory, '.'],
         },
-        https: {
-          key: readFileSync(keyPath),
-          cert: readFileSync(certPath),
-        },
       },
       plugins: [
         react({
           plugins: [
-            ['@swc/plugin-styled-components', getStyledComponentsConfig(env.mode)],
+            [
+              '@swc/plugin-styled-components',
+              getStyledComponentsConfig(env.mode),
+            ],
           ],
         }),
         cspPlugin(getConnectCsp(env.mode === 'development')),
         tsConfigPathsPlugin,
       ],
       define: {
-        'process.env': {NODE_ENV: process.env.NODE_ENV},
+        'process.env': { NODE_ENV: process.env.NODE_ENV },
       },
     },
   };
+
+  if (env.mode === 'development') {
+    if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
+      config.renderer.server.https = {
+        key: readFileSync(process.env.VITE_HTTPS_KEY),
+        cert: readFileSync(process.env.VITE_HTTPS_CERT),
+      };
+    } else {
+      const certsDirectory = resolve(rootDirectory, 'web/certs');
+
+      if (!existsSync(certsDirectory)) {
+        throw new Error(
+          'Could not find SSL certificates. Please follow web/README.md to generate certificates.'
+        );
+      }
+
+      const keyPath = resolve(certsDirectory, 'server.key');
+      const certPath = resolve(certsDirectory, 'server.crt');
+
+      config.renderer.server.https = {
+        key: readFileSync(keyPath),
+        cert: readFileSync(certPath),
+      };
+    }
+  }
+
+  return config;
 });
 
 export { config as default };
+
+function onwarn(warning, warn) {
+  // ignore Vite complaining about protobufs using eval
+  if (warning.code === 'EVAL') {
+    return;
+  }
+
+  warn(warning);
+}
+
+function manualChunks(id: string) {
+  for (const dep of externalizeDeps) {
+    if (id.includes(dep)) {
+      return dep;
+    }
+  }
+}
