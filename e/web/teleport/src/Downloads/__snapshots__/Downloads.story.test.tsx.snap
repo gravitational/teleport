@@ -340,20 +340,16 @@ exports[`renders loaded linux 1`] = `
   display: none;
 }
 
-.c19 .react-select--is-disabled,
 .c19 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c19 .react-select--is-disabled .react-select__single-value,
 .c19 .react-select__control--is-disabled .react-select__single-value,
-.c19 .react-select--is-disabled .react-select__placeholder,
 .c19 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c19 .react-select--is-disabled .react-select__indicator,
 .c19 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -1361,20 +1357,16 @@ exports[`renders loaded macOS 1`] = `
   display: none;
 }
 
-.c19 .react-select--is-disabled,
 .c19 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c19 .react-select--is-disabled .react-select__single-value,
 .c19 .react-select__control--is-disabled .react-select__single-value,
-.c19 .react-select--is-disabled .react-select__placeholder,
 .c19 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c19 .react-select--is-disabled .react-select__indicator,
 .c19 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -2308,20 +2300,16 @@ exports[`renders loaded windows 1`] = `
   display: none;
 }
 
-.c19 .react-select--is-disabled,
 .c19 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c19 .react-select--is-disabled .react-select__single-value,
 .c19 .react-select__control--is-disabled .react-select__single-value,
-.c19 .react-select--is-disabled .react-select__placeholder,
 .c19 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c19 .react-select--is-disabled .react-select__indicator,
 .c19 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -3245,20 +3233,16 @@ exports[`renders when generating license 1`] = `
   display: none;
 }
 
-.c19 .react-select--is-disabled,
 .c19 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c19 .react-select--is-disabled .react-select__single-value,
 .c19 .react-select__control--is-disabled .react-select__single-value,
-.c19 .react-select--is-disabled .react-select__placeholder,
 .c19 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c19 .react-select--is-disabled .react-select__indicator,
 .c19 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -4289,20 +4273,16 @@ exports[`renders when license failed 1`] = `
   display: none;
 }
 
-.c20 .react-select--is-disabled,
 .c20 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c20 .react-select--is-disabled .react-select__single-value,
 .c20 .react-select__control--is-disabled .react-select__single-value,
-.c20 .react-select--is-disabled .react-select__placeholder,
 .c20 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c20 .react-select--is-disabled .react-select__indicator,
 .c20 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -5316,20 +5296,16 @@ exports[`renders when license generated 1`] = `
   display: none;
 }
 
-.c19 .react-select--is-disabled,
 .c19 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c19 .react-select--is-disabled .react-select__single-value,
 .c19 .react-select__control--is-disabled .react-select__single-value,
-.c19 .react-select--is-disabled .react-select__placeholder,
 .c19 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c19 .react-select--is-disabled .react-select__indicator,
 .c19 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }

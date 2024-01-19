@@ -333,20 +333,16 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   display: none;
 }
 
-.c14 .react-select--is-disabled,
 .c14 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__single-value,
 .c14 .react-select__control--is-disabled .react-select__single-value,
-.c14 .react-select--is-disabled .react-select__placeholder,
 .c14 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__indicator,
 .c14 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -1073,20 +1069,16 @@ exports[`render failed state form for authenticating with totp 1`] = `
   display: none;
 }
 
-.c14 .react-select--is-disabled,
 .c14 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__single-value,
 .c14 .react-select__control--is-disabled .react-select__single-value,
-.c14 .react-select--is-disabled .react-select__placeholder,
 .c14 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__indicator,
 .c14 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -1579,20 +1571,16 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   display: none;
 }
 
-.c14 .react-select--is-disabled,
 .c14 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__single-value,
 .c14 .react-select__control--is-disabled .react-select__single-value,
-.c14 .react-select--is-disabled .react-select__placeholder,
 .c14 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__indicator,
 .c14 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -2044,20 +2032,16 @@ exports[`render form for authenticating with multi option 1`] = `
   display: none;
 }
 
-.c13 .react-select--is-disabled,
 .c13 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c13 .react-select--is-disabled .react-select__single-value,
 .c13 .react-select__control--is-disabled .react-select__single-value,
-.c13 .react-select--is-disabled .react-select__placeholder,
 .c13 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c13 .react-select--is-disabled .react-select__indicator,
 .c13 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -2726,20 +2710,16 @@ exports[`render form for authenticating with totp 1`] = `
   display: none;
 }
 
-.c13 .react-select--is-disabled,
 .c13 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c13 .react-select--is-disabled .react-select__single-value,
 .c13 .react-select__control--is-disabled .react-select__single-value,
-.c13 .react-select--is-disabled .react-select__placeholder,
 .c13 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c13 .react-select--is-disabled .react-select__indicator,
 .c13 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -3203,20 +3183,16 @@ exports[`render form for authenticating with webauthn 1`] = `
   display: none;
 }
 
-.c13 .react-select--is-disabled,
 .c13 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c13 .react-select--is-disabled .react-select__single-value,
 .c13 .react-select__control--is-disabled .react-select__single-value,
-.c13 .react-select--is-disabled .react-select__placeholder,
 .c13 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c13 .react-select--is-disabled .react-select__indicator,
 .c13 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }

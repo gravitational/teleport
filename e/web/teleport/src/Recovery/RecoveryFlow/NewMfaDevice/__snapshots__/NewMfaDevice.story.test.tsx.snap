@@ -347,20 +347,16 @@ exports[`render correct form to add TOTP device 1`] = `
   display: none;
 }
 
-.c16 .react-select--is-disabled,
 .c16 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c16 .react-select--is-disabled .react-select__single-value,
 .c16 .react-select__control--is-disabled .react-select__single-value,
-.c16 .react-select--is-disabled .react-select__placeholder,
 .c16 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c16 .react-select--is-disabled .react-select__indicator,
 .c16 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -889,20 +885,16 @@ exports[`render correct form to add Webauthn device 1`] = `
   display: none;
 }
 
-.c14 .react-select--is-disabled,
 .c14 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__single-value,
 .c14 .react-select__control--is-disabled .react-select__single-value,
-.c14 .react-select--is-disabled .react-select__placeholder,
 .c14 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__indicator,
 .c14 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -1393,20 +1385,16 @@ exports[`render correct form to add with multi option 1`] = `
   display: none;
 }
 
-.c14 .react-select--is-disabled,
 .c14 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__single-value,
 .c14 .react-select__control--is-disabled .react-select__single-value,
-.c14 .react-select--is-disabled .react-select__placeholder,
 .c14 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__indicator,
 .c14 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -1919,20 +1907,16 @@ exports[`render failed state for form to add with multi option 1`] = `
   display: none;
 }
 
-.c15 .react-select--is-disabled,
 .c15 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c15 .react-select--is-disabled .react-select__single-value,
 .c15 .react-select__control--is-disabled .react-select__single-value,
-.c15 .react-select--is-disabled .react-select__placeholder,
 .c15 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c15 .react-select--is-disabled .react-select__indicator,
 .c15 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
