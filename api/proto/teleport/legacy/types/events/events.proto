@@ -22,6 +22,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/mfa/v1/mfa.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types/events";
 option (gogoproto.goproto_getters_all) = false;
@@ -1229,6 +1230,53 @@ message UserLogin {
   // AppliedLoginRules stores the name of each login rule that was applied
   // during the login.
   repeated string AppliedLoginRules = 9 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
+}
+
+// CreateMFAAuthChallenge records the creation of an MFA auth challenge.
+message CreateMFAAuthChallenge {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ChallengeExtensions contains extended properties of the MFA challenge created.
+  teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 3;
+}
+
+// ValidateMFAAuthResponse records the validation of an MFA auth callenge response.
+message ValidateMFAAuthResponse {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains common command or operation status fields
+  Status Status = 3;
+
+  // MFA is the MFA device used.
+  MFADeviceMetadata Device = 4;
+
+  // RequiredChallengeExtensions are required challenge extensions validated against
+  // stored auth challenge data. Only applies to WebAuthn challenges.
+  teleport.mfa.v1.ChallengeExtensions RequiredChallengeExtensions = 5;
 }
 
 // ResourceMetadata is a common resource metadata
