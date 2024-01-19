@@ -26,9 +26,47 @@ import (
 )
 
 const (
-	unspecifiedNameFormat = "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified"
-	uriNameFormat         = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
-	basicNameFormat       = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+	// The following formats are all defined in the SAML 2.0 Core OS Standard.
+	// https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
+	// SAMLStringType is a string value type.
+	SAMLStringType = "xs:string"
+	// SAMLURINameFormat is an attribute name format that follows the convention for URI references [RFC 2396].
+	SAMLURINameFormat = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
+	// SAMLBasicNameFormat is an attribute name format that specifies a simple string value.
+	SAMLBasicNameFormat = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
+	// SAMLUnspecifiedNameFormat is an attribute name format for names that does not fall into Basic or URI category.
+	SAMLUnspecifiedNameFormat = "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified"
+
+	// SAMLTransientFormat is a Name ID format which is to be treated as temporary value by the Service Provider.
+	SAMLTransientFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+	// SAMLEntityFormat is a Name ID format for SAML IdP Entity ID value.
+	SAMLEntityFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:entity"
+
+	// SAMLAuthnContextPublicKeyX509ClassRef is a Public Key X.509 reference authentication standard.
+	// Defined in SAML 2.0 Authentication Context Standard -
+	// https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf
+	SAMLAuthnContextPublicKeyX509ClassRef = "urn:oasis:names:tc:SAML:2.0:ac:classes:X509"
+
+	// SAMLBearerMethod is a subject confirmation method, which tells the Service Provider
+	// that the user in the context of authentication (the bearer of SAML assertion) lay claim to the SAML
+	// assertion value. Defined in the SAML 2.0 Technical Overview -
+	// http://docs.oasis-open.org/security/saml/Post2.0/sstc-saml-tech-overview-2.0-cd-02.pdf
+	SAMLBearerMethod = "urn:oasis:names:tc:SAML:2.0:cm:bearer"
+
+	// SAMLUIDFriendlyName is a user friendly name with a userid format as defiend in OID-info db -
+	// http://www.oid-info.com/cgi-bin/display?oid=urn%3Aoid%3A0.9.2342.19200300.100.1.1&a=display
+	SAMLUIDFriendlyName = "uid"
+	// SAMLUIDName is a URN value of UIDFriendlyName.
+	SAMLUIDName = "urn:oid:0.9.2342.19200300.100.1.1"
+	// SAMLEduPersonAffiliationFriendlyName is used to reference groups associated with a user as
+	// defiend in OID-info db - http://www.oid-info.com/cgi-bin/display?oid=urn%3Aoid%3A1.3.6.1.4.1.5923.1.1.1.1&a=display
+	SAMLEduPersonAffiliationFriendlyName = "eduPersonAffiliation"
+	// SAMLEduPersonAffiliationName is a URN value of EduPersonAffiliationFriendlyName.
+	SAMLEduPersonAffiliationName = "urn:oid:1.3.6.1.4.1.5923.1.1.1.1"
+
+	// SAMLSubjectIDName is a general purpose subject identifier as defined in SAML Subject Indentifier Attribuets -
+	// http://docs.oasis-open.org/security/saml-subject-id-attr/v1.0/csprd03/saml-subject-id-attr-v1.0-csprd03.pdf
+	SAMLSubjectIDName = "urn:oasis:names:tc:SAML:attribute:subject-id"
 )
 
 var (
@@ -231,12 +269,12 @@ func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
 	// formats - unspecifiedNameFormat, basicNameFormat or uriNameFormat
 	// and assign it with the URN value of that format.
 	switch am.NameFormat {
-	case "", "unspecified", unspecifiedNameFormat:
-		am.NameFormat = unspecifiedNameFormat
-	case "basic", basicNameFormat:
-		am.NameFormat = basicNameFormat
-	case "uri", uriNameFormat:
-		am.NameFormat = uriNameFormat
+	case "", "unspecified", SAMLUnspecifiedNameFormat:
+		am.NameFormat = SAMLUnspecifiedNameFormat
+	case "basic", SAMLBasicNameFormat:
+		am.NameFormat = SAMLBasicNameFormat
+	case "uri", SAMLURINameFormat:
+		am.NameFormat = SAMLURINameFormat
 	default:
 		return trace.BadParameter("invalid name format: %s", am.NameFormat)
 	}
