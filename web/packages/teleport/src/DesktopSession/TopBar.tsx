@@ -21,6 +21,8 @@ import { useTheme } from 'styled-components';
 import { Text, TopNav, Flex } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 
+import { HoverTooltip } from 'shared/components/ToolTip';
+
 import ActionMenu from './ActionMenu';
 import { WarningDropdown } from './WarningDropdown';
 
@@ -59,20 +61,27 @@ export default function TopBar(props: Props) {
 
       <Flex px={3}>
         <Flex alignItems="center">
-          <FolderShared
-            style={primaryOnTrue(isSharingDirectory)}
-            pr={3}
-            title={directorySharingTitle(canShareDirectory, isSharingDirectory)}
-          />
-          <Clipboard
-            style={primaryOnTrue(clipboardSharingEnabled)}
-            pr={3}
-            title={
+          <HoverTooltip
+            tipContent={directorySharingToolTip(
+              canShareDirectory,
+              isSharingDirectory
+            )}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+          >
+            <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3} />
+          </HoverTooltip>
+          <HoverTooltip
+            tipContent={
               clipboardSharingEnabled
                 ? 'Clipboard Sharing Enabled'
                 : 'Clipboard Sharing Disabled'
             }
-          />
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+          >
+            <Clipboard style={primaryOnTrue(clipboardSharingEnabled)} pr={3} />
+          </HoverTooltip>
           <WarningDropdown
             warnings={warnings}
             onRemoveWarning={onRemoveWarning}
@@ -88,7 +97,10 @@ export default function TopBar(props: Props) {
   );
 }
 
-function directorySharingTitle(canShare: boolean, isSharing: boolean): string {
+function directorySharingToolTip(
+  canShare: boolean,
+  isSharing: boolean
+): string {
   if (!canShare) {
     return 'Directory Sharing Disabled';
   }
