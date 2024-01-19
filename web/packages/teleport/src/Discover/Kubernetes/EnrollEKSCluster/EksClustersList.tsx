@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -29,24 +29,23 @@ import {
   labelMatcher,
 } from 'teleport/Discover/Shared';
 
-import { CheckedAwsRdsDatabase } from './EnrollRdsDatabase';
+import { CheckedEksCluster } from './EnrollEksCluster';
 
 type Props = {
-  items: CheckedAwsRdsDatabase[];
+  items: CheckedEksCluster[];
   fetchStatus: FetchStatus;
   fetchNextPage(): void;
-  onSelectDatabase(item: CheckedAwsRdsDatabase): void;
-  selectedDatabase?: CheckedAwsRdsDatabase;
-  wantAutoDiscover: boolean;
+
+  onSelectCluster(item: CheckedEksCluster): void;
+  selectedCluster?: CheckedEksCluster;
 };
 
-export const DatabaseList = ({
+export const ClustersList = ({
   items = [],
   fetchStatus = '',
   fetchNextPage,
-  onSelectDatabase,
-  selectedDatabase,
-  wantAutoDiscover,
+  onSelectCluster,
+  selectedCluster,
 }: Props) => {
   return (
     <Table
@@ -56,17 +55,15 @@ export const DatabaseList = ({
           altKey: 'radio-select',
           headerText: 'Select',
           render: item => {
-            const isChecked =
-              item.name === selectedDatabase?.name &&
-              item.engine === selectedDatabase?.engine;
+            const isChecked = item.name === selectedCluster?.name;
             return (
-              <RadioCell<CheckedAwsRdsDatabase>
+              <RadioCell<CheckedEksCluster>
                 item={item}
-                key={`${item.name}${item.resourceId}`}
+                key={`${item.name}${item.region}`}
                 isChecked={isChecked}
-                onChange={onSelectDatabase}
+                onChange={onSelectCluster}
                 value={item.name}
-                {...disabledStates(item, wantAutoDiscover)}
+                {...disabledStates(item)}
               />
             );
           },
@@ -74,24 +71,13 @@ export const DatabaseList = ({
         {
           key: 'name',
           headerText: 'Name',
-          render: item => (
-            <Cell {...disabledStates(item, wantAutoDiscover)}>{item.name}</Cell>
-          ),
-        },
-        {
-          key: 'engine',
-          headerText: 'Engine',
-          render: item => (
-            <Cell {...disabledStates(item, wantAutoDiscover)}>
-              {item.engine}
-            </Cell>
-          ),
+          render: item => <Cell {...disabledStates(item)}>{item.name}</Cell>,
         },
         {
           key: 'labels',
           headerText: 'Labels',
           render: item => (
-            <Cell {...disabledStates(item, wantAutoDiscover)}>
+            <Cell {...disabledStates(item)}>
               <Labels labels={item.labels} />
             </Cell>
           ),
@@ -103,7 +89,7 @@ export const DatabaseList = ({
             <StatusCell
               status={getStatus(item)}
               statusText={item.status}
-              {...disabledStates(item, wantAutoDiscover)}
+              {...disabledStates(item)}
             />
           ),
         },
@@ -117,31 +103,37 @@ export const DatabaseList = ({
   );
 };
 
-function getStatus(item: CheckedAwsRdsDatabase) {
-  switch (item.status) {
-    case 'available':
+function getStatus(item: CheckedEksCluster) {
+  switch (item.status.toLowerCase()) {
+    case 'active':
       return ItemStatus.Success;
 
     case 'failed':
     case 'deleting':
       return ItemStatus.Error;
+
+    default:
+      return ItemStatus.Warning;
   }
 }
 
-function disabledStates(
-  item: CheckedAwsRdsDatabase,
-  wantAutoDiscover: boolean
-) {
+function disabledStates(item: CheckedEksCluster) {
   const disabled =
-    item.status === 'failed' ||
-    item.status === 'deleting' ||
-    wantAutoDiscover ||
-    item.dbServerExists;
+    getStatus(item) !== ItemStatus.Success || item.kubeServerExists;
 
-  let disabledText = `This RDS database is already enrolled and is a part of this cluster`;
-  if (wantAutoDiscover) {
-    disabledText = 'All RDS databases will be enrolled automatically';
-  } else if (item.status === 'failed') {
+  let disabledText = `This EKS cluster is already enrolled and is a part of this cluster`;
+  switch (item.status) {
+    case 'failed':
+    case 'pending':
+    case 'creating':
+    case 'updating':
+      disabledText = 'Not available, try refreshing the list';
+      break;
+    case 'deleting':
+      disabledText = 'Not available';
+  }
+
+  if (item.status === 'failed') {
     disabledText = 'Not available, try refreshing the list';
   } else if (item.status === 'deleting') {
     disabledText = 'Not available';
