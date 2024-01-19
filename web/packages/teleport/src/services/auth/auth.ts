@@ -48,11 +48,7 @@ const auth = {
       )
     );
   },
-  checkMfaRequired(
-    params: IsMfaRequiredRequest
-  ): Promise<{ required: boolean }> {
-    return api.post(cfg.getMfaRequiredUrl(), params);
-  },
+  checkMfaRequired: checkMfaRequired,
   createMfaRegistrationChallenge(
     tokenId: string,
     deviceType: DeviceType,
@@ -273,12 +269,31 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  fetchWebauthnChallenge() {
+  async fetchWebauthnChallenge(isMFARequiredRequest?: IsMfaRequiredRequest) {
+    // TODO(Joerger): DELETE IN 16.0.0
+    // the create mfa challenge endpoint below supports
+    // MFARequired requests without the extra roundtrip.
+    if (isMFARequiredRequest) {
+      try {
+        const isMFARequired = await checkMfaRequired(isMFARequiredRequest);
+        if (!isMFARequired.required) {
+          return;
+        }
+      } catch {
+        // checking MFA requirement for admin actions is not supported by old
+        // auth servers, we expect an error instead. In this case, assume MFA is
+        // not required. Callers should fallback to retrying with MFA if needed.
+        return;
+      }
+    }
+
     return auth
       .checkWebauthnSupport()
       .then(() =>
         api
-          .post(cfg.api.mfaAuthnChallengePath)
+          .post(cfg.api.mfaAuthnChallengePath, {
+            is_mfa_required: isMFARequiredRequest,
+          })
           .then(makeMfaAuthenticateChallenge)
       )
       .then(res =>
@@ -300,12 +315,18 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
-  getWebauthnResponse() {
+  getWebauthnResponse(isMFARequiredRequest?: IsMfaRequiredRequest) {
     return auth
-      .fetchWebauthnChallenge()
+      .fetchWebauthnChallenge(isMFARequiredRequest)
       .then(res => makeWebauthnAssertionResponse(res));
   },
 };
+
+function checkMfaRequired(
+  params: IsMfaRequiredRequest
+): Promise<IsMfaRequiredResponse> {
+  return api.post(cfg.getMfaRequiredUrl(), params);
+}
 
 function base64EncodeUnicode(str: string) {
   return window.btoa(
@@ -322,7 +343,12 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredDatabase
   | IsMfaRequiredNode
   | IsMfaRequiredKube
-  | IsMfaRequiredWindowsDesktop;
+  | IsMfaRequiredWindowsDesktop
+  | IsMFARequiredAdminAction;
+
+export type IsMfaRequiredResponse = {
+  required: boolean;
+};
 
 export type IsMfaRequiredDatabase = {
   database: {
@@ -359,5 +385,12 @@ export type IsMfaRequiredKube = {
   kube: {
     // cluster_name is the name of the kube cluster.
     cluster_name: string;
+  };
+};
+
+export type IsMFARequiredAdminAction = {
+  admin_action: {
+    // name is the name of the admin action RPC.
+    name: string;
   };
 };

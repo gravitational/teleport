@@ -1404,6 +1404,8 @@ message IsMFARequiredRequest {
     NodeLogin Node = 3;
     // WindowsDesktop specifies the target Windows Desktop.
     RouteToWindowsDesktop WindowsDesktop = 4;
+    // AdminAction specifies an admin action.
+    AdminAction AdminAction = 5;
   }
 }
 
@@ -1422,6 +1424,12 @@ message NodeLogin {
   string Node = 1;
   // Login is the OS login name.
   string Login = 2;
+}
+
+// AdminAction specifies an admin action.
+message AdminAction {
+  // Name is the name of the admin action RPC.
+  string Name = 1;
 }
 
 // IsMFARequiredResponse is a response for MFA requirement check.
