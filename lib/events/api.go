@@ -719,6 +719,9 @@ const (
 
 	// CreateMFAAuthChallengeEvent is emitted when an MFA auth challenge is created.
 	CreateMFAAuthChallengeEvent = "mfa_auth_challenge.create"
+
+	// ValidateMFAAuthResponseEvent is emitted when an MFA auth challenge is validated.
+	ValidateMFAAuthResponseEvent = "mfa_auth_challenge.validate"
 )
 
 const (
