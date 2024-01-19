@@ -444,11 +444,11 @@ func hostFQDN(hostUUID, clusterName string) string {
 	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
-type fakeMFAAuthentictor struct {
-	mfaData map[string]*MFAAuthData
+type fakeMFAAuthenticator struct {
+	mfaData map[string]*MFAAuthData // keyed by totp token
 }
 
-func (a *fakeMFAAuthentictor) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*MFAAuthData, error) {
+func (a *fakeMFAAuthenticator) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*MFAAuthData, error) {
 	mfaData, ok := a.mfaData[resp.GetTOTP().GetCode()]
 	if !ok {
 		return nil, trace.AccessDenied("invalid MFA")
@@ -493,7 +493,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 
 	validTOTPCode := "valid"
 	validReusableTOTPCode := "valid-reusable"
-	fakeMFAAuthentictor := &fakeMFAAuthentictor{
+	fakeMFAAuthentictor := &fakeMFAAuthenticator{
 		mfaData: map[string]*MFAAuthData{
 			validTOTPCode: {},
 			validReusableTOTPCode: {
