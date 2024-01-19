@@ -45,7 +45,10 @@ const props: State = {
   hostname: 'host.com',
   fetchAttempt: { status: 'processing' },
   tdpConnection: { status: 'processing' },
-  clipboardSharingEnabled: false,
+  clipboardSharingState: {
+    allowedByAcl: false,
+    browserSupported: false,
+  },
   tdpClient: fakeClient(),
   username: 'user',
   clientOnWsOpen: () => {},
@@ -53,10 +56,11 @@ const props: State = {
   wsConnection: 'closed',
   disconnected: false,
   setDisconnected: () => {},
-  setClipboardSharingEnabled: () => {},
+  setClipboardSharingState: () => {},
   directorySharingState: {
-    canShare: true,
-    isSharing: false,
+    allowedByAcl: true,
+    browserSupported: true,
+    directorySelected: false,
   },
   setDirectorySharingState: () => {},
   onShareDirectory: () => {},
@@ -82,7 +86,6 @@ const props: State = {
     setState: () => {},
     addMfaToScpUrls: false,
   },
-  isUsingChrome: true,
   showAnotherSessionActiveDialog: false,
   setShowAnotherSessionActiveDialog: () => {},
   warnings: [],
@@ -94,7 +97,12 @@ export const Processing = () => (
     {...props}
     fetchAttempt={{ status: 'processing' }}
     tdpConnection={{ status: 'processing' }}
-    clipboardSharingEnabled={true}
+    clipboardSharingState={{
+      allowedByAcl: false,
+      browserSupported: false,
+      readState: 'granted',
+      writeState: 'granted',
+    }}
     wsConnection={'open'}
     disconnected={false}
   />
@@ -105,7 +113,12 @@ export const TdpProcessing = () => (
     {...props}
     fetchAttempt={{ status: 'success' }}
     tdpConnection={{ status: 'processing' }}
-    clipboardSharingEnabled={true}
+    clipboardSharingState={{
+      allowedByAcl: false,
+      browserSupported: false,
+      readState: 'granted',
+      writeState: 'granted',
+    }}
     wsConnection={'open'}
     disconnected={false}
   />
@@ -116,7 +129,12 @@ export const InvalidProcessingState = () => (
     {...props}
     fetchAttempt={{ status: 'processing' }}
     tdpConnection={{ status: 'success' }}
-    clipboardSharingEnabled={true}
+    clipboardSharingState={{
+      allowedByAcl: false,
+      browserSupported: false,
+      readState: 'granted',
+      writeState: 'granted',
+    }}
     wsConnection={'open'}
     disconnected={false}
   />
@@ -136,7 +154,12 @@ export const ConnectedSettingsFalse = () => {
       tdpConnection={{ status: 'success' }}
       wsConnection={'open'}
       disconnected={false}
-      clipboardSharingEnabled={false}
+      clipboardSharingState={{
+        allowedByAcl: true,
+        browserSupported: true,
+        readState: 'granted',
+        writeState: 'granted',
+      }}
       clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}
@@ -158,10 +181,16 @@ export const ConnectedSettingsTrue = () => {
       tdpConnection={{ status: 'success' }}
       wsConnection={'open'}
       disconnected={false}
-      clipboardSharingEnabled={true}
+      clipboardSharingState={{
+        allowedByAcl: true,
+        browserSupported: true,
+        readState: 'granted',
+        writeState: 'granted',
+      }}
       directorySharingState={{
-        canShare: true,
-        isSharing: true,
+        allowedByAcl: true,
+        browserSupported: true,
+        directorySelected: true,
       }}
       clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
@@ -218,7 +247,12 @@ export const WebAuthnPrompt = () => (
     {...props}
     fetchAttempt={{ status: 'processing' }}
     tdpConnection={{ status: 'processing' }}
-    clipboardSharingEnabled={true}
+    clipboardSharingState={{
+      allowedByAcl: false,
+      browserSupported: false,
+      readState: 'granted',
+      writeState: 'granted',
+    }}
     wsConnection={'open'}
     disconnected={false}
     webauthn={{
@@ -271,10 +305,16 @@ export const Warnings = () => {
         tdpConnection={{ status: 'success' }}
         wsConnection={'open'}
         disconnected={false}
-        clipboardSharingEnabled={true}
+        clipboardSharingState={{
+          allowedByAcl: true,
+          browserSupported: true,
+          readState: 'granted',
+          writeState: 'granted',
+        }}
         directorySharingState={{
-          canShare: true,
-          isSharing: true,
+          allowedByAcl: true,
+          browserSupported: true,
+          directorySelected: true,
         }}
         clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
           fillGray(ctx.canvas);

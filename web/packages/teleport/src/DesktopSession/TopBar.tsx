@@ -31,7 +31,7 @@ import type { NotificationItem } from 'shared/components/Notification';
 export default function TopBar(props: Props) {
   const {
     userHost,
-    clipboardSharingEnabled,
+    isSharingClipboard,
     onDisconnect,
     canShareDirectory,
     isSharingDirectory,
@@ -73,14 +73,14 @@ export default function TopBar(props: Props) {
           </HoverTooltip>
           <HoverTooltip
             tipContent={
-              clipboardSharingEnabled
+              isSharingClipboard
                 ? 'Clipboard Sharing Enabled'
                 : 'Clipboard Sharing Disabled'
             }
             anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             transformOrigin={{ vertical: 'top', horizontal: 'center' }}
           >
-            <Clipboard style={primaryOnTrue(clipboardSharingEnabled)} pr={3} />
+            <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
           </HoverTooltip>
           <WarningDropdown
             warnings={warnings}
@@ -114,7 +114,7 @@ export const TopBarHeight = 40;
 
 type Props = {
   userHost: string;
-  clipboardSharingEnabled: boolean;
+  isSharingClipboard: boolean;
   canShareDirectory: boolean;
   isSharingDirectory: boolean;
   onDisconnect: VoidFunction;
