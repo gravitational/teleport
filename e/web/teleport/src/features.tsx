@@ -286,7 +286,7 @@ class FeatureSupport implements TeleportFeature {
   category = NavigationCategory.Resources;
 
   hasAccess(flags: FeatureFlags) {
-    return flags.downloadCenter; // use the same flag as the download center to hide for non-Houston deployments
+    return flags.supportLink;
   }
 
   navigationItem = {

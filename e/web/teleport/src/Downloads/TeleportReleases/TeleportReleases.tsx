@@ -1,6 +1,6 @@
+import React, { useEffect } from 'react';
 import Box from 'design/Box';
 import Flex from 'design/Flex';
-import React from 'react';
 import Select, { Option } from 'shared/components/Select';
 
 import Indicator from 'design/Indicator';
@@ -12,6 +12,8 @@ import Text from 'design/Text';
 import Link from 'design/Link';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
+
+import cfg from 'e-teleport/config';
 
 import { GETTING_STARTED_LINK } from '../Downloads';
 
@@ -33,6 +35,17 @@ type TeleportReleasesProps = {
   setSelectedKind: (kind: Kind) => void;
 };
 
+type KindOption = Option<Kind>;
+
+const kindOptions: KindOption[] = [
+  { value: 'Teleport', label: 'Teleport' },
+  {
+    value: 'Teleport Connect',
+    label: 'Teleport Connect',
+  },
+  { value: 'tsh client', label: 'tsh client' },
+];
+
 export const TeleportReleases = ({
   canDownloadReleaseAssets,
   releases,
@@ -47,6 +60,14 @@ export const TeleportReleases = ({
 }: TeleportReleasesProps) => {
   const versionOptions = availableVersions.map(makeOption);
 
+  function hasAssets(kind: Kind): boolean {
+    return applyFilter(releases, selectedOS, selectedVersion, kind).length > 0;
+  }
+
+  const availableOptions = kindOptions.filter((option: KindOption) =>
+    hasAssets(option.value)
+  );
+
   const displayAssets = applyFilter(
     releases,
     selectedOS,
@@ -54,19 +75,29 @@ export const TeleportReleases = ({
     selectedKind
   );
 
+  // when the select OS changes, update the selected option
+  // if the current (option, os) pair doesn't have any binaries.
+  useEffect(() => {
+    if (displayAssets.length == 0 && availableOptions.length > 0) {
+      setSelectedKind(availableOptions[0].value);
+    }
+  }, [selectedOS]);
+
   return (
     <>
       <Box>
         <Text bold typography="h5">
           Download Teleport
         </Text>
-        <Text mt={3} mb={5}>
-          You will also need the binaries below for{' '}
-          <Link href={GETTING_STARTED_LINK} color="text.main" about="_blank">
-            Getting Started with Teleport Enterprise
-          </Link>
-          {':'}
-        </Text>
+        {!cfg.oss.isCloud && (
+          <Text my={3}>
+            You will also need the binaries below for{' '}
+            <Link href={GETTING_STARTED_LINK} color="text.main" about="_blank">
+              Getting Started with Teleport Enterprise
+            </Link>
+            {':'}
+          </Text>
+        )}
         {canDownloadReleaseAssets && (
           <>
             {attempt.status === 'processing' && (
@@ -80,18 +111,11 @@ export const TeleportReleases = ({
 
             {attempt.status === 'success' && (
               <>
-                <Flex alignItems="center">
+                <Flex alignItems="center" mt={2}>
                   <Box width="210px">
                     <Select
                       isSearchable={false}
-                      options={[
-                        { value: 'Teleport', label: 'Teleport' },
-                        {
-                          value: 'Teleport Connect',
-                          label: 'Teleport Connect',
-                        },
-                        { value: 'tsh client', label: 'tsh client' },
-                      ]}
+                      options={availableOptions}
                       onChange={option =>
                         setSelectedKind(
                           Array.isArray(option) ? null : option.value

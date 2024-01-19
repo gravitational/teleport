@@ -34,7 +34,7 @@ export const License = ({
   expiry,
 }: LicenseProps) => {
   return (
-    <Box mt={6} mb={6}>
+    <Box mb="5">
       <Text bold typography="h5">
         Generate Your License Key
       </Text>

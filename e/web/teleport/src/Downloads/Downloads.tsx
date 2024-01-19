@@ -1,7 +1,13 @@
 import React from 'react';
-import { FeatureBox } from 'teleport/components/Layout';
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
 
 import useTeleportE from 'e-teleport/useTeleportE';
+
+import cfg from 'e-teleport/config';
 
 import { useDownloads, State } from './useDownloads';
 import { License } from './License/License';
@@ -40,15 +46,21 @@ export const DownloadsView = ({
 }: State) => {
   return (
     <FeatureBox>
-      <License
-        canGenerateLicense={canGenerateLicense}
-        showSaveLicenseDialog={showSaveLicenseDialog}
-        closeSaveLicenseDialog={closeSaveLicenseDialog}
-        generateLicense={generateLicense}
-        saveLicense={saveLicense}
-        licenseAttempt={licenseAttempt}
-        expiry={license?.expiry}
-      />
+      <FeatureHeader>
+        <FeatureHeaderTitle>Downloads</FeatureHeaderTitle>
+      </FeatureHeader>
+
+      {!cfg.oss.isCloud && (
+        <License
+          canGenerateLicense={canGenerateLicense}
+          showSaveLicenseDialog={showSaveLicenseDialog}
+          closeSaveLicenseDialog={closeSaveLicenseDialog}
+          generateLicense={generateLicense}
+          saveLicense={saveLicense}
+          licenseAttempt={licenseAttempt}
+          expiry={license?.expiry}
+        />
+      )}
       <TeleportReleases
         canDownloadReleaseAssets={canDownloadReleaseAssets}
         releases={releases}

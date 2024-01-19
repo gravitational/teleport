@@ -6,6 +6,8 @@ import { compareSemVers } from 'shared/utils/semVer';
 
 import { wait } from 'shared/utils/wait';
 
+import cfg from 'teleport/config';
+
 import TeleportContextE from 'e-teleport/teleportContextE';
 
 import { downloadObject } from 'e-teleport/services/downloads/downloads';
@@ -26,16 +28,35 @@ export const useDownloads = (ctx: TeleportContextE) => {
   const { attempt: licenseAttempt, run: runLicenseAttempt } = useAttempt('');
 
   const canGenerateLicense = ctx.storeUser.getLicenceAccess().read;
-  const canDownloadReleaseAssets = ctx.storeUser.getDownloadAccess().list;
+  const canDownloadReleaseAssets =
+    ctx.storeUser.getDownloadAccess().list || cfg.isCloud;
 
   useEffect(() => {
     if (canDownloadReleaseAssets) {
+      const authVersion = ctx.storeUser.state.cluster.authVersion;
       run(() =>
         ctx.downloadsService.fetchReleases().then(res => {
           setReleases(res);
-          setAvailableVersions(getAvailableVersions(res));
+          let availableVersions = getAvailableVersions(res);
+          if (ctx.isCloud) {
+            // on cloud, only show versions compatible with the auth server
+            availableVersions = removeIncompatibleVersions(
+              authVersion,
+              availableVersions
+            );
+          }
+          setAvailableVersions(availableVersions);
           if (res.length > 0) {
-            setSelectedVersion(res[0].version);
+            const latest = availableVersions[0];
+            // on cloud, we use the auth server version as the default if available,
+            // while for dashboards we just use the latest
+            if (ctx.isCloud) {
+              setSelectedVersion(
+                availableVersions.includes(authVersion) ? authVersion : latest
+              );
+              return;
+            }
+            setSelectedVersion(latest);
           }
         })
       );
@@ -117,3 +138,34 @@ const getAvailableVersions = (releases: Release[]): string[] => {
     )
   );
 };
+
+/**
+ * removeIncompatibleVersions returns a new array without the versions that
+ * are not the same as 1 major less than the auth server.
+ * @param currentVersion is the current auth server versions
+ * @param versions an array of versions e.g.: ['10.0.1', '10.0.2']
+ */
+export function removeIncompatibleVersions(
+  authVersion: string,
+  versions: string[]
+): string[] {
+  return versions.filter(version => {
+    const difference = majorDifference(authVersion, version);
+    return difference === 0 || difference === 1;
+  });
+}
+
+/**
+ * Returns the difference between the major version of `a` and `b`.
+ */
+export function majorDifference(a: string, b: string): number | null {
+  const splitA = a.split('.');
+  const splitB = b.split('.');
+
+  const majorA = parseInt(splitA[0]);
+  const majorB = parseInt(splitB[0]);
+  if (Number.isNaN(majorA) || Number.isNaN(majorB)) {
+    return null;
+  }
+  return majorA - majorB;
+}
