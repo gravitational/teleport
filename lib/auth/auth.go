@@ -5806,6 +5806,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		return &proto.MFAAuthenticateChallenge{
 			WebauthnChallenge: wantypes.CredentialAssertionToProto(assertion),
 		}, nil
