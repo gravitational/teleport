@@ -73,6 +73,8 @@ export const FormLocal = ({
     onLogin(user, pass, token, mfaType?.value);
   }
 
+  const isProcessing = loginAttempt.status === 'processing';
+
   return (
     <Validation>
       {({ validator }) => (
@@ -85,6 +87,7 @@ export const FormLocal = ({
             onChange={e => setUser(e.target.value)}
             placeholder="Username"
             mb={3}
+            disabled={isProcessing}
           />
           <FieldInput
             ref={passwordInputRef}
@@ -96,6 +99,7 @@ export const FormLocal = ({
             placeholder="Password"
             mb={3}
             width="100%"
+            disabled={isProcessing}
           />
           {secondFactor !== 'off' && (
             <Flex alignItems="flex-end" mb={4}>
@@ -109,7 +113,7 @@ export const FormLocal = ({
                 onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
                 mr={3}
                 mb={0}
-                isDisabled={loginAttempt.status === 'processing'}
+                isDisabled={isProcessing}
                 menuIsOpen={true}
               />
               {mfaType.value === 'otp' && (
@@ -123,6 +127,7 @@ export const FormLocal = ({
                   onChange={e => setToken(e.target.value)}
                   placeholder="123 456"
                   mb={0}
+                  disabled={isProcessing}
                 />
               )}
             </Flex>
@@ -134,7 +139,7 @@ export const FormLocal = ({
             type="submit"
             size="large"
             onClick={e => onLoginClick(e, validator)}
-            disabled={loginAttempt.status === 'processing'}
+            disabled={isProcessing}
           >
             Sign In
           </ButtonPrimary>
