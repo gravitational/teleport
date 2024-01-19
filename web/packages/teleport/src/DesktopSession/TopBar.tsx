@@ -41,7 +41,7 @@ export default function TopBar(props: Props) {
 
   const primaryOnTrue = (b: boolean): any => {
     return {
-      color: b ? theme.colors.text.main : theme.colors.text.slightlyMuted,
+      color: b ? theme.colors.text.main : theme.colors.text.disabled,
     };
   };
 
