@@ -104,7 +104,15 @@ func (s *Service) EventsStream(_ accessgraphv1.AccessGraphService_EventsStreamSe
 	return trace.NotImplemented("EventsStream should not be called on the auth server")
 }
 
-// RegisterAccessGraphService registers the access graph sync service.
+func (s *Service) Register(_ context.Context, _ *accessgraphv1.RegisterRequest) (*accessgraphv1.RegisterResponse, error) {
+	return nil, trace.NotImplemented("Register should not be called on the auth server")
+}
+
+func (s *Service) ReplaceCAs(_ context.Context, _ *accessgraphv1.ReplaceCAsRequest) (*accessgraphv1.ReplaceCAsResponse, error) {
+	return nil, trace.NotImplemented("ReplaceCAs should not be called on the auth server")
+}
+
+// RegisterAccessGraphService registers the access graph sync service with the process.
 func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.TeleportProcess, license *licensefile.LicenseFile) error {
 	if !cfg.AccessGraph.Enabled {
 		return nil
@@ -117,8 +125,9 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		// Need to check this here inside the service function, rather than on process creation,
 		// since Cloud features are loaded dynamically. More detailed explanation in:
 		// https://github.com/gravitational/teleport/blob/3af6d9c1a25836bb160589a27a7d168a19a4992b/lib/service/service.go#L1873
-		if !modules.GetModules().Features().IsTeam() {
-			cfg.Log.Info("Access Graph specified in config, but license is not for the Team plan. Access Graph sync will not be enabled")
+		features := modules.GetModules().Features()
+		if features.Cloud && !features.IsTeam() {
+			cfg.Log.Info("Access Graph specified in config, but the Cloud license is not for the Team plan. Access Graph sync will not be enabled")
 			return nil
 		}
 		modules.GetModules().EnableAccessGraph()
@@ -133,17 +142,52 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		const accessGraphRetryPeriod = 5 * time.Second
 
 		ctx := process.GracefulExitContext()
+
+		identity, err := process.GetIdentity(types.RoleAdmin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		adminCreds := ClientCredentials{
+			CertPEM: identity.TLSCertBytes,
+			KeyPEM:  identity.KeyBytes,
+		}
+
+		log := cfg.Log.WithFields(logrus.Fields{
+			trace.Component: "accessgraph",
+			"Addr":          accessGraphAddr,
+		})
+
+		config := ServiceClientConfig{
+			Addr:     accessGraphAddr,
+			CA:       cfg.AccessGraph.CA,
+			Insecure: cfg.AccessGraph.Insecure,
+		}
+
 		// TODO(jakule): Very excessive retrying, but we need to make sure that
 		// the access graph is initialized before we start serving requests.
+
+		// Retry registration first: after it succeeds once, we do not need to re-attempt it.
 		for {
+			err := Register(ctx, log, &registrator{}, config, adminCreds, process.GetAuthServer(), license)
+			if err == nil {
+				break
+			}
+
+			cfg.Log.Errorf("Access graph registration failed: %v", err)
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(accessGraphRetryPeriod):
+				continue
+			}
+		}
+
+		for {
+			cfg.Log.Debugf("Successfully registered with the access graph service")
 			if err := initializeAndWatchAccessGraph(ctx,
-				cfg.Log.WithField("Addr", accessGraphAddr),
-				ServiceClientConfig{
-					Addr:     accessGraphAddr,
-					CA:       cfg.AccessGraph.CA,
-					License:  license,
-					Insecure: cfg.AccessGraph.Insecure,
-				},
+				log,
+				config,
+				adminCreds,
 				process.GetAuthServer(), process.GetBackend()); err != nil {
 				cfg.Log.Errorf("Access graph sync process failed: %v", err)
 				select {

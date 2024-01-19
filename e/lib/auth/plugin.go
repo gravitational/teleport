@@ -2,6 +2,10 @@ package auth
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -12,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	externalauditstoragev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
@@ -20,6 +25,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	"github.com/gravitational/teleport/api/types"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/accesslist"
@@ -27,7 +33,6 @@ import (
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/externalauditstorage/externalauditstoragev1"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
-	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/loginrulev1"
 	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
@@ -40,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/secreports/query/athena"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/release"
@@ -280,7 +286,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 
 	go accessListSvc.ReportCompliance(ctx)
 
-	if err := p.registerAccessGraphService(ctx, gRPCServer); err != nil {
+	if err := p.registerAccessGraphService(ctx, p.authServer.AuthServer, gRPCServer); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -312,16 +318,39 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 // registerAccessGraphService registers gRPC AccessGraphService in Auth.
 // Proxy services call Auth rather than TAG directly, since only Auth holds the Cloud license
 // which is required to authenticate to the external TAG service.
-func (p *Plugin) registerAccessGraphService(ctx context.Context, service grpc.ServiceRegistrar) error {
+func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *auth.Server, service grpc.ServiceRegistrar) error {
 	if !p.Config.AccessGraph.Enabled {
 		return nil
 	}
 
 	log.Info("Access Graph Enabled.")
 
-	license, ok := p.Config.License.(*licensefile.LicenseFile)
-	if !ok {
-		return trace.BadParameter("invalid license type %T", p.Config.License)
+	// TeleportProcess does not exist yet, so we can't use process.GetIdentity here.
+	// Ask Auth to generate a host certificate. This is probably not the best approach.
+	// TODO(justinas): remove Access Graph relay gRPC service from auth altogether,
+	// see https://github.com/gravitational/access-graph/issues/362
+	key, err := native.GeneratePrivateKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tlsPubDER, err := x509.MarshalPKIXPublicKey(key.Public())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tlsPub := pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: tlsPubDER})
+	tlsPriv := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(key.Signer.(*rsa.PrivateKey)),
+	})
+	cert, err := authServer.GenerateHostCerts(ctx, &proto.HostCertsRequest{
+		HostID:       authServer.ServerID,
+		NodeName:     fmt.Sprintf("access-graph.%v", authServer.AuthServiceName),
+		Role:         types.RoleAdmin,
+		PublicTLSKey: tlsPub,
+		PublicSSHKey: key.MarshalSSHPublicKey(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	agConn, err := accessgraph.NewAccessGraphClient(
@@ -329,8 +358,11 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, service grpc.Se
 		accessgraph.ServiceClientConfig{
 			Addr:     p.Config.AccessGraph.Addr,
 			CA:       p.Config.AccessGraph.CA,
-			License:  license,
 			Insecure: p.Config.AccessGraph.Insecure,
+		},
+		accessgraph.ClientCredentials{
+			CertPEM: cert.TLS,
+			KeyPEM:  tlsPriv,
 		},
 	)
 	if err != nil {

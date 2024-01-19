@@ -18,10 +18,7 @@ package accessgraph
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
-	"os"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -31,7 +28,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/health"
 
 	"github.com/gravitational/teleport/api/client"
@@ -43,41 +39,16 @@ import (
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	legacy_header "github.com/gravitational/teleport/api/types/header/convert/legacy"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
-	"github.com/gravitational/teleport/e/lib/licensefile"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ServiceClientConfig is the configuration for the access graph service client.
-type ServiceClientConfig struct {
-	// Addr is the address of the access graph service.
-	Addr string
-	// CA is the path to the CA certificate used to verify the access graph GRPC connection.
-	CA string
-	// License is the license file used to authenticate the access graph GRPC connection and share Tenant ID.
-	License *licensefile.LicenseFile
-	// Insecure is true if the access graph GRPC connection should be insecure.
-	// Do not use in production.
-	Insecure bool
-}
-
-// NewAccessGraphClient returns a new access graph service client.
-func NewAccessGraphClient(ctx context.Context, config ServiceClientConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	opt, err := grpcCredentials(config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conn, err := grpc.DialContext(ctx, config.Addr, append(opts, opt)...)
-	return conn, trace.Wrap(err)
-}
-
 // initializeAndWatchAccessGraph initializes the access graph service and watches the auth server for events.
 // This function acquires a lock on the backend to ensure that only one instance of auth server is sending
 // events to the access graph service at a time.
-func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, config ServiceClientConfig, authServer *auth.Server, bk backend.Backend) error {
+func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, config ServiceClientConfig, creds ClientCredentials, authServer *auth.Server, bk backend.Backend) error {
 	// Configure health check service to monitor access graph service and
 	// automatically reconnect if the connection is lost without
 	// relying on new events from the auth server to trigger a reconnect.
@@ -104,6 +75,7 @@ func initializeAndWatchAccessGraph(ctx context.Context, log logrus.FieldLogger, 
 			accessGraphConn, err := NewAccessGraphClient(
 				ctx,
 				config,
+				creds,
 				grpc.WithDefaultServiceConfig(serviceConfig),
 			)
 			if err != nil {
@@ -514,39 +486,6 @@ func pushAccessRequestToTAG(ctx context.Context, stream accessgraphv1.AccessGrap
 			Upsert: list,
 		},
 	}))
-}
-
-// grpcCredentials returns a grpc.DialOption configured with TLS credentials.
-func grpcCredentials(config ServiceClientConfig) (grpc.DialOption, error) {
-	cert, err := tls.X509KeyPair(
-		config.License.KeyPair.CertPEM,
-		config.License.KeyPair.KeyPEM,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err, "cannot parse License authority key pair")
-	}
-
-	var pool *x509.CertPool
-	if config.CA != "" {
-		pool = x509.NewCertPool()
-		caBytes, err := os.ReadFile(config.CA)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !pool.AppendCertsFromPEM(caBytes) {
-			return nil, trace.BadParameter("failed to append CA certificate to pool")
-		}
-	}
-
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{
-			cert,
-		},
-		MinVersion:         tls.VersionTLS13,
-		InsecureSkipVerify: config.Insecure,
-		RootCAs:            pool,
-	}
-	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
 }
 
 type accessGraphSender interface {
