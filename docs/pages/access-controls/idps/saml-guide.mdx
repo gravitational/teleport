@@ -50,12 +50,11 @@ Add the spec to Teleport using `tctl`:
 $ tctl create saml-sp.yaml
 # SAML IdP service provider 'samltest-id' has been created.
 ```
-Teleport now trusts the samltest.id service provider.
 
-<Admonition type="note" title="Entity Descriptor">
-Teleport tries to fetch an entity descriptor by quering the Entity ID endpoint.
+The above configuration shows creating Service Provider without an entity descriptor.
+In this scenario, Teleport first tries to fetch an entity descriptor by quering the `entity_id` endpoint.
 If an entity descriptor is not found at that endpoint, Teleport will generate
-a new entity descriptor with the given Entity ID and ACS URL values.
+a new entity descriptor with the given `entity_id` and `acs_url` values.
 
 If you need more control over the entity descriptor, you may also add it directly
 to the `saml_idp_service_provider` spec.
@@ -92,11 +91,22 @@ $ tctl create saml-sp.yaml
 # SAML IdP service provider 'samltest-id' has been created.
 ```
 </Details>
+
+<Admonition type="important">
+If an entity descrpitor is provided, it's content takes preference over values provided in `entity_id` and `acs_url`.
+
+Teleport only tries to fetch or generate entity descriptor when Service Provider is created for the first time.
+Subsequent updates require an entity descrpitor to be present in the Service Provider spec. As such, when updating
+Service Provider, you should first fetch the spec that is stored in Teleport and only then edit the configruation.
+```code
+# get service provider spec
+$ tctl get saml_idp_service_provider/<service provider name> > service-provider.yml
+```
 </Admonition>
 
 ## Step 2/3. Configure samltest.id to recognize Teleport's SAML IdP
 
-First, obtain your Teleport SAML IdP metadata by navigating to `https://<proxy-address>/enterprise/saml-idp/metadata`. 
+First, obtain your Teleport SAML IdP metadata by navigating to `https://<proxy-address>/enterprise/saml-idp/metadata`.
 Save it in an easy to remember file name like `teleport-metadata.xml`.
 
 Now navigate to https://samltest.id and click on "Upload Metadata." Next, choose to upload
@@ -160,4 +170,4 @@ role 'saml-idp-service-provider-manager' has been created
 
 Next, add the role to your user.
 
-(!docs/pages/includes/add-role-to-user.mdx role="(!docs/pages/includes/add-role-to-user.mdx role="sp-manager"!)"!)
+(!docs/pages/includes/add-role-to-user.mdx role="sp-manager"!)
