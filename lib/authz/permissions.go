@@ -218,12 +218,20 @@ type Context struct {
 	AdminActionAuthState AdminActionAuthState
 }
 
+// AdminActionAuthState is an admin action authorization state.
 type AdminActionAuthState int
 
 const (
+	// AdminActionAuthUnauthorized admin action is not authorized.
 	AdminActionAuthUnauthorized AdminActionAuthState = iota
+	// AdminActionAuthNotRequired admin action authorization is not authorized.
+	// This state is used for non-user cases, like internal service roles or Machine ID.
 	AdminActionAuthNotRequired
+	// AdminActionAuthMFAVerified admin action is authorized with MFA verification.
 	AdminActionAuthMFAVerified
+	// AdminActionAuthMFAVerifiedWithReuse admin action is authorized with MFA verification.
+	// The MFA challenged used for verification allows reuse, which may be denied by some
+	// admin actions.
 	AdminActionAuthMFAVerifiedWithReuse
 )
 
