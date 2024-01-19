@@ -5807,6 +5807,24 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 			return nil, trace.Wrap(err)
 		}
 
+		clusterName, err := a.GetClusterName()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := a.emitter.EmitAuditEvent(ctx, &apievents.CreateMFAAuthChallenge{
+			Metadata: apievents.Metadata{
+				Type:        events.CreateMFAAuthChallengeEvent,
+				Code:        events.CreateMFAAuthChallengeCode,
+				ClusterName: clusterName.GetClusterName(),
+			},
+			UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
+			ChallengeScope:      challengeExtensions.Scope.String(),
+			ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		}); err != nil {
+			log.WithError(err).Warn("Failed to emit CreateMFAAuthChallenge event.")
+		}
+
 		return &proto.MFAAuthenticateChallenge{
 			WebauthnChallenge: wantypes.CredentialAssertionToProto(assertion),
 		}, nil
@@ -5841,6 +5859,24 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 			return nil, trace.Wrap(err)
 		}
 		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
+	}
+
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.CreateMFAAuthChallenge{
+		Metadata: apievents.Metadata{
+			Type:        events.CreateMFAAuthChallengeEvent,
+			Code:        events.CreateMFAAuthChallengeCode,
+			ClusterName: clusterName.GetClusterName(),
+		},
+		UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
+		ChallengeScope:      challengeExtensions.Scope.String(),
+		ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit CreateMFAAuthChallenge event.")
 	}
 
 	return challenge, nil

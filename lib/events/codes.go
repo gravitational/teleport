@@ -81,6 +81,8 @@ const (
 	UserHeadlessLoginApprovedFailureCode = "T1013W"
 	// UserHeadlessLoginRejectedCode is an event code for when headless login attempt was rejected.
 	UserHeadlessLoginRejectedCode = "T1014W"
+	// CreateMFAAuthChallenge is an event code for when an MFA auth challenge is created.
+	CreateMFAAuthChallengeCode = "T1015I"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"
