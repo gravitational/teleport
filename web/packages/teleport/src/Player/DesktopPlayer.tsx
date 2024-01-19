@@ -18,7 +18,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
-import { Indicator, Box, Alert } from 'design';
+import { Indicator, Box, Alert, Flex } from 'design';
 
 import cfg from 'teleport/config';
 import { StatusEnum, formatDisplayTime } from 'teleport/lib/player';
@@ -73,7 +73,10 @@ export const DesktopPlayer = ({
   const isPlaying = playerStatus === StatusEnum.PLAYING;
   const isComplete = isError || playerStatus === StatusEnum.COMPLETE;
 
-  const t = playerStatus === StatusEnum.COMPLETE ? durationMs : time;
+  const t =
+    playerStatus === StatusEnum.COMPLETE || playerStatus === StatusEnum.ERROR
+      ? durationMs // Force progress bar to 100% when playback is complete or errored.
+      : time; // Otherwise, use the current time.
 
   // Hide the canvas and progress bar until the canvas' size has been fully defined.
   // This prevents visual glitches at pageload where the canvas starts out small and
@@ -84,46 +87,48 @@ export const DesktopPlayer = ({
 
   return (
     <StyledPlayer>
-      {isError && <DesktopPlayerAlert my={4} mx={10} children={statusText} />}
+      {isError && <DesktopPlayerAlert my={4} children={statusText} />}
       {isLoading && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
 
-      <TdpClientCanvas
-        client={playerClient}
-        clientShouldConnect={true}
-        clientOnPngFrame={clientOnPngFrame}
-        clientOnBmpFrame={clientOnBitmapFrame}
-        clientOnClientScreenSpec={clientOnClientScreenSpec}
-        clientOnWsClose={clientOnWsClose}
-        clientOnTdpError={clientOnTdpError}
-        canvasOnContextMenu={handleContextMenu}
-        style={{
-          ...canvasStyle,
-          ...canvasAndProgressBarDisplayStyle,
-        }}
-      />
+      <StyledContainer>
+        <TdpClientCanvas
+          client={playerClient}
+          clientShouldConnect={true}
+          clientOnPngFrame={clientOnPngFrame}
+          clientOnBmpFrame={clientOnBitmapFrame}
+          clientOnClientScreenSpec={clientOnClientScreenSpec}
+          clientOnWsClose={clientOnWsClose}
+          clientOnTdpError={clientOnTdpError}
+          canvasOnContextMenu={handleContextMenu}
+          style={{
+            ...canvasStyle,
+            ...canvasAndProgressBarDisplayStyle,
+          }}
+        />
 
-      <ProgressBar
-        id={PROGRESS_BAR_ID}
-        min={0}
-        max={durationMs}
-        current={t}
-        disabled={isComplete}
-        isPlaying={isPlaying}
-        time={formatDisplayTime(t)}
-        onRestart={reload}
-        onStartMove={() => playerClient.suspendTimeUpdates()}
-        move={pos => {
-          playerClient.seekTo(pos);
-          playerClient.resumeTimeUpdates();
-        }}
-        onPlaySpeedChange={s => playerClient.setPlaySpeed(s)}
-        toggle={() => playerClient.togglePlayPause()}
-        style={{ ...canvasAndProgressBarDisplayStyle }}
-      />
+        <ProgressBar
+          id={PROGRESS_BAR_ID}
+          min={0}
+          max={durationMs}
+          current={t}
+          disabled={isComplete}
+          isPlaying={isPlaying}
+          time={formatDisplayTime(t)}
+          onRestart={reload}
+          onStartMove={() => playerClient.suspendTimeUpdates()}
+          move={pos => {
+            playerClient.seekTo(pos);
+            playerClient.resumeTimeUpdates();
+          }}
+          onPlaySpeedChange={s => playerClient.setPlaySpeed(s)}
+          toggle={() => playerClient.togglePlayPause()}
+          style={{ ...canvasAndProgressBarDisplayStyle }}
+        />
+      </StyledContainer>
     </StyledPlayer>
   );
 };
@@ -228,10 +233,15 @@ const StyledPlayer = styled.div`
 `;
 
 const DesktopPlayerAlert = styled(Alert)`
+  position: absolute;
+  top: 0;
   align-self: center;
   min-width: 450px;
+`;
 
-  // Overrides StyledPlayer container's justify-content
-  // https://stackoverflow.com/a/34063808/6277051
-  margin-bottom: auto;
+const StyledContainer = styled(Flex)`
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 `;
