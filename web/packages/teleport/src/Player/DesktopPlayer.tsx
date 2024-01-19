@@ -73,10 +73,9 @@ export const DesktopPlayer = ({
   const isPlaying = playerStatus === StatusEnum.PLAYING;
   const isComplete = isError || playerStatus === StatusEnum.COMPLETE;
 
-  const t =
-    playerStatus === StatusEnum.COMPLETE || playerStatus === StatusEnum.ERROR
-      ? durationMs // Force progress bar to 100% when playback is complete or errored.
-      : time; // Otherwise, use the current time.
+  const t = isComplete
+    ? durationMs // Force progress bar to 100% when playback is complete or errored.
+    : time; // Otherwise, use the current time.
 
   // Hide the canvas and progress bar until the canvas' size has been fully defined.
   // This prevents visual glitches at pageload where the canvas starts out small and
