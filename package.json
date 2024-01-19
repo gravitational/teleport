@@ -19,10 +19,10 @@
     "test-update-snapshot": "yarn test -- --updateSnapshot",
     "tdd": "jest --watch",
     "lint": "yarn prettier-check && yarn eslint",
-    "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx}'",
+    "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --noEmit",
-    "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx}'",
-    "prettier-write": "yarn prettier --write --loglevel silent '+(e|web)/**/*.{ts,tsx,js,jsx}'",
+    "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
+    "prettier-write": "yarn prettier --write --loglevel silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "node web/packages/design/src/Icon/script/script.js & yarn prettier --loglevel silent --write 'web/packages/design/src/Icon/Icons/*.tsx'",
     "nop": "exit 0"
   },
