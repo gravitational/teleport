@@ -358,7 +358,7 @@
               "forScopes": ["enterprise", "cloud", "team"]
             },
             {
-              "title": "Attribute Mapping",
+              "title": "SAML Attribute Mapping",
               "slug": "/access-controls/idps/saml-attribute-mapping/",
               "forScopes": ["enterprise", "cloud", "team"]
             },
