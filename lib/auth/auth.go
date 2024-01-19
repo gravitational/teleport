@@ -5957,7 +5957,7 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 // required challenge extensions will be checked against the stored challenge when
 // applicable (webauthn only). Returns the authentication data derived from the solved
 // challenge.
-func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
+func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (mfaAuthData *authz.MFAAuthData, err error) {
 	if requiredExtensions == nil {
 		return nil, trace.BadParameter("required challenge extensions parameter required")
 	}
@@ -5968,6 +5968,38 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 	if user == "" && !isPasswordless {
 		return nil, trace.BadParameter("user required")
 	}
+
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer func() {
+		auditEvent := &apievents.ValidateMFAAuthResponse{
+			Metadata: apievents.Metadata{
+				Type:        events.ValidateMFAAuthResponseEvent,
+				ClusterName: clusterName.GetClusterName(),
+			},
+			UserMetadata:   authz.ClientUserMetadataWithUser(ctx, user),
+			ChallengeScope: requiredExtensions.Scope.String(),
+		}
+		if err != nil {
+			auditEvent.Code = events.ValidateMFAAuthResponseFailureCode
+			auditEvent.Success = false
+			auditEvent.UserMessage = err.Error()
+			auditEvent.Error = err.Error()
+		} else {
+			auditEvent.Code = events.ValidateMFAAuthResponseCode
+			auditEvent.Status.Success = true
+			deviceMetadata := mfaDeviceEventMetadata(mfaAuthData.Device)
+			auditEvent.MFADevice = &deviceMetadata
+			auditEvent.ChallengeAllowReuse = mfaAuthData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
+		}
+
+		if err := a.emitter.EmitAuditEvent(ctx, auditEvent); err != nil {
+			log.WithError(err).Warn("Failed to emit ValidateMFAAuthResponse event.")
+		}
+	}()
 
 	switch res := resp.Response.(type) {
 	// cases in order of preference
@@ -6007,6 +6039,7 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 		if err != nil {
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
+
 		return &authz.MFAAuthData{
 			Device:     loginData.Device,
 			User:       loginData.User,
