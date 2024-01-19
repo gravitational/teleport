@@ -324,13 +324,13 @@ export function Timestamp({
   let verb = `submitted`;
 
   if (state === 'APPROVED') {
-    iconBgColor = 'success';
+    iconBgColor = 'success.main';
     $icon = <CircleCheck size={26} color="light" />;
     verb = 'approved';
   }
 
   if (isPromoted) {
-    iconBgColor = 'success';
+    iconBgColor = 'success.main';
     $icon = <ArrowFatLinesUp size={26} color="light" />;
     verb = 'promoted';
   }

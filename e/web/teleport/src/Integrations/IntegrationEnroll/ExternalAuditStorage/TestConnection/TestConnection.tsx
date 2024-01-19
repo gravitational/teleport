@@ -61,7 +61,7 @@ export function TestConnection() {
         )}
         {attempt.status == 'success' && (
           <TextIcon>
-            <Icons.CircleCheck size="medium" color="success" />
+            <Icons.CircleCheck size="medium" color="success.main" />
             Testing complete
           </TextIcon>
         )}
@@ -81,7 +81,11 @@ export function TestConnection() {
             if (trace.status === 'success') {
               return (
                 <TextIcon key={index}>
-                  <Icons.CircleCheck size="medium" color="success" mr={1} />
+                  <Icons.CircleCheck
+                    size="medium"
+                    color="success.main"
+                    mr={1}
+                  />
                   {trace.details}
                 </TextIcon>
               );

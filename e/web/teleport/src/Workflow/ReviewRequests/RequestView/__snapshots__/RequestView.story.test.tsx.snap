@@ -45,13 +45,8 @@ exports[`loaded approved role based request state 1`] = `
   margin-left: 16px;
   margin-right: 8px;
   padding: 3px;
+  background-color: #00BFA6;
   border-radius: 50%;
-}
-
-.c21 backgroundColor {
-  main: #00BFA6;
-  hover: #33CCB8;
-  active: #66D9CA;
 }
 
 .c23 {

@@ -197,7 +197,7 @@ export const renderStatusCell = ({ state }: Row) => {
     return (
       <Cell>
         <Flex alignItems="center">
-          <ArrowFatLinesUp size={17} color="success" mr={1} ml="-3px" />
+          <ArrowFatLinesUp size={17} color="success.main" mr={1} ml="-3px" />
           <Text typography="body2">{state}</Text>
         </Flex>
       </Cell>

@@ -70,7 +70,7 @@ export function SelectReviewers({
         <components.Option {...props} className="react-select__selected">
           <Flex alignItems="center" justifyContent="space-between">
             <Flex alignItems="center" width="210px">
-              <Icon.CircleCheck size="medium" color="success" mr={2} />
+              <Icon.CircleCheck size="medium" color="success.main" mr={2} />
               <Text title={props.data.value}>{props.data.value}</Text>
             </Flex>
             <Icon.Cross size="small" />

@@ -252,14 +252,9 @@ exports[`loaded state 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: #00BFA6;
   margin-left: -3px;
   margin-right: 4px;
-}
-
-.c26 color {
-  main: #00BFA6;
-  hover: #33CCB8;
-  active: #66D9CA;
 }
 
 .c21 {
@@ -1089,7 +1084,7 @@ exports[`loaded state 1`] = `
             >
               <span
                 class="c26 icon icon-arrowfatlinesup"
-                color="success"
+                color="success.main"
               >
                 <svg
                   fill="currentColor"
@@ -1217,7 +1212,7 @@ exports[`loaded state 1`] = `
             >
               <span
                 class="c26 icon icon-arrowfatlinesup"
-                color="success"
+                color="success.main"
               >
                 <svg
                   fill="currentColor"

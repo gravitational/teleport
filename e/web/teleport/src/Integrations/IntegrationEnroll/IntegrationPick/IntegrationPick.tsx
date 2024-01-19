@@ -246,7 +246,7 @@ function PluginTile({
           <Icons.Check
             ml={1}
             data-testid="plugin-checkmark"
-            color="success"
+            color="success.main"
             size="small"
           />
         )}
