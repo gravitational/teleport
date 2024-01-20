@@ -349,6 +349,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.ExternalAuditStorageEnable{}
 	case ExternalAuditStorageDisableEvent:
 		e = &events.ExternalAuditStorageDisable{}
+	case CreateMFAAuthChallengeEvent:
+		e = &events.CreateMFAAuthChallenge{}
+	case ValidateMFAAuthResponseEvent:
+		e = &events.ValidateMFAAuthResponse{}
 
 	case UnknownEvent:
 		e = &events.Unknown{}

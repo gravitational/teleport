@@ -742,6 +742,24 @@ export const formatters: Formatters = {
     desc: 'Headless Login Rejected',
     format: ({ user }) => `User [${user}] rejected headless login request`,
   },
+  [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: {
+    type: 'mfa_auth_challenge.create',
+    desc: 'MFA Authentication Attempt',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] requested an MFA authentication challenge`,
+  },
+  [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: {
+    type: 'mfa_auth_challenge.validate',
+    desc: 'MFA Authentication Success',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] completed MFA authentication`,
+  },
+  [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: {
+    type: 'mfa_auth_challenge.validate',
+    desc: 'MFA Authentication Failure',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] failed MFA authentication`,
+  },
   [eventCodes.ROLE_CREATED]: {
     type: 'role.created',
     desc: 'User Role Created',
