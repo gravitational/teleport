@@ -3911,6 +3911,8 @@ message OneOf {
     events.BotCreate BotCreate = 143;
     events.BotDelete BotDelete = 144;
     events.BotUpdate BotUpdate = 145;
+    events.CreateMFAAuthChallenge CreateMFAAuthChallenge = 146;
+    events.ValidateMFAAuthResponse ValidateMFAAuthResponse = 147;
   }
 }
 
