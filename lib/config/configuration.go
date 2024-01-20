@@ -1460,16 +1460,18 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
 		var installerParams *types.InstallerParams
-		if matcher.InstallParams != nil {
+		if slices.Contains(matcher.Types, types.AzureMatcherVM) {
 			installerParams = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
-			if matcher.InstallParams.Azure != nil {
-				installerParams.Azure = &types.AzureInstallerParams{
-					ClientID: matcher.InstallParams.Azure.ClientID,
+			if matcher.InstallParams != nil {
+				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
+				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
+				installerParams.ScriptName = matcher.InstallParams.ScriptName
+				if matcher.InstallParams.Azure != nil {
+					installerParams.Azure = &types.AzureInstallerParams{
+						ClientID: matcher.InstallParams.Azure.ClientID,
+					}
 				}
 			}
 		}
@@ -1491,14 +1493,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
 		var installerParams *types.InstallerParams
-		if matcher.InstallParams != nil {
+		if slices.Contains(matcher.Types, types.GCPMatcherCompute) {
 			installerParams = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
+			if matcher.InstallParams != nil {
+				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
+				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
+				installerParams.ScriptName = matcher.InstallParams.ScriptName
+			}
 		}
+
 		serviceMatcher := types.GCPMatcher{
 			Types:           matcher.Types,
 			Locations:       matcher.Locations,
