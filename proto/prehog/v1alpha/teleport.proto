@@ -50,6 +50,28 @@ message UserLoginEvent {
   string required_private_key_policy = 4;
 }
 
+// MFAAuthenticationEvent is emitted when a user performs MFA authentication.
+message MFAAuthenticationEvent {
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
+  // should always be a real user as bots and service accounts with long-term
+  // credentials don't ever login
+  //
+  // PostHog property: tp.user_name
+  string user_name = 1;
+
+  // anonymized device ID, empty or 32 bytes (HMAC-SHA-256) encoded in base64;
+  // for logins where device trust is enabled
+  //
+  // PostHog property: tp.device_id
+  string device_id = 2;
+
+  // device type is the type of MFA device used
+  string device_type = 3;
+
+  // the authorization scope the MFA authentication
+  string mfa_challenge_scope = 4;
+}
+
 message SSOCreateEvent {
   // github/saml/oidc
   string connector_type = 1;
@@ -1283,6 +1305,8 @@ message SubmitEventRequest {
     AccessListReviewCreateEvent access_list_review_create = 75;
     AccessListReviewDeleteEvent access_list_review_delete = 76;
     AccessListReviewComplianceEvent access_list_review_compliance = 77;
+
+    MFAAuthenticationEvent mfa_authentication_event = 78;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
