@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -64,6 +66,16 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	// this connection was proxied, the proxy doesn't know if file copying
 	// is allowed for certain Nodes.
 	if !serverCtx.AllowFileCopying {
+		serverCtx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
+			Metadata: apievents.Metadata{
+				Code: events.SFTPDisallowedCode,
+				Type: events.SFTPEvent,
+				Time: time.Now(),
+			},
+			UserMetadata:   serverCtx.Identity.GetUserMetadata(),
+			ServerMetadata: serverCtx.GetServerMetadata(),
+			Error:          srv.ErrNodeFileCopyingNotPermitted.Error(),
+		})
 		return srv.ErrNodeFileCopyingNotPermitted
 	}
 
