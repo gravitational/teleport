@@ -781,8 +781,10 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	local.SessionDataLimiter.Clock = fakeClock
 	local.SessionDataLimiter.ResetPeriod = period
 
-	const scopeLogin = "login"
-	const scopeOther = "other"
+	// Add some randomness to the scopes to avoid high -count runs tripping on
+	// each other.
+	scopeLogin := "login" + uuid.NewString()
+	scopeOther := "other" + uuid.NewString()
 	const id1 = "challenge1"
 	const id2 = "challenge2"
 	const id3 = "challenge3"
