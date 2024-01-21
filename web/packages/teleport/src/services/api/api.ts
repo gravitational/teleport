@@ -17,7 +17,7 @@
  */
 
 import 'whatwg-fetch';
-import auth from 'teleport/services/auth/auth';
+import auth, { MFAChallengeScope } from 'teleport/services/auth/auth';
 
 import { storageService } from '../storageService';
 import { WebauthnAssertionResponse } from '../auth';
@@ -117,7 +117,9 @@ const api = {
 
     let webauthnResponseForRetry;
     try {
-      webauthnResponseForRetry = await auth.getWebauthnResponse();
+      webauthnResponseForRetry = await auth.getWebauthnResponse(
+        MFAChallengeScope.ADMIN_ACTION
+      );
     } catch (err) {
       throw new Error(
         'Failed to fetch webauthn credentials, please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
