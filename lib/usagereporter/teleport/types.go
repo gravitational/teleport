@@ -1016,8 +1016,7 @@ func (e *DiscoveryFetchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEven
 // MFAAuthenticationEvent is emitted when a user performs MFA authentication.
 type MFAAuthenticationEvent prehogv1a.MFAAuthenticationEvent
 
-// Anonymize anonymizes the event. Since there is nothing to anonymize, it
-// really just wraps itself in a [prehogv1a.SubmitEventRequest].
+// Anonymize anonymizes the event.
 func (e *MFAAuthenticationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_MfaAuthenticationEvent{
