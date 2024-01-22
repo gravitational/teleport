@@ -150,9 +150,23 @@ func (p *Plugin) upsertAccessList(_ http.ResponseWriter, r *http.Request, params
 		accessListId = uuid.New().String()
 	}
 
+	accessListClient := clt.AccessListClient()
+
+	// Try to get the old version of this access list if we can.
+	oldAccessList, err := accessListClient.GetAccessList(r.Context(), accessListId)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	accessList, err := accesslist.NewAccessList(header.Metadata{Name: accessListId}, req.Spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Make sure the old metadata is reflected in the new access list. This will preserve labels, expiration date,
+	// description, etc.
+	if oldAccessList != nil {
+		accessList.Metadata = oldAccessList.Metadata
 	}
 
 	// Convert members
@@ -161,7 +175,6 @@ func (p *Plugin) upsertAccessList(_ http.ResponseWriter, r *http.Request, params
 		members = append(members, memberToAccessListMember(accessListId, member))
 	}
 
-	accessListClient := clt.AccessListClient()
 	createdAccessList, updatedMembers, err := accessListClient.UpsertAccessListWithMembers(r.Context(), accessList, members)
 	if err != nil {
 		return nil, trace.Wrap(err)

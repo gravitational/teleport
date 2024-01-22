@@ -13,10 +13,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -101,25 +103,36 @@ func TestCreateAccessList(t *testing.T) {
 
 func TestUpdateAccessList(t *testing.T) {
 	s := newWebSuite(t)
+
+	role, err := auth.CreateRole(s.ctx, s.testAuthServer.Auth(), "llama-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	user, err := types.NewUser("llama")
+	require.NoError(t, err)
+	user.AddRole(role.GetName())
+	_, err = s.testAuthServer.AuthServer.AuthServer.CreateUser(s.ctx, user)
+	require.NoError(t, err)
+	err = s.testAuthServer.Auth().UpsertPassword(user.GetName(), []byte(s.testPassword()))
+	require.NoError(t, err)
+
 	webPack := s.newAuthWebPack(t, "foo")
 
 	accessListId := createTestAccessList(t, webPack, s)
 
-	accessList, err := accesslist.NewAccessList(header.Metadata{
-		Name: "access-list-1",
-	}, accesslist.Spec{
-		Title:              "access list 1",
-		Description:        "access list 1 desc - updated",
-		Owners:             []accesslist.Owner{{Name: "llama 2", Description: "llama 2 desc"}},
-		OwnershipRequires:  accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{}},
-		Grants:             accesslist.Grants{Roles: []string{"access"}, Traits: trait.Traits{}},
-		MembershipRequires: accesslist.Requires{Traits: trait.Traits{}},
-		Audit:              accesslist.Audit{NextAuditDate: s.clock.Now()},
+	// Add labels to the access list.
+	adminClient := s.newAdminAuthClient(s.ctx, t)
+
+	accessList, err := adminClient.AccessListClient().GetAccessList(s.ctx, accessListId)
+	require.NoError(t, err)
+
+	accessList.SetStaticLabels(map[string]string{
+		"label": "value",
 	})
+
+	accessList, err = adminClient.AccessListClient().UpsertAccessList(s.ctx, accessList)
 	require.NoError(t, err)
 
 	accessListMember := accesslist.AccessListMemberSpec{
-		Name:    "llama",
+		Name:    "llama-1",
 		Joined:  time.Now(),
 		Expires: time.Now().Add(time.Hour),
 		Reason:  "reason",
@@ -141,6 +154,8 @@ func TestUpdateAccessList(t *testing.T) {
 		Reason:  "reason",
 		AddedBy: "admin",
 	}
+
+	webPack = s.newAuthWebPack(t, user.GetName(), skipUserCreation())
 
 	// Add one member. The list should have one member.
 	updateAccessList(t, webPack, s, accessListId, accessList.Spec, accessListMember)
@@ -324,7 +339,7 @@ func createTestAccessList(t *testing.T, webPack *authWebPack, s *webSuite) strin
 	}, accesslist.Spec{
 		Title:              "access list 1",
 		Owners:             []accesslist.Owner{{Name: "llama", Description: "llama desc"}},
-		OwnershipRequires:  accesslist.Requires{Roles: []string{"admin"}, Traits: trait.Traits{}},
+		OwnershipRequires:  accesslist.Requires{Roles: []string{"llama-role"}, Traits: trait.Traits{}},
 		Grants:             accesslist.Grants{Roles: []string{"access"}, Traits: trait.Traits{}},
 		MembershipRequires: accesslist.Requires{Traits: trait.Traits{}},
 		Audit:              accesslist.Audit{NextAuditDate: time.Now()},
