@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -2935,7 +2936,23 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
-	var passwordless bool
+
+	challengeExtensions := &mfav1.ChallengeExtensions{}
+	if req.ChallengeExtensions != nil {
+		challengeExtensions = req.ChallengeExtensions
+	}
+
+	validateAndSetScope := func(challengeExtensions *mfav1.ChallengeExtensions, expectedScope mfav1.ChallengeScope) error {
+		if challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+			challengeExtensions.Scope = expectedScope
+		} else if challengeExtensions.Scope != expectedScope {
+			// scope doesn't need to be specified when the challenge request type is
+			// tied to a specific scope, but we validate it anyways as a sanity check.
+			return trace.BadParameter("invalid scope %q, expected %q", challengeExtensions.Scope, expectedScope)
+		}
+
+		return nil
+	}
 
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
@@ -2945,6 +2962,10 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 			return a.checkPasswordWOToken(username, req.GetUserCredentials().GetPassword())
 		}); err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN); err != nil {
+			return nil, trace.Wrap(ErrDone)
 		}
 
 	case *proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID:
@@ -2960,10 +2981,17 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 		username = token.GetUser()
 
+		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY); err != nil {
+			return nil, trace.Wrap(ErrDone)
+		}
+
 	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
-		passwordless = true // Allows empty username.
+		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN); err != nil {
+			return nil, trace.Wrap(ErrDone)
+		}
 
 	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
+		// TODO(Joerger): in v16.0.0, require scope to be specified in the request.
 		var err error
 		username, err = authz.GetClientUsername(ctx)
 		if err != nil {
@@ -2971,7 +2999,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, passwordless)
+	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return nil, trace.AccessDenied("unable to create MFA challenges")
@@ -3011,7 +3039,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 			return nil, trace.Wrap(err)
 		}
 
-		if _, err := a.validateMFAAuthResponseForRegister(ctx, req.ExistingMFAResponse, username, false /* passwordless */); err != nil {
+		if _, err := a.validateMFAAuthResponseForRegister(ctx, req.ExistingMFAResponse, username); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -3213,9 +3241,8 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 			return trace.Wrap(err)
 		}
 
-		if _, _, err := a.ValidateMFAAuthResponse(
-			ctx, req.ExistingMFAResponse, user, false, /* passwordless */
-		); err != nil {
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES}
+		if _, err := a.ValidateMFAAuthResponse(ctx, req.ExistingMFAResponse, user, requiredExt); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -5736,7 +5763,9 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless bool) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+
 	// Check what kind of MFA is enabled.
 	apref, err := a.GetAuthPreference(ctx)
 	if err != nil {
@@ -5765,7 +5794,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 	}
 
 	// Handle passwordless separately, it works differently from MFA.
-	if passwordless {
+	if isPasswordless {
 		if !enableWebauthn {
 			return nil, trace.BadParameter("passwordless requires WebAuthn")
 		}
@@ -5806,7 +5835,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 			Webauthn: webConfig,
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
-		assertion, err := webLogin.Begin(ctx, user)
+		assertion, err := webLogin.Begin(ctx, user, challengeExtensions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5848,10 +5877,7 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 // The hasDevices response value can only be trusted in the absence of errors.
 //
 // Use only for registration purposes.
-func (a *Server) validateMFAAuthResponseForRegister(
-	ctx context.Context,
-	resp *proto.MFAAuthenticateResponse, username string, passwordless bool,
-) (hasDevices bool, err error) {
+func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
 	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
@@ -5880,8 +5906,8 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	}
 
 	if err := a.WithUserLock(ctx, username, func() error {
-		_, _, err := a.ValidateMFAAuthResponse(
-			ctx, resp, username, false /* passwordless */)
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES}
+		_, err := a.ValidateMFAAuthResponse(ctx, resp, username, requiredExt)
 		return err
 	}); err != nil {
 		return false, trace.Wrap(err)
@@ -5890,13 +5916,20 @@ func (a *Server) validateMFAAuthResponseForRegister(
 	return true, nil
 }
 
-// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-// Returns the device used to solve the challenge (if applicable) and the
-// username.
-func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
+// ValidateMFAAuthResponse validates an MFA or passwordless challenge. The provided
+// required challenge extensions will be checked against the stored challenge when
+// applicable (webauthn only). Returns the authentication data derived from the solved
+// challenge.
+func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
+	if requiredExtensions == nil {
+		return nil, trace.BadParameter("required challenge extensions parameter required")
+	}
+
+	isPasswordless := requiredExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+
 	// Sanity check user/passwordless.
-	if user == "" && !passwordless {
-		return nil, "", trace.BadParameter("user required")
+	if user == "" && !isPasswordless {
+		return nil, trace.BadParameter("user required")
 	}
 
 	switch res := resp.Response.(type) {
@@ -5905,46 +5938,59 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 		// Read necessary configurations.
 		cap, err := a.GetAuthPreference(ctx)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		u2f, err := cap.GetU2F()
 		switch {
 		case trace.IsNotFound(err): // OK, may happen.
 		case err != nil: // Unexpected.
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		webConfig, err := cap.GetWebauthn()
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		assertionResp := wantypes.CredentialAssertionResponseFromProto(res.Webauthn)
-		var dev *types.MFADevice
-		if passwordless {
+		var loginData *wanlib.LoginData
+		if isPasswordless {
 			webLogin := &wanlib.PasswordlessFlow{
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, user, err = webLogin.Finish(ctx, assertionResp)
+			loginData, err = webLogin.Finish(ctx, assertionResp)
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn))
+			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
 		}
 		if err != nil {
-			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)
+			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
-		return dev, user, nil
+		return &authz.MFAAuthData{
+			Device:     loginData.Device,
+			User:       loginData.User,
+			AllowReuse: loginData.AllowReuse,
+		}, nil
 
 	case *proto.MFAAuthenticateResponse_TOTP:
 		dev, err := a.checkOTP(user, res.TOTP.Code)
-		return dev, user, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &authz.MFAAuthData{
+			Device: dev,
+			User:   user,
+			// We store the last used token so OTP reuse is never allowed.
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+		}, nil
 
 	default:
-		return nil, "", trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
+		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
 }
 

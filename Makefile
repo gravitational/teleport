@@ -290,7 +290,7 @@ binaries:
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
@@ -321,27 +321,16 @@ ifeq ("$(with_bpf)","yes")
 $(ER_BPF_BUILDDIR):
 	mkdir -p $(ER_BPF_BUILDDIR)
 
-$(RS_BPF_BUILDDIR):
-	mkdir -p $(RS_BPF_BUILDDIR)
-
 # Build BPF code
 $(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
 	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
-# Build BPF code
-$(RS_BPF_BUILDDIR)/%.bpf.o: bpf/restrictedsession/%.bpf.c $(wildcard bpf/*.h) | $(RS_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
-	$(LLVM_STRIP) -g $@ # strip useless DWARF info
-
-.PHONY: bpf-rs-bytecode
-bpf-rs-bytecode: $(RS_BPF_BUILDDIR)/restricted.bpf.o
-
 .PHONY: bpf-er-bytecode
 bpf-er-bytecode: $(ER_BPF_BUILDDIR)/command.bpf.o $(ER_BPF_BUILDDIR)/disk.bpf.o $(ER_BPF_BUILDDIR)/network.bpf.o $(ER_BPF_BUILDDIR)/counter_test.bpf.o
 
 .PHONY: bpf-bytecode
-bpf-bytecode: bpf-er-bytecode bpf-rs-bytecode
+bpf-bytecode: bpf-er-bytecode
 
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
@@ -411,9 +400,6 @@ clean-build:
 ifneq ($(ER_BPF_BUILDDIR),)
 	rm -f $(ER_BPF_BUILDDIR)/*.o
 endif
-ifneq ($(RS_BPF_BUILDDIR),)
-	rm -f $(RS_BPF_BUILDDIR)/*.o
-endif
 	-cargo clean
 	-go clean -cache
 	rm -f *.gz
@@ -426,6 +412,7 @@ endif
 .PHONY: clean-ui
 clean-ui:
 	rm -rf webassets/*
+	rm -rf web/packages/teleterm/build
 	find . -type d -name node_modules -prune -exec rm -rf {} \;
 
 #

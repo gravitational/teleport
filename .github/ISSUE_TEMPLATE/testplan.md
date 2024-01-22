@@ -388,7 +388,7 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
 
 ### Migrations
 
-* [ ] Migrate trusted clusters from 2.4.0 to 2.5.0
+* [ ] Migrate trusted clusters
   * [ ] Migrate auth server on main cluster, then rest of the servers on main cluster
         SSH should work for both main and old clusters
   * [ ] Migrate auth server on remote cluster, then rest of the remote cluster
@@ -671,28 +671,33 @@ tsh ssh node-that-requires-device-trust
   - [ ] device_trust.mode="optional" doesn't impede access, but issues device
         extensions on login
   - [ ] device_trust.mode="required" enforces enrolled devices
-  - [ ] device_trust.mode="required" is enforced by processes, and not only by
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+    - [ ] App Access NOT enforced in global mode
+  - [ ] device_trust.mode="required" is enforced by processes and not only by
         Auth APIs
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
 
     Testing this requires issuing a certificate without device extensions
     (mode="off"), then changing the cluster configuration to mode="required" and
     attempting to access a process directly, without a login attempt.
 
   - [ ] Role-based authz enforces enrolled devices
-        (device_trust.mode="off" or "optional",
-        role.spec.options.device_trust_mode="required")
+        (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+    - [ ] App Access
   - [ ] Device authorization works correctly for both require_session_mfa=false
         and require_session_mfa=true
-
-  - [ ] Device authorization applies to SSH access (all items above)
-  - [ ] Device authorization applies to Trusted Clusters (root with
-        mode="optional" and leaf with mode="required")
-  - [ ] Device authorization applies to Database access (all items above)
-  - [ ] Device authorization applies to Kubernetes access (all items above)
-
-  - [ ] Cluster-wide device authorization __does not apply__ to App access
-  - [ ] Role-based device authorization __applies__ to App access
-
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+  - [ ] Device authorization applies to Trusted Clusters
+        (root with mode="optional" and leaf with mode="required")
   - [ ] Device authorization __does not apply__ to Windows Desktop access
         (both cluster-wide and role)
 

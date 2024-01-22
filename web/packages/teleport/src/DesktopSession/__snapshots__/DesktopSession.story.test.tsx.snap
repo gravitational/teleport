@@ -524,7 +524,8 @@ exports[`connected settings false 1`] = `
       </div>
     </nav>
     <canvas
-      style="display: flex;"
+      style="display: flex; outline: none;"
+      tabindex="-1"
     />
   </div>
 </div>
@@ -832,7 +833,8 @@ exports[`connected settings true 1`] = `
       </div>
     </nav>
     <canvas
-      style="display: flex;"
+      style="display: flex; outline: none;"
+      tabindex="-1"
     />
   </div>
 </div>
@@ -1364,7 +1366,8 @@ exports[`disconnected 1`] = `
       </div>
     </div>
     <canvas
-      style="display: none;"
+      style="display: none; outline: none;"
+      tabindex="-1"
     />
   </div>
 </div>
@@ -2087,7 +2090,8 @@ exports[`processing 1`] = `
       class="c15"
     />
     <canvas
-      style="display: none;"
+      style="display: none; outline: none;"
+      tabindex="-1"
     />
   </div>
 </div>
@@ -2404,7 +2408,8 @@ exports[`tdp processing 1`] = `
       class="c15"
     />
     <canvas
-      style="display: none;"
+      style="display: none; outline: none;"
+      tabindex="-1"
     />
   </div>
 </div>

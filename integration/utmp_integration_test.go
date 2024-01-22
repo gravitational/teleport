@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -336,7 +335,6 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			}, nil,
 		),
 		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath),
 		regular.SetLockWatcher(lockWatcher),

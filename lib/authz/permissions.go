@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -73,10 +74,11 @@ type DeviceAuthorizationOpts struct {
 
 // AuthorizerOpts holds creation options for [NewAuthorizer].
 type AuthorizerOpts struct {
-	ClusterName string
-	AccessPoint AuthorizerAccessPoint
-	LockWatcher *services.LockWatcher
-	Logger      logrus.FieldLogger
+	ClusterName      string
+	AccessPoint      AuthorizerAccessPoint
+	MFAAuthenticator MFAAuthenticator
+	LockWatcher      *services.LockWatcher
+	Logger           logrus.FieldLogger
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -98,9 +100,11 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	if logger == nil {
 		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
 	}
+
 	return &authorizer{
 		clusterName:             opts.ClusterName,
 		accessPoint:             opts.AccessPoint,
+		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
@@ -150,18 +154,32 @@ type AuthorizerAccessPoint interface {
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+}
 
-	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-	// Returns the device used to solve the challenge (if applicable) and the username.
-	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
+// MFAAuthenticator authenticates MFA responses.
+type MFAAuthenticator interface {
+	// ValidateMFAAuthResponse validates an MFA challenge response.
+	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*MFAAuthData, error)
+}
+
+// MFAAuthData contains a user's MFA authentication data for a validated MFA response.
+type MFAAuthData struct {
+	// User is the authenticated Teleport User.
+	User string
+	// Device is the user's MFA device used to authenticate.
+	Device *types.MFADevice
+	// AllowReuse determines whether the MFA challenge response used to authenticate
+	// can be reused. AllowReuse MFAAuthData may be denied for specific actions.
+	AllowReuse mfav1.ChallengeAllowReuse
 }
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	clusterName string
-	accessPoint AuthorizerAccessPoint
-	lockWatcher *services.LockWatcher
-	logger      logrus.FieldLogger
+	clusterName      string
+	accessPoint      AuthorizerAccessPoint
+	mfaAuthenticator MFAAuthenticator
+	lockWatcher      *services.LockWatcher
+	logger           logrus.FieldLogger
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -376,7 +394,8 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 
 // checkAdminActionVerification checks if this auth request is verified for admin actions.
 func (a *authorizer) checkAdminActionVerification(ctx context.Context, authContext *Context) error {
-	if err := a.authorizeAdminAction(ctx, authContext); err != nil {
+	err := a.authorizeAdminAction(ctx, authContext)
+	if err != nil {
 		if trace.IsNotFound(err) {
 			// missing MFA verification should be a noop.
 			return nil
@@ -443,7 +462,13 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 		return trace.Wrap(err)
 	}
 
-	if _, _, err := a.accessPoint.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), false); err != nil {
+	if a.mfaAuthenticator == nil {
+		return trace.Errorf("failed to validate MFA auth response, authorizer missing mfaAuthenticator field")
+	}
+
+	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION}
+	_, err = a.mfaAuthenticator.ValidateMFAAuthResponse(ctx, mfaResp, authContext.User.GetName(), requiredExt)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1043,6 +1068,23 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RW()),
+						// Okta can manage access lists and roles it creates.
+						{
+							Resources: []string{types.KindRole},
+							Verbs:     services.RW(),
+							Where: builder.Equals(
+								builder.Identifier(`resource.metadata.labels["`+types.OriginLabel+`"]`),
+								builder.String(types.OriginOkta),
+							).String(),
+						},
+						{
+							Resources: []string{types.KindAccessList},
+							Verbs:     services.RW(),
+							Where: builder.Equals(
+								builder.Identifier(`resource.metadata.labels["`+types.OriginLabel+`"]`),
+								builder.String(types.OriginOkta),
+							).String(),
+						},
 					},
 				},
 			})
@@ -1583,6 +1625,16 @@ func IsLocalUser(authContext Context) bool {
 func IsLocalOrRemoteUser(authContext Context) bool {
 	switch authContext.UnmappedIdentity.(type) {
 	case LocalUser, RemoteUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsLocalOrRemoteService checks if the identity is either a local or remote service.
+func IsLocalOrRemoteService(authContext Context) bool {
+	switch authContext.UnmappedIdentity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
 		return true
 	default:
 		return false

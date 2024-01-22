@@ -1254,6 +1254,54 @@ exports[`render with all access 1`] = `
           class="c14"
         >
           <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c16"
+          >
+            EKS
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="3"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
             class="c16"
           >
             Kubernetes
@@ -3383,6 +3431,48 @@ exports[`render with no access 1`] = `
         </div>
       </div>
     </div>
+    <div
+      class="c7"
+      data-testid="3"
+    >
+      <div
+        class="c8 c9"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10 c11"
+      >
+        <div
+          class="c12 c13"
+          width="24px"
+        >
+          <img
+            class="c14"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c15"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c17"
+          >
+            EKS
+          </div>
+        </div>
+      </div>
+    </div>
     <a
       class="c18 c7"
       data-testid="1"
@@ -3594,6 +3684,13 @@ exports[`render with no access 1`] = `
         <div
           class="c15"
         >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
           <div
             class="c17"
           >
@@ -5003,6 +5100,54 @@ exports[`render with partial access 1`] = `
         <div
           class="c14"
         >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c16"
+          >
+            EKS
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="3"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9 c10"
+      >
+        <div
+          class="c11 c12"
+          width="24px"
+        >
+          <img
+            class="c13"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c14"
+        >
+          <div
+            class="c15"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
           <div
             class="c16"
           >
