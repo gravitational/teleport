@@ -20,8 +20,6 @@ import { pluralize } from 'shared/utils/text';
 
 import { makeApp, App } from 'teleterm/ui/services/clusters';
 
-import { ExcludesFalse } from 'teleterm/helpers';
-
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
@@ -138,7 +136,7 @@ export class ResourcesService {
           filters.includes('app') && getApps(),
           filters.includes('db') && getDatabases(),
           filters.includes('kube_cluster') && getKubes(),
-        ].filter(ExcludesFalse)
+        ].filter(Boolean)
       : [getServers(), getApps(), getDatabases(), getKubes()];
 
     return Promise.allSettled(promises);

@@ -36,8 +36,6 @@ import {
   PtyServerEvent,
 } from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb';
 
-export const ExcludesFalse = Boolean as any as <T>(x: T | false) => x is T;
-
 export function resourceOneOfIsServer(
   resource: PaginatedResource['resource']
 ): resource is {
