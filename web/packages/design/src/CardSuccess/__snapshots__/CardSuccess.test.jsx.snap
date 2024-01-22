@@ -28,7 +28,7 @@ exports[`rendering of CardSuccess components 1`] = `
   width="540px"
 >
   <span
-    class="c2 icon icon-circlecheck"
+    class="c1 icon icon-circlecheck"
     color="success.main"
   >
     <svg
