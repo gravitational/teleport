@@ -49,11 +49,11 @@ const spiffeScheme = "spiffe"
 type WorkloadIdentityServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      WorkloadIdentityCacher
-	Backend    Backend
 	Logger     logrus.FieldLogger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
+	KeyStore   KeyStorer
 }
 
 type WorkloadIdentityCacher interface {
@@ -73,14 +73,14 @@ func NewWorkloadIdentityService(
 	switch {
 	case cfg.Cache == nil:
 		return nil, trace.BadParameter("cache service is required")
-	case cfg.Backend == nil:
-		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.Reporter == nil:
 		return nil, trace.BadParameter("reporter is required")
+	case cfg.KeyStore == nil:
+		return nil, trace.BadParameter("keyStore is required")
 	}
 
 	if cfg.Logger == nil {
