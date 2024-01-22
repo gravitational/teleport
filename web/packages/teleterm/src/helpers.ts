@@ -115,7 +115,7 @@ export function ptyEventOneOfIsStartError(
   oneofKind: 'startError';
   startError: PtyEventStartError;
 } {
-  return event.oneofKind === 'exit';
+  return event.oneofKind === 'startError';
 }
 
 export function connectEventOneOfIsClusterLogin(
