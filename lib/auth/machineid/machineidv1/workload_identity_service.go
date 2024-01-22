@@ -20,27 +20,49 @@ package machineidv1
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
+	"math/big"
+	"net"
+	"net/url"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
+
+const spiffeScheme = "spiffe"
 
 // WorkloadIdentityServiceConfig holds configuration options for
 // the WorkloadIdentity gRPC service.
 type WorkloadIdentityServiceConfig struct {
 	Authorizer authz.Authorizer
-	Cache      Cache
+	Cache      WorkloadIdentityCacher
 	Backend    Backend
 	Logger     logrus.FieldLogger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
+}
+
+type WorkloadIdentityCacher interface {
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+}
+
+type KeyStorer interface {
+	GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error)
 }
 
 // NewWorkloadIdentityService returns a new instance of the
@@ -84,9 +106,10 @@ func NewWorkloadIdentityService(
 type WorkloadIdentityService struct {
 	pb.UnimplementedWorkloadIdentityServiceServer
 
-	cache      Cache
+	cache      WorkloadIdentityCacher
 	backend    Backend
 	authorizer authz.Authorizer
+	keyStorer  KeyStorer
 	logger     logrus.FieldLogger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
@@ -95,18 +118,93 @@ type WorkloadIdentityService struct {
 
 func (wis *WorkloadIdentityService) signX509SVID(ctx context.Context, req *pb.SVIDRequest) (*pb.SVIDResponse, error) {
 	// TODO: Authn/authz
+	// TODO: Ensure they can issue the IPs, SANs and SPIFFE ID
+	// TODO: Validate req.SpiffeIDPath for any potential weirdness
 
-	res := &pb.SVIDResponse{
-		SpiffeId:    "",
-		Hint:        req.Hint,
-		Certificate: nil,
+	clusterName, err := wis.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spiffeID := &url.URL{
+		Scheme: spiffeScheme,
+		Host:   clusterName.GetClusterName(),
+		Path:   req.SpiffeIdPath,
 	}
 
-	// TODO: Sign
+	// Sign certificate
+	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsCert, tlsSigner, err := wis.keyStorer.GetTLSCertAndSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ipSans := []net.IP{}
+	for _, stringIP := range req.IpSans {
+		ipSans = append(ipSans, net.ParseIP(stringIP))
+	}
+
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: serialNumber,
+		// NotBefore is one minute in the past to prevent "Not yet valid" errors on
+		// time skewed clusters.
+		NotBefore: wis.clock.Now().UTC().Add(-1 * time.Minute),
+		// TODO: Source TTL from req to the configured limit in rbac???
+		NotAfter: wis.clock.Now().UTC().Add(time.Hour),
+		// SPEC(X509-SVID) 4.3. Key Usage:
+		// - Leaf SVIDs MUST NOT set keyCertSign or cRLSign.
+		// - Leaf SVIDs MUST set digitalSignature
+		// - They MAY set keyEncipherment and/or keyAgreement;
+		KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageKeyAgreement,
+		// SPEC(X509-SVID) 4.4. Extended Key Usage:
+		// - Leaf SVIDs SHOULD include this extension, and it MAY be marked as critical.
+		// - When included, fields id-kp-serverAuth and id-kp-clientAuth MUST be set.
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth,
+		},
+		// SPEC(X509-SVID) 4.1. Basic Constraints:
+		// - leaf certificates MUST set the cA field to false
+		BasicConstraintsValid: true,
+		IsCA:                  false,
+
+		// SPEC(X509-SVID) 2. SPIFFE ID:
+		// - The corresponding SPIFFE ID is set as a URI type in the Subject Alternative Name extension
+		// - An X.509 SVID MUST contain exactly one URI SAN, and by extension, exactly one SPIFFE ID.
+		// - An X.509 SVID MAY contain any number of other SAN field types, including DNS SANs.
+		URIs:        []*url.URL{spiffeID},
+		DNSNames:    req.DnsSans,
+		IPAddresses: ipSans,
+	}
+
+	certBytes, err := x509.CreateCertificate(
+		rand.Reader, template, tlsCA.Cert, req.PublicKey, tlsCA.Signer,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
 
 	// TODO: Audit and analytics event
 
-	return res, nil
+	return &pb.SVIDResponse{
+		SpiffeId:    spiffeID.String(),
+		Hint:        req.Hint,
+		Certificate: pemBytes,
+	}, nil
 }
 
 func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.SignX509SVIDsRequest) (*pb.SignX509SVIDsResponse, error) {
