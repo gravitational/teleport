@@ -342,7 +342,7 @@ If a hardware key policy is required, then a private key will be generated direc
 
 #### PIV slot logic
 
-PIV provides us with up to 24 different slots. Each slot has a different intended purpose, but functionally they are the same. We will use the first four slots (`9a`, `9c`, `9d`, `9e`) to support each of the 4 hardware key policy requirements (`hardware_key`, `hardware_key_touch`, `hardware_key_pin`, `hardware_key_touch_and_pin` respectively).
+PIV provides us with up to 24 different slots. Each slot has a different intended purpose, but functionally they are the same. We will use the first four slots (`9a`, `9c`, `9d`, `9e`) to support each of the 4 hardware key policy requirements (`hardware_key`, `hardware_key_touch`, `hardware_key_touch_and_pin`, `hardware_key_pin` respectively).
 
 Each of these keys will be generated for the first time when a Teleport client is required to meet its respective private key policy. Once a key is generated, it will be reused by any other Teleport client required to meet the same private key policy.
 

@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -29,48 +31,100 @@ import (
 func TestInstanceMetricsPeriodic(t *testing.T) {
 	tts := []struct {
 		desc           string
+		specs          []types.InstanceSpecV1
+		expectedCounts map[string]map[string]int
 		upgraders      []string
-		expectCounts   map[string]int
 		expectEnrolled int
 	}{
 		{
 			desc: "mixed",
-			upgraders: []string{
-				"kube",
-				"unit",
-				"",
-				"unit",
-				"",
+			specs: []types.InstanceSpecV1{
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+				{},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "14.0.0"},
+				{},
 			},
-			expectCounts: map[string]int{
-				"kube": 1,
-				"unit": 2,
-			},
-			expectEnrolled: 3,
-		},
-		{
-			desc: "all-unenrolled",
-			upgraders: []string{
-				"",
-				"",
-			},
-		},
-		{
-			desc: "all-enrolled",
 			upgraders: []string{
 				"kube",
 				"kube",
 				"unit",
+				"",
 				"unit",
+				"",
 			},
-			expectCounts: map[string]int{
-				"kube": 2,
-				"unit": 2,
+			expectedCounts: map[string]map[string]int{
+				"kube": {
+					"13.0.0": 1,
+					"14.0.0": 1,
+				},
+				"unit": {
+					"13.0.0": 1,
+					"14.0.0": 1,
+				},
 			},
 			expectEnrolled: 4,
 		},
 		{
-			desc: "nothing",
+			desc: "all-unenrolled",
+			specs: []types.InstanceSpecV1{
+				{},
+				{},
+			},
+			upgraders: []string{
+				"",
+				"",
+			},
+			expectedCounts: map[string]map[string]int{},
+		},
+		{
+			desc: "all-enrolled",
+			specs: []types.InstanceSpecV1{
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+			},
+			upgraders: []string{
+				"kube",
+				"kube",
+				"unit",
+				"unit",
+			},
+			expectedCounts: map[string]map[string]int{
+				"kube": {
+					"13.0.0": 2,
+				},
+				"unit": {
+					"13.0.0": 2,
+				},
+			},
+			expectEnrolled: 4,
+		},
+		{
+			desc: "nil version",
+			specs: []types.InstanceSpecV1{
+				{ExternalUpgrader: "kube"},
+				{ExternalUpgrader: "unit"},
+			},
+			upgraders: []string{
+				"kube",
+				"unit",
+			},
+			expectedCounts: map[string]map[string]int{
+				"kube": {
+					"": 1,
+				},
+				"unit": {
+					"": 1,
+				},
+			},
+			expectEnrolled: 2,
+		},
+		{
+			desc:           "nothing",
+			expectedCounts: map[string]map[string]int{},
 		},
 	}
 
@@ -78,22 +132,18 @@ func TestInstanceMetricsPeriodic(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			periodic := newInstanceMetricsPeriodic()
 
-			for _, upgrader := range tt.upgraders {
-				instance, err := types.NewInstance(uuid.New().String(), types.InstanceSpecV1{
-					ExternalUpgrader: upgrader,
-				})
+			for _, upgrader := range tt.specs {
+				instance, err := types.NewInstance(uuid.New().String(), upgrader)
 				require.NoError(t, err)
 
 				periodic.VisitInstance(instance)
 			}
 
-			for upgrader, count := range tt.expectCounts {
-				require.Equal(t, count, periodic.InstancesWithUpgrader(upgrader), "upgrader=%q, tt=%q", upgrader, tt.desc)
-			}
+			require.Equal(t, tt.expectedCounts, periodic.upgraderCounts, "tt=%q", tt.desc)
 
 			require.Equal(t, tt.expectEnrolled, periodic.TotalEnrolledInUpgrades(), "tt=%q", tt.desc)
 
-			require.Equal(t, len(tt.upgraders), periodic.TotalInstances(), "tt=%q", tt.desc)
+			require.Len(t, tt.upgraders, periodic.TotalInstances(), "tt=%q", tt.desc)
 		})
 	}
 }

@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
@@ -21,11 +23,13 @@ import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/us
 import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
+import { NodeSubKind } from 'shared/services';
 import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
 import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
 import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
 import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
+import apiApp from 'gen-proto-js/teleport/lib/teleterm/v1/app_pb';
 import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
@@ -34,6 +38,7 @@ import apiService, {
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
+import apiAccessList from 'gen-proto-js/teleport/accesslist/v1/accesslist_pb';
 
 import * as uri from 'teleterm/ui/uri';
 
@@ -49,11 +54,41 @@ export interface Kube extends apiKube.Kube.AsObject {
 
 export interface Server extends apiServer.Server.AsObject {
   uri: uri.ServerUri;
+  subKind: NodeSubKind;
+}
+
+export interface App extends apiApp.App.AsObject {
+  uri: uri.AppUri;
+  /** Name of the application. */
+  name: string;
+  /** URI and port the target application is available at. */
+  endpointUri: string;
+  /** Description of the application. */
+  desc: string;
+  /** Indicates if the application is an AWS management console. */
+  awsConsole: boolean;
+  /**
+   * The application public address.
+   * By default, it is a subdomain of the cluster (e.g., dumper.example.com).
+   * Optionally, it can be overridden (by the 'public_addr' field in the app config)
+   * with an address available on the internet.
+   *
+   * Always empty for SAML applications.
+   */
+  publicAddr: string;
+  /**
+   * Right now, `friendlyName` is set only for Okta applications.
+   * It is constructed from a label value.
+   * See more in api/types/resource.go.
+   */
+  friendlyName: string;
+  /** Indicates if the application is a SAML Application (SAML IdP Service Provider). */
+  samlApp: boolean;
 }
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
   uri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri | uri.KubeUri;
+  targetUri: uri.GatewayTargetUri;
   // The type of gatewayCliCommand was repeated here just to refer to the type with the JSDoc.
   gatewayCliCommand: GatewayCLICommand;
 }
@@ -77,6 +112,7 @@ export type GatewayCLICommand = apiGateway.GatewayCLICommand.AsObject;
 export type AccessRequest = apiAccessRequest.AccessRequest.AsObject;
 export type ResourceId = apiAccessRequest.ResourceID.AsObject;
 export type AccessRequestReview = apiAccessRequest.AccessRequestReview.AsObject;
+export type AccessList = apiAccessList.AccessList.AsObject;
 
 export interface GetServersResponse
   extends apiService.GetServersResponse.AsObject {
@@ -90,6 +126,10 @@ export interface GetDatabasesResponse
 
 export interface GetKubesResponse extends apiService.GetKubesResponse.AsObject {
   agentsList: Kube[];
+}
+
+export interface GetAppsResponse extends apiService.GetAppsResponse.AsObject {
+  agentsList: App[];
 }
 
 export type GetRequestableRolesResponse =
@@ -183,10 +223,11 @@ export type WebauthnLoginCredentialPrompt = {
 export type LoginPasswordlessRequest =
   Partial<apiService.LoginPasswordlessRequest.AsObject>;
 
-export type TshClient = {
+export type TshdClient = {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
   getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
+  getApps: (params: GetResourcesParams) => Promise<GetAppsResponse>;
   getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
   assumeRole: (
@@ -281,6 +322,25 @@ export type TshClient = {
     params: apiService.ListUnifiedResourcesRequest.AsObject,
     abortSignal?: TshAbortSignal
   ) => Promise<ListUnifiedResourcesResponse>;
+
+  getUserPreferences: (
+    params: apiService.GetUserPreferencesRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<UserPreferences>;
+  updateUserPreferences: (
+    params: apiService.UpdateUserPreferencesRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<UserPreferences>;
+  getSuggestedAccessLists: (
+    params: apiService.GetSuggestedAccessListsRequest.AsObject,
+    abortSignal?: TshAbortSignal
+  ) => Promise<AccessList[]>;
+  promoteAccessRequest: (
+    params: PromoteAccessRequestParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<AccessRequest>;
+
+  updateTshdEventsServerAddress: (address: string) => Promise<void>;
 };
 
 export type TshAbortController = {
@@ -314,7 +374,7 @@ export interface LoginPasswordlessParams extends LoginParamsBase {
 }
 
 export type CreateGatewayParams = {
-  targetUri: uri.DatabaseUri | uri.KubeUri;
+  targetUri: uri.GatewayTargetUri;
   port?: string;
   user: string;
   subresource_name?: string;
@@ -390,7 +450,14 @@ export type UnifiedResourceResponse =
       kind: 'database';
       resource: Database;
     }
-  | { kind: 'kube'; resource: Kube };
+  | { kind: 'kube'; resource: Kube }
+  | { kind: 'app'; resource: App };
+
+export type UserPreferences = apiService.UserPreferences.AsObject;
+export type PromoteAccessRequestParams =
+  apiService.PromoteAccessRequestRequest.AsObject & {
+    rootClusterUri: uri.RootClusterUri;
+  };
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

@@ -1,18 +1,21 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 import React, { useState, useMemo } from 'react';
 import { Flex, ButtonPrimary, Box } from 'design';
 
@@ -73,6 +76,8 @@ export const FormLocal = ({
     onLogin(user, pass, token, mfaType?.value);
   }
 
+  const isProcessing = loginAttempt.status === 'processing';
+
   return (
     <Validation>
       {({ validator }) => (
@@ -85,6 +90,7 @@ export const FormLocal = ({
             onChange={e => setUser(e.target.value)}
             placeholder="Username"
             mb={3}
+            disabled={isProcessing}
           />
           <FieldInput
             ref={passwordInputRef}
@@ -96,11 +102,12 @@ export const FormLocal = ({
             placeholder="Password"
             mb={3}
             width="100%"
+            disabled={isProcessing}
           />
           {secondFactor !== 'off' && (
             <Flex alignItems="flex-end" mb={4}>
               <FieldSelect
-                maxWidth="50%"
+                maxWidth="60%"
                 width="100%"
                 data-testid="mfa-select"
                 label="Two-factor Type"
@@ -109,12 +116,12 @@ export const FormLocal = ({
                 onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
                 mr={3}
                 mb={0}
-                isDisabled={loginAttempt.status === 'processing'}
+                isDisabled={isProcessing}
                 menuIsOpen={true}
               />
               {mfaType.value === 'otp' && (
                 <FieldInput
-                  width="50%"
+                  width="40%"
                   label="Authenticator Code"
                   rule={requiredToken}
                   autoComplete="one-time-code"
@@ -123,6 +130,7 @@ export const FormLocal = ({
                   onChange={e => setToken(e.target.value)}
                   placeholder="123 456"
                   mb={0}
+                  disabled={isProcessing}
                 />
               )}
             </Flex>
@@ -134,7 +142,7 @@ export const FormLocal = ({
             type="submit"
             size="large"
             onClick={e => onLoginClick(e, validator)}
-            disabled={loginAttempt.status === 'processing'}
+            disabled={isProcessing}
           >
             Sign In
           </ButtonPrimary>

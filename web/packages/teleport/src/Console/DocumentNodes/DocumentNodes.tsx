@@ -1,22 +1,27 @@
-/*
-Copyright 2019-2022 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
-import { Indicator, Flex, Box } from 'design';
+import { Indicator, Box, Text } from 'design';
+import { Danger } from 'design/Alert';
+
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import NodeList from 'teleport/components/NodeList';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
@@ -24,7 +29,6 @@ import Document from 'teleport/Console/Document';
 
 import * as stores from 'teleport/Console/stores/types';
 
-import ClusterSelector from './ClusterSelector';
 import useNodes from './useNodes';
 
 type Props = {
@@ -34,6 +38,7 @@ type Props = {
 
 export default function DocumentNodes(props: Props) {
   const { doc, visible } = props;
+  const [clusterDropdownError, setClusterDropdownError] = useState('');
   const {
     fetchedData,
     fetchNext,
@@ -51,6 +56,7 @@ export default function DocumentNodes(props: Props) {
     getNodeSshLogins,
     onLabelClick,
     pageIndicators,
+    consoleCtx,
   } = useNodes(doc);
 
   function onLoginMenuSelect(
@@ -77,15 +83,16 @@ export default function DocumentNodes(props: Props) {
   return (
     <Document visible={visible}>
       <Container mx="auto" mt="4" px="5">
-        <Flex justifyContent="space-between" mb="4" alignItems="end">
-          <ClusterSelector
-            value={doc.clusterId}
-            width="336px"
-            maxMenuHeight={200}
-            mr="20px"
+        <Box justifyContent="space-between" mb="2" alignItems="end">
+          <Text fontSize={1}>Clusters:</Text>
+          <ClusterDropdown
+            clusterLoader={consoleCtx.clustersService}
             onChange={onChangeCluster}
+            clusterId={doc.clusterId}
+            onError={setClusterDropdownError}
           />
-        </Flex>
+        </Box>
+        {clusterDropdownError && <Danger>{clusterDropdownError}</Danger>}
         {attempt.status === 'processing' && (
           <Box textAlign="center" m={10}>
             <Indicator />

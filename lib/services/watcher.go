@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or collectoried.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package services
 
@@ -1453,6 +1455,9 @@ func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
 		}
 		cfg.AuthorityGetter = getter
 	}
+	if len(cfg.Types) == 0 {
+		return trace.BadParameter("missing parameter Types")
+	}
 	return nil
 }
 
@@ -1466,11 +1471,13 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 		CertAuthorityWatcherConfig: cfg,
 		fanout:                     NewFanout(),
 		cas:                        make(map[types.CertAuthType]map[string]types.CertAuthority, len(cfg.Types)),
+		filter:                     make(types.CertAuthorityFilter, len(cfg.Types)),
 		initializationC:            make(chan struct{}),
 	}
 
 	for _, t := range cfg.Types {
 		collector.cas[t] = make(map[string]types.CertAuthority)
+		collector.filter[t] = types.Wildcard
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
@@ -1501,10 +1508,14 @@ type caCollector struct {
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
+	filter          types.CertAuthorityFilter
 }
 
 // Subscribe is used to subscribe to the lock updates.
 func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityFilter) (types.Watcher, error) {
+	if len(filter) == 0 {
+		filter = c.filter
+	}
 	watch := types.Watch{
 		Kinds: []types.WatchKind{
 			{
@@ -1530,7 +1541,7 @@ func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityF
 
 // resourceKinds specifies the resource kind to watch.
 func (c *caCollector) resourceKinds() []types.WatchKind {
-	return []types.WatchKind{{Kind: types.KindCertAuthority}}
+	return []types.WatchKind{{Kind: types.KindCertAuthority, Filter: c.filter.IntoMap()}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -1618,12 +1629,9 @@ func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event ty
 }
 
 func (c *caCollector) watchingType(t types.CertAuthType) bool {
-	for _, caType := range c.Types {
-		if caType == t {
-			return true
-		}
+	if _, ok := c.cas[t]; ok {
+		return true
 	}
-
 	return false
 }
 
@@ -1714,6 +1722,8 @@ type Node interface {
 	GetTeleportVersion() string
 	// GetAddr return server address
 	GetAddr() string
+	// GetPublicAddrs returns all public addresses where this server can be reached.
+	GetPublicAddrs() []string
 	// GetHostname returns server hostname
 	GetHostname() string
 	// GetNamespace returns server namespace
@@ -1724,7 +1734,7 @@ type Node interface {
 	GetRotation() types.Rotation
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
 	GetUseTunnel() bool
-	// GetProxyID returns a list of proxy ids this server is connected to.
+	// GetProxyIDs returns a list of proxy ids this server is connected to.
 	GetProxyIDs() []string
 }
 

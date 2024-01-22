@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package alpnproxy
 
@@ -25,6 +27,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"slices"
 	"strings"
 	"sync"
 
@@ -32,7 +35,6 @@ import (
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/utils/pingconn"
@@ -394,6 +396,22 @@ func (l *LocalProxy) CheckDBCerts(dbRoute tlsca.RouteToDatabase) error {
 	}
 
 	return trace.Wrap(CheckCertSubject(cert, dbRoute))
+}
+
+// CheckCertExpiry checks the proxy certificates for expiration.
+func (l *LocalProxy) CheckCertExpiry() error {
+	l.cfg.Log.Debug("checking local proxy certs")
+	l.certsMu.RLock()
+	defer l.certsMu.RUnlock()
+	if len(l.cfg.Certs) == 0 {
+		return trace.NotFound("local proxy has no TLS certificates configured")
+	}
+	cert, err := utils.TLSCertLeaf(l.cfg.Certs[0])
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(utils.VerifyCertificateExpiry(cert, l.cfg.Clock))
 }
 
 // CheckCertSubject checks if the route to the database from the cert matches the provided route in

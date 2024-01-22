@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
@@ -26,50 +28,46 @@ import service from 'teleport/services/apps';
 
 import { AppLauncher } from './AppLauncher';
 
-const testCases: { name: string; query: string; expectedPath: string }[] = [
+const testCases: { name: string; path: string; expectedPath: string }[] = [
   {
-    name: 'no path or query',
-    query: '?path=',
-    expectedPath: '',
+    name: 'no state and no path',
+    path: '?path=',
+    expectedPath: 'x-teleport-auth',
   },
   {
-    name: 'root path',
-    query: '?path=%2F',
-    expectedPath: '/',
+    name: 'no state with path',
+    path: '?path=%2Ffoo%2Fbar',
+    expectedPath: 'x-teleport-auth?path=%2Ffoo%2Fbar',
   },
   {
-    name: 'with multi path',
-    query: '?path=%2Ffoo%2Fbar',
-    expectedPath: '/foo/bar',
-  },
-  {
-    name: 'with only query',
-    query: '?path=&query=foo%3Dbar',
-    expectedPath: '?foo=bar',
-  },
-  {
-    name: 'with query with same keys used to store the original path and query',
-    query: '?path=foo&query=foo%3Dbar%26query%3Dtest1%26path%3Dtest',
-    expectedPath: '/foo?foo=bar&query=test1&path=test',
-  },
-  {
-    name: 'with query and root path',
-    query: '?path=%2F&query=foo%3Dbar%26baz%3Dqux%26fruit%3Dapple',
-    expectedPath: '/?foo=bar&baz=qux&fruit=apple',
-  },
-  {
-    name: 'queries with encoded spaces',
-    query:
-      '?path=%2Falerting%2Flist&query=search%3Dstate%3Ainactive%2520type%3Aalerting%2520health%3Anodata',
+    name: 'no state with other path params (clusterId, publicAddr, publicArn',
+    path: '/some-cluster-id/some-public-addr/arn::123/name',
     expectedPath:
-      '/alerting/list?search=state:inactive%20type:alerting%20health:nodata',
+      'x-teleport-auth?cluster=some-cluster-id&addr=some-public-addr&arn=arn%3A%3A123',
   },
   {
-    name: 'queries with non-encoded spaces',
-    query:
-      '?path=%2Falerting+%2Flist&query=search%3Dstate%3Ainactive+type%3Aalerting+health%3Anodata',
+    name: 'no state with path and with other path params',
+    path: '/some-cluster-id/some-public-addr/arn::123/name?path=%2Ffoo%2Fbar',
     expectedPath:
-      '/alerting /list?search=state:inactive type:alerting health:nodata',
+      'x-teleport-auth?path=%2Ffoo%2Fbar&cluster=some-cluster-id&addr=some-public-addr&arn=arn%3A%3A123',
+  },
+  {
+    name: 'with state',
+    path: '?state=ABC',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value#value=cookie-value',
+  },
+  {
+    name: 'with state and path',
+    path: '?state=ABC&path=%2Ffoo%2Fbar',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value&path=%2Ffoo%2Fbar#value=cookie-value',
+  },
+  {
+    name: 'with state, path, and params',
+    path: '?state=ABC&path=%2Ffoo%2Fbar',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value&path=%2Ffoo%2Fbar#value=cookie-value',
   },
 ];
 
@@ -81,6 +79,11 @@ describe('app launcher path is properly formed', () => {
     global.fetch = jest.fn(() => Promise.resolve({})) as jest.Mock;
     jest.spyOn(api, 'get').mockResolvedValue({});
     jest.spyOn(api, 'post').mockResolvedValue({});
+    jest.spyOn(service, 'createAppSession').mockResolvedValue({
+      cookieValue: 'cookie-value',
+      subjectCookieValue: 'subject-cookie-value',
+      fqdn: '',
+    });
 
     delete window.location;
     window.location = { ...realLocation, replace: assignMock };
@@ -91,7 +94,7 @@ describe('app launcher path is properly formed', () => {
     assignMock.mockClear();
   });
 
-  test.each(testCases)('$name', async ({ query, expectedPath }) => {
+  test.each(testCases)('$name', async ({ path: query, expectedPath }) => {
     const launcherPath = `/web/launch/grafana.localhost${query}`;
     const mockHistory = createMemoryHistory({
       initialEntries: [launcherPath],
@@ -107,7 +110,7 @@ describe('app launcher path is properly formed', () => {
 
     await waitFor(() =>
       expect(window.location.replace).toHaveBeenCalledWith(
-        `https://grafana.localhost${expectedPath}`
+        `https://grafana.localhost/${expectedPath}`
       )
     );
   });
@@ -116,7 +119,7 @@ describe('app launcher path is properly formed', () => {
     jest.spyOn(service, 'createAppSession');
 
     const launcherPath =
-      '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess';
+      '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess?state=ABC';
     const mockHistory = createMemoryHistory({
       initialEntries: [launcherPath],
     });

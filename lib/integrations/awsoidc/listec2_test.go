@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package awsoidc
 
@@ -53,17 +55,13 @@ func (m mockListEC2Client) DescribeInstances(ctx context.Context, params *ec2.De
 	requestedPage := 1
 
 	stateFilter := false
-	platformFilter := false
 	for _, filter := range params.Filters {
 		if aws.ToString(filter.Name) == "instance-state-name" && len(filter.Values) == 1 && filter.Values[0] == "running" {
 			stateFilter = true
 		}
-		if aws.ToString(filter.Name) == "platform-details" && len(filter.Values) == 1 && filter.Values[0] == "Linux/UNIX" {
-			platformFilter = true
-		}
 	}
-	if !stateFilter || !platformFilter {
-		return nil, trace.BadParameter("instance-state-name and platform-details filters were not included")
+	if !stateFilter {
+		return nil, trace.BadParameter("instance-state-name filter was not included")
 	}
 
 	totalInstances := len(m.ec2Instances)
@@ -134,7 +132,7 @@ func TestListEC2(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.Servers, pageSize)
 		nextPageToken := resp.NextToken
-		require.Equal(t, resp.Servers[0].GetCloudMetadata().AWS.InstanceID, "i-0")
+		require.Equal(t, "i-0", resp.Servers[0].GetCloudMetadata().AWS.InstanceID)
 
 		// Second page must return pageSize number of Servers
 		resp, err = ListEC2(ctx, mockListClient, ListEC2Request{
@@ -146,7 +144,7 @@ func TestListEC2(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.Servers, pageSize)
 		nextPageToken = resp.NextToken
-		require.Equal(t, resp.Servers[0].GetCloudMetadata().AWS.InstanceID, "i-100")
+		require.Equal(t, "i-100", resp.Servers[0].GetCloudMetadata().AWS.InstanceID)
 
 		// Third page must return only the remaining Servers and an empty nextToken
 		resp, err = ListEC2(ctx, mockListClient, ListEC2Request{
@@ -157,15 +155,16 @@ func TestListEC2(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, resp.NextToken)
 		require.Len(t, resp.Servers, 3)
-		require.Equal(t, resp.Servers[0].GetCloudMetadata().AWS.InstanceID, "i-200")
+		require.Equal(t, "i-200", resp.Servers[0].GetCloudMetadata().AWS.InstanceID)
 	})
 
 	for _, tt := range []struct {
-		name          string
-		req           ListEC2Request
-		mockInstances []ec2Types.Instance
-		errCheck      func(error) bool
-		respCheck     func(*testing.T, *ListEC2Response)
+		name            string
+		req             ListEC2Request
+		mockInstances   []ec2Types.Instance
+		defaultPageSize int
+		errCheck        func(error) bool
+		respCheck       func(*testing.T, *ListEC2Response)
 	}{
 		{
 			name: "valid for listing instances",
@@ -218,6 +217,63 @@ func TestListEC2(t *testing.T) {
 			errCheck: noErrorFunc,
 		},
 		{
+			name: "valid but all instances are windows",
+			req: ListEC2Request{
+				Region:      "us-east-1",
+				Integration: "myintegration",
+				NextToken:   "",
+			},
+			mockInstances: []ec2Types.Instance{{
+				PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
+				InstanceId:       aws.String("i-123456789abcedf"),
+				VpcId:            aws.String("vpc-abcd"),
+				SubnetId:         aws.String("subnet-123"),
+				PrivateIpAddress: aws.String("172.31.1.1"),
+				Platform:         "windows",
+			}},
+			respCheck: func(t *testing.T, ldr *ListEC2Response) {
+				require.Empty(t, ldr.Servers)
+			},
+			errCheck: noErrorFunc,
+		},
+		{
+			name: "valid but some instances are windows, it ensures the page is never empty",
+			req: ListEC2Request{
+				Region:      "us-east-1",
+				Integration: "myintegration",
+				NextToken:   "",
+			},
+			defaultPageSize: 2,
+			mockInstances: []ec2Types.Instance{
+				{
+					PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
+					InstanceId:       aws.String("i-123456789abcedf"),
+					VpcId:            aws.String("vpc-abcd"),
+					SubnetId:         aws.String("subnet-123"),
+					PrivateIpAddress: aws.String("172.31.1.1"),
+					Platform:         "windows",
+				},
+				{
+					PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
+					InstanceId:       aws.String("i-123456789abcedf"),
+					VpcId:            aws.String("vpc-abcd"),
+					SubnetId:         aws.String("subnet-123"),
+					PrivateIpAddress: aws.String("172.31.1.1"),
+					Platform:         "windows",
+				},
+				{
+					PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
+					InstanceId:       aws.String("i-123456789abcedf"),
+					VpcId:            aws.String("vpc-abcd"),
+					SubnetId:         aws.String("subnet-123"),
+					PrivateIpAddress: aws.String("172.31.1.1"),
+				}},
+			respCheck: func(t *testing.T, ldr *ListEC2Response) {
+				require.Len(t, ldr.Servers, 1)
+			},
+			errCheck: noErrorFunc,
+		},
+		{
 			name: "no region",
 			req: ListEC2Request{
 				Integration: "myintegration",
@@ -233,8 +289,12 @@ func TestListEC2(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			mockPageSize := tt.defaultPageSize
+			if tt.defaultPageSize == 0 {
+				mockPageSize = pageSize
+			}
 			mockListClient := &mockListEC2Client{
-				pageSize:     pageSize,
+				pageSize:     mockPageSize,
 				accountID:    "123456789012",
 				ec2Instances: tt.mockInstances,
 			}

@@ -1,20 +1,23 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
+import styled from 'styled-components';
 import { ButtonPrimary, Text, Flex, ButtonSecondary, Image } from 'design';
 
 import cfg from 'teleport/config';
@@ -25,6 +28,35 @@ import celebratePamPng from './celebrate-pam.png';
 import type { AgentStepProps } from '../../types';
 
 export function Finished(props: AgentStepProps) {
+  if (props.agentMeta.autoDiscovery) {
+    return (
+      <Container>
+        <Image width="120px" height="120px" src={celebratePamPng} />
+        <Text mt={3} mb={2} typography="h4" bold>
+          Completed Setup
+        </Text>
+        <Text mb={3}>You have completed setup for auto-enrolling.</Text>
+        <Flex>
+          <ButtonPrimary
+            width="270px"
+            size="large"
+            onClick={() => history.push(cfg.routes.root, true)}
+            mr={3}
+          >
+            Browse Existing Resources
+          </ButtonPrimary>
+          <ButtonSecondary
+            width="270px"
+            size="large"
+            onClick={() => history.reload()}
+          >
+            Add Another Resource
+          </ButtonSecondary>
+        </Flex>
+      </Container>
+    );
+  }
+
   let resourceText;
   if (props.agentMeta && props.agentMeta.resourceName) {
     resourceText = `Resource [${props.agentMeta.resourceName}] has been successfully added to
@@ -32,15 +64,7 @@ export function Finished(props: AgentStepProps) {
   }
 
   return (
-    <Flex
-      width="600px"
-      flexDirection="column"
-      alignItems="center"
-      css={`
-        margin: 0 auto;
-        text-align: center;
-      `}
-    >
+    <Container>
       <Image width="120px" height="120px" src={celebratePamPng} />
       <Text mt={3} mb={2} typography="h4" bold>
         Resource Successfully Added
@@ -66,6 +90,14 @@ export function Finished(props: AgentStepProps) {
           Add Another Resource
         </ButtonSecondary>
       </Flex>
-    </Flex>
+    </Container>
   );
 }
+
+const Container = styled(Flex)`
+  width: 600px;
+  flex-direction: column;
+  align-items: center;
+  margin: 0 auto;
+  text-align: center;
+`;

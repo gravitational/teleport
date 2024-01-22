@@ -1,20 +1,24 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import * as tsh from './types';
+
+import type { App } from 'teleterm/ui/services/clusters';
 
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   uri: '/clusters/teleport-local/servers/1234abcd-1234-abcd-1234-abcd1234abcd',
@@ -23,6 +27,7 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   hostname: 'foo',
   addr: '127.0.0.1:3022',
   labelsList: [],
+  subKind: 'teleport',
   ...props,
 });
 
@@ -47,6 +52,20 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   name: 'foo',
   labelsList: [],
   uri: '/clusters/bar/kubes/foo',
+  ...props,
+});
+
+export const makeApp = (props: Partial<tsh.App> = {}): App => ({
+  name: 'foo',
+  labelsList: [],
+  endpointUri: 'tcp://localhost:3000',
+  friendlyName: '',
+  desc: '',
+  awsConsole: false,
+  publicAddr: 'local-app.example.com:3000',
+  samlApp: false,
+  uri: '/clusters/bar/apps/foo',
+  addrWithProtocol: 'tcp://local-app.example.com:3000',
   ...props,
 });
 
@@ -238,5 +257,25 @@ export const makeKubeGateway = (
     preview: 'KUBECONFIG=/path/to/kubeconfig /bin/kubectl version',
   },
   targetSubresourceName: '',
+  ...props,
+});
+
+export const makeAppGateway = (
+  props: Partial<tsh.Gateway> = {}
+): tsh.Gateway => ({
+  uri: '/gateways/bar',
+  targetName: 'sales-production',
+  targetUri: '/clusters/bar/apps/foo',
+  localAddress: 'localhost',
+  localPort: '1337',
+  targetSubresourceName: 'bar',
+  gatewayCliCommand: {
+    path: '',
+    preview: 'curl http://localhost:1337',
+    envList: [],
+    argsList: [],
+  },
+  targetUser: '',
+  protocol: 'HTTP',
   ...props,
 });

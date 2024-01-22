@@ -38,13 +38,14 @@ import (
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
-	"github.com/gravitational/teleport/api/client/externalcloudaudit"
+	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
@@ -56,10 +57,11 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
-	externalcloudauditv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalcloudaudit/v1"
+	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
@@ -71,6 +73,7 @@ import (
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -271,21 +274,25 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 				})
 			}
 
-			// Connect with dialer provided in creds.
-			if dialer, err := creds.Dialer(cfg); err != nil {
-				if !trace.IsNotImplemented(err) {
-					sendError(trace.Wrap(err, "failed to retrieve dialer from creds of type %T", creds))
+			addrs := cfg.Addrs
+			if len(addrs) == 0 {
+				// If there's no explicitly specified address, fall back to
+				// an address provided by the credential, if it provides one.
+				credAddrSource, ok := creds.(CredentialsWithDefaultAddrs)
+				if ok {
+					addrs, err = credAddrSource.DefaultAddrs()
+					if err != nil {
+						sendError(trace.Wrap(err))
+						continue
+					}
+					log.WithField("address", addrs).Debug(
+						"No addresses were configured explicitly, falling back to addresses specified by credential. Consider explicitly configuring an address.",
+					)
 				}
-			} else {
-				syncConnect(ctx, dialerConnect, connectParams{
-					cfg:       cfg,
-					tlsConfig: tlsConfig,
-					dialer:    dialer,
-				})
 			}
 
 			// Attempt to connect to each address as Auth, Proxy, Tunnel and TLS Routing.
-			for _, addr := range cfg.Addrs {
+			for _, addr := range addrs {
 				syncConnect(ctx, authConnect, connectParams{
 					cfg:       cfg,
 					tlsConfig: tlsConfig,
@@ -388,11 +395,21 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 }
 
 // proxyConnect connects to the Teleport Auth Server through the proxy.
+// takes a specific addr parameter to allow the proxy address to be modified
+// when using special credentials.
 func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
+
+	dialer := NewProxyDialer(
+		*params.sshConfig,
+		params.cfg.KeepAlivePeriod,
+		params.cfg.DialTimeout,
+		params.addr,
+		params.cfg.InsecureAddressDiscovery,
+		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
+	)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
@@ -462,7 +479,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
-			interceptors.RetryWithMFAUnaryInterceptor(c.performMFACeremony),
+			interceptors.WithMFAUnaryInterceptor(c.performAdminActionMFACeremony),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
@@ -498,21 +515,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	return nil
 }
 
-// TODO(noah): Once we upgrade to go 1.21, change invocations of this to
-// sync.OnceValue
-func onceValue[T any](f func() T) func() T {
-	var (
-		value T
-		once  sync.Once
-	)
-	return func() T {
-		once.Do(func() {
-			value = f()
-		})
-		return value
-	}
-}
-
 // We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
 // because each time this is called, they create a new underlying metric. If
 // something (e.g tbot) is repeatedly creating new clients and closing them,
@@ -520,11 +522,15 @@ func onceValue[T any](f func() T) func() T {
 // up.
 // See https://github.com/gravitational/teleport/issues/30759
 // See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
-var otelStreamClientInterceptor = onceValue(func() grpc.StreamClientInterceptor {
+var otelStreamClientInterceptor = sync.OnceValue(func() grpc.StreamClientInterceptor {
+	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 	return otelgrpc.StreamClientInterceptor()
 })
 
-var otelUnaryClientInterceptor = onceValue(func() grpc.UnaryClientInterceptor {
+var otelUnaryClientInterceptor = sync.OnceValue(func() grpc.UnaryClientInterceptor {
+	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 	return otelgrpc.UnaryClientInterceptor()
 })
 
@@ -630,9 +636,9 @@ type Config struct {
 	// PROXYHeaderGetter returns signed PROXY header that is sent to allow Proxy to propagate client's real IP to the
 	// auth server from the Proxy's web server, when we create user's client for the web session.
 	PROXYHeaderGetter PROXYHeaderGetter
-	// PromptAdminRequestMFA is used to prompt the user for MFA on admin requests when needed.
+	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
-	PromptAdminRequestMFA func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	MFAPromptConstructor mfa.PromptConstructor
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -692,6 +698,11 @@ func (c *Client) Dialer() ContextDialer {
 // GetConnection returns gRPC connection.
 func (c *Client) GetConnection() *grpc.ClientConn {
 	return c.conn
+}
+
+// SetMFAPromptConstructor sets the MFA prompt constructor for this client.
+func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
+	c.c.MFAPromptConstructor = pc
 }
 
 // Close closes the Client connection to the auth server.
@@ -804,13 +815,13 @@ func (c *Client) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(c.conn)
 }
 
-// ExternalCloudAuditClient returns an unadorned External Cloud Audit client,
-// using the underlying Auth gRPC connection.
+// ExternalAuditStorageClient returns an unadorned External Audit Storage
+// client, using the underlying Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
 // still get a external audit client when calling this method, but all RPCs will
 // return "not implemented" errors (as per the default gRPC behavior).
-func (c *Client) ExternalCloudAuditClient() *externalcloudaudit.Client {
-	return externalcloudaudit.NewClient(externalcloudauditv1.NewExternalCloudAuditServiceClient(c.conn))
+func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
+	return externalauditstorage.NewClient(externalauditstoragev1.NewExternalAuditStorageServiceClient(c.conn))
 }
 
 // TrustClient returns an unadorned Trust client, using the underlying
@@ -823,6 +834,11 @@ func (c *Client) TrustClient() trustpb.TrustServiceClient {
 // Auth gRPC connection.
 func (c *Client) EmbeddingClient() assist.AssistEmbeddingServiceClient {
 	return assist.NewAssistEmbeddingServiceClient(c.conn)
+}
+
+// BotServiceClient returns an unadorned client for the bot service.
+func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
+	return machineidv1pb.NewBotServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -970,29 +986,63 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 	return roles, nil
 }
 
-// GetUsers returns a list of users.
+// GetUsers returns all currently registered users.
 // withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
-		WithSecrets: withSecrets,
-	})
+	users, next, err := c.ListUsers(ctx, defaults.DefaultChunkSize, "", withSecrets)
 	if err != nil {
+		// TODO(tross): DELETE IN 16.0.0
+		if trace.IsNotImplemented(err) {
+			//nolint:staticcheck // SA1019. Kept for backward compatibility.
+			stream, err := c.grpc.GetUsers(ctx, &proto.GetUsersRequest{
+				WithSecrets: withSecrets,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			var users []types.User
+			for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				users = append(users, user)
+			}
+			return users, nil
+		}
+
 		return nil, trace.Wrap(err)
 	}
-	var users []types.User
-	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+
+	out := users
+	for next != "" {
+		users, next, err = c.ListUsers(ctx, defaults.DefaultChunkSize, next, withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		users = append(users, user)
+
+		out = append(out, users...)
 	}
-	return users, nil
+
+	return out, nil
 }
 
 // ListUsers returns a page of users.
 func (c *Client) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
-	return nil, "", trace.NotImplemented("ListUsers is not implemented yet")
+	resp, err := userspb.NewUsersServiceClient(c.conn).ListUsers(ctx, &userspb.ListUsersRequest{
+		PageSize:    int32(pageSize),
+		PageToken:   nextToken,
+		WithSecrets: withSecrets,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]types.User, 0, len(resp.Users))
+	for _, u := range resp.Users {
+		out = append(out, u)
+	}
+
+	return out, resp.NextPageToken, nil
 }
 
 // DeleteUser deletes a user by name.
@@ -1047,7 +1097,7 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.grpc.EmitAuditEvent(ctx, grpcEvent)
+	_, err = c.grpc.EmitAuditEvent(context.WithoutCancel(ctx), grpcEvent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1077,7 +1127,11 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 }
 
 // CreateBot creates a new bot from the specified descriptor.
+//
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1pb.BotServiceClient.CreateBot] instead.
 func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	response, err := c.grpc.CreateBot(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1087,7 +1141,11 @@ func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 }
 
 // DeleteBot deletes a bot and associated resources.
+//
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1pb.BotServiceClient.DeleteBot] instead.
 func (c *Client) DeleteBot(ctx context.Context, botName string) error {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	_, err := c.grpc.DeleteBot(ctx, &proto.DeleteBotRequest{
 		Name: botName,
 	})
@@ -1095,7 +1153,11 @@ func (c *Client) DeleteBot(ctx context.Context, botName string) error {
 }
 
 // GetBotUsers fetches all bot users.
+//
+// TODO(noah): DELETE IN 16.0.0
+// Deprecated: use [machineidv1pb.BotServiceClient.ListBots] instead.
 func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1163,11 +1225,12 @@ func (c *Client) GetAccessRequestAllowedPromotions(ctx context.Context, req type
 // SetAccessRequestState updates the state of an existing access request.
 func (c *Client) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
 	setter := proto.RequestStateSetter{
-		ID:          params.RequestID,
-		State:       params.State,
-		Reason:      params.Reason,
-		Annotations: params.Annotations,
-		Roles:       params.Roles,
+		ID:              params.RequestID,
+		State:           params.State,
+		Reason:          params.Reason,
+		Annotations:     params.Annotations,
+		Roles:           params.Roles,
+		AssumeStartTime: params.AssumeStartTime,
 	}
 	if d := utils.GetDelegator(ctx); d != "" {
 		setter.Delegator = d
@@ -1624,8 +1687,9 @@ func (c *Client) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	return resp, nil
 }
 
-// GenerateDatabaseCert generates client certificate used by a database
-// service to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	resp, err := c.grpc.GenerateDatabaseCert(ctx, req)
 	if err != nil {
@@ -1817,19 +1881,33 @@ func (c *Client) UpdateOIDCConnector(ctx context.Context, connector types.OIDCCo
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
-func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) error {
+func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OIDCConnector) (types.OIDCConnector, error) {
 	connector, ok := oidcConnector.(*types.OIDCConnectorV3)
 	if !ok {
-		return trace.BadParameter("invalid type %T", oidcConnector)
+		return nil, trace.BadParameter("invalid type %T", oidcConnector)
 	}
 
-	_, err := c.grpc.UpsertOIDCConnectorV2(ctx, &proto.UpsertOIDCConnectorRequest{Connector: connector})
+	upserted, err := c.grpc.UpsertOIDCConnectorV2(ctx, &proto.UpsertOIDCConnectorRequest{Connector: connector})
 	// TODO(tross) DELETE IN 16.0.0
 	if err != nil && trace.IsNotImplemented(err) {
-		_, err := c.grpc.UpsertOIDCConnector(ctx, connector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
-		return trace.Wrap(err)
+		//nolint:staticcheck // SA1019. Kept for backward compatibility.
+		if _, err := c.grpc.UpsertOIDCConnector(ctx, connector); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		conn, err := c.GetOIDCConnector(ctx, oidcConnector.GetName(), false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Override the secrets with the values from the passed in connector since
+		// the call to GetOIDCConnector above did not request secrets.
+		conn.SetClientSecret(connector.GetClientSecret())
+		conn.SetGoogleServiceAccount(connector.GetGoogleServiceAccount())
+
+		return conn, nil
 	}
-	return trace.Wrap(err)
+	return upserted, trace.Wrap(err)
 }
 
 // DeleteOIDCConnector deletes an OIDC connector by name.
@@ -1908,19 +1986,31 @@ func (c *Client) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+func (c *Client) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	samlConnector, ok := connector.(*types.SAMLConnectorV2)
 	if !ok {
-		return trace.BadParameter("invalid type %T", connector)
+		return nil, trace.BadParameter("invalid type %T", connector)
 	}
 
-	_, err := c.grpc.UpsertSAMLConnectorV2(ctx, &proto.UpsertSAMLConnectorRequest{Connector: samlConnector})
+	upserted, err := c.grpc.UpsertSAMLConnectorV2(ctx, &proto.UpsertSAMLConnectorRequest{Connector: samlConnector})
 	// TODO(tross) DELETE IN 16.0.0
 	if err != nil && trace.IsNotImplemented(err) {
-		_, err := c.grpc.UpsertSAMLConnector(ctx, samlConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility.
-		return trace.Wrap(err)
+		//nolint:staticcheck // SA1019. Kept for backward compatibility.
+		if _, err := c.grpc.UpsertSAMLConnector(ctx, samlConnector); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conn, err := c.GetSAMLConnector(ctx, samlConnector.GetName(), false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Override the secrets with the values from the passed in connector since
+		// the call to GetSAMLConnector above did not request secrets.
+		conn.SetSigningKeyPair(connector.GetSigningKeyPair())
+
+		return conn, nil
 	}
-	return trace.Wrap(err)
+	return upserted, trace.Wrap(err)
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.
@@ -1999,18 +2089,31 @@ func (c *Client) UpdateGithubConnector(ctx context.Context, connector types.Gith
 }
 
 // UpsertGithubConnector creates or updates a Github connector.
-func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
+func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	githubConnector, ok := connector.(*types.GithubConnectorV3)
 	if !ok {
-		return trace.BadParameter("invalid type %T", connector)
+		return nil, trace.BadParameter("invalid type %T", connector)
 	}
-	_, err := c.grpc.UpsertGithubConnectorV2(ctx, &proto.UpsertGithubConnectorRequest{Connector: githubConnector})
+	conn, err := c.grpc.UpsertGithubConnectorV2(ctx, &proto.UpsertGithubConnectorRequest{Connector: githubConnector})
 	// TODO(tross) DELETE IN 16.0.0
 	if err != nil && trace.IsNotImplemented(err) {
-		_, err := c.grpc.UpsertGithubConnector(ctx, githubConnector) //nolint:staticcheck // SA1019. Kept for backward compatibility testing.
-		return trace.Wrap(err)
+		//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
+		if _, err := c.grpc.UpsertGithubConnector(ctx, githubConnector); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resp, err := c.grpc.GetGithubConnector(ctx, &types.ResourceWithSecretsRequest{Name: connector.GetName(), WithSecrets: false})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Override the client secret with the value from the passed in connector since
+		// the call to GetGithubConnector above did not request secrets.
+		resp.SetClientSecret(connector.GetClientSecret())
+
+		return resp, nil
 	}
-	return trace.Wrap(err)
+	return conn, trace.Wrap(err)
 }
 
 // DeleteGithubConnector deletes a Github connector by name.
@@ -2388,40 +2491,10 @@ func (c *Client) SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC ti
 
 	response, err := c.grpc.GetUnstructuredEvents(ctx, request)
 	if err != nil {
-		err = trace.Wrap(err)
-		// If the server does not support the unstructured events API,
-		// fallback to the legacy API.
-		if trace.IsNotImplemented(err) {
-			return c.searchUnstructuredEventsFallback(ctx, fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
-		}
-		return nil, "", err
-	}
-
-	return response.Items, response.LastKey, nil
-}
-
-// searchUnstructuredEventsFallback is a fallback implementation of the
-// SearchUnstructuredEvents method that is used when the server does not
-// support the unstructured events API.
-// This method converts the events at event handler plugin side, which can cause
-// the plugin to miss some events if the plugin is not updated to the latest
-// version.
-// TODO(tigrato): DELETE IN 15.0.0
-func (c *Client) searchUnstructuredEventsFallback(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error) {
-	eventsRcv, next, err := c.SearchEvents(ctx, fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
-	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	items := make([]*auditlogpb.EventUnstructured, 0, len(eventsRcv))
-	for _, evt := range eventsRcv {
-		item, err := events.ToUnstructured(evt)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		items = append(items, item)
-	}
-	return items, next, nil
+	return response.Items, response.LastKey, nil
 }
 
 // StreamUnstructuredSessionEvents streams audit events from a given session recording in an unstructured format.
@@ -2438,17 +2511,7 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 
 	stream, err := c.grpc.StreamUnstructuredSessionEvents(ctx, request)
 	if err != nil {
-		if trace.IsNotImplemented(trace.Wrap(err)) {
-			// If the server does not support the unstructured events API,
-			// fallback to the legacy API.
-			// This code patch shouldn't be triggered because the server
-			// returns the error only if the client calls Recv() on the stream.
-			// However, we keep this code patch here just in case there is a bug
-			// on the client grpc side.
-			c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
-		} else {
-			e <- trace.Wrap(trace.Wrap(err))
-		}
+		e <- trace.Wrap(trace.Wrap(err))
 		return ch, e
 	}
 	go func() {
@@ -2456,20 +2519,6 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 			event, err := stream.Recv()
 			if err != nil {
 				if err != io.EOF {
-					// If the server does not support the unstructured events API, it will
-					// return an error with code Unimplemented. This error is received
-					// the first time the client calls Recv() on the stream.
-					// If the client receives this error, it should fallback to the legacy
-					// API that spins another goroutine to convert the events to the
-					// unstructured format and sends them to the channel ch.
-					// Once we decide to spin the goroutine, we can leave this loop without
-					// reporting any error to the caller.
-					if trace.IsNotImplemented(trace.Wrap(err)) {
-						// If the server does not support the unstructured events API,
-						// fallback to the legacy API.
-						go c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
-						return
-					}
 					e <- trace.Wrap(trace.Wrap(err))
 				} else {
 					close(ch)
@@ -2487,61 +2536,6 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 	}()
 
 	return ch, e
-}
-
-// streamUnstructuredSessionEventsFallback is a fallback implementation of the
-// StreamUnstructuredSessionEvents method that is used when the server does not
-// support the unstructured events API. This method uses the old API to stream
-// events from the server and converts them to the unstructured format. This
-// method converts the events at event handler plugin side, which can cause
-// the plugin to miss some events if the plugin is not updated to the latest
-// version.
-// TODO(tigrato): DELETE IN 15.0.0
-func (c *Client) streamUnstructuredSessionEventsFallback(ctx context.Context, sessionID string, startIndex int64, ch chan *auditlogpb.EventUnstructured, e chan error) {
-	request := &proto.StreamSessionEventsRequest{
-		SessionID:  sessionID,
-		StartIndex: int32(startIndex),
-	}
-
-	stream, err := c.grpc.StreamSessionEvents(ctx, request)
-	if err != nil {
-		e <- trace.Wrap(err)
-		return
-	}
-
-	go func() {
-		for {
-			oneOf, err := stream.Recv()
-			if err != nil {
-				if err != io.EOF {
-					e <- trace.Wrap(trace.Wrap(err))
-				} else {
-					close(ch)
-				}
-
-				return
-			}
-
-			event, err := events.FromOneOf(*oneOf)
-			if err != nil {
-				e <- trace.Wrap(trace.Wrap(err))
-				return
-			}
-
-			unstructedEvent, err := events.ToUnstructured(event)
-			if err != nil {
-				e <- trace.Wrap(err)
-				return
-			}
-
-			select {
-			case ch <- unstructedEvent:
-			case <-ctx.Done():
-				e <- trace.Wrap(ctx.Err())
-				return
-			}
-		}
-	}()
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
@@ -4323,6 +4317,44 @@ func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority
 	})
 
 	return out, trace.Wrap(err)
+}
+
+// RotateCertAuthority updates or inserts new cert authority
+func (c *Client) RotateCertAuthority(ctx context.Context, rr types.RotateRequest) error {
+	req := &trustpb.RotateCertAuthorityRequest{
+		Type:        string(rr.Type),
+		TargetPhase: rr.TargetPhase,
+		Mode:        rr.Mode,
+	}
+
+	if rr.GracePeriod != nil {
+		req.GracePeriod = durationpb.New(*rr.GracePeriod)
+	}
+
+	if rr.Schedule != nil {
+		req.Schedule = &trustpb.RotationSchedule{
+			UpdateClients: timestamppb.New(rr.Schedule.UpdateClients),
+			UpdateServers: timestamppb.New(rr.Schedule.UpdateServers),
+			Standby:       timestamppb.New(rr.Schedule.Standby),
+		}
+	}
+
+	_, err := c.TrustClient().RotateCertAuthority(ctx, req)
+	return trace.Wrap(err)
+}
+
+// RotateExternalCertAuthority rotates the provided cert authority.
+func (c *Client) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	cav2, ok := ca.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unexpected ca type %T", ca)
+	}
+
+	_, err := c.TrustClient().RotateExternalCertAuthority(ctx, &trustpb.RotateExternalCertAuthorityRequest{
+		CertAuthority: cav2,
+	})
+
+	return trace.Wrap(err)
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.

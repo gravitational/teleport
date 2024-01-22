@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package db
 
@@ -25,10 +27,12 @@ import (
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/mongo"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -220,13 +224,13 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 	// advance clock several times, perform query.
 	// the activity should update the idle activity timer.
 	for i := 0; i < 10; i++ {
-		testCtx.clock.Advance(clientIdleTimeout / 2)
+		advanceInSteps(testCtx.clock, clientIdleTimeout/2)
 		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
 		require.NoErrorf(t, err, "failed on iteration %v", i+1)
 	}
 
-	// advance clock by full idle timeout, expect the client to be disconnected automatically.
-	testCtx.clock.Advance(clientIdleTimeout)
+	// advance clock by full idle timeout (plus a safety margin, to allow for reads in flight to be finished), expect the client to be disconnected automatically.
+	advanceInSteps(testCtx.clock, clientIdleTimeout+time.Second*5)
 	waitForEvent(t, testCtx, events.ClientDisconnectCode)
 
 	// expect failure after timeout.
@@ -234,6 +238,24 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 	require.Error(t, err)
 
 	require.NoError(t, pgConn.Close(ctx))
+}
+
+// advanceInSteps makes the clockwork.FakeClock behave closer to the real clock, smoothing the transition for large advances in time.
+// This works around a class of issues in the production code which expects that clock is smooth, not choppy.
+// Most testing code should NOT need to use this function.
+//
+// In technical terms, it divides the clock advancement into 100 smaller steps, with a short sleep after each one.
+func advanceInSteps(clock clockwork.FakeClock, total time.Duration) {
+	step := total / 100
+	if step <= 0 {
+		step = 1
+	}
+
+	end := clock.Now().Add(total)
+	for clock.Now().Before(end) {
+		clock.Advance(step)
+		time.Sleep(time.Millisecond * 1)
+	}
 }
 
 func TestHeartbeatEvents(t *testing.T) {
@@ -303,6 +325,68 @@ func TestHeartbeatEvents(t *testing.T) {
 	}
 }
 
+func TestDatabaseServiceHeartbeatEvents(t *testing.T) {
+	t.Run("no label when running on-prem", func(t *testing.T) {
+		ctx := context.Background()
+		var heartbeatEvents int64
+		heartbeatRecorder := func(err error) {
+			require.NoError(t, err)
+			atomic.AddInt64(&heartbeatEvents, 1)
+		}
+
+		testCtx := setupTestContext(ctx, t)
+		server := testCtx.setupDatabaseServer(ctx, t, agentParams{
+			NoStart:     true,
+			OnHeartbeat: heartbeatRecorder,
+		})
+		require.NoError(t, server.Start(ctx))
+		t.Cleanup(func() {
+			server.Close()
+		})
+
+		var listResp *types.ListResourcesResponse
+		var err error
+		require.Eventually(t, func() bool {
+			listResp, err = testCtx.authServer.ListResources(ctx, proto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
+			require.NoError(t, err)
+
+			return atomic.LoadInt64(&heartbeatEvents) == 1 && len(listResp.Resources) == 1
+		}, 2*time.Second, 500*time.Millisecond)
+
+		require.NotContains(t, listResp.Resources[0].GetAllLabels(), "teleport.dev/awsoidc-agent")
+	})
+	t.Run("when running as AWS OIDC ECS/Fargate Agent, it has a label indicating that", func(t *testing.T) {
+		ctx := context.Background()
+		var heartbeatEvents int64
+		heartbeatRecorder := func(err error) {
+			require.NoError(t, err)
+			atomic.AddInt64(&heartbeatEvents, 1)
+		}
+
+		t.Setenv(types.InstallMethodAWSOIDCDeployServiceEnvVar, "yes")
+		testCtx := setupTestContext(ctx, t)
+		server := testCtx.setupDatabaseServer(ctx, t, agentParams{
+			NoStart:     true,
+			OnHeartbeat: heartbeatRecorder,
+		})
+		require.NoError(t, server.Start(ctx))
+		t.Cleanup(func() {
+			server.Close()
+		})
+
+		var listResp *types.ListResourcesResponse
+		var err error
+		require.Eventually(t, func() bool {
+			listResp, err = testCtx.authServer.ListResources(ctx, proto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
+			require.NoError(t, err)
+
+			return atomic.LoadInt64(&heartbeatEvents) == 1 && len(listResp.Resources) == 1
+		}, 2*time.Second, 500*time.Millisecond)
+
+		require.Contains(t, listResp.Resources[0].GetAllLabels(), "teleport.dev/awsoidc-agent")
+	})
+}
+
 func TestShutdown(t *testing.T) {
 	tests := []struct {
 		name                             string
@@ -337,7 +421,7 @@ func TestShutdown(t *testing.T) {
 			})
 
 			// Validate that the server is proxying db0 after start.
-			require.Equal(t, server.getProxiedDatabases(), types.Databases{db0})
+			require.Equal(t, types.Databases{db0}, server.getProxiedDatabases())
 
 			// Validate heartbeat is present after start.
 			server.ForceHeartbeat()

@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package userloginstate
 
@@ -23,6 +25,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -40,8 +43,23 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
+const ownerUser = "owner"
+
+var emptyGrants = accesslist.Grants{}
+
 func TestAccessLists(t *testing.T) {
+	owner, err := types.NewUser(ownerUser)
+	require.NoError(t, err)
+	owner.SetRoles([]string{"orole1"})
+	owner.SetTraits(map[string][]string{
+		"otrait1": {"value1", "value2"},
+	})
+
 	user, err := types.NewUser("user")
+	user.SetStaticLabels(map[string]string{
+		"label1": "value1",
+		"label2": "value2",
+	})
 	user.SetRoles([]string{"orole1"})
 	user.SetTraits(map[string][]string{
 		"otrait1": {"value1", "value2"},
@@ -58,21 +76,29 @@ func TestAccessLists(t *testing.T) {
 		cloud              bool
 		accessLists        []*accesslist.AccessList
 		members            []*accesslist.AccessListMember
+		locks              []types.Lock
 		roles              []string
+		wantErr            require.ErrorAssertionFunc
 		expected           *userloginstate.UserLoginState
 		expectedRoleCount  int
 		expectedTraitCount int
 	}{
 		{
-			name:  "access lists are empty",
-			user:  user,
-			cloud: true,
-			roles: []string{"orole1"},
-			expected: newUserLoginState(t, "user", []string{
-				"orole1",
-			}, map[string][]string{
-				"otrait1": {"value1", "value2"},
-			}),
+			name:    "access lists are empty",
+			user:    user,
+			cloud:   true,
+			roles:   []string{"orole1"},
+			wantErr: require.NoError,
+			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}}),
 			expectedRoleCount:  0,
 			expectedTraitCount: 0,
 		},
@@ -81,104 +107,195 @@ func TestAccessLists(t *testing.T) {
 			user:  user,
 			cloud: true,
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
+				newAccessList(t, clock, "1", grants([]string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
-				}),
-				newAccessList(t, clock, "2", []string{"role2"}, trait.Traits{
+				}), emptyGrants),
+				newAccessList(t, clock, "2", grants([]string{"role2"}, trait.Traits{
 					"trait1": []string{"value2"},
 					"trait2": []string{"value3"},
-				}),
+				}), emptyGrants),
 			},
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1", "role1", "role2"},
+			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
-				[]string{
-					"orole1",
-					"role1",
-					"role2",
-				}, trait.Traits{
-					"otrait1": []string{"value1", "value2"},
-					"trait1":  []string{"value1", "value2"},
-					"trait2":  []string{"value3"},
-				}),
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
+				[]string{"orole1", "role1", "role2"},
+				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1", "value2"}, "trait2": {"value3"}}),
 			expectedRoleCount:  2,
 			expectedTraitCount: 3,
 		},
 		{
-			name:  "access lists add roles and traits (cloud disabled)",
+			name:  "lock prevents adding roles and traits",
 			user:  user,
-			cloud: false,
+			cloud: true,
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
+				newAccessList(t, clock, "1", grants([]string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
-				}),
-				newAccessList(t, clock, "2", []string{"role2"}, trait.Traits{
+				}), emptyGrants),
+				newAccessList(t, clock, "2", grants([]string{"role2"}, trait.Traits{
 					"trait1": []string{"value2"},
 					"trait2": []string{"value3"},
-				}),
+				}), emptyGrants),
 			},
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
+			locks: []types.Lock{
+				newUserLock(t, "test-lock", user.GetName()),
+			},
 			roles:   []string{"orole1", "role1", "role2"},
+			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
-				[]string{
-					"orole1",
-					"role1",
-					"role2",
-				}, trait.Traits{
-					"otrait1": []string{"value1", "value2"},
-					"trait1":  []string{"value1", "value2"},
-					"trait2":  []string{"value3"},
-				}),
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": []string{"value1", "value2"}}),
 			expectedRoleCount:  0,
 			expectedTraitCount: 0,
 		},
 		{
-			name:  "access lists add roles and traits, roles missing from backend",
+			name:  "access lists add member roles and traits (cloud disabled)",
+			user:  user,
+			cloud: false,
+			accessLists: []*accesslist.AccessList{
+				newAccessList(t, clock, "1", grants([]string{"role1"}, trait.Traits{
+					"trait1": []string{"value1"},
+				}), emptyGrants),
+				newAccessList(t, clock, "2", grants([]string{"role2"}, trait.Traits{
+					"trait1": []string{"value2"},
+					"trait2": []string{"value3"},
+				}), emptyGrants),
+			},
+			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
+			roles:   []string{"orole1", "role1", "role2"},
+			wantErr: require.NoError,
+			expected: newUserLoginState(t, "user",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
+				[]string{"orole1", "role1", "role2"},
+				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1", "value2"}, "trait2": {"value3"}}),
+			expectedRoleCount:  0,
+			expectedTraitCount: 0,
+		},
+		{
+			name:  "access lists add owner roles and traits",
+			user:  owner,
+			cloud: true,
+			accessLists: []*accesslist.AccessList{
+				newAccessList(t, clock, "1", grants([]string{"role1"}, trait.Traits{
+					"trait1": []string{"value1"},
+				}), grants([]string{"owner-role1", "owner-role2"}, trait.Traits{
+					"owner-trait1": []string{"owner-value1"},
+				})),
+				newAccessList(t, clock, "2", grants([]string{"role2"}, trait.Traits{
+					"trait1": []string{"value2"},
+					"trait2": []string{"value3"},
+				}), emptyGrants),
+			},
+			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
+			roles:   []string{"orole1", "owner-role1", "owner-role2"},
+			wantErr: require.NoError,
+			expected: newUserLoginState(t, ownerUser,
+				map[string]string{
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
+				[]string{"orole1", "owner-role1", "owner-role2"},
+				trait.Traits{"otrait1": {"value1", "value2"}, "owner-trait1": {"owner-value1"}}),
+			expectedRoleCount:  2,
+			expectedTraitCount: 1,
+		},
+		{
+			name:  "access lists add owner and member roles and traits",
+			user:  owner,
+			cloud: true,
+			accessLists: []*accesslist.AccessList{
+				newAccessList(t, clock, "1", grants([]string{"role1"}, trait.Traits{
+					"trait1": []string{"value1"},
+				}), grants([]string{"owner-role1", "owner-role2"}, trait.Traits{
+					"trait1": []string{"owner-value1"},
+				})),
+				newAccessList(t, clock, "2", grants([]string{"role2"}, trait.Traits{
+					"trait1": []string{"value2"},
+					"trait2": []string{"value3"},
+				}), emptyGrants),
+			},
+			members: newAccessListMembers(t, clock, "1", ownerUser),
+			roles:   []string{"orole1", "owner-role1", "owner-role2", "role1"},
+			wantErr: require.NoError,
+			expected: newUserLoginState(t, ownerUser,
+				map[string]string{
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
+				[]string{"orole1", "owner-role1", "owner-role2", "role1"},
+				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"owner-value1", "value1"}}),
+			expectedRoleCount:  3,
+			expectedTraitCount: 2,
+		},
+		{
+			name:  "access lists add member roles and traits, roles missing from backend",
 			user:  user,
 			cloud: true,
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
+				newAccessList(t, clock, "1", grants([]string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
-				}),
-				newAccessList(t, clock, "2", []string{"role2"}, trait.Traits{
+				}), emptyGrants),
+				newAccessList(t, clock, "2", grants([]string{"role2"}, trait.Traits{
 					"trait1": []string{"value2"},
 					"trait2": []string{"value3"},
-				}),
+				}), emptyGrants),
 			},
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1"},
-			expected: newUserLoginState(t, "user",
-				[]string{"orole1"}, trait.Traits{
-					"otrait1": []string{"value1", "value2"},
-					"trait1":  []string{"value1", "value2"},
-					"trait2":  []string{"value3"},
-				}),
-			expectedRoleCount:  0,
-			expectedTraitCount: 3,
+			wantErr: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.NotFound("role role1 is not found"))
+			},
 		},
 		{
 			name:  "access lists only a member of some lists",
 			user:  user,
 			cloud: true,
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, clock, "1", []string{"role1"}, trait.Traits{
+				newAccessList(t, clock, "1", grants([]string{"role1"}, trait.Traits{
 					"trait1": []string{"value1"},
-				}),
-				newAccessList(t, clock, "2", []string{"role2"}, trait.Traits{
+				}), emptyGrants),
+				newAccessList(t, clock, "2", grants([]string{"role2"}, trait.Traits{
 					"trait1": []string{"value2"},
 					"trait2": []string{"value3"},
-				}),
+				}), emptyGrants),
 			},
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "not-user")...),
 			roles:   []string{"orole1", "role1", "role2"},
+			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
-				[]string{
-					"orole1",
-					"role1",
-				}, trait.Traits{
-					"otrait1": []string{"value1", "value2"},
-					"trait1":  []string{"value1"},
-				}),
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
+				[]string{"orole1", "role1"},
+				trait.Traits{
+					"otrait1": {"value1", "value2"}, "trait1": {"value1"}}),
 			expectedRoleCount:  1,
 			expectedTraitCount: 1,
 		},
@@ -187,20 +304,22 @@ func TestAccessLists(t *testing.T) {
 			user:  user,
 			cloud: true,
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, clock, "1", []string{"role1", "role2"}, trait.Traits{}),
-				newAccessList(t, clock, "2", []string{"role2", "role3"}, trait.Traits{}),
+				newAccessList(t, clock, "1", grants([]string{"role1", "role2"}, trait.Traits{}), emptyGrants),
+				newAccessList(t, clock, "2", grants([]string{"role2", "role3"}, trait.Traits{}), emptyGrants),
 			},
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1", "role1", "role2", "role3"},
+			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
-				[]string{
-					"orole1",
-					"role1",
-					"role2",
-					"role3",
-				}, trait.Traits{
-					"otrait1": []string{"value1", "value2"},
-				}),
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
+				},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
+				[]string{"orole1", "role1", "role2", "role3"},
+				trait.Traits{"otrait1": {"value1", "value2"}}),
 			expectedRoleCount:  3,
 			expectedTraitCount: 0,
 		},
@@ -209,31 +328,32 @@ func TestAccessLists(t *testing.T) {
 			user:  user,
 			cloud: true,
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, clock, "1", []string{},
+				newAccessList(t, clock, "1", grants([]string{},
 					trait.Traits{
 						"trait1": []string{"value1", "value2"},
 						"trait2": []string{"value3", "value4"},
 					},
-				),
-				newAccessList(t, clock, "2", []string{},
+				), emptyGrants),
+				newAccessList(t, clock, "2", grants([]string{},
 					trait.Traits{
 						"trait2": []string{"value3", "value1"},
 						"trait3": []string{"value5", "value6"},
 					},
-				),
+				), emptyGrants),
 			},
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"orole1"},
+			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
-				[]string{
-					"orole1",
+				map[string]string{
+					"label1":                                 "value1",
+					"label2":                                 "value2",
+					userloginstate.OriginalRolesAndTraitsSet: "true",
 				},
-				trait.Traits{
-					"otrait1": []string{"value1", "value2"},
-					"trait1":  []string{"value1", "value2"},
-					"trait2":  []string{"value3", "value4", "value1"},
-					"trait3":  []string{"value5", "value6"},
-				}),
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}},
+				[]string{"orole1"},
+				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1", "value2"}, "trait2": {"value3", "value4", "value1"}, "trait3": {"value5", "value6"}}),
 			expectedRoleCount:  0,
 			expectedTraitCount: 7,
 		},
@@ -242,29 +362,32 @@ func TestAccessLists(t *testing.T) {
 			user:  userNoRolesOrTraits,
 			cloud: true,
 			accessLists: []*accesslist.AccessList{
-				newAccessList(t, clock, "1", []string{"role1"},
+				newAccessList(t, clock, "1", grants([]string{"role1"},
 					trait.Traits{
 						"trait1": []string{"value1", "value2"},
 						"trait2": []string{"value3", "value4"},
 					},
-				),
-				newAccessList(t, clock, "2", []string{},
+				), emptyGrants),
+				newAccessList(t, clock, "2", grants([]string{},
 					trait.Traits{
 						"trait3": []string{"value5", "value6"},
 					},
-				),
+				), emptyGrants),
 			},
 			members: append(newAccessListMembers(t, clock, "1", "user"), newAccessListMembers(t, clock, "2", "user")...),
 			roles:   []string{"role1"},
+			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
-				[]string{
-					"role1",
+				map[string]string{
+					userloginstate.OriginalRolesAndTraitsSet: "true",
 				},
+				nil,
+				nil,
+				[]string{"role1"},
 				trait.Traits{
-					"trait1": []string{"value1", "value2"},
-					"trait2": []string{"value3", "value4"},
-					"trait3": []string{"value5", "value6"},
-				}),
+					"trait1": {"value1", "value2"},
+					"trait2": {"value3", "value4"},
+					"trait3": {"value5", "value6"}}),
 			expectedRoleCount:  1,
 			expectedTraitCount: 6,
 		},
@@ -275,7 +398,8 @@ func TestAccessLists(t *testing.T) {
 			modules.SetTestModules(t, &modules.TestModules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
-					Cloud: test.cloud,
+					Cloud:                      test.cloud,
+					IdentityGovernanceSecurity: true,
 				},
 			})
 
@@ -299,8 +423,17 @@ func TestAccessLists(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			for _, lock := range test.locks {
+				require.NoError(t, backendSvc.UpsertLock(ctx, lock))
+			}
+
 			state, err := svc.Generate(ctx, test.user)
-			require.NoError(t, err)
+			test.wantErr(t, err)
+
+			if err != nil {
+				return
+			}
+
 			require.Empty(t, cmp.Diff(test.expected, state,
 				cmpopts.SortSlices(func(str1, str2 string) bool {
 					return str1 < str2
@@ -309,6 +442,7 @@ func TestAccessLists(t *testing.T) {
 			if test.expectedRoleCount == 0 && test.expectedTraitCount == 0 {
 				require.Nil(t, backendSvc.event)
 			} else {
+				require.NotNil(t, backendSvc.event)
 				require.IsType(t, &usageeventsv1.UsageEventOneOf_AccessListGrantsToUser{}, backendSvc.event.Event)
 				event := (backendSvc.event.Event).(*usageeventsv1.UsageEventOneOf_AccessListGrantsToUser)
 
@@ -358,7 +492,14 @@ func initGeneratorSvc(t *testing.T) (*Generator, *svc) {
 	return generator, svc
 }
 
-func newAccessList(t *testing.T, clock clockwork.Clock, name string, roles []string, traits trait.Traits) *accesslist.AccessList {
+func grants(roles []string, traits trait.Traits) accesslist.Grants {
+	return accesslist.Grants{
+		Roles:  roles,
+		Traits: traits,
+	}
+}
+
+func newAccessList(t *testing.T, clock clockwork.Clock, name string, grants accesslist.Grants, ownerGrants accesslist.Grants) *accesslist.AccessList {
 	t.Helper()
 
 	accessList, err := accesslist.NewAccessList(header.Metadata{
@@ -370,7 +511,7 @@ func newAccessList(t *testing.T, clock clockwork.Clock, name string, roles []str
 		},
 		Owners: []accesslist.Owner{
 			{
-				Name:        "owner",
+				Name:        ownerUser,
 				Description: "description",
 			},
 		},
@@ -382,10 +523,8 @@ func newAccessList(t *testing.T, clock clockwork.Clock, name string, roles []str
 			Roles:  []string{},
 			Traits: map[string][]string{},
 		},
-		Grants: accesslist.Grants{
-			Roles:  roles,
-			Traits: traits,
-		},
+		Grants:      grants,
+		OwnerGrants: ownerGrants,
 	})
 	require.NoError(t, err)
 
@@ -404,7 +543,7 @@ func newAccessListMembers(t *testing.T, clock clockwork.Clock, accessList string
 			Joined:     clock.Now(),
 			Expires:    clock.Now().Add(24 * time.Hour),
 			Reason:     "added",
-			AddedBy:    "owner",
+			AddedBy:    ownerUser,
 		})
 		require.NoError(t, err)
 	}
@@ -412,16 +551,33 @@ func newAccessListMembers(t *testing.T, clock clockwork.Clock, accessList string
 	return alMembers
 }
 
-func newUserLoginState(t *testing.T, name string, roles []string, traits map[string][]string) *userloginstate.UserLoginState {
+func newUserLoginState(t *testing.T, name string, labels map[string]string, originalRoles []string, originalTraits map[string][]string,
+	roles []string, traits map[string][]string) *userloginstate.UserLoginState {
 	t.Helper()
 
 	uls, err := userloginstate.New(header.Metadata{
-		Name: name,
+		Name:   name,
+		Labels: labels,
 	}, userloginstate.Spec{
-		Roles:  roles,
-		Traits: traits,
+		OriginalRoles:  originalRoles,
+		OriginalTraits: originalTraits,
+		Roles:          roles,
+		Traits:         traits,
 	})
 	require.NoError(t, err)
 
 	return uls
+}
+
+func newUserLock(t *testing.T, name string, username string) types.Lock {
+	t.Helper()
+
+	lock, err := types.NewLock(name, types.LockSpecV2{
+		Target: types.LockTarget{
+			User: username,
+		},
+	})
+	require.NoError(t, err)
+
+	return lock
 }

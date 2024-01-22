@@ -165,6 +165,23 @@ as well as an upgrade of the previous version of Teleport.
     sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
     ```
 
+- [ ] External Audit Storage
+
+    External Audit Storage must be tested on an Enterprise Cloud tenant.
+    Instructions for deploying a custom release to a cloud staging tenant: https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md
+
+  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/choose-an-edition/teleport-cloud/external-audit-storage/
+    - [ ] Docs (including screenshots) are up to date
+    - [ ] Discover flow works with or without an existing AWS OIDC integration
+    - [ ] Draft configuration can be resumed after navigating away
+    - [ ] Bootstrap step (oneoff command pasted into CloudShell) works to create infra
+    - [ ] Created IAM policy (attached to AWS OIDC integration role) matches docs example
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) are stored in configured S3 buckets
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) can be queried and played in the web UI
+    - [ ] `tsh play <session-id>` works
+  - [ ] Existing EAS configuration can be replaced with a new one via Discover flow
+  - [ ] Existing EAS configuration can be deleted (disabling EAS)
+
 - [ ] Interact with a cluster using `tsh`
 
    These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
@@ -235,14 +252,6 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Connect to a OpenSSH node
   - [ ] Connect to a Agentless node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
-
-- [ ] `tsh` CA loading
-
-  Create a trusted cluster pair with a node in the leaf cluster. Log into the root cluster.
-  - [ ] `load_all_cas` on the root auth server is `false` (default) -
-  `tsh ssh leaf.node.example.com` results in access denied.
-  - [ ] `load_all_cas` on the root auth server is `true` - `tsh ssh leaf.node.example.com`
-  succeeds.
 
 - [ ] X11 Forwarding
   - Install `xeyes` and `xclip`:
@@ -379,7 +388,7 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
 
 ### Migrations
 
-* [ ] Migrate trusted clusters from 2.4.0 to 2.5.0
+* [ ] Migrate trusted clusters
   * [ ] Migrate auth server on main cluster, then rest of the servers on main cluster
         SSH should work for both main and old clusters
   * [ ] Migrate auth server on remote cluster, then rest of the remote cluster
@@ -473,10 +482,29 @@ connectors are accepted, invalid are rejected with sensible error messages.
         - [ ] Google Workspace
         - [ ] Non-Google IdP
 
+### SSO login on remote host
+
+- [ ] SSO login on a remote host
+
+`tsh` should be running on a remote host (e.g. over an SSH session) and use the
+local browser to complete and SSO login. Run
+`tsh login --callback <remote.host>:<port> --bind-addr localhost:<port> --auth <auth>`
+on the remote host. Note that the `--callback` URL must be able to resolve to the
+`--bind-addr` over HTTPS.
+
 ### Teleport Plugins
 
 - [ ] Test receiving a message via Teleport Slackbot
 - [ ] Test receiving a new Jira Ticket via Teleport Jira
+
+### Teleport Operator
+
+- [ ] Test deploying a Teleport cluster with the `teleport-cluster` Helm chart and the operator enabled
+- [ ] Test deploying a standalone operator against Teleport Cloud
+- [ ] Test that operator can reconcile
+  - [ ] TeleportUser
+  - [ ] TeleportRole
+  - [ ] TeleportProvisionToken
 
 ### AWS Node Joining
 [Docs](https://goteleport.com/docs/setup/guides/joining-nodes-aws/)
@@ -488,7 +516,8 @@ connectors are accepted, invalid are rejected with sensible error messages.
 - [ ] IAM Join method in IoT mode with node and auth in different AWS accounts
 
 ### Kubernetes Node Joining
-- [ ] Join a Teleport node running in the same Kubernetes cluster via a Kubernetes ProvisionToken
+- [ ] Join a Teleport node running in the same Kubernetes cluster via a Kubernetes in-cluster ProvisionToken
+- [ ] Join a tbot instance running in a different Kubernetes cluster as Teleport with a Kubernetes JWKS ProvisionToken
 
 ### Azure Node Joining
 [Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/azure/)
@@ -585,7 +614,7 @@ tsh ssh node-that-requires-device-trust
 > ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
 # Register the device.
-# Get the serial number from "Apple -> About This Mac".
+# Get the serial number from `tsh device asset-tag`.
 tctl devices add --os=macos --asset-tag=<SERIAL_NUMBER> --enroll
 
 # Enroll the device.
@@ -607,8 +636,14 @@ tsh ssh node-that-requires-device-trust
   - [ ] Create enrollment token using asset tag (`tctl devices enroll`)
 
 - [ ] Device enrollment
-  - [ ] Enroll device on macOS (`tsh device enroll`)
-  - [ ] Enroll device on Windows (`tsh device enroll`)
+  - [ ] Enroll/authn device on macOS (`tsh device enroll`)
+  - [ ] Enroll/authn device on Windows (`tsh device enroll`)
+  - [ ] Enroll/authn device on Linux (`tsh device enroll`)
+
+    Linux users need read/write permissions to /dev/tpmrm0. The simplest way is
+    to assign yourself to the `tss` group. See
+    https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting.
+
   - [ ] Verify device extensions on TLS certificate
 
     Note that different accesses have different certificates (Database, Kube,
@@ -636,28 +671,34 @@ tsh ssh node-that-requires-device-trust
   - [ ] device_trust.mode="optional" doesn't impede access, but issues device
         extensions on login
   - [ ] device_trust.mode="required" enforces enrolled devices
-  - [ ] device_trust.mode="required" is enforced by processes, and not only by
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+    - [ ] App Access NOT enforced in global mode
+  - [ ] device_trust.mode="required" is enforced by processes and not only by
         Auth APIs
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
 
     Testing this requires issuing a certificate without device extensions
     (mode="off"), then changing the cluster configuration to mode="required" and
     attempting to access a process directly, without a login attempt.
 
   - [ ] Role-based authz enforces enrolled devices
-        (device_trust.mode="off" or "optional",
-        role.spec.options.device_trust_mode="required")
+        (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+    - [ ] App Access
   - [ ] Device authorization works correctly for both require_session_mfa=false
         and require_session_mfa=true
-
-  - [ ] Device authorization applies to SSH access (all items above)
-  - [ ] Device authorization applies to Trusted Clusters (root with
-        mode="optional" and leaf with mode="required")
-  - [ ] Device authorization applies to Database access (all items above)
-  - [ ] Device authorization applies to Kubernetes access (all items above)
-
-  - [ ] Device authorization __does not__ apply to App access
-        (both cluster-wide and role)
-  - [ ] Device authorization __does not__ apply to Windows Desktop access
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+  - [ ] Device authorization applies to Trusted Clusters
+        (root with mode="optional" and leaf with mode="required")
+  - [ ] Device authorization __does not apply__ to Windows Desktop access
         (both cluster-wide and role)
 
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
@@ -676,6 +717,8 @@ tsh ssh node-that-requires-device-trust
   - [ ] `tsh device asset-tag` (macOS)
   - [ ] `tsh device collect`   (Windows)
   - [ ] `tsh device asset-tag` (Windows)
+  - [ ] `tsh device collect`   (Linux)
+  - [ ] `tsh device asset-tag` (Linux)
 
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
@@ -736,6 +779,11 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
   - [ ] Make sure docs/links are up to date
   - [ ] New cluster with CloudHSM CA works
   - [ ] Migrating a software cluster to CloudHSM works
+  - [ ] CA rotation works
+- [ ] AWS KMS Support
+  - [ ] Make sure docs/links are up to date
+  - [ ] New cluster with AWS KMS CA works
+  - [ ] Migrating a software cluster to AWS KMS works
   - [ ] CA rotation works
 - [ ] GCP KMS Support
   - [ ] Make sure docs/links are up to date
@@ -892,7 +940,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] GCP Cloud SQL MySQL.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [ ] Azure single-server MySQL and Postgres
+  - [ ] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, use CLI to create)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -934,8 +982,14 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Oracle.
   - [ ] ClickHouse.
 - [ ] Verify auto user provisioning.
+  Verify all supported modes: `keep`, `best_effort_drop`
   - [ ] Self-hosted Postgres.
+  - [ ] Self-hosted MySQL.
+  - [ ] Self-hosted MariaDB.
+  - [ ] Self-hosted MongoDB.
   - [ ] AWS RDS Postgres.
+  - [ ] AWS RDS MySQL.
+  - [ ] AWS RDS MariaDB.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -943,6 +997,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Verify RBAC.
   - [ ] `tsh db ls` shows only databases matching role's `db_labels`.
   - [ ] Can only connect as users from `db_users`.
+  - [ ] Can only connect as Teleport username, for auto-user-provisioning-enabled databases.
   - [ ] _(Postgres only)_ Can only connect to databases from `db_names`.
     - [ ] `db.session.start` is emitted when connection attempt is denied.
   - [ ] _(MongoDB only)_ Can only execute commands in databases from `db_names`.
@@ -953,6 +1008,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Can register a new database using `tctl create`.
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
+  - [ ] Can register a database using Teleport's terraform provider.
 - [ ] Verify discovery.
   Please configure discovery in Discovery Service instead of Database Service.
     - [ ] AWS
@@ -974,7 +1030,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
   - [ ] Can detect and manage MemoryDB users
-- [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
+- [ ] Test Databases screen in the web UI (filter by "Database" type in unified view):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
@@ -1034,7 +1090,8 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] OpenSearch.
     - [ ] Cassandra/ScyllaDB.
     - [ ] Oracle.
-  - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
+  - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh proxy db` with a GUI client.
+  - [ ] Verify connecting to a database through Teleport Connect.
 - [ ] Application Access
   - [ ] Verify app access through proxy running in `multiplex` mode
 - [ ] SSH Access
@@ -1042,7 +1099,8 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Connect to a OpenSSH server on leaf-cluster through a local ssh proxy`ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf-cluster %h:%p" user@node.foo.com`
   - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
 - [ ] Kubernetes access:
-  - [ ] Verify kubernetes access through proxy running in `multiplex` mode
+  - [ ] Verify kubernetes access through proxy running in `multiplex` mode, using `tsh`
+  - [ ] Verify kubernetes access through Teleport Connect
 - [ ] Teleport Proxy single port `multiplex` mode behind L7 load balancer
   - [ ] Agent can join through Proxy and maintain reverse tunnel
   - [ ] `tsh login` and `tctl`
@@ -1054,10 +1112,16 @@ tsh bench web sessions --max=5000 --web user ls
 ## Desktop Access
 
 - Direct mode (set `listen_addr`):
-  - [ ] Can connect to desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `non_ad_hosts` section.
   - [ ] Can connect to desktop discovered via LDAP
 - IoT mode (reverse tunnel through proxy):
-  - [ ] Can connect to desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `hosts` section.
+  - [ ] Can connect to AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `static_hosts` section.
+  - [ ] Can connect to non-AD desktop defined in static `non_ad_hosts` section.
   - [ ] Can connect to desktop discovered via LDAP
 - [ ] Connect multiple `windows_desktop_service`s to the same Teleport cluster,
   verify that connections to desktops on different AD domains works. (Attempt to
@@ -1086,6 +1150,7 @@ tsh bench web sessions --max=5000 --web user ls
     Version, DNS hostname.
   - [ ] Regexp-based host labeling applies across all desktops, regardless of
     origin.
+  - [ ] Labels from `static_hosts` are applied to correct desktops
 - RBAC
   - [ ] RBAC denies access to a Windows desktop due to labels
   - [ ] RBAC denies access to a Windows desktop with the wrong OS-login.
@@ -1198,11 +1263,31 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
   - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
-## Binaries compatibility
+## Binaries / OS compatibility
 
-- Verify `tsh` runs on:
-  - [ ] Windows 10
-  - [ ] MacOS
+Verify that our software runs on the minimum supported OS versions as per
+https://goteleport.com/docs/installation/#operating-system-support
+
+### Windows
+
+- [ ] `tsh` runs on the minimum supported Windows version
+- [ ] Teleport Connect runs on the minimum supported Windows version
+
+### macOS
+
+- [ ] `tsh` runs on the minimum supported macOS version
+- [ ] `tctl` runs on the minimum supported macOS version
+- [ ] `teleport` runs on the minimum supported macOS version
+- [ ] `tbot` runs on the minimum supported macOS version
+- [ ] Teleport Connect runs on the minimum supported macOS version
+
+### Linux
+
+- [ ] `tsh` runs on the minimum supported Linux version
+- [ ] `tctl` runs on the minimum supported Linux version
+- [ ] `teleport` runs on the minimum supported Linux version
+- [ ] `tbot` runs on the minimum supported Linux version
+- [ ] Teleport Connect runs on the minimum supported Linux version
 
 ## Machine ID
 

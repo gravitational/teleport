@@ -1,31 +1,35 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React, { useEffect } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
+import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/workspacesService';
+import { DocumentClusterQueryParams } from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { retryWithRelogin } from 'teleterm/ui/utils';
+import { Cluster } from 'teleterm/services/tshd/types';
 
 import * as uri from 'teleterm/ui/uri';
 import { routing } from 'teleterm/ui/uri';
-
-import { Cluster } from 'teleterm/services/tshd/types';
 
 import { UnifiedResources } from './UnifiedResources';
 
@@ -40,8 +44,8 @@ export default function DocumentCluster(props: {
   const rootCluster =
     appCtx.clustersService.findRootClusterByResource(clusterUri);
   const cluster = appCtx.clustersService.findCluster(clusterUri);
-
   const clusterName = cluster?.name || routing.parseClusterName(clusterUri);
+
   useEffect(() => {
     // because we don't wait for the leaf clusters to fetch before we show them,
     // we can't access `actualName` when the cluster document is created
@@ -52,24 +56,25 @@ export default function DocumentCluster(props: {
       });
   }, [appCtx.workspacesService, clusterName, clusterUri, props.doc.uri]);
 
-  function logIn(): void {
-    appCtx.modalsService.openRegularDialog({
-      kind: 'cluster-connect',
-      clusterUri,
-      reason: undefined,
-      prefill: undefined,
-      onCancel: () => {},
-      onSuccess: () => {},
-    });
-  }
+  const [clusterSyncAttempt, syncCluster] = useAsync(() =>
+    retryWithRelogin(appCtx, clusterUri, () =>
+      appCtx.clustersService.syncRootCluster(
+        routing.ensureRootClusterUri(clusterUri)
+      )
+    )
+  );
 
   return (
     <Document visible={props.visible}>
       <ClusterState
+        clusterName={clusterName}
         clusterUri={clusterUri}
         rootCluster={rootCluster}
         cluster={cluster}
-        onLogin={logIn}
+        syncCluster={syncCluster}
+        clusterSyncAttempt={clusterSyncAttempt}
+        queryParams={props.doc.queryParams}
+        docUri={props.doc.uri}
       />
     </Document>
   );
@@ -77,77 +82,134 @@ export default function DocumentCluster(props: {
 
 function ClusterState(props: {
   clusterUri: uri.ClusterUri;
+  clusterName: string;
   rootCluster: Cluster;
   cluster: Cluster | undefined;
-  onLogin(): void;
+  syncCluster(): void;
+  clusterSyncAttempt: Attempt<void>;
+  queryParams: DocumentClusterQueryParams;
+  docUri: uri.DocumentUri;
 }) {
   if (!props.rootCluster.connected) {
     return (
-      <RequiresLogin clusterUri={props.clusterUri} onLogin={props.onLogin} />
+      <RequiresLogin
+        clusterName={props.clusterName}
+        syncCluster={props.syncCluster}
+        clusterSyncAttempt={props.clusterSyncAttempt}
+      />
     );
   }
 
   if (!props.cluster) {
-    return <NotFound clusterUri={props.clusterUri} />;
+    return <NotFound clusterName={props.clusterName} />;
   }
 
   if (props.cluster.leaf && !props.cluster.connected) {
-    return <LeafDisconnected clusterUri={props.clusterUri} />;
+    return (
+      <LeafDisconnected
+        clusterName={props.clusterName}
+        syncCluster={props.syncCluster}
+        clusterSyncAttempt={props.clusterSyncAttempt}
+      />
+    );
   }
 
   return (
     <Layout>
-      <UnifiedResources clusterUri={props.clusterUri} />
+      <UnifiedResources
+        clusterUri={props.clusterUri}
+        docUri={props.docUri}
+        queryParams={props.queryParams}
+      />
     </Layout>
   );
 }
 
-function RequiresLogin(props: { clusterUri: uri.ClusterUri; onLogin(): void }) {
+function RequiresLogin(props: {
+  clusterName: string;
+  syncCluster(): void;
+  clusterSyncAttempt: Attempt<void>;
+}) {
+  return (
+    <PrintState
+      clusterName={props.clusterName}
+      clusterState="Cluster is offline."
+      action={{
+        attempt: props.clusterSyncAttempt,
+        label: 'Connect',
+        run: props.syncCluster,
+      }}
+    />
+  );
+}
+
+function LeafDisconnected(props: {
+  clusterName: string;
+  syncCluster(): void;
+  clusterSyncAttempt: Attempt<void>;
+}) {
+  return (
+    <PrintState
+      clusterName={props.clusterName}
+      clusterState="Trusted cluster is offline."
+      action={{
+        attempt: props.clusterSyncAttempt,
+        label: 'Refresh cluster status',
+        run: props.syncCluster,
+      }}
+    />
+  );
+}
+
+function NotFound(props: { clusterName: string }) {
+  return (
+    <PrintState
+      clusterName={props.clusterName}
+      clusterState="Cluster not found."
+    />
+  );
+}
+
+function PrintState(props: {
+  clusterName: string;
+  clusterState: string;
+  action?: {
+    label: string;
+    run(): void;
+    attempt: Attempt<void>;
+  };
+}) {
   return (
     <Flex
       flexDirection="column"
       mx="auto"
-      justifyContent="center"
       alignItems="center"
+      css={`
+        top: 11%;
+        position: relative;
+      `}
     >
-      <Text typography="h4" color="text.main" bold>
-        {props.clusterUri}
-        <Text as="span" typography="h5">
-          {` cluster is offline`}
-        </Text>
+      {props.action && props.action.attempt.status === 'error' && (
+        <Alert>{props.action.attempt.statusText}</Alert>
+      )}
+      <Text typography="h4" bold>
+        {props.clusterName}
       </Text>
-      <ButtonPrimary mt={4} width="100px" onClick={props.onLogin}>
-        Connect
-      </ButtonPrimary>
+      <Text>{props.clusterState}</Text>
+      {props.action && (
+        <ButtonPrimary
+          mt={4}
+          onClick={props.action.run}
+          disabled={props.action.attempt.status === 'processing'}
+        >
+          {props.action.label}
+        </ButtonPrimary>
+      )}
     </Flex>
   );
 }
 
-// TODO(ravicious): Add a button for syncing the leaf clusters list.
-// https://github.com/gravitational/teleport.e/issues/863
-function LeafDisconnected(props: { clusterUri: uri.ClusterUri }) {
-  return (
-    <Flex flexDirection="column" mx="auto" alignItems="center">
-      <Text typography="h5">{props.clusterUri}</Text>
-      <Text as="span" typography="h5">
-        trusted cluster is offline
-      </Text>
-    </Flex>
-  );
-}
-
-function NotFound(props: { clusterUri: uri.ClusterUri }) {
-  return (
-    <Flex flexDirection="column" mx="auto" alignItems="center">
-      <Text typography="h5">{props.clusterUri}</Text>
-      <Text as="span" typography="h5">
-        Not Found
-      </Text>
-    </Flex>
-  );
-}
-
-const Layout = styled(Box).attrs({ mx: 'auto', px: 5, pt: 4 })`
+const Layout = styled(Box).attrs({ mx: 'auto', px: 4, pt: 3 })`
   flex-direction: column;
   display: flex;
   flex: 1;

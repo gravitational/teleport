@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -30,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -58,6 +61,8 @@ type AccessRequestCommand struct {
 	force  bool
 
 	approve, deny bool
+	// assumeStartTimeRaw format is RFC3339
+	assumeStartTimeRaw string
 
 	requestList    *kingpin.CmdClause
 	requestGet     *kingpin.CmdClause
@@ -87,6 +92,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 	c.requestApprove.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestApprove.Flag("annotations", "Resolution attributes <key>=<val>[,...]").StringVar(&c.annotations)
 	c.requestApprove.Flag("roles", "Override requested roles <role>[,...]").StringVar(&c.roles)
+	c.requestApprove.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&c.assumeStartTimeRaw)
 
 	c.requestDeny = requests.Command("deny", "Deny pending access request.")
 	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -226,13 +232,26 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	var assumeStartTime *time.Time
+	if c.assumeStartTimeRaw != "" {
+		parsedAssumeStartTime, err := time.Parse(time.RFC3339, c.assumeStartTimeRaw)
+		if err != nil {
+			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
+		}
+		if time.Until(parsedAssumeStartTime) > constants.MaxAssumeStartDuration {
+			return trace.BadParameter("assume-start-time too far in future: latest date %q",
+				parsedAssumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
+		}
+		assumeStartTime = &parsedAssumeStartTime
+	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
-			RequestID:   reqID,
-			State:       types.RequestState_APPROVED,
-			Reason:      c.reason,
-			Annotations: annotations,
-			Roles:       c.splitRoles(),
+			RequestID:       reqID,
+			State:           types.RequestState_APPROVED,
+			Reason:          c.reason,
+			Annotations:     annotations,
+			Roles:           c.splitRoles(),
+			AssumeStartTime: assumeStartTime,
 		}); err != nil {
 			return trace.Wrap(err)
 		}

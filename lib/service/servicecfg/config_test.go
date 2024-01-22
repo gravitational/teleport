@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package servicecfg
 
@@ -78,25 +82,25 @@ func TestDefaultConfig(t *testing.T) {
 
 	// auth section
 	auth := config.Auth
-	require.Equal(t, auth.ListenAddr, localAuthAddr)
-	require.Equal(t, auth.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
-	require.Equal(t, auth.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
-	require.Equal(t, config.Auth.StorageConfig.Type, lite.GetName())
-	require.Equal(t, auth.StorageConfig.Params[defaults.BackendPath], filepath.Join(config.DataDir, defaults.BackendDir))
+	require.Equal(t, localAuthAddr, auth.ListenAddr)
+	require.Equal(t, int64(defaults.LimiterMaxConnections), auth.Limiter.MaxConnections)
+	require.Equal(t, defaults.LimiterMaxConcurrentUsers, auth.Limiter.MaxNumberOfUsers)
+	require.Equal(t, lite.GetName(), config.Auth.StorageConfig.Type)
+	require.Equal(t, filepath.Join(config.DataDir, defaults.BackendDir), auth.StorageConfig.Params[defaults.BackendPath])
 
 	// SSH section
 	ssh := config.SSH
-	require.Equal(t, ssh.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
-	require.Equal(t, ssh.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
-	require.Equal(t, ssh.AllowTCPForwarding, true)
+	require.Equal(t, int64(defaults.LimiterMaxConnections), ssh.Limiter.MaxConnections)
+	require.Equal(t, defaults.LimiterMaxConcurrentUsers, ssh.Limiter.MaxNumberOfUsers)
+	require.True(t, ssh.AllowTCPForwarding)
 
 	// proxy section
 	proxy := config.Proxy
-	require.Equal(t, proxy.Limiter.MaxConnections, int64(defaults.LimiterMaxConnections))
-	require.Equal(t, proxy.Limiter.MaxNumberOfUsers, defaults.LimiterMaxConcurrentUsers)
+	require.Equal(t, int64(defaults.LimiterMaxConnections), proxy.Limiter.MaxConnections)
+	require.Equal(t, defaults.LimiterMaxConcurrentUsers, proxy.Limiter.MaxNumberOfUsers)
 
 	// Misc levers and dials
-	require.Equal(t, config.RotationConnectionInterval, defaults.HighResPollingPeriod)
+	require.Equal(t, defaults.HighResPollingPeriod, config.RotationConnectionInterval)
 }
 
 // TestCheckApp validates application configuration.
@@ -259,7 +263,7 @@ func TestCheckDatabase(t *testing.T) {
 			inDatabase: Database{
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
-				URI:      "localhost:1433",
+				URI:      "sqlserver.example.com:1433",
 				AD: DatabaseAD{
 					KeytabFile: "/etc/keytab",
 					Domain:     "test-domain",

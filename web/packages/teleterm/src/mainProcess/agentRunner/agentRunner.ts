@@ -1,21 +1,24 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { spawn, fork, ChildProcess } from 'node:child_process';
 import os from 'node:os';
+import fs from 'node:fs/promises';
 
 import stripAnsi from 'strip-ansi';
 
@@ -93,6 +96,24 @@ export class AgentRunner {
     this.setupCleanupDaemon(rootClusterUri, agentProcess);
 
     return agentProcess;
+  }
+
+  /**
+   * tryRemoveAgentBinary removes the agent binary but only if all agents are stopped.
+   *
+   * Rejects on filesystem errors.
+   */
+  async tryRemoveAgentBinary(): Promise<void> {
+    // If we remove the binary while an agent is running, the agent will continue to run but it
+    // won't be able to spawn new shells.
+    if (!this.areAllAgentsStopped()) {
+      this.logger.info(
+        'Skipping agent binary removal, not all agents are stopped.'
+      );
+      return;
+    }
+
+    await fs.rm(this.settings.agentBinaryPath, { force: true });
   }
 
   getState(rootClusterUri: RootClusterUri): AgentProcessState | undefined {
@@ -190,14 +211,28 @@ export class AgentRunner {
     agent: ChildProcess
   ) {
     agent.once('spawn', () => {
-      const cleanupDaemon = fork(this.agentCleanupDaemonPath, [
-        // agent.pid can in theory be null if the agent gets terminated before the execution gets to
-        // this point. In that case, the cleanup daemon is going to exit early.
-        agent.pid?.toString(),
-        process.pid.toString(),
-        rootClusterUri,
-        this.settings.logsDir,
-      ]);
+      const cleanupDaemon = fork(
+        this.agentCleanupDaemonPath,
+        [
+          // agent.pid can in theory be null if the agent gets terminated before the execution gets to
+          // this point. In that case, the cleanup daemon is going to exit early.
+          agent.pid?.toString(),
+          process.pid.toString(),
+          rootClusterUri,
+          this.settings.logsDir,
+        ],
+        // Inherit stderr and stdout so that any errors emitted during Node.js process startup will
+        // be visible when running Connect from a terminal.
+        //
+        // In dev mode, stdout from cleanup daemon will be visible in the terminal output but it
+        // won't be colored like other logs.
+        //
+        // It'd be better to pipe stdout and stderr instead and log them (see
+        // pipeProcessOutputIntoLogger) but this would require a more elaborate setup (pipe stdout
+        // after fork and then stop piping on successful start since agent cleanup daemon has its
+        // own logging).
+        { stdio: 'inherit' }
+      );
 
       // The cleanup daemon terminates the agent only when the parent (this process) gets
       // unexpectedly killed and loses control over the agent by orphaning it.
@@ -254,6 +289,13 @@ export class AgentRunner {
     const agent = this.agentProcesses.get(rootClusterUri);
     agent.state = state;
     this.sendProcessState(rootClusterUri, state);
+  }
+
+  private areAllAgentsStopped(): boolean {
+    return [...this.agentProcesses.values()].every(
+      ({ state: { status } }) =>
+        status === 'not-started' || status === 'exited' || status === 'error'
+    );
   }
 }
 

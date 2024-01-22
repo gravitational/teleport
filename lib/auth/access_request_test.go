@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -28,11 +30,14 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -186,6 +191,178 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("multi", func(t *testing.T) { testMultiAccessRequests(t, testPack) })
 	t.Run("role refresh with bogus request ID", func(t *testing.T) { testRoleRefreshWithBogusRequestID(t, testPack) })
 	t.Run("bot user approver", func(t *testing.T) { testBotAccessRequestReview(t, testPack) })
+	t.Run("deny", func(t *testing.T) { testAccessRequestDenyRules(t, testPack) })
+}
+
+func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	userName := "denied"
+
+	accessRequest, err := services.NewAccessRequest(userName, "admins")
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc               string
+		roles              map[string]types.RoleSpecV6
+		expectGetDenied    bool
+		expectCreateDenied bool
+	}{
+		{
+			desc: "all allowed",
+			roles: map[string]types.RoleSpecV6{
+				"allow": types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"admins"},
+						},
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"admins"},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "all denied",
+			roles: map[string]types.RoleSpecV6{
+				"allow": types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"admins"},
+						},
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"admins"},
+						},
+					},
+				},
+				"deny": types.RoleSpecV6{
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{
+							{
+								Resources: []string{"access_request"},
+								Verbs:     []string{"read", "create", "list"},
+							},
+						},
+					},
+				},
+			},
+			expectGetDenied:    true,
+			expectCreateDenied: true,
+		},
+		{
+			desc: "create denied",
+			roles: map[string]types.RoleSpecV6{
+				"allow": types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"admins"},
+						},
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"admins"},
+						},
+					},
+				},
+				"deny": types.RoleSpecV6{
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{
+							{
+								Resources: []string{"access_request"},
+								Verbs:     []string{"create"},
+							},
+						},
+					},
+				},
+			},
+			expectCreateDenied: true,
+		},
+		{
+			desc: "get denied",
+			roles: map[string]types.RoleSpecV6{
+				"allow": types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"admins"},
+						},
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"admins"},
+						},
+					},
+				},
+				"deny": types.RoleSpecV6{
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{
+							{
+								Resources: []string{"access_request"},
+								Verbs:     []string{"read"},
+							},
+						},
+					},
+				},
+			},
+			expectGetDenied: true,
+		},
+		{
+			desc: "list denied",
+			roles: map[string]types.RoleSpecV6{
+				"allow": types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"admins"},
+						},
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"admins"},
+						},
+					},
+				},
+				"deny": types.RoleSpecV6{
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{
+							{
+								Resources: []string{"access_request"},
+								Verbs:     []string{"list"},
+							},
+						},
+					},
+				},
+			},
+			expectGetDenied: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			for roleName, roleSpec := range tc.roles {
+				role, err := types.NewRole(roleName, roleSpec)
+				require.NoError(t, err)
+				_, err = testPack.tlsServer.Auth().UpsertRole(ctx, role)
+				require.NoError(t, err)
+			}
+			user, err := types.NewUser(userName)
+			require.NoError(t, err)
+			user.SetRoles(maps.Keys(tc.roles))
+			_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
+			require.NoError(t, err)
+
+			client, err := testPack.tlsServer.NewClient(TestUser(userName))
+			require.NoError(t, err)
+
+			_, err = client.GetAccessRequests(ctx, types.AccessRequestFilter{})
+			if tc.expectGetDenied {
+				assert.True(t, trace.IsAccessDenied(err), "want access denied, got %v", err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			_, err = client.CreateAccessRequestV2(ctx, accessRequest)
+			if tc.expectCreateDenied {
+				assert.True(t, trace.IsAccessDenied(err), "want access denied, got %v", err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
@@ -440,22 +617,28 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	adminClient, err := testPack.tlsServer.NewClient(TestAdmin())
 	require.NoError(t, err)
 	defer adminClient.Close()
-	bot, err := adminClient.CreateBot(ctx, &proto.CreateBotRequest{
-		Name: "request-approver",
-		Roles: []string{
-			// Grants the ability to approve requests
-			"admins",
+	bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: "request-approver",
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{
+					// Grants the ability to approve requests
+					"admins",
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
 
 	// Use the bot user to generate some certs using role impersonation.
 	// This mimics what the bot actually does.
-	botClient, err := testPack.tlsServer.NewClient(TestUser(bot.UserName))
+	botClient, err := testPack.tlsServer.NewClient(TestUser(bot.Status.UserName))
 	require.NoError(t, err)
 	defer botClient.Close()
 	certRes, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		Username:  bot.UserName,
+		Username:  bot.Status.UserName,
 		PublicKey: testPack.pubKey,
 		Expires:   time.Now().Add(time.Hour),
 
@@ -487,7 +670,7 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	require.NoError(t, err)
 
 	// Check the final state of the request
-	require.Equal(t, bot.UserName, accessRequest.GetReviews()[0].Author)
+	require.Equal(t, bot.Status.UserName, accessRequest.GetReviews()[0].Author)
 	require.Equal(t, types.RequestState_APPROVED, accessRequest.GetState())
 }
 
@@ -939,9 +1122,13 @@ func TestPromotedRequest(t *testing.T) {
 }
 
 func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
-	t.Parallel()
-
 	clock := clockwork.NewFakeClock()
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			IdentityGovernanceSecurity: true,
+		},
+	})
 
 	mustRequest := func(suggestedReviewers ...string) types.AccessRequest {
 		req, err := services.NewAccessRequest("test-user", "admins")

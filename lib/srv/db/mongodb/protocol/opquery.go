@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package protocol
 
@@ -86,29 +88,29 @@ func (m *MessageOpQuery) MoreToCome(_ Message) bool {
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_query
 func readOpQuery(header MessageHeader, payload []byte) (*MessageOpQuery, error) {
-	flags, rem, ok := wiremessage.ReadQueryFlags(payload)
+	flags, rem, ok := ReadQueryFlags(payload)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_QUERY: missing flags %v", payload)
 	}
-	fullCollectionName, rem, ok := wiremessage.ReadQueryFullCollectionName(rem)
+	fullCollectionName, rem, ok := ReadQueryFullCollectionName(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_QUERY: missing full collection name %v", payload)
 	}
-	numberToSkip, rem, ok := wiremessage.ReadQueryNumberToSkip(rem)
+	numberToSkip, rem, ok := ReadQueryNumber(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_QUERY: missing number to skip %v", payload)
 	}
-	numberToReturn, rem, ok := wiremessage.ReadQueryNumberToReturn(rem)
+	numberToReturn, rem, ok := ReadQueryNumber(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_QUERY: missing number to return %v", payload)
 	}
-	query, rem, ok := wiremessage.ReadQueryQuery(rem)
+	query, rem, ok := ReadDocument(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_QUERY: missing query %v", payload)
 	}
 	var returnFieldsSelector bsoncore.Document
 	if len(rem) > 0 {
-		returnFieldsSelector, _, ok = wiremessage.ReadQueryReturnFieldsSelector(rem)
+		returnFieldsSelector, _, ok = ReadDocument(rem)
 		if !ok {
 			return nil, trace.BadParameter("malformed OP_QUERY: missing return field selector %v", payload)
 		}
@@ -130,6 +132,7 @@ func readOpQuery(header MessageHeader, payload []byte) (*MessageOpQuery, error) 
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_query
 func (m *MessageOpQuery) ToWire(responseTo int32) (dst []byte) {
 	var idx int32
+	//nolint:staticcheck // ignore deprecation till OpQuery is removed, at which point this wire format should be updated
 	idx, dst = wiremessage.AppendHeaderStart(dst, m.Header.RequestID, responseTo, wiremessage.OpQuery)
 	dst = wiremessage.AppendQueryFlags(dst, m.Flags)
 	dst = wiremessage.AppendQueryFullCollectionName(dst, m.FullCollectionName)

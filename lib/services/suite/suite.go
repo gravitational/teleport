@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package suite
 
@@ -76,7 +78,15 @@ type TestCAConfig struct {
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	// privateKeys is to specify another RSA private key
 	if len(config.PrivateKeys) == 0 {
-		config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+		// db client CA gets its own private key to distinguish its pub key
+		// from the other CAs. Snowflake uses public key to verify JWT signer,
+		// so if we don't do this then tests verifying that the correct
+		// signer was used are pointless.
+		if config.Type == types.DatabaseClientCA {
+			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa-db-client"]}
+		} else {
+			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+		}
 	}
 	keyBytes := config.PrivateKeys[0]
 	rsaKey, err := ssh.ParseRawPrivateKey(keyBytes)
@@ -118,7 +128,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Match the key set to lib/auth/auth.go:newKeySet().
 	switch config.Type {
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
 		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
 	case types.KindJWT, types.OIDCIdPCA:
 		// Generating keys is CPU intensive operation. Generate JWT keys only
@@ -146,8 +156,6 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 				PrivateKey: keyBytes,
 			}},
 		}
-	case types.SAMLIDPCA:
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
 	default:
 		panic("unknown CA type")
 	}
@@ -165,6 +173,11 @@ type ServicesTestSuite struct {
 	ProvisioningS services.Provisioner
 	WebS          services.Identity
 	ConfigS       services.ClusterConfiguration
+	// LocalConfigS is used for local config which can only be
+	// managed by the Auth service directly (static tokens).
+	// Used by some tests to differentiate between a server
+	// and client interface.
+	LocalConfigS  services.ClusterConfiguration
 	EventsS       types.Events
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
@@ -213,7 +226,7 @@ func (s *ServicesTestSuite) UsersCRUD(t *testing.T) {
 
 	u, err := s.WebS.GetUsers(ctx, false)
 	require.NoError(t, err)
-	require.Equal(t, len(u), 0)
+	require.Empty(t, u)
 
 	require.NoError(t, s.WebS.UpsertPasswordHash("user1", []byte("hash")))
 	require.NoError(t, s.WebS.UpsertPasswordHash("user2", []byte("hash2")))
@@ -271,7 +284,7 @@ func (s *ServicesTestSuite) UsersExpiry(t *testing.T) {
 	// Make sure the user exists.
 	u, err := s.WebS.GetUser(ctx, "foo", false)
 	require.NoError(t, err)
-	require.Equal(t, u.GetName(), "foo")
+	require.Equal(t, "foo", u.GetName())
 
 	s.Clock.Advance(2 * time.Minute)
 
@@ -289,7 +302,7 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 
 	attempts, err := s.WebS.GetUserLoginAttempts(user.GetName())
 	require.NoError(t, err)
-	require.Equal(t, len(attempts), 0)
+	require.Empty(t, attempts)
 
 	clock := clockwork.NewFakeClock()
 	attempt1 := services.LoginAttempt{Time: clock.Now().UTC(), Success: false}
@@ -303,8 +316,8 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 	attempts, err = s.WebS.GetUserLoginAttempts(user.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(attempts, []services.LoginAttempt{attempt1, attempt2}))
-	require.Equal(t, services.LastFailed(3, attempts), false)
-	require.Equal(t, services.LastFailed(2, attempts), true)
+	require.False(t, services.LastFailed(3, attempts))
+	require.True(t, services.LastFailed(2, attempts))
 }
 
 func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
@@ -377,7 +390,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	// SSH service.
 	out, err := s.PresenceS.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	srv := NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 	_, err = s.PresenceS.UpsertNode(ctx, srv)
@@ -397,12 +410,12 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 
 	// Proxy service.
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
 	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
@@ -417,12 +430,12 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 
 	// Auth service.
 	out, err = s.PresenceS.GetAuthServers()
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
 	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
@@ -440,7 +453,7 @@ func (s *ServicesTestSuite) AppServerCRUD(t *testing.T) {
 	// Expect not to be returned any applications and trace.NotFound.
 	out, err := s.PresenceS.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	// Make an app and an app server.
 	app, err := types.NewAppV3(types.Metadata{Name: "foo"},
@@ -473,7 +486,7 @@ func (s *ServicesTestSuite) AppServerCRUD(t *testing.T) {
 	// Now expect no applications to be returned.
 	out, err = s.PresenceS.GetApplicationServers(ctx, server.Metadata.Namespace)
 	require.NoError(t, err)
-	require.Len(t, out, 0)
+	require.Empty(t, out)
 }
 
 func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunnelV2 {
@@ -494,7 +507,7 @@ func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunn
 func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
 	out, err := s.PresenceS.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
 	require.NoError(t, s.PresenceS.UpsertReverseTunnel(tunnel))
@@ -509,7 +522,7 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetReverseTunnels(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	err = s.PresenceS.UpsertReverseTunnel(newReverseTunnel("", []string{"127.0.0.1:1234"}))
 	require.True(t, trace.IsBadParameter(err))
@@ -523,7 +536,7 @@ func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
 
 func (s *ServicesTestSuite) PasswordHashCRUD(t *testing.T) {
 	_, err := s.WebS.GetPasswordHash("user1")
-	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("%#v", err))
+	require.True(t, trace.IsNotFound(err), fmt.Sprintf("%#v", err))
 
 	err = s.WebS.UpsertPasswordHash("user1", []byte("hello123"))
 	require.NoError(t, err)
@@ -544,7 +557,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(t *testing.T) {
 	ctx := context.Background()
 	req := types.GetWebSessionRequest{User: "user1", SessionID: "sid1"}
 	_, err := s.WebS.WebSessions().Get(ctx, req)
-	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("%#v", err))
+	require.True(t, trace.IsNotFound(err), fmt.Sprintf("%#v", err))
 
 	dt := s.Clock.Now().Add(1 * time.Minute)
 	ws, err := types.NewWebSession("sid1", types.KindWebSession,
@@ -600,9 +613,9 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 
 	token, err := s.ProvisioningS.GetToken(ctx, "token")
 	require.NoError(t, err)
-	require.Equal(t, token.GetRoles().Include(types.RoleAuth), true)
-	require.Equal(t, token.GetRoles().Include(types.RoleNode), true)
-	require.Equal(t, token.GetRoles().Include(types.RoleProxy), false)
+	require.True(t, token.GetRoles().Include(types.RoleAuth))
+	require.True(t, token.GetRoles().Include(types.RoleNode))
+	require.False(t, token.GetRoles().Include(types.RoleProxy))
 	require.Equal(t, time.Time{}, token.Expiry())
 
 	require.NoError(t, s.ProvisioningS.DeleteToken(ctx, "token"))
@@ -651,7 +664,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 
 	tokens, err = s.ProvisioningS.GetTokens(ctx)
 	require.NoError(t, err)
-	require.Len(t, tokens, 0)
+	require.Empty(t, tokens)
 }
 
 func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
@@ -659,7 +672,7 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 
 	out, err := s.Access.GetRoles(ctx)
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	role := types.RoleV6{
 		Kind:    types.KindRole,
@@ -715,7 +728,7 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 func (s *ServicesTestSuite) NamespacesCRUD(t *testing.T) {
 	out, err := s.PresenceS.GetNamespaces()
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	ns := types.Namespace{
 		Kind:    types.KindNamespace,
@@ -766,11 +779,9 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	}
 	err := services.ValidateSAMLConnector(connector, nil)
 	require.NoError(t, err)
-	err = s.WebS.UpsertSAMLConnector(ctx, connector)
+	upserted, err := s.WebS.UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
-	out, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetSAMLConnectors(ctx, true)
 	require.NoError(t, err)
@@ -790,10 +801,10 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
-	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("expected not found, got %T", err))
+	require.True(t, trace.IsNotFound(err), fmt.Sprintf("expected not found, got %T", err))
 
 	_, err = s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
-	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("expected not found, got %T", err))
+	require.True(t, trace.IsNotFound(err), fmt.Sprintf("expected not found, got %T", err))
 
 	created, err := s.WebS.CreateSAMLConnector(ctx, connector)
 	require.NoError(t, err)
@@ -820,8 +831,7 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	connector.SetRevision(uuid.NewString())
 	connector.SetDisplay("llama")
 
-	require.NoError(t, s.WebS.UpsertSAMLConnector(ctx, connector))
-	upserted, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), true)
+	upserted, err = s.WebS.UpsertSAMLConnector(ctx, connector)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 	require.NotEmpty(t, upserted.GetRevision())
@@ -854,11 +864,9 @@ func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {
 		},
 	}
 
-	err := s.WebS.UpsertOIDCConnector(ctx, connector)
+	upserted, err := s.WebS.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
-	out, err := s.WebS.GetOIDCConnector(ctx, connector.GetName(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetOIDCConnectors(ctx, true)
 	require.NoError(t, err)
@@ -878,10 +886,10 @@ func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	err = s.WebS.DeleteOIDCConnector(ctx, connector.GetName())
-	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("expected not found, got %T", err))
+	require.True(t, trace.IsNotFound(err), fmt.Sprintf("expected not found, got %T", err))
 
 	_, err = s.WebS.GetOIDCConnector(ctx, connector.GetName(), true)
-	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("expected not found, got %T", err))
+	require.True(t, trace.IsNotFound(err), fmt.Sprintf("expected not found, got %T", err))
 
 	created, err := s.WebS.CreateOIDCConnector(ctx, connector)
 	require.NoError(t, err)
@@ -908,8 +916,7 @@ func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {
 	connector.SetRevision(uuid.NewString())
 	connector.SetDisplay("llama")
 
-	require.NoError(t, s.WebS.UpsertOIDCConnector(ctx, connector))
-	upserted, err := s.WebS.GetOIDCConnector(ctx, connector.GetName(), true)
+	upserted, err = s.WebS.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 	require.NotEmpty(t, upserted.GetRevision())
@@ -921,7 +928,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	clusterName := "example.com"
 	out, err := s.PresenceS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	dt := s.Clock.Now()
 	conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
@@ -936,12 +943,12 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
-	require.Equal(t, len(out), 1)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	out, err = s.PresenceS.GetAllTunnelConnections()
 	require.NoError(t, err)
-	require.Equal(t, len(out), 1)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	dt = dt.Add(time.Hour)
@@ -952,7 +959,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
-	require.Equal(t, len(out), 1)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteAllTunnelConnections()
@@ -960,7 +967,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	err = s.PresenceS.DeleteAllTunnelConnections()
 	require.NoError(t, err)
@@ -971,7 +978,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
-	require.Equal(t, len(out), 1)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteTunnelConnection(clusterName, conn.GetName())
@@ -979,7 +986,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 }
 
 func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
@@ -1007,11 +1014,9 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	}
 	err := connector.CheckAndSetDefaults()
 	require.NoError(t, err)
-	err = s.WebS.UpsertGithubConnector(ctx, connector)
+	upserted, err := s.WebS.UpsertGithubConnector(ctx, connector)
 	require.NoError(t, err)
-	out, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(upserted, connector, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	connectors, err := s.WebS.GetGithubConnectors(ctx, true)
 	require.NoError(t, err)
@@ -1031,10 +1036,10 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	err = s.WebS.DeleteGithubConnector(ctx, connector.GetName())
-	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("expected not found, got %T", err))
+	require.True(t, trace.IsNotFound(err), fmt.Sprintf("expected not found, got %T", err))
 
 	_, err = s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
-	require.Equal(t, trace.IsNotFound(err), true, fmt.Sprintf("expected not found, got %T", err))
+	require.True(t, trace.IsNotFound(err), fmt.Sprintf("expected not found, got %T", err))
 
 	created, err := s.WebS.CreateGithubConnector(ctx, connector)
 	require.NoError(t, err)
@@ -1061,14 +1066,12 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	connector.SetRevision(uuid.NewString())
 	connector.SetDisplay("llama")
 
-	require.NoError(t, s.WebS.UpsertGithubConnector(ctx, connector))
-	upserted, err := s.WebS.GetGithubConnector(ctx, connector.GetName(), true)
+	upserted, err = s.WebS.UpsertGithubConnector(ctx, connector)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(connector, upserted, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 	require.NotEmpty(t, upserted.GetRevision())
 	require.NotEqual(t, updated.GetRevision(), upserted.GetRevision())
 	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
-
 }
 
 func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
@@ -1076,7 +1079,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 	clusterName := "example.com"
 	out, err := s.PresenceS.GetRemoteClusters()
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	rc, err := types.NewRemoteCluster(clusterName)
 	require.NoError(t, err)
@@ -1091,7 +1094,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetRemoteClusters()
 	require.NoError(t, err)
-	require.Equal(t, len(out), 1)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteAllRemoteClusters()
@@ -1099,7 +1102,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetRemoteClusters()
 	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
+	require.Empty(t, out)
 
 	// test delete individual connection
 	err = s.PresenceS.CreateRemoteCluster(rc)
@@ -1107,7 +1110,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 
 	out, err = s.PresenceS.GetRemoteClusters()
 	require.NoError(t, err)
-	require.Equal(t, len(out), 1)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
@@ -1133,9 +1136,9 @@ func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 	gotAP, err := s.ConfigS.GetAuthPreference(ctx)
 	require.NoError(t, err)
 
-	require.Equal(t, gotAP.GetType(), "local")
-	require.Equal(t, gotAP.GetSecondFactor(), constants.SecondFactorOTP)
-	require.Equal(t, gotAP.GetDisconnectExpiredCert(), true)
+	require.Equal(t, "local", gotAP.GetType())
+	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
+	require.True(t, gotAP.GetDisconnectExpiredCert())
 }
 
 // SessionRecordingConfig tests session recording configuration.
@@ -1152,7 +1155,7 @@ func (s *ServicesTestSuite) SessionRecordingConfig(t *testing.T) {
 	gotrecConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
 	require.NoError(t, err)
 
-	require.Equal(t, gotrecConfig.GetMode(), types.RecordAtProxy)
+	require.Equal(t, types.RecordAtProxy, gotrecConfig.GetMode())
 }
 
 func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
@@ -1250,8 +1253,8 @@ func (s *ServicesTestSuite) ClusterNetworkingConfig(t *testing.T) {
 	gotNetConfig, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
 
-	require.Equal(t, gotNetConfig.GetClientIdleTimeout(), 17*time.Second)
-	require.Equal(t, gotNetConfig.GetKeepAliveCountMax(), int64(3000))
+	require.Equal(t, 17*time.Second, gotNetConfig.GetClientIdleTimeout())
+	require.Equal(t, int64(3000), gotNetConfig.GetKeepAliveCountMax())
 }
 
 // sem wrapper is a helper for overriding the keepalive
@@ -1392,8 +1395,8 @@ func (s *ServicesTestSuite) SemaphoreConcurrency(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	require.Equal(t, atomic.LoadInt64(&success), maxLeases)
-	require.Equal(t, atomic.LoadInt64(&failure), attempts-maxLeases)
+	require.Equal(t, maxLeases, atomic.LoadInt64(&success))
+	require.Equal(t, attempts-maxLeases, atomic.LoadInt64(&failure))
 }
 
 // SemaphoreLock verifies correct functionality of the basic
@@ -1565,13 +1568,13 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.SetStaticTokens(staticTokens)
+				err = s.LocalConfigS.SetStaticTokens(staticTokens)
 				require.NoError(t, err)
 
-				out, err := s.ConfigS.GetStaticTokens()
+				out, err := s.LocalConfigS.GetStaticTokens()
 				require.NoError(t, err)
 
-				err = s.ConfigS.DeleteStaticTokens()
+				err = s.LocalConfigS.DeleteStaticTokens()
 				require.NoError(t, err)
 
 				return out
@@ -1930,7 +1933,7 @@ func (s *ServicesTestSuite) runEventsTests(t *testing.T, testCases []eventTest, 
 
 	select {
 	case event := <-w.Events():
-		require.Equal(t, event.Type, types.OpInit)
+		require.Equal(t, types.OpInit, event.Type)
 		watchStatus, ok := event.Resource.(types.WatchStatus)
 		require.True(t, ok)
 		expectedKinds := eventsTestKinds(testCases)

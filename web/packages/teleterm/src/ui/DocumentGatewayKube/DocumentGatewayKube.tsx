@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, { useEffect } from 'react';
@@ -26,7 +28,7 @@ import Document from 'teleterm/ui/Document';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 import { routing } from 'teleterm/ui/uri';
 
-import { Reconnect } from './Reconnect';
+import { OfflineGateway } from '../components/OfflineGateway';
 
 /**
  * DocumentGatewayKube creates a terminal session that presets KUBECONFIG env
@@ -52,13 +54,17 @@ export const DocumentGatewayKube = (props: {
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
   const { params } = routing.parseKubeUri(doc.targetUri);
+  const gateway = ctx.clustersService.findGatewayByConnectionParams(
+    doc.targetUri,
+    ''
+  );
+  const connected = !!gateway;
+
   const [connectAttempt, createGateway] = useAsync(async () => {
     documentsService.update(doc.uri, { status: 'connecting' });
 
     try {
       await retryWithRelogin(ctx, doc.targetUri, () =>
-        // Creating a kube gateway twice with the same params is a noop. tshd
-        // will return the URI of an already existing gateway.
         ctx.clustersService.createGateway({
           targetUri: doc.targetUri,
           user: '',
@@ -70,31 +76,30 @@ export const DocumentGatewayKube = (props: {
     }
   });
 
-  useEffect(() => {
-    if (connectAttempt.status === '') {
-      createGateway();
-    }
+  useEffect(
+    function createGatewayOnMount() {
+      // Only creates a gateway if we don't have it for the given params.
+      if (!gateway && connectAttempt.status === '') {
+        createGateway();
+      }
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    []
+  );
 
-  switch (connectAttempt.status) {
-    case 'success': {
-      return <DocumentTerminal doc={doc} visible={visible} />;
-    }
-
-    case 'error': {
-      return (
-        <Reconnect
-          kubeId={params.kubeId}
-          statusText={connectAttempt.statusText}
+  if (!connected) {
+    return (
+      <Document visible={visible}>
+        <OfflineGateway
+          connectAttempt={connectAttempt}
+          targetName={params.kubeId}
+          gatewayKind="kube"
           reconnect={createGateway}
+          gatewayPort={{ isSupported: false }}
         />
-      );
-    }
-
-    default: {
-      // Show waiting animation.
-      return <Document visible={visible} />;
-    }
+      </Document>
+    );
   }
+
+  return <DocumentTerminal doc={doc} visible={visible} />;
 };

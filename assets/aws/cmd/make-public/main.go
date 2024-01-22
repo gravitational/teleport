@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // This package implements atool that finds all of the latest AMIs for a
 // release and ensures that they are public.
@@ -77,39 +79,41 @@ func main() {
 
 		client := ec2.NewFromConfig(cfg)
 
-		for _, edition := range []string{"oss", "ent"} {
-			for _, fips := range []string{"false", "true"} {
-				// No such combination exists
-				if edition == "oss" && fips == "true" {
-					continue
-				}
+		for _, arch := range []string{"x86_64", "arm64"} {
+			for _, edition := range []string{"oss", "ent"} {
+				for _, fips := range []string{"false", "true"} {
+					// No such combination exists
+					if edition == "oss" && fips == "true" {
+						continue
+					}
 
-				ami, err := findLatestAMI(ctx, client, args.accountId, args.teleportVersion, edition, fips)
-				switch {
-				case err == nil:
-					break
+					ami, err := findLatestAMI(ctx, client, args.accountId, args.teleportVersion, arch, edition, fips)
+					switch {
+					case err == nil:
+						break
 
-				case errors.Is(err, notFound):
-					continue
+					case errors.Is(err, notFound):
+						continue
 
-				default:
-					log.Fatalf("Failed to find the latest AMI: %s", err)
-				}
+					default:
+						log.Fatalf("Failed to find the latest AMI: %s", err)
+					}
 
-				// Mark the AMI as public
-				log.Printf("Marking %s as public", ami)
-				_, err = client.ModifyImageAttribute(ctx, &ec2.ModifyImageAttributeInput{
-					ImageId:   aws.String(ami),
-					Attribute: aws.String("launchPermission"),
-					LaunchPermission: &types.LaunchPermissionModifications{
-						Add: []types.LaunchPermission{
-							{Group: types.PermissionGroupAll},
+					// Mark the AMI as public
+					log.Printf("Marking %s as public", ami)
+					_, err = client.ModifyImageAttribute(ctx, &ec2.ModifyImageAttributeInput{
+						ImageId:   aws.String(ami),
+						Attribute: aws.String("launchPermission"),
+						LaunchPermission: &types.LaunchPermissionModifications{
+							Add: []types.LaunchPermission{
+								{Group: types.PermissionGroupAll},
+							},
 						},
-					},
-				})
-				if err != nil {
-					log.Printf("WARNING: Failed to make ami %q public: %s", ami, err)
-					continue
+					})
+					if err != nil {
+						log.Printf("WARNING: Failed to make ami %q public: %s", ami, err)
+						continue
+					}
 				}
 			}
 		}
@@ -118,10 +122,11 @@ func main() {
 
 var notFound error = fmt.Errorf("not found")
 
-func findLatestAMI(ctx context.Context, client *ec2.Client, accountId, teleportVersion, edition, fips string) (string, error) {
+func findLatestAMI(ctx context.Context, client *ec2.Client, accountId, teleportVersion, arch, edition, fips string) (string, error) {
 	resp, err := client.DescribeImages(ctx, &ec2.DescribeImagesInput{
 		Filters: []types.Filter{
 			{Name: aws.String("name"), Values: []string{"teleport-*"}},
+			{Name: aws.String("tag:Architecture"), Values: []string{arch}},
 			{Name: aws.String("tag:TeleportVersion"), Values: []string{teleportVersion}},
 			{Name: aws.String("tag:TeleportEdition"), Values: []string{edition}},
 			{Name: aws.String("tag:TeleportFipsEnabled"), Values: []string{fips}},

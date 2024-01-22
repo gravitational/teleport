@@ -1,22 +1,27 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package native
 
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"os"
 	"os/exec"
 	"os/user"
@@ -25,12 +30,17 @@ import (
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/windows"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/windowsexec"
 )
+
+// deviceStateFolderName starts with a "." on Windows for backwards
+// compatibility, but in practice it does not need to.
+const deviceStateFolderName = ".teleport-device"
 
 var windowsDevice = &tpmDevice{
 	isElevatedProcess: func() (bool, error) {
@@ -44,7 +54,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
-	return windowsDevice.signChallenge(chal)
+	return nil, errors.New("signChallenge not implemented for TPM devices")
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
@@ -170,32 +180,43 @@ func getOSBuildNumber() (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
-func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
+func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error) {
 	log.Debug("TPM: Collecting device data.")
-	systemSerial, err := getDeviceSerial()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching system serial")
+
+	var g errgroup.Group
+	const groupLimit = 4 // arbitrary
+	g.SetLimit(groupLimit)
+
+	// Run exec-ed commands concurrently.
+	var systemSerial, baseBoardSerial, reportedAssetTag, model, osVersion, osBuildNumber string
+	for _, spec := range []struct {
+		fn   func() (string, error)
+		out  *string
+		desc string
+	}{
+		{fn: getDeviceModel, out: &model, desc: "device model"},
+		{fn: getOSVersion, out: &osVersion, desc: "os version"},
+		{fn: getOSBuildNumber, out: &osBuildNumber, desc: "os build number"},
+		{fn: getDeviceSerial, out: &systemSerial, desc: "system serial"},
+		{fn: getDeviceBaseBoardSerial, out: &baseBoardSerial, desc: "base board serial"},
+		{fn: getReportedAssetTag, out: &reportedAssetTag, desc: "reported asset tag"},
+	} {
+		spec := spec
+		g.Go(func() error {
+			val, err := spec.fn()
+			if err != nil {
+				log.WithError(err).Debugf("TPM: Failed to fetch %v", spec.desc)
+				return nil // Swallowed on purpose.
+			}
+
+			*spec.out = val
+			return nil
+		})
 	}
-	model, err := getDeviceModel()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching device model")
-	}
-	baseBoardSerial, err := getDeviceBaseBoardSerial()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching base board serial")
-	}
-	reportedAssetTag, err := getReportedAssetTag()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching reported asset tag")
-	}
-	osVersion, err := getOSVersion()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching os version")
-	}
-	osBuildNumber, err := getOSBuildNumber()
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching os build number")
-	}
+
+	// We want to fetch as much info as possible, so errors are ignored.
+	_ = g.Wait()
+
 	u, err := user.Current()
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching user")
@@ -211,9 +232,9 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 		OsType:                devicepb.OSType_OS_TYPE_WINDOWS,
 		SerialNumber:          serial,
 		ModelIdentifier:       model,
-		OsUsername:            u.Username,
 		OsVersion:             osVersion,
 		OsBuild:               osBuildNumber,
+		OsUsername:            u.Username,
 		SystemSerialNumber:    systemSerial,
 		BaseBoardSerialNumber: baseBoardSerial,
 		ReportedAssetTag:      reportedAssetTag,

@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -36,13 +38,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -871,7 +873,7 @@ func webauthnUserKey(id []byte) []byte {
 	return backend.Key(webauthnPrefix, usersPrefix, key)
 }
 
-func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
+func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
 	switch {
 	case user == "":
 		return trace.BadParameter("missing parameter user")
@@ -893,7 +895,7 @@ func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, s
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
+func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
 	switch {
 	case user == "":
 		return nil, trace.BadParameter("missing parameter user")
@@ -905,7 +907,7 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd := &wanpb.SessionData{}
+	sd := &wantypes.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 
@@ -966,7 +968,7 @@ var sdLimiter = &globalSessionDataLimiter{
 	scopeCount:  make(map[string]int),
 }
 
-func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error {
+func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error {
 	switch {
 	case scope == "":
 		return trace.BadParameter("missing parameter scope")
@@ -999,7 +1001,7 @@ func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, s
 	return nil
 }
 
-func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error) {
+func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
 	switch {
 	case scope == "":
 		return nil, trace.BadParameter("missing parameter scope")
@@ -1011,7 +1013,7 @@ func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scop
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd := &wanpb.SessionData{}
+	sd := &wantypes.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 
@@ -1142,11 +1144,11 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 }
 
 // UpsertOIDCConnector upserts OIDC Connector
-func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
+func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
@@ -1157,10 +1159,10 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	connector.SetRevision(lease.Revision)
-	return nil
+	return connector, nil
 }
 
 // CreateOIDCConnector creates a new OIDC connector.
@@ -1244,17 +1246,21 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]types.OIDCConnector, len(result.Items))
-	for i, item := range result.Items {
+	var connectors []types.OIDCConnector
+	for _, item := range result.Items {
 		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling OIDC Connector")
+			continue
 		}
 		if !withSecrets {
 			conn.SetClientSecret("")
 			conn.SetGoogleServiceAccount("")
 		}
-		connectors[i] = conn
+		connectors = append(connectors, conn)
 	}
 	return connectors, nil
 }
@@ -1296,14 +1302,14 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 }
 
 // UpsertSAMLConnector upserts SAML Connector
-func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
+func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
 	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
 	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
@@ -1313,10 +1319,10 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	connector.SetRevision(lease.Revision)
-	return nil
+	return connector, nil
 }
 
 // UpdateSAMLConnector updates an existing SAML connector
@@ -1409,11 +1415,15 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]types.SAMLConnector, len(result.Items))
-	for i, item := range result.Items {
+	var connectors []types.SAMLConnector
+	for _, item := range result.Items {
 		conn, err := services.UnmarshalSAMLConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling SAML Connector")
+			continue
 		}
 		if !withSecrets {
 			keyPair := conn.GetSigningKeyPair()
@@ -1422,7 +1432,7 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 				conn.SetSigningKeyPair(keyPair)
 			}
 		}
-		connectors[i] = conn
+		connectors = append(connectors, conn)
 	}
 	return connectors, nil
 }
@@ -1520,14 +1530,14 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 }
 
 // UpsertGithubConnector creates or updates a Github connector
-func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
@@ -1538,15 +1548,15 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 	}
 	lease, err := s.Put(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	connector.SetRevision(lease.Revision)
-	return nil
+	return connector, nil
 }
 
 // UpdateGithubConnector updates an existing Github connector.
 func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalGithubConnector(connector)
@@ -1570,7 +1580,7 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 
 // CreateGithubConnector creates a new Github connector.
 func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalGithubConnector(connector)
@@ -1598,16 +1608,20 @@ func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets b
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connectors := make([]types.GithubConnector, len(result.Items))
-	for i, item := range result.Items {
+	var connectors []types.GithubConnector
+	for _, item := range result.Items {
 		connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling GitHub Connector")
+			continue
 		}
 		if !withSecrets {
 			connector.SetClientSecret("")
 		}
-		connectors[i] = connector
+		connectors = append(connectors, connector)
 	}
 	return connectors, nil
 }
@@ -1842,16 +1856,6 @@ func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey c
 	key := keyAttestationDataFingerprint(pubDER)
 	item, err := s.Get(ctx, backend.Key(attestationsPrefix, key))
 
-	// Fallback to old fingerprint (std base64 encoded ssh public key) for backwards compatibility.
-	// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
-	if trace.IsNotFound(err) {
-		key, err = KeyAttestationDataFingerprintV11(publicKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		item, err = s.Get(ctx, backend.Key(attestationsPrefix, key))
-	}
-
 	if trace.IsNotFound(err) {
 		return nil, trace.NotFound("hardware key attestation not found")
 	} else if err != nil {
@@ -1869,18 +1873,6 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 	sha256sum := sha256.Sum256(pubDER)
 	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
 	return encodedSHA
-}
-
-// KeyAttestationDataFingerprintV11 creates a "KeyAttestationData" fingerprint
-// compatible with older patches of Teleport v11.
-// Exposed for testing, do not use this function directly.
-// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
-func KeyAttestationDataFingerprintV11(pub crypto.PublicKey) (string, error) {
-	sshPub, err := ssh.NewPublicKey(pub)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return ssh.FingerprintSHA256(sshPub), nil
 }
 
 const (

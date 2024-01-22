@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -22,13 +24,11 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -38,14 +38,15 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -63,7 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -74,6 +75,13 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 	require.NoError(t, err)
 	client, err := srv.NewClient(TestUser(u.username))
 	require.NoError(t, err)
+
+	// GenerateUserCerts requires MFA.
+	client.SetMFAPromptConstructor(func(po ...mfa.PromptOpt) mfa.Prompt {
+		return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return u.webDev.SolveAuthn(chal)
+		})
+	})
 
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -456,8 +464,9 @@ func TestGithubAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = srv.Auth().UpsertGithubConnector(context.Background(), conn)
+	upserted, err := srv.Auth().UpsertGithubConnector(context.Background(), conn)
 	require.NoError(t, err)
+	require.NotNil(t, upserted)
 
 	reqNormal := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github}
 	reqTest := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
@@ -719,7 +728,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			require.NoError(t, err)
 			identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 			require.NoError(t, err)
-			require.True(t, tt.expiration.Sub(identity.Expires).Abs() < 10*time.Second,
+			require.Less(t, tt.expiration.Sub(identity.Expires).Abs(), 10*time.Second,
 				"Identity expiration is out of expected boundaries")
 		})
 	}
@@ -1079,7 +1088,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 }
 
 // TestGenerateDatabaseCert makes sure users and services with appropriate
-// permissions can generate certificates for self-hosted databases.
+// permissions can generate database certificates.
 func TestGenerateDatabaseCert(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1100,22 +1109,26 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		desc     string
-		identity TestIdentity
-		err      string
+		desc      string
+		identity  TestIdentity
+		requester proto.DatabaseCertRequest_Requester
+		err       string
 	}{
 		{
-			desc:     "user can't sign database certs",
-			identity: TestUser(userWithoutAccess.GetName()),
-			err:      "access denied",
+			desc:      "user can't sign database certs",
+			identity:  TestUser(userWithoutAccess.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
+			err:       "access denied",
 		},
 		{
-			desc:     "user can impersonate Db and sign database certs",
-			identity: TestUser(userImpersonateDb.GetName()),
+			desc:      "user can impersonate Db and sign database certs",
+			identity:  TestUser(userImpersonateDb.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
-			desc:     "built-in admin can sign database certs",
-			identity: TestAdmin(),
+			desc:      "built-in admin can sign database certs",
+			identity:  TestAdmin(),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
 			desc:     "database service can sign database certs",
@@ -1135,7 +1148,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 			client, err := srv.NewClient(test.identity)
 			require.NoError(t, err)
 
-			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
+			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr, RequesterName: test.requester})
 			if test.err != "" {
 				require.ErrorContains(t, err, test.err)
 			} else {
@@ -1325,7 +1338,7 @@ func BenchmarkListNodes(b *testing.B) {
 
 	logger := logrus.StandardLogger()
 	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(utils.NewTestJSONFormatter())
+	logrus.SetFormatter(logutils.NewTestJSONFormatter())
 	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(io.Discard)
 
@@ -1718,11 +1731,12 @@ func TestStreamSessionEvents_Builtin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, 0, len(searchEvents))
+	require.Empty(t, searchEvents)
 }
 
-// TestGetSessionEvents ensures that when a user streams a session's events, it emits an audit event.
-func TestGetSessionEvents(t *testing.T) {
+// TestStreamSessionEvents ensures that when a user streams a session's events
+// a "session recording access" event is emitted.
+func TestStreamSessionEvents(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestTLSServer(t)
@@ -1735,12 +1749,14 @@ func TestGetSessionEvents(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	// ignore the response as we don't want the events or the error (the session will not exist)
-	_, _ = clt.GetSessionEvents(apidefaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+	clt.StreamSessionEvents(ctx, session.ID("44c6cea8-362f-11ea-83aa-125400432324"), 0)
 
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
-	ctx := context.Background()
 	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
 		From:       srv.Clock().Now().Add(-time.Hour),
 		To:         srv.Clock().Now().Add(time.Hour),
@@ -1808,6 +1824,7 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
 	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
+	authContext.AdminActionAuthorized = true
 
 	return &ServerWithRoles{
 		authServer: srv.AuthServer,
@@ -2026,11 +2043,11 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	discoveryClt, err := srv.NewClient(TestBuiltin(types.RoleDiscovery))
 	require.NoError(t, err)
 
-	eksCluster, err := services.NewKubeClusterFromAWSEKS(&eks.Cluster{
-		Name:   aws.String("eks-cluster1"),
-		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
-		Status: aws.String(eks.ClusterStatusActive),
-	})
+	eksCluster, err := services.NewKubeClusterFromAWSEKS(
+		"eks-cluster1",
+		"arn:aws:eks:eu-west-1:accountID:cluster/cluster1",
+		nil,
+	)
 	require.NoError(t, err)
 	eksCluster.SetOrigin(types.OriginCloud)
 
@@ -2046,11 +2063,11 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	require.NoError(t, srv.Auth().CreateKubernetesCluster(ctx, nonCloudCluster))
 
 	// Discovery service cannot create cluster with dynamic labels.
-	clusterWithDynamicLabels, err := services.NewKubeClusterFromAWSEKS(&eks.Cluster{
-		Name:   aws.String("eks-cluster2"),
-		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
-		Status: aws.String(eks.ClusterStatusActive),
-	})
+	clusterWithDynamicLabels, err := services.NewKubeClusterFromAWSEKS(
+		"eks-cluster2",
+		"arn:aws:eks:eu-west-1:accountID:cluster/cluster2",
+		nil,
+	)
 	require.NoError(t, err)
 	clusterWithDynamicLabels.SetOrigin(types.OriginCloud)
 	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{
@@ -2664,7 +2681,7 @@ func TestApps(t *testing.T) {
 	require.NoError(t, err)
 	apps, err = adminClt.GetApps(ctx)
 	require.NoError(t, err)
-	require.Len(t, apps, 0)
+	require.Empty(t, apps)
 }
 
 // TestReplaceRemoteLocksRBAC verifies that only a remote proxy may replace the
@@ -3076,7 +3093,7 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetKubernetesServers(ctx)
 	require.NoError(t, err)
-	require.Len(t, servers, 0)
+	require.Empty(t, servers)
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Empty(t, resp.Resources)
@@ -3266,7 +3283,7 @@ func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 2)
 	require.NotEmpty(t, resp.NextKey)
-	require.Equal(t, len(testNodes), resp.TotalCount)
+	require.Len(t, testNodes, resp.TotalCount)
 
 	// No total.
 	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
@@ -3651,7 +3668,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, res.NextKey)
 		require.Len(t, res.Resources, len(testNames))
-		require.Equal(t, res.TotalCount, len(testNames))
+		require.Len(t, testNames, res.TotalCount)
 
 		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
 		require.NoError(t, err)
@@ -3792,7 +3809,7 @@ func TestListResources_KindUserGroup(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, res.NextKey)
 		require.Len(t, res.Resources, 3)
-		require.Equal(t, res.TotalCount, 3)
+		require.Equal(t, 3, res.TotalCount)
 
 		userGroups, err := types.ResourcesWithLabels(res.Resources).AsUserGroups()
 		require.NoError(t, err)
@@ -3917,7 +3934,7 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	// No sessions left.
 	sessions, nextKey, err = srv.Auth().ListAppSessions(ctx, 10, "", "")
 	require.NoError(t, err)
-	require.Len(t, sessions, 0)
+	require.Empty(t, sessions)
 	require.Empty(t, nextKey)
 }
 
@@ -4039,7 +4056,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, 2)
-			require.Equal(t, len(uniqueNames), resp.TotalCount)
+			require.Len(t, uniqueNames, resp.TotalCount)
 			fetchedResources = append(fetchedResources, resp.Resources...)
 
 			resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
@@ -4051,7 +4068,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, 1)
-			require.Equal(t, len(uniqueNames), resp.TotalCount)
+			require.Len(t, uniqueNames, resp.TotalCount)
 			fetchedResources = append(fetchedResources, resp.Resources...)
 
 			r := types.ResourcesWithLabels(fetchedResources)
@@ -4292,7 +4309,12 @@ func TestListResources_WithRoles(t *testing.T) {
 func TestListUnifiedResources_KindsFilter(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
 	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
@@ -4330,15 +4352,19 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 	require.NoError(t, err)
 	clt, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		Kinds:  []string{types.KindDatabase},
-		Limit:  5,
-		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-	})
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
+
+	var resp *proto.ListUnifiedResourcesResponse
+	inlineEventually(t, func() bool {
+		var err error
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Kinds:  []string{types.KindDatabase},
+			Limit:  5,
+			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+		})
+		require.NoError(t, err)
 		return len(resp.Resources) == 5
 	}, time.Second, time.Second/10)
+
 	// Check that all resources are of type KindDatabaseServer
 	for _, resource := range resp.Resources {
 		r := resource.GetDatabaseServer()
@@ -4349,7 +4375,12 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
 	for _, name := range names {
 
@@ -4392,11 +4423,17 @@ func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
 
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
-	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		PinnedOnly: true,
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
+
+	var resp *proto.ListUnifiedResourcesResponse
+	inlineEventually(t, func() bool {
+		var err error
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			PinnedOnly: true,
+		})
+		require.NoError(t, err)
+		return len(resp.Resources) == 1
+	}, time.Second*5, time.Millisecond*200)
+
 	require.Empty(t, resp.NextKey)
 	// Check that our returned resource is the pinned resource
 	require.Equal(t, "tifa", resp.Resources[0].GetNode().GetHostname())
@@ -4407,7 +4444,12 @@ func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
 func TestListUnifiedResources_WithSearch(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
 	names := []string{"vivi", "cloud", "aerith", "barret", "cid", "vivi2"}
 	for i := 0; i < 6; i++ {
 		name := names[i]
@@ -4424,9 +4466,12 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 		_, err = srv.Auth().UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
-	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, testNodes, 6)
+
+	inlineEventually(t, func() bool {
+		testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		return len(testNodes) == 6
+	}, time.Second*5, time.Millisecond*200)
 
 	sp := &types.SAMLIdPServiceProviderV1{
 		ResourceHeader: types.ResourceHeader{
@@ -4446,13 +4491,19 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	require.NoError(t, err)
 	clt, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
-	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		SearchKeywords: []string{"tifa"},
-		Limit:          10,
-		SortBy:         types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
+
+	var resp *proto.ListUnifiedResourcesResponse
+	inlineEventually(t, func() bool {
+		var err error
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			SearchKeywords: []string{"tifa"},
+			Limit:          10,
+			SortBy:         types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+		})
+		require.NoError(t, err)
+		return len(resp.Resources) == 1
+	}, time.Second*5, time.Millisecond*200)
+
 	require.Empty(t, resp.NextKey)
 
 	// Check that our returned resource has the correct name
@@ -4467,7 +4518,12 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
 	for i := 0; i < 6; i++ {
 		name := names[i]
@@ -4507,46 +4563,67 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		require.NoError(t, err)
 
 		// add desktops
-		desktop, err := types.NewWindowsDesktopV3(name, map[string]string{"name": "mylabel"},
+		desktop, err := types.NewWindowsDesktopV3(name, nil,
 			types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
 		require.NoError(t, err)
 		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
 	}
-	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, testNodes, 6)
 
-	testDbs, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, testDbs, 6)
+	inlineEventually(t, func() bool {
+		testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		return len(testNodes) == 6
+	}, time.Second*5, time.Millisecond*200)
 
-	testDesktops, err := srv.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-	require.NoError(t, err)
-	require.Len(t, testDesktops, 6)
+	inlineEventually(t, func() bool {
+		testDbs, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		return len(testDbs) == 6
+	}, time.Second*5, time.Millisecond*200)
+
+	inlineEventually(t, func() bool {
+		testDesktops, err := srv.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+		require.NoError(t, err)
+		return len(testDesktops) == 6
+	}, time.Second*5, time.Millisecond*200)
 
 	// create user, role, and client
 	username := "user"
 	user, role, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
 	require.NoError(t, err)
-	// remove permission from nodes and desktops
-	role.SetNodeLabels(types.Deny, types.Labels{"name": {"mylabel"}})
+
+	role.SetNodeLabels(types.Allow, types.Labels{"*": {"*"}})
+	role.SetDatabaseLabels(types.Allow, types.Labels{"*": {"*"}})
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{"*": {"*"}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+	// remove permission from nodes by labels
+	role.SetNodeLabels(types.Deny, types.Labels{"name": {"mylabel"}})
+	// remove permission from desktops by rule
+	denyRules := []types.Rule{{
+		Resources: []string{types.KindWindowsDesktop},
+		Verbs:     []string{types.VerbList, types.VerbRead},
+	}}
+	role.SetRules(types.Deny, denyRules)
+	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
+	// require.NoError(t, err)
 	identity := TestUser(user.GetName())
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	require.NoError(t, err)
+	// ensure updated roles have propagated to auth cache
+	flushCache(t, srv.Auth())
+
 	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		Limit:  10,
+		Limit:  20,
 		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 6)
 	require.Empty(t, resp.NextKey)
 
-	// only receive databases
+	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
 	for _, resource := range resp.Resources {
 		r := resource.GetDatabaseServer()
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
@@ -4558,7 +4635,12 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
 	for i := 0; i < 6; i++ {
 		name := names[i]
@@ -4577,9 +4659,12 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 		_, err = srv.Auth().UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
-	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, testNodes, 6)
+
+	inlineEventually(t, func() bool {
+		testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		return len(testNodes) == 6
+	}, time.Second*5, time.Millisecond*200)
 
 	// create user, role, and client
 	username := "theuser"
@@ -4589,7 +4674,6 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	require.NoError(t, err)
 	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 		PredicateExpression: `labels.name == "tifa"`,
 		Limit:               10,
@@ -4623,7 +4707,7 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 
 	logger := logrus.StandardLogger()
 	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(utils.NewTestJSONFormatter())
+	logrus.SetFormatter(logutils.NewTestJSONFormatter())
 	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(io.Discard)
 
@@ -4876,6 +4960,23 @@ func TestGenerateHostCert(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
+			// Calls deprecated HTTP endpoint to verify migrated code works
+			// fine.
+			_, err = client.generateHostCertHTTP(ctx, pub, "", "", test.principals, clusterName, types.RoleNode, 0)
+			require.True(t, test.expect(err))
+			// Try by calling new gRPC endpoint directly
+			_, err = client.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+				Key:         pub,
+				HostId:      "",
+				NodeName:    "",
+				Principals:  test.principals,
+				ClusterName: clusterName,
+				Role:        string(types.RoleNode),
+				Ttl:         durationpb.New(0),
+			})
+			require.True(t, test.expect(err))
+			// Finally try calling the wrapper method that should call through
+			// to the gRPC client.
 			_, err = client.GenerateHostCert(ctx, pub, "", "", test.principals, clusterName, types.RoleNode, 0)
 			require.True(t, test.expect(err))
 		})
@@ -5128,7 +5229,7 @@ func TestListReleasesPermissions(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.Name, func(t *testing.T) {
 			role, err := CreateRole(ctx, srv.Auth(), "test-role", tc.Role)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			user, err := CreateUser(ctx, srv.Auth(), "test-user", role)
 			require.NoError(t, err)
@@ -5183,7 +5284,7 @@ func TestGetLicensePermissions(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.Name, func(t *testing.T) {
 			role, err := CreateRole(ctx, srv.Auth(), "test-role", tc.Role)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			user, err := CreateUser(ctx, srv.Auth(), "test-user", role)
 			require.NoError(t, err)
@@ -5522,40 +5623,6 @@ func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, clien
 	return nil
 }
 
-func TestUnimplementedClients(t *testing.T) {
-	ctx := context.Background()
-	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
-	server := &ServerWithRoles{
-		authServer: testAuth.AuthServer,
-	}
-
-	require.NoError(t, err)
-
-	t.Run("DevicesClient", func(t *testing.T) {
-		_, err := server.DevicesClient().ListDevices(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-
-	t.Run("LoginRuleClient", func(t *testing.T) {
-		_, err := server.LoginRuleClient().ListLoginRules(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-
-	t.Run("PluginClient", func(t *testing.T) {
-		_, err := server.PluginsClient().ListPlugins(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-
-	t.Run("SAMLIdPClient", func(t *testing.T) {
-		_, err := server.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, nil)
-		require.Error(t, err)
-		require.True(t, trace.IsNotImplemented(err), err)
-	})
-}
-
 // newTestHeadlessAuthn returns the headless authentication resource
 // used across headless authentication tests.
 func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *types.HeadlessAuthentication {
@@ -5696,7 +5763,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
 			assertError: require.NoError,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Equal(t, 1, len(emitter.Events()))
+				require.Len(t, emitter.Events(), 1)
 				require.Equal(t, events.UserHeadlessLoginRejectedCode, emitter.LastEvent().GetCode())
 			},
 		}, {
@@ -5705,7 +5772,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     true,
 			assertError: require.NoError,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Equal(t, 1, len(emitter.Events()))
+				require.Len(t, emitter.Events(), 1)
 				require.Equal(t, events.UserHeadlessLoginApprovedCode, emitter.LastEvent().GetCode())
 			},
 		}, {
@@ -5714,7 +5781,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     false,
 			assertError: assertAccessDenied,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Equal(t, 1, len(emitter.Events()))
+				require.Len(t, emitter.Events(), 1)
 				require.Equal(t, events.UserHeadlessLoginApprovedFailureCode, emitter.LastEvent().GetCode())
 			},
 		}, {
@@ -6323,153 +6390,6 @@ func createSessionTestUsers(t *testing.T, authServer *Server) (string, string, s
 	return "alice", "bob", "admin"
 }
 
-func TestCheckInventorySupportsRole(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	emptyRole, err := types.NewRole("empty", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	roleWithLabelExpressions, err := types.NewRole("expressions", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			NodeLabelsExpression: `contains(user.spec.traits["allow-env"], labels["env"])`,
-		},
-	})
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		desc                   string
-		role                   types.Role
-		authVersion            string
-		inventoryVersions      []string
-		assertErr              require.ErrorAssertionFunc
-		expectNoInventoryCheck bool
-	}{
-		{
-			desc:                   "basic",
-			role:                   emptyRole,
-			authVersion:            api.Version,
-			inventoryVersions:      []string{"12.1.2", "13.0.0", api.Version},
-			assertErr:              require.NoError,
-			expectNoInventoryCheck: true,
-		},
-		{
-			desc:              "label expressions supported",
-			role:              roleWithLabelExpressions,
-			authVersion:       "14.0.0-dev",
-			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.2.3"},
-			assertErr:         require.NoError,
-		},
-		{
-			desc:              "unparseable server version doesn't break UpsertRole",
-			role:              roleWithLabelExpressions,
-			authVersion:       "14.0.0-dev",
-			inventoryVersions: []string{"Not a version"},
-			assertErr:         require.NoError,
-		},
-		{
-			desc:              "block upsert with unsupported nodes in v13",
-			role:              roleWithLabelExpressions,
-			authVersion:       "13.2.3",
-			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.0.0-unsupported", "13.2.3"},
-			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
-				require.ErrorContains(t, err, "does not support the label expressions used in this role")
-			},
-		},
-		{
-			desc:              "block upsert with unsupported nodes in v14",
-			role:              roleWithLabelExpressions,
-			authVersion:       "14.1.2",
-			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.0.0-unsupported", "13.2.3"},
-			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
-				require.ErrorContains(t, err, "does not support the label expressions used in this role")
-			},
-		},
-		{
-			desc:                   "skip inventory check in 15",
-			role:                   roleWithLabelExpressions,
-			authVersion:            "15.0.0-dev",
-			inventoryVersions:      []string{"14.0.0", "15.0.0"},
-			assertErr:              require.NoError,
-			expectNoInventoryCheck: true,
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			getInventory := func(context.Context, proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-				if tc.expectNoInventoryCheck {
-					require.Fail(t, "getInventory called when the inventory check should have been skipped")
-				}
-
-				hellos := make([]proto.UpstreamInventoryHello, 0, len(tc.inventoryVersions))
-				for _, v := range tc.inventoryVersions {
-					hellos = append(hellos, proto.UpstreamInventoryHello{
-						Version: v,
-					})
-				}
-				return proto.InventoryStatusSummary{
-					Connected: hellos,
-				}, nil
-			}
-
-			err := checkInventorySupportsRole(ctx, tc.role, tc.authVersion, getInventory)
-			tc.assertErr(t, err)
-		})
-	}
-}
-
-func TestSafeToSkipInventoryCheck(t *testing.T) {
-	for _, tc := range []struct {
-		desc               string
-		authVersion        string
-		minRequiredVersion string
-		safeToSkip         bool
-	}{
-		{
-			desc:               "auth two majors ahead of required minor release",
-			authVersion:        "15.0.0",
-			minRequiredVersion: "13.1.0",
-			safeToSkip:         true,
-		},
-		{
-			desc:               "auth within one major of required minor release",
-			authVersion:        "14.0.0",
-			minRequiredVersion: "13.1.0",
-			safeToSkip:         false,
-		},
-		{
-			desc:               "auth one major greater than required major release",
-			authVersion:        "14.0.0",
-			minRequiredVersion: "13.0.0",
-			safeToSkip:         true, // anything older than 13.0.0 is >1 major behind 14.0.0
-		},
-		{
-			desc:               "auth within one major of required major release",
-			authVersion:        "13.3.12",
-			minRequiredVersion: "13.0.0",
-			safeToSkip:         false,
-		},
-		{
-			desc:               "matching releases",
-			authVersion:        "13.2.0",
-			minRequiredVersion: "13.2.0",
-			safeToSkip:         false,
-		},
-		{
-			desc:               "skip for zero version",
-			authVersion:        "13.2.0",
-			minRequiredVersion: "0.0.0",
-			safeToSkip:         true,
-		},
-	} {
-		require.Equal(t, tc.safeToSkip,
-			safeToSkipInventoryCheck(*semver.New(tc.authVersion), *semver.New(tc.minRequiredVersion)))
-	}
-}
-
 func TestCreateAccessRequest(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -6929,5 +6849,28 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			test.assertErr(t, err)
 		},
 		)
+	}
+}
+
+// inlineEventually is equivalent to require.Eventually except that it runs the provided function directly
+// instead of in a background goroutine, making it safe to fail the test from within the closure.
+func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...interface{}) {
+	t.Helper()
+
+	timer := time.NewTimer(waitFor)
+	defer timer.Stop()
+
+	ticker := time.NewTicker(tick)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timer.C:
+			require.FailNow(t, "condition never satisfied", msgAndArgs...)
+		case <-ticker.C:
+			if cond() {
+				return
+			}
+		}
 	}
 }

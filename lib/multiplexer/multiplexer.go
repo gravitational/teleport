@@ -1,18 +1,20 @@
 /*
-Copyright 2017-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package multiplexer implements SSH and TLS multiplexing
 // on the same listener
@@ -73,15 +75,23 @@ const (
 // We define our own version to not create dependency on the 'services' package, which causes circular references
 type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
+type (
+	// PreDetectFunc is used in [Mux]'s [Config] as the PreDetect hook.
+	PreDetectFunc = func(net.Conn) (PostDetectFunc, error)
+
+	// PostDetectFunc is optionally returned by a [PreDetectFunc].
+	PostDetectFunc = func(*Conn) net.Conn
+)
+
 // Config is a multiplexer config
 type Config struct {
 	// Listener is listener to multiplex connection on
 	Listener net.Listener
 	// Context is a context to signal stops, cancellations
 	Context context.Context
-	// ReadDeadline is a connection read deadline,
-	// set to defaults.ReadHeadersTimeout if unspecified
-	ReadDeadline time.Duration
+	// DetectTimeout is a timeout applied to the whole detection phase of the
+	// connection, set to defaults.ReadHeadersTimeout if unspecified
+	DetectTimeout time.Duration
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
 	Clock clockwork.Clock
@@ -98,6 +108,15 @@ type Config struct {
 	// connection (coming from same IP as the listening address) when deciding if it should drop connection with
 	// missing required PROXY header. This is needed since all connections in tests are self connections.
 	IgnoreSelfConnections bool
+
+	// PreDetect, if set, is called on each incoming connection before protocol
+	// detection; the returned [PostDetectFunc] (if any) will then be called
+	// after protocol detection, and will have the ability to modify or wrap the
+	// [*Conn] before it's passed to the listener; if the PostDetectFunc returns
+	// a nil [net.Conn], the connection will not be handled any further by the
+	// multiplexer, and it's the responsibility of the PostDetectFunc to arrange
+	// for it to be eventually closed.
+	PreDetect PreDetectFunc
 }
 
 // CheckAndSetDefaults verifies configuration and sets defaults
@@ -108,8 +127,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Context == nil {
 		c.Context = context.TODO()
 	}
-	if c.ReadDeadline == 0 {
-		c.ReadDeadline = defaults.ReadHeadersTimeout
+	if c.DetectTimeout == 0 {
+		c.DetectTimeout = defaults.ReadHeadersTimeout
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -277,11 +296,27 @@ func (m *Mux) protocolListener(proto Protocol) *Listener {
 // protocol without a registered protocol listener are closed. This
 // method is called as a goroutine by Serve for each connection.
 func (m *Mux) detectAndForward(conn net.Conn) {
-	err := conn.SetReadDeadline(m.Clock.Now().Add(m.ReadDeadline))
-	if err != nil {
+	if err := conn.SetDeadline(m.Clock.Now().Add(m.DetectTimeout)); err != nil {
 		m.Warning(err.Error())
 		conn.Close()
 		return
+	}
+
+	var postDetect PostDetectFunc
+	if m.PreDetect != nil {
+		var err error
+		postDetect, err = m.PreDetect(conn)
+		if err != nil {
+			if !utils.IsOKNetworkError(err) {
+				m.WithFields(log.Fields{
+					"src_addr":   conn.RemoteAddr(),
+					"dst_addr":   conn.LocalAddr(),
+					log.ErrorKey: err,
+				}).Warn("Failed to send early data.")
+			}
+			conn.Close()
+			return
+		}
 	}
 
 	connWrapper, err := m.detect(conn)
@@ -295,8 +330,8 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	err = conn.SetReadDeadline(time.Time{})
-	if err != nil {
+
+	if err := connWrapper.SetDeadline(time.Time{}); err != nil {
 		m.Warning(trace.DebugReport(err))
 		connWrapper.Close()
 		return
@@ -318,7 +353,16 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		return
 	}
 
-	listener.HandleConnection(m.context, connWrapper)
+	conn = connWrapper
+	if postDetect != nil {
+		conn = postDetect(connWrapper)
+		if conn == nil {
+			// the post detect hook hijacked the connection or had an error
+			return
+		}
+	}
+
+	listener.HandleConnection(m.context, conn)
 }
 
 // JWTPROXYSigner provides ability to created JWT for signed PROXY headers.
@@ -563,14 +607,8 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			proxyLine = newPROXYLine
 			// repeat the cycle to detect the protocol
 		case ProtoTLS, ProtoSSH, ProtoHTTP, ProtoPostgres:
-			// Proxy and other services might call itself directly, avoiding
-			// load balancer, so we shouldn't fail connections without PROXY headers for such cases.
-			selfConnection, err := m.isSelfConnection(conn)
-			if err != nil {
+			if err := m.checkPROXYProtocolRequirement(conn, unsignedPROXYLineReceived); err != nil {
 				return nil, trace.Wrap(err)
-			}
-			if !selfConnection && m.PROXYProtocolMode == PROXYProtocolOn && !unsignedPROXYLineReceived {
-				return nil, trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
 			}
 
 			return &Conn{
@@ -583,6 +621,50 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	}
 	// if code ended here after three attempts, something is wrong
 	return nil, trace.BadParameter(unknownProtocolError)
+}
+
+// checkPROXYProtocolRequirement checks that if multiplexer is required to receive unsigned PROXY line
+// that requirement is fulfilled, or exceptions apply - self connections and connections that are passed
+// from upstream multiplexed listener (as it happens for alpn proxy).
+func (m *Mux) checkPROXYProtocolRequirement(conn net.Conn, unsignedPROXYLineReceived bool) error {
+	if m.PROXYProtocolMode != PROXYProtocolOn {
+		return nil
+	}
+
+	// Proxy and other services might call itself directly, avoiding
+	// load balancer, so we shouldn't fail connections without PROXY headers for such cases.
+	selfConnection, err := m.isSelfConnection(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// We try to get inner multiplexer connection, if we succeed and there is on, it means conn was passed
+	// to us from another multiplexer listener and unsigned PROXY protocol requirement was handled there.
+	innerConn := unwrapMuxConn(conn)
+
+	if !selfConnection && innerConn == nil && !unsignedPROXYLineReceived {
+		return trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
+	}
+
+	return nil
+}
+
+func unwrapMuxConn(conn net.Conn) *Conn {
+	type netConn interface {
+		NetConn() net.Conn
+	}
+
+	for {
+		if muxConn, ok := conn.(*Conn); ok {
+			return muxConn
+		}
+
+		connGetter, ok := conn.(netConn)
+		if !ok {
+			return nil
+		}
+		conn = connGetter.NetConn()
+	}
 }
 
 func (m *Mux) isSelfConnection(conn net.Conn) (bool, error) {

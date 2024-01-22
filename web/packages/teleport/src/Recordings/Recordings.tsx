@@ -1,23 +1,26 @@
-/*
-Copyright 2019 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React from 'react';
+import React, { useState } from 'react';
 
 import { Danger } from 'design/Alert';
 import { Indicator, Box } from 'design';
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import RangePicker from 'teleport/components/EventRangePicker';
 import {
@@ -26,6 +29,8 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
+
+import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
 
 import RecordingsList from './RecordingsList';
 
@@ -46,7 +51,9 @@ export function Recordings({
   rangeOptions,
   attempt,
   clusterId,
+  ctx,
 }: State) {
+  const [errorMessage, setErrorMessage] = useState('');
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
@@ -58,6 +65,17 @@ export function Recordings({
           onChangeRange={setRange}
         />
       </FeatureHeader>
+      <ExternalAuditStorageCta />
+      {!errorMessage && (
+        <Box mb={4}>
+          <ClusterDropdown
+            clusterLoader={ctx.clusterService}
+            clusterId={clusterId}
+            onError={setErrorMessage}
+          />
+        </Box>
+      )}
+      {errorMessage && <Danger>{errorMessage}</Danger>}
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>

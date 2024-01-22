@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
@@ -21,13 +23,14 @@ import (
 	"io"
 	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
+	"go.opentelemetry.io/otel"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -42,6 +45,8 @@ const (
 	DefaultRenewInterval  = 20 * time.Minute
 )
 
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
+
 var SupportedJoinMethods = []string{
 	string(types.JoinMethodAzure),
 	string(types.JoinMethodCircleCI),
@@ -50,6 +55,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
 	string(types.JoinMethodKubernetes),
+	string(types.JoinMethodSpacelift),
 	string(types.JoinMethodToken),
 }
 
@@ -80,11 +86,6 @@ func RemainingArgs(s kingpin.Settings) (target *[]string) {
 	s.SetValue((*RemainingArgsList)(target))
 	return
 }
-
-const (
-	LogFormatJSON = "json"
-	LogFormatText = "text"
-)
 
 // CLIConf is configuration from the CLI.
 type CLIConf struct {
@@ -179,6 +180,13 @@ type CLIConf struct {
 
 	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
 	Insecure bool
+
+	// Trace indicates whether tracing should be enabled.
+	Trace bool
+
+	// TraceExporter is a manually provided URI to send traces to instead of
+	// forwarding them to the Auth service.
+	TraceExporter string
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -257,6 +265,7 @@ type BotConfig struct {
 	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
 	Storage    *StorageConfig   `yaml:"storage,omitempty"`
 	Outputs    Outputs          `yaml:"outputs,omitempty"`
+	Services   Services         `yaml:"services,omitempty"`
 
 	Debug           bool          `yaml:"debug"`
 	AuthServer      string        `yaml:"auth_server"`
@@ -364,6 +373,44 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Warn about config where renewals will fail due to weird TTL vs Interval
+	if !conf.Oneshot && conf.RenewalInterval > conf.CertificateTTL {
+		log.Warnf(
+			"Certificate TTL (%s) is shorter than the renewal interval (%s). This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval.",
+			conf.CertificateTTL,
+			conf.RenewalInterval,
+		)
+	}
+
+	return nil
+}
+
+// Services assists polymorphic unmarshaling of a slice of Services.
+type Services []bot.Service
+
+func (o *Services) UnmarshalYAML(node *yaml.Node) error {
+	var out []bot.Service
+	for _, node := range node.Content {
+		header := struct {
+			Type string `yaml:"type"`
+		}{}
+		if err := node.Decode(&header); err != nil {
+			return trace.Wrap(err)
+		}
+
+		switch header.Type {
+		case ExampleServiceType:
+			v := &ExampleService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		default:
+			return trace.BadParameter("unrecognized service type (%s)", header.Type)
+		}
+	}
+
+	*o = out
 	return nil
 }
 

@@ -1,18 +1,20 @@
 /*
-Copyright 2017-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -24,6 +26,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gravitational/oxy/ratelimit"
@@ -32,7 +35,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -194,6 +196,9 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 			WriteTimeout:      apidefaults.DefaultIOTimeout,
 			IdleTimeout:       apidefaults.DefaultIdleTimeout,
+			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+				return authz.ContextWithConn(ctx, c)
+			},
 		},
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
@@ -471,6 +476,8 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 // UnaryInterceptors returns the gRPC unary interceptor chain.
 func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 	is := []grpc.UnaryServerInterceptor{
+		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 		otelgrpc.UnaryServerInterceptor(),
 	}
 
@@ -488,6 +495,8 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 // StreamInterceptors returns the gRPC stream interceptor chain.
 func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 	is := []grpc.StreamServerInterceptor{
+		//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
+		// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
 		otelgrpc.StreamServerInterceptor(),
 	}
 
@@ -689,7 +698,12 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx = authz.ContextWithClientSrcAddr(ctx, clientSrcAddr)
 	}
 	ctx = authz.ContextWithUser(ctx, user)
-	a.Handler.ServeHTTP(w, r.WithContext(ctx))
+	r = r.WithContext(ctx)
+	// set remote address to the one that was passed in the header
+	// this is needed because impersonation reuses the same connection
+	// and the remote address is not updated from 0.0.0.0:0
+	r.RemoteAddr = remoteAddr
+	a.Handler.ServeHTTP(w, r)
 }
 
 // WrapContextWithUser enriches the provided context with the identity information

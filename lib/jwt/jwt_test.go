@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package jwt
 
@@ -20,9 +22,9 @@ import (
 	"testing"
 	"time"
 
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	josejwt "gopkg.in/square/go-jose.v2/jwt"
 
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -62,8 +64,8 @@ func TestSignAndVerify(t *testing.T) {
 		URI:      "http://127.0.0.1:8080",
 	})
 	require.NoError(t, err)
-	require.Equal(t, claims.Username, "foo@example.com")
-	require.Equal(t, claims.Roles, []string{"foo", "bar"})
+	require.Equal(t, "foo@example.com", claims.Username)
+	require.Equal(t, []string{"foo", "bar"}, claims.Roles)
 }
 
 // TestPublicOnlyVerifyAzure checks that a non-signing key used to validate a JWT
@@ -157,8 +159,8 @@ func TestPublicOnlyVerify(t *testing.T) {
 		RawToken: token,
 	})
 	require.NoError(t, err)
-	require.Equal(t, claims.Username, "foo@example.com")
-	require.Equal(t, claims.Roles, []string{"foo", "bar"})
+	require.Equal(t, "foo@example.com", claims.Username)
+	require.Equal(t, []string{"foo", "bar"}, claims.Roles)
 
 	// Make sure this key returns an error when trying to sign.
 	_, err = key.Sign(SignParams{
@@ -345,9 +347,9 @@ func TestExpiry(t *testing.T) {
 		RawToken: token,
 	})
 	require.NoError(t, err)
-	require.Equal(t, claims.Username, "foo@example.com")
-	require.Equal(t, claims.Roles, []string{"foo", "bar"})
-	require.Equal(t, claims.IssuedAt, josejwt.NewNumericDate(clock.Now()))
+	require.Equal(t, "foo@example.com", claims.Username)
+	require.Equal(t, []string{"foo", "bar"}, claims.Roles)
+	require.Equal(t, josejwt.NewNumericDate(clock.Now()), claims.IssuedAt)
 
 	// Advance time by two minutes and verify the token is no longer valid.
 	clock.Advance(2 * time.Minute)

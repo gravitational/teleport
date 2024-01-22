@@ -1,18 +1,20 @@
 /*
-Copyright 2016-2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -22,17 +24,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"maps"
 	"net"
 	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/pprof"
 	runtimetrace "runtime/trace"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,7 +52,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 
@@ -72,7 +75,6 @@ import (
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -82,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -139,6 +142,8 @@ type CLIConf struct {
 	MyRequests bool
 	// Approve/Deny indicates the desired review kind.
 	Approve, Deny bool
+	// AssumeStartTimeRaw format is RFC3339
+	AssumeStartTimeRaw string
 	// ResourceKind is the resource kind to search for
 	ResourceKind string
 	// Username is the Teleport user's username (to login into proxies)
@@ -203,6 +208,8 @@ type CLIConf struct {
 	DatabaseUser string
 	// DatabaseName specifies database name to embed in the certificate.
 	DatabaseName string
+	// DatabaseRoles specifies database roles to embed in the certificate.
+	DatabaseRoles string
 	// AppName specifies proxied application name.
 	AppName string
 	// Interactive, when set to true, launches remote command with the terminal attached
@@ -225,6 +232,8 @@ type CLIConf struct {
 	BenchExport bool
 	// BenchExportPath saves the latency profile in provided path
 	BenchExportPath string
+	// BenchMaxSessions is the maximum number of sessions to open
+	BenchMaxSessions int
 	// BenchTicks ticks per half distance
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
@@ -250,6 +259,9 @@ type CLIConf struct {
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
 	BindAddr string
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
+	CallbackAddr string
 
 	// AuthConnector is the name of the connector to use.
 	AuthConnector string
@@ -270,6 +282,9 @@ type CLIConf struct {
 	// Format is used to change the format of output
 	Format  string
 	OutFile string
+
+	// PlaySpeed controls the playback speed for tsh play.
+	PlaySpeed string
 
 	// SearchKeywords is a list of search keywords to match against resource field values.
 	SearchKeywords string
@@ -492,6 +507,9 @@ type CLIConf struct {
 	// SSHLogDir is the directory to log the output of multiple SSH commands to.
 	// If not set, no logs will be created.
 	SSHLogDir string
+
+	// DisableSSHResumption disables transparent SSH connection resumption.
+	DisableSSHResumption bool
 }
 
 // Stdout returns the stdout writer.
@@ -618,9 +636,9 @@ func initLogger(cf *CLIConf) {
 	isDebug, _ := strconv.ParseBool(os.Getenv(debugEnvVar))
 	cf.Debug = cf.Debug || isDebug
 	if cf.Debug {
-		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
+		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
 	} else {
-		utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+		utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 	}
 }
 
@@ -688,6 +706,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
@@ -728,6 +747,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
+	ssh.Flag("no-resume", "Disable SSH connection resumption").BoolVar(&cf.DisableSSHResumption)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -804,13 +824,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxySSH.Flag("no-resume", "Disable SSH connection resumption").BoolVar(&cf.DisableSSHResumption)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
-	proxyDB.Flag("db-user", "Database user to log in as.").StringVar(&cf.DatabaseUser)
-	proxyDB.Flag("db-name", "Database name to log in to.").StringVar(&cf.DatabaseName)
+	proxyDB.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
+	proxyDB.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
+	proxyDB.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
@@ -854,8 +876,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
 	dbLogin.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbLogin.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	dbLogin.Flag("db-user", "Database user to configure as default.").StringVar(&cf.DatabaseUser)
-	dbLogin.Flag("db-name", "Database name to configure as default.").StringVar(&cf.DatabaseName)
+	dbLogin.Flag("db-user", "Database user to configure as default.").Short('u').StringVar(&cf.DatabaseUser)
+	dbLogin.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
+	dbLogin.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbLogout.Flag("labels", labelHelp).StringVar(&cf.Labels)
@@ -877,8 +900,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)).Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
 	dbConnect := db.Command("connect", "Connect to a database.")
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
-	dbConnect.Flag("db-user", "Database user to log in as.").StringVar(&cf.DatabaseUser)
-	dbConnect.Flag("db-name", "Database name to log in to.").StringVar(&cf.DatabaseName)
+	dbConnect.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
+	dbConnect.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
+	dbConnect.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 
@@ -892,6 +916,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// play
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	play.Flag("speed", "Playback speed, applicable when streaming SSH or Kubernetes sessions.").Default("1x").EnumVar(&cf.PlaySpeed, "0.5x", "1x", "2x", "4x", "8x")
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
@@ -905,6 +930,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
+	scp.Flag("no-resume", "Disable SSH connection resumption").BoolVar(&cf.DisableSSHResumption)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes.")
 	ls.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -946,6 +972,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate.")
 
+	// latency
+	latency := app.Command("latency", "Run latency diagnostics.").Hidden()
+
+	latencySSH := latency.Command("ssh", "Measure latency to a particular SSH host.")
+	latencySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	latencySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+
 	// bench
 	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -961,6 +994,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+	benchSSH.Flag("no-resume", "Disable SSH connection resumption").BoolVar(&cf.DisableSSHResumption)
 
 	benchWeb := bench.Command("web", "Run Web benchmark tests").Hidden()
 	benchWebSSH := benchWeb.Command("ssh", "Run SSH benchmark tests").Hidden()
@@ -968,6 +1002,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchWebSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchWebSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchWebSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+
+	benchWebSessions := benchWeb.Command("sessions", "Run session benchmark tests").Hidden()
+	benchWebSessions.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	benchWebSessions.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	benchWebSessions.Flag("max", "The maximum number of sessions to open. If not specified a single session per node will be opened.").IntVar(&cf.BenchMaxSessions)
 
 	var benchKubeOpts benchKubeOptions
 	benchKube := bench.Command("kube", "Run Kube benchmark tests").Hidden()
@@ -1032,12 +1071,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the the access should be granted for").DurationVar(&cf.MaxDuration)
+	reqCreate.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqReview := req.Command("review", "Review an access request.")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
 	reqReview.Flag("approve", "Review proposes approval").BoolVar(&cf.Approve)
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
+	reqReview.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind",
@@ -1235,6 +1276,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onVersion(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
+	case latencySSH.FullCommand():
+		err = onSSHLatency(&cf)
 	case benchSSH.FullCommand():
 		err = onBenchmark(
 			&cf,
@@ -1249,6 +1292,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			&benchmark.WebSSHBenchmark{
 				Command:  cf.RemoteCommand,
 				Random:   cf.BenchRandom,
+				Duration: cf.BenchDuration,
+			},
+		)
+	case benchWebSessions.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.WebSessionBenchmark{
+				Command:  cf.RemoteCommand,
+				Max:      cf.BenchMaxSessions,
 				Duration: cf.BenchDuration,
 			},
 		)
@@ -1424,6 +1476,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = deviceCmd.keyget.run(&cf)
 	case deviceCmd.activateCredential.FullCommand():
 		err = deviceCmd.activateCredential.run(&cf)
+	case deviceCmd.dmiRead.FullCommand():
+		err = deviceCmd.dmiRead.run(&cf)
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])
@@ -1468,7 +1522,7 @@ func initializeTracing(cf *CLIConf) func() {
 	// flush ensures that the spans are all attempted to be written when tsh exits.
 	flush := func(provider *tracing.Provider) func() {
 		return func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(cf.Context), time.Second)
 			defer cancel()
 			err := provider.Shutdown(shutdownCtx)
 			if err != nil && !errors.Is(err, context.DeadlineExceeded) {
@@ -1505,7 +1559,6 @@ func initializeTracing(cf *CLIConf) func() {
 			ExporterURL:  cf.TraceExporter,
 			SamplingRate: samplingRate,
 		})
-
 		if err != nil {
 			log.WithError(err).Debugf("failed to connect to trace exporter %s", cf.TraceExporter)
 			return func() {}
@@ -1669,115 +1722,6 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 		out, err = yaml.Marshal(versionInfo)
 	}
 	return string(out), trace.Wrap(err)
-}
-
-// onPlay is used to interact with recorded sessions.
-// It has several modes:
-//
-//  1. If --format is "pty" (the default), then the recorded
-//     session is played back in the user's terminal.
-//  2. Otherwise, `tsh play` is used to export a session from the
-//     binary protobuf format into YAML or JSON.
-//
-// Each of these modes has two subcases:
-// a) --session-id ends with ".tar" - tsh operates on a local file
-//
-//	containing a previously downloaded session
-//
-// b) --session-id is the ID of a session - tsh operates on the session
-//
-//	recording by connecting to the Teleport cluster
-func onPlay(cf *CLIConf) error {
-	if format := strings.ToLower(cf.Format); format == teleport.PTY {
-		return playSession(cf)
-	}
-	return exportSession(cf)
-}
-
-func exportSession(cf *CLIConf) error {
-	format := strings.ToLower(cf.Format)
-	isLocalFile := path.Ext(cf.SessionID) == ".tar"
-	if isLocalFile {
-		return trace.Wrap(exportFile(cf.Context, cf.SessionID, format))
-	}
-
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	events, err := tc.GetSessionEvents(cf.Context, cf.Namespace, cf.SessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, event := range events {
-		// when playing from a file, id is not included, this
-		// makes the outputs otherwise identical
-		delete(event, "id")
-	}
-
-	switch format {
-	case teleport.JSON:
-		if err := utils.WriteJSONArray(os.Stdout, events); err != nil {
-			return trace.Wrap(err)
-		}
-	case teleport.YAML:
-		if err := utils.WriteYAML(os.Stdout, events); err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		return trace.Errorf("Invalid format %s, only pty, json and yaml are supported", format)
-	}
-
-	return nil
-}
-
-func playSession(cf *CLIConf) error {
-	isLocalFile := path.Ext(cf.SessionID) == ".tar"
-	if isLocalFile {
-		sid := sessionIDFromPath(cf.SessionID)
-		tarFile, err := os.Open(cf.SessionID)
-		if err != nil {
-			return trace.ConvertSystemError(err)
-		}
-		defer tarFile.Close()
-		if err := client.PlayFile(cf.Context, tarFile, sid); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	}
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := tc.Play(cf.Context, cf.Namespace, cf.SessionID); err != nil {
-		if trace.IsNotFound(err) {
-			log.WithError(err).Debug("error playing session")
-			return trace.NotFound("Recording for session %s not found.", cf.SessionID)
-		}
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func sessionIDFromPath(path string) string {
-	fileName := filepath.Base(path)
-	return strings.TrimSuffix(fileName, ".tar")
-}
-
-// exportFile converts the binary protobuf events from the file
-// identified by path to text (JSON/YAML) and writes the converted
-// events to standard out.
-func exportFile(ctx context.Context, path string, format string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	defer f.Close()
-	err = events.Export(ctx, f, os.Stdout, format)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // onLogin logs in with remote proxy and gets signed certificates
@@ -2503,6 +2447,19 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 		req.SetMaxDuration(time.Now().UTC().Add(cf.MaxDuration))
 	}
 
+	if cf.AssumeStartTimeRaw != "" {
+		assumeStartTime, err := time.Parse(time.RFC3339, cf.AssumeStartTimeRaw)
+		if err != nil {
+			return nil, trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
+		}
+
+		if time.Until(assumeStartTime) > constants.MaxAssumeStartDuration {
+			return nil, trace.BadParameter("assume-start-time too far in future: latest date %q",
+				assumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
+		}
+		req.SetAssumeStartTime(assumeStartTime)
+	}
+
 	return req, nil
 }
 
@@ -2747,17 +2704,17 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, format string, verbose bool) error {
-	format = strings.ToLower(format)
+func showDatabases(cf *CLIConf, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker) error {
+	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		showDatabasesAsText(w, clusterFlag, databases, active, accessChecker, verbose)
+		showDatabasesAsText(cf, cf.Stdout(), databases, active, accessChecker, cf.Verbose)
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeDatabases(databases, format, accessChecker)
+		out, err := serializeDatabases(databases, cf.Format, accessChecker)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprintln(w, out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -2804,11 +2761,16 @@ type databaseWithUsers struct {
 	// *DatabaseV3 is used instead of types.Database because we want the db fields marshaled to JSON inline.
 	// An embedded interface (like types.Database) does not inline when marshaled to JSON.
 	*types.DatabaseV3
-	Users *dbUsers `json:"users"`
+	Users         *dbUsers `json:"users"`
+	DatabaseRoles []string `json:"database_roles,omitempty"`
 }
 
 func getDBUsers(db types.Database, accessChecker services.AccessChecker) *dbUsers {
-	users := accessChecker.EnumerateDatabaseUsers(db)
+	users, err := accessChecker.EnumerateDatabaseUsers(db)
+	if err != nil {
+		log.Warnf("Failed to EnumerateDatabaseUsers for database %v: %v.", db.GetName(), err)
+		return &dbUsers{}
+	}
 	var denied []string
 	allowed := users.Allowed()
 	if users.WildcardAllowed() {
@@ -2832,6 +2794,15 @@ func newDatabaseWithUsers(db types.Database, accessChecker services.AccessChecke
 		dbWithUsers.DatabaseV3 = db
 	default:
 		return nil, trace.BadParameter("unrecognized database type %T", db)
+	}
+
+	if db.SupportsAutoUsers() && db.GetAdminUser().Name != "" {
+		roles, err := accessChecker.CheckDatabaseRoles(db, nil)
+		if err != nil {
+			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", db.GetName(), err)
+		} else {
+			dbWithUsers.DatabaseRoles = roles
+		}
 	}
 	return dbWithUsers, nil
 }
@@ -2862,7 +2833,7 @@ func serializeDatabasesAllClusters(dbListings []databaseListing, format string) 
 	return string(out), trace.Wrap(err)
 }
 
-func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) string {
+func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) (users string) {
 	// may happen if fetching the role set failed for any reason.
 	if accessChecker == nil {
 		return "(unknown)"
@@ -2873,23 +2844,34 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 		return "(none)"
 	}
 
+	// Add a note for auto-provisioned user.
+	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
+		if err != nil {
+			log.Warnf("Failed to get DatabaseAutoUserMode for database %v: %v.", database.GetName(), err)
+		} else if autoUser.IsEnabled() {
+			defer func() {
+				users = users + " (Auto-provisioned)"
+			}()
+		}
+	}
+
 	if len(dbUsers.Denied) == 0 {
 		return fmt.Sprintf("%v", dbUsers.Allowed)
 	}
 	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
-func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
-	name := database.GetName()
+// TODO(greedy52) more refactoring on db printing and move them to db_print.go.
+
+func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) databaseTableRow {
 	displayName := common.FormatResourceName(database, verbose)
 	var connect string
 	for _, a := range active {
-		if a.ServiceName == name {
-			a.ServiceName = displayName
+		if a.ServiceName == database.GetName() {
 			// format the db name with the display name
-			displayName = formatActiveDB(a)
+			displayName = formatActiveDB(a, displayName)
 			// then revert it for connect string
-			a.ServiceName = name
 			switch a.Protocol {
 			case defaults.ProtocolDynamoDB:
 				// DynamoDB does not support "tsh db connect", so print the proxy command instead.
@@ -2901,90 +2883,76 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		}
 	}
 
-	row := make([]string, 0)
-	if proxy != "" && cluster != "" {
-		row = append(row, proxy, cluster)
+	return databaseTableRow{
+		Proxy:         proxy,
+		Cluster:       cluster,
+		DisplayName:   displayName,
+		Description:   database.GetDescription(),
+		Protocol:      database.GetProtocol(),
+		Type:          database.GetType(),
+		URI:           database.GetURI(),
+		AllowedUsers:  formatUsersForDB(database, accessChecker),
+		DatabaseRoles: formatDatabaseRolesForDB(database, accessChecker),
+		Labels:        common.FormatLabels(database.GetAllLabels(), verbose),
+		Connect:       connect,
 	}
-
-	labels := common.FormatLabels(database.GetAllLabels(), verbose)
-	if verbose {
-		row = append(row,
-			displayName,
-			database.GetDescription(),
-			database.GetProtocol(),
-			database.GetType(),
-			database.GetURI(),
-			formatUsersForDB(database, accessChecker),
-			labels,
-			connect,
-		)
-	} else {
-		row = append(row,
-			displayName,
-			database.GetDescription(),
-			formatUsersForDB(database, accessChecker),
-			labels,
-			connect,
-		)
-	}
-
-	return row
 }
 
-func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) {
-	var rows [][]string
+func showDatabasesAsText(cf *CLIConf, w io.Writer, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) {
+	var rows []databaseTableRow
 	for _, database := range databases {
 		rows = append(rows, getDatabaseRow("", "",
-			clusterFlag,
+			cf.SiteName,
 			database,
 			active,
 			accessChecker,
 			verbose))
 	}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect"}, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
-	}
-	fmt.Fprintln(w, t.AsBuffer().String())
+	printDatabaseTable(printDatabaseTableConfig{
+		writer:  w,
+		rows:    rows,
+		verbose: verbose,
+	})
 }
 
-func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing, active []tlsca.RouteToDatabase, verbose bool) {
-	var rows [][]string
+func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, active []tlsca.RouteToDatabase) {
+	var rows []databaseTableRow
 	for _, listing := range dbListings {
 		rows = append(rows, getDatabaseRow(
 			listing.Proxy,
 			listing.Cluster,
-			clusterFlag,
+			cf.SiteName,
 			listing.Database,
 			active,
 			listing.accessChecker,
-			verbose))
+			cf.Verbose))
 	}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(
-			[]string{"Proxy", "Cluster", "Name", "Description", "Allowed Users", "Labels", "Connect"},
-			rows,
-			"Labels",
-		)
-	}
-	fmt.Println(t.AsBuffer().String())
+	printDatabaseTable(printDatabaseTableConfig{
+		writer:              cf.Stdout(),
+		rows:                rows,
+		showProxyAndCluster: true,
+		verbose:             cf.Verbose,
+	})
 }
 
-func formatActiveDB(active tlsca.RouteToDatabase) string {
-	switch {
-	case active.Username != "" && active.Database != "":
-		return fmt.Sprintf("> %v (user: %v, db: %v)", active.ServiceName, active.Username, active.Database)
-	case active.Username != "":
-		return fmt.Sprintf("> %v (user: %v)", active.ServiceName, active.Username)
-	case active.Database != "":
-		return fmt.Sprintf("> %v (db: %v)", active.ServiceName, active.Database)
+func formatActiveDB(active tlsca.RouteToDatabase, displayName string) string {
+	active.ServiceName = displayName
+
+	var details []string
+	if active.Username != "" {
+		details = append(details, fmt.Sprintf("user: %s", active.Username))
 	}
-	return fmt.Sprintf("> %v", active.ServiceName)
+	if active.Database != "" {
+		details = append(details, fmt.Sprintf("db: %s", active.Database))
+	}
+	if len(active.Roles) > 0 {
+		details = append(details, fmt.Sprintf("roles: %v", active.Roles))
+	}
+
+	if len(details) == 0 {
+		return fmt.Sprintf("> %v", active.ServiceName)
+	}
+	return fmt.Sprintf("> %v (%v)", active.ServiceName, strings.Join(details, ", "))
 }
 
 // onListClusters executes 'tsh clusters' command
@@ -3244,6 +3212,47 @@ func retryWithAccessRequest(
 	return trace.Wrap(fn())
 }
 
+func onSSHLatency(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clt, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	// detect the common error when users use host:port address format
+	_, port, err := net.SplitHostPort(tc.Host)
+	// client has used host:port notation
+	if err == nil {
+		return trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+	}
+
+	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
+
+	nodeClient, err := tc.ConnectToNode(
+		cf.Context,
+		clt,
+		client.NodeDetails{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+		tc.Config.HostLogin,
+	)
+	if err != nil {
+		tc.ExitStatus = 1
+		return trace.Wrap(err)
+	}
+	defer nodeClient.Close()
+
+	targetPinger, err := latency.NewSSHPinger(nodeClient.Client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(showLatency(cf.Context, clt.ProxyClient, targetPinger, "Proxy", tc.Host))
+}
+
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf)
@@ -3303,7 +3312,7 @@ func onSSH(cf *CLIConf) error {
 }
 
 // onBenchmark executes benchmark
-func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
+func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3312,6 +3321,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 		MinimumWindow: cf.BenchDuration,
 		Rate:          cf.BenchRate,
 	}
+
 	result, err := cnf.Benchmark(cf.Context, tc, suite)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
@@ -3654,9 +3664,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			return nil, trace.Wrap(err, "invalid proxy glob %q in tsh configuration file", proxyGlob)
 		}
 		if proxyRegexp.MatchString(c.WebProxyAddr) {
-			for k, v := range proxyHeaders.Headers {
-				c.ExtraProxyHeaders[k] = v
-			}
+			maps.Copy(c.ExtraProxyHeaders, proxyHeaders.Headers)
 		}
 	}
 
@@ -3734,6 +3742,10 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
 	}
 	c.BindAddr = cf.BindAddr
+	if cf.CallbackAddr != "" && cf.BindAddr == "" {
+		return nil, trace.BadParameter("--callback must be used with --bind-addr")
+	}
+	c.CallbackAddr = cf.CallbackAddr
 
 	// Don't execute remote command, used when port forwarding.
 	c.NoRemoteExec = cf.NoRemoteExec
@@ -3790,6 +3802,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.Invited = cf.Invited
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	c.SSHLogDir = cf.SSHLogDir
+	c.DisableSSHResumption = cf.DisableSSHResumption
 	return c, nil
 }
 
@@ -4166,10 +4179,15 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 
 	if len(accessListsToReview) > 0 {
 		fmt.Printf("Access lists that need to be reviewed:\n")
-		now := time.Now()
-
 		for _, accessList := range accessListsToReview {
-			fmt.Printf("\t%s (%s left to review)\n", accessList.GetName(), accessList.Spec.Audit.NextAuditDate.Sub(now).Round(time.Second).String())
+			d := time.Until(accessList.Spec.Audit.NextAuditDate).Round(time.Minute)
+			var msg string
+			if d > 0 {
+				msg = fmt.Sprintf("%v left to review", d.String())
+			} else {
+				msg = fmt.Sprintf("review was required %v ago", (-d).String())
+			}
+			fmt.Printf("\t%s (%v)\n", accessList.Spec.Title, msg)
 		}
 		fmt.Println()
 	}

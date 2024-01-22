@@ -1,18 +1,20 @@
-/*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -22,6 +24,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 
 import react from '@vitejs/plugin-react-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import wasm from 'vite-plugin-wasm';
 
 import { htmlPlugin, transformPlugin } from './html';
 import { getStyledComponentsConfig } from './styled';
@@ -39,10 +42,12 @@ export function createViteConfig(
 
     if (mode === 'development') {
       if (process.env.PROXY_TARGET) {
+        // eslint-disable-next-line no-console
         console.log(
           `  \x1b[32m✔ Proxying requests to ${target.toString()}\x1b[0m`
         );
       } else {
+        // eslint-disable-next-line no-console
         console.warn(
           `  \x1b[33m⚠ PROXY_TARGET was not set, defaulting to ${DEFAULT_PROXY_TARGET}\x1b[0m`
         );
@@ -72,9 +77,17 @@ export function createViteConfig(
           ],
         }),
         tsconfigPaths({
-          root: rootDirectory,
+          // Asking vite to crawl the root directory (by defining the `root` object, rather than `projects`) causes vite builds to fail
+          // with a:
+          //
+          // "Error: ENOTDIR: not a directory, scandir '/go/src/github.com/gravitational/teleport/docker/ansible/rdir/rdir/rdir'""
+          //
+          // on a Debian GNU/Linux 10 (buster) (buildbox-node) Docker image running on an arm64 Macbook macOS 14.1.2. It's not clear why
+          // this happens, however defining the tsconfig file directly works around the issue.
+          projects: [resolve(rootDirectory, 'tsconfig.json')],
         }),
         transformPlugin(),
+        wasm(),
       ],
       define: {
         'process.env': { NODE_ENV: process.env.NODE_ENV },
@@ -89,9 +102,28 @@ export function createViteConfig(
       config.base = '/web';
     } else {
       config.plugins.push(htmlPlugin(target));
+      // siteName matches everything between the slashes.
+      const siteName = '([^\\/]+)';
 
       config.server.proxy = {
-        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/connect': {
+        // The format of the regex needs to assume that the slashes are escaped, for example:
+        // \/v1\/webapi\/sites\/:site\/connect
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/connect`]: {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
+        // /webapi/sites/:site/desktops/:desktopName/connect
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
+          {
+            target: `wss://${target}`,
+            changeOrigin: false,
+            secure: false,
+            ws: true,
+          },
+        // /webapi/sites/:site/desktopplayback/:sid
+        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
@@ -102,7 +134,7 @@ export function createViteConfig(
           changeOrigin: false,
           secure: false,
         },
-        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/assistant': {
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/assistant`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,

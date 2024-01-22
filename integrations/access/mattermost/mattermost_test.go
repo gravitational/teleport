@@ -1,17 +1,19 @@
-/**
- * Copyright 2023 Gravitational, Inc.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package mattermost
@@ -36,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -261,14 +264,14 @@ func (s *MattermostSuite) createAccessRequest(reviewers []User) types.AccessRequ
 	return out
 }
 
-func (s *MattermostSuite) checkPluginData(reqID string, cond func(common.GenericPluginData) bool) common.GenericPluginData {
+func (s *MattermostSuite) checkPluginData(reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
 	t := s.T()
 	t.Helper()
 
 	for {
 		rawData, err := s.ruler().PollAccessRequestPluginData(s.Context(), "mattermost", reqID)
 		require.NoError(t, err)
-		data, err := common.DecodePluginData(rawData)
+		data, err := accessrequest.DecodePluginData(rawData)
 		require.NoError(t, err)
 		if cond(data) {
 			return data
@@ -287,7 +290,7 @@ func (s *MattermostSuite) TestMattermostMessagePosting() {
 	s.startApp()
 	request := s.createAccessRequest([]User{reviewer2, reviewer1})
 
-	pluginData := s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
@@ -297,7 +300,7 @@ func (s *MattermostSuite) TestMattermostMessagePosting() {
 	for i := 0; i < 2; i++ {
 		post, err := s.fakeMattermost.CheckNewPost(s.Context())
 		require.NoError(t, err, "no new messages posted")
-		postSet.Add(common.MessageData{ChannelID: post.ChannelID, MessageID: post.ID})
+		postSet.Add(accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.ID})
 		posts = append(posts, post)
 	}
 
@@ -320,8 +323,8 @@ func (s *MattermostSuite) TestMattermostMessagePosting() {
 	assert.Equal(t, s.userNames.requestor, username)
 
 	matches := requestReasonRegexp.FindAllStringSubmatch(post.Message, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "because of "+strings.Repeat("A", 489), matches[0][1])
 	assert.Equal(t, " (truncated)", matches[0][2])
 
@@ -357,8 +360,8 @@ func (s *MattermostSuite) TestApproval() {
 	assert.Equal(t, "✅ APPROVED", statusLine)
 
 	matches := resolutionReasonRegexp.FindAllStringSubmatch(postUpdate.Message, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "okay", matches[0][1])
 	assert.Equal(t, "", matches[0][2])
 }
@@ -390,8 +393,8 @@ func (s *MattermostSuite) TestDenial() {
 	assert.Equal(t, "❌ DENIED", statusLine)
 
 	matches := resolutionReasonRegexp.FindAllStringSubmatch(postUpdate.Message, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "not okay "+strings.Repeat("A", 491), matches[0][1])
 	assert.Equal(t, " (truncated)", matches[0][2])
 }
@@ -409,7 +412,7 @@ func (s *MattermostSuite) TestReviewComments() {
 	s.startApp()
 
 	req := s.createAccessRequest([]User{reviewer})
-	s.checkPluginData(req.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -509,8 +512,8 @@ func (s *MattermostSuite) TestApprovalByReview() {
 	assert.Equal(t, "✅ APPROVED", statusLine)
 
 	matches := resolutionReasonRegexp.FindAllStringSubmatch(postUpdate.Message, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "finally okay", matches[0][1])
 	assert.Equal(t, "", matches[0][2])
 }
@@ -574,8 +577,8 @@ func (s *MattermostSuite) TestDenialByReview() {
 	assert.Equal(t, "❌ DENIED", statusLine)
 
 	matches := resolutionReasonRegexp.FindAllStringSubmatch(postUpdate.Message, -1)
-	require.Equal(t, 1, len(matches))
-	require.Equal(t, 3, len(matches[0]))
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
 	assert.Equal(t, "finally not okay", matches[0][1])
 	assert.Equal(t, "", matches[0][2])
 }
@@ -593,7 +596,7 @@ func (s *MattermostSuite) TestExpiration() {
 	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer).ID
 	assert.Equal(t, directChannelID, post.ChannelID)
 
-	s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
@@ -673,7 +676,7 @@ func (s *MattermostSuite) TestRace() {
 			if post.RootID == "" {
 				// Handle "root" notifications.
 
-				postKey := common.MessageData{ChannelID: post.ChannelID, MessageID: post.ID}
+				postKey := accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.ID}
 				if _, loaded := postIDs.LoadOrStore(postKey, struct{}{}); loaded {
 					return setRaceErr(trace.Errorf("post %v already stored", postKey))
 				}
@@ -711,7 +714,7 @@ func (s *MattermostSuite) TestRace() {
 			} else {
 				// Handle review comments.
 
-				postKey := common.MessageData{ChannelID: post.ChannelID, MessageID: post.RootID}
+				postKey := accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.RootID}
 				var newCounter int32
 				val, _ := reviewCommentCounters.LoadOrStore(postKey, &newCounter)
 				counterPtr := val.(*int32)
@@ -730,7 +733,7 @@ func (s *MattermostSuite) TestRace() {
 				return setRaceErr(trace.Wrap(err))
 			}
 
-			postKey := common.MessageData{ChannelID: post.ChannelID, MessageID: post.ID}
+			postKey := accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.ID}
 			var newCounter int32
 			val, _ := postUpdateCounters.LoadOrStore(postKey, &newCounter)
 			counterPtr := val.(*int32)
@@ -798,7 +801,7 @@ func (s *MattermostSuite) TestRecipientsConfig() {
 	s.startApp()
 
 	request := s.createAccessRequest(nil)
-	pluginData := s.checkPluginData(request.GetName(), func(data common.GenericPluginData) bool {
+	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
@@ -812,12 +815,12 @@ func (s *MattermostSuite) TestRecipientsConfig() {
 
 	msg, err := s.fakeMattermost.CheckNewPost(s.Context())
 	require.NoError(t, err)
-	messageSet.Add(common.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
+	messageSet.Add(accessrequest.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
 	messages = append(messages, msg)
 
 	msg, err = s.fakeMattermost.CheckNewPost(s.Context())
 	require.NoError(t, err)
-	messageSet.Add(common.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
+	messageSet.Add(accessrequest.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
 	messages = append(messages, msg)
 
 	assert.Len(t, messageSet, 2)

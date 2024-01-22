@@ -13,7 +13,7 @@ By default, `tsh`, Teleport Connect, and other Teleport clients store a user's k
 on their filesystem. If a user's filesystem is compromised, any of their active Teleport user keys and certificates
 would also be compromised.
 
-You can configure [per-session MFA](per-session-mfa.mdx) to require a second factor authentication check 
+You can configure [per-session MFA](per-session-mfa.mdx) to require a multi-factor authentication check 
 when users start new sessions with Teleport services, such as the SSH Service, Kubernetes Service, Database Service, and so on. 
 However, per-session MFA doesn't prevent compromised session credentials from taking other actions, such as 
 running administrative commands with `tctl`. 
@@ -210,8 +210,8 @@ $ tsh clusters
 By default, Teleport clients use the following PIV slots for each option:
   - `hardware_key`: slot `9a`
   - `hardware_key_touch`: slot `9c`
-  - `hardware_key_pin`: slot `9d`
-  - `hardware_key_and_pin`: slot `9e`
+  - `hardware_key_touch_and_pin`: slot `9d`
+  - `hardware_key_pin`: slot `9e`
 
 If you are using any other PIV applications, you might need to specify a different slot.
 For example, `yubikey-agent` uses slot `9a`. To avoid overwriting the `yubikey-agent` key and certificate,

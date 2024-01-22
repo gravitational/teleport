@@ -100,6 +100,7 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 						},
 					},
 				},
+				OsId: "macOS", // Made up, only set for Linux.
 			},
 		},
 		Source: &devicepb.DeviceSource{
@@ -115,6 +116,7 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 			OsUsernames:         []string{"admin", "llama"},
 			JamfBinaryVersion:   "9.27",
 			ExternalId:          "99",
+			OsId:                "macOS", // Made up, only set for Linux.
 		},
 		Owner: "llama",
 	}

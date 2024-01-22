@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
@@ -27,6 +29,8 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
@@ -69,16 +73,6 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 		return trace.BadParameter("destination path must not be empty")
 	}
 
-	secureSupported, err := botfs.HasSecureWriteSupport()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	aclsSupported, err := botfs.HasACLSupport()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	switch dd.Symlinks {
 	case "":
 		// We default to SymlinksTrySecure. It's become apparent that the
@@ -89,13 +83,14 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 	case botfs.SymlinksInsecure, botfs.SymlinksTrySecure:
 		// valid
 	case botfs.SymlinksSecure:
-		if !secureSupported {
+		if !botfs.HasSecureWriteSupport() {
 			return trace.BadParameter("symlink mode %q not supported on this system", dd.Symlinks)
 		}
 	default:
 		return trace.BadParameter("invalid symlinks mode: %q", dd.Symlinks)
 	}
 
+	aclsSupported := botfs.HasACLSupport()
 	switch dd.ACLs {
 	case "":
 		if aclsSupported {
@@ -162,11 +157,6 @@ func (dd *DestinationDirectory) Init(_ context.Context, subdirs []string) error 
 }
 
 func (dd *DestinationDirectory) Verify(keys []string) error {
-	aclsSupported, err := botfs.HasACLSupport()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	currentUser, err := user.Current()
 	if err != nil {
 		return trace.Wrap(err)
@@ -189,7 +179,7 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	// Make sure it's worth warning about ACLs for this Destination. If ACLs
 	// are disabled, unsupported, or the Destination is owned by the bot
 	// (implying the user is not trying to use ACLs), just bail.
-	if dd.ACLs == botfs.ACLOff || !aclsSupported || ownedByBot {
+	if dd.ACLs == botfs.ACLOff || !botfs.HasACLSupport() || ownedByBot {
 		return nil
 	}
 
@@ -215,11 +205,25 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Write(_ context.Context, name string, data []byte) error {
+func (dd *DestinationDirectory) Write(ctx context.Context, name string, data []byte) error {
+	_, span := tracer.Start(
+		ctx,
+		"DestinationDirectory/Write",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	return trace.Wrap(botfs.Write(filepath.Join(dd.Path, name), data, dd.Symlinks))
 }
 
-func (dd *DestinationDirectory) Read(_ context.Context, name string) ([]byte, error) {
+func (dd *DestinationDirectory) Read(ctx context.Context, name string) ([]byte, error) {
+	_, span := tracer.Start(
+		ctx,
+		"DestinationDirectory/Read",
+		oteltrace.WithAttributes(attribute.String("name", name)),
+	)
+	defer span.End()
+
 	data, err := botfs.Read(filepath.Join(dd.Path, name), dd.Symlinks)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -240,7 +244,7 @@ func (dd *DestinationDirectory) TryLock() (func() error, error) {
 	return unlock, trace.Wrap(err)
 }
 
-func (dm DestinationDirectory) MarshalYAML() (interface{}, error) {
+func (dm *DestinationDirectory) MarshalYAML() (interface{}, error) {
 	type raw DestinationDirectory
-	return withTypeHeader(raw(dm), DestinationDirectoryType)
+	return withTypeHeader((*raw)(dm), DestinationDirectoryType)
 }

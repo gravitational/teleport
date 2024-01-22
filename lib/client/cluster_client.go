@@ -1,30 +1,39 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
 import (
 	"context"
+	"net"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -77,6 +86,49 @@ func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string
 func (c *ClusterClient) Close() error {
 	// close auth client first since it is tunneled through the proxy client
 	return trace.NewAggregate(c.AuthClient.Close(), c.ProxyClient.Close())
+}
+
+// DialHostWithResumption is [proxyclient.DialHost] called on the underlying
+// [*proxyclient.Client] of the ClusterClient, but with additional logic that
+// attempts to resume the connection if it's supported by the remote server and
+// if it's not been disabled in the TeleportClient (with a command-line flag,
+// typically).
+func (c *ClusterClient) DialHostWithResumption(ctx context.Context, target, cluster string, keyring agent.ExtendedAgent) (net.Conn, proxyclient.ClusterDetails, error) {
+	conn, details, err := c.ProxyClient.DialHost(ctx, target, cluster, keyring)
+	if err != nil {
+		return nil, proxyclient.ClusterDetails{}, trace.Wrap(err)
+	}
+
+	if c.tc.DisableSSHResumption {
+		return conn, details, nil
+	}
+
+	conn, err = resumption.WrapSSHClientConn(ctx, conn, func(ctx context.Context, hostID string) (net.Conn, error) {
+		// if the connection is being resumed it means that we didn't need the
+		// agent in the first place
+		var noAgent agent.ExtendedAgent
+		conn, _, err := c.ProxyClient.DialHost(ctx, hostID+":0", cluster, noAgent)
+		return conn, err
+	})
+	if err != nil {
+		return nil, proxyclient.ClusterDetails{}, trace.Wrap(err)
+	}
+
+	return conn, details, nil
+}
+
+// ceremonyFailedErr indicates that the mfa ceremony was attempted unsuccessfully.
+type ceremonyFailedErr struct {
+	err error
+}
+
+// Error returns the error string of the wrapped error if one exists.
+func (c ceremonyFailedErr) Error() string {
+	if c.err == nil {
+		return ""
+	}
+
+	return c.err.Error()
 }
 
 // SessionSSHConfig returns the [ssh.ClientConfig] that should be used to connected to the
@@ -146,7 +198,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	log.Debug("Issued single-use user certificate after an MFA check.")
 	am, err := key.AsAuthMethod()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(ceremonyFailedErr{err})
 	}
 
 	sshConfig.Auth = []ssh.AuthMethod{am}
@@ -204,7 +256,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 	key, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
-		PromptMFA:         c.tc.PromptMFA,
+		MFAPrompt:         c.tc.NewMFAPrompt(),
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
 		MFARequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
 		CertsReq:          certsReq,
@@ -235,8 +287,8 @@ type PerformMFACeremonyParams struct {
 	// This is the client used to acquire the authn challenge and issue the user
 	// certificates.
 	RootAuthClient PerformMFARootClient
-	// PromptMFA is used to prompt the user for an MFA solution.
-	PromptMFA PromptMFAFunc
+	// MFAPrompt is used to prompt the user for an MFA solution.
+	MFAPrompt mfa.Prompt
 
 	// MFAAgainstRoot tells whether to run the MFA required check against root or
 	// current cluster.
@@ -294,6 +346,9 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 			ContextUser: &proto.ContextUser{},
 		},
 		MFARequiredCheck: mfaRequiredReq,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -304,9 +359,9 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 	}
 
 	// Prompt user for solution (eg, security key touch).
-	authnSolved, err := params.PromptMFA(ctx, authnChal)
+	authnSolved, err := params.MFAPrompt.Run(ctx, authnChal)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(ceremonyFailedErr{err})
 	}
 
 	// Issue certificate.

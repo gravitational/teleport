@@ -16,25 +16,7 @@ After you start a [free trial](https://goteleport.com/signup) of Teleport Team,
 you can set up role-based access control (RBAC), enable single sign-on with GitHub 
 or the Teleport identity provider, and prevent unauthorized use of organization resources.
 
-```mermaid
-flowchart LR
-subgraph team["Teleport Team cluster"]
-  direction LR
-  proxy["Teleport Proxy Service"]
-  auth["Teleport Auth Service"]
-  proxy<-.->auth
-end
-
-web["Teleport Web UI"]
-tsh["tsh client"]
-
-subgraph private["Private network"]
-  service["Teleport Services"]
-end 
-
-service-- Reverse tunnels -->proxy
-web & tsh--Client traffic-->proxy
-```
+![Teleport Team architecture diagram](../../img/team-diagram.png)
 
 <Notice type="tip">
 
@@ -84,10 +66,10 @@ To spin up a new server using Docker:
 as a resource in your Teleport Team cluster:
    
    ```code
-   $ docker run --interactive --tty ubuntu:22.10 /bin/bash
+   $ docker run --interactive --tty ubuntu:22.04 /bin/bash
    ```
    
-   This command starts a new shell session in the `ubuntu:22.10` container. 
+   This command starts a new shell session in the `ubuntu:22.04` container. 
 
 1. Run the following command to install `curl` and `telnet` from the package management repository:
    

@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package utils
 
@@ -48,7 +50,7 @@ func TestSingleBackendLB(t *testing.T) {
 
 	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 }
 
 func TestTwoBackendsLB(t *testing.T) {
@@ -76,17 +78,17 @@ func TestTwoBackendsLB(t *testing.T) {
 
 	// no endpoints
 	_, err = Roundtrip(lb.Addr().String())
-	require.NotNil(t, err)
+	require.Error(t, err)
 
 	lb.AddBackend(backend1Addr)
 	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 
 	lb.AddBackend(backend2Addr)
 	out, err = Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 2")
+	require.Equal(t, "backend 2", out)
 }
 
 func TestOneFailingBackend(t *testing.T) {
@@ -117,14 +119,14 @@ func TestOneFailingBackend(t *testing.T) {
 
 	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 
 	_, err = Roundtrip(lb.Addr().String())
-	require.NotNil(t, err)
+	require.Error(t, err)
 
 	out, err = Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 }
 
 func TestClose(t *testing.T) {
@@ -145,7 +147,7 @@ func TestClose(t *testing.T) {
 
 	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 
 	lb.Close()
 	// second close works
@@ -155,7 +157,7 @@ func TestClose(t *testing.T) {
 
 	// requests are failing
 	out, err = Roundtrip(lb.Addr().String())
-	require.NotNilf(t, err, fmt.Sprintf("output: %s, err: %v", out, err))
+	require.Error(t, err, "output: %s, err: %v", out, err)
 }
 
 func TestDropConnections(t *testing.T) {
@@ -181,18 +183,18 @@ func TestDropConnections(t *testing.T) {
 
 	out, err := RoundtripWithConn(conn)
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 
 	// to make sure multiple requests work on the same wire
 	out, err = RoundtripWithConn(conn)
 	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	require.Equal(t, "backend 1", out)
 
 	// removing backend results in dropped connection to this backend
 	err = lb.RemoveBackend(backendAddr)
 	require.NoError(t, err)
 	_, err = RoundtripWithConn(conn)
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func urlToNetAddr(u string) NetAddr {

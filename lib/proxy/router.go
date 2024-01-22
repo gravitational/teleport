@@ -1,16 +1,20 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
@@ -20,14 +24,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
-	"strconv"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -38,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -170,8 +172,6 @@ type Router struct {
 	siteGetter     SiteGetter
 	tracer         oteltrace.Tracer
 	serverResolver serverResolverFn
-	// DELETE IN 15.0.0: necessary for smoothing over v13 to v14 transition only.
-	permitUnlistedDialing bool
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -187,14 +187,13 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:           cfg.ClusterName,
-		log:                   cfg.Log,
-		clusterGetter:         cfg.RemoteClusterGetter,
-		localSite:             localSite,
-		siteGetter:            cfg.SiteGetter,
-		tracer:                cfg.TracerProvider.Tracer("Router"),
-		serverResolver:        cfg.serverResolver,
-		permitUnlistedDialing: os.Getenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING") == "yes",
+		clusterName:    cfg.ClusterName,
+		log:            cfg.Log,
+		clusterGetter:  cfg.RemoteClusterGetter,
+		localSite:      localSite,
+		siteGetter:     cfg.SiteGetter,
+		tracer:         cfg.TracerProvider.Tracer("Router"),
+		serverResolver: cfg.serverResolver,
 	}, nil
 }
 
@@ -211,9 +210,12 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 			attribute.String("cluster", clusterName),
 		),
 	)
+	connectingToNode.Inc()
 	defer func() {
 		if err != nil {
 			failedConnectingToNode.Inc()
+			span.RecordError(trace.Unwrap(err))
+			span.SetStatus(codes.Error, err.Error())
 		}
 		span.End()
 	}()
@@ -285,15 +287,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		}
 
 	} else {
-		if !r.permitUnlistedDialing {
-			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
-		}
-		if port == "" || port == "0" {
-			port = strconv.Itoa(defaults.SSHServerListenPort)
-		}
-
-		serverAddr = net.JoinHostPort(host, port)
-		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
+		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}
 
 	conn, err := site.Dial(reversetunnelclient.DialParams{
@@ -484,7 +478,7 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 // DialSite establishes a connection to the auth server in the provided
 // cluster. If the clusterName is an empty string then a connection to
 // the local auth server will be established.
-func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
+func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (_ net.Conn, err error) {
 	_, span := r.tracer.Start(
 		ctx,
 		"router/DialSite",
@@ -492,7 +486,13 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 			attribute.String("cluster", clusterName),
 		),
 	)
-	defer span.End()
+	defer func() {
+		if err != nil {
+			span.RecordError(trace.Unwrap(err))
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	// default to local cluster if one wasn't provided
 	if clusterName == "" {

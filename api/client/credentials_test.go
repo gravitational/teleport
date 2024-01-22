@@ -203,8 +203,6 @@ func TestLoadProfile(t *testing.T) {
 		require.Error(t, err)
 		_, err = creds.SSHClientConfig()
 		require.Error(t, err)
-		_, err = creds.Dialer(Config{})
-		require.Error(t, err)
 	})
 }
 
@@ -224,9 +222,6 @@ func testProfileContents(t *testing.T, dir, name string) {
 	sshConfig, err := creds.SSHClientConfig()
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
-	// Build Dialer
-	_, err = creds.Dialer(Config{})
-	require.NoError(t, err)
 }
 
 func writeProfile(t *testing.T, p *profile.Profile) {
@@ -420,6 +415,13 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	wantTLSCert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
 	require.Equal(t, wantTLSCert, *gotTLSCert)
+
+	tlsCACertPEM, _ := pem.Decode(tlsCACert)
+	tlsCACertDER, err := x509.ParseCertificate(tlsCACertPEM.Bytes)
+	require.NoError(t, err)
+	wantCertPool := x509.NewCertPool()
+	wantCertPool.AddCert(tlsCACertDER)
+	require.True(t, wantCertPool.Equal(tlsConfig.RootCAs), "tlsconfig.RootCAs mismatch")
 
 	// Generate a new TLS certificate that contains the same private key as
 	// the original.

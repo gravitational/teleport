@@ -1,18 +1,20 @@
 /*
-Copyright 2017 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -32,6 +34,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -116,7 +119,7 @@ type SessionCreds struct {
 func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	username := req.Username
 
-	mfaDev, actualUsername, err := a.authenticateUser(ctx, req)
+	verifyMFALocks, mfaDev, actualUsername, err := a.authenticateUser(ctx, req)
 	if err != nil {
 		// Log event after authentication failure
 		if err := a.emitAuthAuditEvent(ctx, authAuditProps{
@@ -161,6 +164,23 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 	accessInfo := services.AccessInfoFromUserState(userState)
 	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Verify if the MFA device is locked.
+	if err := verifyMFALocks(verifyMFADeviceLocksParams{
+		Checker: checker,
+	}); err != nil {
+		// Log MFA lock failure as an authn failure.
+		if err := a.emitAuthAuditEvent(ctx, authAuditProps{
+			username:       req.Username,
+			clientMetadata: req.ClientMetadata,
+			mfaDevice:      mfaDev,
+			checker:        checker,
+			authErr:        err,
+		}); err != nil {
+			log.WithError(err).Warn("Failed to emit login event.")
+		}
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -257,14 +277,77 @@ func IsInvalidLocalCredentialError(err error) bool {
 	return errors.Is(err, invalidUserPassError) || errors.Is(err, invalidUserPass2FError)
 }
 
+type verifyMFADeviceLocksParams struct {
+	// Checker used to verify locks.
+	// Optional, created via a [UserState] fetch if nil.
+	Checker services.AccessChecker
+
+	// ClusterLockingMode used to verify locks.
+	// Optional, acquired from [Server.GetAuthPreference] if nil.
+	ClusterLockingMode constants.LockingMode
+}
+
 // authenticateUser authenticates a user through various methods (password, MFA,
 // passwordless)
-// Returns the device used to authenticate (if applicable) and the username.
-func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
+//
+// Returns a callback to verify MFA device locks, the MFA device used to
+// authenticate (if applicable), and the authenticated user name.
+//
+// Callers MUST call the verifyLocks callback.
+func (a *Server) authenticateUser(
+	ctx context.Context,
+	req AuthenticateUserRequest,
+) (verifyLocks func(verifyMFADeviceLocksParams) error, mfaDev *types.MFADevice, user string, err error) {
+	mfaDev, user, err = a.authenticateUserInternal(ctx, req)
+	if err != nil || mfaDev == nil {
+		return func(verifyMFADeviceLocksParams) error { return nil }, mfaDev, user, trace.Wrap(err)
+	}
+
+	verifyLocks = func(p verifyMFADeviceLocksParams) error {
+		if p.Checker == nil {
+			userState, err := a.GetUserOrLoginState(ctx, user)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			accessInfo := services.AccessInfoFromUserState(userState)
+			clusterName, err := a.GetClusterName()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			p.Checker = checker
+		}
+
+		if p.ClusterLockingMode == "" {
+			authPref, err := a.GetAuthPreference(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			p.ClusterLockingMode = authPref.GetLockingMode()
+		}
+
+		// The MFA device needs to be explicitly verified, as it won't be verified
+		// as part of certificate issuance in various scenarios (password change,
+		// non-session certificates, etc)
+		return a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
+			checker:     p.Checker,
+			defaultMode: p.ClusterLockingMode,
+			username:    user,
+			mfaVerified: mfaDev.Id,
+		})
+	}
+	return verifyLocks, mfaDev, user, nil
+}
+
+// Do not use this method directly, use authenticateUser instead.
+func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateUserRequest) (mfaDev *types.MFADevice, user string, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	user := req.Username
+	user = req.Username
 	passwordless := user == ""
 
 	// Only one path if passwordless, other variants shouldn't see an empty user.
@@ -296,8 +379,8 @@ func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			dev, _, err := a.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
-			return dev, trace.Wrap(err)
+			mfaDev, _, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
+			return mfaDev, trace.Wrap(err)
 		}
 		authErr = authenticateWebauthnError
 	case req.OTP != nil:
@@ -313,10 +396,9 @@ func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		authErr = invalidUserPass2FError
 	}
 	if authenticateFn != nil {
-		var dev *types.MFADevice
 		err := a.WithUserLock(ctx, user, func() error {
 			var err error
-			dev, err = authenticateFn()
+			mfaDev, err = authenticateFn()
 			return err
 		})
 		switch {
@@ -327,13 +409,13 @@ func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			}
 
 			return nil, "", trace.Wrap(authErr)
-		case dev == nil:
+		case mfaDev == nil:
 			log.Debugf(
 				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v, Headless = %v): %v.",
 				req.Webauthn != nil, req.OTP != nil, req.HeadlessAuthenticationID != "", err)
 			return nil, "", trace.Wrap(authErr)
 		default:
-			return dev, user, nil
+			return mfaDev, user, nil
 		}
 	}
 
@@ -390,7 +472,7 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 			Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 		},
 	}
-	dev, user, err := a.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
+	dev, user, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
 	if err != nil {
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
@@ -418,12 +500,12 @@ func (a *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	}()
 
 	// this authentication requires two client callbacks to create a headless authentication
-	// stub and approve/deny the headless authentication, so we use a standard callback timeout.
-	ctx, cancel := context.WithTimeout(ctx, defaults.CallbackTimeout)
+	// stub and approve/deny the headless authentication.
+	ctx, cancel := context.WithTimeout(ctx, defaults.HeadlessLoginTimeout)
 	defer cancel()
 
 	// Headless Authentication should expire when the callback expires.
-	expires := a.clock.Now().Add(defaults.CallbackTimeout)
+	expires := a.clock.Now().Add(defaults.HeadlessLoginTimeout)
 
 	// Create the headless authentication and validate request details.
 	ha, err := types.NewHeadlessAuthentication(req.Username, req.HeadlessAuthenticationID, expires)
@@ -439,6 +521,13 @@ func (a *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	}
 
 	emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginRequestedCode, a.emitter, ha, nil)
+
+	// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
+	if conn, err := authz.ConnFromContext(ctx); err == nil {
+		if err := conn.SetWriteDeadline(a.GetClock().Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	// Headless authentication requests are made without any prior authentication. To avoid DDos
 	// attacks on the Auth server's backend, we don't create the headless authentication in the

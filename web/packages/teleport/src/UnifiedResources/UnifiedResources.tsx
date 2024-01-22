@@ -1,57 +1,57 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 
 import { Flex } from 'design';
+import { Danger } from 'design/Alert';
 
 import {
+  FilterKind,
   UnifiedResources as SharedUnifiedResources,
-  UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
+  UnifiedResourcesPinning,
 } from 'shared/components/UnifiedResources';
+import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import localStorage from 'teleport/services/localStorage';
+import { storageService } from 'teleport/services/storageService';
 import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
 import { useUrlFiltering } from 'teleport/components/hooks';
-import { UnifiedTabPreference } from 'teleport/services/userPreferences/types';
-import history from 'teleport/services/history';
-import cfg from 'teleport/config';
 import {
   FeatureHeader,
   FeatureHeaderTitle,
   FeatureBox,
 } from 'teleport/components/Layout';
+import { useContentMinWidthContext } from 'teleport/Main';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
+import { FeatureFlags } from 'teleport/types';
 
 import { ResourceActionButton } from './ResourceActionButton';
 import SearchPanel from './SearchPanel';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
-  const enabled = localStorage.areUnifiedResourcesEnabled();
-
-  if (!enabled) {
-    history.replace(cfg.getNodesRoute(clusterId));
-  }
 
   return (
     <ClusterResources
@@ -62,6 +62,31 @@ export function UnifiedResources() {
   );
 }
 
+const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
+  return [
+    {
+      kind: 'node',
+      disabled: !flags.nodes,
+    },
+    {
+      kind: 'app',
+      disabled: !flags.applications,
+    },
+    {
+      kind: 'db',
+      disabled: !flags.databases,
+    },
+    {
+      kind: 'kube_cluster',
+      disabled: !flags.kubernetes,
+    },
+    {
+      kind: 'windows_desktop',
+      disabled: !flags.desktops,
+    },
+  ];
+};
+
 function ClusterResources({
   clusterId,
   isLeafCluster,
@@ -70,8 +95,19 @@ function ClusterResources({
   isLeafCluster: boolean;
 }) {
   const teleCtx = useTeleport();
+  const flags = teleCtx.getFeatureFlags();
 
-  const pinningNotSupported = localStorage.arePinnedResourcesDisabled();
+  const { setEnforceMinWidth } = useContentMinWidthContext();
+
+  useEffect(() => {
+    setEnforceMinWidth(false);
+
+    return () => {
+      setEnforceMinWidth(true);
+    };
+  }, []);
+
+  const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
     getClusterPinnedResources,
     preferences,
@@ -79,17 +115,17 @@ function ClusterResources({
     updateClusterPinnedResources,
   } = useUser();
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
+  const [loadClusterError, setLoadClusterError] = useState('');
 
-  const { params, setParams, replaceHistory, pathname, onLabelClick } =
-    useUrlFiltering({
-      sort: {
-        fieldName: 'name',
-        dir: 'ASC',
-      },
-      pinnedOnly:
-        preferences.unifiedResourcePreferences.defaultTab ===
-        UnifiedTabPreference.Pinned,
-    });
+  const { params, setParams, replaceHistory, pathname } = useUrlFiltering({
+    sort: {
+      fieldName: 'name',
+      dir: 'ASC',
+    },
+    pinnedOnly:
+      preferences?.unifiedResourcePreferences?.defaultTab ===
+      DefaultTab.DEFAULT_TAB_PINNED,
+  });
 
   const getCurrentClusterPinnedResources = useCallback(
     () => getClusterPinnedResources(clusterId),
@@ -109,34 +145,26 @@ function ClusterResources({
   const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
-        try {
-          const response = await teleCtx.resourceService.fetchUnifiedResources(
-            clusterId,
-            {
-              search: params.search,
-              query: params.query,
-              pinnedOnly: params.pinnedOnly,
-              sort: params.sort,
-              kinds: params.kinds,
-              searchAsRoles: '',
-              limit: paginationParams.limit,
-              startKey: paginationParams.startKey,
-            },
-            signal
-          );
+        const response = await teleCtx.resourceService.fetchUnifiedResources(
+          clusterId,
+          {
+            search: params.search,
+            query: params.query,
+            pinnedOnly: params.pinnedOnly,
+            sort: params.sort,
+            kinds: params.kinds,
+            searchAsRoles: '',
+            limit: paginationParams.limit,
+            startKey: paginationParams.startKey,
+          },
+          signal
+        );
 
-          return {
-            startKey: response.startKey,
-            agents: response.agents,
-            totalCount: response.agents.length,
-          };
-        } catch (err) {
-          if (!localStorage.areUnifiedResourcesEnabled()) {
-            history.replace(cfg.getNodesRoute(clusterId));
-          } else {
-            throw err;
-          }
-        }
+        return {
+          startKey: response.startKey,
+          agents: response.agents,
+          totalCount: response.agents.length,
+        };
       },
       [
         clusterId,
@@ -172,22 +200,24 @@ function ClusterResources({
 
   return (
     <FeatureBox px={4}>
+      {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
         params={params}
         fetchResources={fetch}
         resourcesFetchAttempt={attempt}
+        unifiedResourcePreferences={preferences.unifiedResourcePreferences}
         updateUnifiedResourcesPreferences={preferences => {
           updatePreferences({ unifiedResourcePreferences: preferences });
         }}
-        availableKinds={[
-          'app',
-          'db',
-          'windows_desktop',
-          'kube_cluster',
-          'node',
-        ]}
+        availableKinds={getAvailableKindsWithAccess(flags)}
         pinning={pinning}
-        onLabelClick={onLabelClick}
+        ClusterDropdown={
+          <ClusterDropdown
+            clusterLoader={teleCtx.clusterService}
+            clusterId={clusterId}
+            onError={setLoadClusterError}
+          />
+        }
         NoResources={
           <Empty
             clusterId={clusterId}
@@ -203,13 +233,14 @@ function ClusterResources({
         }))}
         setParams={newParams => {
           setParams(newParams);
+          const isAdvancedSearch = !!newParams.query;
           replaceHistory(
             encodeUrlQueryParams(
               pathname,
-              newParams.search,
+              isAdvancedSearch ? newParams.query : newParams.search,
               newParams.sort,
               newParams.kinds,
-              !!newParams.query /* isAdvancedSearch */,
+              isAdvancedSearch,
               newParams.pinnedOnly
             )
           );

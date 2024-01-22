@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package reversetunnel
 
@@ -21,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -35,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -462,7 +466,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 		addr:               *addr,
 		keepAlive:          p.runtimeConfig.keepAliveInterval,
 		sshDialer:          dialer,
-		transporter:        p,
+		transportHandler:   p,
 		versionGetter:      p,
 		tracker:            tracker,
 		lease:              lease,
@@ -513,8 +517,13 @@ func (p *AgentPool) getVersion(ctx context.Context) (string, error) {
 	return pong.ServerVersion, nil
 }
 
-// transport creates a new transport instance.
-func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn sshutils.Conn) *transport {
+// handleTransport runs a new teleport-transport channel.
+func (p *AgentPool) handleTransport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn sshutils.Conn) {
+	if !p.IsRemoteCluster {
+		p.handleLocalTransport(ctx, channel, requests, conn)
+		return
+	}
+
 	t := &transport{
 		closeContext:         ctx,
 		component:            p.Component,
@@ -538,11 +547,63 @@ func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests
 	// the leaf proxy to track sessions that are initiated via the root cluster. Without providing
 	// the user tracker the leaf cluster metrics will be incorrect and graceful shutdown will not
 	// wait for user sessions to be terminated prior to proceeding with the shutdown operation.
-	if p.IsRemoteCluster && p.ReverseTunnelServer != nil {
+	if p.ReverseTunnelServer != nil {
 		t.trackUserConnection = p.ReverseTunnelServer.TrackUserConnection
 	}
 
-	return t
+	t.start()
+}
+
+func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channel, reqC <-chan *ssh.Request, sconn sshutils.Conn) {
+	defer channel.Close()
+	go io.Copy(io.Discard, channel.Stderr())
+
+	// the only valid teleport-transport-dial request here is to reach the local service
+	var req *ssh.Request
+	select {
+	case <-ctx.Done():
+		go ssh.DiscardRequests(reqC)
+		return
+	case <-time.After(apidefaults.DefaultIOTimeout):
+		go ssh.DiscardRequests(reqC)
+		p.log.Warn("Timed out waiting for transport dial request.")
+		return
+	case r, ok := <-reqC:
+		if !ok {
+			return
+		}
+		go ssh.DiscardRequests(reqC)
+		req = r
+	}
+
+	// sconn should never be nil, but it's sourced from the agent state and
+	// starts as nil, and the original transport code checked against it
+	if sconn == nil || p.Server == nil {
+		p.log.Error("Missing client or server (this is a bug).")
+		fmt.Fprintf(channel.Stderr(), "internal server error")
+		req.Reply(false, nil)
+		return
+	}
+
+	if err := req.Reply(true, nil); err != nil {
+		p.log.Errorf("Failed to respond to dial request: %v.", err)
+		return
+	}
+
+	var conn net.Conn = sshutils.NewChConn(sconn, channel)
+
+	dialReq := parseDialReq(req.Payload)
+	switch dialReq.Address {
+	case reversetunnelclient.LocalNode, reversetunnelclient.LocalKubernetes, reversetunnelclient.LocalWindowsDesktop:
+	default:
+		p.log.WithField("address", dialReq.Address).
+			Warn("Received dial request for unexpected address, routing to the local service anyway.")
+	}
+	if src, err := utils.ParseAddr(dialReq.ClientSrcAddr); err == nil {
+		conn = utils.NewConnWithSrcAddr(conn, getTCPAddr(src))
+	}
+
+	p.Server.HandleConnection(conn)
 }
 
 // agentPoolRuntimeConfig contains configurations dynamically set and updated

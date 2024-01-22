@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 // these constants are 1:1 with constants found in lib/usagereporter/web/userevent.go
@@ -67,6 +69,11 @@ export enum IntegrationEnrollKind {
   MachineIDGitLab = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB',
   MachineIDJenkins = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS',
   MachineIDAnsible = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE',
+  MachineIDAWS = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_AWS',
+  MachineIDGCP = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GCP',
+  MachineIDAzure = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE',
+  MachineIDSpacelift = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT',
+  MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
 }
 
 export enum DiscoverEvent {
@@ -84,6 +91,7 @@ export enum DiscoverEvent {
   EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
   EC2DeployEICE = 'tp.ui.discover.deployEICE',
   CreateNode = 'tp.ui.discover.createNode',
+  KubeEKSEnrollEvent = 'tp.ui.discover.kube.enroll.eks',
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
   TestConnection = 'tp.ui.discover.testConnection',
   Completed = 'tp.ui.discover.completed',
@@ -93,6 +101,7 @@ export enum DiscoverEvent {
 export enum DiscoverEventResource {
   Server = 'DISCOVER_RESOURCE_SERVER',
   Kubernetes = 'DISCOVER_RESOURCE_KUBERNETES',
+  KubernetesEks = 'DISCOVER_RESOURCE_KUBERNETES_EKS',
   DatabasePostgresSelfHosted = 'DISCOVER_RESOURCE_DATABASE_POSTGRES_SELF_HOSTED',
   DatabaseMysqlSelfHosted = 'DISCOVER_RESOURCE_DATABASE_MYSQL_SELF_HOSTED',
   DatabaseMongodbSelfHosted = 'DISCOVER_RESOURCE_DATABASE_MONGODB_SELF_HOSTED',
@@ -134,6 +143,7 @@ export enum DiscoverEventResource {
   ApplicationHttp = 'DISCOVER_RESOURCE_APPLICATION_HTTP',
   ApplicationTcp = 'DISCOVER_RESOURCE_APPLICATION_TCP',
   WindowsDesktop = 'DISCOVER_RESOURCE_WINDOWS_DESKTOP',
+  WindowsDesktopNonAD = 'DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD',
 
   Ec2Instance = 'DISCOVER_RESOURCE_EC2_INSTANCE',
 
@@ -226,6 +236,10 @@ export enum CtaEvent {
   CTA_TRUSTED_DEVICES = 5,
   CTA_UPGRADE_BANNER = 6,
   CTA_BILLING_SUMMARY = 7,
+  CTA_ACCESS_LIST = 8,
+  CTA_ACCESS_MONITORING = 9,
+  CTA_EXTERNAL_AUDIT_STORAGE = 10,
+  CTA_OKTA_USER_SYNC = 11,
 }
 
 export enum Feature {

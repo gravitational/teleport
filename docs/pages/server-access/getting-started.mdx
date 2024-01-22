@@ -1,7 +1,7 @@
 ---
 title: Server Access Getting Started Guide
 description: Getting started with Teleport server access.
-videoBanner: 8aiVin0LvmE
+videoBanner: LnaRP0xKWRI
 ---
 
 You can protect a server with Teleport by running the Teleport SSH Service on
@@ -144,11 +144,11 @@ configuration:
 Run the following command to create a user that can access the Teleport Web UI:
 
 ```code
-$ tctl users add myuser --roles=editor,access,reviewer --logins=root,ubuntu,ec2-user
+$ tctl users add myuser --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
 
 This will generate an initial login link where you can create a password and set
-up two-factor authentication for `myuser`.
+up multi-factor authentication for `myuser`.
 
 <Admonition type="note" title="Note">
 We've only given `myuser` the roles `editor` and `access` according to the

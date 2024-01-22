@@ -515,6 +515,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_InstanceJoin{
 			InstanceJoin: e,
 		}
+	case *BotCreate:
+		out.Event = &OneOf_BotCreate{
+			BotCreate: e,
+		}
+	case *BotUpdate:
+		out.Event = &OneOf_BotUpdate{
+			BotUpdate: e,
+		}
+	case *BotDelete:
+		out.Event = &OneOf_BotDelete{
+			BotDelete: e,
+		}
 	case *LoginRuleCreate:
 		out.Event = &OneOf_LoginRuleCreate{
 			LoginRuleCreate: e,
@@ -594,6 +606,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *SecurityReportRun:
 		out.Event = &OneOf_SecurityReportRun{
 			SecurityReportRun: e,
+		}
+	case *ExternalAuditStorageEnable:
+		out.Event = &OneOf_ExternalAuditStorageEnable{
+			ExternalAuditStorageEnable: e,
+		}
+	case *ExternalAuditStorageDisable:
+		out.Event = &OneOf_ExternalAuditStorageDisable{
+			ExternalAuditStorageDisable: e,
 		}
 
 	default:

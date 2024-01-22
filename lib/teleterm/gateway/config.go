@@ -1,23 +1,26 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package gateway
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"net"
 	"runtime"
@@ -56,13 +59,19 @@ type Config struct {
 	LocalAddress string
 	// Protocol is the gateway protocol
 	Protocol string
+	// CertPath is deprecated, use the Cert field instead.
 	// CertPath specifies the path to the user certificate that the local proxy
 	// uses to connect to the Teleport Proxy. The path may depend on the type
 	// and the parameters of the gateway.
+	// TODO(ravicious): Refactor db gateways to use Cert and support MFA.
 	CertPath string
+	// KeyPath is deprecated, use the Cert field instead.
 	// KeyPath specifies the path to the private key of the cert specified in
 	// the CertPath. This is usually the private key of the user profile.
+	// TODO(ravicious): Refactor db gateways to use Cert and support MFA.
 	KeyPath string
+	// Cert is used by the local proxy to connect to the Teleport proxy.
+	Cert tls.Certificate
 	// Insecure
 	Insecure bool
 	// ClusterName is the Teleport cluster name.
@@ -81,6 +90,8 @@ type Config struct {
 	// OnExpiredCert is called when a new downstream connection is accepted by the
 	// gateway but cannot be proxied because the cert used by the gateway has expired.
 	//
+	// Returns a fresh valid cert.
+	//
 	// Handling of the connection is blocked until OnExpiredCert returns.
 	OnExpiredCert OnExpiredCertFunc
 	// TLSRoutingConnUpgradeRequired indicates that ALPN connection upgrades
@@ -97,10 +108,51 @@ type Config struct {
 // accepted by the gateway but cannot be proxied because the cert used by the gateway has expired.
 //
 // Handling of the connection is blocked until the function returns.
-type OnExpiredCertFunc func(context.Context, Gateway) error
+type OnExpiredCertFunc func(context.Context, Gateway) (tls.Certificate, error)
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
+	switch {
+	case c.TargetURI.IsDB():
+		if c.KeyPath == "" {
+			return trace.BadParameter("missing key path")
+		}
+
+		if c.CertPath == "" {
+			return trace.BadParameter("missing cert path")
+		}
+
+		if len(c.Cert.Certificate) > 0 {
+			return trace.BadParameter("cert must not be passed for db gateways")
+		}
+	case c.TargetURI.IsKube():
+		if len(c.Cert.Certificate) == 0 {
+			return trace.BadParameter("missing cert")
+		}
+
+		if c.KeyPath != "" {
+			return trace.BadParameter("key path must not be passed for kube gateways")
+		}
+
+		if c.CertPath != "" {
+			return trace.BadParameter("cert path must not be passed for kube gateways")
+		}
+	case c.TargetURI.IsApp():
+		if len(c.Cert.Certificate) == 0 {
+			return trace.BadParameter("missing cert")
+		}
+
+		if c.KeyPath != "" {
+			return trace.BadParameter("key path must not be passed for app gateways")
+		}
+
+		if c.CertPath != "" {
+			return trace.BadParameter("cert path must not be passed for app gateways")
+		}
+	default:
+		return trace.BadParameter("unsupported gateway target %v", c.TargetURI)
+	}
+
 	if c.URI.String() == "" {
 		c.URI = uri.NewGatewayURI(uuid.NewString())
 	}

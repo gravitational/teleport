@@ -18,10 +18,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 // ProxyHandler is a http.Handler that implements a simple HTTP proxy server.
@@ -64,7 +67,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		trace.WriteError(w, trace.AccessDenied("unable to hijack connection"))
 		return
 	}
-	sconn, _, err := hj.Hijack()
+	sconn, buf, err := hj.Hijack()
 	if err != nil {
 		trace.WriteError(w, err)
 		return
@@ -83,7 +86,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		errc <- err
 	}
 	go replicate(sconn, dconn)
-	go replicate(dconn, sconn)
+	go replicate(dconn, io.MultiReader(buf, sconn))
 
 	// Wait until done, error, or 10 second.
 	select {
@@ -97,4 +100,58 @@ func (p *ProxyHandler) Count() int {
 	p.Lock()
 	defer p.Unlock()
 	return p.count
+}
+
+// Reset sets the counter for proxied requests to zero.
+func (p *ProxyHandler) Reset() {
+	p.Lock()
+	defer p.Unlock()
+	p.count = 0
+}
+
+// GetLocalIP gets the non-loopback IP address of this host.
+func GetLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		default:
+			continue
+		}
+		if !ip.IsLoopback() && ip.IsPrivate() {
+			return ip.String(), nil
+		}
+	}
+	return "", trace.NotFound("No non-loopback local IP address found")
+}
+
+type TestServerOption func(*testing.T, *httptest.Server)
+
+func WithTestServerAddress(ip string) TestServerOption {
+	return func(t *testing.T, srv *httptest.Server) {
+		// Replace the test server's address.
+		_, originalPort, err := net.SplitHostPort(srv.Listener.Addr().String())
+		require.NoError(t, err)
+		require.NoError(t, srv.Listener.Close())
+		l, err := net.Listen("tcp", net.JoinHostPort(ip, originalPort))
+		require.NoError(t, err)
+		srv.Listener = l
+	}
+}
+
+func MakeTestServer(t *testing.T, h http.Handler, opts ...TestServerOption) *httptest.Server {
+	svr := httptest.NewUnstartedServer(h)
+	for _, opt := range opts {
+		opt(t, svr)
+	}
+	svr.StartTLS()
+	t.Cleanup(svr.Close)
+	return svr
 }

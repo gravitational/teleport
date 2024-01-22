@@ -1,20 +1,22 @@
 /**
- * Copyright 2021-2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useState } from 'react';
 import { Box, ButtonSecondary, ButtonPrimary, Text, Image, Flex } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
@@ -114,7 +116,7 @@ function PromptCredential({
 }
 
 function PromptPin({ onCancel, onUserResponse, processing }: Props) {
-  const [pin, setPin] = React.useState('');
+  const [pin, setPin] = useState('');
 
   return (
     <Validation>
@@ -161,11 +163,17 @@ function ActionButtons({
   };
 }) {
   return (
-    <Flex justifyContent="flex-end" mt={4}>
+    <Flex justifyContent="flex-start" mt={4}>
+      {/*
+        Generally, every other modal in the app with a "Cancel" button has the button to the right
+        of the button like "Next".
+
+        However, when using a hardware key with a PIN, the user goes through a series of steps where
+        the "Cancel" key is always present. The "Next" button is present only when entering the PIN,
+        so it makes sense to show it to the right of the "Cancel" button.
+      */}
       <ButtonSecondary
         type="button"
-        width={80}
-        size="small"
         onClick={onCancel}
         mr={nextButton.isVisible ? 3 : 0}
       >
@@ -174,12 +182,7 @@ function ActionButtons({
       {/* The caller of this component needs to handle wrapping
       this in a <form> element to handle `onSubmit` event on enter key*/}
       {nextButton.isVisible && (
-        <ButtonPrimary
-          type="submit"
-          width={80}
-          size="small"
-          disabled={nextButton.isDisabled}
-        >
+        <ButtonPrimary type="submit" disabled={nextButton.isDisabled}>
           Next
         </ButtonPrimary>
       )}

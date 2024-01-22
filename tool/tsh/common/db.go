@@ -1,18 +1,20 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -24,6 +26,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -33,12 +36,12 @@ import (
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -94,7 +97,7 @@ func onListDatabases(cf *CLIConf) error {
 	}
 
 	sort.Sort(types.Databases(databases))
-	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, accessChecker, cf.Format, cf.Verbose))
+	return trace.Wrap(showDatabases(cf, databases, activeDatabases, accessChecker))
 }
 
 func accessCheckerForRemoteCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.AccessChecker, error) {
@@ -230,7 +233,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		printDatabasesWithClusters(cf.SiteName, dbListings, active, cf.Verbose)
+		printDatabasesWithClusters(cf, dbListings, active)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeDatabasesAllClusters(dbListings, format)
 		if err != nil {
@@ -322,6 +325,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 					Protocol:    dbInfo.Protocol,
 					Username:    dbInfo.Username,
 					Database:    dbInfo.Database,
+					Roles:       dbInfo.Roles,
 				},
 				AccessRequests: profile.ActiveRequests.AccessRequests,
 			})
@@ -329,6 +333,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		}); err != nil {
 			return trace.Wrap(err)
 		}
+
 		if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
 			return trace.Wrap(err)
 		}
@@ -349,6 +354,13 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if len(dbInfo.Roles) > 0 {
+		if route, ok := findActiveDatabase(dbInfo.ServiceName, profile.Databases); ok && len(route.Roles) == 0 {
+			fmt.Fprintf(cf.Stdout(), "Warning. Selected db roles %v are not issued by the Teleport Cluster and all assigned database roles will be used instead. This is likely due to your Teleport Cluster running an older version that doesn't support this feature.\n\n", dbInfo.Roles)
+		}
+	}
+
 	// Update the database-specific connection profile file.
 	err = dbprofile.Add(cf.Context, tc, dbInfo.RouteToDatabase, *profile)
 	return trace.Wrap(err)
@@ -837,6 +849,13 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 	return info, nil
 }
 
+func requestedDatabaseRoles(cf *CLIConf) []string {
+	if cf.DatabaseRoles == "" {
+		return nil
+	}
+	return strings.Split(cf.DatabaseRoles, ",")
+}
+
 // checkAndSetDefaults checks the db route, applies cli flags, and sets defaults.
 func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClient) error {
 	if d.ServiceName == "" {
@@ -847,6 +866,9 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 	}
 	if cf.DatabaseName != "" {
 		d.Database = cf.DatabaseName
+	}
+	if dbRoles := requestedDatabaseRoles(cf); len(dbRoles) > 0 {
+		d.Roles = dbRoles
 	}
 	db, err := d.GetDatabase(cf.Context, tc)
 	if err != nil {
@@ -1122,7 +1144,10 @@ func getDefaultDBUser(db types.Database, checker services.AccessChecker) (string
 		// ref: https://redis.io/commands/auth
 		extraUsers = append(extraUsers, defaults.DefaultRedisUsername)
 	}
-	dbUsers := checker.EnumerateDatabaseUsers(db, extraUsers...)
+	dbUsers, err := checker.EnumerateDatabaseUsers(db, extraUsers...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	allowed := dbUsers.Allowed()
 	if len(allowed) == 1 {
 		return allowed[0], nil
@@ -1256,7 +1281,8 @@ func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.
 
 // dbInfoHasChanged checks if cliConf.DatabaseUser or cliConf.DatabaseName info has changed in the user database certificate.
 func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
-	if cf.DatabaseUser == "" && cf.DatabaseName == "" {
+	dbRoles := requestedDatabaseRoles(cf)
+	if cf.DatabaseUser == "" && cf.DatabaseName == "" && len(dbRoles) == 0 {
 		return false, nil
 	}
 
@@ -1279,6 +1305,11 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 	}
 	if cf.DatabaseName != "" && cf.DatabaseName != identity.RouteToDatabase.Database {
 		log.Debugf("Will reissue database certificate for database name %s (was %s)", cf.DatabaseName, identity.RouteToDatabase.Database)
+		return true, nil
+	}
+
+	if !apiutils.ContainSameUniqueElements(dbRoles, identity.RouteToDatabase.Roles) {
+		log.Debugf("Will reissue database certificate for database roles %v (was %v)", dbRoles, identity.RouteToDatabase.Roles)
 		return true, nil
 	}
 	return false, nil
@@ -1664,7 +1695,7 @@ func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs type
 	var checker services.AccessChecker
 	var sb strings.Builder
 	verbose := true
-	showDatabasesAsText(&sb, cf.SiteName, matchedDBs, activeDBs, checker, verbose)
+	showDatabasesAsText(cf, &sb, matchedDBs, activeDBs, checker, verbose)
 
 	listCommand := formatDatabaseListCommand(cf.SiteName)
 	fullNameExample := matchedDBs[0].GetName()

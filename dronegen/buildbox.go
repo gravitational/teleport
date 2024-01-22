@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
@@ -63,6 +67,11 @@ func buildboxPipelineSteps() []step {
 }
 
 func buildboxPipelineStep(buildboxName string, fips bool) step {
+	var buildboxTagSuffix string
+	if buildboxName == "buildbox-centos7" {
+		// Drone-managed buildboxes are only amd64
+		buildboxTagSuffix = "-amd64"
+	}
 	if fips {
 		buildboxName += "-fips"
 	}
@@ -72,19 +81,21 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 		Pull:    "if-not-exists",
 		Volumes: []volumeRef{volumeRefAwsConfig, volumeRefDocker, volumeRefDockerConfig},
 		Commands: []string{
-			`apk add --no-cache make aws-cli`,
+			`apk add --no-cache make aws-cli go`,
 			`chown -R $UID:$GID /go`,
 			// Authenticate to staging registry
 			`aws ecr get-login-password --profile staging --region=us-west-2 | docker login -u="AWS" --password-stdin ` + StagingRegistry,
 			// Build buildbox image
 			fmt.Sprintf(`make -C build.assets %s`, buildboxName),
 			// Retag for staging registry
-			fmt.Sprintf(`docker tag %s/gravitational/teleport-%s:$BUILDBOX_VERSION %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, ProductionRegistry, buildboxName, StagingRegistry, buildboxName),
+			fmt.Sprintf(`docker tag %s/gravitational/teleport-%s:$BUILDBOX_VERSION%s %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, GitHubRegistry, buildboxName, buildboxTagSuffix, StagingRegistry, buildboxName),
 			// Push to staging registry
 			fmt.Sprintf(`docker push %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, StagingRegistry, buildboxName),
 			// Authenticate to production registry
 			`docker logout ` + StagingRegistry,
 			`aws ecr-public get-login-password --profile production --region=us-east-1 | docker login -u="AWS" --password-stdin ` + ProductionRegistry,
+			// Retag for production registry
+			fmt.Sprintf(`docker tag %s/gravitational/teleport-%s:$BUILDBOX_VERSION%s %s/gravitational/teleport-%s:$BUILDBOX_VERSION`, GitHubRegistry, buildboxName, buildboxTagSuffix, ProductionRegistry, buildboxName),
 			// Push to production registry
 			fmt.Sprintf(`docker push %s/gravitational/teleport-%s:$BUILDBOX_VERSION`, ProductionRegistry, buildboxName),
 		},

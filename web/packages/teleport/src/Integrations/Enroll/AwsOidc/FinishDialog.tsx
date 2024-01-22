@@ -1,20 +1,23 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
+import { Location } from 'history';
 import { useLocation } from 'react-router';
 import { Link } from 'react-router-dom';
 import { CircleCheck } from 'design/Icon';
@@ -31,7 +34,6 @@ import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 
 export function FinishDialog({ integration }: { integration: Integration }) {
   const location = useLocation<DiscoverUrlLocationState>();
-
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -40,7 +42,7 @@ export function FinishDialog({ integration }: { integration: Integration }) {
       open={true}
     >
       <DialogHeader css={{ margin: '0 auto' }}>
-        <CircleCheck mb={4} size={60} color="success" />
+        <CircleCheck mb={4} size={60} color="success.main" />
       </DialogHeader>
       <DialogContent>
         <Text textAlign="center">
@@ -48,35 +50,61 @@ export function FinishDialog({ integration }: { integration: Integration }) {
         </Text>
       </DialogContent>
       <DialogFooter css={{ margin: '0 auto' }}>
-        {location.state?.discover ? (
-          <ButtonPrimary
-            size="large"
-            as={Link}
-            to={{
-              pathname: cfg.routes.discover,
-              state: {
-                integration,
-                discover: location.state.discover,
-              },
-            }}
-          >
-            Begin AWS Resource Enrollment
-          </ButtonPrimary>
-        ) : (
-          <Flex gap="3">
-            <ButtonPrimary as={Link} to={cfg.routes.integrations} size="large">
-              Go to Integration List
-            </ButtonPrimary>
-            <ButtonSecondary
-              as={Link}
-              to={cfg.getIntegrationEnrollRoute(null)}
-              size="large"
-            >
-              Add Another Integration
-            </ButtonSecondary>
-          </Flex>
-        )}
+        <FooterButton location={location} integration={integration} />
       </DialogFooter>
     </Dialog>
+  );
+}
+
+function FooterButton({
+  location,
+  integration,
+}: {
+  location: Location<any>;
+  integration: Integration;
+}): React.ReactElement {
+  if (location.state?.discover) {
+    return (
+      <ButtonPrimary
+        size="large"
+        as={Link}
+        to={{
+          pathname: cfg.routes.discover,
+          state: {
+            integration,
+            discover: location.state.discover,
+          },
+        }}
+      >
+        Begin AWS Resource Enrollment
+      </ButtonPrimary>
+    );
+  }
+
+  if (location.state?.integration) {
+    return (
+      <ButtonPrimary
+        size="large"
+        as={Link}
+        to={cfg.getIntegrationEnrollRoute(location.state.integration.kind)}
+      >
+        {location.state.integration?.redirectText || `Back to integration`}
+      </ButtonPrimary>
+    );
+  }
+
+  return (
+    <Flex gap="3">
+      <ButtonPrimary as={Link} to={cfg.routes.integrations} size="large">
+        Go to Integration List
+      </ButtonPrimary>
+      <ButtonSecondary
+        as={Link}
+        to={cfg.getIntegrationEnrollRoute(null)}
+        size="large"
+      >
+        Add Another Integration
+      </ButtonSecondary>
+    </Flex>
   );
 }

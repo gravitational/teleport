@@ -1,21 +1,23 @@
-/*
-Copyright 2019-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
-import { Card, ButtonPrimary, Flex, Box } from 'design';
+import { ButtonPrimary, Flex, Box, ButtonSecondary } from 'design';
 import * as Alerts from 'design/Alert';
 
 import useAttempt from 'shared/hooks/useAttempt';
@@ -37,8 +39,10 @@ function FormPassword(props: Props) {
   const {
     onChangePassWithWebauthn,
     onChangePass,
+    onCancel,
     auth2faType = 'off',
     preferredMfaType,
+    showCancel,
   } = props;
   const mfaEnabled = auth2faType !== 'off';
 
@@ -107,7 +111,7 @@ function FormPassword(props: Props) {
   return (
     <Validation>
       {({ validator }) => (
-        <Card as="form" width="456px" p="6">
+        <form>
           <Status attempt={attempt} />
           <FieldInput
             rule={requiredField('Current Password is required')}
@@ -119,7 +123,7 @@ function FormPassword(props: Props) {
           />
           {mfaEnabled && (
             <Flex alignItems="flex-end" mb={4}>
-              <Box width="50%" data-testid="mfa-select">
+              <Box width="60%" data-testid="mfa-select">
                 <FieldSelect
                   label="Two-factor Type"
                   value={mfaType}
@@ -130,7 +134,7 @@ function FormPassword(props: Props) {
                   isDisabled={isProcessing}
                 />
               </Box>
-              <Box width="50%">
+              <Box width="40%">
                 {mfaType.value === 'otp' && (
                   <FieldInput
                     label="Authenticator Code"
@@ -162,16 +166,26 @@ function FormPassword(props: Props) {
             type="password"
             placeholder="Confirm Password"
           />
-          <ButtonPrimary
-            block
-            disabled={isProcessing}
-            size="large"
-            onClick={e => onSubmit(e, validator)}
-            mt={5}
-          >
-            Update Password
-          </ButtonPrimary>
-        </Card>
+          <Flex mt={5} gap={5}>
+            <ButtonPrimary
+              block
+              disabled={isProcessing}
+              size="large"
+              onClick={e => onSubmit(e, validator)}
+            >
+              Update Password
+            </ButtonPrimary>
+            {showCancel && (
+              <ButtonSecondary
+                disabled={isProcessing}
+                size="large"
+                onClick={onCancel}
+              >
+                Cancel
+              </ButtonSecondary>
+            )}
+          </Flex>
+        </form>
       )}
     </Validation>
   );
@@ -196,8 +210,10 @@ type StatusProps = {
 type Props = {
   auth2faType?: Auth2faType;
   preferredMfaType?: PreferredMfaType;
+  showCancel?: boolean;
   onChangePass(oldPass: string, newPass: string, token: string): Promise<any>;
   onChangePassWithWebauthn(oldPass: string, newPass: string): Promise<any>;
+  onCancel?(): void;
 };
 
 export default FormPassword;

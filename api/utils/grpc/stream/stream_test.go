@@ -79,14 +79,14 @@ func TestReadWriter_Write(t *testing.T) {
 		defer wg.Done()
 		n, err := streamConn.Write(data)
 		assert.NoError(t, err)
-		assert.Equal(t, len(data), n)
+		assert.Len(t, data, n)
 	}()
 	go func() {
 		defer wg.Done()
 		b := make([]byte, 2*MaxChunkSize)
 		n, err := local.Read(b)
 		assert.NoError(t, err)
-		assert.Equal(t, len(data), n)
+		assert.Len(t, data, n)
 		assert.Equal(t, data, b[:n])
 	}()
 
@@ -103,7 +103,7 @@ func TestReadWriter_WriteChunk(t *testing.T) {
 		defer wg.Done()
 		n, err := streamConn.Write(data)
 		assert.NoError(t, err)
-		assert.Equal(t, len(data), n)
+		assert.Len(t, data, n)
 	}()
 	go func() {
 		defer wg.Done()
@@ -133,14 +133,14 @@ func TestReadWriter_Read(t *testing.T) {
 		defer wg.Done()
 		n, err := streamConn.Read(b)
 		assert.NoError(t, err)
-		assert.Equal(t, len(data), n)
+		assert.Len(t, data, n)
 		assert.Equal(t, data, b[:n])
 	}()
 	go func() {
 		defer wg.Done()
 		n, err := local.Write(data)
 		assert.NoError(t, err)
-		assert.Equal(t, len(data), n)
+		assert.Len(t, data, n)
 	}()
 
 	wg.Wait()

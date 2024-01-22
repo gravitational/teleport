@@ -1,21 +1,26 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package daemon
 
 import (
 	"context"
+	"crypto/tls"
 	"os/exec"
 	"sync"
 	"time"
@@ -26,15 +31,18 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
+	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
@@ -217,7 +225,14 @@ func (s *Service) ResolveCluster(path string) (*clusters.Cluster, *client.Telepo
 // worry about parsing URIs and can assume they are correct.
 func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	cluster, clusterClient, err := s.cfg.Storage.GetByResourceURI(uri)
-	return cluster, clusterClient, trace.Wrap(err)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
+	// Those RPCs assume that the default CLI prompt is in use.
+	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI.String())
+	return cluster, clusterClient, nil
 }
 
 // ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
@@ -289,6 +304,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
+		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -307,8 +323,9 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
-// reissueGatewayCerts tries to reissue gateway certs.
-func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) error {
+// reissueGatewayCerts tries to reissue gateway certs. It handles asking the user to relogin and
+// per-session MFA checks.
+func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (tls.Certificate, error) {
 	reloginReq := &api.ReloginRequest{
 		RootClusterUri: g.TargetURI().GetClusterURI().String(),
 		Reason: &api.ReloginRequest_GatewayCertExpired{
@@ -319,17 +336,19 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 		},
 	}
 
-	reissueDBCerts := func() error {
+	var cert tls.Certificate
+
+	reissueGatewayCerts := func() error {
 		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := cluster.ReissueGatewayCerts(ctx, g); err != nil {
+		cert, err = cluster.ReissueGatewayCerts(ctx, g)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		return trace.Wrap(g.ReloadCert())
+		return nil
 	}
 
 	// If the gateway certs have expired but the user cert is active,
@@ -338,7 +357,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	if err := s.retryWithRelogin(ctx, reloginReq, reissueDBCerts); err != nil {
+	if err := s.retryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
 		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
@@ -353,10 +372,10 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
-		return trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	return nil
+	return cert, nil
 }
 
 // RemoveGateway removes cluster gateway
@@ -426,6 +445,10 @@ func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, erro
 
 	case targetURI.IsKube():
 		cmd, err := cmd.NewKubeCLICommand(gateway)
+		return cmd, trace.Wrap(err)
+
+	case targetURI.IsApp():
+		cmd, err := cmd.NewAppCLICommand(gateway)
 		return cmd, trace.Wrap(err)
 
 	default:
@@ -532,6 +555,74 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		Roles:           response.RequestableRoles,
 		ApplicableRoles: response.ApplicableRolesForResources,
 	}, nil
+}
+
+// PromoteAccessRequest promotes an access request to an access list.
+func (s *Service) PromoteAccessRequest(ctx context.Context, rootClusterURI uri.ResourceURI, req *accesslistv1.AccessRequestPromoteRequest) (*clusters.AccessRequest, error) {
+	cluster, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response *clusters.AccessRequest
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		promoteResponse, err := authClient.AccessListClient().AccessRequestPromote(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		accessRequest := promoteResponse.AccessRequest
+		response = &clusters.AccessRequest{
+			URI:           cluster.URI.AppendAccessRequest(accessRequest.GetName()),
+			AccessRequest: accessRequest,
+		}
+		return nil
+	})
+
+	return response, trace.Wrap(err)
+}
+
+// GetSuggestedAccessLists returns suggested access lists for an access request.
+func (s *Service) GetSuggestedAccessLists(ctx context.Context, rootClusterURI uri.ResourceURI, accessRequestID string) ([]*accesslist.AccessList, error) {
+	_, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var response []*accesslist.AccessList
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		accessLists, err := authClient.AccessListClient().GetSuggestedAccessLists(ctx, accessRequestID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		response = accessLists
+		return nil
+	})
+
+	return response, trace.Wrap(err)
 }
 
 // GetAccessRequests returns all access requests with filtered input
@@ -763,12 +854,12 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 }
 
 // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes.
-func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (*connectmycomputer.NodeToken, error) {
+func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (string, error) {
 	cluster, clusterClient, err := s.ResolveCluster(rootClusterUri)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
-	var nodeToken *connectmycomputer.NodeToken
+	var nodeToken string
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
@@ -917,6 +1008,88 @@ func (s *Service) ListUnifiedResources(ctx context.Context, clusterURI uri.Resou
 	})
 
 	return resources, trace.Wrap(err)
+}
+
+// GetUserPreferences returns the preferences for a given user.
+func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.ResourceURI) (*api.UserPreferences, error) {
+	_, rootClusterClient, err := s.ResolveClusterURI(clusterURI.GetRootClusterURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	leafClusterName := clusterURI.GetLeafClusterName()
+
+	var preferences *api.UserPreferences
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := rootClusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootAuthClient.Close()
+
+		var leafAuthClient auth.ClientI
+		if leafClusterName != "" {
+			leafAuthClient, err = proxyClient.ConnectToCluster(ctx, leafClusterName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer leafAuthClient.Close()
+		}
+
+		preferences, err = userpreferences.Get(ctx, rootAuthClient, leafAuthClient)
+		return trace.Wrap(err)
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return preferences, nil
+}
+
+// UpdateUserPreferences updates the preferences for a given user.
+func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.ResourceURI, newPreferences *api.UserPreferences) (*api.UserPreferences, error) {
+	_, rootClusterClient, err := s.ResolveClusterURI(clusterURI.GetRootClusterURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	leafClusterName := clusterURI.GetLeafClusterName()
+
+	var preferences *api.UserPreferences
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := rootClusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootAuthClient.Close()
+
+		var leafAuthClient auth.ClientI
+		if leafClusterName != "" {
+			leafAuthClient, err = proxyClient.ConnectToCluster(ctx, leafClusterName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer leafAuthClient.Close()
+		}
+
+		preferences, err = userpreferences.Update(ctx, rootAuthClient, leafAuthClient, newPreferences)
+		return trace.Wrap(err)
+	})
+
+	return preferences, trace.Wrap(err)
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {

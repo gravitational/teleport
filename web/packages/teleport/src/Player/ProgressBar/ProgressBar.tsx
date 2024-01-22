@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 import styled from 'styled-components';
@@ -23,8 +25,12 @@ import Slider from './Slider';
 export default function ProgressBar(props: ProgressBarProps) {
   const Icon = props.isPlaying ? Icons.CirclePause : Icons.CirclePlay;
   return (
-    <StyledProgessBar style={props.style} id={props.id}>
-      <ActionButton onClick={props.toggle}>
+    <StyledProgessBar
+      style={props.style}
+      id={props.id}
+      disabled={props.disabled}
+    >
+      <ActionButton onClick={props.toggle} disabled={props.disabled}>
         <Icon />
       </ActionButton>
       <PlaySpeedSelector onChange={props.onPlaySpeedChange} />
@@ -34,7 +40,9 @@ export default function ProgressBar(props: ProgressBarProps) {
           min={props.min}
           max={props.max}
           value={props.current}
-          onChange={props.move}
+          disabled={props.disabled}
+          onBeforeChange={props.onStartMove}
+          onAfterChange={props.move}
           defaultValue={1}
           withBars
           className="grv-slider"
@@ -65,13 +73,15 @@ function Restart(props: { onRestart?: () => void }) {
 export type ProgressBarProps = {
   max: number;
   min: number;
-  time: any;
+  time: string;
   isPlaying: boolean;
+  disabled?: boolean;
   current: number;
   move: (value: any) => void;
   toggle: () => void;
   style?: React.CSSProperties;
   id?: string;
+  onStartMove?: () => void;
   onPlaySpeedChange?: (newSpeed: number) => void;
   onRestart?: () => void;
 };
@@ -138,11 +148,17 @@ const ActionButton = styled.button`
     color: ${props => props.theme.colors.text.main};
   }
 
-  &:hover {
+  &:disabled {
+    .icon {
+      color: ${props => props.theme.colors.text.disabled};
+    }
+  }
+
+  &:hover:enabled {
     opacity: 1;
 
     .icon {
-      color: ${props => props.theme.colors.success};
+      color: ${props => props.theme.colors.success.main};
     }
   }
 
@@ -171,7 +187,11 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .handle {
-    background-color: ${props => props.theme.colors.text.main};
+    background-color: ${props =>
+      props.disabled
+        ? props.theme.colors.text.main
+        : props.theme.colors.success.main};
+
     border-radius: 200px;
     box-shadow: 0 0 4px rgba(0, 0, 0, 0.12), 0 4px 4px rgba(0, 0, 0, 0.24);
     width: 16px;
@@ -181,11 +201,17 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .bar-0 {
-    background-color: ${props => props.theme.colors.success};
+    background-color: ${props =>
+      props.disabled
+        ? props.theme.colors.text.disabled
+        : props.theme.colors.success.main};
     box-shadow: none;
   }
 
   .grv-slider .bar-1 {
-    background-color: ${props => props.theme.colors.spotBackground[2]};
+    background-color: ${props =>
+      props.disabled
+        ? props.theme.colors.text.disabled
+        : props.theme.colors.spotBackground[2]};
   }
 `;

@@ -40,4 +40,12 @@ message Spec {
 
   // user_type is the type of user this state represents.
   string user_type = 3;
+
+  // original_roles are the user roles that are part of the user's static definition. These roles are
+  // not affected by access granted by access lists and are obtained prior to granting access list access.
+  repeated string original_roles = 4;
+
+  // original_traits are the user traits that are part of the user's static definition. These traits are
+  // not affected by access granted by access lists and are obtained prior to granting access list access.
+  repeated teleport.trait.v1.Trait original_traits = 5;
 }

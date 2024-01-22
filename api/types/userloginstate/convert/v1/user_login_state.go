@@ -33,9 +33,11 @@ func FromProto(msg *userloginstatev1.UserLoginState) (*userloginstate.UserLoginS
 	}
 
 	uls, err := userloginstate.New(headerv1.FromMetadataProto(msg.Header.Metadata), userloginstate.Spec{
-		Roles:    msg.Spec.Roles,
-		Traits:   traitv1.FromProto(msg.Spec.Traits),
-		UserType: types.UserType(msg.Spec.UserType),
+		OriginalRoles:  msg.Spec.GetOriginalRoles(),
+		OriginalTraits: traitv1.FromProto(msg.Spec.OriginalTraits),
+		Roles:          msg.Spec.Roles,
+		Traits:         traitv1.FromProto(msg.Spec.Traits),
+		UserType:       types.UserType(msg.Spec.UserType),
 	})
 
 	return uls, trace.Wrap(err)
@@ -46,9 +48,11 @@ func ToProto(uls *userloginstate.UserLoginState) *userloginstatev1.UserLoginStat
 	return &userloginstatev1.UserLoginState{
 		Header: headerv1.ToResourceHeaderProto(uls.ResourceHeader),
 		Spec: &userloginstatev1.Spec{
-			Roles:    uls.GetRoles(),
-			Traits:   traitv1.ToProto(uls.GetTraits()),
-			UserType: string(uls.Spec.UserType),
+			OriginalRoles:  uls.GetOriginalRoles(),
+			OriginalTraits: traitv1.ToProto(uls.GetOriginalTraits()),
+			Roles:          uls.GetRoles(),
+			Traits:         traitv1.ToProto(uls.GetTraits()),
+			UserType:       string(uls.Spec.UserType),
 		},
 	}
 }

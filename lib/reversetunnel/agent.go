@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package reversetunnel sets up persistent reverse tunnel
 // between remote site and teleport proxy, when site agents
@@ -60,10 +62,10 @@ const (
 // AgentStateCallback is called when an agent's state changes.
 type AgentStateCallback func(AgentState)
 
-// transporter handles the creation of new transports over ssh.
-type transporter interface {
-	// Transport creates a new transport.
-	transport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) *transport
+// transportHandler handles the creation of new transports over ssh.
+type transportHandler interface {
+	// handleTransport runs the receiver of a teleport-transport channel.
+	handleTransport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn)
 }
 
 // sshDialer is an ssh dialer that returns an SSHClient
@@ -100,8 +102,8 @@ type agentConfig struct {
 	stateCallback AgentStateCallback
 	// sshDialer creates a new ssh connection.
 	sshDialer sshDialer
-	// transporter creates a new transport.
-	transporter transporter
+	// transportHandler handles teleport-transport channels.
+	transportHandler transportHandler
 	// versionGetter gets the connected auth server version.
 	versionGetter versionGetter
 	// tracker tracks existing proxies.
@@ -128,8 +130,8 @@ func (c *agentConfig) checkAndSetDefaults() error {
 	if c.sshDialer == nil {
 		return trace.BadParameter("missing parameter sshDialer")
 	}
-	if c.transporter == nil {
-		return trace.BadParameter("missing parameter transporter")
+	if c.transportHandler == nil {
+		return trace.BadParameter("missing parameter transportHandler")
 	}
 	if c.versionGetter == nil {
 		return trace.BadParameter("missing parameter versionGetter")
@@ -577,12 +579,10 @@ func (a *agent) handleDrainChannels() error {
 				continue
 			}
 
-			t := a.transporter.transport(a.ctx, ch, req, a.client)
-
 			a.drainWG.Add(1)
 			go func() {
-				t.start()
-				a.drainWG.Done()
+				defer a.drainWG.Done()
+				a.transportHandler.handleTransport(a.ctx, ch, req, a.client)
 			}()
 
 		}

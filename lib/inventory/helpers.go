@@ -1,24 +1,24 @@
 /*
-Copyright 2022 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package inventory
 
 import (
-	"sync/atomic"
-	"time"
-
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -31,26 +31,3 @@ var (
 	halfJitter    = retryutils.NewShardedHalfJitter()
 	fullJitter    = retryutils.NewShardedFullJitter()
 )
-
-// ninthRampingJitter modifies a jitter, applying a linear ramp-up effect to a jitter s.t. the
-// first ~n jitters ramp up linearly from 1/9th the base duration to the full base duration.
-// For example, say an operation typically uses FullJitter(5m) for backoff. Applying this
-// modifier with n=100 would cause the first backoff to be on the range of 0-45s, the 50th
-// backoff to be on the range of 0-3m, and so on, with the jitter behaving normally after the
-// first 100 calls.
-//
-// The actual use-case here is pretty niche, we currently only use this for one thing: having
-// the first few hundred inventory connections have a shorter initial announce period. This is
-// a placeholder until we can get proper dynamically scaling announce rates in place.
-func ninthRampingJitter(n uint64, jitter retryutils.Jitter) retryutils.Jitter {
-	var counter atomic.Uint64
-	n = n * 9 / 8
-	counter.Store(n / 9)
-	return func(d time.Duration) time.Duration {
-		c := counter.Add(1)
-		if c < n {
-			d = (d * time.Duration(c)) / time.Duration(n)
-		}
-		return jitter(d)
-	}
-}

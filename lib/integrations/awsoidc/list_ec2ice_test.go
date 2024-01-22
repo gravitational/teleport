@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package awsoidc
 
@@ -97,38 +99,41 @@ func TestListEC2ICE(t *testing.T) {
 
 		// First page must return pageSize number of Endpoints
 		resp, err := ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
-			VPCID:     "vpc-123",
+			VPCIDs:    []string{"vpc-123"},
 			Region:    "us-east-1",
 			NextToken: "",
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, resp.NextToken)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/vpcconsole/home?#Endpoints:v=3;vpcEndpointType=EC2%20Instance%20Connect%20Endpoint", resp.DashboardLink)
 		require.Len(t, resp.EC2ICEs, pageSize)
 		nextPageToken := resp.NextToken
-		require.Equal(t, resp.EC2ICEs[0].SubnetID, "subnet-0")
+		require.Equal(t, "subnet-0", resp.EC2ICEs[0].SubnetID)
 
 		// Second page must return pageSize number of Endpoints
 		resp, err = ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
-			VPCID:     "vpc-abc",
+			VPCIDs:    []string{"vpc-abc"},
 			Region:    "us-east-1",
 			NextToken: nextPageToken,
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, resp.NextToken)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/vpcconsole/home?#Endpoints:v=3;vpcEndpointType=EC2%20Instance%20Connect%20Endpoint", resp.DashboardLink)
 		require.Len(t, resp.EC2ICEs, pageSize)
 		nextPageToken = resp.NextToken
-		require.Equal(t, resp.EC2ICEs[0].SubnetID, "subnet-100")
+		require.Equal(t, "subnet-100", resp.EC2ICEs[0].SubnetID)
 
 		// Third page must return only the remaining Endpoints and an empty nextToken
 		resp, err = ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
-			VPCID:     "vpc-abc",
+			VPCIDs:    []string{"vpc-abc"},
 			Region:    "us-east-1",
 			NextToken: nextPageToken,
 		})
 		require.NoError(t, err)
 		require.Empty(t, resp.NextToken)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/vpcconsole/home?#Endpoints:v=3;vpcEndpointType=EC2%20Instance%20Connect%20Endpoint", resp.DashboardLink)
 		require.Len(t, resp.EC2ICEs, 3)
-		require.Equal(t, resp.EC2ICEs[0].SubnetID, "subnet-200")
+		require.Equal(t, "subnet-200", resp.EC2ICEs[0].SubnetID)
 	})
 
 	for _, tt := range []struct {
@@ -141,12 +146,13 @@ func TestListEC2ICE(t *testing.T) {
 		{
 			name: "valid for listing endpoints",
 			req: ListEC2ICERequest{
-				VPCID:     "vpc-abcd",
+				VPCIDs:    []string{"vpc-abcd"},
 				Region:    "us-east-1",
 				NextToken: "",
 			},
 			mockEndpoints: []ec2Types.Ec2InstanceConnectEndpoint{{
 				SubnetId:                  aws.String("subnet-123"),
+				VpcId:                     aws.String("vpc-abcd"),
 				InstanceConnectEndpointId: aws.String("ice-name"),
 				State:                     "create-complete",
 				StateMessage:              aws.String("success message"),
@@ -154,14 +160,16 @@ func TestListEC2ICE(t *testing.T) {
 			},
 			respCheck: func(t *testing.T, ldr *ListEC2ICEResponse) {
 				require.Len(t, ldr.EC2ICEs, 1, "expected 1 endpoint, got %d", len(ldr.EC2ICEs))
+				require.Equal(t, "https://us-east-1.console.aws.amazon.com/vpcconsole/home?#Endpoints:v=3;vpcEndpointType=EC2%20Instance%20Connect%20Endpoint", ldr.DashboardLink)
 				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
 
 				endpoint := EC2InstanceConnectEndpoint{
 					Name:          "ice-name",
 					State:         "create-complete",
 					SubnetID:      "subnet-123",
+					VPCID:         "vpc-abcd",
 					StateMessage:  "success message",
-					DashboardLink: "https://us-east-1.console.aws.amazon.com/vpc/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=ice-name",
+					DashboardLink: "https://us-east-1.console.aws.amazon.com/vpcconsole/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=ice-name",
 				}
 				require.Empty(t, cmp.Diff(endpoint, ldr.EC2ICEs[0]))
 			},
@@ -170,7 +178,7 @@ func TestListEC2ICE(t *testing.T) {
 		{
 			name: "valid but ID needs URL encoding",
 			req: ListEC2ICERequest{
-				VPCID:     "vpc-abcd",
+				VPCIDs:    []string{"vpc-abcd"},
 				Region:    "us-east-1",
 				NextToken: "",
 			},
@@ -183,6 +191,7 @@ func TestListEC2ICE(t *testing.T) {
 			},
 			respCheck: func(t *testing.T, ldr *ListEC2ICEResponse) {
 				require.Len(t, ldr.EC2ICEs, 1, "expected 1 endpoint, got %d", len(ldr.EC2ICEs))
+				require.Equal(t, "https://us-east-1.console.aws.amazon.com/vpcconsole/home?#Endpoints:v=3;vpcEndpointType=EC2%20Instance%20Connect%20Endpoint", ldr.DashboardLink)
 				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
 
 				endpoint := EC2InstanceConnectEndpoint{
@@ -190,9 +199,59 @@ func TestListEC2ICE(t *testing.T) {
 					State:         "create-complete",
 					SubnetID:      "subnet-123",
 					StateMessage:  "success message",
-					DashboardLink: "https://us-east-1.console.aws.amazon.com/vpc/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=ice%2F123",
+					DashboardLink: "https://us-east-1.console.aws.amazon.com/vpcconsole/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=ice%2F123",
 				}
 				require.Empty(t, cmp.Diff(endpoint, ldr.EC2ICEs[0]))
+			},
+			errCheck: noErrorFunc,
+		},
+		{
+			name: "valid for multiple VPCs",
+			req: ListEC2ICERequest{
+				VPCIDs:    []string{"vpc-01", "vpc-02"},
+				Region:    "us-east-1",
+				NextToken: "",
+			},
+			mockEndpoints: []ec2Types.Ec2InstanceConnectEndpoint{
+				{
+					SubnetId:                  aws.String("subnet-123"),
+					VpcId:                     aws.String("vpc-01"),
+					InstanceConnectEndpointId: aws.String("ice-name-1"),
+					State:                     "create-complete",
+					StateMessage:              aws.String("success message"),
+				},
+				{
+					SubnetId:                  aws.String("subnet-123"),
+					VpcId:                     aws.String("vpc-02"),
+					InstanceConnectEndpointId: aws.String("ice-name-2"),
+					State:                     "create-complete",
+					StateMessage:              aws.String("success message"),
+				},
+			},
+			respCheck: func(t *testing.T, ldr *ListEC2ICEResponse) {
+				require.Len(t, ldr.EC2ICEs, 2, "expected 1 endpoint, got %d", len(ldr.EC2ICEs))
+				require.Equal(t, "https://us-east-1.console.aws.amazon.com/vpcconsole/home?#Endpoints:v=3;vpcEndpointType=EC2%20Instance%20Connect%20Endpoint", ldr.DashboardLink)
+				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
+
+				endpoint := EC2InstanceConnectEndpoint{
+					Name:          "ice-name-1",
+					State:         "create-complete",
+					SubnetID:      "subnet-123",
+					VPCID:         "vpc-01",
+					StateMessage:  "success message",
+					DashboardLink: "https://us-east-1.console.aws.amazon.com/vpcconsole/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=ice-name-1",
+				}
+				require.Empty(t, cmp.Diff(endpoint, ldr.EC2ICEs[0]))
+
+				endpoint = EC2InstanceConnectEndpoint{
+					Name:          "ice-name-2",
+					State:         "create-complete",
+					SubnetID:      "subnet-123",
+					VPCID:         "vpc-02",
+					StateMessage:  "success message",
+					DashboardLink: "https://us-east-1.console.aws.amazon.com/vpcconsole/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=ice-name-2",
+				}
+				require.Empty(t, cmp.Diff(endpoint, ldr.EC2ICEs[1]))
 			},
 			errCheck: noErrorFunc,
 		},
@@ -206,7 +265,7 @@ func TestListEC2ICE(t *testing.T) {
 		{
 			name: "no region id",
 			req: ListEC2ICERequest{
-				VPCID: "vpc-123",
+				VPCIDs: []string{"vpc-123"},
 			},
 			errCheck: trace.IsBadParameter,
 		},

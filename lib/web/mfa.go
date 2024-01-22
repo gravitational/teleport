@@ -1,17 +1,19 @@
-/**
- * Copyright 2021 Gravitational, Inc.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package web
@@ -128,15 +130,37 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 	return OK(), nil
 }
 
+type createAuthenticateChallengeRequest struct {
+	IsMFARequired *isMFARequiredRequest `json:"is_mfa_required"`
+}
+
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
 // Used when users need to re-authenticate their second factors.
 func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+	var req createAuthenticateChallengeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{})
+	var isMFARequiredProtoReq *proto.IsMFARequiredRequest
+	if req.IsMFARequired != nil {
+		isMFARequiredProtoReq, err = req.IsMFARequired.checkAndGetProtoRequest()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+		MFARequiredCheck: isMFARequiredProtoReq,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -254,6 +278,11 @@ type isMFARequiredWindowsDesktop struct {
 	Login string `json:"login"`
 }
 
+type isMFARequiredAdminAction struct {
+	// Name is the name of the admin action RPC.
+	Name string `json:"desktop_name"`
+}
+
 type isMFARequiredRequest struct {
 	// Database contains fields required to check if target database
 	// requires MFA check.
@@ -267,6 +296,8 @@ type isMFARequiredRequest struct {
 	// Kube is the name of the kube cluster to check if target cluster
 	// requires MFA check.
 	Kube *isMFARequiredKube `json:"kube,omitempty"`
+	// AdminAction is the name of the admin action RPC to check if MFA is required.
+	AdminAction *isMFARequiredAdminAction `json:"admin_action"`
 }
 
 func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRequest, error) {
@@ -289,7 +320,8 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 					Protocol:    r.Database.Protocol,
 					Database:    r.Database.DatabaseName,
 					Username:    r.Database.Username,
-				}},
+				},
+			},
 		}
 	}
 
@@ -320,7 +352,8 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 				WindowsDesktop: &proto.RouteToWindowsDesktop{
 					WindowsDesktop: r.WindowsDesktop.DesktopName,
 					Login:          r.WindowsDesktop.Login,
-				}},
+				},
+			},
 		}
 	}
 
@@ -338,7 +371,19 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 				Node: &proto.NodeLogin{
 					Login: r.Node.Login,
 					Node:  r.Node.NodeName,
-				}},
+				},
+			},
+		}
+	}
+
+	if r.AdminAction != nil {
+		numRequests++
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_AdminAction{
+				AdminAction: &proto.AdminAction{
+					Name: r.AdminAction.Name,
+				},
+			},
 		}
 	}
 

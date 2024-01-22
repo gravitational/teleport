@@ -1,24 +1,25 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ChildProcess, fork, spawn, exec } from 'child_process';
-import path from 'path';
-import fs from 'fs/promises';
-
-import { promisify } from 'util';
+import { ChildProcess, fork, spawn, exec } from 'node:child_process';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { promisify } from 'node:util';
 
 import {
   app,
@@ -29,6 +30,7 @@ import {
   nativeTheme,
   shell,
 } from 'electron';
+import { ChannelCredentials } from '@grpc/grpc-js';
 
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
@@ -41,6 +43,9 @@ import {
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
+import * as grpcCreds from 'teleterm/services/grpcCredentials';
+import { createTshdClient } from 'teleterm/services/tshd/createClient';
+import { TshdClient } from 'teleterm/services/tshd/types';
 
 import {
   ConfigService,
@@ -61,7 +66,7 @@ import {
 import { AgentRunner } from './agentRunner';
 import { terminateWithTimeout } from './terminateWithTimeout';
 
-import type { AgentConfigFileClusterProperties } from './createAgentConfigFile';
+import type { CreateAgentConfigFileArgs } from './createAgentConfigFile';
 
 type Options = {
   settings: RuntimeSettings;
@@ -118,7 +123,7 @@ export default class MainProcess {
 
   static create(opts: Options) {
     const instance = new MainProcess(opts);
-    instance._init();
+    instance.init();
     return instance;
   }
 
@@ -134,21 +139,29 @@ export default class MainProcess {
     ]);
   }
 
-  private _init() {
+  private init() {
     this.updateAboutPanelIfNeeded();
-    this._setAppMenu();
+    this.setAppMenu();
     try {
-      this._initTshd();
-      this._initSharedProcess();
-      this._initResolvingChildProcessAddresses();
-      this._initIpc();
+      this.initTshd();
+      this.initSharedProcess();
+      this.initResolvingChildProcessAddresses();
+      this.initIpc();
     } catch (err) {
       this.logger.error('Failed to start main process: ', err.message);
       app.exit(1);
     }
   }
 
-  private _initTshd() {
+  async initTshdClient(): Promise<TshdClient> {
+    const { tsh: tshdAddress } = await this.resolvedChildProcessAddresses;
+    return setUpTshdClient({
+      runtimeSettings: this.settings,
+      tshdAddress,
+    });
+  }
+
+  private initTshd() {
     const { binaryPath, flags, homeDir } = this.settings.tshd;
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
@@ -172,7 +185,7 @@ export default class MainProcess {
     }).pipeProcessOutputIntoLogger(this.tshdProcess);
   }
 
-  private _initSharedProcess() {
+  private initSharedProcess() {
     this.sharedProcess = fork(
       path.join(__dirname, 'sharedProcess.js'),
       [`--runtimeSettingsJson=${JSON.stringify(this.settings)}`],
@@ -192,7 +205,7 @@ export default class MainProcess {
     }).pipeProcessOutputIntoLogger(this.sharedProcess);
   }
 
-  private _initResolvingChildProcessAddresses(): void {
+  private initResolvingChildProcessAddresses(): void {
     this.resolvedChildProcessAddresses = Promise.all([
       resolveNetworkAddress(
         this.settings.tshd.requestedNetworkAddress,
@@ -205,7 +218,7 @@ export default class MainProcess {
     ]).then(([tsh, shared]) => ({ tsh, shared }));
   }
 
-  private _initIpc() {
+  private initIpc() {
     ipcMain.on(MainProcessIpc.GetRuntimeSettings, event => {
       event.returnValue = this.settings;
     });
@@ -313,12 +326,12 @@ export default class MainProcess {
 
     ipcMain.handle(
       'main-process-connect-my-computer-create-agent-config-file',
-      (_, args: AgentConfigFileClusterProperties) =>
+      (_, args: CreateAgentConfigFileArgs) =>
         createAgentConfigFile(this.settings, {
           proxy: args.proxy,
           token: args.token,
           rootClusterUri: args.rootClusterUri,
-          labels: args.labels,
+          username: args.username,
         })
     );
 
@@ -352,6 +365,10 @@ export default class MainProcess {
           rootClusterUri: RootClusterUri;
         }
       ) => removeAgentDirectory(this.settings, args.rootClusterUri)
+    );
+
+    ipcMain.handle(MainProcessIpc.TryRemoveConnectMyComputerAgentBinary, () =>
+      this.agentRunner.tryRemoveAgentBinary()
     );
 
     ipcMain.handle(
@@ -415,7 +432,7 @@ export default class MainProcess {
     subscribeToFileStorageEvents(this.appStateFileStorage);
   }
 
-  private _setAppMenu() {
+  private setAppMenu() {
     const isMac = this.settings.platform === 'darwin';
     const commonHelpTemplate: MenuItemConstructorOptions[] = [
       { label: 'Open Documentation', click: openDocsUrl },
@@ -559,4 +576,41 @@ function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
     }
     return pending;
   };
+}
+
+/**
+ * Sets up the gRPC client for tsh daemon used in the main process.
+ */
+async function setUpTshdClient({
+  runtimeSettings,
+  tshdAddress,
+}: {
+  runtimeSettings: RuntimeSettings;
+  tshdAddress: string;
+}): Promise<TshdClient> {
+  const creds = await createGrpcCredentials(runtimeSettings);
+  return createTshdClient(tshdAddress, creds);
+}
+
+async function createGrpcCredentials(
+  runtimeSettings: RuntimeSettings
+): Promise<ChannelCredentials> {
+  if (!grpcCreds.shouldEncryptConnection(runtimeSettings)) {
+    return grpcCreds.createInsecureClientCredentials();
+  }
+
+  const { certsDir } = runtimeSettings;
+  const [mainProcessKeyPair, tshdCert] = await Promise.all([
+    grpcCreds.generateAndSaveGrpcCert(
+      certsDir,
+      grpcCreds.GrpcCertName.MainProcess
+    ),
+    grpcCreds.readGrpcCert(certsDir, grpcCreds.GrpcCertName.Tshd),
+    // tsh daemon expects both certs to be created before accepting connections. So even though the
+    // main process does not use the cert of the renderer process, it must still wait for the cert
+    // to be saved to disk.
+    grpcCreds.readGrpcCert(certsDir, grpcCreds.GrpcCertName.Renderer),
+  ]);
+
+  return grpcCreds.createClientCredentials(mainProcessKeyPair, tshdCert);
 }

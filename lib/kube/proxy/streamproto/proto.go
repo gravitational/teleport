@@ -1,22 +1,26 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package streamproto
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -72,6 +76,7 @@ type SessionStream struct {
 	closed      int32
 	MFARequired bool
 	Mode        types.SessionParticipantMode
+	isClient    bool
 }
 
 // NewSessionStream creates a new session stream.
@@ -87,6 +92,7 @@ func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, erro
 
 	clientHandshake, isClient := handshake.(ClientHandshake)
 	serverHandshake, ok := handshake.(ServerHandshake)
+	s.isClient = isClient
 
 	if !isClient && !ok {
 		return nil, trace.BadParameter("Handshake must be either client or server handshake, got %T", handshake)
@@ -165,6 +171,16 @@ func (s *SessionStream) readTask() {
 		if err != nil {
 			if err != io.EOF && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
 				log.WithError(err).Warn("Failed to read message from websocket")
+			}
+
+			var closeErr *websocket.CloseError
+			// If it's a close error, we want to send a message to the stdout
+			if s.isClient && errors.As(err, &closeErr) && closeErr.Text != "" {
+				select {
+				case s.in <- []byte(fmt.Sprintf("\r\n---\r\nConnection closed: %v\r\n", closeErr.Text)):
+				case <-s.done:
+					return
+				}
 			}
 
 			return

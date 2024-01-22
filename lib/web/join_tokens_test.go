@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package web
 
@@ -20,14 +22,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"regexp"
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -633,8 +631,8 @@ func TestGetAppJoinScript(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = getJoinScript(context.Background(), tc.settings, m)
 			if tc.shouldError {
-				require.NotNil(t, err)
-				require.Equal(t, script, "")
+				require.Error(t, err)
+				require.Empty(t, script)
 			} else {
 				require.NoError(t, err)
 				for _, output := range tc.outputs {
@@ -761,6 +759,82 @@ db_service:
 
 			if test.extraAssertions != nil {
 				test.extraAssertions(script)
+			}
+		})
+	}
+}
+
+func TestGetDiscoveryJoinScript(t *testing.T) {
+	const validToken = "f18da1c9f6630a51e8daf121e7451daa"
+
+	m := &mockedNodeAPIGetter{
+		mockGetProxyServers: func() ([]types.Server, error) {
+			var s types.ServerV2
+			s.SetPublicAddrs([]string{"test-host:12345678"})
+
+			return []types.Server{&s}, nil
+		},
+		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
+			fakeBytes := []byte(fixtures.SigningCertPEM)
+			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
+		},
+		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
+			provisionToken := &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: token,
+				},
+				Spec: types.ProvisionTokenSpecV2{},
+			}
+			if token == validToken {
+				return provisionToken, nil
+			}
+			return nil, trace.NotFound("token does not exist")
+		},
+	}
+
+	for _, test := range []struct {
+		desc            string
+		settings        scriptSettings
+		errAssert       require.ErrorAssertionFunc
+		extraAssertions func(t *testing.T, script string)
+	}{
+		{
+			desc: "valid",
+			settings: scriptSettings{
+				discoveryInstallMode: true,
+				discoveryGroup:       "my-group",
+				token:                validToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(t *testing.T, script string) {
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, "test-host")
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, `
+discovery_service:
+  enabled: "yes"
+  discovery_group: "my-group"`)
+			},
+		},
+		{
+			desc: "fails when discovery group is not defined",
+			settings: scriptSettings{
+				discoveryInstallMode: true,
+				token:                validToken,
+			},
+			errAssert: require.Error,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), test.settings, m)
+			test.errAssert(t, err)
+			if err != nil {
+				require.Empty(t, script)
+			}
+
+			if test.extraAssertions != nil {
+				test.extraAssertions(t, script)
 			}
 		})
 	}
@@ -935,18 +1009,7 @@ func TestJoinScript(t *testing.T) {
 	t.Run("using repo", func(t *testing.T) {
 		t.Run("installUpdater is true", func(t *testing.T) {
 			currentStableCloudVersion := "v99.1.1"
-
-			httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, r.URL.Path, "/v1/stable/cloud/version")
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(currentStableCloudVersion))
-			}))
-			defer httpTestServer.Close()
-
-			versionURL, err := url.JoinPath(httpTestServer.URL, "/v1/stable/cloud/version")
-			require.NoError(t, err)
-
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersionURL: versionURL}, m)
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersion: currentStableCloudVersion}, m)
 			require.NoError(t, err)
 
 			// list of packages must include the updater

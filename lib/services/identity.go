@@ -1,18 +1,20 @@
 /*
-Copyright 2015 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // Package services implements API services exposed by Teleport:
 // * presence service that takes care of heartbeats
@@ -30,8 +32,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -132,11 +134,11 @@ type Identity interface {
 	// storage, for the purpose of later verifying an authentication or
 	// registration challenge.
 	// Session data is expected to expire according to backend settings.
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
 
 	// GetWebauthnSessionData retrieves a previously-stored session data by ID,
 	// if it exists and has not expired.
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 
 	// DeleteWebauthnSessionData deletes session data by ID, if it exists and has
 	// not expired.
@@ -146,12 +148,12 @@ type Identity interface {
 	// storage, for the purpose of later verifying an authentication challenge.
 	// Session data is expected to expire according to backend settings.
 	// Used for passwordless challenges.
-	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error
+	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error
 
 	// GetGlobalWebauthnSessionData retrieves previously-stored session data by ID,
 	// if it exists and has not expired.
 	// Used for passwordless challenges.
-	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error)
+	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error)
 
 	// DeleteGlobalWebauthnSessionData deletes session data by ID, if it exists
 	// and has not expired.
@@ -171,7 +173,7 @@ type Identity interface {
 	// UpdateOIDCConnector updates an existing OIDC connector.
 	UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
 	// UpsertOIDCConnector updates or creates an OIDC connector.
-	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
+	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error)
 
 	// DeleteOIDCConnector deletes OIDC Connector
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
@@ -179,7 +181,8 @@ type Identity interface {
 	// GetOIDCConnector returns OIDC connector data, withSecrets adds or removes client secret from return results
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 
-	// GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
+	// GetOIDCConnectors returns valid registered connectors, withSecrets adds or removes client secret from return
+	// results.  Invalid Connectors are simply logged but errors are not forwarded.
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 
 	// CreateOIDCAuthRequest creates new auth request
@@ -193,7 +196,7 @@ type Identity interface {
 	// UpdateSAMLConnector updates an existing SAML connector
 	UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// UpsertSAMLConnector updates or creates a SAML connector
-	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error
+	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 
 	// DeleteSAMLConnector deletes OIDC Connector
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
@@ -201,7 +204,8 @@ type Identity interface {
 	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 
-	// GetSAMLConnectors returns registered connectors, withSecrets adds or removes secret from return results
+	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
+	// Invalid Connectors are simply logged but errors are not forwarded.
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
 
 	// CreateSAMLAuthRequest creates new auth request
@@ -221,9 +225,9 @@ type Identity interface {
 	// UpdateGithubConnector updates an existing Github connector.
 	UpdateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 	// UpsertGithubConnector creates or updates a Github connector.
-	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) error
+	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 
-	// GetGithubConnectors returns all configured Github connectors
+	// GetGithubConnectors returns valid Github connectors, invalid Connectors are simply logged but errors are not forwarded.
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 
 	// GetGithubConnector returns a Github connector by its name

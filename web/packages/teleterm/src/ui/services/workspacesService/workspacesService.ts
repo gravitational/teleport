@@ -1,25 +1,35 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { z } from 'zod';
 import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 // @ts-ignore
 import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
+
+import {
+  UnifiedResourcePreferences,
+  DefaultTab,
+  ViewMode,
+  LabelsViewMode,
+} from 'shared/services/unifiedResourcePreferences';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -42,7 +52,11 @@ import {
   getEmptyPendingAccessRequest,
 } from './accessRequestsService';
 
-import { Document, DocumentsService } from './documentsService';
+import {
+  Document,
+  DocumentsService,
+  getDefaultDocumentClusterQueryParams,
+} from './documentsService';
 
 export interface WorkspacesState {
   rootClusterUri?: RootClusterUri;
@@ -60,6 +74,7 @@ export interface Workspace {
   connectMyComputer?: {
     autoStart: boolean;
   };
+  unifiedResourcePreferences?: UnifiedResourcePreferences;
   previous?: {
     documents: Document[];
     location: DocumentUri;
@@ -210,6 +225,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
   }
 
+  setUnifiedResourcePreferences(
+    rootClusterUri: RootClusterUri,
+    preferences: UnifiedResourcePreferences
+  ): void {
+    this.setState(draftState => {
+      draftState.workspaces[rootClusterUri].unifiedResourcePreferences =
+        preferences;
+    });
+  }
+
+  getUnifiedResourcePreferences(
+    rootClusterUri: RootClusterUri
+  ): UnifiedResourcePreferences | undefined {
+    return this.state.workspaces[rootClusterUri].unifiedResourcePreferences;
+  }
+
   /**
    * setActiveWorkspace changes the active workspace to that of the given root cluster.
    * If the root cluster doesn't have a workspace yet, setActiveWorkspace creates a default
@@ -354,6 +385,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
               }
             : undefined,
           connectMyComputer: persistedWorkspace?.connectMyComputer,
+          unifiedResourcePreferences: this.parseUnifiedResourcePreferences(
+            persistedWorkspace?.unifiedResourcePreferences
+          ),
         };
         return workspaces;
       }, {});
@@ -364,6 +398,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     if (persistedState.rootClusterUri) {
       await this.setActiveWorkspace(persistedState.rootClusterUri);
+    }
+  }
+
+  // TODO(gzdunek): Parse the entire workspace state read from disk like below.
+  private parseUnifiedResourcePreferences(
+    unifiedResourcePreferences: unknown
+    // TODO(gzdunek): DELETE IN 16.0.0. See comment in useUserPreferences.ts.
+  ): Partial<UnifiedResourcePreferences> | undefined {
+    try {
+      return unifiedResourcePreferencesSchema.parse(unifiedResourcePreferences);
+    } catch (e) {
+      this.logger.error('Failed to parse unified resource preferences', e);
     }
   }
 
@@ -390,6 +436,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           return {
             ...d,
             origin: 'reopened_session',
+          };
+        }
+
+        if (d.kind === 'doc.cluster') {
+          const defaultParams = getDefaultDocumentClusterQueryParams();
+          // TODO(gzdunek): this should be parsed by a tool like zod
+          return {
+            ...d,
+            queryParams: {
+              defaultParams,
+              ...d.queryParams,
+              sort: {
+                ...defaultParams.sort,
+                ...d.queryParams?.sort,
+              },
+            },
           };
         }
 
@@ -454,11 +516,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         location: workspace.previous?.location || workspace.location,
         documents: workspace.previous?.documents || workspace.documents,
         connectMyComputer: workspace.connectMyComputer,
+        unifiedResourcePreferences: workspace.unifiedResourcePreferences,
       };
     }
     this.statePersistenceService.saveWorkspacesState(stateToSave);
   }
 }
+
+const unifiedResourcePreferencesSchema = z.object({
+  defaultTab: z.nativeEnum(DefaultTab),
+  viewMode: z.nativeEnum(ViewMode),
+  labelsViewMode: z.nativeEnum(LabelsViewMode),
+});
 
 export type PendingAccessRequest = {
   [k in Exclude<ResourceKind, 'resource'>]: Record<string, string>;

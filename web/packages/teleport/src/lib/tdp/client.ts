@@ -1,17 +1,27 @@
-// Copyright 2021 Gravitational, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import Logger from 'shared/libs/logger';
+
+import init, {
+  init_wasm_log,
+  FastPathProcessor,
+} from 'teleport/ironrdp/pkg/ironrdp';
 
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
@@ -43,12 +53,14 @@ import type {
   SharedDirectoryCreateResponse,
   SharedDirectoryDeleteResponse,
   FileSystemObject,
+  SyncKeys,
 } from './codec';
 import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
   TDP_PNG_FRAME = 'tdp png frame',
+  TDP_BMP_FRAME = 'tdp bmp frame',
   TDP_CLIPBOARD_DATA = 'tdp clipboard data',
   // TDP_ERROR corresponds with the TDP error message
   TDP_ERROR = 'tdp error',
@@ -60,6 +72,16 @@ export enum TdpClientEvent {
   CLIENT_WARNING = 'client warning',
   WS_OPEN = 'ws open',
   WS_CLOSE = 'ws close',
+  RESET = 'reset',
+}
+
+export enum LogType {
+  OFF = 'OFF',
+  ERROR = 'ERROR',
+  WARN = 'WARN',
+  INFO = 'INFO',
+  DEBUG = 'DEBUG',
+  TRACE = 'TRACE',
 }
 
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
@@ -71,6 +93,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   protected socket: WebSocket | undefined;
   private socketAddr: string;
   private sdManager: SharedDirectoryManager;
+  private fastPathProcessor: FastPathProcessor | undefined;
 
   private logger = Logger.create('TDPClient');
 
@@ -82,13 +105,24 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   // Connect to the websocket and register websocket event handlers.
-  init() {
+  // Include a screen spec in cases where the client should determine the screen size
+  // (e.g. in a desktop session) in order to automatically send it to the server and
+  // start the session. Leave the screen spec undefined in cases where the server determines
+  // the screen size (e.g. in a recording playback session). In that case, the client will
+  // set the internal screen size when it receives the screen spec from the server
+  // (see PlayerClient.handleClientScreenSpec).
+  async connect(spec?: ClientScreenSpec) {
+    await this.initWasm();
+
     this.socket = new WebSocket(this.socketAddr);
     this.socket.binaryType = 'arraybuffer';
 
     this.socket.onopen = () => {
       this.logger.info('websocket is open');
       this.emit(TdpClientEvent.WS_OPEN);
+      if (spec) {
+        this.sendClientScreenSpec(spec);
+      }
     };
 
     this.socket.onmessage = async (ev: MessageEvent) => {
@@ -112,6 +146,34 @@ export default class Client extends EventEmitterWebAuthnSender {
     };
   }
 
+  private async initWasm() {
+    // select the wasm log level
+    let wasmLogLevel = LogType.OFF;
+    if (import.meta.env.MODE === 'development') {
+      wasmLogLevel = LogType.TRACE;
+    }
+
+    await init();
+    init_wasm_log(wasmLogLevel);
+  }
+
+  private initFastPathProcessor(
+    ioChannelId: number,
+    userChannelId: number,
+    spec: ClientScreenSpec
+  ) {
+    this.logger.debug(
+      `initializing fast path processor with screen spec ${spec.width} x ${spec.height}`
+    );
+
+    this.fastPathProcessor = new FastPathProcessor(
+      spec.width,
+      spec.height,
+      ioChannelId,
+      userChannelId
+    );
+  }
+
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
   async processMessage(buffer: ArrayBuffer): Promise<void> {
@@ -123,6 +185,12 @@ export default class Client extends EventEmitterWebAuthnSender {
           break;
         case MessageType.PNG2_FRAME:
           this.handlePng2Frame(buffer);
+          break;
+        case MessageType.RDP_CONNECTION_INITIALIZED:
+          this.handleRDPConnectionInitialized(buffer);
+          break;
+        case MessageType.RDP_FASTPATH_PDU:
+          this.handleRDPFastPathPDU(buffer);
           break;
         case MessageType.CLIENT_SCREEN_SPEC:
           this.handleClientScreenSpec(buffer);
@@ -240,6 +308,50 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.codec.decodePng2Frame(buffer, (pngFrame: PngFrame) =>
       this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
     );
+  }
+
+  handleRDPConnectionInitialized(buffer: ArrayBuffer) {
+    const { ioChannelId, userChannelId, screenWidth, screenHeight } =
+      this.codec.decodeRDPConnectionInitialied(buffer);
+    const spec = { width: screenWidth, height: screenHeight };
+    this.logger.info(
+      `setting screen spec received from server ${spec.width} x ${spec.height}`
+    );
+
+    this.initFastPathProcessor(ioChannelId, userChannelId, {
+      width: screenWidth,
+      height: screenHeight,
+    });
+
+    // Emit the spec to any listeners. Listeners can then resize
+    // the canvas to the size we're actually using in this session.
+    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
+  }
+
+  handleRDPFastPathPDU(buffer: ArrayBuffer) {
+    let rdpFastPathPDU = this.codec.decodeRDPFastPathPDU(buffer);
+
+    // This should never happen but let's catch it with an error in case it does.
+    if (!this.fastPathProcessor)
+      this.handleError(
+        new Error('FastPathProcessor not initialized'),
+        TdpClientEvent.CLIENT_ERROR
+      );
+
+    try {
+      this.fastPathProcessor.process(
+        rdpFastPathPDU,
+        this,
+        (bmpFrame: BitmapFrame) => {
+          this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
+        },
+        (responseFrame: ArrayBuffer) => {
+          this.sendRDPResponsePDU(responseFrame);
+        }
+      );
+    } catch (e) {
+      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
+    }
   }
 
   handleMfaChallenge(buffer: ArrayBuffer) {
@@ -465,8 +577,11 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  sendUsername(username: string) {
-    this.send(this.codec.encodeUsername(username));
+  sendClientScreenSpec(spec: ClientScreenSpec) {
+    this.logger.info(
+      `requesting screen spec from client ${spec.width} x ${spec.height}`
+    );
+    this.send(this.codec.encodeClientScreenSpec(spec));
   }
 
   sendMouseMove(x: number, y: number) {
@@ -485,6 +600,10 @@ export default class Client extends EventEmitterWebAuthnSender {
     // Only send message if key is recognized, otherwise do nothing.
     const msg = this.codec.encodeKeyboardInput(code, state);
     if (msg) this.send(msg);
+  }
+
+  sendSyncKeys(syncKeys: SyncKeys) {
+    this.send(this.codec.encodeSyncKeys(syncKeys));
   }
 
   sendClipboardData(clipboardData: ClipboardData) {
@@ -557,6 +676,10 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeClientScreenSpec(spec));
   }
 
+  sendRDPResponsePDU(responseFrame: ArrayBuffer) {
+    this.send(this.codec.encodeRDPResponsePDU(responseFrame));
+  }
+
   // Emits an errType event, closing the socket if the error was fatal.
   private handleError(
     err: Error,
@@ -586,3 +709,10 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.socket?.close(closeCode);
   }
 }
+
+// Mimics the BitmapFrame struct in rust.
+export type BitmapFrame = {
+  top: number;
+  left: number;
+  image_data: ImageData;
+};

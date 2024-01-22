@@ -33,34 +33,7 @@ The Teleport Proxy Service uses these reverse tunnels to forward traffic in
 Teleport's supported protocols to an available agent. Agents apply RBAC
 rules and forward the traffic to resources in your infrastructure.
 
-```mermaid
-%%{init: {"flowchart": {"curve": "linear"}}}%%
-flowchart LR
-  proxy["Teleport Proxy Service"]
-  Clients--->proxy
-  subgraph private["Private network"]
-    db["Self-hosted database"]
-    app["Internal web application"]
-    subgraph agent2["Teleport agent"]
-      service3["Teleport Database Service"]
-      service4["Teleport Application Service"]
-    end
-
-    subgraph agent1["Teleport agent"]
-      service1["Teleport Kubernetes Service"]
-      service2["Teleport SSH Service"]
-    end
-
-    kubernetes["Kubernetes API server"]
-    ssh["SSH server"]
-    agent1 -.-> kubernetes & ssh
-    agent2 -.-> db
-    agent2 -.-> app
-  end
-
-  agent1 & agent2--Reverse tunnel---->proxy
-  agent2-.->cloud["Cloud provider API"]
-```
+![Diagram showing the architecture of an agent pool](../../img/agent-pool-diagram.png)
 
 Read our guide for how to use Terraform to [deploy a pool of
 agents](deploy-agents-terraform.mdx). 

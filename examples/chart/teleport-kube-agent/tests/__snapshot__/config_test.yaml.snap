@@ -261,6 +261,116 @@ matches snapshot for all-v6.yaml:
         kubernetes.io/config-different: 2
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for app-discovery-full.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          apps:
+          - labels:
+              env: test
+            name: test
+            uri: https://console.aws.amazon.com/ec2/v2/home
+          enabled: true
+          resources:
+          - labels:
+              '*': '*'
+          - labels:
+              teleport.dev/kubernetes-cluster: example
+              teleport.dev/origin: discovery-kubernetes
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
+        discovery_service:
+          discovery_group: example
+          enabled: true
+          kubernetes:
+          - labels:
+              '*': '*'
+            namespaces:
+            - '*'
+            types:
+            - app
+        kubernetes_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: teleport.example.com
+        version: v3
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot for app-discovery-minimal.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          enabled: true
+          resources:
+          - labels:
+              teleport.dev/kubernetes-cluster: test-kube-cluster
+              teleport.dev/origin: discovery-kubernetes
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
+        discovery_service:
+          discovery_group: test-kube-cluster
+          enabled: true
+          kubernetes:
+          - labels:
+              '*': '*'
+            namespaces:
+            - '*'
+            types:
+            - app
+        kubernetes_service:
+          enabled: true
+          kube_cluster_name: test-kube-cluster
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for aws-databases.yaml:
   1: |
     apiVersion: v1
@@ -1158,58 +1268,6 @@ matches snapshot for volumes.yaml:
           enabled: false
         discovery_service:
           enabled: false
-        kubernetes_service:
-          enabled: true
-          kube_cluster_name: test-kube-cluster
-        proxy_service:
-          enabled: false
-        ssh_service:
-          enabled: false
-        teleport:
-          join_params:
-            method: token
-            token_name: /etc/teleport-secrets/auth-token
-          log:
-            format:
-              extra_fields:
-              - timestamp
-              - level
-              - component
-              - caller
-              output: text
-            output: stderr
-            severity: INFO
-          proxy_server: proxy.example.com:3080
-        version: v3
-    kind: ConfigMap
-    metadata:
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-matches snapshot when app discovery is enabled:
-  1: |
-    apiVersion: v1
-    data:
-      teleport.yaml: |-
-        app_service:
-          enabled: true
-          resources:
-          - labels:
-              teleport.dev/kubernetes-cluster: test-kube-cluster
-              teleport.dev/origin: discovery-kubernetes
-        auth_service:
-          enabled: false
-        db_service:
-          enabled: false
-        discovery_service:
-          discovery_group: test-kube-cluster
-          enabled: true
-          kubernetes:
-          - labels:
-              '*': '*'
-            namespaces:
-            - '*'
-            types:
-            - app
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster

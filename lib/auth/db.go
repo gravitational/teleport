@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -46,32 +48,89 @@ import (
 // GenerateDatabaseCert generates client certificate used by a database
 // service to authenticate with the database instance.
 func (a *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if req.RequesterName == proto.DatabaseCertRequest_TCTL {
+		// tctl/web cert request needs to generate a db server cert and trust
+		// the db client CA.
+		return a.generateDatabaseServerCert(ctx, req)
 	}
+	// db service needs to generate a db client cert and trust the db server CA.
+	return a.generateDatabaseClientCert(ctx, req)
+}
+
+// generateDatabaseServerCert generates database server certificate used by a
+// database to authenticate itself to a database service.
+func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	databaseCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+	// databases should be configured to trust the DatabaseClientCA when
+	// clients connect so return DatabaseClientCA in the response.
+	dbClientCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseClientCA,
+		DomainName: clusterName.GetClusterName(),
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbServerCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// Database CA doesn't exist. Fallback to Host CA.
-			// https://github.com/gravitational/teleport/issues/5029
-			databaseCA, err = a.GetCertAuthority(ctx, types.CertAuthID{
-				Type:       types.HostCA,
-				DomainName: clusterName.GetClusterName(),
-			}, true)
-		}
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := getCAandSigner(ctx, a.GetKeyStore(), databaseCA, req)
+
+	cert, err := a.generateDatabaseCert(ctx, req, dbServerCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.DatabaseCertResponse{
+		Cert:    cert,
+		CACerts: services.GetTLSCerts(dbClientCA),
+	}, nil
+}
+
+// generateDatabaseClientCert generates client certificate used by a database
+// service to authenticate with the database instance.
+func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbClientCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseClientCA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := a.generateDatabaseCert(ctx, req, dbClientCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// db clients should trust the Database Server CA when establishing
+	// connection to a database, so return that CA's certs in the response.
+	dbServerCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: clusterName.GetClusterName(),
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.DatabaseCertResponse{
+		Cert:    cert,
+		CACerts: services.GetTLSCerts(dbServerCA),
+	}, nil
+}
+
+func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest, ca types.CertAuthority) ([]byte, error) {
+	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caCert, signer, err := getCAandSigner(ctx, a.GetKeyStore(), ca, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,15 +157,21 @@ func (a *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		// has been deprecated since Go 1.15:
 		//   https://golang.org/doc/go1.15#commonname
 		certReq.DNSNames = getServerNames(req)
+
+		// The windows smartcard cert req already does the same in
+		// lib/auth/windows/windows.go, along with another ExtKeyUsage for
+		// smartcard logon that we don't want to override above.
+		switch ca.GetType() {
+		case types.DatabaseCA:
+			// Override ExtKeyUsage to ExtKeyUsageServerAuth.
+			certReq.ExtraExtensions = append(certReq.ExtraExtensions, extKeyUsageServerAuthExtension)
+		case types.DatabaseClientCA:
+			// Override ExtKeyUsage to ExtKeyUsageClientAuth.
+			certReq.ExtraExtensions = append(certReq.ExtraExtensions, extKeyUsageClientAuthExtension)
+		}
 	}
 	cert, err := tlsCA.GenerateCertificate(certReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &proto.DatabaseCertResponse{
-		Cert:    cert,
-		CACerts: services.GetTLSCerts(databaseCA),
-	}, nil
+	return cert, trace.Wrap(err)
 }
 
 // getCAandSigner returns correct signer and CA that should be used when generating database certificate.
@@ -116,6 +181,7 @@ func (a *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 func getCAandSigner(ctx context.Context, keyStore *keystore.Manager, databaseCA types.CertAuthority, req *proto.DatabaseCertRequest,
 ) ([]byte, crypto.Signer, error) {
 	if req.RequesterName == proto.DatabaseCertRequest_TCTL &&
+		databaseCA.GetType() == types.DatabaseCA &&
 		databaseCA.GetRotation().Phase == types.RotationPhaseInit {
 		return keyStore.GetAdditionalTrustedTLSCertAndSigner(ctx, databaseCA)
 	}
@@ -234,11 +300,21 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 		return nil, trace.Wrap(err)
 	}
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
+		Type:       types.DatabaseClientCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		// DatabaseClientCA doesn't exist, fallback to DatabaseCA.
+		ca, err = a.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.DatabaseCA,
+			DomainName: clusterName.GetClusterName(),
+		}, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if len(ca.GetActiveKeys().TLS) == 0 {
@@ -322,7 +398,31 @@ func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier
 	return filtered
 }
 
+// TODO(gavin): move OIDs from here and in lib/auth/windows to tlsca package.
 var (
 	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
 	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
+
+	oidExtKeyUsageServerAuth       = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1}
+	oidExtKeyUsageClientAuth       = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}
+	extKeyUsageServerAuthExtension = pkix.Extension{
+		Id: oidExtKeyUsage,
+		Value: func() []byte {
+			val, err := asn1.Marshal([]asn1.ObjectIdentifier{oidExtKeyUsageServerAuth})
+			if err != nil {
+				panic(err)
+			}
+			return val
+		}(),
+	}
+	extKeyUsageClientAuthExtension = pkix.Extension{
+		Id: oidExtKeyUsage,
+		Value: func() []byte {
+			val, err := asn1.Marshal([]asn1.ObjectIdentifier{oidExtKeyUsageClientAuth})
+			if err != nil {
+				panic(err)
+			}
+			return val
+		}(),
+	}
 )

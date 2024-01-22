@@ -1,17 +1,19 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React, {
@@ -33,7 +35,7 @@ import { StyledIndicator } from 'teleport/Main';
 import * as service from 'teleport/services/userPreferences';
 import cfg from 'teleport/config';
 
-import storage, { KeysEnum } from 'teleport/services/localStorage';
+import { KeysEnum, storageService } from 'teleport/services/storageService';
 
 import {
   deprecatedThemeToThemePreference,
@@ -77,7 +79,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     if (clusterPreferences.current[clusterId]) {
       // we know that pinned resources is supported because we've already successfully
       // fetched their pinned resources once before
-      localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
+      window.localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
       return clusterPreferences.current[clusterId].pinnedResources;
     }
     const prefs = await service.getUserClusterPreferences(clusterId);
@@ -104,8 +106,8 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
   };
 
   async function loadUserPreferences() {
-    const storedPreferences = storage.getUserPreferences();
-    const theme = storage.getDeprecatedThemePreference();
+    const storedPreferences = storageService.getUserPreferences();
+    const theme = storageService.getDeprecatedThemePreference();
 
     try {
       const preferences = await service.getUserPreferences();
@@ -124,12 +126,12 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
             updatePreferences(preferences);
           }
 
-          storage.clearDeprecatedThemePreference();
+          storageService.clearDeprecatedThemePreference();
         }
       }
 
       setPreferences(preferences);
-      storage.setUserPreferences(preferences);
+      storageService.setUserPreferences(preferences);
     } catch (err) {
       if (storedPreferences) {
         setPreferences(storedPreferences);
@@ -167,7 +169,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       clusterPreferences: clusterPreferences.current[cfg.proxyCluster],
     } as UserPreferences;
     setPreferences(nextPreferences);
-    storage.setUserPreferences(nextPreferences);
+    storageService.setUserPreferences(nextPreferences);
 
     return service.updateUserPreferences(nextPreferences);
   }
@@ -181,9 +183,9 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       setPreferences(JSON.parse(event.newValue));
     }
 
-    storage.subscribe(receiveMessage);
+    storageService.subscribe(receiveMessage);
 
-    return () => storage.unsubscribe(receiveMessage);
+    return () => storageService.unsubscribe(receiveMessage);
   }, []);
 
   useEffect(() => {

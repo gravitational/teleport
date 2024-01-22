@@ -25,6 +25,26 @@
       "source": "devbox-search",
       "version": "1.26.1"
     },
+    "gci@0.11.2": {
+      "last_modified": "2023-12-13T22:54:10Z",
+      "resolved": "github:NixOS/nixpkgs/fd04bea4cbf76f86f244b9e2549fca066db8ddff#gci",
+      "source": "devbox-search",
+      "version": "0.11.2",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/5yb80x2ixdvjmyb7p063id6fvdxlrlxd-gci-0.11.2"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/5h5rsd3rn8901ddfwspf4k0zr1a00s25-gci-0.11.2"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/qqmz6ijsys8461k7d8hpsrm34hy30syd-gci-0.11.2"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/4ckn950b34ry19rrwc61np2hddzhlbs1-gci-0.11.2"
+        }
+      }
+    },
     "gci@latest": {
       "last_modified": "2023-08-30T00:25:28Z",
       "resolved": "github:NixOS/nixpkgs/a63a64b593dcf2fe05f7c5d666eb395950f36bc9#gci",
@@ -37,17 +57,45 @@
       "source": "devbox-search",
       "version": "2.41.0"
     },
-    "go@1.21.0": {
-      "last_modified": "2023-08-22T06:04:29Z",
-      "resolved": "github:NixOS/nixpkgs/9d757ec498666cc1dcc6f2be26db4fd3e1e9ab37#go_1_21",
+    "go@1.21.4": {
+      "last_modified": "2023-11-17T14:14:56Z",
+      "resolved": "github:NixOS/nixpkgs/a71323f68d4377d12c04a5410e214495ec598d4c#go",
       "source": "devbox-search",
-      "version": "1.21.0"
+      "version": "1.21.4",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/02cpvad60np366kmsqc3gnixbsw9jvg1-go-1.21.4"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/7y75b2ac80chlh6knld3943y46n3v9kf-go-1.21.4"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/0djljz0g4s6f55xcnw7fpzcy7af7rxid-go-1.21.4"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/y7abhs9glxfcg7lgcdc8i4ml5wg5ly92-go-1.21.4"
+        }
+      }
     },
-    "golangci-lint@1.54.2": {
-      "last_modified": "2023-08-30T00:25:28Z",
-      "resolved": "github:NixOS/nixpkgs/a63a64b593dcf2fe05f7c5d666eb395950f36bc9#golangci-lint",
+    "golangci-lint@1.55.2": {
+      "last_modified": "2023-12-13T22:54:10Z",
+      "resolved": "github:NixOS/nixpkgs/fd04bea4cbf76f86f244b9e2549fca066db8ddff#golangci-lint",
       "source": "devbox-search",
-      "version": "1.54.2"
+      "version": "1.55.2",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/75bdci5lqs0qy8iy4awyadabf0llnifm-golangci-lint-1.55.2"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/lgmzpwc5mlw5x1yhpqi4gr31dspqvrfw-golangci-lint-1.55.2"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/14j804s3p9bsi1bp0spylh7f4zg26q28-golangci-lint-1.55.2"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/y7d5gb08mk1cml4md026p1b86vjzwrhj-golangci-lint-1.55.2"
+        }
+      }
     },
     "gotestsum@latest": {
       "last_modified": "2023-07-23T03:35:12Z",
@@ -103,23 +151,57 @@
     },
     "python@latest": {
       "last_modified": "2023-06-30T04:44:22Z",
-      "plugin_version": "0.0.1",
+      "plugin_version": "0.0.3",
       "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#python311",
       "source": "devbox-search",
       "version": "3.11.4"
     },
-    "rustc@1.70.0": {
-      "last_modified": "2023-06-30T04:44:22Z",
+    "rustup@latest": {
+      "last_modified": "2023-12-13T22:54:10Z",
       "plugin_version": "0.0.1",
-      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#rustc",
+      "resolved": "github:NixOS/nixpkgs/fd04bea4cbf76f86f244b9e2549fca066db8ddff#rustup",
       "source": "devbox-search",
-      "version": "1.70.0"
+      "version": "1.26.0",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/vxkkk5s4lh1vs1l7ha2kzdvys6v5s4f0-rustup-1.26.0"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/41i200xm2hj4hcvmscgl7hyv8vbk6z22-rustup-1.26.0"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/s33xi47sbilcfx2d6x5ci89k9sv6a9i5-rustup-1.26.0"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/v645k4q9rfi9lansn6rizz9qdf00a3fz-rustup-1.26.0"
+        }
+      }
     },
     "shellcheck@latest": {
       "last_modified": "2023-07-23T03:35:12Z",
       "resolved": "github:NixOS/nixpkgs/af8cd5ded7735ca1df1a1174864daab75feeb64a#shellcheck",
       "source": "devbox-search",
       "version": "0.9.0"
+    },
+    "wasm-pack@latest": {
+      "last_modified": "2023-12-13T22:54:10Z",
+      "resolved": "github:NixOS/nixpkgs/fd04bea4cbf76f86f244b9e2549fca066db8ddff#wasm-pack",
+      "source": "devbox-search",
+      "version": "0.12.1",
+      "systems": {
+        "aarch64-darwin": {
+          "store_path": "/nix/store/nc5066l6dy3h98fq9nphha44wgibzg10-wasm-pack-0.12.1"
+        },
+        "aarch64-linux": {
+          "store_path": "/nix/store/x4hg3a0fc9bgzlsgp0i63xs7maal3d01-wasm-pack-0.12.1"
+        },
+        "x86_64-darwin": {
+          "store_path": "/nix/store/0qy7hbczxfawq3f1fvf31yynqfycvfyk-wasm-pack-0.12.1"
+        },
+        "x86_64-linux": {
+          "store_path": "/nix/store/b1f3w3sk72m1fpgz5mn5dwnn6bnd19jz-wasm-pack-0.12.1"
+        }
+      }
     },
     "yamllint@latest": {
       "last_modified": "2023-06-30T04:44:22Z",

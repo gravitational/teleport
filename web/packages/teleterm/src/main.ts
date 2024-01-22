@@ -1,24 +1,28 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, globalShortcut, shell, nativeTheme } from 'electron';
+import { app, dialog, globalShortcut, shell, nativeTheme } from 'electron';
+
+import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
 
 import MainProcess from 'teleterm/mainProcess';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
@@ -32,7 +36,7 @@ import {
 } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
-import { CUSTOM_PROTOCOL, parseDeepLink } from 'teleterm/deepLinks';
+import { parseDeepLink } from 'teleterm/deepLinks';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
 // Set the app as a default protocol client only if it wasn't started through `electron .`.
@@ -143,19 +147,51 @@ function initializeApp(): void {
   // triggered on macOS if the app is not already running when the user opens a deep link.
   setUpDeepLinks(logger, windowsManager, settings);
 
-  app.whenReady().then(() => {
-    if (mainProcess.settings.dev) {
-      // allow restarts on F6
-      globalShortcut.register('F6', () => {
-        devRelaunchScheduled = true;
-        app.quit();
-      });
-    }
+  (async () => {
+    await mainProcess.initTshdClient();
 
-    enableWebHandlersProtection();
-
-    windowsManager.createWindow();
+    // TODO(ravicious): Keep a cluster list and refresh it when notified by the renderer process.
+    // Example:
+    // const tshdClient = await mainProcess.initTshdClient();
+    //
+    // ipcMain.on(MainProcessIpc.RefreshClusterList, () => {
+    //   tshdClient.listRootClusters();
+    // });
+  })().catch(error => {
+    const message =
+      'Could not initialize tsh daemon client in the main process';
+    logger.error(message, error);
+    dialog.showErrorBox(
+      'Error during main process startup',
+      `${message}: ${error}`
+    );
+    app.quit();
   });
+
+  app
+    .whenReady()
+    .then(() => {
+      if (mainProcess.settings.dev) {
+        // allow restarts on F6
+        globalShortcut.register('F6', () => {
+          devRelaunchScheduled = true;
+          app.quit();
+        });
+      }
+
+      enableWebHandlersProtection();
+
+      windowsManager.createWindow();
+    })
+    .catch(error => {
+      const message = 'Could not initialize the app';
+      logger.error(message, error);
+      dialog.showErrorBox(
+        'Error during app initialization',
+        `${message}: ${error}`
+      );
+      app.quit();
+    });
 
   // Limit navigation capabilities to reduce the attack surface.
   // See TEL-Q122-19 from "Teleport Core Testing Q1 2022" security audit.

@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package gateway
 
@@ -43,6 +45,10 @@ func New(cfg Config) (Gateway, error) {
 
 	case cfg.TargetURI.IsKube():
 		gateway, err := makeKubeGateway(cfg)
+		return gateway, trace.Wrap(err)
+
+	case cfg.TargetURI.IsApp():
+		gateway, err := makeAppGateway(cfg)
 		return gateway, trace.Wrap(err)
 
 	default:
@@ -189,11 +195,20 @@ func (b *base) LocalPortInt() int {
 //
 // In the future, we're probably going to make this method accept the cert as an arg rather than
 // reading from disk.
+// TODO(ravicious): Remove ReloadCert after adding MFA support to gateways.
 func (b *base) ReloadCert() error {
 	if len(b.onNewCertFuncs) == 0 {
 		return nil
 	}
 	b.cfg.Log.Debug("Reloading cert")
+
+	if b.cfg.CertPath == "" {
+		return trace.Errorf("attempted to reload cert for a gateway, but cert path is empty")
+	}
+
+	if b.cfg.KeyPath == "" {
+		return trace.Errorf("attempted to reload cert for a gateway, but key path is empty")
+	}
 
 	tlsCert, err := keys.LoadX509KeyPair(b.cfg.CertPath, b.cfg.KeyPath)
 	if err != nil {
@@ -240,6 +255,7 @@ type base struct {
 	forwardProxy *alpn.ForwardProxy
 	// onNewCertFuncs contains a list of callback functions that update the local
 	// proxy when TLS certificate is reissued.
+	// TODO(ravicious): Remove this field after adding MFA support to gateways.
 	onNewCertFuncs []func(tls.Certificate) error
 	// onCloseFuncs contains a list of extra cleanup functions called during Close.
 	onCloseFuncs []func() error

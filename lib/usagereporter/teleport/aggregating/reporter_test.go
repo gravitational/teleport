@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package aggregating
 
@@ -26,6 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -63,17 +69,18 @@ func TestReporter(t *testing.T) {
 	require.NoError(t, err)
 
 	r, err := NewReporter(ctx, ReporterConfig{
-		Backend:     bk,
-		Log:         logrus.StandardLogger(),
-		Clock:       clk,
-		ClusterName: clusterName,
-		HostID:      uuid.NewString(),
+		Backend:          bk,
+		Log:              logrus.StandardLogger(),
+		Clock:            clk,
+		ClusterName:      clusterName,
+		HostID:           uuid.NewString(),
+		AnonymizationKey: "0123456789abcdef",
 	})
 	require.NoError(t, err)
 
 	svc := reportService{bk}
 
-	r.ingested = make(chan usagereporter.Anonymizable, 3)
+	r.ingested = make(chan usagereporter.Anonymizable, 4)
 	recvIngested := func() {
 		select {
 		case <-r.ingested:
@@ -95,10 +102,9 @@ func TestReporter(t *testing.T) {
 	recvIngested()
 	recvIngested()
 	recvIngested()
-	r.ingested = nil
 
 	clk.BlockUntil(1)
-	clk.Advance(reportGranularity)
+	clk.Advance(userActivityReportGranularity)
 
 	require.Equal(t, types.OpPut, recvBackendEvent().Type)
 
@@ -110,7 +116,29 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), record.Logins)
 	require.Equal(t, uint64(2), record.SshSessions)
 
+	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   "srv01",
+		Kind:   prehogv1a.ResourceKind_RESOURCE_KIND_NODE,
+		Static: true,
+	})
+	recvIngested()
+
+	clk.BlockUntil(1)
+	clk.Advance(resourceReportGranularity)
+
+	require.Equal(t, types.OpPut, recvBackendEvent().Type)
+
+	resReports, err := svc.listResourcePresenceReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, resReports, 1)
+	require.Len(t, resReports[0].ResourceKindReports, 1)
+	resRecord := resReports[0].ResourceKindReports[0]
+	require.Equal(t, prehogv1.ResourceKind_RESOURCE_KIND_NODE, resRecord.ResourceKind)
+	require.Len(t, resRecord.ResourceIds, 1)
+
 	require.NoError(t, svc.deleteUserActivityReport(ctx, reports[0]))
+	require.Equal(t, types.OpDelete, recvBackendEvent().Type)
+	require.NoError(t, svc.deleteResourcePresenceReport(ctx, resReports[0]))
 	require.Equal(t, types.OpDelete, recvBackendEvent().Type)
 
 	// on a GracefulStop there's no need to advance the clock, all processed

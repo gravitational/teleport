@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package app
 
@@ -31,7 +33,7 @@ import (
 // startReconciler starts reconciler that registers/unregisters proxied
 // apps according to the up-to-date list of application resources.
 func (s *Server) startReconciler(ctx context.Context) error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Application]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
 		GetNewResources:     s.monitoredApps.get,
@@ -158,34 +160,22 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 	return fmt.Sprintf("%v.%v", appName, cn.GetClusterName()), nil
 }
 
-func (s *Server) getResources() (resources types.ResourcesWithLabelsMap) {
-	return s.getApps().AsResources().ToMap()
+func (s *Server) getResources() map[string]types.Application {
+	return utils.FromSlice(s.getApps(), types.Application.GetName)
 }
 
-func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels) error {
-	app, ok := resource.(types.Application)
-	if !ok {
-		return trace.BadParameter("expected types.Application, got %T", resource)
-	}
+func (s *Server) onCreate(ctx context.Context, app types.Application) error {
 	return s.registerApp(ctx, app)
 }
 
-func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
-	app, ok := resource.(types.Application)
-	if !ok {
-		return trace.BadParameter("expected types.Application, got %T", resource)
-	}
+func (s *Server) onUpdate(ctx context.Context, app, _ types.Application) error {
 	return s.updateApp(ctx, app)
 }
 
-func (s *Server) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
-	return s.unregisterAndRemoveApp(ctx, resource.GetName())
+func (s *Server) onDelete(ctx context.Context, app types.Application) error {
+	return s.unregisterAndRemoveApp(ctx, app.GetName())
 }
 
-func (s *Server) matcher(resource types.ResourceWithLabels) bool {
-	app, ok := resource.(types.Application)
-	if !ok {
-		return false
-	}
-	return services.MatchResourceLabels(s.c.ResourceMatchers, app)
+func (s *Server) matcher(app types.Application) bool {
+	return services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
 }

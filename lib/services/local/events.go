@@ -1,18 +1,20 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package local
 
@@ -64,7 +66,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		var parser resourceParser
 		switch kind.Kind {
 		case types.KindCertAuthority:
-			parser = newCertAuthorityParser(kind.LoadSecrets)
+			parser = newCertAuthorityParser(kind.LoadSecrets, kind.Filter)
 		case types.KindToken:
 			parser = newProvisionTokenParser()
 		case types.KindStaticTokens:
@@ -77,8 +79,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAuthPreferenceParser()
 		case types.KindSessionRecordingConfig:
 			parser = newSessionRecordingConfigParser()
-		case types.KindExternalCloudAudit:
-			parser = newExternalCloudAuditParser()
 		case types.KindUIConfig:
 			parser = newUIConfigParser()
 		case types.KindClusterName:
@@ -187,6 +187,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newUserLoginStateParser()
 		case types.KindAccessListMember:
 			parser = newAccessListMemberParser()
+		case types.KindAccessListReview:
+			parser = newAccessListReviewParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -347,16 +349,20 @@ func (p baseParser) match(key []byte) bool {
 	return false
 }
 
-func newCertAuthorityParser(loadSecrets bool) *certAuthorityParser {
+func newCertAuthorityParser(loadSecrets bool, filter map[string]string) *certAuthorityParser {
+	var caFilter types.CertAuthorityFilter
+	caFilter.FromMap(filter)
 	return &certAuthorityParser{
 		loadSecrets: loadSecrets,
 		baseParser:  newBaseParser(backend.Key(authoritiesPrefix)),
+		filter:      caFilter,
 	}
 }
 
 type certAuthorityParser struct {
 	baseParser
 	loadSecrets bool
+	filter      types.CertAuthorityFilter
 }
 
 func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error) {
@@ -380,6 +386,9 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 			services.WithResourceID(event.Item.ID), services.WithExpires(event.Item.Expires), services.WithRevision(event.Item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if !p.filter.Match(ca) {
+			return nil, nil
 		}
 		// never send private signing keys over event stream?
 		// this might not be true
@@ -623,31 +632,6 @@ func (p *sessionRecordingConfigParser) parse(event backend.Event) (types.Resourc
 			return nil, trace.Wrap(err)
 		}
 		return ap, nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newExternalCloudAuditParser() *externalCloudAuditParser {
-	return &externalCloudAuditParser{
-		baseParser: newBaseParser(backend.Key(externalCloudAuditPrefix)),
-	}
-}
-
-type externalCloudAuditParser struct {
-	baseParser
-}
-
-func (p *externalCloudAuditParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindExternalCloudAudit, types.V1, 0)
-	case types.OpPut:
-		return services.UnmarshalExternalCloudAudit(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
-			services.WithExpires(event.Item.Expires),
-			services.WithRevision(event.Item.Revision),
-		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -1839,9 +1823,58 @@ type accessListMemberParser struct {
 func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindAccessListMember, types.V1, 0)
+		accessList, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindAccessListMember,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: accessList, // pass access list description field for the cache
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalAccessListMember(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessListReviewParser() *accessListReviewParser {
+	return &accessListReviewParser{
+		baseParser: newBaseParser(backend.ExactKey(accessListReviewPrefix)),
+	}
+}
+
+type accessListReviewParser struct {
+	baseParser
+}
+
+func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		accessList, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindAccessListReview,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: accessList, // pass access list description field for the cache
+			},
+		}, nil
+	case types.OpPut:
+		return services.UnmarshalAccessListReview(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),

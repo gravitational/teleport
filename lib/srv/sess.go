@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -22,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,7 +38,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -663,7 +665,7 @@ type session struct {
 	fileTransferRequests map[string]*fileTransferRequest
 
 	io       *TermManager
-	inWriter io.Writer
+	inWriter io.WriteCloser
 
 	term Terminal
 
@@ -853,6 +855,11 @@ func (s *session) Stop() {
 	s.log.Info("Stopping session")
 
 	// Close io copy loops
+	if s.inWriter != nil {
+		if err := s.inWriter.Close(); err != nil {
+			s.log.WithError(err).Debug("Failed to close session writer")
+		}
+	}
 	s.io.Close()
 
 	// Make sure that the terminal has been closed
@@ -1279,11 +1286,9 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	} else if cgroupID > 0 {
 		// If a cgroup ID was assigned then enhanced session recording was enabled.
 		s.setHasEnhancedRecording(true)
-		scx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
 		go func() {
 			// Close the BPF recording session once the session is closed
 			<-s.stopC
-			scx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
 			err = scx.srv.GetBPF().CloseSession(sessionContext)
 			if err != nil {
 				s.log.WithError(err).Error("Failed to close enhanced recording (interactive) session")
@@ -1452,7 +1457,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// If a cgroup ID was assigned then enhanced session recording was enabled.
 	if cgroupID > 0 {
 		s.setHasEnhancedRecording(true)
-		scx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
 	}
 
 	// Process has been placed in a cgroup, continue execution.
@@ -1472,8 +1476,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		// Wait a little bit to let all events filter through before closing the
 		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
-
-		scx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
 
 		// Close the BPF recording session. If BPF was not configured, not available,
 		// or running in a recording proxy, this is simply a NOP.

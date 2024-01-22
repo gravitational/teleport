@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package client
 
@@ -43,15 +45,18 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client/mfa"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/utils"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
@@ -245,6 +250,9 @@ type SSHLoginSSO struct {
 	// BindAddr is an optional host:port address to bind
 	// to for SSO login flows
 	BindAddr string
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
+	CallbackAddr string
 	// Browser can be used to pass the name of a browser to override the system
 	// default (not currently implemented), or set to 'none' to suppress
 	// browser opening entirely.
@@ -268,7 +276,7 @@ type SSHLoginMFA struct {
 	SSHLogin
 	// PromptMFA is a customizable MFA prompt function.
 	// Defaults to [mfa.NewPrompt().Run]
-	PromptMFA PromptMFAFunc
+	PromptMFA mfa.Prompt
 	// User is the login username.
 	User string
 	// Password is the login password.
@@ -375,6 +383,20 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
 func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*auth.SSHLoginResponse, error) {
+	if login.CallbackAddr != "" && !utils.AsBool(os.Getenv("TELEPORT_LOGIN_SKIP_REMOTE_HOST_WARNING")) {
+		const callbackPrompt = "Logging in from a remote host means that credentials will be stored on " +
+			"the remote host. Make sure that you trust the provided callback host " +
+			"(%v) and that it resolves to the provided bind addr (%v). Continue?"
+		ok, err := prompt.Confirmation(ctx, os.Stderr, prompt.NewContextReader(os.Stdin),
+			fmt.Sprintf(callbackPrompt, login.CallbackAddr, login.BindAddr),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			return nil, trace.BadParameter("Login canceled.")
+		}
+	}
 	rd, err := NewRedirector(ctx, login, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -433,8 +455,8 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 	case response := <-rd.ResponseC():
 		log.Debugf("Got response from browser.")
 		return response, nil
-	case <-time.After(defaults.CallbackTimeout):
-		log.Debugf("Timed out waiting for callback after %v.", defaults.CallbackTimeout)
+	case <-time.After(defaults.SSOCallbackTimeout):
+		log.Debugf("Timed out waiting for callback after %v.", defaults.SSOCallbackTimeout)
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-rd.Done():
 		log.Debugf("Canceled by user.")
@@ -481,7 +503,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.S
 	}
 
 	// This request will block until the headless login is approved.
-	clt.Client.HTTPClient().Timeout = defaults.CallbackTimeout
+	clt.Client.HTTPClient().Timeout = defaults.HeadlessLoginTimeout
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
 		User:                     login.User,
@@ -618,10 +640,10 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 
 	promptMFA := login.PromptMFA
 	if promptMFA == nil {
-		promptMFA = mfa.NewPrompt(login.ProxyAddr).Run
+		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
 	}
 
-	respPB, err := promptMFA(ctx, chal)
+	respPB, err := promptMFA.Run(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -816,10 +838,10 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 
 	promptMFA := login.PromptMFA
 	if promptMFA == nil {
-		promptMFA = mfa.NewPrompt(login.ProxyAddr).Run
+		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
 	}
 
-	respPB, err := promptMFA(ctx, chal)
+	respPB, err := promptMFA.Run(ctx, chal)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

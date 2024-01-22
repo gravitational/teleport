@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import { useEffect } from 'react';
 
@@ -23,8 +25,10 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
+import { Gateway } from 'teleterm/services/tshd/types';
+import { isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
 
-export function useDocumentGateway(doc: types.DocumentGateway) {
+export function useGateway(doc: types.DocumentGateway) {
   const ctx = useAppContext();
   const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
   // The port to show as default in the input field in case creating a gateway fails.
@@ -39,15 +43,22 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
   const connected = !!gateway;
 
   const [connectAttempt, createGateway] = useAsync(async (port: string) => {
-    const gw = await retryWithRelogin(ctx, doc.targetUri, () =>
-      ctx.clustersService.createGateway({
-        targetUri: doc.targetUri,
-        port: port,
-        user: doc.targetUser,
-        subresource_name: doc.targetSubresourceName,
-      })
-    );
+    workspaceDocumentsService.update(doc.uri, { status: 'connecting' });
+    let gw: Gateway;
 
+    try {
+      gw = await retryWithRelogin(ctx, doc.targetUri, () =>
+        ctx.clustersService.createGateway({
+          targetUri: doc.targetUri,
+          port: port,
+          user: doc.targetUser,
+          subresource_name: doc.targetSubresourceName,
+        })
+      );
+    } catch (error) {
+      workspaceDocumentsService.update(doc.uri, { status: 'error' });
+      throw error;
+    }
     workspaceDocumentsService.update(doc.uri, {
       gatewayUri: gw.uri,
       // Set the port on doc to match the one returned from the daemon. Teleterm doesn't let the
@@ -57,8 +68,14 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
       // Setting it here makes it so that on app restart, Teleterm will restart the proxy with the
       // same port number.
       port: gw.localPort,
+      status: 'connected',
     });
-    ctx.usageService.captureProtocolUse(doc.targetUri, 'db', doc.origin);
+    if (isDatabaseUri(doc.targetUri)) {
+      ctx.usageService.captureProtocolUse(doc.targetUri, 'db', doc.origin);
+    }
+    if (isAppUri(doc.targetUri)) {
+      ctx.usageService.captureProtocolUse(doc.targetUri, 'app', doc.origin);
+    }
   });
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {
@@ -66,17 +83,18 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
     workspaceDocumentsService.close(doc.uri);
   });
 
-  const [changeDbNameAttempt, changeDbName] = useAsync(async (name: string) => {
-    const updatedGateway =
-      await ctx.clustersService.setGatewayTargetSubresourceName(
-        doc.gatewayUri,
-        name
-      );
+  const [changeTargetSubresourceNameAttempt, changeTargetSubresourceName] =
+    useAsync(async (name: string) => {
+      const updatedGateway =
+        await ctx.clustersService.setGatewayTargetSubresourceName(
+          doc.gatewayUri,
+          name
+        );
 
-    workspaceDocumentsService.update(doc.uri, {
-      targetSubresourceName: updatedGateway.targetSubresourceName,
+      workspaceDocumentsService.update(doc.uri, {
+        targetSubresourceName: updatedGateway.targetSubresourceName,
+      });
     });
-  });
 
   const [changePortAttempt, changePort] = useAsync(async (port: string) => {
     const updatedGateway = await ctx.clustersService.setGatewayLocalPort(
@@ -89,21 +107,6 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
       port: updatedGateway.localPort,
     });
   });
-
-  const runCliCommand = () => {
-    const command = tshdGateway.getCliCommandArgv0(gateway.gatewayCliCommand);
-    const title = `${command} · ${doc.targetUser}@${doc.targetName}`;
-
-    const cliDoc = workspaceDocumentsService.createGatewayCliDocument({
-      title,
-      targetUri: doc.targetUri,
-      targetUser: doc.targetUser,
-      targetName: doc.targetName,
-      targetProtocol: gateway.protocol,
-    });
-    workspaceDocumentsService.add(cliDoc);
-    workspaceDocumentsService.setLocation(cliDoc.uri);
-  };
 
   useEffect(
     function createGatewayOnMount() {
@@ -125,12 +128,64 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
     connected,
     reconnect: createGateway,
     connectAttempt,
-    // TODO(ravicious): Show disconnectAttempt errors in UI.
     disconnectAttempt,
-    runCliCommand,
-    changeDbName,
-    changeDbNameAttempt,
+    changeTargetSubresourceName,
+    changeTargetSubresourceNameAttempt,
     changePort,
     changePortAttempt,
+  };
+}
+
+//TODO(gzdunek): Refactor DocumentGateway so the hook below is no longer needed.
+// We should move away from using one big hook per component.
+export function useDocumentGateway(doc: types.DocumentGateway) {
+  const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
+
+  const {
+    gateway,
+    reconnect,
+    connectAttempt,
+    disconnectAttempt,
+    disconnect,
+    connected,
+    changePort,
+    changePortAttempt,
+    changeTargetSubresourceNameAttempt,
+    changeTargetSubresourceName,
+    defaultPort,
+  } = useGateway(doc);
+
+  const runCliCommand = () => {
+    if (!isDatabaseUri(doc.targetUri)) {
+      return;
+    }
+    const command = tshdGateway.getCliCommandArgv0(gateway.gatewayCliCommand);
+    const title = `${command} · ${doc.targetUser}@${doc.targetName}`;
+
+    const cliDoc = workspaceDocumentsService.createGatewayCliDocument({
+      title,
+      targetUri: doc.targetUri,
+      targetUser: doc.targetUser,
+      targetName: doc.targetName,
+      targetProtocol: gateway.protocol,
+    });
+    workspaceDocumentsService.add(cliDoc);
+    workspaceDocumentsService.setLocation(cliDoc.uri);
+  };
+
+  return {
+    reconnect,
+    connectAttempt,
+    // TODO(ravicious): Show disconnectAttempt errors in UI.
+    disconnectAttempt,
+    disconnect,
+    connected,
+    gateway,
+    changeDbNameAttempt: changeTargetSubresourceNameAttempt,
+    changePort,
+    changePortAttempt,
+    changeDbName: changeTargetSubresourceName,
+    defaultPort,
+    runCliCommand,
   };
 }

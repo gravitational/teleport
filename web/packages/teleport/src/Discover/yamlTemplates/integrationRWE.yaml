@@ -8,3 +8,4 @@ spec:
       - list
       - create
       - use
+      - read

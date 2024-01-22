@@ -104,6 +104,9 @@ jobs:
           git switch -c $BRANCH_NAME
           git commit -am "[auto] docs: Update version to ${{ github.event.release.tag_name }}"
           git push --set-upstream origin $BRANCH_NAME
-          gh pr create --fill --label=automated --label=documentation --label=no-changelog --base=${{ steps.get-branch.outputs.branch }}
+          gh pr create --fill --base=${{ steps.get-branch.outputs.branch }} \
+             --label=automated --label=documentation --label=no-changelog \
+             --reviewer=${{ github.event.release.author.login }}
+           echo "Docs PR: $(gh pr view --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}

@@ -1,21 +1,27 @@
 teleport:
-  # Teleport HTTPS Proxy web address, for Teleport Enterprise Cloud should be in the form "your-account.teleport.sh:443"
+  # Teleport Proxy Service domain name and HTTPS port. If you are using Teleport
+  # Enterprise Cloud, this should be in the form "your-account.teleport.sh:443"
   address: "teleport.example.com:443"
-  # Secret containing identity
-  identitySecretName: teleport-plugin-jira-identity
+  # Secret containing a Teleport identity document
+  identityFromSecret: teleport-plugin-jira-identity
+  # Path within the secret containing the identity file.
+  identitySecretPath: identity
 
 jira:
-  url: https://jira.example.com/  # URL of the Jira instance
-  username: bot@example.com       # Email of the bot user
-  apiToken: token                 # Token of the bot user
-  project: MYPROJ                 # Project where issues will be created
+  url: "https://[my-jira].atlassian.net"      # URL of the Jira instance
+  username: bot@example.com                   # Email of the bot user
+  apiToken: token                             # Token of the bot user
+  project: TAR                                # Project where issues will be created
 
 http:
-  publicAddress: https://jira-teleport.example.com/  # Publicly available
-  tlsFromSecret: teleport-plugin-jira-tls            # Secret containing the TLS certificate
-  # tlsKeySecretPath:  tls.key                       # Name of the key inside the secret
-  # tlsCertSecretPath: tls.crt                       # Name of the certificate inside the secret
+  publicAddress: https://jira-teleport.example.com/ 
+  # Secret containing the TLS certificate
+  tlsFromSecret: teleport-plugin-jira-tls            
+  # tlsKeySecretPath:  tls.key                # Name of the key inside the secret
+  # tlsCertSecretPath: tls.crt                # Name of the certificate inside the secret
 
 log:
   output: stderr  # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/jira.log"
   severity: INFO  # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+
+serviceType: ClusterIP

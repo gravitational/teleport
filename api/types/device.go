@@ -149,6 +149,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 			TpmPlatformAttestation: tpmPlatformAttestationFromResource(
 				d.TpmPlatformAttestation,
 			),
+			OsId: d.OsId,
 		}
 	}
 
@@ -175,6 +176,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 			OsUsernames:         p.OsUsernames,
 			JamfBinaryVersion:   p.JamfBinaryVersion,
 			ExternalId:          p.ExternalId,
+			OsId:                p.OsId,
 		}
 	}
 
@@ -241,6 +243,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			TpmPlatformAttestation: tpmPlatformAttestationToResource(
 				d.TpmPlatformAttestation,
 			),
+			OsId: d.OsId,
 		}
 	}
 
@@ -263,6 +266,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			OsUsernames:         p.OsUsernames,
 			JamfBinaryVersion:   p.JamfBinaryVersion,
 			ExternalId:          p.ExternalId,
+			OsId:                p.OsId,
 		}
 	}
 

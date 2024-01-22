@@ -1,18 +1,20 @@
-/*
-Copyright 2019-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
@@ -46,11 +48,7 @@ const auth = {
       )
     );
   },
-  checkMfaRequired(
-    params: IsMfaRequiredRequest
-  ): Promise<{ required: boolean }> {
-    return api.post(cfg.getMfaRequiredUrl(), params);
-  },
+  checkMfaRequired: checkMfaRequired,
   createMfaRegistrationChallenge(
     tokenId: string,
     deviceType: DeviceType,
@@ -271,12 +269,31 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  fetchWebauthnChallenge() {
+  async fetchWebauthnChallenge(isMFARequiredRequest?: IsMfaRequiredRequest) {
+    // TODO(Joerger): DELETE IN 16.0.0
+    // the create mfa challenge endpoint below supports
+    // MFARequired requests without the extra roundtrip.
+    if (isMFARequiredRequest) {
+      try {
+        const isMFARequired = await checkMfaRequired(isMFARequiredRequest);
+        if (!isMFARequired.required) {
+          return;
+        }
+      } catch {
+        // checking MFA requirement for admin actions is not supported by old
+        // auth servers, we expect an error instead. In this case, assume MFA is
+        // not required. Callers should fallback to retrying with MFA if needed.
+        return;
+      }
+    }
+
     return auth
       .checkWebauthnSupport()
       .then(() =>
         api
-          .post(cfg.api.mfaAuthnChallengePath)
+          .post(cfg.api.mfaAuthnChallengePath, {
+            is_mfa_required: isMFARequiredRequest,
+          })
           .then(makeMfaAuthenticateChallenge)
       )
       .then(res =>
@@ -298,12 +315,18 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
-  getWebauthnResponse() {
+  getWebauthnResponse(isMFARequiredRequest?: IsMfaRequiredRequest) {
     return auth
-      .fetchWebauthnChallenge()
+      .fetchWebauthnChallenge(isMFARequiredRequest)
       .then(res => makeWebauthnAssertionResponse(res));
   },
 };
+
+function checkMfaRequired(
+  params: IsMfaRequiredRequest
+): Promise<IsMfaRequiredResponse> {
+  return api.post(cfg.getMfaRequiredUrl(), params);
+}
 
 function base64EncodeUnicode(str: string) {
   return window.btoa(
@@ -320,7 +343,12 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredDatabase
   | IsMfaRequiredNode
   | IsMfaRequiredKube
-  | IsMfaRequiredWindowsDesktop;
+  | IsMfaRequiredWindowsDesktop
+  | IsMFARequiredAdminAction;
+
+export type IsMfaRequiredResponse = {
+  required: boolean;
+};
 
 export type IsMfaRequiredDatabase = {
   database: {
@@ -357,5 +385,12 @@ export type IsMfaRequiredKube = {
   kube: {
     // cluster_name is the name of the kube cluster.
     cluster_name: string;
+  };
+};
+
+export type IsMFARequiredAdminAction = {
+  admin_action: {
+    // name is the name of the admin action RPC.
+    name: string;
   };
 };

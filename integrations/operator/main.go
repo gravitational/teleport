@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 //nolint:goimports,gci // goimports disagree with gci on blank imports. Remove when GCI is fixed upstream https://github.com/daixiang0/gci/issues/135
 package main
@@ -22,26 +24,19 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/trace"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/utils/retryutils"
-	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
-	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
-	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
-	sidecar2 "github.com/gravitational/teleport/integrations/operator/sidecar"
+	"github.com/gravitational/teleport/integrations/operator/embeddedtbot"
 )
 
 var (
@@ -49,154 +44,75 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
-	utilruntime.Must(resourcesv5.AddToScheme(scheme))
-	utilruntime.Must(resourcesv3.AddToScheme(scheme))
-	utilruntime.Must(resourcesv2.AddToScheme(scheme))
-	utilruntime.Must(resourcesv1.AddToScheme(scheme))
-	//+kubebuilder:scaffold:scheme
-
-	utilruntime.Must(apiextv1.AddToScheme(scheme))
-}
-
 func main() {
 	ctx := ctrl.SetupSignalHandler()
 
-	var err error
-	var metricsAddr string
-	var probeAddr string
-	var pprofAddr string
-	var leaderElectionID string
-	var syncPeriodString string
-
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	// pprof is disabled by default
-	flag.StringVar(&pprofAddr, "pprof-bind-address", "", "The address the pprof endpoint binds to, leave empty to disable.")
-	flag.StringVar(&leaderElectionID, "leader-election-id", "431e83f4.teleport.dev", "Leader Election Id to use")
-	flag.StringVar(&syncPeriodString, "sync-period", "10h", "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
-
+	config := &operatorConfig{}
+	config.BindFlags(flag.CommandLine)
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
+	botConfig := &embeddedtbot.BotConfig{}
+	botConfig.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	namespace, err := GetKubernetesNamespace()
+	err := config.CheckAndSetDefaults()
 	if err != nil {
-		setupLog.Error(err, "unable to read the namespace, you can force a namespace by setting the POD_NAMESPACE env variable")
+		setupLog.Error(err, "invalid configuration")
 		os.Exit(1)
 	}
 
-	syncPeriod, err := time.ParseDuration(syncPeriodString)
+	bot, err := embeddedtbot.New(botConfig)
 	if err != nil {
-		setupLog.Error(err, "invalid sync-period, please ensure the value is correctly parsed with https://pkg.go.dev/time#ParseDuration")
+		setupLog.Error(err, "unable to build tbot")
 		os.Exit(1)
+	}
+
+	pong, err := bot.Preflight(ctx)
+	if err != nil {
+		setupLog.Error(err, "tbot preflight checks failed")
+		os.Exit(1)
+	}
+
+	client, err := bot.StartAndWaitForClient(ctx, 15*time.Second)
+	if err != nil {
+		setupLog.Error(err, "error waiting the teleport client")
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         true,
-		LeaderElectionID:       leaderElectionID,
-		Namespace:              namespace,
-		SyncPeriod:             &syncPeriod,
-		PprofBindAddress:       pprofAddr,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: config.metricsAddr,
+		},
+		HealthProbeBindAddress:  config.probeAddr,
+		LeaderElection:          true,
+		LeaderElectionID:        config.leaderElectionID,
+		LeaderElectionNamespace: config.namespace,
+		PprofBindAddress:        config.pprofAddr,
+		Cache: cache.Options{
+			SyncPeriod: &config.syncPeriod,
+			DefaultNamespaces: map[string]cache.Config{
+				config.namespace: {},
+			},
+		},
+		// All our controllers now use unstructured objects, we need to cache them.
+		Client: ctrlclient.Options{Cache: &ctrlclient.CacheOptions{Unstructured: true}},
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		setupLog.Error(err, "unable to create manager")
 		os.Exit(1)
 	}
 
-	var bot *sidecar2.Bot
-	var features *proto.Features
-
-	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step: 100 * time.Millisecond,
-		Max:  time.Second,
-	})
-	if err != nil {
-		setupLog.Error(err, "failed to setup retry")
-		os.Exit(1)
-	}
-	if err := retry.For(ctx, func() error {
-		bot, features, err = sidecar2.CreateAndBootstrapBot(ctx, sidecar2.Options{})
-		if err != nil {
-			setupLog.Error(err, "failed to connect to teleport cluster, backing off")
-		}
-		return trace.Wrap(err)
-	}); err != nil {
-		setupLog.Error(err, "failed to setup teleport client")
-		os.Exit(1)
-	}
-	setupLog.Info("connected to Teleport")
-
-	if err = (&resources.RoleReconciler{
-		Client:                 mgr.GetClient(),
-		Scheme:                 mgr.GetScheme(),
-		TeleportClientAccessor: bot.GetClient,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TeleportRole")
+	if err = mgr.Add(bot); err != nil {
+		setupLog.Error(err, "unable to add tBot as a manager runnable")
 		os.Exit(1)
 	}
 
-	if err = resources.NewUserReconciler(mgr.GetClient(), bot.GetClient).
-		SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TeleportUser")
-		os.Exit(1)
-	}
-
-	if err = resources.NewGithubConnectorReconciler(mgr.GetClient(), bot.GetClient).
-		SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TeleportGithubConnector")
-		os.Exit(1)
-	}
-
-	if features.OIDC {
-		if err = resources.NewOIDCConnectorReconciler(mgr.GetClient(), bot.GetClient).
-			SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "TeleportOIDCConnector")
-			os.Exit(1)
-		}
-	} else {
-		setupLog.Info("OIDC connectors are only available in Teleport Enterprise edition. TeleportOIDCConnector resources won't be reconciled")
-	}
-
-	if features.SAML {
-		if err = resources.NewSAMLConnectorReconciler(mgr.GetClient(), bot.GetClient).
-			SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "TeleportSAMLConnector")
-			os.Exit(1)
-		}
-	} else {
-		setupLog.Info("SAML connectors are only available in Teleport Enterprise edition. TeleportSAMLConnector resources won't be reconciled")
-	}
-
-	// Login Rules are enterprise-only but there is no specific feature flag for them.
-	if features.OIDC || features.SAML {
-		if err := resources.NewLoginRuleReconciler(mgr.GetClient(), bot.GetClient).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "TeleportLoginRule")
-			os.Exit(1)
-		}
-	} else {
-		setupLog.Info("Login Rules are only available in Teleport Enterprise edition. TeleportLoginRule resources won't be reconciled")
-	}
-
-	if err = resources.NewProvisionTokenReconciler(mgr.GetClient(), bot.GetClient).
-		SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TeleportProvisionToken")
-		os.Exit(1)
-	}
-
-	if err = resources.NewOktaImportRuleReconciler(mgr.GetClient(), bot.GetClient).
-		SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TeleportOktaImportRule")
+	if err = resources.SetupAllControllers(setupLog, mgr, client, pong.ServerFeatures); err != nil {
+		setupLog.Error(err, "failed to setup controllers")
 		os.Exit(1)
 	}
 
@@ -208,10 +124,6 @@ func main() {
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
-	}
-
-	if err := mgr.Add(bot); err != nil {
-		setupLog.Error(err, "unable to setup bot ")
 	}
 
 	setupLog.Info("starting manager")

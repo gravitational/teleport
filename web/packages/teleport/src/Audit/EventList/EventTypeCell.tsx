@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 import styled from 'styled-components';
@@ -20,7 +22,6 @@ import { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
 
 import { eventCodes, Event, EventCode } from 'teleport/services/audit';
-import cfg from 'teleport/config';
 
 const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
@@ -36,7 +37,6 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.OIDC_CONNECTOR_CREATED]: Icons.Info,
   [eventCodes.OIDC_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.OIDC_CONNECTOR_UPDATED]: Icons.Info,
-  [eventCodes.SAML_CONNECTOR_CREATED]: Icons.Info,
   [eventCodes.SAML_CONNECTOR_CREATED]: Icons.Info,
   [eventCodes.SAML_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.SAML_CONNECTOR_UPDATED]: Icons.Info,
@@ -106,6 +106,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.USER_CREATED]: Icons.Info,
   [eventCodes.USER_UPDATED]: Icons.Info,
   [eventCodes.USER_DELETED]: Icons.Info,
+  [eventCodes.BOT_CREATED]: Icons.Info,
+  [eventCodes.BOT_UPDATED]: Icons.Info,
+  [eventCodes.BOT_DELETED]: Icons.Info,
   [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: Icons.Info,
   [eventCodes.USER_PASSWORD_CHANGED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_CREATED]: Icons.Info,
@@ -248,47 +251,18 @@ const EventIconMap: Record<EventCode, any> = {
     Icons.Warning,
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: Icons.Info,
   [eventCodes.SECURITY_REPORT_RUN]: Icons.Info,
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: Icons.Database,
+  [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: Icons.Database,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
-export default function renderTypeCell(event: Event, clusterId: string) {
+export default function renderTypeCell(event: Event) {
   const Icon = EventIconMap[event.code] || Icons.ListThin;
 
   const iconProps = {
     p: 1,
     mr: 3,
   };
-
-  // use button for interactive ssh sessions
-  if (
-    event.code === eventCodes.SESSION_END &&
-    event.raw.interactive &&
-    event.raw.session_recording !== 'off'
-  ) {
-    return (
-      <Cell style={{ verticalAlign: 'inherit' }}>
-        <StyledEventType>
-          <a
-            title="Open Session Player"
-            href={cfg.getPlayerRoute(
-              {
-                clusterId,
-                sid: event.raw.sid,
-              },
-              {
-                recordingType: 'ssh',
-              }
-            )}
-            target="_blank"
-            style={{ textDecoration: 'none' }}
-          >
-            <StyledCliIcon {...iconProps} />
-          </a>
-          {event.codeDesc}
-        </StyledEventType>
-      </Cell>
-    );
-  }
 
   return (
     <Cell style={{ verticalAlign: 'inherit' }}>
@@ -299,35 +273,6 @@ export default function renderTypeCell(event: Event, clusterId: string) {
     </Cell>
   );
 }
-
-const StyledCliIcon = styled(Icons.Cli)(
-  props => `
-  background: ${props.theme.colors.levels.deep};
-  border: 2px solid ${props.theme.colors.brand};
-  color: ${props.theme.colors.text.slightlyMuted};
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border-radius: 100px;
-  transition: all 0.3s;
-
-  &:hover,
-  &:active,
-  &:focus {
-    background: ${props.theme.colors.levels.sunken};
-    color: ${props.theme.colors.text.main};
-  }
-
-  &:active {
-    box-shadow: none;
-    opacity: 0.56;
-  }
-`
-);
 
 const StyledEventType = styled.div`
   display: flex;

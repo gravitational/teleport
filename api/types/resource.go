@@ -18,12 +18,12 @@ package types
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/common"
@@ -31,6 +31,10 @@ import (
 )
 
 // Resource represents common properties for all resources.
+//
+// Please avoid adding new uses of Resource in the codebase. Instead, consider
+// using concrete proto types directly or a manually declared subset of the
+// Resource153 interface for new-style resources.
 type Resource interface {
 	// GetKind returns resource kind
 	GetKind() string
@@ -60,9 +64,6 @@ type Resource interface {
 	GetRevision() string
 	// SetRevision sets the revision
 	SetRevision(string)
-	// CheckAndSetDefaults validates the Resource and sets any empty fields to
-	// default values.
-	CheckAndSetDefaults() error
 }
 
 // IsSystemResource checks to see if the given resource is considered
@@ -660,6 +661,11 @@ func ValidateResourceName(validationRegex *regexp.Regexp, name string) error {
 func FriendlyName(resource ResourceWithLabels) string {
 	// Right now, only resources sourced from Okta and nodes have friendly names.
 	if resource.Origin() == OriginOkta {
+		if appName, ok := resource.GetLabel(OktaAppNameLabel); ok {
+			return appName
+		} else if groupName, ok := resource.GetLabel(OktaGroupNameLabel); ok {
+			return groupName
+		}
 		return resource.GetMetadata().Description
 	}
 
@@ -668,4 +674,100 @@ func FriendlyName(resource ResourceWithLabels) string {
 	}
 
 	return ""
+}
+
+// GetOrigin returns the value set for the [OriginLabel].
+// If the label is missing, an empty string is returned.
+//
+// Works for both [ResourceWithOrigin] and [ResourceMetadata] instances.
+func GetOrigin(v any) string {
+	switch r := v.(type) {
+	case ResourceWithOrigin:
+		return r.Origin()
+	case ResourceMetadata:
+		meta := r.GetMetadata()
+		if meta.Labels == nil {
+			return ""
+		}
+		return meta.Labels[OriginLabel]
+	}
+
+	return ""
+}
+
+// GetKind returns the kind, if one can be obtained, otherwise
+// an empty string is returned.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func GetKind(v any) string {
+	type kinder interface {
+		GetKind() string
+	}
+
+	if k, ok := v.(kinder); ok {
+		return k.GetKind()
+	}
+
+	return ""
+}
+
+// GetRevision returns the revision, if one can be obtained, otherwise
+// an empty string is returned.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func GetRevision(v any) string {
+	switch r := v.(type) {
+	case Resource:
+		return r.GetRevision()
+	case ResourceMetadata:
+		return r.GetMetadata().Revision
+	}
+
+	return ""
+}
+
+// SetRevision updates the revision if v supports the concept of revisions.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func SetRevision(v any, revision string) {
+	switch r := v.(type) {
+	case Resource:
+		r.SetRevision(revision)
+	case ResourceMetadata:
+		r.GetMetadata().Revision = revision
+	}
+}
+
+// GetExpiry returns the expiration, if one can be obtained, otherwise returns
+// an empty time.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func GetExpiry(v any) time.Time {
+	switch r := v.(type) {
+	case Resource:
+		return r.Expiry()
+	case ResourceMetadata:
+		return r.GetMetadata().Expires.AsTime()
+	}
+
+	return time.Time{}
+}
+
+// GetResourceID returns the id, if one can be obtained, otherwise returns
+// zero.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+//
+// Deprecated: GetRevision should be used instead.
+func GetResourceID(v any) int64 {
+	switch r := v.(type) {
+	case Resource:
+		//nolint:staticcheck // SA1019. Added for backward compatibility.
+		return r.GetResourceID()
+	case ResourceMetadata:
+		//nolint:staticcheck // SA1019. Added for backward compatibility.
+		return r.GetMetadata().Id
+	}
+
+	return 0
 }

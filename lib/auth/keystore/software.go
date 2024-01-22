@@ -1,16 +1,20 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package keystore
 
@@ -22,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -38,7 +43,7 @@ type SoftwareConfig struct {
 
 func (cfg *SoftwareConfig) CheckAndSetDefaults() error {
 	if cfg.RSAKeyPairSource == nil {
-		return trace.BadParameter("must provide RSAKeyPairSource")
+		cfg.RSAKeyPairSource = native.GenerateKeyPair
 	}
 	return nil
 }
@@ -58,15 +63,19 @@ func (s *softwareKeyStore) generateRSA(ctx context.Context, _ ...RSAKeyOption) (
 	if err != nil {
 		return nil, nil, err
 	}
-	signer, err := s.getSigner(ctx, priv)
+	signer, err := s.getSignerWithoutPublicKey(ctx, priv)
 	if err != nil {
 		return nil, nil, err
 	}
 	return priv, signer, trace.Wrap(err)
 }
 
-// GetSigner returns a crypto.Signer for the given pem-encoded private key.
-func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
+// getSigner returns a crypto.Signer for the given pem-encoded private key.
+func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
+	return s.getSignerWithoutPublicKey(ctx, rawKey)
+}
+
+func (s *softwareKeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
 	signer, err := utils.ParsePrivateKeyPEM(rawKey)
 	return signer, trace.Wrap(err)
 }
@@ -76,16 +85,14 @@ func (s *softwareKeyStore) canSignWithKey(ctx context.Context, _ []byte, keyType
 	return keyType == types.PrivateKeyType_RAW, nil
 }
 
-// deleteKey deletes the given key from the KeyStore. This is a no-op for
-// softwareKeyStore.
+// deleteKey is a no-op for softwareKeyStore because the keys are not actually
+// stored in any external backend.
 func (s *softwareKeyStore) deleteKey(_ context.Context, _ []byte) error {
 	return nil
 }
 
-// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
-// 1. Labeled by this KeyStore when they were created
-// 2. Not included in the argument activeKeys
-// This is a no-op for rawKeyStore.
-func (s *softwareKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+// deleteUnusedKeys is a no-op for softwareKeyStore because the keys are not
+// actually stored in any external backend.
+func (s *softwareKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	return nil
 }

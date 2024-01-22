@@ -78,6 +78,7 @@ crdgen: ## Generate CRDs
 
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
+	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto
 
 .PHONY: manifests
@@ -128,7 +129,7 @@ crdgen-test: ## Run crdgen tests.
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go namespace.go
+	go build -o bin/manager main.go namespace.go config.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -159,7 +160,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_TOOLS_VERSION ?= v0.9.0
+CONTROLLER_TOOLS_VERSION ?= v0.14.0
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.

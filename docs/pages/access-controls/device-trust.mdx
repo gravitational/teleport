@@ -1,19 +1,20 @@
 ---
-title: Device Trust 
+title: Device Trust
 description: Teleport Device Trust Concepts
 layout: tocless-doc
 videoBanner: gBQyj_X1LVw
 ---
 
-<Admonition type="warning">
+<Admonition type="notice">
   Device Trust supports the following components:
 
-  - User devices: macOS and Windows.
+  - User devices: macOS, Windows and Linux.
   - Teleport client: `tsh` and Teleport connect.
-  - Resources: SSH, Database and Kubernetes.
+  - Resources: Apps (role-based enforcement only), SSH nodes, databases, and
+    Kubernetes clusters
 
-  Support for other operating systems, access from Web UI and application
-  access is planned for upcoming Teleport versions.
+  Support for the Web UI and desktop access are planned for upcoming Teleport
+  versions.
 </Admonition>
 
 ## Concepts
@@ -64,14 +65,14 @@ On macOS devices, Device Trust uses the Secure Enclave in order to store a
 device private key. That key is used to solve device challenges issued by the
 Teleport Auth Service, proving the identity of the trusted device.
 
-On Windows devices, a Trusted Platform Module (TPM) is used to perform an
-attestation as to the state of the device. This attestation is signed by a
+On Windows and Linux devices, a Trusted Platform Module (TPM) is used to perform
+an attestation as to the state of the device. This attestation is signed by a
 private key that is also protected by the TPM.
 
 The signed attestation ensures that the Teleport Auth Service knows both the state
 of the device and that the request has come from the device.
 
-That said, a device is as "trustworthy" as the enrollment process. If enrollment operator
+That said, a device is as trustworthy as the enrollment process. If enrollment operator
 enrolls a malicious device to Teleport, establishing trust with Secure Enclave or TPM is
 already defeated at this point. The more trusted the enrollment environment and operator,
 the better the ongoing guarantees that the device itself is trustworthy.

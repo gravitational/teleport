@@ -3,21 +3,11 @@ title: MySQL Automatic User Provisioning
 description: Configure automatic user provisioning for MySQL.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="14.1"
->
-  Automatic user provisioning for MySQL is available starting from Teleport
-  14.1.
-</Details>
-
 ## Prerequisites
 
-- Teleport cluster with a configured [self-hosted MySQL](../guides/mysql-self-hosted.mdx)
-  or [RDS MySQL](../guides/rds.mdx) database.
+- Teleport cluster v14.1 or higher with a configured [self-hosted
+  MySQL](../guides/mysql-self-hosted.mdx) or [RDS MySQL](../guides/rds.mdx)
+  database.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="note" title="Supported versions">
@@ -72,7 +62,7 @@ database, which will be created automatically if it doesn't exist.
 
 (!docs/pages/includes/database-access/auto-user-provisioning/db-definition.mdx protocol="mysql" uri="localhost:3306" !)
 
-## Step 2/3. Configure Teleport role
+## Step 2/3. Configure a Teleport role
 
 (!docs/pages/includes/database-access/auto-user-provisioning/common-teleport-role.mdx!)
 

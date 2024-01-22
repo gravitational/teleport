@@ -1,23 +1,24 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 export const clusters = [
   {
     clusterId: 'localhost',
-    nodeCount: 30,
     authVersion: '1.2.3',
     status: 'online',
     connectedText: '2019-08-30 17:40:04',
@@ -29,7 +30,6 @@ export const clusters = [
   },
   {
     clusterId: 'nidvojik',
-    nodeCount: 21,
     authVersion: '1.2.3',
     status: 'online',
     connectedText: '2019-08-30 12:40:04',
@@ -41,7 +41,6 @@ export const clusters = [
   },
   {
     clusterId: 'lidtabih',
-    nodeCount: 35,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -53,7 +52,6 @@ export const clusters = [
   },
   {
     clusterId: 'farovluv',
-    nodeCount: 12,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -65,7 +63,6 @@ export const clusters = [
   },
   {
     clusterId: 'rozpaari',
-    nodeCount: 32,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -77,7 +74,6 @@ export const clusters = [
   },
   {
     clusterId: 'wetjolune',
-    nodeCount: 8,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -89,7 +85,6 @@ export const clusters = [
   },
   {
     clusterId: 'dashawic',
-    nodeCount: 11,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -101,7 +96,6 @@ export const clusters = [
   },
   {
     clusterId: 'jesushenry58',
-    nodeCount: 23,
     authVersion: '1.2.239',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -114,7 +108,6 @@ export const clusters = [
 
   {
     clusterId: 'jordansimpson35',
-    nodeCount: 23,
     authVersion: '1.2.20',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -126,7 +119,6 @@ export const clusters = [
   },
   {
     clusterId: 'leonamann249',
-    nodeCount: 23,
     authVersion: '1.2.245',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -138,7 +130,6 @@ export const clusters = [
   },
   {
     clusterId: 'bessiecohen207',
-    nodeCount: 23,
     authVersion: '1.2.239',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -150,7 +141,6 @@ export const clusters = [
   },
   {
     clusterId: 'philipjohnson10',
-    nodeCount: 23,
     authVersion: '1.2.20',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -162,7 +152,6 @@ export const clusters = [
   },
   {
     clusterId: 'teresastone14',
-    nodeCount: 23,
     authVersion: '1.2.236',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -174,7 +163,6 @@ export const clusters = [
   },
   {
     clusterId: 'connorsharp137',
-    nodeCount: 23,
     authVersion: '1.2.224',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -186,7 +174,6 @@ export const clusters = [
   },
   {
     clusterId: 'ricardosingleton242',
-    nodeCount: 23,
     authVersion: '1.2.105',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -198,7 +185,6 @@ export const clusters = [
   },
   {
     clusterId: 'rozpaari',
-    nodeCount: 32,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -210,7 +196,6 @@ export const clusters = [
   },
   {
     clusterId: 'wetjolune',
-    nodeCount: 8,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -222,7 +207,6 @@ export const clusters = [
   },
   {
     clusterId: 'dashawic',
-    nodeCount: 11,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -234,7 +218,6 @@ export const clusters = [
   },
   {
     clusterId: 'williepayne223',
-    nodeCount: 23,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -247,7 +230,6 @@ export const clusters = [
 
   {
     clusterId: 'samlewis176',
-    nodeCount: 23,
     authVersion: '1.2.84',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -259,7 +241,6 @@ export const clusters = [
   },
   {
     clusterId: 'nellwheeler72',
-    nodeCount: 23,
     authVersion: '1.2.55',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -271,7 +252,6 @@ export const clusters = [
   },
   {
     clusterId: 'albertowens200',
-    nodeCount: 23,
     authVersion: '1.2.144',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -283,7 +263,6 @@ export const clusters = [
   },
   {
     clusterId: 'beatricecarson171',
-    nodeCount: 23,
     authVersion: '1.2.251',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -295,7 +274,6 @@ export const clusters = [
   },
   {
     clusterId: 'besscarroll152',
-    nodeCount: 23,
     authVersion: '1.2.104',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -307,7 +285,6 @@ export const clusters = [
   },
   {
     clusterId: 'hannahsutton232',
-    nodeCount: 23,
     authVersion: '1.2.110',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -319,7 +296,6 @@ export const clusters = [
   },
   {
     clusterId: 'barrynelson110',
-    nodeCount: 23,
     authVersion: '1.2.199',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -331,7 +307,6 @@ export const clusters = [
   },
   {
     clusterId: 'rozpaari',
-    nodeCount: 32,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -343,7 +318,6 @@ export const clusters = [
   },
   {
     clusterId: 'wetjolune',
-    nodeCount: 8,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -355,7 +329,6 @@ export const clusters = [
   },
   {
     clusterId: 'dashawic',
-    nodeCount: 11,
     authVersion: '1.2.3',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -367,7 +340,6 @@ export const clusters = [
   },
   {
     clusterId: 'henriettarios78',
-    nodeCount: 23,
     authVersion: '1.2.153',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -380,7 +352,6 @@ export const clusters = [
 
   {
     clusterId: 'josephinewolfe55',
-    nodeCount: 23,
     authVersion: '1.2.154',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -392,7 +363,6 @@ export const clusters = [
   },
   {
     clusterId: 'jaysandoval137',
-    nodeCount: 23,
     authVersion: '1.2.66',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -404,7 +374,6 @@ export const clusters = [
   },
   {
     clusterId: 'isabellekim81',
-    nodeCount: 23,
     authVersion: '1.2.150',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -416,7 +385,6 @@ export const clusters = [
   },
   {
     clusterId: 'francismoran134',
-    nodeCount: 23,
     authVersion: '1.2.82',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -428,7 +396,6 @@ export const clusters = [
   },
   {
     clusterId: 'theodorefrazier78',
-    nodeCount: 23,
     authVersion: '1.2.61',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -440,7 +407,6 @@ export const clusters = [
   },
   {
     clusterId: 'hattiestanley34',
-    nodeCount: 23,
     authVersion: '1.2.93',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',
@@ -452,7 +418,6 @@ export const clusters = [
   },
   {
     clusterId: 'tommybrooks146',
-    nodeCount: 23,
     authVersion: '1.2.112',
     status: 'offline',
     connectedText: '2019-08-30 11:40:04',

@@ -6,15 +6,18 @@
 
 import * as grpc from "grpc";
 import * as teleport_lib_teleterm_v1_service_pb from "../../../../teleport/lib/teleterm/v1/service_pb";
+import * as teleport_accesslist_v1_accesslist_pb from "../../../../teleport/accesslist/v1/accesslist_pb";
 import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../teleport/lib/teleterm/v1/access_request_pb";
+import * as teleport_lib_teleterm_v1_app_pb from "../../../../teleport/lib/teleterm/v1/app_pb";
 import * as teleport_lib_teleterm_v1_auth_settings_pb from "../../../../teleport/lib/teleterm/v1/auth_settings_pb";
 import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/teleterm/v1/cluster_pb";
 import * as teleport_lib_teleterm_v1_database_pb from "../../../../teleport/lib/teleterm/v1/database_pb";
 import * as teleport_lib_teleterm_v1_gateway_pb from "../../../../teleport/lib/teleterm/v1/gateway_pb";
 import * as teleport_lib_teleterm_v1_kube_pb from "../../../../teleport/lib/teleterm/v1/kube_pb";
-import * as teleport_lib_teleterm_v1_label_pb from "../../../../teleport/lib/teleterm/v1/label_pb";
 import * as teleport_lib_teleterm_v1_server_pb from "../../../../teleport/lib/teleterm/v1/server_pb";
 import * as teleport_lib_teleterm_v1_usage_events_pb from "../../../../teleport/lib/teleterm/v1/usage_events_pb";
+import * as teleport_userpreferences_v1_cluster_preferences_pb from "../../../../teleport/userpreferences/v1/cluster_preferences_pb";
+import * as teleport_userpreferences_v1_unified_resource_preferences_pb from "../../../../teleport/userpreferences/v1/unified_resource_preferences_pb";
 
 interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
     updateTshdEventsServerAddress: ITerminalServiceService_IUpdateTshdEventsServerAddress;
@@ -30,7 +33,10 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     reviewAccessRequest: ITerminalServiceService_IReviewAccessRequest;
     getRequestableRoles: ITerminalServiceService_IGetRequestableRoles;
     assumeRole: ITerminalServiceService_IAssumeRole;
+    promoteAccessRequest: ITerminalServiceService_IPromoteAccessRequest;
+    getSuggestedAccessLists: ITerminalServiceService_IGetSuggestedAccessLists;
     getKubes: ITerminalServiceService_IGetKubes;
+    getApps: ITerminalServiceService_IGetApps;
     addCluster: ITerminalServiceService_IAddCluster;
     removeCluster: ITerminalServiceService_IRemoveCluster;
     listGateways: ITerminalServiceService_IListGateways;
@@ -53,6 +59,8 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     deleteConnectMyComputerNode: ITerminalServiceService_IDeleteConnectMyComputerNode;
     getConnectMyComputerNodeName: ITerminalServiceService_IGetConnectMyComputerNodeName;
     listUnifiedResources: ITerminalServiceService_IListUnifiedResources;
+    getUserPreferences: ITerminalServiceService_IGetUserPreferences;
+    updateUserPreferences: ITerminalServiceService_IUpdateUserPreferences;
 }
 
 interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest, teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse> {
@@ -172,6 +180,24 @@ interface ITerminalServiceService_IAssumeRole extends grpc.MethodDefinition<tele
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
+interface ITerminalServiceService_IPromoteAccessRequest extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest, teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse>;
+}
+interface ITerminalServiceService_IGetSuggestedAccessLists extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest, teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse>;
+}
 interface ITerminalServiceService_IGetKubes extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetKubesRequest, teleport_lib_teleterm_v1_service_pb.GetKubesResponse> {
     path: "/teleport.lib.teleterm.v1.TerminalService/GetKubes";
     requestStream: false;
@@ -180,6 +206,15 @@ interface ITerminalServiceService_IGetKubes extends grpc.MethodDefinition<telepo
     requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetKubesRequest>;
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetKubesResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetKubesResponse>;
+}
+interface ITerminalServiceService_IGetApps extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetAppsRequest, teleport_lib_teleterm_v1_service_pb.GetAppsResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetApps";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetAppsRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetAppsRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetAppsResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetAppsResponse>;
 }
 interface ITerminalServiceService_IAddCluster extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.AddClusterRequest, teleport_lib_teleterm_v1_cluster_pb.Cluster> {
     path: "/teleport.lib.teleterm.v1.TerminalService/AddCluster";
@@ -379,6 +414,24 @@ interface ITerminalServiceService_IListUnifiedResources extends grpc.MethodDefin
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
 }
+interface ITerminalServiceService_IGetUserPreferences extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse>;
+}
+interface ITerminalServiceService_IUpdateUserPreferences extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
@@ -396,7 +449,10 @@ export interface ITerminalServiceServer {
     reviewAccessRequest: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ReviewAccessRequestRequest, teleport_lib_teleterm_v1_service_pb.ReviewAccessRequestResponse>;
     getRequestableRoles: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetRequestableRolesRequest, teleport_lib_teleterm_v1_service_pb.GetRequestableRolesResponse>;
     assumeRole: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.AssumeRoleRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
+    promoteAccessRequest: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest, teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse>;
+    getSuggestedAccessLists: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest, teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse>;
     getKubes: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetKubesRequest, teleport_lib_teleterm_v1_service_pb.GetKubesResponse>;
+    getApps: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetAppsRequest, teleport_lib_teleterm_v1_service_pb.GetAppsResponse>;
     addCluster: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.AddClusterRequest, teleport_lib_teleterm_v1_cluster_pb.Cluster>;
     removeCluster: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.RemoveClusterRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
     listGateways: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListGatewaysRequest, teleport_lib_teleterm_v1_service_pb.ListGatewaysResponse>;
@@ -419,6 +475,8 @@ export interface ITerminalServiceServer {
     deleteConnectMyComputerNode: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeRequest, teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeResponse>;
     getConnectMyComputerNodeName: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse>;
     listUnifiedResources: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
+    getUserPreferences: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse>;
+    updateUserPreferences: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse>;
 }
 
 export interface ITerminalServiceClient {
@@ -461,9 +519,18 @@ export interface ITerminalServiceClient {
     assumeRole(request: teleport_lib_teleterm_v1_service_pb.AssumeRoleRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     assumeRole(request: teleport_lib_teleterm_v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     assumeRole(request: teleport_lib_teleterm_v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    promoteAccessRequest(request: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    promoteAccessRequest(request: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    promoteAccessRequest(request: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    getSuggestedAccessLists(request: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse) => void): grpc.ClientUnaryCall;
+    getSuggestedAccessLists(request: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse) => void): grpc.ClientUnaryCall;
+    getSuggestedAccessLists(request: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse) => void): grpc.ClientUnaryCall;
     getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
+    getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
+    getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
     addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
     addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
     addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
@@ -529,6 +596,12 @@ export interface ITerminalServiceClient {
     listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
+    getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -572,9 +645,18 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public assumeRole(request: teleport_lib_teleterm_v1_service_pb.AssumeRoleRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public assumeRole(request: teleport_lib_teleterm_v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public assumeRole(request: teleport_lib_teleterm_v1_service_pb.AssumeRoleRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public promoteAccessRequest(request: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public promoteAccessRequest(request: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public promoteAccessRequest(request: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse) => void): grpc.ClientUnaryCall;
+    public getSuggestedAccessLists(request: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse) => void): grpc.ClientUnaryCall;
+    public getSuggestedAccessLists(request: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse) => void): grpc.ClientUnaryCall;
+    public getSuggestedAccessLists(request: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse) => void): grpc.ClientUnaryCall;
     public getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     public getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     public getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    public getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
+    public getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
+    public getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
     public addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
     public addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
     public addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
@@ -639,4 +721,10 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
     public listUnifiedResources(request: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse) => void): grpc.ClientUnaryCall;
+    public getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    public getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    public getUserPreferences(request: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
 }

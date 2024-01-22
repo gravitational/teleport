@@ -1,18 +1,20 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 import React from 'react';
 import styled from 'styled-components';
@@ -34,6 +36,8 @@ import { DesktopPlayer } from './DesktopPlayer';
 import SshPlayer from './SshPlayer';
 import Tabs, { TabItem } from './PlayerTabs';
 
+const validRecordingTypes = ['ssh', 'k8s', 'desktop'];
+
 export default function Player() {
   const { sid, clusterId } = useParams<UrlPlayerParams>();
   const { search } = useLocation();
@@ -44,10 +48,7 @@ export default function Player() {
   ) as RecordingType;
   const durationMs = Number(getUrlParameter('durationMs', search));
 
-  const validRecordingType =
-    recordingType === 'ssh' ||
-    recordingType === 'k8s' ||
-    recordingType === 'desktop';
+  const validRecordingType = validRecordingTypes.includes(recordingType);
   const validDurationMs = Number.isInteger(durationMs) && durationMs > 0;
 
   document.title = `${clusterId} • Play ${sid}`;
@@ -62,14 +63,14 @@ export default function Player() {
         <Box textAlign="center" mx={10} mt={5}>
           <Danger mb={0}>
             Invalid query parameter recordingType: {recordingType}, should be
-            'ssh' or 'desktop'
+            one of {validRecordingTypes.join(', ')}.
           </Danger>
         </Box>
       </StyledPlayer>
     );
   }
 
-  if (recordingType === 'desktop' && !validDurationMs) {
+  if (!validDurationMs) {
     return (
       <StyledPlayer>
         <Box textAlign="center" mx={10} mt={5}>
@@ -104,7 +105,7 @@ export default function Player() {
             durationMs={durationMs}
           />
         ) : (
-          <SshPlayer sid={sid} clusterId={clusterId} />
+          <SshPlayer sid={sid} clusterId={clusterId} durationMs={durationMs} />
         )}
       </Flex>
     </StyledPlayer>

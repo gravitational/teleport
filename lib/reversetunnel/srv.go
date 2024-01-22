@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package reversetunnel
 
@@ -35,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -638,10 +641,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 }
 
 func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
-	// Apply read/write timeouts to the server connection.
-	conn := utils.ObeyIdleTimeout(ccx.NetConn,
-		s.offlineThreshold,
-		"reverse tunnel server")
+	conn := ccx.NetConn
 	sconn := ccx.ServerConn
 
 	channelType := nch.ChannelType()
@@ -670,28 +670,92 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 }
 
 func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	s.log.Debugf("Transport request: %v.", nch.ChannelType())
-	channel, requestCh, err := nch.Accept()
+	s.log.Debug("Received transport request.")
+	channel, requestC, err := nch.Accept()
 	if err != nil {
 		sconn.Close()
+		// avoid WithError to reduce log spam on network errors
 		s.log.Warnf("Failed to accept request: %v.", err)
 		return
 	}
 
-	t := &transport{
-		log:              s.log,
-		closeContext:     s.ctx,
-		authClient:       s.LocalAccessPoint,
-		authServers:      s.LocalAuthAddresses,
-		channel:          channel,
-		requestCh:        requestCh,
-		component:        teleport.ComponentReverseTunnelServer,
-		localClusterName: s.ClusterName,
-		emitter:          s.Emitter,
-		proxySigner:      s.proxySigner,
-		sconn:            sconn,
+	go s.handleTransportChannel(sconn, channel, requestC)
+}
+
+func (s *server) handleTransportChannel(sconn *ssh.ServerConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
+	defer ch.Close()
+	go io.Copy(io.Discard, ch.Stderr())
+
+	// the only valid teleport-transport-dial request here is to reach the auth server
+	var req *ssh.Request
+	select {
+	case <-s.ctx.Done():
+		go ssh.DiscardRequests(reqC)
+		return
+	case <-time.After(apidefaults.DefaultIOTimeout):
+		go ssh.DiscardRequests(reqC)
+		s.log.Warn("Timed out waiting for transport dial request.")
+		return
+	case r, ok := <-reqC:
+		if !ok {
+			return
+		}
+		go ssh.DiscardRequests(reqC)
+		req = r
 	}
-	go t.start()
+
+	dialReq := parseDialReq(req.Payload)
+	if dialReq.Address != constants.RemoteAuthServer {
+		s.log.WithField("address", dialReq.Address).
+			Warn("Received dial request for unexpected address, routing to the auth server anyway.")
+	}
+
+	authAddress := utils.ChooseRandomString(s.LocalAuthAddresses)
+	if authAddress == "" {
+		s.log.Error("No auth servers configured.")
+		fmt.Fprint(ch.Stderr(), "internal server error")
+		req.Reply(false, nil)
+		return
+	}
+
+	var proxyHeader []byte
+	clientSrcAddr := sconn.RemoteAddr()
+	clientDstAddr := sconn.LocalAddr()
+	if s.proxySigner != nil && clientSrcAddr != nil && clientDstAddr != nil {
+		h, err := s.proxySigner.SignPROXYHeader(clientSrcAddr, clientDstAddr)
+		if err != nil {
+			s.log.WithError(err).Error("Failed to create signed PROXY header.")
+			fmt.Fprint(ch.Stderr(), "internal server error")
+			req.Reply(false, nil)
+		}
+		proxyHeader = h
+	}
+
+	d := net.Dialer{Timeout: apidefaults.DefaultIOTimeout}
+	conn, err := d.DialContext(s.ctx, "tcp", authAddress)
+	if err != nil {
+		s.log.Errorf("Failed to dial auth: %v.", err)
+		fmt.Fprint(ch.Stderr(), "failed to dial auth server")
+		req.Reply(false, nil)
+		return
+	}
+	defer conn.Close()
+
+	_ = conn.SetWriteDeadline(time.Now().Add(apidefaults.DefaultIOTimeout))
+	if _, err := conn.Write(proxyHeader); err != nil {
+		s.log.Errorf("Failed to send PROXY header: %v.", err)
+		fmt.Fprint(ch.Stderr(), "failed to dial auth server")
+		req.Reply(false, nil)
+		return
+	}
+	_ = conn.SetWriteDeadline(time.Time{})
+
+	if err := req.Reply(true, nil); err != nil {
+		s.log.Errorf("Failed to respond to dial request: %v.", err)
+		return
+	}
+
+	_ = utils.ProxyConn(s.ctx, ch, conn)
 }
 
 // TODO(awly): unit test this

@@ -1,25 +1,25 @@
-/*
-Copyright 2023 Gravitational, Inc.
+/**
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+import React from 'react';
+import styled from 'styled-components';
+import { matchPath, useLocation, useHistory } from 'react-router';
 
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import React, { useCallback, useEffect, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
-import { matchPath, useHistory, useLocation } from 'react-router';
-import { Image } from 'design';
-
-import { NavigationSwitcher } from 'teleport/Navigation/NavigationSwitcher';
 import cfg from 'teleport/config';
 import {
   NAVIGATION_CATEGORIES,
@@ -27,13 +27,6 @@ import {
 } from 'teleport/Navigation/categories';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCategoryContainer';
-import { NotificationKind } from 'teleport/stores/storeNotifications';
-
-import { useTeleport } from '..';
-
-import logoLight from './logoLight.svg';
-import logoDark from './logoDark.svg';
-import logoPoweredBy from './logoPoweredBy.svg';
 
 import type * as history from 'history';
 
@@ -68,6 +61,20 @@ export function getFirstRouteForCategory(
   );
 }
 
+function getFeatureForRoute(
+  features: TeleportFeature[],
+  route: history.Location<unknown> | Location
+): TeleportFeature | undefined {
+  return features.find(
+    feature =>
+      feature.route &&
+      matchPath(route.pathname, {
+        path: feature.route.path,
+        exact: feature.route.exact,
+      })
+  );
+}
+
 function getCategoryForRoute(
   features: TeleportFeature[],
   route: history.Location<unknown> | Location
@@ -88,74 +95,14 @@ function getCategoryForRoute(
   return feature.category;
 }
 
-export function Navigation({
-  CustomLogo,
-  showPoweredByLogo = false,
-}: NavigationProps) {
+export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
   const location = useLocation();
-  const ctx = useTeleport();
 
-  const [view, setView] = useState(
+  const view =
     getCategoryForRoute(features, history.location) ||
-      NavigationCategory.Resources
-  );
-
-  const [previousRoute, setPreviousRoute] = useState<{
-    [category: string]: string;
-  }>({});
-
-  const handleLocationChange = useCallback(
-    (next: history.Location<unknown> | Location) => {
-      const previousPathName = location.pathname;
-
-      const category = getCategoryForRoute(features, next);
-      const previousCategory = getCategoryForRoute(features, location);
-
-      if (category && category !== view) {
-        setView(category);
-
-        if (previousCategory) {
-          setPreviousRoute(previous => ({
-            ...previous,
-            [previousCategory]: previousPathName,
-          }));
-        }
-      }
-    },
-    [location, view]
-  );
-
-  useEffect(() => {
-    return history.listen(handleLocationChange);
-  }, [history, location.pathname, features, view]);
-
-  const handlePopState = useCallback(
-    (event: PopStateEvent) => {
-      handleLocationChange((event.currentTarget as Window).location);
-    },
-    [view]
-  );
-
-  useEffect(() => {
-    window.addEventListener('popstate', handlePopState);
-
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [handlePopState]);
-
-  const handleCategoryChange = useCallback(
-    (category: NavigationCategory) => {
-      if (view === category) {
-        return;
-      }
-
-      history.push(
-        previousRoute[category] || getFirstRouteForCategory(features, category)
-      );
-    },
-    [view, previousRoute]
-  );
+    NavigationCategory.Resources;
 
   const categories = NAVIGATION_CATEGORIES.map((category, index) => (
     <NavigationCategoryContainer
@@ -165,67 +112,18 @@ export function Navigation({
     />
   ));
 
+  const feature = getFeatureForRoute(features, location);
+
+  if (
+    feature?.hideNavigation ||
+    feature?.category !== NavigationCategory.Management
+  ) {
+    return null;
+  }
+
   return (
     <NavigationContainer>
-      {CustomLogo ? <CustomLogo /> : <NavigationLogo />}
-
-      {ctx.getFeatureFlags().managementSection && (
-        <NavigationSwitcher
-          onChange={handleCategoryChange}
-          value={view}
-          items={[
-            { category: NavigationCategory.Resources },
-            {
-              category: NavigationCategory.Management,
-              requiresAttention: ctx.storeNotifications.hasNotificationsByKind(
-                NotificationKind.AccessList
-              ),
-            },
-          ]}
-        />
-      )}
-
       <CategoriesContainer>{categories}</CategoriesContainer>
-      {showPoweredByLogo && <PoweredByLogo />}
     </NavigationContainer>
   );
 }
-
-const NavigationLogo = () => {
-  const theme = useTheme();
-
-  return (
-    <Image
-      src={theme.type === 'dark' ? logoDark : logoLight}
-      height="32px"
-      width="fit-content"
-      style={{
-        marginTop: '20px',
-        marginLeft: '32px',
-        marginBottom: '20px',
-      }}
-      alt="teleport logo"
-    />
-  );
-};
-
-const PoweredByLogo = () => {
-  return (
-    <Image
-      src={logoPoweredBy}
-      height="48px"
-      width="fit-content"
-      style={{
-        marginTop: '28px',
-        marginLeft: '32px',
-        marginBottom: '36px',
-      }}
-      alt="powered by teleport"
-    />
-  );
-};
-
-export type NavigationProps = {
-  CustomLogo?: () => React.ReactElement;
-  showPoweredByLogo?: boolean;
-};

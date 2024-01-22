@@ -1,0 +1,77 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// ResourceList is a list of resources to send to the access graph.
+message ResourceList {
+  repeated ResourceEntry resources = 1;
+}
+
+// ResourceHeaderList is a list of resource headers to send to the access graph.
+message ResourceHeaderList {
+  repeated types.ResourceHeader resources = 1;
+}
+
+// AccessListsMembers is the request to declare users as members of access lists.
+message AccessListsMembers {
+  // members is the list of members to add to access lists.
+  repeated teleport.accesslist.v1.Member members = 1;
+}
+
+// ExcludeAccessListsMembers is the request to exclude users from access lists.
+message ExcludeAccessListsMembers {
+  repeated ExcludeAccessListMember members = 1;
+}
+
+// ExcludeAccessListMember is the request to exclude a user from an access list.
+message ExcludeAccessListMember {
+  string access_list = 1;
+  string username = 2;
+}
+
+// ResourceEntry is a wrapper for the supported resource types.
+message ResourceEntry {
+  oneof resource {
+    // user is a user resource
+    types.UserV2 user = 1;
+    // role is a role resource
+    types.RoleV6 role = 2;
+    // server is a node/server resource
+    types.ServerV2 server = 3;
+    // access_request is a resource for access requests
+    types.AccessRequestV3 access_request = 4;
+    // kubernetes_server is a kubernetes server resource
+    types.KubernetesServerV3 kubernetes_server = 5;
+    // app_server is an application server resource
+    types.AppServerV3 app_server = 6;
+    // database_server is a database server resource
+    types.DatabaseServerV3 database_server = 7;
+    // windows_desktop is a resource for Windows desktop host.
+    types.WindowsDesktopV3 windows_desktop = 8;
+    // access_list is a resource for access lists.
+    teleport.accesslist.v1.AccessList access_list = 9;
+  }
+}

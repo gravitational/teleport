@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package protocol
 
@@ -47,6 +49,24 @@ type Message interface {
 	fmt.Stringer
 }
 
+// These OpCode's define what Teleport supports. They values were up to date as of MongoDB 1.13.0
+// We need to reference these locally as MongoDB is deprecating some of these, but we need to maintain backwards
+// compatibility. The state of deprecation can be witnessed by referencing the libraries version when possible, or
+// static definition where no longer available.
+const (
+	OpReply                           = wiremessage.OpReply
+	OpUpdate                          = wiremessage.OpUpdate
+	OpInsert                          = wiremessage.OpInsert
+	OpQuery        wiremessage.OpCode = 2004
+	OpGetMore                         = wiremessage.OpGetMore
+	OpDelete       wiremessage.OpCode = wiremessage.OpDelete
+	OpKillCursors  wiremessage.OpCode = wiremessage.OpKillCursors
+	OpCommand      wiremessage.OpCode = wiremessage.OpCommand
+	OpCommandReply wiremessage.OpCode = wiremessage.OpCommandReply
+	OpCompressed   wiremessage.OpCode = wiremessage.OpCompressed
+	OpMsg          wiremessage.OpCode = wiremessage.OpMsg
+)
+
 // ReadMessage reads the next MongoDB wire protocol message from the reader.
 func ReadMessage(reader io.Reader, maxMessageSize uint32) (Message, error) {
 	header, payload, err := readHeaderAndPayload(reader, maxMessageSize)
@@ -54,23 +74,23 @@ func ReadMessage(reader io.Reader, maxMessageSize uint32) (Message, error) {
 		return nil, trace.Wrap(err)
 	}
 	switch header.OpCode {
-	case wiremessage.OpMsg:
+	case OpMsg:
 		return readOpMsg(*header, payload)
-	case wiremessage.OpQuery:
+	case OpQuery:
 		return readOpQuery(*header, payload)
-	case wiremessage.OpGetMore:
+	case OpGetMore:
 		return readOpGetMore(*header, payload)
-	case wiremessage.OpInsert:
+	case OpInsert:
 		return readOpInsert(*header, payload)
-	case wiremessage.OpUpdate:
+	case OpUpdate:
 		return readOpUpdate(*header, payload)
-	case wiremessage.OpDelete:
+	case OpDelete:
 		return readOpDelete(*header, payload)
-	case wiremessage.OpCompressed:
+	case OpCompressed:
 		return readOpCompressed(*header, payload, maxMessageSize)
-	case wiremessage.OpReply:
+	case OpReply:
 		return readOpReply(*header, payload)
-	case wiremessage.OpKillCursors:
+	case OpKillCursors:
 		return readOpKillCursors(*header, payload)
 	}
 	return nil, trace.BadParameter("unknown wire protocol message: %v %v",

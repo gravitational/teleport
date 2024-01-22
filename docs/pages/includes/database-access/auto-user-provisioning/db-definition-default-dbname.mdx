@@ -1,4 +1,5 @@
-Next, enable the database admin on the Teleport database configuration:
+{{ default="'teleport'" }}
+Next, configure the database admin user in the Teleport database configuration:
 
 <Tabs>
 <TabItem label="Static config">
@@ -12,7 +13,7 @@ db_service:
     admin_user:
       name: "teleport-admin"
       # Optional default database the admin user logs into. Default is
-      # "teleport" if not specified.
+      # {{ default }}, if not specified.
       # default_database: teleport
 ```
 </TabItem>
@@ -28,7 +29,7 @@ spec:
   admin_user:
     name: "teleport-admin"
     # Optional default database the admin user logs into. Default is
-    # "teleport" if not specified.
+    # {{ default }}, if not specified.
     # default_database: teleport
 ```
 </TabItem>

@@ -29,6 +29,8 @@ import (
 // Lock configures locking out of a particular access vector.
 type Lock interface {
 	Resource
+	ResourceWithOrigin
+	ResourceWithLabels
 
 	// Target returns the lock's target.
 	Target() LockTarget
@@ -208,14 +210,46 @@ func (c *LockV2) CheckAndSetDefaults() error {
 	if c.Spec.Target.IsEmpty() {
 		return trace.BadParameter("at least one target field must be set")
 	}
-	// If the user specifies a server ID but not a node, copy the server ID to the node
-	// field. This is for backwards compatibility with previous versions of Teleport
-	// so that locking a node still works.
-	// TODO: DELETE IN 15.0.0
-	if c.Spec.Target.ServerID != "" && c.Spec.Target.Node == "" {
-		c.Spec.Target.Node = c.Spec.Target.ServerID
-	}
 	return nil
+}
+
+// Origin fetches the lock's origin, if any. Returns the empty string if no
+// origin is set.
+func (c *LockV2) Origin() string {
+	return c.Metadata.Labels[OriginLabel]
+}
+
+func (c *LockV2) SetOrigin(origin string) {
+	c.Metadata.SetOrigin(origin)
+}
+
+// GetLabel fetches the given user label, with the same semantics
+// as a map read
+func (c *LockV2) GetLabel(key string) (value string, ok bool) {
+	value, ok = c.Metadata.Labels[key]
+	return
+}
+
+// GetAllLabels fetches all the user labels.
+func (c *LockV2) GetAllLabels() map[string]string {
+	return c.Metadata.Labels
+}
+
+// GetStaticLabels fetches all the user labels.
+func (c *LockV2) GetStaticLabels() map[string]string {
+	return c.Metadata.Labels
+}
+
+// SetStaticLabels sets the entire label set for the user.
+func (c *LockV2) SetStaticLabels(sl map[string]string) {
+	c.Metadata.Labels = sl
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (c *LockV2) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(c.Metadata.Labels), c.GetName())
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // IntoMap returns the target attributes in the form of a map.

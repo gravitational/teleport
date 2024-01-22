@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
@@ -34,7 +35,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -397,12 +397,12 @@ func TestClient_DialHost(t *testing.T) {
 				msg := []byte("hello123")
 				n, err := conn.Write(msg)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 
 				out := make([]byte, len(msg))
 				n, err = conn.Read(out)
 				require.NoError(t, err)
-				require.Equal(t, len(msg), n)
+				require.Len(t, msg, n)
 				require.Equal(t, msg, out)
 
 				require.NoError(t, conn.Close())

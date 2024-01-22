@@ -68,7 +68,7 @@ jobs:
         continue-on-error: true
 
       - name: Create KinD cluster
-        uses: helm/kind-action@v1.8.0
+        uses: helm/kind-action@dda0770415bac9fc20092cacbc54aa298604d140 # v1.8.0
         with:
           cluster_name: kind
           config: fixtures/kind/config.yaml

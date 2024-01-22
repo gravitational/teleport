@@ -60,7 +60,7 @@ Teleport needs AWS IAM permissions to be able to:
 
 - Modify ElastiCache and MemoryDB user passwords for Teleport-managed users.
 - Save user passwords in AWS Secrets Manager for Teleport-managed users.
-- Connect to an ElastiCache Redis cluster using IAM auth for ElastiCache IAM users.
+- Connect to an ElastiCache or MemoryDB cluster using IAM auth.
 
 Before you can generate IAM permissions, you must provide the Teleport Database
 Service access to AWS credentials.
@@ -85,12 +85,13 @@ Service access to AWS credentials.
 There are a few authentication options when creating an ElastiCache or MemoryDB
 user.
 
-If your ElastiCache for Redis cluster supports IAM authentication, the
-Teleport Database Service can connect to your ElastiCache cluster using a
-short-lived AWS IAM authentication token.
-AWS IAM authentication is available for ElastiCache for Redis version 7.0 or
-above. [Redis ACL](https://redis.io/docs/manual/security/acl/) must be enabled
-as well. IAM authentication is the preferred method for authentication.
+If your ElastiCache or MemoryDB cluster supports IAM authentication, the
+Teleport Database Service can connect to your ElastiCache or MemoryDB cluster
+using a short-lived AWS IAM authentication token.
+AWS IAM authentication is available for ElastiCache and MemoryDB with Redis
+version 7.0 or above. [Redis ACL](https://redis.io/docs/manual/security/acl/)
+must be enabled as well. IAM authentication is the preferred method for
+authentication.
 
 The second option is to allow Teleport to manage ElastiCache or MemoryDB users.
 The Teleport Database Service rotates any passwords managed by Teleport every
@@ -149,6 +150,46 @@ Once the ElastiCache user has been created, verify that the user is configured
 to satisfy the requirements for IAM authentication:
 
 ![ElastiCache IAM-enabled User](../../../img/database-access/guides/redis/redis-aws-iam-user@2x.png)
+
+</TabItem>
+
+<TabItem label="MemoryDB IAM user">
+
+It is highly recommended to use a different ACL than the preset `open-access`
+ACL which allows all access using the `default` user.
+
+If you do not have another MemoryDB ACL yet, create one:
+```code
+$ aws memorydb create-acl --acl-name my-acl
+```
+
+Make sure the ACL is attached to your MemoryDB cluster:
+```code
+$ aws memorydb update-cluster --cluster-name my-memorydb --acl-name my-acl
+```
+
+Now create an MemoryDB IAM-enabled user:
+```code
+$ aws memorydb create-user \
+  --user-name iam-user-01 \
+  --authentication-mode Type=iam \
+  --access-string "on ~* +@all"
+```
+
+<Admonition type="note" title="Access Strings">
+The above example creates a MemoryDB user with the access string `on ~* +@all`
+that represents an active user with access to all available keys and commands.
+
+You may prefer a less permissive access string for your MemoryDB users. For
+more information about access strings, please see: [Specifying Permissions
+Using an Access
+String](https://docs.aws.amazon.com/memorydb/latest/devguide/clusters.acls.html#access-string).
+</Admonition>
+
+Then add this user to the ACL attached to your MemoryDB cluster:
+```code
+$ aws memorydb update-acl --user-names-to-add iam-user-01 --acl-name my-acl
+```
 
 </TabItem>
 <TabItem label="Teleport-managed user">
@@ -215,10 +256,6 @@ $ tsh db ls
 </TabItem>
 
 </Tabs>
-
-<Admonition type="note" title="Note">
-  You can override the database name by applying the `TeleportDatabaseName` AWS tag to the resource. The value of the tag will be used as the database name.
-</Admonition>
 
 To retrieve credentials for a database and connect to it:
 

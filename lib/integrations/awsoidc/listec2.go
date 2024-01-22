@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package awsoidc
 
@@ -36,9 +38,9 @@ const (
 	// Used for filtering instances.
 	awsInstanceStateName = "instance-state-name"
 
-	// describeEC2PlatformDetailsFilter is a filter for EC2 DescribeInstances operation that filters per Platform Details.
-	describeEC2PlatformDetailsFilter          = "platform-details"
-	describeEC2PlatformDetailsFilterLinuxUNIX = "Linux/UNIX"
+	// awsPlatformWindows is the value used in Platform by Windows Instances
+	// For future reference, the value in ec2Types.PlatformValuesWindows has a capital `W` and can't be used here.
+	awsPlatformWindows = "windows"
 )
 
 var (
@@ -46,15 +48,6 @@ var (
 	filterRunningEC2Instance = ec2Types.Filter{
 		Name:   aws.String(awsInstanceStateName),
 		Values: []string{string(ec2Types.InstanceStateNameRunning)},
-	}
-
-	// filterEC2PlatformLinuxUNIX is an EC2 DescribeInstances Filter to filter for Linux/UNIX instances.
-	// AWS Docs have multiple values for identifying Linux hosts.
-	// However, from our tests only the values Linux/UNIX and Windows are returned.
-	// ListEC2 is only meant for accessing EC2 instances using SSH, so our only supported platform is Linux.
-	filterEC2PlatformLinuxUNIX = ec2Types.Filter{
-		Name:   aws.String(describeEC2PlatformDetailsFilter),
-		Values: []string{describeEC2PlatformDetailsFilterLinuxUNIX},
 	}
 )
 
@@ -135,7 +128,7 @@ func NewListEC2Client(ctx context.Context, req *AWSClientRequest) (ListEC2Client
 // ListEC2 calls the following AWS API:
 // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
 // It returns a list of EC2 Instances and an optional NextToken that can be used to fetch the next page
-// Only PlatformDetails=Linux/UNIX and State=Running instances are returned.
+// Only Platform!=Windows and State=Running instances are returned.
 func ListEC2(ctx context.Context, clt ListEC2Client, req ListEC2Request) (*ListEC2Response, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -153,38 +146,55 @@ func ListEC2(ctx context.Context, clt ListEC2Client, req ListEC2Request) (*ListE
 	describeEC2Instances := &ec2.DescribeInstancesInput{
 		Filters: []ec2Types.Filter{
 			filterRunningEC2Instance,
-			filterEC2PlatformLinuxUNIX,
 		},
 	}
-	if req.NextToken != "" {
-		describeEC2Instances.NextToken = &req.NextToken
-	}
 
-	ec2Instances, err := clt.DescribeInstances(ctx, describeEC2Instances)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ret := &ListEC2Response{
-		NextToken: aws.ToString(ec2Instances.NextToken),
-	}
-
-	ret.Servers = make([]types.Server, 0, len(ec2Instances.Reservations))
-	for _, reservation := range ec2Instances.Reservations {
-		for _, instance := range reservation.Instances {
-			awsInfo := &types.AWSInfo{
-				AccountID:   accountID,
-				Region:      req.Region,
-				Integration: req.Integration,
-			}
-
-			server, err := services.NewAWSNodeFromEC2Instance(instance, awsInfo)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			ret.Servers = append(ret.Servers, server)
+	nextToken := req.NextToken
+	ret := &ListEC2Response{}
+	for {
+		if nextToken != "" {
+			describeEC2Instances.NextToken = &nextToken
 		}
+
+		ec2Instances, err := clt.DescribeInstances(ctx, describeEC2Instances)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ret.NextToken = aws.ToString(ec2Instances.NextToken)
+		ret.Servers = make([]types.Server, 0, len(ec2Instances.Reservations))
+
+		for _, reservation := range ec2Instances.Reservations {
+			for _, instance := range reservation.Instances {
+				// Discard Windows Instances
+				if instance.Platform == awsPlatformWindows {
+					continue
+				}
+
+				awsInfo := &types.AWSInfo{
+					AccountID:   accountID,
+					Region:      req.Region,
+					Integration: req.Integration,
+				}
+
+				server, err := services.NewAWSNodeFromEC2Instance(instance, awsInfo)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				ret.Servers = append(ret.Servers, server)
+			}
+		}
+
+		// It might happen that the current page only has Windows EC2 instances, which are all discarded.
+		// In that case, fetch the next page (if there's one).
+		// This prevents returning an empty page when there's more Instances.
+		if len(ret.Servers) == 0 && ret.NextToken != "" {
+			nextToken = ret.NextToken
+			continue
+		}
+
+		break
 	}
 
 	return ret, nil

@@ -2,20 +2,23 @@
 // +build !windows
 
 /*
-Copyright 2021 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package terminal
 
 import (
@@ -138,7 +141,6 @@ func (t *Terminal) InitRaw(input bool) error {
 	}()
 
 	// NOTE: Unix does not require any special input handling.
-
 	return nil
 }
 
@@ -161,22 +163,30 @@ func (t *Terminal) IsAttached() bool {
 // Resize makes a best-effort attempt to resize the terminal window. Support
 // varies between platforms and terminal emulators.
 func (t *Terminal) Resize(width, height int16) error {
-	_, err := os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%d;%dt", height, width)))
-
+	_, err := fmt.Fprintf(t.stdout, "\x1b[8;%d;%dt", height, width)
 	return trace.Wrap(err)
 }
 
-func (t *Terminal) Stdin() io.Reader {
-	return t.stdin
+const (
+	saveCursor    = "7"
+	restoreCursor = "8"
+)
+
+// SaveCursor saves the current cursor position.
+func (t *Terminal) SaveCursor() error {
+	_, err := t.stdout.Write([]byte("\x1b" + saveCursor))
+	return trace.Wrap(err)
 }
 
-func (t *Terminal) Stdout() io.Writer {
-	return t.stdout
+// RestoreCursor restores the last saved cursor position.
+func (t *Terminal) RestoreCursor() error {
+	_, err := t.stdout.Write([]byte("\x1b" + restoreCursor))
+	return trace.Wrap(err)
 }
 
-func (t *Terminal) Stderr() io.Writer {
-	return t.stderr
-}
+func (t *Terminal) Stdin() io.Reader  { return t.stdin }
+func (t *Terminal) Stdout() io.Writer { return t.stdout }
+func (t *Terminal) Stderr() io.Writer { return t.stderr }
 
 // Close closes the Terminal, restoring the console to its original state.
 func (t *Terminal) Close() error {

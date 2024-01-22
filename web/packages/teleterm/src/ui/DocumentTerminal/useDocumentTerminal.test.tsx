@@ -1,23 +1,24 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import React from 'react';
-import { renderHook } from '@testing-library/react-hooks';
+import { renderHook, waitFor } from '@testing-library/react';
 import 'jest-canvas-mock';
-import * as useAsync from 'shared/hooks/useAsync';
 
 import Logger, { NullService } from 'teleterm/logger';
 import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
@@ -37,6 +38,7 @@ import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import {
   makeRootCluster,
   makeLeafCluster,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
 
 import { WorkspaceContextProvider } from '../Documents';
@@ -58,18 +60,14 @@ beforeEach(() => {
 const rootClusterUri = '/clusters/test' as const;
 const leafClusterUri = `${rootClusterUri}/leaves/leaf` as const;
 const serverUUID = 'bed30649-3af5-40f1-a832-54ff4adcca41';
-const server: tsh.Server = {
+const server: tsh.Server = makeServer({
   uri: `${rootClusterUri}/servers/${serverUUID}`,
-  tunnel: false,
   name: serverUUID,
-  hostname: 'foo',
-  addr: 'foo.localhost',
-  labelsList: [],
-};
-const leafServer: tsh.Server = {
+});
+const leafServer = makeServer({
   ...server,
   uri: `${leafClusterUri}/servers/${serverUUID}`,
-};
+});
 
 const getDocTshNodeWithServerId: () => DocumentTshNodeWithServerId = () => ({
   kind: 'doc.terminal_tsh_node',
@@ -110,14 +108,9 @@ test('useDocumentTerminal calls TerminalsService during init', async () => {
   const doc = getDocTshNodeWithServerId();
   const { wrapper, appContext } = testSetup(doc);
 
-  const { result, waitForValueToChange } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
 
   const expectedPtyCommand: PtyCommand = {
     kind: 'pty.tsh-login',
@@ -140,14 +133,11 @@ test('useDocumentTerminal calls TerminalsService only once', async () => {
   const doc = getDocTshNodeWithServerId();
   const { wrapper, appContext } = testSetup(doc);
 
-  const { result, waitForValueToChange, rerender } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result, rerender } = renderHook(() => useDocumentTerminal(doc), {
+    wrapper,
+  });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
   expect(result.current.attempt.statusText).toBeFalsy();
   expect(result.current.attempt.status).toBe('success');
   rerender();
@@ -161,14 +151,9 @@ test('useDocumentTerminal gets leaf cluster ID from ClustersService when the lea
   doc.serverUri = `${leafClusterUri}/servers/${doc.serverId}`;
   const { wrapper, appContext } = testSetup(doc, leafClusterUri);
 
-  const { result, waitForValueToChange } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
 
   const expectedPtyCommand: PtyCommand = {
     kind: 'pty.tsh-login',
@@ -196,14 +181,9 @@ test('useDocumentTerminal gets leaf cluster ID from doc.leafClusterId if the lea
     draft.clusters.delete(leafClusterUri);
   });
 
-  const { result, waitForValueToChange } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
 
   const expectedPtyCommand: PtyCommand = {
     kind: 'pty.tsh-login',
@@ -236,14 +216,9 @@ test('useDocumentTerminal returns a failed attempt if the call to TerminalsServi
     .spyOn(terminalsService, 'createPtyProcess')
     .mockRejectedValue(new Error('whoops'));
 
-  const { result, waitForValueToChange } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('error'));
   const { attempt } = result.current;
   expect(attempt.statusText).toBe('whoops');
   expect(attempt.status).toBe('error');
@@ -265,14 +240,9 @@ test('useDocumentTerminal shows a warning notification if the call to TerminalsS
   });
   jest.spyOn(notificationsService, 'notifyWarning');
 
-  const { result, waitForValueToChange } = renderHook(
-    () => useDocumentTerminal(doc),
-    { wrapper }
-  );
+  const { result } = renderHook(() => useDocumentTerminal(doc), { wrapper });
 
-  await waitForValueToChange(() =>
-    useAsync.hasFinished(result.current.attempt)
-  );
+  await waitFor(() => expect(result.current.attempt.status).toBe('success'));
   expect(result.current.attempt.statusText).toBeFalsy();
   expect(result.current.attempt.status).toBe('success');
 
@@ -538,13 +508,14 @@ describe('calling useDocumentTerminal with a doc with a loginHost', () => {
           .mockResolvedValueOnce(mockGetServerByHostname);
       }
 
-      const { result, waitForValueToChange } = renderHook(
-        () => useDocumentTerminal(doc),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useDocumentTerminal(doc), {
+        wrapper,
+      });
 
-      await waitForValueToChange(() =>
-        useAsync.hasFinished(result.current.attempt)
+      await waitFor(() =>
+        expect(result.current.attempt.status).toBe(
+          expectedError ? 'error' : 'success'
+        )
       );
 
       const { attempt } = result.current;

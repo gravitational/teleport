@@ -1,18 +1,20 @@
 /*
-Copyright 2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package events_test
 
@@ -81,11 +83,11 @@ func TestProtoStreamer(t *testing.T) {
 				Uploader:       uploader,
 				MinUploadBytes: tc.minUploadBytes,
 			})
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			sid := session.ID(fmt.Sprintf("test-%v", i))
 			stream, err := streamer.CreateAuditStream(ctx, sid)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			evts := tc.events
 			for _, event := range evts {
@@ -94,21 +96,21 @@ func TestProtoStreamer(t *testing.T) {
 					require.IsType(t, tc.err, err)
 					return
 				}
-				require.Nil(t, err)
+				require.NoError(t, err)
 			}
 			err = stream.Complete(ctx)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			var outEvents []apievents.AuditEvent
 			uploads, err := uploader.ListUploads(ctx)
-			require.Nil(t, err)
+			require.NoError(t, err)
 			parts, err := uploader.GetParts(uploads[0].ID)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			for _, part := range parts {
 				reader := events.NewProtoReader(bytes.NewReader(part))
 				out, err := reader.ReadAll(ctx)
-				require.Nil(t, err, "part crash %#v", part)
+				require.NoError(t, err, "part crash %#v", part)
 				outEvents = append(outEvents, out...)
 			}
 
@@ -205,7 +207,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 		// context will not wait until all events have been submitted
 		emitter.Close()
-		require.True(t, int(counter.Count()) <= len(evts))
+		require.LessOrEqual(t, int(counter.Count()), len(evts))
 
 		// make sure all emit calls returned after context is done
 		for range evts {
@@ -272,5 +274,5 @@ func TestExport(t *testing.T) {
 		count++
 	}
 	require.NoError(t, snl.Err())
-	require.Equal(t, len(outEvents), count)
+	require.Len(t, outEvents, count)
 }

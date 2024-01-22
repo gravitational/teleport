@@ -1,18 +1,20 @@
 /*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package utils
 
@@ -30,20 +32,21 @@ import (
 // NOTE: when making changes to this file, run tests with `TEST_FNCACHE_FUZZY=yes` to enable
 // additional fuzzy tests which aren't run during normal CI.
 
-var (
-	// ErrFnCacheClosed is returned from Get when the FnCache context is closed
-	ErrFnCacheClosed = errors.New("fncache permanently closed")
-)
+// ErrFnCacheClosed is returned from Get when the FnCache context is closed
+var ErrFnCacheClosed = errors.New("fncache permanently closed")
 
 // FnCache is a helper for temporarily storing the results of regularly called functions. This helper is
 // used to limit the amount of backend reads that occur while the primary cache is unhealthy.  Most resources
-// do not require this treatment, but certain resources (cas, nodes, etc) can be loaded on a per-request
-// basis and can cause significant numbers of backend reads if the cache is unhealthy or taking a while to init.
+// do not require this treatment, however, certain resources (cas, nodes, etc.) can be loaded on a per-request
+// basis and can cause a significant number of backend reads if the cache is unhealthy or taking a while to initialize.
 type FnCache struct {
 	cfg         FnCacheConfig
-	mu          sync.Mutex
+	closed      bool
+	cancel      context.CancelFunc
 	nextCleanup time.Time
-	entries     map[any]*fnCacheEntry
+
+	mu      sync.Mutex
+	entries map[any]*fnCacheEntry
 }
 
 // cleanupMultiplier is an arbitrary multiplier used to derive the default interval
@@ -54,13 +57,14 @@ type FnCache struct {
 // custom CleanupInterval should be provided.
 const cleanupMultiplier time.Duration = 16
 
+// FnCacheConfig contains dependencies for a FnCache.
 type FnCacheConfig struct {
 	// TTL is the time to live for cache entries.
 	TTL time.Duration
 	// Clock is the clock used to determine the current time.
 	Clock clockwork.Clock
 	// Context is the context used to cancel the cache. All loadfns
-	// will be provided this context.
+	// will be provided with this context.
 	Context context.Context
 	// ReloadOnErr causes entries to be reloaded immediately if
 	// the currently loaded value is an error. Note that all concurrent
@@ -72,8 +76,13 @@ type FnCacheConfig struct {
 	// caches where keys are unlikely to become orphaned. Shorter cleanup
 	// intervals should be used when keys regularly become orphaned.
 	CleanupInterval time.Duration
+	// OnExpiry is an optional callback that will be executed any time
+	// an item is expired and removed from the cache.
+	OnExpiry func(ctx context.Context, key any, value any)
 }
 
+// CheckAndSetDefaults validates the FnCacheConfig is populated
+// with required fields and sets any omitted fields to default values.
 func (c *FnCacheConfig) CheckAndSetDefaults() error {
 	if c.TTL <= 0 {
 		return trace.BadParameter("missing TTL parameter")
@@ -94,29 +103,92 @@ func (c *FnCacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// NewFnCache creates a [FnCache] from the provided [FnCacheConfig].
 func NewFnCache(cfg FnCacheConfig) (*FnCache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &FnCache{
+	cache := &FnCache{
 		cfg:     cfg,
 		entries: make(map[any]*fnCacheEntry),
-	}, nil
+	}
+
+	cache.cfg.Context, cache.cancel = context.WithCancel(cfg.Context)
+
+	return cache, nil
+
 }
 
 type fnCacheEntry struct {
 	v      any
 	e      error
 	t      time.Time
+	ttl    time.Duration
 	loaded chan struct{}
+}
+
+// Shutdown expires all items in the cache. If the OnExpires
+// callback was set in the FnCacheConfig it will be called once
+// per item in the cache.
+func (c *FnCache) Shutdown(ctx context.Context) {
+	c.mu.Lock()
+	c.cancel()
+	c.closed = true
+	entries := c.entries
+	c.entries = make(map[any]*fnCacheEntry)
+	c.mu.Unlock()
+
+	// non-blocking eviction
+	for key, entry := range entries {
+		select {
+		case <-entry.loaded:
+			if c.cfg.OnExpiry != nil && entry.e == nil {
+				c.cfg.OnExpiry(ctx, key, entry.v)
+			}
+
+			delete(entries, key)
+		case <-ctx.Done():
+			return
+		default:
+			// entry is still being loaded
+		}
+	}
+
+	// blocking eviction
+	for key, entry := range entries {
+		select {
+		case <-entry.loaded:
+			if c.cfg.OnExpiry != nil && entry.e == nil {
+				c.cfg.OnExpiry(ctx, key, entry.v)
+			}
+
+			delete(entries, key)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// RemoveExpired purges any items from the cache which have exceeded their TTL.
+func (c *FnCache) RemoveExpired() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := c.cfg.Clock.Now()
+	c.removeExpiredLocked(now)
+	c.nextCleanup = now.Add(c.cfg.CleanupInterval)
 }
 
 func (c *FnCache) removeExpiredLocked(now time.Time) {
 	for key, entry := range c.entries {
 		select {
 		case <-entry.loaded:
-			if now.After(entry.t.Add(c.cfg.TTL)) {
+			if now.After(entry.t.Add(entry.ttl)) {
+				if c.cfg.OnExpiry != nil && entry.e == nil {
+					c.cfg.OnExpiry(c.cfg.Context, key, entry.v)
+				}
+
 				delete(c.entries, key)
 			}
 		default:
@@ -125,13 +197,19 @@ func (c *FnCache) removeExpiredLocked(now time.Time) {
 	}
 }
 
-// FnCacheGet loads the result associated with the supplied key.  If no result is currently stored, or the stored result
-// was acquired >ttl ago, then loadfn is used to reload it.  Subsequent calls while the value is being loaded/reloaded
-// block until the first call updates the entry.  Note that the supplied context can cancel the call to Get, but will
-// not cancel loading.  The supplied loadfn should not be canceled just because the specific request happens to have
+// FnCacheGet loads the result associated with the supplied key. If no result is currently stored, or the stored result
+// was acquired >TTL ago, then loadfn is used to reload it. Subsequent calls while the value is being loaded/reloaded
+// block until the first call updates the entry. Note that the supplied context can cancel the call to Get, but will
+// not cancel loading. The supplied loadfn should not be canceled just because the specific request happens to have
 // been canceled.
 func FnCacheGet[T any](ctx context.Context, cache *FnCache, key any, loadfn func(ctx context.Context) (T, error)) (T, error) {
-	t, err := cache.get(ctx, key, func(ctx context.Context) (any, error) {
+	return FnCacheGetWithTTL(ctx, cache, key, cache.cfg.TTL, loadfn)
+}
+
+// FnCacheGetWithTTL is identical to FnCacheGet except that it allows individual keys to specify
+// a TTL that is used instead of the configured TTL for the FnCache.
+func FnCacheGetWithTTL[T any](ctx context.Context, cache *FnCache, key any, ttl time.Duration, loadfn func(ctx context.Context) (T, error)) (T, error) {
+	t, err := cache.get(ctx, key, ttl, func(ctx context.Context) (any, error) {
 		return loadfn(ctx)
 	})
 
@@ -146,12 +224,12 @@ func FnCacheGet[T any](ctx context.Context, cache *FnCache, key any, loadfn func
 	return ret, err
 }
 
-// get loads the result associated with the supplied key.  If no result is currently stored, or the stored result
-// was acquired >ttl ago, then loadfn is used to reload it.  Subsequent calls while the value is being loaded/reloaded
-// block until the first call updates the entry.  Note that the supplied context can cancel the call to Get, but will
-// not cancel loading.  The supplied loadfn should not be canceled just because the specific request happens to have
+// get loads the result associated with the supplied key. If no result is currently stored, or the stored result
+// was acquired >ttl ago, then loadfn is used to reload it. Subsequent calls while the value is being loaded/reloaded
+// block until the first call updates the entry. Note that the supplied context can cancel the call to Get, but will
+// not cancel loading. The supplied loadfn should not be canceled just because the specific request happens to have
 // been canceled.
-func (c *FnCache) get(ctx context.Context, key any, loadfn func(ctx context.Context) (any, error)) (any, error) {
+func (c *FnCache) get(ctx context.Context, key any, ttl time.Duration, loadfn func(ctx context.Context) (any, error)) (any, error) {
 	select {
 	case <-c.cfg.Context.Done():
 		return nil, ErrFnCacheClosed
@@ -160,9 +238,14 @@ func (c *FnCache) get(ctx context.Context, key any, loadfn func(ctx context.Cont
 
 	c.mu.Lock()
 
+	if c.closed {
+		c.mu.Unlock()
+		return nil, ErrFnCacheClosed
+	}
+
 	now := c.cfg.Clock.Now()
 
-	// check if we need to perform periodic cleanup
+	// Check if we need to perform periodic cleanup.
 	if now.After(c.nextCleanup) {
 		c.removeExpiredLocked(now)
 		c.nextCleanup = now.Add(c.cfg.CleanupInterval)
@@ -175,7 +258,7 @@ func (c *FnCache) get(ctx context.Context, key any, loadfn func(ctx context.Cont
 	if entry != nil {
 		select {
 		case <-entry.loaded:
-			needsReload = now.After(entry.t.Add(c.cfg.TTL))
+			needsReload = now.After(entry.t.Add(entry.ttl))
 			if c.cfg.ReloadOnErr && entry.e != nil {
 				needsReload = true
 			}
@@ -186,14 +269,15 @@ func (c *FnCache) get(ctx context.Context, key any, loadfn func(ctx context.Cont
 	}
 
 	if needsReload {
-		// insert a new entry with a new loaded channel.  this channel will
+		// Insert a new entry with a new loaded channel. This channel will
 		// block subsequent reads, and serve as a memory barrier for the results.
 		entry = &fnCacheEntry{
 			loaded: make(chan struct{}),
+			ttl:    ttl,
 		}
 		c.entries[key] = entry
 		go func() {
-			// link the config context with the span from ctx, if one exists,
+			// Link the config context with the span from ctx, if one exists,
 			// so that the loadfn can be traced appropriately.
 			loadCtx := oteltrace.ContextWithSpan(c.cfg.Context, oteltrace.SpanFromContext(ctx))
 			entry.v, entry.e = loadfn(loadCtx)
@@ -204,7 +288,7 @@ func (c *FnCache) get(ctx context.Context, key any, loadfn func(ctx context.Cont
 
 	c.mu.Unlock()
 
-	// wait for result to be loaded (this is also a memory barrier)
+	// Wait for the result to be loaded (this is also a memory barrier).
 	select {
 	case <-entry.loaded:
 		return entry.v, entry.e

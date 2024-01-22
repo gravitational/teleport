@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package awsoidc
 
@@ -32,8 +34,8 @@ type ListEC2ICERequest struct {
 	// Region is the region of the EICE.
 	Region string
 
-	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
-	VPCID string
+	// VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
+	VPCIDs []string
 
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
@@ -46,8 +48,8 @@ func (req *ListEC2ICERequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("region is required")
 	}
 
-	if req.VPCID == "" {
-		return trace.BadParameter("vpc id is required")
+	if len(req.VPCIDs) == 0 {
+		return trace.BadParameter("at least one vpc id is required")
 	}
 
 	return nil
@@ -73,12 +75,18 @@ type EC2InstanceConnectEndpoint struct {
 	// SubnetID is the subnet used by the endpoint.
 	// Please note that the Endpoint should be able to reach any subnet within the VPC.
 	SubnetID string `json:"subnetId,omitempty"`
+
+	// VPCID is the VPC ID where the Endpoint is created.
+	VPCID string `json:"vpcId,omitempty"`
 }
 
 // ListEC2ICEResponse contains a page of AWS EC2 Instances as Teleport Servers.
 type ListEC2ICEResponse struct {
 	// EC2ICEs contains the page of EC2 Instance Connect Endpoint.
 	EC2ICEs []EC2InstanceConnectEndpoint `json:"ec2InstanceConnectEndpoints,omitempty"`
+
+	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
+	DashboardLink string `json:"dashboardLink,omitempty"`
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.
@@ -119,7 +127,7 @@ func ListEC2ICE(ctx context.Context, clt ListEC2ICEClient, req ListEC2ICERequest
 	describeEC2ICE := &ec2.DescribeInstanceConnectEndpointsInput{
 		Filters: []ec2Types.Filter{{
 			Name:   aws.String("vpc-id"),
-			Values: []string{req.VPCID},
+			Values: req.VPCIDs,
 		}},
 	}
 	if req.NextToken != "" {
@@ -137,21 +145,31 @@ func ListEC2ICE(ctx context.Context, clt ListEC2ICEClient, req ListEC2ICERequest
 		ret.NextToken = *ec2ICEs.NextToken
 	}
 
+	ret.DashboardLink = fmt.Sprintf(
+		"https://%s.console.aws.amazon.com/vpcconsole/home?#Endpoints:v=3;vpcEndpointType=%s",
+		req.Region,
+		// We must use PathEscape here because it converts spaces into `%20`.
+		// QueryEscape converts spaces into `+`, which, when loaded in AWS Console page, filters for `EC2+Instance+Connect+Endpoint`, instead of `EC2 Instance Connect Endpoint`
+		url.PathEscape("EC2 Instance Connect Endpoint"),
+	)
+
 	ret.EC2ICEs = make([]EC2InstanceConnectEndpoint, 0, len(ec2ICEs.InstanceConnectEndpoints))
 	for _, ice := range ec2ICEs.InstanceConnectEndpoints {
 		name := aws.ToString(ice.InstanceConnectEndpointId)
 		subnetID := aws.ToString(ice.SubnetId)
+		vpcID := aws.ToString(ice.VpcId)
 		state := ice.State
 		stateMessage := aws.ToString(ice.StateMessage)
 
 		idURLSafe := url.QueryEscape(name)
-		dashboardLink := fmt.Sprintf("https://%s.console.aws.amazon.com/vpc/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=%s",
+		dashboardLink := fmt.Sprintf("https://%s.console.aws.amazon.com/vpcconsole/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=%s",
 			req.Region, idURLSafe,
 		)
 
 		ret.EC2ICEs = append(ret.EC2ICEs, EC2InstanceConnectEndpoint{
 			Name:          name,
 			SubnetID:      subnetID,
+			VPCID:         vpcID,
 			State:         string(state),
 			StateMessage:  stateMessage,
 			DashboardLink: dashboardLink,

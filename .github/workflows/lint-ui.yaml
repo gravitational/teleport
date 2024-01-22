@@ -5,14 +5,18 @@ on:
   pull_request:
     paths:
       - 'web/**'
+      - 'gen/proto/js/**'
   merge_group:
     paths:
       - 'web/**'
+      - 'gen/proto/js/**'
 
 jobs:
   lint:
     name: Prettier, ESLint, & TSC
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport15
     steps:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v4
@@ -24,8 +28,14 @@ jobs:
       - name: Install Yarn dependencies
         run: yarn --frozen-lockfile
 
-      - name: Run lint
-        run: yarn lint
+      - name: Build WASM
+        run: yarn build-wasm
 
       - name: Run Type Check
         run: yarn type-check
+
+      - name: Run lint
+        run: yarn lint
+
+      - name: Run Storybook smoke test
+        run: yarn storybook-smoke-test

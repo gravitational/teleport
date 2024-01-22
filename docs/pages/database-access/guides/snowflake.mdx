@@ -40,7 +40,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="https://abc12345.snowflakecomputing.com" !)
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="abc12345.snowflakecomputing.com" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -48,7 +48,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="https://abc12345.snowflakecomputing.com" !)
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-snowflake" dbProtocol="snowflake" databaseAddress="abc12345.snowflakecomputing.com" !)
 </TabItem>
 </Tabs>
 
@@ -118,13 +118,6 @@ Log in to your Teleport cluster and see the available databases:
 </Tabs>
 
 To retrieve credentials for a database and connect to it:
-
-```code
-$ tsh db connect example-snowflake
-```
-
-You can optionally specify the database user and the database name to use by
-default when connecting to the database instance:
 
 ```code
 $ tsh db connect --db-user=alice --db-name=SNOWFLAKE_SAMPLE_DATA example-snowflake

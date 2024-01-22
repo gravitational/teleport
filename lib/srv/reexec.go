@@ -1,18 +1,20 @@
 /*
-Copyright 2020-2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package srv
 
@@ -47,6 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/envutils"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 // FileFD is a file descriptor passed down from a parent process when
@@ -663,19 +667,52 @@ func RunForward() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
 	}
 
-	// Connect to the target host.
-	conn, err := net.Dial("tcp", c.DestinationAddress)
+	// build forwarder from first extra file that was passed to command
+	ffd := os.NewFile(FirstExtraFile, "listener")
+	if ffd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("missing socket fd")
+	}
+
+	conn, err := uds.FromFile(ffd)
+	ffd.Close()
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	defer conn.Close()
 
-	err = utils.ProxyConn(context.Background(), utils.CombineReadWriteCloser(os.Stdin, os.Stdout), conn)
-	if err != nil && !errors.Is(err, io.EOF) {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var buf [1024]byte
+	var fbuf [1]*os.File
+	for {
+		n, fn, err := conn.ReadWithFDs(buf[:], fbuf[:])
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				return errorWriter, teleport.RemoteCommandSuccess, nil
+			}
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+
+		if fn == 0 {
+			continue
+		}
+
+		conn, err := uds.FromFile(fbuf[0])
+		fbuf[0].Close()
+		if err != nil {
+			continue
+		}
+
+		go func(addr string, conn net.Conn) {
+			defer conn.Close()
+			remote, err := net.Dial("tcp", addr)
+			if err != nil {
+				return
+			}
+			defer remote.Close()
+			utils.ProxyConn(ctx, conn, remote)
+		}(string(buf[:n]), conn)
 	}
-
-	return errorWriter, teleport.RemoteCommandSuccess, nil
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.
@@ -791,7 +828,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Create default environment for user.
-	cmd.Env = []string{
+	env := &envutils.SafeEnv{
 		"LANG=en_US.UTF-8",
 		getDefaultEnvPath(localUser.Uid, defaultLoginDefsPath),
 		"HOME=" + localUser.HomeDir,
@@ -800,21 +837,25 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	}
 
 	// Add in Teleport specific environment variables.
-	cmd.Env = append(cmd.Env, c.Environment...)
+	env.AddFullTrusted(c.Environment...)
+
+	// If any additional environment variables come from PAM, apply them as well.
+	env.AddFullTrusted(pamEnvironment...)
 
 	// If the server allows reading in of ~/.tsh/environment read it in
 	// and pass environment variables along to new session.
+	// User controlled values are added last to ensure administrator controlled sources take priority (duplicates ignored)
 	if c.PermitUserEnvironment {
 		filename := filepath.Join(localUser.HomeDir, ".tsh", "environment")
-		userEnvs, err := utils.ReadEnvironmentFile(filename)
+		userEnvs, err := envutils.ReadEnvironmentFile(filename)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cmd.Env = append(cmd.Env, userEnvs...)
+		env.AddFullUnique(userEnvs...)
 	}
 
-	// If any additional environment variables come from PAM, apply them as well.
-	cmd.Env = append(cmd.Env, pamEnvironment...)
+	// after environment is fully built, set it to cmd
+	cmd.Env = *env
 
 	// If a terminal was requested, connect std{in,out,err} to the TTY and set
 	// the controlling TTY. Otherwise, connect std{in,out,err} to
@@ -952,11 +993,16 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	// is appended if Teleport is running in debug mode.
 	args := []string{executable, subCommand}
 
+	// build env for `teleport exec`
+	env := &envutils.SafeEnv{}
+	env.AddExecEnvironment()
+
 	// Build the "teleport exec" command.
 	cmd := &exec.Cmd{
 		Path: executable,
 		Args: args,
 		Dir:  executableDir,
+		Env:  *env,
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,

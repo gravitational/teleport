@@ -1,23 +1,25 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 import { contextBridge } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
 
-import createTshClient from 'teleterm/services/tshd/createClient';
+import { createTshdClient } from 'teleterm/services/tshd/createClient';
 import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import { createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
@@ -58,17 +60,22 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     mainProcessClient.getResolvedChildProcessAddresses(),
     createGrpcCredentials(runtimeSettings),
   ]);
-  const tshClient = createTshClient(addresses.tsh, credentials.tshd);
+  const tshClient = createTshdClient(addresses.tsh, credentials.tshd);
   const ptyServiceClient = createPtyService(
     addresses.shared,
     credentials.shared,
-    runtimeSettings
+    runtimeSettings,
+    {
+      noResume: mainProcessClient.configService.get('ssh.noResume').value,
+    }
   );
-  const { subscribeToTshdEvent, resolvedAddress: tshdEventsServerAddress } =
-    await createTshdEventsServer(
-      runtimeSettings.tshdEvents.requestedNetworkAddress,
-      credentials.tshdEvents
-    );
+  const {
+    setupTshdEventContextBridgeService,
+    resolvedAddress: tshdEventsServerAddress,
+  } = await createTshdEventsServer(
+    runtimeSettings.tshdEvents.requestedNetworkAddress,
+    credentials.tshdEvents
+  );
 
   // Here we send to tshd the address of the tshd events server that we just created. This makes
   // tshd prepare a client for the server.
@@ -82,7 +89,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     mainProcessClient,
     tshClient,
     ptyServiceClient,
-    subscribeToTshdEvent,
+    setupTshdEventContextBridgeService,
   };
 }
 
@@ -114,6 +121,10 @@ async function createGrpcCredentials(
     generateAndSaveGrpcCert(certsDir, GrpcCertName.Renderer),
     readGrpcCert(certsDir, GrpcCertName.Tshd),
     readGrpcCert(certsDir, GrpcCertName.Shared),
+    // tsh daemon expects both certs to be created before accepting connections. So even though the
+    // renderer process does not use the cert of the main process, it must still wait for the cert
+    // to be saved to disk.
+    readGrpcCert(certsDir, GrpcCertName.MainProcess),
   ]);
 
   return {

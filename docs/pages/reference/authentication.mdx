@@ -58,8 +58,6 @@ Obtain your existing `cluster_auth_preference` resource:
 $ tctl get cap > cap.yaml
 ```
 
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
 Ensure that `cap.yaml` includes the following content:
 
 ```yaml
@@ -97,8 +95,6 @@ Obtain your existing `cluster_auth_preference` resource:
 $ tctl get cap > cap.yaml
 ```
 
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
 Ensure that `cap.yaml` includes the following content:
 
 ```yaml
@@ -128,7 +124,7 @@ A local user is blocked from attempting logins if, within a 30 minute window, a 
 - failed login attempts or
 - failed password resets
 
-The block lasts 20 minutes. After the block has expired the user may attempt to log in again.
+The block lasts 30 minutes. After the block has expired the user may attempt to log in again.
 
 Overriding a block is available to users with rights to maintain `user` resources,
 available in the built-in `editor` role. To turn off a block, update the user entry,

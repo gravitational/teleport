@@ -10,8 +10,10 @@ metadata:
   annotations: {{- toYaml $auth.annotations.config | nindent 4 }}
 {{- end }}
 data:
-{{- if $auth.createProxyToken }}
+{{- if or $auth.createProxyToken .Values.operator.enabled }}
   apply-on-startup.yaml: |2
+    {{- if $auth.createProxyToken }}
+    ---
     kind: token
     version: v2
     metadata:
@@ -23,6 +25,115 @@ data:
       kubernetes:
         allow:
           - service_account: "{{ .Release.Namespace }}:{{ include "teleport-cluster.proxy.serviceAccountName" . }}"
+    {{- end }}
+    {{- if .Values.operator.enabled }}
+    ---
+    kind: role
+    metadata:
+      description: Automatically generated role for bot operator
+      labels:
+        teleport.internal/bot: operator
+      name: bot-operator
+    spec:
+      allow:
+        impersonate:
+          roles:
+            - operator
+        rules:
+          - resources:
+              - cert_authority
+            verbs:
+              - readnosecrets
+      deny: {}
+    version: v7
+    ---
+    kind: user
+    metadata:
+      labels:
+        teleport.internal/bot: operator
+      name: bot-operator
+    spec:
+      roles:
+        - bot-operator
+    version: v2
+    ---
+    kind: role
+    metadata:
+      name: operator
+    spec:
+      allow:
+        rules:
+          - resources:
+              - role
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - user
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - auth_connector
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - login_rule
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - token
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - okta_import_rule
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+          - resources:
+              - access_list
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
+      deny: {}
+    version: v7
+    ---
+    kind: token
+    version: v2
+    metadata:
+      name: "{{ .Values.operator.token }}"
+    spec:
+      roles: [Bot]
+      join_method: kubernetes
+      bot_name: operator
+      kubernetes:
+        allow:
+          - service_account: "{{ .Release.Namespace }}:{{ include "teleport-cluster.auth.operatorServiceAccountName" . }}"
+  {{- end }}
 {{- end }}
   teleport.yaml: |2
     {{- mustMergeOverwrite (include $configTemplate . | fromYaml) $auth.teleportConfig | toYaml | nindent 4 -}}

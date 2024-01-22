@@ -83,6 +83,8 @@ the lifecycle of the agent.
 that's why it's not listed in the partial. */}
 - Permissions to read and update user objects in the backend (verbs `read` and `update` for [the
   `user` resource](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources)).
+- Permissions to read, update, and create roles in the backend (verbs `read`, `update`, and `create`
+  for [the `role` resource](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources)).
 
 The agent runs as the current system user, not as root. Some features are thus not available, such
 as logging in as other system users or [host user creation](../server-access/guides/host-user-creation.mdx).

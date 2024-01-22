@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=15.0.0-dev
+VERSION=16.0.0-dev
 
 DOCKER_IMAGE ?= teleport
 
@@ -46,7 +46,7 @@ RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -246,7 +246,7 @@ CC=arm-linux-gnueabihf-gcc
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 endif
 endif # OS == linux
 
@@ -257,7 +257,7 @@ ifneq ("$(ARCH)","amd64")
 $(error "Building for windows requires ARCH=amd64")
 endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -trimpath -buildmode=exe
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
@@ -290,15 +290,22 @@ binaries:
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
+TELEPORT_ARGS ?= start
+.PHONY: teleport-hot-reload
+teleport-hot-reload:
+	CompileDaemon --graceful-kill=true --exclude-dir=".git" --exclude-dir="node_modules" --build="make $(BUILDDIR)/teleport" --command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
+
 # NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
 # 		we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
+$(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
+$(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
@@ -314,27 +321,16 @@ ifeq ("$(with_bpf)","yes")
 $(ER_BPF_BUILDDIR):
 	mkdir -p $(ER_BPF_BUILDDIR)
 
-$(RS_BPF_BUILDDIR):
-	mkdir -p $(RS_BPF_BUILDDIR)
-
 # Build BPF code
 $(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
 	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
-# Build BPF code
-$(RS_BPF_BUILDDIR)/%.bpf.o: bpf/restrictedsession/%.bpf.c $(wildcard bpf/*.h) | $(RS_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
-	$(LLVM_STRIP) -g $@ # strip useless DWARF info
-
-.PHONY: bpf-rs-bytecode
-bpf-rs-bytecode: $(RS_BPF_BUILDDIR)/restricted.bpf.o
-
 .PHONY: bpf-er-bytecode
 bpf-er-bytecode: $(ER_BPF_BUILDDIR)/command.bpf.o $(ER_BPF_BUILDDIR)/disk.bpf.o $(ER_BPF_BUILDDIR)/network.bpf.o $(ER_BPF_BUILDDIR)/counter_test.bpf.o
 
 .PHONY: bpf-bytecode
-bpf-bytecode: bpf-er-bytecode bpf-rs-bytecode
+bpf-bytecode: bpf-er-bytecode
 
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
@@ -404,19 +400,19 @@ clean-build:
 ifneq ($(ER_BPF_BUILDDIR),)
 	rm -f $(ER_BPF_BUILDDIR)/*.o
 endif
-ifneq ($(RS_BPF_BUILDDIR),)
-	rm -f $(RS_BPF_BUILDDIR)/*.o
-endif
 	-cargo clean
 	-go clean -cache
 	rm -f *.gz
 	rm -f *.zip
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
+	# Clean up wasm-pack build artifacts
+	rm -rf web/packages/teleport/src/ironrdp/pkg/
 
 .PHONY: clean-ui
 clean-ui:
 	rm -rf webassets/*
+	rm -rf web/packages/teleterm/build
 	find . -type d -name node_modules -prune -exec rm -rf {} \;
 
 #
@@ -694,13 +690,15 @@ helmunit/installed:
 # environment variable.
 .PHONY: test-helm
 test-helm: helmunit/installed
-	helm unittest -3 examples/chart/teleport-cluster
+	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 examples/chart/teleport-kube-agent
+	helm unittest -3 examples/chart/teleport-cluster/charts/teleport-operator
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
-	helm unittest -3 -u examples/chart/teleport-cluster
+	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 -u examples/chart/teleport-kube-agent
+	helm unittest -3 -u examples/chart/teleport-cluster/charts/teleport-operator
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -878,7 +876,7 @@ test-rust:
 endif
 endif
 
-# Find and run all shell script unit tests (using https://github.com/bats-core/bats-core)
+# Run all shell script unit tests (using https://github.com/bats-core/bats-core)
 .PHONY: test-sh
 test-sh:
 	@if ! type bats 2>&1 >/dev/null; then \
@@ -886,7 +884,7 @@ test-sh:
 		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
-	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
+	bats $(BATSFLAGS) ./assets/aws/files/tests
 
 
 .PHONY: test-e2e
@@ -1055,7 +1053,7 @@ lint-helm:
 		if [ "$${DRONE}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
-	for CHART in $$(find examples/chart -mindepth 1 -maxdepth 1 -type d); do \
+	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-cluster/charts/teleport-operator; do \
 		if [ -d $${CHART}/.lint ]; then \
 			for VALUES in $${CHART}/.lint/*.yaml; do \
 				export HELM_TEMP=$$(mktemp); \
@@ -1072,9 +1070,10 @@ lint-helm:
 			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
 		fi; \
 	done
+	$(MAKE) -C examples/chart check-chart-ref
 
 ADDLICENSE := $(GOPATH)/bin/addlicense
-ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
+ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.c' \
 		-ignore '**/*.h' \
 		-ignore '**/*.html' \
@@ -1099,14 +1098,21 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore '**/.terraform.lock.hcl' \
 		-ignore 'ignoreme'
+ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
+		-ignore 'api/**' \
+		-f $(CURDIR)/build.assets/LICENSE.header
+ADDLICENSE_APACHE2_ARGS := $(ADDLICENSE_COMMON_ARGS) \
+		-l apache
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
-	$(ADDLICENSE) $(ADDLICENSE_ARGS) -check * 2>/dev/null
+	$(ADDLICENSE) $(ADDLICENSE_AGPL3_ARGS) -check * 2>/dev/null
+	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) -check api/* 2>/dev/null
 
 .PHONY: fix-license
 fix-license: $(ADDLICENSE)
-	$(ADDLICENSE) $(ADDLICENSE_ARGS) * 2>/dev/null
+	$(ADDLICENSE) $(ADDLICENSE_AGPL3_ARGS) * 2>/dev/null
+	$(ADDLICENSE) $(ADDLICENSE_APACHE2_ARGS) api/* 2>/dev/null
 
 $(ADDLICENSE):
 	cd && go install github.com/google/addlicense@v1.0.0
@@ -1127,13 +1133,17 @@ version: $(VERSRC)
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
-# make tag - prints a tag to use with git for the current version
-# 	To put a new release on Github:
-# 		- bump VERSION variable
-# 		- run make setver
-# 		- commit changes to git
-# 		- build binaries with 'make release'
-# 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
+# Pushes GITTAG and api/GITTAG to GitHub.
+#
+# Before running `make update-tag`, do:
+#
+# 1. Commit your changes
+# 2. Bump VERSION variable (eg, "vMAJOR.(MINOR+1).0-dev-$USER.1")
+# 3. Run `make update-version`
+# 4. Commit version changes to git
+# 5. Make sure it all builds (`make release` or equivalent)
+#
+# After the above is done, run `make update-tag` and follow your build on Drone.
 .PHONY: update-tag
 update-tag: TAG_REMOTE ?= origin
 update-tag:
@@ -1202,9 +1212,21 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
+.PHONY:enter/centos7-fips
+enter/centos7-fips:
+	make -C build.assets enter/centos7-fips
+
 .PHONY:enter/grpcbox
 enter/grpcbox:
 	make -C build.assets enter/grpcbox
+
+.PHONY:enter/node
+enter/node:
+	make -C build.assets enter/node
+
+.PHONY:enter/arm
+enter/arm:
+	make -C build.assets enter/arm
 
 BUF := buf
 
@@ -1452,14 +1474,17 @@ build-ui-e: ensure-js-deps
 docker-ui:
 	$(MAKE) -C build.assets ui
 
+.PHONY: rustup-set-version
+rustup-set-version: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
+rustup-set-version:
+	rustup override set $(RUST_VERSION)
+
 # rustup-install-target-toolchain ensures the required rust compiler is
 # installed to build for $(ARCH)/$(OS) for the version of rust we use, as
 # defined in build.assets/Makefile. It assumes that `rustup` is already
 # installed for managing the rust toolchain.
 .PHONY: rustup-install-target-toolchain
-rustup-install-target-toolchain: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
-rustup-install-target-toolchain:
-	rustup override set $(RUST_VERSION)
+rustup-install-target-toolchain: rustup-set-version
 	rustup target add $(RUST_TARGET_ARCH)
 
 # changelog generates PR changelog between the provided base tag and the tip of

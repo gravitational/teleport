@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2020 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package auth
 
@@ -25,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -87,6 +90,10 @@ type accessPoint interface {
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
+
+	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
+	// Returns the device used to solve the challenge (if applicable) and the username.
+	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -697,6 +704,8 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+	// GetDatabase returns a database resource with the given name if it exists.
+	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
@@ -705,6 +714,12 @@ type ReadDiscoveryAccessPoint interface {
 
 	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
 	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+
+	// GetIntegration returns the specified integration resource.
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+
+	// GetProxies returns a list of registered proxies.
+	GetProxies() ([]types.Server, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -741,6 +756,9 @@ type DiscoveryAccessPoint interface {
 
 	// SubmitUsageEvent submits an external usage event.
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
+
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -768,6 +786,9 @@ type ReadOktaAccessPoint interface {
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
+	// GetUsers returns a list of users with the cluster
+	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
+
 	// ListUserGroups returns a paginated list of all user group resources.
 	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
 
@@ -791,6 +812,9 @@ type ReadOktaAccessPoint interface {
 
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	// GetLocks lists the locks that target a given set of resources.
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 
 // OktaAccessPoint is a read caching interface used by an Okta component.
@@ -800,6 +824,15 @@ type OktaAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// CreateUser creates a new user in the cluster
+	CreateUser(ctx context.Context, user types.User) (types.User, error)
+
+	// UpdateUser updates the given user record
+	UpdateUser(ctx context.Context, user types.User) (types.User, error)
+
+	// DeleteUser deletes the given user from the cluster
+	DeleteUser(ctx context.Context, user string) error
 
 	// CreateUserGroup creates a new user group resource.
 	CreateUserGroup(context.Context, types.UserGroup) error
@@ -834,6 +867,12 @@ type OktaAccessPoint interface {
 
 	// DeleteApplicationServer removes specified application server.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+
+	// UpsertLock creates or updates a given lock
+	UpsertLock(ctx context.Context, lock types.Lock) error
+
+	// DeleteLock deletes a given lock
+	DeleteLock(ctx context.Context, name string) error
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -911,8 +950,8 @@ type Cache interface {
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
-	// GetUsers returns a list of local users registered with this domain
-	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
+	// ListUsers returns a page of users.
+	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
 
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
@@ -1037,6 +1076,27 @@ type Cache interface {
 	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// GetAccessLists returns a list of all access lists.
+	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
+	// ListAccessLists returns a paginated list of access lists.
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	// GetAccessList returns the specified access list resource.
+	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+
+	// ListAccessListMembers returns a paginated list of all access list members.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member list.
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// GetAccessListMember returns the specified access list member resource.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member record.
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+
+	// ListAccessListReviews will list access list reviews for a particular access list.
+	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
@@ -1255,6 +1315,11 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 	return w.NoCache.SubmitUsageEvent(ctx, req)
 }
 
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx, req)
+}
+
 // Close closes all associated resources
 func (w *DiscoveryWrapper) Close() error {
 	err := w.NoCache.Close()
@@ -1274,6 +1339,21 @@ func NewOktaWrapper(base OktaAccessPoint, cache ReadOktaAccessPoint) OktaAccessP
 		accessPoint:         base,
 		ReadOktaAccessPoint: cache,
 	}
+}
+
+// CreateUser creates a new user in the cluster
+func (w *OktaWrapper) CreateUser(ctx context.Context, user types.User) (types.User, error) {
+	return w.NoCache.CreateUser(ctx, user)
+}
+
+// UpdateUser updates a user in the cluster
+func (w *OktaWrapper) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
+	return w.NoCache.UpdateUser(ctx, user)
+}
+
+// DeleteUser removes a user from the cluster
+func (w *OktaWrapper) DeleteUser(ctx context.Context, user string) error {
+	return w.NoCache.DeleteUser(ctx, user)
 }
 
 // CreateUserGroup creates a new user group resource.
@@ -1330,6 +1410,21 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 // DeleteApplicationServer removes specified application server.
 func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
+}
+
+// GetLocks fetches locks that target a given set of resources
+func (w *OktaWrapper) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	return w.NoCache.GetLocks(ctx, inForceOnly, targets...)
+}
+
+// UpsertLock creates and/or updates lock resources
+func (w *OktaWrapper) UpsertLock(ctx context.Context, lock types.Lock) error {
+	return w.NoCache.UpsertLock(ctx, lock)
+}
+
+// DeleteLock deletes a lock by name
+func (w *OktaWrapper) DeleteLock(ctx context.Context, name string) error {
+	return w.NoCache.DeleteLock(ctx, name)
 }
 
 // Close closes all associated resources

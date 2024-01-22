@@ -142,12 +142,12 @@ func GetDefaultKeySlot(policy PrivateKeyPolicy) (piv.Slot, error) {
 	case PrivateKeyPolicyHardwareKeyTouch:
 		// private_key_policy: hardware_key_touch -> 9c
 		return piv.SlotSignature, nil
-	case PrivateKeyPolicyHardwareKeyPIN:
-		// private_key_policy: hardware_key_pin -> 9d
-		return piv.SlotCardAuthentication, nil
 	case PrivateKeyPolicyHardwareKeyTouchAndPIN:
-		// private_key_policy: hardware_key_touch_and_pin -> 9e
+		// private_key_policy: hardware_key_touch_and_pin -> 9d
 		return piv.SlotKeyManagement, nil
+	case PrivateKeyPolicyHardwareKeyPIN:
+		// private_key_policy: hardware_key_pin -> 9e
+		return piv.SlotCardAuthentication, nil
 	default:
 		return piv.Slot{}, trace.BadParameter("unexpected private key policy %v", policy)
 	}
@@ -252,21 +252,7 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 	y.signMux.Lock()
 	defer y.signMux.Unlock()
 
-	// For generic auth errors, the smart card returns the error code 0x6982. This PIV library
-	// wraps error codes like this with a user readable message: "security status not satisfied".
-	const pivGenericAuthErrCodeString = "6982"
-
 	signature, err := y.sign(ctx, rand, digest, opts)
-	if err != nil && strings.Contains(err.Error(), pivGenericAuthErrCodeString) {
-		// If we get a generic auth error, it probably means the PIV connection didn't prompt for
-		// PIN when he PIV module expected PIN. This can happen in custom PIV modules that don't
-		// implement proper PIN caching in the connection, or potentially in very old YubiKey
-		// models. In these cases, modify the key's PIN policy to reflect that PIN should always
-		// be prompted for and try again.
-		y.attestation.PINPolicy = piv.PINPolicyAlways
-		signature, err = y.sign(ctx, rand, digest, opts)
-	}
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -315,6 +301,20 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 		PINPolicy: y.attestation.PINPolicy,
 	}
 
+	// YubiKeys with firmware version 5.3.1 have a bug where insVerify(0x20, 0x00, 0x80, nil)
+	// clears the PIN cache instead of performing a non-mutable check. This causes the signature
+	// with pin policy "once" to fail unless PIN is provided for each call. We can avoid this bug
+	// by skipping the insVerify check and instead manually retrying with a PIN prompt only when
+	// the signature fails.
+	manualRetryWithPIN := false
+	fw531 := piv.Version{Major: 5, Minor: 3, Patch: 1}
+	if auth.PINPolicy == piv.PINPolicyOnce && y.attestation.Version == fw531 {
+		// Set the keys PIN policy to never to skip the insVerify check. If PIN was provided in
+		// a previous recent call, the signature will succeed as expected of the "once" policy.
+		auth.PINPolicy = piv.PINPolicyNever
+		manualRetryWithPIN = true
+	}
+
 	privateKey, err := yk.PrivateKey(y.pivSlot, y.slotCert.PublicKey, auth)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -325,10 +325,26 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 		return nil, trace.BadParameter("private key type %T does not implement crypto.Signer", privateKey)
 	}
 
+	// For generic auth errors, such as when PIN is not provided, the smart card returns the error code 0x6982.
+	// The piv-go library wraps error codes like this with a user readable message: "security status not satisfied".
+	const pivGenericAuthErrCodeString = "6982"
+
 	signature, err := signer.Sign(rand, digest, opts)
+	if err != nil && strings.Contains(err.Error(), pivGenericAuthErrCodeString) && manualRetryWithPIN {
+		pin, err := promptPIN()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := yk.VerifyPIN(pin); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signature, err = signer.Sign(rand, digest, opts)
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return signature, nil
 }
 
@@ -715,10 +731,10 @@ func parsePIVSlot(slotKey uint32) (piv.Slot, error) {
 		return piv.SlotAuthentication, nil
 	case piv.SlotSignature.Key:
 		return piv.SlotSignature, nil
-	case piv.SlotCardAuthentication.Key:
-		return piv.SlotCardAuthentication, nil
 	case piv.SlotKeyManagement.Key:
 		return piv.SlotKeyManagement, nil
+	case piv.SlotCardAuthentication.Key:
+		return piv.SlotCardAuthentication, nil
 	default:
 		retiredSlot, ok := piv.RetiredKeyManagementSlot(slotKey)
 		if !ok {

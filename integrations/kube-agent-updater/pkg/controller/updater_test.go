@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package controller
 
@@ -28,8 +30,8 @@ import (
 	core "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
+	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (
@@ -42,8 +44,8 @@ const (
 )
 
 var (
-	alwaysTrigger = maintenance.NewMaintenanceTriggerMock("always trigger", true)
-	neverTrigger  = maintenance.NewMaintenanceTriggerMock("never trigger", false)
+	alwaysTrigger = maintenance.NewMaintenanceStaticTrigger("always trigger", true)
+	neverTrigger  = maintenance.NewMaintenanceStaticTrigger("never trigger", false)
 	alwaysValid   = img.NewImageValidatorMock(
 		"always",
 		true,
@@ -80,7 +82,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      versionMid,
-			versionGetter:       version.NewGetterMock(versionHigh, nil),
+			versionGetter:       version.NewStaticGetter(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           require.NoError,
@@ -91,7 +93,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      "",
-			versionGetter:       version.NewGetterMock(versionHigh, nil),
+			versionGetter:       version.NewStaticGetter(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           require.NoError,
@@ -102,10 +104,21 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      versionMid,
-			versionGetter:       version.NewGetterMock(versionMid, nil),
+			versionGetter:       version.NewStaticGetter(versionMid, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
-			assertErr:           errorIsType(&NoNewVersionError{}),
+			assertErr:           errorIsType(&version.NoNewVersionError{}),
+			expectedImage:       "",
+		},
+		{
+			name:                "no version",
+			releaseRegistry:     defaultTestRegistry,
+			releasePath:         defaultTestPath,
+			currentVersion:      versionMid,
+			versionGetter:       version.NewStaticGetter("", &version.NoNewVersionError{Message: "version server did not advertise a version"}),
+			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
+			imageCheckers:       []img.Validator{alwaysValid},
+			assertErr:           errorIsType(&version.NoNewVersionError{}),
 			expectedImage:       "",
 		},
 		{
@@ -113,7 +126,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      versionMid,
-			versionGetter:       version.NewGetterMock(versionHigh, nil),
+			versionGetter:       version.NewStaticGetter(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{neverTrigger},
 			imageCheckers:       []img.Validator{alwaysValid},
 			assertErr:           errorIsType(&MaintenanceNotTriggeredError{}),
@@ -124,7 +137,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      versionMid,
-			versionGetter:       version.NewGetterMock(versionHigh, nil),
+			versionGetter:       version.NewStaticGetter(versionHigh, nil),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{neverValid},
 			assertErr:           errorIsType(&trace.TrustError{}),
@@ -135,7 +148,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 			releaseRegistry:     defaultTestRegistry,
 			releasePath:         defaultTestPath,
 			currentVersion:      versionMid,
-			versionGetter:       version.NewGetterMock("", &trace.ConnectionProblemError{}),
+			versionGetter:       version.NewStaticGetter("", &trace.ConnectionProblemError{}),
 			maintenanceTriggers: []maintenance.Trigger{alwaysTrigger},
 			imageCheckers:       []img.Validator{neverValid},
 			assertErr:           errorIsType(&trace.ConnectionProblemError{}),
@@ -159,7 +172,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 				baseImage:           baseImage,
 			}
 
-			// We need a dummy Kubernetes object, it is not used by the TriggerMock
+			// We need a dummy Kubernetes object, it is not used by the StaticTrigger
 			obj := &core.Pod{}
 
 			// Doing the test
@@ -169,7 +182,7 @@ func Test_VersionUpdater_GetVersion(t *testing.T) {
 				require.Nil(t, image)
 			} else {
 				require.NotNil(t, image)
-				require.Equal(t, image.String(), tt.expectedImage)
+				require.Equal(t, tt.expectedImage, image.String())
 			}
 		})
 	}

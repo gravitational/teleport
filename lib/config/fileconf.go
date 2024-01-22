@@ -1,18 +1,20 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package config
 
@@ -27,6 +29,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,7 +38,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -44,6 +46,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -96,6 +99,9 @@ type FileConfig struct {
 
 	// Plugins is the section of the config for configuring the plugin service.
 	Plugins PluginService `yaml:"plugin_service,omitempty"`
+
+	// AccessGraph is the section of the config describing AccessGraph service
+	AccessGraph AccessGraph `yaml:"access_graph,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -815,6 +821,18 @@ type PluginService struct {
 	Plugins map[string]string `yaml:"plugins,omitempty"`
 }
 
+// AccessGraph represents the configuration for the AccessGraph service.
+type AccessGraph struct {
+	// Enabled enables the AccessGraph service.
+	Enabled bool `yaml:"enabled"`
+	// Endpoint is the endpoint of the AccessGraph service.
+	Endpoint string `yaml:"endpoint"`
+	// CA is the path to the CA certificate for the AccessGraph service.
+	CA string `yaml:"ca"`
+	// Insecure is true if the AccessGraph service should not verify the CA.
+	Insecure bool `yaml:"insecure"`
+}
+
 // Opsgenie represents the configuration for the Opsgenie plugin.
 type Opsgenie struct {
 	// APIKeyFile is the path to a file containing an Opsgenie API key.
@@ -854,6 +872,9 @@ type CAKeyParams struct {
 	// GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
 	// all CA private key crypto operations.
 	GoogleCloudKMS *GoogleCloudKMS `yaml:"gcp_kms,omitempty"`
+	// AWSKMS configures AWS Key Management Service to to be used for
+	// all CA private key crypto operations.
+	AWSKMS *AWSKMS `yaml:"aws_kms,omitempty"`
 }
 
 // PKCS11 configures a PKCS#11 HSM to be used for private key generation and
@@ -888,6 +909,15 @@ type GoogleCloudKMS struct {
 	// For more information, see https://cloud.google.com/kms/docs/algorithms#protection_levels
 	// Supported options are "HSM" and "SOFTWARE".
 	ProtectionLevel string `yaml:"protection_level"`
+}
+
+// AWSKMS configures AWS Key Management Service to to be used for all CA private
+// key crypto operations.
+type AWSKMS struct {
+	// Account is the AWS account to use.
+	Account string `yaml:"account"`
+	// Region is the AWS region to use.
+	Region string `yaml:"region"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -1494,19 +1524,6 @@ type RestrictedSession struct {
 	EventsBufferSize *int `yaml:"events_buffer_size,omitempty"`
 }
 
-// Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*servicecfg.RestrictedSessionConfig, error) {
-	enabled, err := apiutils.ParseBool(r.Enabled)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &servicecfg.RestrictedSessionConfig{
-		Enabled:          enabled,
-		EventsBufferSize: r.EventsBufferSize,
-	}, nil
-}
-
 // X11 is a configuration for X11 forwarding
 type X11 struct {
 	// Enabled controls whether X11 forwarding requests can be granted by the server.
@@ -1773,6 +1790,8 @@ type DatabaseAWS struct {
 	ExternalID string `yaml:"external_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
 	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_serverless"`
+	// SessionTags is a list of AWS STS session tags.
+	SessionTags map[string]string `yaml:"session_tags,omitempty"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -1986,6 +2005,11 @@ type Proxy struct {
 	// the "X-Forwarded-For" headers for web APIs received from layer 7 load
 	// balancers or reverse proxies.
 	TrustXForwardedFor types.Bool `yaml:"trust_x_forwarded_for,omitempty"`
+
+	// AutomaticUpgradesChannels is a map of all version channels used by the
+	// proxy built-in version server to retrieve target versions. This is part
+	// of the automatic upgrades.
+	AutomaticUpgradesChannels automaticupgrades.Channels `yaml:"automatic_upgrades_channels,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.
@@ -2187,13 +2211,20 @@ type WindowsDesktopService struct {
 	PKIDomain string `yaml:"pki_domain"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
-	// Hosts is a list of static, AD-connected Windows hosts. This gives users
+	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in `discovery` (or if `discovery` is omitted).
-	Hosts []string `yaml:"hosts,omitempty"`
+	//
+	// Deprecated: prefer StaticHosts instead.
+	ADHosts []string `yaml:"hosts,omitempty"`
 	// NonADHosts is a list of standalone Windows hosts that are not
 	// jointed to an Active Directory domain.
+	//
+	// Deprecated: prefer StaticHosts instead.
 	NonADHosts []string `yaml:"non_ad_hosts,omitempty"`
+	// StaticHosts is a list of Windows hosts (both AD-connected and standalone).
+	// User can specify name for each host and labels specific to it.
+	StaticHosts []WindowsHost `yaml:"static_hosts,omitempty"`
 	// HostLabels optionally applies labels to Windows hosts for RBAC.
 	// A host can match multiple rules and will get a union of all
 	// the matched labels.
@@ -2202,9 +2233,13 @@ type WindowsDesktopService struct {
 
 // Check checks whether the WindowsDesktopService is valid or not
 func (wds *WindowsDesktopService) Check() error {
-	if len(wds.Hosts) > 0 && wds.LDAP.Addr == "" {
-		return trace.BadParameter("if hosts are specified in the windows_desktop_service, " +
-			"the ldap configuration for their corresponding Active Directory domain controller must also be specified")
+	hasAD := len(wds.ADHosts) > 0 || slices.ContainsFunc(wds.StaticHosts, func(host WindowsHost) bool {
+		return host.AD
+	})
+
+	if hasAD && wds.LDAP.Addr == "" {
+		return trace.BadParameter("if Active Directory hosts are specified in the windows_desktop_service, " +
+			"the ldap configuration must also be specified")
 	}
 
 	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
@@ -2215,7 +2250,7 @@ func (wds *WindowsDesktopService) Check() error {
 	return nil
 }
 
-// WindowsHostLabelRule describes how a set of labels should be a applied to
+// WindowsHostLabelRule describes how a set of labels should be applied to
 // a Windows host.
 type WindowsHostLabelRule struct {
 	// Match is a regexp that is checked against the Windows host's DNS name.
@@ -2223,6 +2258,19 @@ type WindowsHostLabelRule struct {
 	Match string `yaml:"match"`
 	// Labels is the set of labels to apply to hosts that match this rule.
 	Labels map[string]string `yaml:"labels"`
+}
+
+// WindowsHost describes single host in configuration
+type WindowsHost struct {
+	// Name of the host
+	Name string `yaml:"name"`
+	// Address of the host, with an optional port.
+	// 10.1.103.4 or 10.1.103.4:3389, for example.
+	Address string `yaml:"addr"`
+	// Labels is the set of labels to apply to this host
+	Labels map[string]string `yaml:"labels"`
+	// AD tells if host is part of Active Directory domain
+	AD bool `yaml:"ad"`
 }
 
 // LDAPConfig is the LDAP connection parameters.
@@ -2302,8 +2350,45 @@ type Okta struct {
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string `yaml:"api_token_path,omitempty"`
 
-	// SyncPeriod is the duration between synchronization calls.
+	// SyncPeriod is the duration between synchronization calls for synchronizing Okta applications and groups..
+	// Deprecated. Please use sync.app_group_sync_period instead.
 	SyncPeriod time.Duration `yaml:"sync_period,omitempty"`
+
+	// Import is the import settings for the Okta service.
+	Sync OktaSync `yaml:"sync,omitempty"`
+}
+
+// OktaSync represents the import subsection of the okta_service section in the config file.
+type OktaSync struct {
+	// AppGroupSyncPeriod is the duration between synchronization calls for synchronizing Okta applications and groups.
+	AppGroupSyncPeriod time.Duration `yaml:"app_group_sync_period,omitempty"`
+
+	// SyncAccessLists will enable or disable the Okta importing of access lists. Defaults to false.
+	SyncAccessListsFlag string `yaml:"sync_access_lists,omitempty"`
+
+	// DefaultOwners are the default owners for all imported access lists.
+	DefaultOwners []string `yaml:"default_owners,omitempty"`
+}
+
+func (o *OktaSync) SyncAccessLists() bool {
+	if o.SyncAccessListsFlag == "" {
+		return false
+	}
+	enabled, _ := apiutils.ParseBool(o.SyncAccessListsFlag)
+	return enabled
+}
+
+func (o *OktaSync) Parse() (*servicecfg.OktaSyncSettings, error) {
+	enabled := o.SyncAccessLists()
+	if enabled && len(o.DefaultOwners) == 0 {
+		return nil, trace.BadParameter("default owners must be set when access list import is enabled")
+	}
+
+	return &servicecfg.OktaSyncSettings{
+		AppGroupSyncPeriod: o.AppGroupSyncPeriod,
+		SyncAccessLists:    o.SyncAccessLists(),
+		DefaultOwners:      o.DefaultOwners,
+	}, nil
 }
 
 // JamfService is the yaml representation of jamf_service.

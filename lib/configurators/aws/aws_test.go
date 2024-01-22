@@ -1,22 +1,27 @@
-// Copyright 2022 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package aws
 
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"testing"
 
@@ -188,7 +193,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"redshift:DescribeClusters", "redshift:GetClusterCredentials",
+					"redshift:DescribeClusters", "redshift:GetClusterCredentials", "sts:AssumeRole",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
 					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
@@ -215,7 +220,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"redshift:DescribeClusters", "redshift:GetClusterCredentials",
+					"redshift:DescribeClusters", "redshift:GetClusterCredentials", "sts:AssumeRole",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
 					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
@@ -246,7 +251,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"redshift:DescribeClusters", "redshift:GetClusterCredentials",
+					"redshift:DescribeClusters", "redshift:GetClusterCredentials", "sts:AssumeRole",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
 					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
@@ -432,6 +437,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 					},
 					Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
 				},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
@@ -440,6 +448,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					"memorydb:DescribeSubnetGroups",
 					"memorydb:DescribeUsers",
 					"memorydb:UpdateUser",
+					"memorydb:Connect",
 				}},
 				{
 					Effect: awslib.EffectAllow,
@@ -451,6 +460,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 					},
 					Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
 				},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
 			},
 		},
 		"MemoryDB static database": {
@@ -506,6 +518,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"arn:aws:kms:*:123456789012:key/my-kms-id",
 					},
 				},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
@@ -514,6 +529,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					"memorydb:DescribeSubnetGroups",
 					"memorydb:DescribeUsers",
 					"memorydb:UpdateUser",
+					"memorydb:Connect",
 				}},
 				{
 					Effect: "Allow",
@@ -535,6 +551,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"arn:aws:kms:*:123456789012:key/my-kms-id",
 					},
 				},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
 			},
 		},
 		"AutoDiscovery EC2": {
@@ -603,7 +622,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			statements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
 					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
@@ -611,7 +630,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 					"rds-db:connect",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
@@ -635,7 +654,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			statements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
 					"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy",
@@ -643,7 +662,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 					"rds-db:connect",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{userTarget.String()}, Actions: []string{
@@ -747,7 +766,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 				{
 					Effect:    awslib.EffectAllow,
 					Resources: awslib.SliceOrString{"*"},
-					Actions:   awslib.SliceOrString{"sts:AssumeRole"},
+					Actions:   awslib.SliceOrString{"sts:AssumeRole", "sts:TagSession"},
 				},
 			},
 		},
@@ -838,7 +857,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			statements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
 					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
@@ -846,7 +865,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
-					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource",
 					"rds-db:connect",
 				}},
 				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
@@ -959,7 +978,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: awslib.SliceOrString{"*"},
-						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource"},
 					},
 				},
 				wantInlineAsBoundary: true,
@@ -1074,7 +1093,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: awslib.SliceOrString{"*"},
-						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -1096,7 +1115,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: awslib.SliceOrString{"*"},
-						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:ListTagsForResource"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -1227,7 +1246,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"redshift:DescribeClusters", "redshift:GetClusterCredentials"},
+						Actions:   []string{"redshift:DescribeClusters", "redshift:GetClusterCredentials", "sts:AssumeRole"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -1339,12 +1358,17 @@ func TestAWSIAMDocuments(t *testing.T) {
 						},
 						Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
 					},
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{roleTarget.String()},
+						Actions:   []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"},
+					},
 				},
 				boundaryStatements: []*awslib.Statement{
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"memorydb:DescribeClusters", "memorydb:DescribeUsers", "memorydb:UpdateUser"},
+						Actions:   []string{"memorydb:DescribeClusters", "memorydb:DescribeUsers", "memorydb:UpdateUser", "memorydb:Connect"},
 					},
 					{
 						Effect: awslib.EffectAllow,
@@ -1355,6 +1379,11 @@ func TestAWSIAMDocuments(t *testing.T) {
 							"secretsmanager:TagResource",
 						},
 						Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
+					},
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{roleTarget.String()},
+						Actions:   []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"},
 					},
 				},
 			},
@@ -1434,12 +1463,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					{
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
-						Actions:   []string{"redshift:DescribeClusters", "redshift:GetClusterCredentials"},
-					},
-					{
-						Effect:    awslib.EffectAllow,
-						Resources: awslib.SliceOrString{"*"},
-						Actions:   awslib.SliceOrString{"sts:AssumeRole"},
+						Actions:   []string{"redshift:DescribeClusters", "redshift:GetClusterCredentials", "sts:AssumeRole"},
 					},
 					{
 						Effect:    awslib.EffectAllow,
@@ -2310,7 +2334,20 @@ type SSMMock struct {
 func (m *SSMMock) CreateDocumentWithContext(ctx aws.Context, input *ssm.CreateDocumentInput, opts ...request.Option) (*ssm.CreateDocumentOutput, error) {
 
 	m.t.Helper()
-	require.Equal(m.t, m.expectedInput, input)
+
+	// UUID's are unpredictable, so we remove them from the content
+	uuidRegex := regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
+	replacedExpected := uuidRegex.ReplaceAllString(*m.expectedInput.Content, "")
+	m.expectedInput.Content = &replacedExpected
+	replacedInput := uuidRegex.ReplaceAllString(*input.Content, "")
+	input.Content = &replacedInput
+	// Diff content first for a nicer error message.
+	require.Empty(m.t,
+		cmp.Diff(m.expectedInput.Content, input.Content),
+		"Document content diff (-want +got)")
+	require.Empty(m.t,
+		cmp.Diff(m.expectedInput, input, cmpopts.IgnoreFields(ssm.CreateDocumentInput{}, "Content")),
+		"Document diff (-want +got)")
 
 	return nil, nil
 }

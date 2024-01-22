@@ -1,0 +1,48 @@
+### "binary missing signature or entitlements" on `tsh device enroll`
+
+A signed and notarized `tsh` binary is necessary to enroll and use a a trusted
+device. [Download the macOS tsh installer](../../installation.mdx#macos) to fix
+the problem.
+
+### "unauthorized device" errors using a trusted device
+
+A trusted device needs to be registered and enrolled before it is recognized by
+Teleport as such. Follow the [registration](
+../../access-controls/device-trust/device-management.mdx#register-a-trusted-device) and
+[enrollment](
+../../access-controls/device-trust/device-management.mdx#enroll-a-trusted-device) steps
+and make sure to `tsh logout` and `tsh login` after enrollment is done.
+
+### "Failed to open the TPM device" on Linux
+
+Linux users need permissions to read and write from the TPM device, `/dev/tpmrm0`.
+Without such permissions `tsh` would need `sudo` prompts for most operations.
+
+The simplest way to solve this is to check if your distro ships with the `tss`
+group and assign it to your OS user. If that is not possible, or you are looking
+for a different solution, we recommend creating udev rules similar to the ones
+shipped by the [TPM2 Software Stack](
+https://github.com/tpm2-software/tpm2-tss/blob/ede63dd1ac1f0a46029d457304edcac2162bfab8/dist/tpm-udev.rules#L4).
+
+### App access and "access to this app requires a trusted device"
+
+A Teleport admin configured the particular app you are trying to access to
+require a trusted device.
+
+There are a few situations that might cause the error:
+
+1. You are trying to access the app using the Web UI.
+
+2. You are trying to access the app using an untrusted device.
+
+The Web UI is currently not capable of device authentication. To access apps
+protected by device trust you need to use one of the tsh commands described by
+[App Access support](
+../../access-controls/device-trust/enforcing-device-trust.mdx#app-access-support).
+For example, for an app called `myapp`, run `tsh proxy app myapp -p 8888`, then
+open http://localhost:8888 in your browser.
+
+If you are already running `tsh proxy app`, or using the certificates acquired
+from `tsh app login`, then it's likely your device isn't registered or enrolled.
+In this case, follow the advice from the [unauthorized device section](
+#unauthorized-device-errors-using-a-trusted-device) above.

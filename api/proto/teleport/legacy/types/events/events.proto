@@ -63,6 +63,21 @@ message SessionMetadata {
   string PrivateKeyPolicy = 3 [(gogoproto.jsontag) = "private_key_policy,omitempty"];
 }
 
+// The kind of user a given username refers to. Usernames should always refer to
+// a valid cluster user (even if temporary, e.g. SSO), but may be Machine ID
+// bot users.
+enum UserKind {
+  // Indicates a legacy cluster emitting events without a defined user kind.
+  USER_KIND_UNSPECIFIED = 0;
+
+  // Indicates the user associated with this event is human, either created
+  // locally or via SSO.
+  USER_KIND_HUMAN = 1;
+
+  // Indicates the user associated with this event is a Machine ID bot user.
+  USER_KIND_BOT = 2;
+}
+
 // UserMetadata is a common user event metadata
 message UserMetadata {
   // User is teleport user name
@@ -92,6 +107,10 @@ message UserMetadata {
 
   // RequiredPrivateKeyPolicy is the private key policy enforced for this login.
   string RequiredPrivateKeyPolicy = 9 [(gogoproto.jsontag) = "required_private_key_policy,omitempty"];
+
+  // UserKind indicates what type of user this is, e.g. a human or Machine ID
+  // bot user.
+  UserKind UserKind = 10 [(gogoproto.jsontag) = "user_kind,omitempty"];
 }
 
 // Server is a server metadata
@@ -178,6 +197,8 @@ message SAMLIdPServiceProviderMetadata {
   string ServiceProviderEntityID = 1 [(gogoproto.jsontag) = "service_provider_entity_id,omitempty"];
   // ServiceProviderShortcut is the shortcut name of a service provider.
   string ServiceProviderShortcut = 2 [(gogoproto.jsontag) = "service_provider_shortcut,omitempty"];
+  // AttributeMapping is a map of attribute name and value which will be asserted in SAML response.
+  map<string, string> AttributeMapping = 3 [(gogoproto.jsontag) = "attribute_mapping,omitempty"];
 }
 
 // OktaResourcesUpdatedMetadata contains common metadata for Okta resources updated events.
@@ -1259,6 +1280,13 @@ message UserCreate {
 
   // Connector is the connector used to create the user.
   string Connector = 5 [(gogoproto.jsontag) = "connector"];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // UserUpdate is emitted when the user is updated.
@@ -1289,6 +1317,13 @@ message UserUpdate {
 
   // Connector is the connector used to create the user.
   string Connector = 5 [(gogoproto.jsontag) = "connector"];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // UserDelete is emitted when a user gets deleted
@@ -1313,6 +1348,13 @@ message UserDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // UserPasswordChange is emitted when the user changes their own password.
@@ -1326,6 +1368,13 @@ message UserPasswordChange {
 
   // User is a common user event metadata
   UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -1407,6 +1456,13 @@ message AccessRequestCreate {
   // was promoted to.
   // This field is only populated when the request is in the PROMOTED state.
   string PromotedAccessListName = 15 [(gogoproto.jsontag) = "promoted_access_list_name,omitempty"];
+
+  // AssumeStartTime is the time the requested roles can be assumed.
+  google.protobuf.Timestamp AssumeStartTime = 16 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "assume_start_time,omitempty"
+  ];
 }
 
 // ResourceID is a unique identifier for a teleport resource. This is duplicated
@@ -1902,6 +1958,13 @@ message RoleCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // RoleUpdate is emitted when a role is updated.
@@ -1926,10 +1989,96 @@ message RoleUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // RoleDelete is emitted when a role is deleted
 message RoleDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// BotCreate is emitted when a bot is created/upserted.
+message BotCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// BotCreate is emitted when a bot is created/updated.
+message BotUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// BotDelete is emitted when a bot is deleted.
+message BotDelete {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -1974,6 +2123,13 @@ message TrustedClusterCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // TrustedClusterDelete is the event for removing a trusted cluster.
@@ -1994,6 +2150,13 @@ message TrustedClusterDelete {
 
   // User is a common user event metadata
   UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -2081,6 +2244,13 @@ message GithubConnectorCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // GithubConnectorUpdate fires when a Github connector is updated.
@@ -2105,6 +2275,13 @@ message GithubConnectorUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // GithubConnectorDelete fires when a Github connector is deleted.
@@ -2125,6 +2302,13 @@ message GithubConnectorDelete {
 
   // User is a common user event metadata
   UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -3086,6 +3270,12 @@ message MFADeviceAdd {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // MFADeviceDelete is emitted when a user deletes an MFA device.
@@ -3104,6 +3294,12 @@ message MFADeviceDelete {
   ];
   // Device is the MFA device deleted by the user.
   MFADeviceMetadata Device = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -3662,6 +3858,11 @@ message OneOf {
     events.SAMLConnectorUpdate SAMLConnectorUpdate = 138;
     events.RoleUpdate RoleUpdate = 139;
     events.UserUpdate UserUpdate = 140;
+    events.ExternalAuditStorageEnable ExternalAuditStorageEnable = 141;
+    events.ExternalAuditStorageDisable ExternalAuditStorageDisable = 142;
+    events.BotCreate BotCreate = 143;
+    events.BotDelete BotDelete = 144;
+    events.BotUpdate BotUpdate = 145;
   }
 }
 
@@ -3786,6 +3987,9 @@ message Identity {
   repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
   // PrivateKeyPolicy is the private key policy of the user's private key.
   string PrivateKeyPolicy = 26 [(gogoproto.jsontag) = "private_key_policy,omitempty"];
+  // BotName indicates the name of the Machine ID bot this identity was issued
+  // to, if any.
+  string BotName = 27 [(gogoproto.jsontag) = "bot_name,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -3816,6 +4020,8 @@ message RouteToDatabase {
   string Username = 3 [(gogoproto.jsontag) = "username,omitempty"];
   // Database is an optional database name to embed.
   string Database = 4 [(gogoproto.jsontag) = "database,omitempty"];
+  // Roles is an optional list of database roles to embed.
+  repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
 }
 
 // AccessRequestResourceSearch is emitted when a user searches for resources as
@@ -5453,4 +5659,69 @@ message SecurityReportRun {
   int64 TotalDataScannedInBytes = 7 [(gogoproto.jsontag) = "total_data_scanned_in_bytes"];
   // AuditQueries is the list of audit queries that were run.
   repeated AuditQueryDetails AuditQueries = 8 [(gogoproto.jsontag) = "audit_queries,omitempty"];
+}
+
+// ExternalAuditStorageEnableEvent is emitted when External Audit Storage is
+// enabled.
+message ExternalAuditStorageEnable {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Details holds details about the External Audit Storage configuration that
+  // was enabled.
+  ExternalAuditStorageDetails details = 3;
+}
+
+// ExternalAuditStorageDisableEvent is emitted when External Audit Storage is
+// disabled.
+message ExternalAuditStorageDisable {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Resource is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Details holds details about the External Audit Storage configuration that
+  // was disabled.
+  ExternalAuditStorageDetails details = 3;
+}
+
+// Details holds details about the External Audit Storage configuration.
+message ExternalAuditStorageDetails {
+  // IntegrationName is the name of the AWS OIDC integration used.
+  string integration_name = 3;
+  // SessionsRecordingsURI is the S3 path used to store session recordings.
+  string session_recordings_uri = 4;
+  // AthenaWorkgroup is the workgroup used for Athena audit log queries.
+  string athena_workgroup = 5;
+  // GlueDatabase is the database used for Athena audit log queries.
+  string glue_database = 6;
+  // GlueTable is the table used for Athena audit log queries.
+  string glue_table = 7;
+  // AuditEventsLongTermURI is the S3 path used to store batched parquet files
+  // with audit events, partitioned by event date.
+  string audit_events_long_term_uri = 8;
+  // AthenaResultsURI is the S3 path used to store temporary results generated
+  // by Athena.
+  string athena_results_uri = 9;
+  // PolicyName is the name of the IAM policy attached to the OIDC integration
+  // role.
+  string policy_name = 10;
+  // Region is the AWS region where the infrastructure is hosted.
+  string region = 11;
 }

@@ -46,7 +46,7 @@ func TestContextReader(t *testing.T) {
 		go write(t, "hello")
 		buf, err := cr.ReadContext(ctx)
 		require.NoError(t, err)
-		require.Equal(t, string(buf), "hello")
+		require.Equal(t, "hello", string(buf))
 	})
 
 	t.Run("reclaim abandoned read", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestContextReader(t *testing.T) {
 		<-done // wait for write
 		buf, err = cr.ReadContext(ctx)
 		require.NoError(t, err)
-		require.Equal(t, string(buf), "after cancel")
+		require.Equal(t, "after cancel", string(buf))
 	})
 
 	t.Run("close ContextReader", func(t *testing.T) {
@@ -102,7 +102,7 @@ func TestContextReader(t *testing.T) {
 		// Read the last chunk of data successfully.
 		buf, err := cr.ReadContext(ctx)
 		require.NoError(t, err)
-		require.Equal(t, string(buf), "before close")
+		require.Equal(t, "before close", string(buf))
 
 		// Next read fails because underlying reader is closed.
 		buf, err = cr.ReadContext(ctx)

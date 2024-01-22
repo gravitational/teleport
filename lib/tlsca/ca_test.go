@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package tlsca
 
@@ -176,6 +178,51 @@ func TestKubeExtensions(t *testing.T) {
 			ServiceName: "postgres-rds",
 			Protocol:    "postgres",
 			Username:    "postgres",
+		},
+		DatabaseNames: []string{"postgres", "main"},
+		DatabaseUsers: []string{"postgres", "alice"},
+		Expires:       expires,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.False(t, out.Renewable)
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
+}
+
+func TestDatabaseExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:        "alice@example.com",
+		Groups:          []string{"admin"},
+		Impersonator:    "bob@example.com",
+		Usage:           []string{teleport.UsageDatabaseOnly},
+		TeleportCluster: "tele-cluster",
+		RouteToDatabase: RouteToDatabase{
+			ServiceName: "postgres-rds",
+			Protocol:    "postgres",
+			Username:    "postgres",
+			Roles:       []string{"read_only"},
 		},
 		DatabaseNames: []string{"postgres", "main"},
 		DatabaseUsers: []string{"postgres", "alice"},
@@ -367,6 +414,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					GCPServiceAccount: "gcpaccount",
 				},
 				ActiveRequests: []string{"accessreq1", "accessreq2"},
+				BotName:        "",
 			},
 			want: apievents.UserMetadata{
 				User:              "alpaca",
@@ -375,6 +423,30 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				AccessRequests:    []string{"accessreq1", "accessreq2"},
 				AzureIdentity:     "azureidentity",
 				GCPServiceAccount: "gcpaccount",
+				UserKind:          apievents.UserKind_USER_KIND_HUMAN,
+			},
+		},
+		{
+			name: "user metadata for bot",
+			identity: Identity{
+				Username:     "alpaca",
+				Impersonator: "llama",
+				RouteToApp: RouteToApp{
+					AWSRoleARN:        "awsrolearn",
+					AzureIdentity:     "azureidentity",
+					GCPServiceAccount: "gcpaccount",
+				},
+				ActiveRequests: []string{"accessreq1", "accessreq2"},
+				BotName:        "foo",
+			},
+			want: apievents.UserMetadata{
+				User:              "alpaca",
+				Impersonator:      "llama",
+				AWSRoleARN:        "awsrolearn",
+				AccessRequests:    []string{"accessreq1", "accessreq2"},
+				AzureIdentity:     "azureidentity",
+				GCPServiceAccount: "gcpaccount",
+				UserKind:          apievents.UserKind_USER_KIND_BOT,
 			},
 		},
 		{
@@ -386,6 +458,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					AssetTag:     "assettag1",
 					CredentialID: "credentialid1",
 				},
+				BotName: "",
 			},
 			want: apievents.UserMetadata{
 				User: "llama",
@@ -394,6 +467,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					AssetTag:     "assettag1",
 					CredentialId: "credentialid1",
 				},
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
 			},
 		},
 	}

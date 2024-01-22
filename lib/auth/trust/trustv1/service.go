@@ -1,21 +1,26 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package trustv1
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -27,6 +32,19 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+type authServer interface {
+	// GetClusterName returns cluster name
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
+	// GenerateHostCert uses the private key of the CA to sign the public key of
+	// the host (along with metadata like host ID, node name, roles, and ttl)
+	// to generate a host certificate.
+	GenerateHostCert(ctx context.Context, hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
+
+	// RotateCertAuthority starts or restarts certificate authority rotation process.
+	RotateCertAuthority(ctx context.Context, req types.RotateRequest) error
+}
+
 // ServiceConfig holds configuration options for
 // the trust gRPC service.
 type ServiceConfig struct {
@@ -34,6 +52,7 @@ type ServiceConfig struct {
 	Cache      services.AuthorityGetter
 	Backend    services.Trust
 	Logger     *logrus.Entry
+	AuthServer authServer
 }
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
@@ -42,6 +61,7 @@ type Service struct {
 	authorizer authz.Authorizer
 	cache      services.AuthorityGetter
 	backend    services.Trust
+	authServer authServer
 	logger     *logrus.Entry
 }
 
@@ -54,6 +74,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.AuthServer == nil:
+		return nil, trace.BadParameter("authServer is required")
 	case cfg.Logger == nil:
 		cfg.Logger = logrus.WithField(trace.Component, "trust.service")
 	}
@@ -63,6 +85,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		authorizer: cfg.Authorizer,
 		cache:      cfg.Cache,
 		backend:    cfg.Backend,
+		authServer: cfg.AuthServer,
 	}, nil
 }
 
@@ -144,8 +167,12 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 
 // DeleteCertAuthority deletes the matching cert authority.
 func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCertAuthorityRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbDelete)
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbDelete)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -166,7 +193,12 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+	authzCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -175,4 +207,174 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 	}
 
 	return req.CertAuthority, nil
+}
+
+// RotateCertAuthority rotates a cert authority.
+func (s *Service) RotateCertAuthority(ctx context.Context, req *trustpb.RotateCertAuthorityRequest) (*trustpb.RotateCertAuthorityResponse, error) {
+	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbCreate, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rotateRequest := types.RotateRequest{
+		Type:        types.CertAuthType(req.Type),
+		TargetPhase: req.TargetPhase,
+		Mode:        req.Mode,
+	}
+
+	if req.GracePeriod != nil {
+		duration := req.GracePeriod.AsDuration()
+		rotateRequest.GracePeriod = &duration
+	}
+
+	if req.Schedule != nil {
+		rotateRequest.Schedule = &types.RotationSchedule{
+			UpdateClients: req.Schedule.UpdateClients.AsTime(),
+			UpdateServers: req.Schedule.UpdateServers.AsTime(),
+			Standby:       req.Schedule.Standby.AsTime(),
+		}
+	}
+
+	if err := s.authServer.RotateCertAuthority(ctx, rotateRequest); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &trustpb.RotateCertAuthorityResponse{}, nil
+}
+
+// RotateExternalCertAuthority rotates external certificate authority,
+// this method is called by remote trusted cluster and is used to update
+// only public keys and certificates of the certificate authority.
+func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.RotateExternalCertAuthorityRequest) (*trustpb.RotateExternalCertAuthorityResponse, error) {
+	if req.CertAuthority == nil {
+		return nil, trace.BadParameter("missing certificate authority")
+	}
+
+	if err := services.ValidateCertAuthority(req.CertAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authzCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbRotate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteService(*authzCtx) {
+		return nil, trace.AccessDenied("this request can be only executed by an internal Teleport service")
+	}
+
+	clusterName, err := s.authServer.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// this is just an extra precaution against local admins,
+	// because this is additionally enforced by RBAC as well
+	if req.CertAuthority.GetClusterName() == clusterName.GetClusterName() {
+		return nil, trace.BadParameter("can not rotate local certificate authority")
+	}
+
+	existing, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       req.CertAuthority.GetType(),
+		DomainName: req.CertAuthority.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated := existing.Clone()
+	if err := updated.SetActiveKeys(req.CertAuthority.GetActiveKeys().Clone()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := updated.SetAdditionalTrustedKeys(req.CertAuthority.GetAdditionalTrustedKeys().Clone()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// a rotation state of "" gets stored as "standby" after
+	// CheckAndSetDefaults, so if `ca` came in with a zeroed rotation we must do
+	// this before checking if `updated` is the same as `existing` or the check
+	// will fail for no reason (CheckAndSetDefaults is idempotent, so it's fine
+	// to call it both here and in CompareAndSwapCertAuthority)
+	updated.SetRotation(req.CertAuthority.GetRotation())
+	if err := services.CheckAndSetDefaults(updated); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// CASing `updated` over `existing` if they're equivalent will only cause
+	// backend and watcher spam for no gain, so we exit early if that's the case
+	if services.CertAuthoritiesEquivalent(existing, updated) {
+		return &trustpb.RotateExternalCertAuthorityResponse{}, nil
+	}
+
+	// use compare and swap to protect from concurrent updates
+	// by trusted cluster API
+	if err := s.backend.CompareAndSwapCertAuthority(updated, existing); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &trustpb.RotateExternalCertAuthorityResponse{}, nil
+}
+
+// GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format
+// and returns a SSH certificate signed by the Host CA.
+func (s *Service) GenerateHostCert(
+	ctx context.Context, req *trustpb.GenerateHostCertRequest,
+) (*trustpb.GenerateHostCertResponse, error) {
+	// Perform special authz as we allow for `where` rules on the `host_cert`
+	// resource type.
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, s.logger, err)
+	}
+	ruleCtx := &services.Context{
+		User: authCtx.User,
+		HostCert: &services.HostCertContext{
+			HostID:      req.HostId,
+			NodeName:    req.NodeName,
+			Principals:  req.Principals,
+			ClusterName: req.ClusterName,
+			Role:        types.SystemRole(req.Role),
+			TTL:         req.Ttl.AsDuration(),
+		},
+	}
+	_, err = authz.AuthorizeContextWithVerbs(
+		ctx,
+		s.logger,
+		authCtx,
+		false,
+		ruleCtx,
+		types.KindHostCert,
+		types.VerbCreate,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO (Joerger): in v16.0.0, this endpoint should require admin action authorization
+	// once the deprecated http endpoint is removed in use.
+
+	// Call through to the underlying implementation on auth.Server. At some
+	// point in the future, we may wish to pull more of that implementation
+	// up to here.
+	cert, err := s.authServer.GenerateHostCert(
+		ctx,
+		req.Key,
+		req.HostId,
+		req.NodeName,
+		req.Principals,
+		req.ClusterName,
+		types.SystemRole(req.Role),
+		req.Ttl.AsDuration(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &trustpb.GenerateHostCertResponse{
+		SshCertificate: cert,
+	}, nil
 }

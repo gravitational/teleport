@@ -1,18 +1,20 @@
 /*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package proxy
 
@@ -26,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -35,7 +38,7 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 		s.log.Debug("Not initializing Kube Cluster resource watcher.")
 		return nil
 	}
-	s.reconciler, err = services.NewReconciler(services.ReconcilerConfig{
+	s.reconciler, err = services.NewReconciler(services.ReconcilerConfig[types.KubeCluster]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
 		GetNewResources:     s.monitoredKubeClusters.get,
@@ -120,36 +123,24 @@ func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*servi
 	return watcher, nil
 }
 
-func (s *TLSServer) getResources() (resources types.ResourcesWithLabelsMap) {
-	return s.fwd.kubeClusters().AsResources().ToMap()
+func (s *TLSServer) getResources() map[string]types.KubeCluster {
+	return utils.FromSlice(s.fwd.kubeClusters(), types.KubeCluster.GetName)
 }
 
-func (s *TLSServer) onCreate(ctx context.Context, resource types.ResourceWithLabels) error {
-	cluster, ok := resource.(types.KubeCluster)
-	if !ok {
-		return trace.BadParameter("expected types.KubeCluster, got %T", resource)
-	}
+func (s *TLSServer) onCreate(ctx context.Context, cluster types.KubeCluster) error {
 	return s.registerKubeCluster(ctx, cluster)
 }
 
-func (s *TLSServer) onUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
-	cluster, ok := resource.(types.KubeCluster)
-	if !ok {
-		return trace.BadParameter("expected types.KubeCluster, got %T", resource)
-	}
+func (s *TLSServer) onUpdate(ctx context.Context, cluster, _ types.KubeCluster) error {
 	return s.updateKubeCluster(ctx, cluster)
 }
 
-func (s *TLSServer) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
-	return s.unregisterKubeCluster(ctx, resource.GetName())
+func (s *TLSServer) onDelete(ctx context.Context, cluster types.KubeCluster) error {
+	return s.unregisterKubeCluster(ctx, cluster.GetName())
 }
 
-func (s *TLSServer) matcher(resource types.ResourceWithLabels) bool {
-	cluster, ok := resource.(types.KubeCluster)
-	if !ok {
-		return false
-	}
-	return services.MatchResourceLabels(s.ResourceMatchers, cluster)
+func (s *TLSServer) matcher(cluster types.KubeCluster) bool {
+	return services.MatchResourceLabels(s.ResourceMatchers, cluster.GetAllLabels())
 }
 
 // monitoredKubeClusters is a collection of clusters from different sources
@@ -172,10 +163,10 @@ func (m *monitoredKubeClusters) setResources(clusters types.KubeClusters) {
 	m.resources = clusters
 }
 
-func (m *monitoredKubeClusters) get() types.ResourcesWithLabelsMap {
+func (m *monitoredKubeClusters) get() map[string]types.KubeCluster {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append(m.static, m.resources...).AsResources().ToMap()
+	return utils.FromSlice(append(m.static, m.resources...), types.KubeCluster.GetName)
 }
 
 func (s *TLSServer) buildClusterDetailsConfigForCluster(cluster types.KubeCluster) clusterDetailsConfig {
