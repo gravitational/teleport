@@ -358,6 +358,123 @@ func (x *MappedAttribute) GetMappedValues() map[string]*wrappers.StringValues {
 	return nil
 }
 
+// GetSAMLIdPMetadataRequest is a request to get SAML IdP Metadata, which includes
+type GetSAMLIdPMetadataRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *GetSAMLIdPMetadataRequest) Reset() {
+	*x = GetSAMLIdPMetadataRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_teleport_samlidp_v1_samlidp_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetSAMLIdPMetadataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSAMLIdPMetadataRequest) ProtoMessage() {}
+
+func (x *GetSAMLIdPMetadataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_samlidp_v1_samlidp_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSAMLIdPMetadataRequest.ProtoReflect.Descriptor instead.
+func (*GetSAMLIdPMetadataRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_samlidp_v1_samlidp_proto_rawDescGZIP(), []int{5}
+}
+
+// GetSAMLIdPMetadataResponse is a response to SAMLIdPMetadataRequest.
+type GetSAMLIdPMetadataResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// entity_id is entity ID of SAML IdP.
+	EntityId string `protobuf:"bytes,1,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	// idp_sso_url is URL endpoint where Service Provider will reqirect user's for SAML authentication.
+	IdpSsoUrl string `protobuf:"bytes,2,opt,name=idp_sso_url,json=idpSsoUrl,proto3" json:"idp_sso_url,omitempty"`
+	// x509_pem is a PEM-encoded SAML IdP X.509 certificate.
+	X509Pem []byte `protobuf:"bytes,3,opt,name=x509_pem,json=x509Pem,proto3" json:"x509_pem,omitempty"`
+	// metadata is an XML encoded SAML IdP metadata, and contains entity_id, idp_sso_url,
+	// PEM-encoded IdP X.509 certificate and all other required data for Service Provider to
+	// recognize SAML IdP and send SAML authentication requests accordingly.
+	Metadata string `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+}
+
+func (x *GetSAMLIdPMetadataResponse) Reset() {
+	*x = GetSAMLIdPMetadataResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_teleport_samlidp_v1_samlidp_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetSAMLIdPMetadataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetSAMLIdPMetadataResponse) ProtoMessage() {}
+
+func (x *GetSAMLIdPMetadataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_samlidp_v1_samlidp_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSAMLIdPMetadataResponse.ProtoReflect.Descriptor instead.
+func (*GetSAMLIdPMetadataResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_samlidp_v1_samlidp_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetSAMLIdPMetadataResponse) GetEntityId() string {
+	if x != nil {
+		return x.EntityId
+	}
+	return ""
+}
+
+func (x *GetSAMLIdPMetadataResponse) GetIdpSsoUrl() string {
+	if x != nil {
+		return x.IdpSsoUrl
+	}
+	return ""
+}
+
+func (x *GetSAMLIdPMetadataResponse) GetX509Pem() []byte {
+	if x != nil {
+		return x.X509Pem
+	}
+	return nil
+}
+
+func (x *GetSAMLIdPMetadataResponse) GetMetadata() string {
+	if x != nil {
+		return x.Metadata
+	}
+	return ""
+}
+
 var File_teleport_samlidp_v1_samlidp_proto protoreflect.FileDescriptor
 
 var file_teleport_samlidp_v1_samlidp_proto_rawDesc = []byte{
@@ -428,7 +545,18 @@ var file_teleport_samlidp_v1_samlidp_proto_rawDesc = []byte{
 	0x65, 0x79, 0x12, 0x2c, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28,
 	0x0b, 0x32, 0x16, 0x2e, 0x77, 0x72, 0x61, 0x70, 0x70, 0x65, 0x72, 0x73, 0x2e, 0x53, 0x74, 0x72,
 	0x69, 0x6e, 0x67, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x73, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65,
-	0x3a, 0x02, 0x38, 0x01, 0x32, 0xa3, 0x02, 0x0a, 0x0e, 0x53, 0x41, 0x4d, 0x4c, 0x49, 0x64, 0x50,
+	0x3a, 0x02, 0x38, 0x01, 0x22, 0x1b, 0x0a, 0x19, 0x47, 0x65, 0x74, 0x53, 0x41, 0x4d, 0x4c, 0x49,
+	0x64, 0x50, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x22, 0x90, 0x01, 0x0a, 0x1a, 0x47, 0x65, 0x74, 0x53, 0x41, 0x4d, 0x4c, 0x49, 0x64, 0x50,
+	0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x12, 0x1b, 0x0a, 0x09, 0x65, 0x6e, 0x74, 0x69, 0x74, 0x79, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x08, 0x65, 0x6e, 0x74, 0x69, 0x74, 0x79, 0x49, 0x64, 0x12, 0x1e, 0x0a,
+	0x0b, 0x69, 0x64, 0x70, 0x5f, 0x73, 0x73, 0x6f, 0x5f, 0x75, 0x72, 0x6c, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x09, 0x69, 0x64, 0x70, 0x53, 0x73, 0x6f, 0x55, 0x72, 0x6c, 0x12, 0x19, 0x0a,
+	0x08, 0x78, 0x35, 0x30, 0x39, 0x5f, 0x70, 0x65, 0x6d, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52,
+	0x07, 0x78, 0x35, 0x30, 0x39, 0x50, 0x65, 0x6d, 0x12, 0x1a, 0x0a, 0x08, 0x6d, 0x65, 0x74, 0x61,
+	0x64, 0x61, 0x74, 0x61, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x6d, 0x65, 0x74, 0x61,
+	0x64, 0x61, 0x74, 0x61, 0x32, 0x9a, 0x03, 0x0a, 0x0e, 0x53, 0x41, 0x4d, 0x4c, 0x49, 0x64, 0x50,
 	0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x7e, 0x0a, 0x15, 0x50, 0x72, 0x6f, 0x63, 0x65,
 	0x73, 0x73, 0x53, 0x41, 0x4d, 0x4c, 0x49, 0x64, 0x50, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
 	0x12, 0x31, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x73, 0x61, 0x6d, 0x6c,
@@ -446,13 +574,20 @@ var file_teleport_samlidp_v1_samlidp_proto_rawDesc = []byte{
 	0x1a, 0x38, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x73, 0x61, 0x6d, 0x6c,
 	0x69, 0x64, 0x70, 0x2e, 0x76, 0x31, 0x2e, 0x54, 0x65, 0x73, 0x74, 0x53, 0x41, 0x4d, 0x4c, 0x49,
 	0x64, 0x50, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x4d, 0x61, 0x70, 0x70, 0x69,
-	0x6e, 0x67, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x52, 0x5a, 0x50, 0x67, 0x69,
-	0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x67, 0x72, 0x61, 0x76, 0x69, 0x74, 0x61,
-	0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f,
-	0x61, 0x70, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x67, 0x6f,
-	0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x73, 0x61, 0x6d, 0x6c, 0x69, 0x64,
-	0x70, 0x2f, 0x76, 0x31, 0x3b, 0x73, 0x61, 0x6d, 0x6c, 0x69, 0x64, 0x70, 0x76, 0x31, 0x62, 0x06,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6e, 0x67, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x75, 0x0a, 0x12, 0x47, 0x65,
+	0x74, 0x53, 0x41, 0x4d, 0x4c, 0x49, 0x64, 0x50, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61,
+	0x12, 0x2e, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x73, 0x61, 0x6d, 0x6c,
+	0x69, 0x64, 0x70, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x41, 0x4d, 0x4c, 0x49, 0x64,
+	0x50, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x2f, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x73, 0x61, 0x6d, 0x6c,
+	0x69, 0x64, 0x70, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x41, 0x4d, 0x4c, 0x49, 0x64,
+	0x50, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x42, 0x52, 0x5a, 0x50, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f,
+	0x67, 0x72, 0x61, 0x76, 0x69, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65,
+	0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x67, 0x6f, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74,
+	0x2f, 0x73, 0x61, 0x6d, 0x6c, 0x69, 0x64, 0x70, 0x2f, 0x76, 0x31, 0x3b, 0x73, 0x61, 0x6d, 0x6c,
+	0x69, 0x64, 0x70, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -467,35 +602,39 @@ func file_teleport_samlidp_v1_samlidp_proto_rawDescGZIP() []byte {
 	return file_teleport_samlidp_v1_samlidp_proto_rawDescData
 }
 
-var file_teleport_samlidp_v1_samlidp_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_samlidp_v1_samlidp_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_samlidp_v1_samlidp_proto_goTypes = []interface{}{
 	(*ProcessSAMLIdPRequestRequest)(nil),        // 0: teleport.samlidp.v1.ProcessSAMLIdPRequestRequest
 	(*ProcessSAMLIdPRequestResponse)(nil),       // 1: teleport.samlidp.v1.ProcessSAMLIdPRequestResponse
 	(*TestSAMLIdPAttributeMappingRequest)(nil),  // 2: teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest
 	(*TestSAMLIdPAttributeMappingResponse)(nil), // 3: teleport.samlidp.v1.TestSAMLIdPAttributeMappingResponse
 	(*MappedAttribute)(nil),                     // 4: teleport.samlidp.v1.MappedAttribute
-	nil,                                         // 5: teleport.samlidp.v1.MappedAttribute.MappedValuesEntry
-	(*timestamppb.Timestamp)(nil),               // 6: google.protobuf.Timestamp
-	(*types.SAMLIdPServiceProviderV1)(nil),      // 7: types.SAMLIdPServiceProviderV1
-	(*types.UserV2)(nil),                        // 8: types.UserV2
-	(*wrappers.StringValues)(nil),               // 9: wrappers.StringValues
+	(*GetSAMLIdPMetadataRequest)(nil),           // 5: teleport.samlidp.v1.GetSAMLIdPMetadataRequest
+	(*GetSAMLIdPMetadataResponse)(nil),          // 6: teleport.samlidp.v1.GetSAMLIdPMetadataResponse
+	nil,                                         // 7: teleport.samlidp.v1.MappedAttribute.MappedValuesEntry
+	(*timestamppb.Timestamp)(nil),               // 8: google.protobuf.Timestamp
+	(*types.SAMLIdPServiceProviderV1)(nil),      // 9: types.SAMLIdPServiceProviderV1
+	(*types.UserV2)(nil),                        // 10: types.UserV2
+	(*wrappers.StringValues)(nil),               // 11: wrappers.StringValues
 }
 var file_teleport_samlidp_v1_samlidp_proto_depIdxs = []int32{
-	6, // 0: teleport.samlidp.v1.ProcessSAMLIdPRequestRequest.request_time:type_name -> google.protobuf.Timestamp
-	7, // 1: teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest.service_provider:type_name -> types.SAMLIdPServiceProviderV1
-	8, // 2: teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest.users:type_name -> types.UserV2
-	4, // 3: teleport.samlidp.v1.TestSAMLIdPAttributeMappingResponse.mapped_attributes:type_name -> teleport.samlidp.v1.MappedAttribute
-	5, // 4: teleport.samlidp.v1.MappedAttribute.mapped_values:type_name -> teleport.samlidp.v1.MappedAttribute.MappedValuesEntry
-	9, // 5: teleport.samlidp.v1.MappedAttribute.MappedValuesEntry.value:type_name -> wrappers.StringValues
-	0, // 6: teleport.samlidp.v1.SAMLIdPService.ProcessSAMLIdPRequest:input_type -> teleport.samlidp.v1.ProcessSAMLIdPRequestRequest
-	2, // 7: teleport.samlidp.v1.SAMLIdPService.TestSAMLIdPAttributeMapping:input_type -> teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest
-	1, // 8: teleport.samlidp.v1.SAMLIdPService.ProcessSAMLIdPRequest:output_type -> teleport.samlidp.v1.ProcessSAMLIdPRequestResponse
-	3, // 9: teleport.samlidp.v1.SAMLIdPService.TestSAMLIdPAttributeMapping:output_type -> teleport.samlidp.v1.TestSAMLIdPAttributeMappingResponse
-	8, // [8:10] is the sub-list for method output_type
-	6, // [6:8] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	8,  // 0: teleport.samlidp.v1.ProcessSAMLIdPRequestRequest.request_time:type_name -> google.protobuf.Timestamp
+	9,  // 1: teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest.service_provider:type_name -> types.SAMLIdPServiceProviderV1
+	10, // 2: teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest.users:type_name -> types.UserV2
+	4,  // 3: teleport.samlidp.v1.TestSAMLIdPAttributeMappingResponse.mapped_attributes:type_name -> teleport.samlidp.v1.MappedAttribute
+	7,  // 4: teleport.samlidp.v1.MappedAttribute.mapped_values:type_name -> teleport.samlidp.v1.MappedAttribute.MappedValuesEntry
+	11, // 5: teleport.samlidp.v1.MappedAttribute.MappedValuesEntry.value:type_name -> wrappers.StringValues
+	0,  // 6: teleport.samlidp.v1.SAMLIdPService.ProcessSAMLIdPRequest:input_type -> teleport.samlidp.v1.ProcessSAMLIdPRequestRequest
+	2,  // 7: teleport.samlidp.v1.SAMLIdPService.TestSAMLIdPAttributeMapping:input_type -> teleport.samlidp.v1.TestSAMLIdPAttributeMappingRequest
+	5,  // 8: teleport.samlidp.v1.SAMLIdPService.GetSAMLIdPMetadata:input_type -> teleport.samlidp.v1.GetSAMLIdPMetadataRequest
+	1,  // 9: teleport.samlidp.v1.SAMLIdPService.ProcessSAMLIdPRequest:output_type -> teleport.samlidp.v1.ProcessSAMLIdPRequestResponse
+	3,  // 10: teleport.samlidp.v1.SAMLIdPService.TestSAMLIdPAttributeMapping:output_type -> teleport.samlidp.v1.TestSAMLIdPAttributeMappingResponse
+	6,  // 11: teleport.samlidp.v1.SAMLIdPService.GetSAMLIdPMetadata:output_type -> teleport.samlidp.v1.GetSAMLIdPMetadataResponse
+	9,  // [9:12] is the sub-list for method output_type
+	6,  // [6:9] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_samlidp_v1_samlidp_proto_init() }
@@ -564,6 +703,30 @@ func file_teleport_samlidp_v1_samlidp_proto_init() {
 				return nil
 			}
 		}
+		file_teleport_samlidp_v1_samlidp_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetSAMLIdPMetadataRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_teleport_samlidp_v1_samlidp_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetSAMLIdPMetadataResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -571,7 +734,7 @@ func file_teleport_samlidp_v1_samlidp_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_teleport_samlidp_v1_samlidp_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

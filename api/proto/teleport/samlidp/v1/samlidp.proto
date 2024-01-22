@@ -53,6 +53,8 @@ service SAMLIdPService {
   rpc ProcessSAMLIdPRequest(ProcessSAMLIdPRequestRequest) returns (ProcessSAMLIdPRequestResponse);
   // TestSAMLIdPAttributeMapping tests SAML attribute mapping configuration.
   rpc TestSAMLIdPAttributeMapping(TestSAMLIdPAttributeMappingRequest) returns (TestSAMLIdPAttributeMappingResponse);
+  // GetSAMLIdPMetadata returns SAML IdP metadata.
+  rpc GetSAMLIdPMetadata(GetSAMLIdPMetadataRequest) returns (GetSAMLIdPMetadataResponse);
 }
 
 // TestSAMLIdPAttributeMappingRequest is a request to test attribute mapping.
@@ -78,4 +80,21 @@ message MappedAttribute {
   // mapped_values is a result of attribute mapping where key is requested
   // attribute name and value is result of evaluated predicate expression.
   map<string, wrappers.StringValues> mapped_values = 2;
+}
+
+// GetSAMLIdPMetadataRequest is a request to get SAML IdP Metadata, which includes
+message GetSAMLIdPMetadataRequest {}
+
+// GetSAMLIdPMetadataResponse is a response to SAMLIdPMetadataRequest.
+message GetSAMLIdPMetadataResponse {
+  // entity_id is entity ID of SAML IdP.
+  string entity_id = 1;
+  // idp_sso_url is URL endpoint where Service Provider will reqirect user's for SAML authentication.
+  string idp_sso_url = 2;
+  // x509_pem is a PEM-encoded SAML IdP X.509 certificate.
+  bytes x509_pem = 3;
+  // metadata is an XML encoded SAML IdP metadata, and contains entity_id, idp_sso_url,
+  // PEM-encoded IdP X.509 certificate and all other required data for Service Provider to
+  // recognize SAML IdP and send SAML authentication requests accordingly.
+  string metadata = 4;
 }
