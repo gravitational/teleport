@@ -40,7 +40,7 @@ export function createPtyHostClient(
       const request = PtyCreate.create({
         args: ptyOptions.args,
         path: ptyOptions.path,
-        env: Struct.create(ptyOptions.env),
+        env: Struct.fromJson(ptyOptions.env),
       });
 
       if (ptyOptions.cwd) {
