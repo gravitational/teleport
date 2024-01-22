@@ -26,21 +26,21 @@ import (
 )
 
 const (
-	// The following formats are all defined in the SAML 2.0 Core OS Standard.
+	// The following name formats are defined in the SAML 2.0 Core OS Standard -
 	// https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
-	// SAMLStringType is a string value type.
-	SAMLStringType = "xs:string"
 	// SAMLURINameFormat is an attribute name format that follows the convention for URI references [RFC 2396].
 	SAMLURINameFormat = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
 	// SAMLBasicNameFormat is an attribute name format that specifies a simple string value.
 	SAMLBasicNameFormat = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
 	// SAMLUnspecifiedNameFormat is an attribute name format for names that does not fall into Basic or URI category.
 	SAMLUnspecifiedNameFormat = "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified"
-
 	// SAMLTransientFormat is a Name ID format which is to be treated as temporary value by the Service Provider.
 	SAMLTransientFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 	// SAMLEntityFormat is a Name ID format for SAML IdP Entity ID value.
 	SAMLEntityFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:entity"
+
+	// SAMLStringType is a string value type.
+	SAMLStringType = "xs:string"
 
 	// SAMLAuthnContextPublicKeyX509ClassRef is a Public Key X.509 reference authentication standard.
 	// Defined in SAML 2.0 Authentication Context Standard -
