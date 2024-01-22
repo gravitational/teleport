@@ -36,6 +36,8 @@ import (
 type DatabasesConfig struct {
 	// Enabled enables the database proxy service.
 	Enabled bool
+	// ProxyTAG enables proxying of the TAG SQL interface.
+	ProxyTAG bool
 	// Databases is a list of databases proxied by this service.
 	Databases []Database
 	// ResourceMatchers match cluster database resources.

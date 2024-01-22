@@ -36,7 +36,7 @@ func (process *TeleportProcess) shouldInitDatabases() bool {
 	resourceMatchersCfg := len(process.Config.Databases.ResourceMatchers) > 0
 	awsMatchersCfg := len(process.Config.Databases.AWSMatchers) > 0
 	azureMatchersCfg := len(process.Config.Databases.AzureMatchers) > 0
-	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg || azureMatchersCfg
+	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg || azureMatchersCfg || process.Config.Databases.ProxyTAG
 
 	return process.Config.Databases.Enabled && anyCfg
 }
@@ -47,6 +47,7 @@ func (process *TeleportProcess) initDatabases() {
 }
 
 func (process *TeleportProcess) initDatabaseService() (retErr error) {
+	// TODO(joel): fetch TAG config and register TAG DB
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 

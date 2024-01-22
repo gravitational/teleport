@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -1677,6 +1678,12 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 // applyDatabasesConfig applies file configuration for the "db_service" section.
 func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Databases.Enabled = true
+	proxyTAG, err := apiutils.ParseBool(fc.Databases.ProxyTAG)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg.Databases.ProxyTAG = proxyTAG
 	for _, matcher := range fc.Databases.ResourceMatchers {
 		cfg.Databases.ResourceMatchers = append(cfg.Databases.ResourceMatchers,
 			services.ResourceMatcher{
