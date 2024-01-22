@@ -93,6 +93,10 @@ type Features struct {
 	CustomTheme string
 
 	// AccessGraph enables the usage of access graph.
+	// NOTE: this is a legacy flag that is currently used to signal
+	// that Access Graph integration is *enabled* on a cluster.
+	// *Access* to the feature is gated on the `Policy` flag.
+	// TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
 	AccessGraph bool
 	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
 	// access list, access request, access monitoring, device trust.
@@ -103,6 +107,9 @@ type Features struct {
 	AccessMonitoring AccessMonitoringFeature
 	// ProductType describes the product being used.
 	ProductType ProductType
+	// Policy enables the Teleport Policy feature set.
+	// At the time of writing, this includes Teleport Access Graph (TAG).
+	Policy bool
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -184,6 +191,7 @@ func (f Features) ToProto() *proto.Features {
 		AccessList: &proto.AccessListFeature{
 			CreateLimit: int32(f.AccessList.CreateLimit),
 		},
+		Policy: f.Policy,
 	}
 }
 
