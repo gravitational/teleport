@@ -6,6 +6,7 @@ plugins:
     path:
       - npm
       - exec
+      - --yes
       - --package=@protobuf-ts/plugin
       - --
       - protoc-gen-ts
