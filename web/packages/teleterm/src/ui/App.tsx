@@ -30,8 +30,8 @@ import { ThemeProvider } from './ThemeProvider';
 
 export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
   return (
-    <StyledApp>
-      <CatchError>
+    <CatchError>
+      <StyledApp>
         <DndProvider backend={HTML5Backend}>
           <AppContextProvider value={ctx}>
             <ThemeProvider>
@@ -39,7 +39,7 @@ export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
             </ThemeProvider>
           </AppContextProvider>
         </DndProvider>
-      </CatchError>
-    </StyledApp>
+      </StyledApp>
+    </CatchError>
   );
 };
