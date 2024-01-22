@@ -63,7 +63,6 @@ const config = defineConfig(env => {
               'src/agentCleanupDaemon/agentCleanupDaemon.js'
             ),
           },
-          onwarn,
           output: {
             manualChunks,
           },
@@ -78,7 +77,6 @@ const config = defineConfig(env => {
           input: {
             index: resolve(__dirname, 'src/preload.ts'),
           },
-          onwarn,
           output: {
             manualChunks,
           },
@@ -150,15 +148,6 @@ const config = defineConfig(env => {
 });
 
 export { config as default };
-
-function onwarn(warning, warn) {
-  // ignore Vite complaining about protobufs using eval
-  if (warning.code === 'EVAL') {
-    return;
-  }
-
-  warn(warning);
-}
 
 function manualChunks(id: string) {
   for (const dep of externalizeDeps) {
