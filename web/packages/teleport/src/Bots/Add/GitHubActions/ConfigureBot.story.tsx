@@ -25,7 +25,7 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
 
-import { ConnectGitHub } from './ConnectGitHub';
+import { ConfigureBot } from './ConfigureBot';
 import { GitHubFlowProvider } from './useGitHubFlow';
 
 const Provider = ({ children }) => {
@@ -44,9 +44,9 @@ export default {
   title: 'Teleport/Bots/Add/GitHubActions',
 };
 
-export const RepoRules = () => (
+export const Permissions = () => (
   <Provider>
-    <ConnectGitHub {...props} />
+    <ConfigureBot {...props} />
   </Provider>
 );
 

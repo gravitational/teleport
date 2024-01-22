@@ -41,7 +41,7 @@ const Provider = ({ children }) => {
 };
 
 export default {
-  title: 'Teleport/Integrations/Enroll/MachineId/GitHub',
+  title: 'Teleport/Bots/Add/GitHubActions',
 };
 
 export const AddBot = () => (
@@ -51,6 +51,6 @@ export const AddBot = () => (
 );
 
 const props: FlowStepProps = {
-  nextStep: () => {},
-  prevStep: () => {},
+  nextStep: () => { },
+  prevStep: () => { },
 };
