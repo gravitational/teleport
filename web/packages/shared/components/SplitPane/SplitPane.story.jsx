@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -17,20 +17,37 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
+import { storiesOf } from '@storybook/react';
+import { Box } from 'design';
 
-import { LockedAccessRequests } from 'teleport/AccessRequests/LockedAccessRequests/LockedAccessRequests';
-import { ContextProvider } from 'teleport';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import SplitPane from './SplitPane';
 
-export default {
-  title: 'Teleport/Access Requests',
-};
-
-export const Locked = () => {
-  const ctx = createTeleportContext();
+storiesOf('Shared', module).add('SplitPane', () => {
   return (
-    <ContextProvider ctx={ctx}>
-      <LockedAccessRequests />
-    </ContextProvider>
+    <Container>
+      <SplitPane defaultSize="50%" flex="1" split="vertical">
+        <Box flex="1" bg="red">
+          red
+        </Box>
+        <SplitPane flex="1" split="horizontal" defaultSize="50%">
+          <Box flex="1" bg="blue">
+            blue
+          </Box>
+          <Box flex="1" bg="green">
+            green
+          </Box>
+        </SplitPane>
+      </SplitPane>
+    </Container>
   );
-};
+});
+
+const Container = styled.div`
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  position: absolute;
+  display: flex;
+`;

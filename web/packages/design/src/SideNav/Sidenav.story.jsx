@@ -17,38 +17,36 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Box } from 'design';
 
-import SplitPane from './SplitPane';
+import * as Icons from '../Icon';
+
+import SideNav, { SideNavItem, SideNavItemIcon } from './index';
 
 export default {
-  title: 'Shared/SplitPane',
+  title: 'Design/SideNav',
 };
 
-export const SplitPaneStory = () => (
-  <Container>
-    <SplitPane defaultSize="50%" flex="1" split="vertical">
-      <Box flex="1" bg="red">
-        red
-      </Box>
-      <SplitPane flex="1" split="horizontal" defaultSize="50%">
-        <Box flex="1" bg="blue">
-          blue
-        </Box>
-        <Box flex="1" bg="green">
-          green
-        </Box>
-      </SplitPane>
-    </SplitPane>
-  </Container>
+export const Sample = () => (
+  <SideNav static>
+    <SideNavItem>Item 1</SideNavItem>
+    <SideNavItem>Item 2</SideNavItem>
+    <SideNavItem>Item 3</SideNavItem>
+  </SideNav>
 );
 
-const Container = styled.div`
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  position: absolute;
-  display: flex;
-`;
+export const SampleWithIcons = () => (
+  <SideNav static>
+    <SideNavItem>
+      <SideNavItemIcon as={Icons.Apple} />
+      Item 1
+    </SideNavItem>
+    <SideNavItem>
+      <SideNavItemIcon as={Icons.Cash} />
+      Item 2
+    </SideNavItem>
+    <SideNavItem>
+      <SideNavItemIcon as={Icons.Windows} />
+      Item 3
+    </SideNavItem>
+  </SideNav>
+);

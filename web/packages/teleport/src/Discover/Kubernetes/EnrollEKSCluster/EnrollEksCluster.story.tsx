@@ -45,8 +45,6 @@ import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportConte
 
 import { EnrollEksCluster } from './EnrollEksCluster';
 
-const { worker } = window.msw;
-
 const integrationName = 'test-oidc';
 
 initialize();
@@ -60,7 +58,6 @@ export default {
   loaders: [mswLoader],
   decorators: [
     Story => {
-      worker.resetHandlers();
       clearCachedJoinTokenResult([ResourceKind.Kubernetes]);
 
       useEffect(() => {

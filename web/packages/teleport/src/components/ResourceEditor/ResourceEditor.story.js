@@ -17,44 +17,48 @@
  */
 
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 
 import ResourceEditor from './ResourceEditor';
 
-storiesOf('Teleport/ResourceEditor', module)
-  .add('New', () => (
-    <ResourceEditor
-      text="sample text"
-      directions=""
-      docsURL=""
-      onClose={() => null}
-      isNew={true}
-      title="Creating a new resource"
-      name="sample"
-      onSave={() => Promise.reject(new Error('server error'))}
-    />
-  ))
-  .add('Edit', () => (
-    <ResourceEditor
-      text="sample text"
-      directions=""
-      docsURL=""
-      onClose={() => null}
-      isNew={false}
-      title="Creating a new resource"
-      name="sample"
-      onSave={() => Promise.reject(new Error('server error'))}
-    />
-  ))
-  .add('Directions', () => (
-    <ResourceEditor
-      docsURL="localhost"
-      directions={<div>Custom text here</div>}
-      title="Modifying the resource"
-      name="sample"
-      text="some text"
-      onClose={() => null}
-      isNew={false}
-      onSave={() => Promise.reject(new Error('server error'))}
-    />
-  ));
+export default {
+  title: 'Teleport/ResourceEditor',
+};
+
+export const New = () => (
+  <ResourceEditor
+    text="sample text"
+    directions=""
+    docsURL=""
+    onClose={() => null}
+    isNew={true}
+    title="Creating a new resource"
+    name="sample"
+    onSave={() => Promise.reject(new Error('server error'))}
+  />
+);
+
+export const Edit = () => (
+  <ResourceEditor
+    text="sample text"
+    directions=""
+    docsURL=""
+    onClose={() => null}
+    isNew={false}
+    title="Creating a new resource"
+    name="sample"
+    onSave={() => Promise.reject(new Error('server error'))}
+  />
+);
+
+export const Directions = () => (
+  <ResourceEditor
+    docsURL="localhost"
+    directions={<div>Custom text here</div>}
+    title="Modifying the resource"
+    name="sample"
+    text="some text"
+    onClose={() => null}
+    isNew={false}
+    onSave={() => Promise.reject(new Error('server error'))}
+  />
+);

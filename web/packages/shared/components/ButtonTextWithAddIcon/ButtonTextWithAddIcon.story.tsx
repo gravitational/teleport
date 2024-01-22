@@ -24,7 +24,7 @@ export default {
   title: 'Shared',
 };
 
-export const Button = () => {
+export const ButtonTextWithAddIconStory = () => {
   const [label, setLabel] = useState('Add Item (click me)');
   return (
     <div style={{ width: '300px' }}>
@@ -47,4 +47,4 @@ export const Button = () => {
   );
 };
 
-Button.storyName = 'ButtonTextWithAddIcon';
+ButtonTextWithAddIconStory.storyName = 'ButtonTextWithAddIcon';

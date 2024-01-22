@@ -19,6 +19,10 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { StoryObj } from '@storybook/react';
+
+import { rest } from 'msw';
+
 import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
@@ -28,14 +32,10 @@ import { getUserContext } from 'teleport/mocks/contexts';
 
 import HelmChart from './HelmChart';
 
-const { worker, rest } = window.msw;
-
 export default {
   title: 'Teleport/Discover/Kube/HelmChart',
   decorators: [
     Story => {
-      // Reset request handlers added in individual stories.
-      worker.resetHandlers();
       clearCachedJoinTokenResult([ResourceKind.Kubernetes]);
       return <Story />;
     },
@@ -50,75 +50,99 @@ export const Init = () => {
   );
 };
 
-export const Polling = () => {
-  // Use default fetch token handler defined in mocks/handlers
-
-  worker.use(
-    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
-      return res(ctx.delay('infinite'));
-    })
-  );
-  return (
-    <Provider>
-      <HelmChart />
-    </Provider>
-  );
+export const Polling: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
+          return res(ctx.delay('infinite'));
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider>
+        <HelmChart />
+      </Provider>
+    );
+  },
 };
 
-export const PollingSuccess = () => {
-  // Use default fetch token handler defined in mocks/handlers
-
-  worker.use(
-    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
-      return res(ctx.json({ items: [{}] }));
-    })
-  );
-  return (
-    <Provider interval={5}>
-      <HelmChart />
-    </Provider>
-  );
+export const PollingSuccess: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
+          return res(ctx.json({ items: [{}] }));
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider interval={5}>
+        <HelmChart />
+      </Provider>
+    );
+  },
 };
 
-export const PollingError = () => {
-  // Use default fetch token handler defined in mocks/handlers
-
-  worker.use(
-    rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
-      return res(ctx.delay('infinite'));
-    })
-  );
-  return (
-    <Provider timeout={50}>
-      <HelmChart />
-    </Provider>
-  );
+export const LoadedPollingErrorWithIgs: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
+          return res(ctx.delay('infinite'));
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider timeout={50}>
+        <HelmChart />
+      </Provider>
+    );
+  },
 };
 
-export const Processing = () => {
-  worker.use(
-    rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
-      return res(ctx.delay('infinite'));
-    })
-  );
-  return (
-    <Provider interval={5}>
-      <HelmChart />
-    </Provider>
-  );
+export const Processing: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
+          return res(ctx.delay('infinite'));
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider interval={5}>
+        <HelmChart />
+      </Provider>
+    );
+  },
 };
 
-export const Failed = () => {
-  worker.use(
-    rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
-      return res.once(ctx.status(500));
-    })
-  );
-  return (
-    <Provider>
-      <HelmChart />
-    </Provider>
-  );
+export const Failed: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
+          return res.once(ctx.status(500));
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider>
+        <HelmChart />
+      </Provider>
+    );
+  },
 };
 
 const Provider = props => {

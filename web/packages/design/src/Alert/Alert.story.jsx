@@ -17,38 +17,20 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Box } from 'design';
 
-import SplitPane from './SplitPane';
+import { Box } from './../';
+
+import Alert from './index';
 
 export default {
-  title: 'Shared/SplitPane',
+  title: 'Design/Alerts',
 };
 
-export const SplitPaneStory = () => (
-  <Container>
-    <SplitPane defaultSize="50%" flex="1" split="vertical">
-      <Box flex="1" bg="red">
-        red
-      </Box>
-      <SplitPane flex="1" split="horizontal" defaultSize="50%">
-        <Box flex="1" bg="blue">
-          blue
-        </Box>
-        <Box flex="1" bg="green">
-          green
-        </Box>
-      </SplitPane>
-    </SplitPane>
-  </Container>
+export const Alerts = () => (
+  <Box maxWidth="600px">
+    <Alert kind="danger">Some error message</Alert>
+    <Alert kind="warning">Some warning message</Alert>
+    <Alert kind="info">Some informational message</Alert>
+    <Alert kind="success">This is success</Alert>
+  </Box>
 );
-
-const Container = styled.div`
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  position: absolute;
-  display: flex;
-`;

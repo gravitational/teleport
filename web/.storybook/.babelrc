@@ -1,3 +1,0 @@
-{
-  "extends": "./../packages/build/.babelrc"
-}

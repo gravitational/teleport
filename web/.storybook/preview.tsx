@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { rest, setupWorker } from 'msw';
-import { addDecorator, addParameters } from '@storybook/react';
+import React, { ComponentType, PropsWithChildren } from 'react';
 import {
+  bblpTheme,
   darkTheme,
   lightTheme,
-  bblpTheme,
 } from './../packages/design/src/theme';
 import DefaultThemeProvider from '../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
@@ -32,35 +30,34 @@ import {
   darkTheme as teletermDarkTheme,
   lightTheme as teletermLightTheme,
 } from './../packages/teleterm/src/ui/ThemeProvider/theme';
-import { handlersTeleport } from './../packages/teleport/src/mocks/handlers';
 import history from './../packages/teleport/src/services/history/history';
 import { UserContextProvider } from 'teleport/User';
+import { Preview } from '@storybook/react';
+import { Theme } from 'design/theme/themes/types';
+import { initialize, mswLoader } from 'msw-storybook-addon';
 
-// Checks we are running non-node environment (browser)
-if (typeof global.process === 'undefined') {
-  const worker = setupWorker(...handlersTeleport);
-  worker.start();
-
-  // So it can be accessed in stories more easily.
-  window.msw = { worker, rest };
-}
+initialize({
+  onUnhandledRequest: 'bypass',
+});
 
 history.init();
 
-// wrap each story with theme provider
-const ThemeDecorator = (storyFn, meta) => {
-  let ThemeProvider;
-  let theme;
+interface ThemeDecoratorProps {
+  theme: string;
+  title: string;
+}
 
-  if (meta.title.startsWith('Teleterm/')) {
+function ThemeDecorator(props: PropsWithChildren<ThemeDecoratorProps>) {
+  let ThemeProvider: ComponentType<PropsWithChildren<{ theme: Theme }>>;
+  let theme: Theme;
+
+  if (props.title.startsWith('Teleterm/')) {
     ThemeProvider = TeletermThemeProvider;
     theme =
-      meta.globals.theme === 'Dark Theme'
-        ? teletermDarkTheme
-        : teletermLightTheme;
+      props.theme === 'Dark Theme' ? teletermDarkTheme : teletermLightTheme;
   } else {
     ThemeProvider = DefaultThemeProvider;
-    switch (meta.globals.theme) {
+    switch (props.theme) {
       case 'Dark Theme':
         theme = darkTheme;
         break;
@@ -75,29 +72,32 @@ const ThemeDecorator = (storyFn, meta) => {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box p={3}>{storyFn()}</Box>
+      <Box p={3}>{props.children}</Box>
     </ThemeProvider>
   );
-};
+}
 
-// wrap stories with an argument of {userContext: true} with user context provider
-const UserDecorator = (storyFn, meta) => {
-  if (meta.args.userContext) {
-    const UserProvider = UserContextProvider;
+interface UserDecoratorProps {
+  userContext?: boolean;
+}
+
+function UserDecorator(props: PropsWithChildren<UserDecoratorProps>) {
+  if (props.userContext) {
     return (
-      <UserProvider>
-        <Box p={3}>{storyFn()}</Box>
-      </UserProvider>
+      <UserContextProvider>
+        <Box p={3}>{props.children}</Box>
+      </UserContextProvider>
     );
   }
 
-  return <Box p={3}>{storyFn()}</Box>;
-};
+  return <Box p={3}>{props.children}</Box>;
+}
 
-addDecorator(UserDecorator);
-addDecorator(ThemeDecorator);
-addParameters({
-  options: {
+const preview: Preview = {
+  args: {
+    userContext: false,
+  },
+  parameters: {
     showPanel: false,
     showNav: true,
     isToolshown: true,
@@ -106,17 +106,28 @@ addParameters({
       order: ['Teleport', 'TeleportE', 'Teleterm', 'Design', 'Shared'],
     },
   },
-});
-
-export const globalTypes = {
-  theme: {
-    name: 'Theme',
-    description: 'Global theme for components',
-    defaultValue: 'Dark Theme',
-    toolbar: {
-      icon: 'contrast',
-      items: ['Light Theme', 'Dark Theme', 'BBLP Theme'],
-      dynamicTitle: true,
+  loaders: [mswLoader],
+  globals: {
+    theme: {
+      name: 'Theme',
+      description: 'Global theme for components',
+      defaultValue: 'Dark Theme',
+      toolbar: {
+        icon: 'contrast',
+        items: ['Light Theme', 'Dark Theme', 'BBLP Theme'],
+        dynamicTitle: true,
+      },
     },
   },
+  decorators: [
+    (Story, meta) => (
+      <UserDecorator userContext={meta.args.userContext}>
+        <ThemeDecorator theme={meta.globals.theme} title={meta.title}>
+          <Story />
+        </ThemeDecorator>
+      </UserDecorator>
+    ),
+  ],
 };
+
+export default preview;

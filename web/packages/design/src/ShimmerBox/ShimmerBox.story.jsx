@@ -17,38 +17,35 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Box } from 'design';
 
-import SplitPane from './SplitPane';
+import { Box, Flex } from 'design';
+
+import { ShimmerBox } from './ShimmerBox';
 
 export default {
-  title: 'Shared/SplitPane',
+  title: 'Design/ShimmerBox',
 };
 
-export const SplitPaneStory = () => (
-  <Container>
-    <SplitPane defaultSize="50%" flex="1" split="vertical">
-      <Box flex="1" bg="red">
-        red
-      </Box>
-      <SplitPane flex="1" split="horizontal" defaultSize="50%">
-        <Box flex="1" bg="blue">
-          blue
-        </Box>
-        <Box flex="1" bg="green">
-          green
-        </Box>
-      </SplitPane>
-    </SplitPane>
-  </Container>
-);
+export const Cards = () => {
+  return (
+    <Flex gap={2} flexWrap="wrap">
+      {new Array(10).fill(null).map((_, i) => (
+        <LoadingCard key={i} />
+      ))}
+    </Flex>
+  );
+};
 
-const Container = styled.div`
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  position: absolute;
-  display: flex;
-`;
+const LoadingCard = () => {
+  return (
+    <Box p={2} width="300px">
+      <Flex gap={2}>
+        <ShimmerBox width="45px" height="45px" />
+        <Box flex={1}>
+          <ShimmerBox height="20px" mb={2} />
+          <ShimmerBox height="12px" />
+        </Box>
+      </Flex>
+    </Box>
+  );
+};
