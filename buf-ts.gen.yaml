@@ -7,7 +7,7 @@ plugins:
       - npm
       - exec
       - --yes
-      - --package=@protobuf-ts/plugin
+      - --package=@protobuf-ts/plugin@2.9.3
       - --
       - protoc-gen-ts
     strategy: all
