@@ -31,7 +31,7 @@ import { getStyledComponentsConfig } from '../build/vite/styled';
 import { getConnectCsp } from './csp';
 
 const rootDirectory = resolve(__dirname, '../../..');
-const outputDirectory = resolve(__dirname, 'build');
+const outputDirectory = resolve(__dirname, 'build', 'app');
 
 // these dependencies don't play well unless they're externalized
 // if Vite complains about a dependency, add it here

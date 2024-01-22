@@ -2,7 +2,7 @@
   "name": "@gravitational/teleterm",
   "version": "1.0.0-dev",
   "description": "Teleport Connect",
-  "main": "build/main/index.js",
+  "main": "build/app/main/index.js",
   "author": {
     "name": "Gravitational, Inc.",
     "email": "support@goteleport.com",
