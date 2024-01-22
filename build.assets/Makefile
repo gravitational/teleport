@@ -144,6 +144,7 @@ buildbox:
 		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
+		--build-arg PROTOBUF_TS_PLUGIN_VERSION=$(PROTOBUF_TS_PLUGIN_VERSION) \
 		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
 		--cache-from $(BUILDBOX) \
 		$(if $(PUSH),--push,--load) \
