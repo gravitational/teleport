@@ -28,11 +28,11 @@ videoBanner: UFhT52d5bYg
 - (!docs/pages/includes/database-access/aws-auto-discovery-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Create a Teleport user
+## Step 1/6. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 2/5. Create a Database Service configuration
+## Step 2/6. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -40,34 +40,52 @@ videoBanner: UFhT52d5bYg
 
 (!docs/pages/includes/database-access/aws-create-db-configuration.mdx type="Redshift" matcher="redshift" protocol="postgres" example="redshift-cluster-1.abcdefghijklm.us-west-1.redshift.amazonaws.com:5438"!)
 
-## Step 3/5. Create an IAM policy for Teleport
+## Step 3/6. Create an IAM Role for user access (optional) 
 
-There are two methods of IAM authentication supported by Redshift. Teleport
-requires different IAM permissions depending on which IAM authentication method
-will be used:
+Redshift supports two methods of IAM authentication, both of which Teleport
+also supports.
 
-<Tabs>
-<TabItem label="IAM authentication as database users (recommended)">
-Teleport Database Service can authenticate with Redshift by generating IAM
-authentication tokens as existing database users.
+The first method involves accessing Redshift as an existing database user. If
+you are using this traditional IAM authentication, you can skip this step.
 
-The Database Service requires IAM permissions to manage its own IAM role or IAM
-user policies. As a result, appropriate `redshift:GetClusterCredentials`
-permissions will be added to the IAM role or IAM user of the Database Service.
-</TabItem>
+The second method is to authenticate as an IAM role. In this case, Redshift
+maps the IAM role to a database username and creates this user if it doesn't
+already exist in the database.
 
-<TabItem label="IAM authentication as IAM roles">
-Teleport Database Service can authenticate with Redshift by generating IAM
-authentication tokens as IAM roles, and Redshift maps these IAM roles to
-database users automatically.
+Now create the AWS IAM role to provide user access to the Redshfit database. Go
+to the IAM -> Access Management ->
+[Roles](https://console.aws.amazon.com/iamv2/home#/roles). Press Create Role.
 
-The Database Service must have trust relationship with these IAM roles so the
-Database Service can assume these IAM roles. Note that these IAM roles must
-have `redshift:GetClusterCredentialsWithIAM` to the Redshift clusters to be
-accessed.
+![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step1.png)
 
-</TabItem>
-</Tabs>
+Skip "Add permissions" for now, enter a role name, and press "Create role".
+
+Once the role is created, find the role, and add the following inline policy to
+the IAM role:
+![Create Role Step 1](../../../img/database-access/guides/create-redshift-iam-role-policy.png)
+
+Or in JSON format:
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": "redshift:GetClusterCredentialsWithIAM",
+			"Resource": "arn:aws:redshift:us-east-1:123456789012:dbname:my-redshift/*"
+		}
+	]
+}
+```
+
+Replace `123456789012` and `my-redshift` with your AWS account ID and your
+Redshift database's cluster ID. 
+
+## Step 4/6. Create an IAM policy for the Database Service
+
+Teleport needs AWS IAM permissions to be able to:
+- Manage IAM user or IAM role policies, for IAM authentication as database users.
+- Assume IAM roles, for IAM authentication as IAM roles.
 
 Before you can generate IAM permissions, you must provide the Teleport Database
 Service access to AWS credentials.
@@ -76,7 +94,7 @@ Service access to AWS credentials.
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx type="redshift" !)
 
-## Step 4/5. Start the Database Service
+## Step 5/6. Start the Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
@@ -84,7 +102,7 @@ The Database Service will also attempt to configure IAM access policies for the
 registered databases. Keep in mind that AWS IAM changes may not propagate
 immediately and can take a few minutes to come into effect.
 
-## Step 5/5. Connect
+## Step 6/6. Connect
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -123,7 +141,7 @@ $ tsh db ls
 To retrieve credentials for a database and connect to it:
 
 <Tabs>
-<TabItem label="authenticate as database users">
+<TabItem label="Authenticate as database users">
 ```code
 $ tsh db connect --db-user=alice --db-name=dev my-redshift
 ```
@@ -134,7 +152,7 @@ $ tsh db connect --db-user=alice --db-name=dev my-redshift
 </Admonition>
 </TabItem>
 
-<TabItem label="authenticate as IAM roles">
+<TabItem label="Authenticate as IAM roles">
 
 ```code
 $ tsh db connect --db-user=role/my-iam-role --db-name=dev my-redshift
