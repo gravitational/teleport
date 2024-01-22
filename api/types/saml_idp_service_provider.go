@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+// The following name formats are defined in the SAML 2.0 Core OS Standard -
+// https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
 const (
-	// The following name formats are defined in the SAML 2.0 Core OS Standard -
-	// https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
 	// SAMLURINameFormat is an attribute name format that follows the convention for URI references [RFC 2396].
 	SAMLURINameFormat = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
 	// SAMLBasicNameFormat is an attribute name format that specifies a simple string value.
@@ -41,7 +41,9 @@ const (
 
 	// SAMLStringType is a string value type.
 	SAMLStringType = "xs:string"
+)
 
+const (
 	// SAMLAuthnContextPublicKeyX509ClassRef is a Public Key X.509 reference authentication standard.
 	// Defined in SAML 2.0 Authentication Context Standard -
 	// https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf
@@ -53,6 +55,12 @@ const (
 	// http://docs.oasis-open.org/security/saml/Post2.0/sstc-saml-tech-overview-2.0-cd-02.pdf
 	SAMLBearerMethod = "urn:oasis:names:tc:SAML:2.0:cm:bearer"
 
+	// SAMLSubjectIDName is a general purpose subject identifier as defined in SAML Subject Indentifier Attribuets -
+	// http://docs.oasis-open.org/security/saml-subject-id-attr/v1.0/csprd03/saml-subject-id-attr-v1.0-csprd03.pdf
+	SAMLSubjectIDName = "urn:oasis:names:tc:SAML:attribute:subject-id"
+)
+
+const (
 	// SAMLUIDFriendlyName is a user friendly name with a userid format as defiend in OID-info db -
 	// http://www.oid-info.com/cgi-bin/display?oid=urn%3Aoid%3A0.9.2342.19200300.100.1.1&a=display
 	SAMLUIDFriendlyName = "uid"
@@ -63,10 +71,6 @@ const (
 	SAMLEduPersonAffiliationFriendlyName = "eduPersonAffiliation"
 	// SAMLEduPersonAffiliationName is a URN value of EduPersonAffiliationFriendlyName.
 	SAMLEduPersonAffiliationName = "urn:oid:1.3.6.1.4.1.5923.1.1.1.1"
-
-	// SAMLSubjectIDName is a general purpose subject identifier as defined in SAML Subject Indentifier Attribuets -
-	// http://docs.oasis-open.org/security/saml-subject-id-attr/v1.0/csprd03/saml-subject-id-attr-v1.0-csprd03.pdf
-	SAMLSubjectIDName = "urn:oasis:names:tc:SAML:attribute:subject-id"
 )
 
 var (
