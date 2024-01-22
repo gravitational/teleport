@@ -130,15 +130,37 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 	return OK(), nil
 }
 
+type createAuthenticateChallengeRequest struct {
+	IsMFARequired *isMFARequiredRequest `json:"is_mfa_required"`
+}
+
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
 // Used when users need to re-authenticate their second factors.
 func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+	var req createAuthenticateChallengeRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{})
+	var isMFARequiredProtoReq *proto.IsMFARequiredRequest
+	if req.IsMFARequired != nil {
+		isMFARequiredProtoReq, err = req.IsMFARequired.checkAndGetProtoRequest()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+		MFARequiredCheck: isMFARequiredProtoReq,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -256,6 +278,11 @@ type isMFARequiredWindowsDesktop struct {
 	Login string `json:"login"`
 }
 
+type isMFARequiredAdminAction struct {
+	// Name is the name of the admin action RPC.
+	Name string `json:"desktop_name"`
+}
+
 type isMFARequiredRequest struct {
 	// Database contains fields required to check if target database
 	// requires MFA check.
@@ -269,6 +296,8 @@ type isMFARequiredRequest struct {
 	// Kube is the name of the kube cluster to check if target cluster
 	// requires MFA check.
 	Kube *isMFARequiredKube `json:"kube,omitempty"`
+	// AdminAction is the name of the admin action RPC to check if MFA is required.
+	AdminAction *isMFARequiredAdminAction `json:"admin_action"`
 }
 
 func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRequest, error) {
@@ -291,7 +320,8 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 					Protocol:    r.Database.Protocol,
 					Database:    r.Database.DatabaseName,
 					Username:    r.Database.Username,
-				}},
+				},
+			},
 		}
 	}
 
@@ -322,7 +352,8 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 				WindowsDesktop: &proto.RouteToWindowsDesktop{
 					WindowsDesktop: r.WindowsDesktop.DesktopName,
 					Login:          r.WindowsDesktop.Login,
-				}},
+				},
+			},
 		}
 	}
 
@@ -340,7 +371,19 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 				Node: &proto.NodeLogin{
 					Login: r.Node.Login,
 					Node:  r.Node.NodeName,
-				}},
+				},
+			},
+		}
+	}
+
+	if r.AdminAction != nil {
+		numRequests++
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_AdminAction{
+				AdminAction: &proto.AdminAction{
+					Name: r.AdminAction.Name,
+				},
+			},
 		}
 	}
 

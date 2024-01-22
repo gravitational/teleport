@@ -5449,7 +5449,25 @@ func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.De
 	return a.authServer.DeleteMFADeviceSync(ctx, req)
 }
 
+// IsMFARequired queries whether MFA is required for the specified target.
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	// Check if MFA is required for admin actions. We don't currently have
+	// a reason to check the name of the admin action in question.
+	if _, ok := req.Target.(*proto.IsMFARequiredRequest_AdminAction); ok {
+		if a.context.AdminActionAuthorized {
+			return &proto.IsMFARequiredResponse{
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			}, nil
+		} else {
+			return &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		}
+	}
+
+	// Other than for admin action targets, IsMFARequired should only be called by users.
 	if !authz.IsLocalOrRemoteUser(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
