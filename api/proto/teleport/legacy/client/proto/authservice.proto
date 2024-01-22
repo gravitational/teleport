@@ -26,6 +26,7 @@ import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/mfa/v1/mfa.proto";
 import "teleport/usageevents/v1/usageevents.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
@@ -274,6 +275,8 @@ message RouteToDatabase {
   string Username = 3 [(gogoproto.jsontag) = "username,omitempty"];
   // Database is an optional database name to embed.
   string Database = 4 [(gogoproto.jsontag) = "database,omitempty"];
+  // Roles is an optional list of database roles to embed.
+  repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
 }
 
 // RouteToWindowsDesktop combines parameters for windows desktop routing information.
@@ -1401,6 +1404,8 @@ message IsMFARequiredRequest {
     NodeLogin Node = 3;
     // WindowsDesktop specifies the target Windows Desktop.
     RouteToWindowsDesktop WindowsDesktop = 4;
+    // AdminAction specifies an admin action.
+    AdminAction AdminAction = 5;
   }
 }
 
@@ -1419,6 +1424,12 @@ message NodeLogin {
   string Node = 1;
   // Login is the OS login name.
   string Login = 2;
+}
+
+// AdminAction specifies an admin action.
+message AdminAction {
+  // Name is the name of the admin action RPC.
+  string Name = 1;
 }
 
 // IsMFARequiredResponse is a response for MFA requirement check.
@@ -1839,6 +1850,10 @@ message CreateAuthenticateChallengeRequest {
   // If you are issuing challenges from the root cluster, but accessing a leaf,
   // call [AuthService.IsMFARequired] in the leaf instead of setting this field.
   IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
+  // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
+  // ChallengeExtensions only apply to webauthn challenges currently. Required, except
+  // for v15 clients and older.
+  teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 6 [(gogoproto.jsontag) = "challenge_extensions,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.

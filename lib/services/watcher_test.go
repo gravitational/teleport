@@ -823,8 +823,8 @@ func TestCertAuthorityWatcher(t *testing.T) {
 		waitForEvent(t, sub, types.UserCA, "unknown", types.OpPut)
 
 		// Should NOT receive any HostCA events from another cluster.
-		// Should NOT receive any DatabaseCA events.
 		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "unknown", types.HostCA)))
+		// Should NOT receive any DatabaseCA events.
 		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "test", types.DatabaseCA)))
 		ensureNoEvents(t, sub)
 	})

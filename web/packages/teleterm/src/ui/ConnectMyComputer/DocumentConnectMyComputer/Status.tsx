@@ -435,7 +435,9 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
         }
         case 'running': {
           return {
-            Icon: props => <icons.CircleCheck {...props} color="success" />,
+            Icon: props => (
+              <icons.CircleCheck {...props} color="success.main" />
+            ),
             title: 'Agent running',
           };
         }

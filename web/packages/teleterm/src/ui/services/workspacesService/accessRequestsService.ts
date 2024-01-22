@@ -68,13 +68,17 @@ export class AccessRequestsService {
     );
   }
 
-  addOrRemoveResource(kind: ResourceKind, name: string, resourceName: string) {
+  addOrRemoveResource(
+    kind: ResourceKind,
+    resourceId: string,
+    resourceName: string
+  ) {
     this.setState(draftState => {
       const kindIds = draftState.pending[kind];
-      if (kindIds[name]) {
-        delete kindIds[name];
+      if (kindIds[resourceId]) {
+        delete kindIds[resourceId];
       } else {
-        kindIds[name] = resourceName ?? name;
+        kindIds[resourceId] = resourceName || resourceId;
       }
     });
   }

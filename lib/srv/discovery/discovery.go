@@ -195,6 +195,12 @@ kubernetes matchers are present.`)
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
+
+	if c.DiscoveryGroup == "" {
+		c.Log.Warn("discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +
+			"Please set discovery_service.discovery_group according to the documentation: https://goteleport.com/docs/reference/config/#discovery-service")
+	}
+
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
 	return nil
 }
@@ -1263,7 +1269,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 // newDiscoveryConfigChangedSub creates a new subscription for DiscoveryConfig events.
 // The consumer must have an active reader on the returned channel, and start a new Poll when it returns a value.
 func (s *Server) newDiscoveryConfigChangedSub() (ch chan struct{}) {
-	chSubscription := make(chan struct{})
+	chSubscription := make(chan struct{}, 1)
 	s.triggerFetchMu.Lock()
 	s.TriggerFetchC = append(s.TriggerFetchC, chSubscription)
 	s.triggerFetchMu.Unlock()
@@ -1465,4 +1471,16 @@ func splitMatchers[T types.Matcher](matchers []T, matcherTypeCheck func(string) 
 		}
 	}
 	return
+}
+
+func (s *Server) updatesEmptyDiscoveryGroup(getter func() (types.ResourceWithLabels, error)) bool {
+	if s.DiscoveryGroup == "" {
+		return false
+	}
+	old, err := getter()
+	if err != nil {
+		return false
+	}
+	oldDiscoveryGroup, _ := old.GetLabel(types.TeleportInternalDiscoveryGroupName)
+	return oldDiscoveryGroup == ""
 }

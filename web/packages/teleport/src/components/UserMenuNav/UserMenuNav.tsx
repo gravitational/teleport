@@ -46,21 +46,22 @@ interface UserMenuNavProps {
 const Container = styled.div`
   position: relative;
   align-self: center;
-  margin-right: 30px;
+  padding-left: ${props => props.theme.space[3]}px;
+  padding-right: ${props => props.theme.space[3]}px;
+  &:hover {
+    background: ${props => props.theme.colors.spotBackground[0]};
+  }
+  height: 100%;
 `;
 
 const UserInfo = styled.div`
+  height: 100%;
   display: flex;
   align-items: center;
-  padding: 8px;
   border-radius: 5px;
   cursor: pointer;
   user-select: none;
   position: relative;
-
-  &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
-  }
 `;
 
 const Username = styled(Text)`
@@ -68,6 +69,10 @@ const Username = styled(Text)`
   font-size: 14px;
   font-weight: 400;
   padding-right: 40px;
+  display: none;
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+    display: inline-flex;
+  }
 `;
 
 const StyledAvatar = styled.div`
@@ -75,27 +80,33 @@ const StyledAvatar = styled.div`
   background: ${props => props.theme.colors.brand};
   color: ${props => props.theme.colors.text.primaryInverse};
   border-radius: 50%;
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+    margin-right: 16px;
+    height: 32px;
+    max-width: 32px;
+    min-width: 32px;
+  }
   display: flex;
   font-size: 14px;
   font-weight: bold;
   justify-content: center;
-  height: 32px;
-  margin-right: 16px;
   width: 100%;
-  max-width: 32px;
-  min-width: 32px;
+  height: 24px;
+  max-width: 24px;
+  min-width: 24px;
 `;
 
 const Arrow = styled.div`
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translate(0, -50%);
   line-height: 0;
 
   svg {
     transform: ${p => (p.open ? 'rotate(-180deg)' : 'none')};
     transition: 0.1s linear transform;
+  }
+
+  display: none;
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+    display: inline-flex;
   }
 `;
 
@@ -124,7 +135,9 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
   const initial =
     username && username.length ? username.trim().charAt(0).toUpperCase() : '';
 
-  const topMenuItems = features.filter(feature => Boolean(feature.topMenuItem));
+  const topMenuItems = features.filter(
+    feature => Boolean(feature.topMenuItem) && feature.category === undefined
+  );
 
   const items = [];
 
@@ -136,7 +149,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
           to={item.topMenuItem.getLink(clusterId)}
           onClick={() => setOpen(false)}
         >
-          <DropdownItemIcon>{item.topMenuItem.icon}</DropdownItemIcon>
+          <DropdownItemIcon>{<item.topMenuItem.icon />}</DropdownItemIcon>
           {item.topMenuItem.title}
         </DropdownItemLink>
       </DropdownItem>

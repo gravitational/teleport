@@ -22,8 +22,9 @@ import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
 import * as Alerts from 'design/Alert';
 
+import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
+
 import { CliCommand } from './CliCommand';
-import { ConfigFieldInput, PortFieldInput } from './common';
 import { DocumentGatewayProps } from './DocumentGateway';
 
 type OnlineDocumentGatewayProps = Pick<
@@ -109,7 +110,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
       <CliCommand
         cliCommand={props.gateway.gatewayCliCommand.preview}
         isLoading={isPortOrDbNameProcessing}
-        onRun={props.runCliCommand}
+        onButtonClick={props.runCliCommand}
       />
       {$errors}
       <Text typography="h4" mt={3} mb={1}>

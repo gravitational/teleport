@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -35,7 +34,6 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -79,6 +77,16 @@ func (a *ServerWithRoles) CloseContext() context.Context {
 	return a.authServer.closeCtx
 }
 
+// actionForResource will determine if a user has access to the given resource. This call respects where clauses.
+func (a *ServerWithRoles) actionForResource(resource types.Resource, kind string, verbs ...string) error {
+	sctx := &services.Context{User: a.context.User}
+	if resource != nil {
+		sctx.Resource = resource
+	}
+	return trace.Wrap(a.actionWithContext(sctx, apidefaults.Namespace, kind, verbs...))
+}
+
+// actionWithContext will determine if a user has access given a services.Context. This call respects where clauses.
 func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("no verbs provided for authorization check on resource %q", resource)
@@ -114,6 +122,7 @@ func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
 	return cfg
 }
 
+// action will determine if a user has access to the given resource kind. This does not respect where clauses.
 func (c actionConfig) action(namespace, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("no verbs provided for authorization check on resource %q", resource)
@@ -682,7 +691,8 @@ func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.Op
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
-func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
+// TODO(Joerger): DELETE IN 16.0.0, replaced by Trust service.
+func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.authServer.clock); err != nil {
 		return trace.Wrap(err)
 	}
@@ -695,6 +705,7 @@ func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req RotateReq
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is called by a remote trusted cluster and is used to update
 // only public keys and certificates of the certificate authority.
+// TODO(Joerger): DELETE IN v16.0.0, moved to Trust service
 func (a *ServerWithRoles) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if ca == nil {
 		return trace.BadParameter("missing certificate authority")
@@ -3026,6 +3037,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		dbProtocol:        req.RouteToDatabase.Protocol,
 		dbUser:            req.RouteToDatabase.Username,
 		dbName:            req.RouteToDatabase.Database,
+		dbRoles:           req.RouteToDatabase.Roles,
 		appName:           req.RouteToApp.Name,
 		appSessionID:      req.RouteToApp.SessionID,
 		appPublicAddr:     req.RouteToApp.PublicAddr,
@@ -3970,10 +3982,31 @@ func (a *ServerWithRoles) DeleteNamespace(name string) error {
 
 // GetRoles returns a list of roles
 func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+	authErr := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead)
+	if authErr == nil {
+		return a.authServer.GetRoles(ctx)
 	}
-	return a.authServer.GetRoles(ctx)
+
+	roles, err := a.authServer.GetRoles(ctx)
+	if err != nil {
+		// If we get an error here, let's return the previous auth error.
+		return nil, trace.Wrap(authErr)
+	}
+
+	var filteredRoles []types.Role
+	// See if the user has access to these roles through things like where clauses.
+	for _, role := range roles {
+		if err := a.actionForResource(role, types.KindRole, types.VerbList, types.VerbRead); err == nil {
+			filteredRoles = append(filteredRoles, role)
+		}
+	}
+
+	// If we found no roles, let's return the previous auth error.
+	if len(filteredRoles) == 0 {
+		return nil, trace.Wrap(authErr)
+	}
+
+	return filteredRoles, nil
 }
 
 func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) error {
@@ -4001,24 +4034,12 @@ func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) err
 		}
 	}
 
-	// Note: passing a.authServer.GetInventoryStatus here intentionally bypasses
-	// the authz checks in a.GetInventoryStatus, for these reasons:
-	// - We don't actually return the inventory status result, we're only using
-	//   it internally to check for a misconfiguration and return a generic error.
-	// - We don't want to require users to have new permissions to call UpsertRole.
-	// - GetInventoryStatus currently only supports builtin roles.
-	// - This user already has UpsertRole permissions and could give themselves
-	//   arbitrary permissions if they wanted to.
-	if err := checkInventorySupportsRole(ctx, role, api.Version, a.authServer.GetInventoryStatus); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
 // CreateRole creates a new role.
 func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbCreate); err != nil {
+	if err := a.actionForResource(role, types.KindRole, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4036,7 +4057,21 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (type
 
 // UpdateRole updates an existing role.
 func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbUpdate); err != nil {
+	oldRole, getErr := a.authServer.GetRole(ctx, role.GetName())
+	oldRoleIsNotFound := trace.IsNotFound(getErr)
+	if getErr != nil && !oldRoleIsNotFound {
+		return nil, trace.Wrap(getErr)
+	}
+
+	// If oldRole is nil, this whole call will fail. However, we'll continue so that the rest of
+	// the call can return an appropriate error.
+	if oldRole != nil {
+		if err := a.actionForResource(oldRole, types.KindRole, types.VerbUpdate); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := a.actionForResource(role, types.KindRole, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4054,7 +4089,20 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 
 // UpsertRole creates or updates role.
 func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbCreate, types.VerbUpdate); err != nil {
+	oldRole, err := a.authServer.GetRole(ctx, role.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	verbs := []string{types.VerbCreate}
+	if oldRole != nil {
+		verbs = []string{types.VerbUpdate}
+		if err := a.actionForResource(oldRole, types.KindRole, verbs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := a.actionForResource(role, types.KindRole, verbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4103,110 +4151,44 @@ func checkRoleFeatureSupport(role types.Role) error {
 	}
 }
 
-type inventoryGetter func(context.Context, proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
-
-// checkInventorySupportsRole returns an error if any connected servers found in
-// the inventory do not support some features enabled in [role]. This is only a
-// best-effort check meant to prevent common user errors, since some unsupported
-// servers may not be connected to this auth, or they may connect later.
-func checkInventorySupportsRole(ctx context.Context, role types.Role, authVersion string, getInventory inventoryGetter) error {
-	minRequiredVersion, msg, err := minRequiredVersionForRole(role)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if safeToSkipInventoryCheck(*semver.New(authVersion), minRequiredVersion) {
-		return nil
-	}
-
-	inventoryStatus, err := getInventory(ctx, proto.InventoryStatusRequest{Connected: true})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, hello := range inventoryStatus.Connected {
-		version, err := semver.NewVersion(hello.Version)
-		if err != nil {
-			log.Warnf("Connected server %q has unparseable version %q", hello.ServerID, hello.Version)
-			continue
-		}
-		if version.LessThan(minRequiredVersion) {
-			return trace.BadParameter(msg)
-		}
-	}
-	return nil
-}
-
-func minRequiredVersionForRole(role types.Role) (semver.Version, string, error) {
-	// DELETE IN 15.0.0
-	// The label expression checks can be deleted in 15.0.0 since all servers
-	// that don't support label expressions are on 13.x or older. If no other
-	// feature checks have been added at that time, checkInventorySupportsRole
-	// can be deleted entirely.
-	for _, kind := range types.LabelMatcherKinds {
-		for _, rct := range []types.RoleConditionType{types.Allow, types.Deny} {
-			labelMatchers, err := role.GetLabelMatchers(rct, kind)
-			if err != nil {
-				return semver.Version{}, "", trace.Wrap(err)
-			}
-			if len(labelMatchers.Expression) != 0 {
-				return minSupportedLabelExpressionVersion, fmt.Sprintf(
-					"one or more connected servers is running a Teleport version "+
-						"older than %s which does not support the label expressions used "+
-						"in this role.", minSupportedLabelExpressionVersion), nil
-			}
-		}
-	}
-	// Return the zero version to indicate all server versions are supported.
-	return semver.Version{}, "", nil
-}
-
-// safeToSkipInventoryCheck returns true if all possible versions *less than*
-// [minRequiredVersion] are more than one major version behind [authVersion].
-//
-// In this case, any servers older than [minRequiredVersion] are already
-// unsupported and shouldn't be connected, so it's safe to skip the inventory
-// check as an optimization.
-//
-// This also covers the case where minRequiredVersionForRole returned
-// the zero version.
-//
-// Examples:
-// - (15.x.x, 13.1.1) -> true (anything older than 13.1.1 is >1 major behind v15)
-// - (14.x.x, 13.1.1) -> false (13.0.9 is within one major of v14)
-// - (14.x.x, 13.0.0) -> true (anything older than 13.0.0 is >1 major behind v14)
-func safeToSkipInventoryCheck(authVersion, minRequiredVersion semver.Version) bool {
-	return authVersion.Major > roundToNextMajor(minRequiredVersion)
-}
-
-// roundToNextMajor returns the next major version that is *not less than* [v].
-//
-// Examples:
-// - 13.1.1 -> 14.0.0
-// - 13.0.0 -> 13.0.0
-// - 13.0.0-alpha -> 13.0.0
-func roundToNextMajor(v semver.Version) int64 {
-	if (semver.Version{Major: v.Major}).LessThan(v) {
-		return v.Major + 1
-	}
-	return v.Major
-}
-
 // GetRole returns role by name
 func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role, error) {
 	// Current-user exception: we always allow users to read roles
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
-	if !slices.Contains(a.context.User.GetRoles(), name) {
-		if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if slices.Contains(a.context.User.GetRoles(), name) {
+		return a.authServer.GetRole(ctx, name)
 	}
-	return a.authServer.GetRole(ctx, name)
+
+	authErr := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead)
+	if authErr == nil {
+		return a.authServer.GetRole(ctx, name)
+	}
+
+	// See if the user has access to this individual role.
+	role, err := a.authServer.GetRole(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(authErr)
+	}
+
+	if err := a.actionForResource(role, types.KindRole, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return role, nil
 }
 
 // DeleteRole deletes role by name
 func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbDelete); err != nil {
+	// See if the user has access to this individual role. If this get fails,
+	// the delete will fail, but we'll leave it to the later call to send the appropriate
+	// error.
+	role, err := a.authServer.GetRole(ctx, name)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if err := a.actionForResource(role, types.KindRole, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4221,6 +4203,7 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	if modules.GetModules().BuildType() == modules.BuildOSS && name == teleport.AdminRoleName {
 		return trace.AccessDenied("can not delete system role %q", name)
 	}
+
 	return a.authServer.DeleteRole(ctx, name)
 }
 
@@ -4254,30 +4237,6 @@ func (a *ServerWithRoles) UpsertClusterName(c types.ClusterName) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertClusterName(c)
-}
-
-// DeleteStaticTokens deletes static tokens
-func (a *ServerWithRoles) DeleteStaticTokens() error {
-	if err := a.action(apidefaults.Namespace, types.KindStaticTokens, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteStaticTokens()
-}
-
-// GetStaticTokens gets the list of static tokens used to provision nodes.
-func (a *ServerWithRoles) GetStaticTokens() (types.StaticTokens, error) {
-	if err := a.action(apidefaults.Namespace, types.KindStaticTokens, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetStaticTokens()
-}
-
-// SetStaticTokens sets the list of static tokens used to provision nodes.
-func (a *ServerWithRoles) SetStaticTokens(s types.StaticTokens) error {
-	if err := a.action(apidefaults.Namespace, types.KindStaticTokens, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.SetStaticTokens(s)
 }
 
 // GetAuthPreference gets cluster auth preference.
@@ -4897,26 +4856,40 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 	return a.authServer.SignDatabaseCSR(ctx, req)
 }
 
-// GenerateDatabaseCert generates a certificate used by a database service
-// to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 //
 // This certificate can be requested by:
 //
 //   - Cluster administrator using "tctl auth sign --format=db" command locally
 //     on the auth server to produce a certificate for configuring a self-hosted
 //     database.
-//   - Remote user using "tctl auth sign --format=db" command with a remote
-//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//     role Db.
+//   - Remote user using "tctl auth sign --format=db" command or
+//     /webapi/sites/:site/sign/db with a remote proxy (e.g. Teleport Cloud),
+//     as long as they can impersonate system role Db.
 //   - Database service when initiating connection to a database instance to
 //     produce a client certificate.
-//   - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	// Check if the User can `create` DatabaseCertificates
-	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)
+	err := a.checkAccessToGenerateDatabaseCert(types.KindDatabaseCertificate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GenerateDatabaseCert(ctx, req)
+}
+
+// checkAccessToGenerateDatabaseCert is a helper for checking db cert gen authz.
+// Requester must have at least one of:
+// - create: database_certificate or database_client_certificate.
+// - built-in Admin or DB role.
+// - allowed to impersonate the built-in DB role.
+func (a *ServerWithRoles) checkAccessToGenerateDatabaseCert(resourceKind string) error {
+	const verb = types.VerbCreate
+	// Check if the User can `create` Database Certificates
+	err := a.action(apidefaults.Namespace, resourceKind, verb)
 	if err != nil {
 		if !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		// Err is access denied, trying the old way
@@ -4926,12 +4899,13 @@ func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.D
 		if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
 			if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
 				log.WithError(err).Warnf("User %v tried to generate database certificate but does not have '%s' permission for '%s' kind, nor is allowed to impersonate %q system role",
-					a.context.User.GetName(), types.VerbCreate, types.KindDatabaseCertificate, types.RoleDatabase)
-				return nil, trace.AccessDenied(fmt.Sprintf("access denied. User must have '%s' permission for '%s' kind to generate the certificate ", types.VerbCreate, types.KindDatabaseCertificate))
+					a.context.User.GetName(), verb, resourceKind, types.RoleDatabase)
+				return trace.AccessDenied("access denied. User must have '%s' permission for '%s' kind to generate the certificate ",
+					verb, resourceKind)
 			}
 		}
 	}
-	return a.authServer.GenerateDatabaseCert(ctx, req)
+	return nil
 }
 
 // GenerateSnowflakeJWT generates JWT in the Snowflake required format.
@@ -5475,7 +5449,25 @@ func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.De
 	return a.authServer.DeleteMFADeviceSync(ctx, req)
 }
 
+// IsMFARequired queries whether MFA is required for the specified target.
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	// Check if MFA is required for admin actions. We don't currently have
+	// a reason to check the name of the admin action in question.
+	if _, ok := req.Target.(*proto.IsMFARequiredRequest_AdminAction); ok {
+		if a.context.AdminActionAuthorized {
+			return &proto.IsMFARequiredResponse{
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			}, nil
+		} else {
+			return &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		}
+	}
+
+	// Other than for admin action targets, IsMFARequired should only be called by users.
 	if !authz.IsLocalOrRemoteUser(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
@@ -6357,10 +6349,10 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 //
 //   - Windows desktop service when updating the certificate authority contents
 //     on LDAP.
-//   - Cluster administrator using "tctl auth crl --type=db" command locally
+//   - Cluster administrator using "tctl auth crl --type=db_client" command locally
 //     on the auth server to produce revocation list used to be configured on
 //     external services such as Windows certificate store.
-//   - Remote user using "tctl auth crl --type=db" command with a remote
+//   - Remote user using "tctl auth crl --type=db_client" command with a remote
 //     proxy (e.g. Teleport Cloud), as long as they have permission to read
 //     certificate authorities.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
@@ -6412,8 +6404,11 @@ func (a *ServerWithRoles) GetLicense(ctx context.Context) (string, error) {
 
 // ListReleases return Teleport Enterprise releases
 func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, error) {
-	if err := a.action(apidefaults.Namespace, types.KindDownload, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
+	// on Cloud, any user is allowed to list releases
+	if !modules.GetModules().Features().Cloud {
+		if err := a.action(apidefaults.Namespace, types.KindDownload, types.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.releaseService.ListReleases(ctx)

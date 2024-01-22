@@ -704,6 +704,8 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+	// GetDatabase returns a database resource with the given name if it exists.
+	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)

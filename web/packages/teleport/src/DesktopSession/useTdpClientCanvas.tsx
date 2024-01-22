@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -20,10 +21,15 @@ import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { NotificationItem } from 'shared/components/Notification';
 
-import { getPlatformType } from 'design/platform';
+import { Platform, getPlatform } from 'design/platform';
 
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
-import { ClipboardData, PngFrame } from 'teleport/lib/tdp/codec';
+import {
+  ClientScreenSpec,
+  ClipboardData,
+  PngFrame,
+  SyncKeys,
+} from 'teleport/lib/tdp/codec';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { Sha256Digest } from 'teleport/lib/util';
@@ -55,6 +61,16 @@ export default function useTdpClientCanvas(props: Props) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
 
+  /**
+   * Tracks whether the next keydown or keyup event should sync the
+   * local toggle key state to the remote machine.
+   *
+   * Set to true:
+   * - On component initialization, so keys are synced before the first keydown/keyup event.
+   * - On focusout, so keys are synced when the user returns to the window.
+   */
+  const syncBeforeNextKey = useRef(true);
+
   useEffect(() => {
     const addr = cfg.api.desktopWsAddr
       .replace(':fqdn', getHostName())
@@ -77,8 +93,12 @@ export default function useTdpClientCanvas(props: Props) {
     // is resolved.
     canvas.width = width;
     canvas.height = height;
+    console.debug(`set canvas.width x canvas.height to ${width} x ${height}`);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
+    console.debug(
+      `set canvas.style.width x canvas.style.height to ${width} x ${height}`
+    );
   };
 
   // Default TdpClientEvent.TDP_PNG_FRAME handler (buffered)
@@ -109,6 +129,23 @@ export default function useTdpClientCanvas(props: Props) {
     ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
   };
 
+  // Default TdpClientEvent.TDP_CLIENT_SCREEN_SPEC handler.
+  const clientOnClientScreenSpec = (
+    cli: TdpClient,
+    canvas: HTMLCanvasElement,
+    spec: ClientScreenSpec
+  ) => {
+    const { width, height } = spec;
+    canvas.width = width;
+    canvas.height = height;
+    console.debug(`set canvas.width x canvas.height to ${width} x ${height}`);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    console.debug(
+      `set canvas.style.width x canvas.style.height to ${width} x ${height}`
+    );
+  };
+
   // Default TdpClientEvent.TDP_CLIPBOARD_DATA handler.
   const clientOnClipboardData = async (clipboardData: ClipboardData) => {
     if (
@@ -130,7 +167,7 @@ export default function useTdpClientCanvas(props: Props) {
     setClipboardSharingEnabled(false);
     setTdpConnection({
       status: 'failed',
-      statusText: error.message,
+      statusText: error.message || error.toString(),
     });
   };
 
@@ -156,8 +193,42 @@ export default function useTdpClientCanvas(props: Props) {
     setWsConnection('open');
   };
 
-  const { isMac } = getPlatformType();
   /**
+   * Returns the ButtonState corresponding to the given `keyArg`.
+   *
+   * @param e The `KeyboardEvent`
+   * @param keyArg The key to check the state of. Valid values can be found [here](https://www.w3.org/TR/uievents-key/#keys-modifier)
+   */
+  const getModifierState = (e: KeyboardEvent, keyArg: string): ButtonState => {
+    return e.getModifierState(keyArg) ? ButtonState.DOWN : ButtonState.UP;
+  };
+
+  const getSyncKeys = (e: KeyboardEvent): SyncKeys => {
+    return {
+      scrollLockState: getModifierState(e, 'ScrollLock'),
+      numLockState: getModifierState(e, 'NumLock'),
+      capsLockState: getModifierState(e, 'CapsLock'),
+      kanaLockState: ButtonState.UP, // KanaLock is not supported, see https://www.w3.org/TR/uievents-key/#keys-modifier
+    };
+  };
+
+  /**
+   * Called before every keydown or keyup event.
+   *
+   * If syncBeforeNextKey is true, this function
+   * synchronizes the keys to the remote machine.
+   */
+  const handleSyncBeforeNextKey = (cli: TdpClient, e: KeyboardEvent) => {
+    if (syncBeforeNextKey.current === true) {
+      cli.sendSyncKeys(getSyncKeys(e));
+      syncBeforeNextKey.current = false;
+    }
+  };
+
+  const isMac = getPlatform() === Platform.macOS;
+  /**
+   * Special handler for the CapsLock key.
+   *
    * On MacOS Edge/Chrome/Safari, each physical CapsLock DOWN-UP registers
    * as either a single DOWN or single UP, with DOWN corresponding to
    * "CapsLock on" and UP to "CapsLock off". On MacOS Firefox, it always
@@ -168,19 +239,37 @@ export default function useTdpClientCanvas(props: Props) {
    * The remote Windows machine also treats CapsLock like a normal key, and
    * expects a DOWN-UP whenever it's pressed.
    */
-  const handleCapsLock = (cli: TdpClient, e: KeyboardEvent): boolean => {
-    if (e.code === 'CapsLock' && isMac) {
-      cli.sendKeyboardInput(e.code, ButtonState.DOWN);
-      cli.sendKeyboardInput(e.code, ButtonState.UP);
-      return true;
+  const handleCapsLock = (cli: TdpClient, state: ButtonState) => {
+    if (isMac) {
+      // On Mac, every UP or DOWN given to us by the browser corresponds
+      // to a DOWN + UP on the remote machine.
+      cli.sendKeyboardInput('CapsLock', ButtonState.DOWN);
+      cli.sendKeyboardInput('CapsLock', ButtonState.UP);
+    } else {
+      // On Windows or Linux, we just pass the event through normally to the server.
+      cli.sendKeyboardInput('CapsLock', state);
     }
-    return false;
+  };
+
+  /**
+   * Handles a keyboard event.
+   */
+  const handleKeyboardEvent = (
+    cli: TdpClient,
+    e: KeyboardEvent,
+    state: ButtonState
+  ) => {
+    if (e.code === 'CapsLock') {
+      handleCapsLock(cli, state);
+      return;
+    }
+    cli.sendKeyboardInput(e.code, state);
   };
 
   const canvasOnKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
-    if (handleCapsLock(cli, e)) return;
-    cli.sendKeyboardInput(e.code, ButtonState.DOWN);
+    handleSyncBeforeNextKey(cli, e);
+    handleKeyboardEvent(cli, e, ButtonState.DOWN);
 
     // The key codes in the if clause below are those that have been empirically determined not
     // to count as transient activation events. According to the documentation, a keydown for
@@ -201,9 +290,12 @@ export default function useTdpClientCanvas(props: Props) {
 
   const canvasOnKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
-    if (handleCapsLock(cli, e)) return;
+    handleSyncBeforeNextKey(cli, e);
+    handleKeyboardEvent(cli, e, ButtonState.UP);
+  };
 
-    cli.sendKeyboardInput(e.code, ButtonState.UP);
+  const canvasOnFocusOut = () => {
+    syncBeforeNextKey.current = true;
   };
 
   const canvasOnMouseMove = (
@@ -269,9 +361,10 @@ export default function useTdpClientCanvas(props: Props) {
 
   return {
     tdpClient,
-    clientScreenSpec: getDisplaySize(),
+    clientScreenSpecToRequest: getDisplaySize(),
     clientOnPngFrame,
     clientOnBitmapFrame,
+    clientOnClientScreenSpec,
     clientOnTdpError,
     clientOnClipboardData,
     clientOnWsClose,
@@ -279,6 +372,7 @@ export default function useTdpClientCanvas(props: Props) {
     clientOnTdpWarning,
     canvasOnKeyDown,
     canvasOnKeyUp,
+    canvasOnFocusOut,
     canvasOnMouseMove,
     canvasOnMouseDown,
     canvasOnMouseUp,

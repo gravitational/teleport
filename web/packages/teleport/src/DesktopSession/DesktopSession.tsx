@@ -247,6 +247,7 @@ function Session({
   setDirectorySharingState,
   clientOnPngFrame,
   clientOnBitmapFrame,
+  clientOnClientScreenSpec,
   clientOnClipboardData,
   clientOnTdpError,
   clientOnTdpWarning,
@@ -254,13 +255,14 @@ function Session({
   clientOnWsOpen,
   canvasOnKeyDown,
   canvasOnKeyUp,
+  canvasOnFocusOut,
   canvasOnMouseMove,
   canvasOnMouseDown,
   canvasOnMouseUp,
   canvasOnMouseWheelScroll,
   canvasOnContextMenu,
   clientShouldConnect,
-  clientScreenSpec,
+  clientScreenSpecToRequest,
   displayCanvas,
   clipboardSharingEnabled,
   onShareDirectory,
@@ -313,9 +315,10 @@ function Session({
         }}
         client={tdpClient}
         clientShouldConnect={clientShouldConnect}
-        clientScreenSpec={clientScreenSpec}
+        clientScreenSpecToRequest={clientScreenSpecToRequest}
         clientOnPngFrame={clientOnPngFrame}
         clientOnBmpFrame={clientOnBitmapFrame}
+        clientOnClientScreenSpec={clientOnClientScreenSpec}
         clientOnClipboardData={clientOnClipboardData}
         clientOnTdpError={clientOnTdpError}
         clientOnTdpWarning={clientOnTdpWarning}
@@ -323,6 +326,7 @@ function Session({
         clientOnWsOpen={clientOnWsOpen}
         canvasOnKeyDown={canvasOnKeyDown}
         canvasOnKeyUp={canvasOnKeyUp}
+        canvasOnFocusOut={canvasOnFocusOut}
         canvasOnMouseMove={canvasOnMouseMove}
         canvasOnMouseDown={canvasOnMouseDown}
         canvasOnMouseUp={canvasOnMouseUp}

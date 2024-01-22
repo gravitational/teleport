@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -86,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
@@ -139,6 +141,14 @@ const (
 
 	OSSDesktopAlertLink = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
 	OSSDesktopsLimit    = 5
+)
+
+const (
+	dynamicLabelCheckPeriod  = time.Hour
+	dynamicLabelAlertID      = "dynamic-labels-in-deny-rules"
+	dynamicLabelAlertMessage = "One or more roles has deny rules that include dynamic/ labels. " +
+		"This is not recommended due to the volatitily of dynamic/ labels and is not allowed for new roles. " +
+		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
@@ -289,6 +299,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.CloudClients == nil {
+		cfg.CloudClients, err = cloud.NewClients()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -307,6 +323,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 		cfg.KeyStoreConfig.GCPKMS.HostUUID = cfg.HostUUID
+	} else if cfg.KeyStoreConfig.AWSKMS != (keystore.AWSKMSConfig{}) {
+		if !modules.GetModules().Features().HSM {
+			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
+		}
+		cfg.KeyStoreConfig.AWSKMS.Cluster = cfg.ClusterName.GetClusterName()
+		cfg.KeyStoreConfig.AWSKMS.CloudClients = cfg.CloudClients
 	} else {
 		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.Software.RSAKeyPairSource = native.GenerateKeyPair
@@ -317,6 +339,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		Trust:                   cfg.Trust,
 		PresenceInternal:        cfg.Presence,
@@ -351,7 +374,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		PluginData:              cfg.PluginData,
 	}
 
-	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:                      cfg.Backend,
 		clock:                   cfg.Clock,
@@ -1086,6 +1108,13 @@ func (a *Server) runPeriodicOperations() {
 		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
 	}
 
+	dynamicLabelsCheck := interval.New(interval.Config{
+		Duration:      dynamicLabelCheckPeriod,
+		FirstDuration: utils.HalfJitter(time.Second * 10),
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer dynamicLabelsCheck.Stop()
+
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -1149,6 +1178,8 @@ func (a *Server) runPeriodicOperations() {
 			go a.doInstancePeriodics(ctx)
 		case <-ossDesktopsCheck:
 			a.syncDesktopsLimitAlert(ctx)
+		case <-dynamicLabelsCheck.Next():
+			a.syncDynamicLabelsAlert(ctx)
 		}
 	}
 }
@@ -1570,6 +1601,25 @@ func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
 
+// GetClusterID returns the cluster ID.
+func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+	clusterName, err := a.GetClusterName(opts...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return clusterName.GetClusterID(), nil
+}
+
+// GetAnonymizationKey returns the anonymization key that identifies this client.
+// It falls back to the cluster ID if the anonymization key is not set in license file.
+func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+	if a.license == nil || len(a.license.AnonymizationKey) == 0 {
+		return a.GetClusterID(ctx, opts...)
+	}
+
+	return string(a.license.AnonymizationKey), nil
+}
+
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {
@@ -1742,6 +1792,9 @@ type certRequest struct {
 	// dbName is the optional database name which, if provided, will be used
 	// as a default database.
 	dbName string
+	// dbRoles is the optional list of database roles which, if provided, will
+	// be used instead of all database roles granted for the target database.
+	dbRoles []string
 	// mfaVerified is the UUID of an MFA device when this certRequest was
 	// created immediately after an MFA check.
 	mfaVerified string
@@ -2053,6 +2106,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		dbProtocol:     req.RouteToDatabase.Protocol,
 		dbUser:         req.RouteToDatabase.Username,
 		dbName:         req.RouteToDatabase.Database,
+		dbRoles:        req.RouteToDatabase.Roles,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2605,6 +2659,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 			Protocol:    req.dbProtocol,
 			Username:    req.dbUser,
 			Database:    req.dbName,
+			Roles:       req.dbRoles,
 		},
 		DatabaseNames:           dbNames,
 		DatabaseUsers:           dbUsers,
@@ -3280,8 +3335,9 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			Code:        events.MFADeviceDeleteEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:      authz.ClientUserMetadataWithUser(ctx, user),
-		MFADeviceMetadata: mfaDeviceEventMetadata(deviceToDelete),
+		UserMetadata:       authz.ClientUserMetadataWithUser(ctx, user),
+		MFADeviceMetadata:  mfaDeviceEventMetadata(deviceToDelete),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3400,8 +3456,9 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 			Code:        events.MFADeviceAddEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:      authz.ClientUserMetadataWithUser(ctx, req.username),
-		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
+		UserMetadata:       authz.ClientUserMetadataWithUser(ctx, req.username),
+		MFADeviceMetadata:  mfaDeviceEventMetadata(dev),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit add mfa device event.")
 	}
@@ -4927,6 +4984,40 @@ func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
 	return false, trace.Wrap(desktops.Done())
 }
 
+func (a *Server) syncDynamicLabelsAlert(ctx context.Context) {
+	roles, err := a.GetRoles(ctx)
+	if err != nil {
+		log.Warnf("Can't get roles: %v", err)
+	}
+	var rolesWithDynamicDenyLabels bool
+	for _, role := range roles {
+		err := services.CheckDynamicLabelsInDenyRules(role)
+		if trace.IsBadParameter(err) {
+			rolesWithDynamicDenyLabels = true
+			break
+		}
+		if err != nil {
+			log.Warnf("Error checking labels in role %s: %v", role.GetName(), err)
+			continue
+		}
+	}
+	if !rolesWithDynamicDenyLabels {
+		return
+	}
+	alert, err := types.NewClusterAlert(
+		dynamicLabelAlertID,
+		dynamicLabelAlertMessage,
+		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindRole, types.VerbRead)),
+	)
+	if err != nil {
+		log.Warnf("Failed to build %s alert: %v (this is a bug)", dynamicLabelAlertID, err)
+	}
+	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+		log.Warnf("Failed to set %s alert: %v", dynamicLabelAlertID, err)
+	}
+}
+
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
@@ -5579,21 +5670,26 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 
-		autoCreate, _, err := checker.CheckDatabaseRoles(db)
-		if err != nil {
+		autoCreate, err := checker.DatabaseAutoUserMode(db)
+		switch {
+		case errors.Is(err, services.ErrSessionMFARequired):
+			noMFAAccessErr = err
+		case err != nil:
 			return nil, trace.Wrap(err)
+		default:
+			dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+				Database:       db,
+				DatabaseUser:   t.Database.Username,
+				DatabaseName:   t.Database.GetDatabase(),
+				AutoCreateUser: autoCreate.IsEnabled(),
+			})
+			noMFAAccessErr = checker.CheckAccess(
+				db,
+				services.AccessState{},
+				dbRoleMatchers...,
+			)
 		}
-		dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
-			Database:       db,
-			DatabaseUser:   t.Database.Username,
-			DatabaseName:   t.Database.GetDatabase(),
-			AutoCreateUser: autoCreate.IsEnabled(),
-		})
-		noMFAAccessErr = checker.CheckAccess(
-			db,
-			services.AccessState{},
-			dbRoleMatchers...,
-		)
+
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
 		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
 		if err != nil {
@@ -5711,7 +5807,12 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 			Webauthn: webConfig,
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
-		assertion, err := webLogin.Begin(ctx, user)
+		// TODO(Joerger): Get extensions from caller.
+		ext := &mfav1.ChallengeExtensions{
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+		}
+		assertion, err := webLogin.Begin(ctx, user, ext)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5824,25 +5925,32 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 		}
 
 		assertionResp := wantypes.CredentialAssertionResponseFromProto(res.Webauthn)
-		var dev *types.MFADevice
+		var loginData *wanlib.LoginData
 		if passwordless {
 			webLogin := &wanlib.PasswordlessFlow{
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, user, err = webLogin.Finish(ctx, assertionResp)
+			loginData, err = webLogin.Finish(ctx, assertionResp)
 		} else {
 			webLogin := &wanlib.LoginFlow{
 				U2F:      u2f,
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn))
+			// TODO(Joerger): Get extensions from caller.
+			ext := &mfav1.ChallengeExtensions{
+				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+			}
+			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), ext)
 		}
 		if err != nil {
 			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)
 		}
-		return dev, user, nil
+		// TODO(Joerger): Refactor Validate to also return AllowReuse
+		// for further validation by caller when necessary.
+		return loginData.Device, loginData.User, nil
 
 	case *proto.MFAAuthenticateResponse_TOTP:
 		dev, err := a.checkOTP(user, res.TOTP.Code)
@@ -5940,7 +6048,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA:
 		// Database CA only contains TLS cert.
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
 		if err != nil {

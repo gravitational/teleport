@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -322,21 +323,12 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 		return "", trace.NotFound("no proxy servers found")
 	}
 
-	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
+	certAuthority, err := getCAForSQLServerConfigureADScript(r.Context(), h.GetProxyClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	certAuthority, err := h.GetProxyClient().GetCertAuthority(
-		r.Context(),
-		types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName},
-		false,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	caCRL, err := h.GetProxyClient().GenerateCertAuthorityCRL(r.Context(), types.DatabaseCA)
+	caCRL, err := h.GetProxyClient().GenerateCertAuthorityCRL(r.Context(), types.DatabaseClientCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -439,4 +431,32 @@ func encodeCRLPEM(contents []byte) []byte {
 		Type:  "X509 CRL",
 		Bytes: contents,
 	})
+}
+
+// getCAForSQLServerConfigureADScript is a helper for sql server configuration
+// that fetches the DatabaseClientCA if the auth service supports it or falls back
+// to the DatabaseCA if auth service does not support it.
+// TODO(gavin): DELETE IN 16.0.0
+func getCAForSQLServerConfigureADScript(ctx context.Context, clusterAPI auth.ClientI) (types.CertAuthority, error) {
+	domainName, err := clusterAPI.GetDomainName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbClientCA, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseClientCA,
+		DomainName: domainName,
+	}, false)
+	if err == nil {
+		return dbClientCA, nil
+	}
+	if !types.IsUnsupportedAuthorityErr(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// fallback to DatabaseCA if DatabaseClientCA isn't supported by backend.
+	dbServerCA, err := clusterAPI.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: domainName,
+	}, false)
+	return dbServerCA, trace.Wrap(err)
 }

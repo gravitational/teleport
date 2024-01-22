@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -126,34 +125,4 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestAlreadyWritten(t *testing.T) {
-	require := require.New(t)
-
-	c := &Conn{
-		Conn:           zeroConn{},
-		alreadyWritten: []byte("aa"),
-	}
-
-	n, err := c.Write([]byte("a"))
-	require.NoError(err)
-	require.Equal(1, n)
-	require.Equal([]byte("a"), c.alreadyWritten)
-
-	n, err = c.Write([]byte("b"))
-	require.Error(err)
-	require.ErrorAs(err, new(*trace.BadParameterError))
-	require.Equal(0, n)
-
-	n, err = c.Write([]byte("ab"))
-	require.NoError(err)
-	require.Equal(2, n)
-	require.Empty(c.alreadyWritten)
-}
-
-type zeroConn struct{ net.Conn }
-
-func (zeroConn) Write(p []byte) (int, error) {
-	return len(p), nil
 }

@@ -47,6 +47,11 @@ func TestCLIPrompt(t *testing.T) {
 		expectResp   *proto.MFAAuthenticateResponse
 	}{
 		{
+			name:         "OK empty challenge",
+			expectStdOut: "",
+			challenge:    &proto.MFAAuthenticateChallenge{},
+			expectResp:   &proto.MFAAuthenticateResponse{},
+		}, {
 			name:         "OK webauthn",
 			expectStdOut: "Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{

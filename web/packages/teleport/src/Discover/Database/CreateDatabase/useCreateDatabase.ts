@@ -327,6 +327,12 @@ export function useCreateDatabase() {
       // Skips the deploy database service step.
       return nextStep(2);
     }
+
+    const meta = agentMeta as DbMeta;
+    if (meta.autoDiscovery && meta.serviceDeployedMethod === 'skipped') {
+      // IAM policy setup is not required for auto discover.
+      return nextStep(3);
+    }
     nextStep(); // Goes to deploy database service step.
   }
 

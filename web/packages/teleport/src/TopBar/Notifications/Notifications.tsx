@@ -25,6 +25,7 @@ import { Notification as NotificationIcon, UserList } from 'design/Icon';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { useStore } from 'shared/libs/stores';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import {
   Dropdown,
@@ -71,29 +72,38 @@ export function Notifications() {
   });
 
   return (
-    <NotificationButtonContainer ref={ref} data-testid="tb-note">
-      <ButtonIconContainer
-        onClick={() => setOpen(!open)}
-        data-testid="tb-note-button"
-      >
-        {items.length > 0 && <AttentionDot data-testid="tb-note-attention" />}
-        <NotificationIcon />
-      </ButtonIconContainer>
+    <HoverTooltip
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+      tipContent="Notifications"
+      css={`
+        height: 100%;
+      `}
+    >
+      <NotificationButtonContainer ref={ref} data-testid="tb-note">
+        <ButtonIconContainer
+          onClick={() => setOpen(!open)}
+          data-testid="tb-note-button"
+        >
+          {items.length > 0 && <AttentionDot data-testid="tb-note-attention" />}
+          <NotificationIcon color={open ? 'text.main' : 'text.muted'} />
+        </ButtonIconContainer>
 
-      <Dropdown
-        open={open}
-        style={{ width: '300px' }}
-        data-testid="tb-note-dropdown"
-      >
-        {items.length ? (
-          items
-        ) : (
-          <Text textAlign="center" p={2}>
-            No notifications
-          </Text>
-        )}
-      </Dropdown>
-    </NotificationButtonContainer>
+        <Dropdown
+          open={open}
+          style={{ width: '300px' }}
+          data-testid="tb-note-dropdown"
+        >
+          {items.length ? (
+            items
+          ) : (
+            <Text textAlign="center" p={2}>
+              No notifications
+            </Text>
+          )}
+        </Dropdown>
+      </NotificationButtonContainer>
+    </HoverTooltip>
   );
 }
 
@@ -134,6 +144,7 @@ function NotificationItem({
 
 const NotificationButtonContainer = styled.div`
   position: relative;
+  height: 100%;
 `;
 
 const AttentionDot = styled.div`
@@ -144,6 +155,10 @@ const AttentionDot = styled.div`
   background-color: ${p => p.theme.colors.buttons.warning.default};
   top: 10px;
   right: 15px;
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+    top: 20px;
+    right: 25px;
+  }
 `;
 
 const NotificationItemButton = styled(DropdownItemButton)`
@@ -153,4 +168,5 @@ const NotificationItemButton = styled(DropdownItemButton)`
 
 const NotificationLink = styled(DropdownItemLink)`
   padding: 0;
+  z-index: 999;
 `;

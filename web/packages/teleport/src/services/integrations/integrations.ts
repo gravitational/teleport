@@ -32,7 +32,6 @@ import {
   ListAwsRdsDatabaseResponse,
   RdsEngineIdentifier,
   AwsOidcDeployServiceRequest,
-  AwsOidcDeployServiceResponse,
   ListEc2InstancesRequest,
   ListEc2InstancesResponse,
   Ec2InstanceConnectEndpoint,
@@ -43,6 +42,11 @@ import {
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
   SecurityGroup,
+  ListEksClustersResponse,
+  EnrollEksClustersResponse,
+  EnrollEksClustersRequest,
+  ListEksClustersRequest,
+  AwsOidcDeployDatabaseServicesRequest,
 } from './types';
 
 export const integrationService = {
@@ -142,8 +146,41 @@ export const integrationService = {
   deployAwsOidcService(
     integrationName,
     req: AwsOidcDeployServiceRequest
-  ): Promise<AwsOidcDeployServiceResponse> {
-    return api.post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req);
+  ): Promise<string> {
+    return api
+      .post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req)
+      .then(resp => resp.serviceDashboardUrl);
+  },
+
+  deployDatabaseServices(
+    integrationName,
+    req: AwsOidcDeployDatabaseServicesRequest
+  ): Promise<string> {
+    return api
+      .post(cfg.getAwsRdsDbsDeployServicesUrl(integrationName), req)
+      .then(resp => resp.clusterDashboardUrl);
+  },
+
+  enrollEksClusters(
+    integrationName: string,
+    req: EnrollEksClustersRequest
+  ): Promise<EnrollEksClustersResponse> {
+    return api.post(cfg.getEnrollEksClusterUrl(integrationName), req);
+  },
+
+  fetchEksClusters(
+    integrationName: string,
+    req: ListEksClustersRequest
+  ): Promise<ListEksClustersResponse> {
+    return api
+      .post(cfg.getListEKSClustersUrl(integrationName), req)
+      .then(json => {
+        const eksClusters = json?.clusters ?? [];
+        return {
+          clusters: eksClusters,
+          nextToken: json?.nextToken,
+        };
+      });
   },
 
   // Returns a list of EC2 Instances using the ListEC2ICE action of the AWS OIDC Integration.

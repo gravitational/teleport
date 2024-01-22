@@ -62,7 +62,8 @@ const props: State = {
   onShareDirectory: () => {},
   clientOnPngFrame: () => {},
   clientOnBitmapFrame: () => {},
-  clientScreenSpec: { width: 0, height: 0 },
+  clientOnClientScreenSpec: () => {},
+  clientScreenSpecToRequest: { width: 0, height: 0 },
   clientOnTdpError: () => {},
   clientOnTdpWarning: () => {},
   canvasOnKeyDown: () => {},
@@ -72,6 +73,7 @@ const props: State = {
   canvasOnMouseUp: () => {},
   canvasOnMouseWheelScroll: () => {},
   canvasOnContextMenu: () => false,
+  canvasOnFocusOut: () => {},
   clientOnClipboardData: async () => {},
   setTdpConnection: () => {},
   webauthn: {

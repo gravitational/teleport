@@ -123,7 +123,7 @@ If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current
 development branch for an upcoming major version.  Get the latest release tags
 listed at https://goteleport.com/download/ and then use that tag in the `git clone`.
-For example `git clone https://github.com/gravitational/teleport.git -b v13.0.0` gets release v13.0.0.
+For example `git clone https://github.com/gravitational/teleport.git -b v16.0.0` gets release v16.0.0.
 
 ### Dockerized Build
 
@@ -195,10 +195,10 @@ To build `tsh` with `libfido`:
   make build/tsh FIDO2=dynamic
   ```
 
-  * On a Mac, with `libfido` and `openssl 1.1` installed via `homebrew`
+  * On a Mac, with `libfido` and `openssl 3` installed via `homebrew`
 
     ```shell
-    export PKG_CONFIG_PATH="$(brew --prefix openssl@1.1)/lib/pkgconfig"
+    export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"
     make build/tsh FIDO2=dynamic
     ```
 

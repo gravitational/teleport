@@ -56,7 +56,7 @@ func StatementForECSManageService() *Statement {
 		Effect: EffectAllow,
 		Actions: []string{
 			"ecs:DescribeClusters", "ecs:CreateCluster", "ecs:PutClusterCapacityProviders",
-			"ecs:DescribeServices", "ecs:CreateService", "ecs:UpdateService",
+			"ecs:DescribeServices", "ecs:CreateService", "ecs:UpdateService", "ecs:ListServices",
 			"ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition", "ecs:DeregisterTaskDefinition",
 
 			// EC2 DescribeSecurityGroups is required so that the user can list the SG and then pick which ones they want to apply to the ECS Service.
@@ -130,6 +130,22 @@ func StatementForEC2InstanceConnectEndpoint() *Statement {
 
 			"ec2-instance-connect:SendSSHPublicKey",
 			"ec2-instance-connect:OpenTunnel",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForEKSAccess returns the statement that allows enrolling of EKS clusters into Teleport.
+func StatementForEKSAccess() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"eks:ListClusters",
+			"eks:DescribeCluster",
+			"eks:ListAccessEntries",
+			"eks:CreateAccessEntry",
+			"eks:DeleteAccessEntry",
+			"eks:AssociateAccessPolicy",
 		},
 		Resources: allResources,
 	}

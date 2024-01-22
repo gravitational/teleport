@@ -22,9 +22,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/net/websocket"
 
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -49,39 +49,45 @@ func (h *Handler) desktopPlaybackHandle(
 		return nil, trace.Wrap(err)
 	}
 
-	websocket.Handler(func(ws *websocket.Conn) {
-		ws.PayloadType = websocket.BinaryFrame
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  4096,
+		WriteBufferSize: 4096,
+	}
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer ws.Close()
 
-		player, err := player.New(&player.Config{
-			Clock:     h.clock,
-			Log:       h.log,
-			SessionID: session.ID(sID),
-			Streamer:  clt,
-		})
-		if err != nil {
-			h.log.Errorf("couldn't create player for session %v: %v", sID, err)
-			ws.Write([]byte(`{"message": "error", "errorText": "Internal server error"}`))
-			return
-		}
+	player, err := player.New(&player.Config{
+		Clock:     h.clock,
+		Log:       h.log,
+		SessionID: session.ID(sID),
+		Streamer:  clt,
+	})
+	if err != nil {
+		h.log.Errorf("couldn't create player for session %v: %v", sID, err)
+		ws.WriteMessage(websocket.BinaryMessage,
+			[]byte(`{"message": "error", "errorText": "Internal server error"}`))
+		return nil, nil
+	}
 
-		defer player.Close()
+	defer player.Close()
 
-		ctx, cancel := context.WithCancel(r.Context())
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	go func() {
 		defer cancel()
+		desktop.ReceivePlaybackActions(h.log, ws, player)
+	}()
 
-		go func() {
-			defer cancel()
-			desktop.ReceivePlaybackActions(h.log, ws, player)
-		}()
+	go func() {
+		defer cancel()
+		defer ws.Close()
+		desktop.PlayRecording(ctx, h.log, ws, player)
+	}()
 
-		go func() {
-			defer cancel()
-			defer ws.Close()
-			desktop.PlayRecording(ctx, h.log, ws, player)
-		}()
-
-		<-ctx.Done()
-	}).ServeHTTP(w, r)
-
+	<-ctx.Done()
 	return nil, nil
 }

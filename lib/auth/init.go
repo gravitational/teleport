@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -274,6 +275,9 @@ type InitConfig struct {
 
 	// AccessMonitoringEnabled is true if access monitoring is enabled.
 	AccessMonitoringEnabled bool
+
+	// CloudClients provides clients for various cloud providers.
+	CloudClients cloud.Clients
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -472,6 +476,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err := migration.Apply(ctx, cfg.Backend); err != nil {
 		return trace.Wrap(err, "applying migrations")
 	}
+	span.AddEvent("migrating db_client_authority")
+	err = migrateDBClientAuthority(ctx, asrv.Trust, cfg.ClusterName.GetClusterName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	span.AddEvent("completed migration db_client_authority")
 
 	// generate certificate authorities if they don't exist
 	var (
@@ -902,7 +912,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.SAMLIDPCA:
+			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner, types.OIDCIdPCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
@@ -1427,4 +1437,15 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		}
 	}
 	return nil
+}
+
+// migrateDBClientAuthority copies Database CA as Database Client CA.
+// Does nothing if the Database Client CA already exists.
+//
+// TODO(gavin): DELETE IN 16.0.0
+func migrateDBClientAuthority(ctx context.Context, trustSvc services.Trust, cluster string) error {
+	migrationStart(ctx, "db_client_authority")
+	defer migrationEnd(ctx, "db_client_authority")
+	err := migration.MigrateDBClientAuthority(ctx, trustSvc, cluster)
+	return trace.Wrap(err)
 }

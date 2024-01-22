@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"encoding/base32"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"slices"
@@ -42,9 +41,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/native"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -621,16 +619,16 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	const user2 = "alpaca"
 	// Prepare a few different objects so we can assert that both "user" and
 	// "session" key components are used correctly.
-	user1Reg := &wanpb.SessionData{
+	user1Reg := &wantypes.SessionData{
 		Challenge: []byte("challenge1-reg"),
 		UserId:    []byte("llamaid"),
 	}
-	user1Login := &wanpb.SessionData{
+	user1Login := &wantypes.SessionData{
 		Challenge:        []byte("challenge1-login"),
 		UserId:           []byte("llamaid"),
 		AllowCredentials: [][]byte{[]byte("cred1"), []byte("cred2")},
 	}
-	user2Login := &wanpb.SessionData{
+	user2Login := &wantypes.SessionData{
 		Challenge: []byte("challenge2"),
 		UserId:    []byte("alpacaid"),
 	}
@@ -640,7 +638,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	const loginSession = "login"
 	params := []struct {
 		user, session string
-		sd            *wanpb.SessionData
+		sd            *wantypes.SessionData
 	}{
 		{user: user1, session: registerSession, sd: user1Reg},
 		{user: user1, session: loginSession, sd: user1Login},
@@ -664,7 +662,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	}
 
 	// Verify upsert/update.
-	user1Reg = &wanpb.SessionData{
+	user1Reg = &wantypes.SessionData{
 		Challenge: []byte("challenge1reg--another"),
 		UserId:    []byte("llamaid"),
 	}
@@ -692,23 +690,23 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
-	user1Login1 := &wanpb.SessionData{
+	user1Login1 := &wantypes.SessionData{
 		Challenge:        []byte("challenge1"),
 		UserId:           []byte("user1-web-id"),
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user1Login2 := &wanpb.SessionData{
+	user1Login2 := &wantypes.SessionData{
 		Challenge:        []byte("challenge2"),
 		UserId:           []byte("user1-web-id"),
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user1Registration := &wanpb.SessionData{
+	user1Registration := &wantypes.SessionData{
 		Challenge:        []byte("challenge3"),
 		UserId:           []byte("user1-web-id"),
 		ResidentKey:      true,
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user2Login := &wanpb.SessionData{
+	user2Login := &wantypes.SessionData{
 		Challenge:        []byte("challenge4"),
 		UserId:           []byte("user2-web-id"),
 		ResidentKey:      true,
@@ -721,7 +719,7 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	const scopeRegister = "register"
 	params := []struct {
 		scope, id string
-		sd        *wanpb.SessionData
+		sd        *wantypes.SessionData
 	}{
 		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user1Login1.Challenge), sd: user1Login1},
 		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user1Login2.Challenge), sd: user1Login2},
@@ -765,34 +763,6 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	}
 }
 
-func TestIdentityService_WebauthnSessionDataExpiry(t *testing.T) {
-	t.Parallel()
-	clock := clockwork.NewFakeClock()
-	identity := newIdentityService(t, clock)
-	identity.SetDesyncedClockForTesting(clock)
-
-	ctx := context.Background()
-	sessionData := &wanpb.SessionData{Challenge: []byte("challenge"), UserId: []byte("userid")}
-	err := identity.UpsertWebauthnSessionData(ctx, "user", "login", sessionData)
-	require.NoError(t, err)
-
-	got, err := identity.GetWebauthnSessionData(ctx, "user", "login")
-	require.NoError(t, err)
-	require.Equal(t, sessionData, got)
-
-	// If the session data is expired but not automatically removed from
-	// the backend, it should be manually deleted on retrieval attempt.
-	// Advance the identity service clock and not the backend clock to
-	// emulate this occurrence.
-	clock.Advance(10 * time.Minute)
-	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
-	require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
-
-	// Another retrieval should result in a not found error since it was deleted during the last get.
-	_, err = identity.GetWebauthnSessionData(ctx, "user", "login")
-	require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
-}
-
 func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) {
 	// Don't t.Parallel()!
 
@@ -803,6 +773,7 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 		local.GlobalSessionDataMaxEntries = sdMax
 		local.SessionDataLimiter.Clock = sdClock
 		local.SessionDataLimiter.ResetPeriod = sdReset
+		local.SessionDataLimiter.Reset()
 	}()
 	fakeClock := clockwork.NewFakeClock()
 	period := 1 * time.Minute // arbitrary, applied to fakeClock
@@ -810,13 +781,15 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	local.SessionDataLimiter.Clock = fakeClock
 	local.SessionDataLimiter.ResetPeriod = period
 
-	const scopeLogin = "login"
-	const scopeOther = "other"
+	// Add some randomness to the scopes to avoid high -count runs tripping on
+	// each other.
+	scopeLogin := "login" + uuid.NewString()
+	scopeOther := "other" + uuid.NewString()
 	const id1 = "challenge1"
 	const id2 = "challenge2"
 	const id3 = "challenge3"
 	const id4 = "challenge4"
-	sd := &wanpb.SessionData{
+	sd := &wantypes.SessionData{
 		Challenge:        []byte("supersecretchallenge"), // typically matches the key
 		UserVerification: "required",
 	}
@@ -938,43 +911,6 @@ Tirv9LjajEBxUnuV+wIDAQAB
 			require.Equal(t, attestationData, retrievedAttestationData, "GetKeyAttestationData mismatch")
 		})
 	}
-}
-
-// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
-func TestIdentityService_GetKeyAttestationDataV11Fingerprint(t *testing.T) {
-	t.Parallel()
-	identity := newIdentityService(t, clockwork.NewFakeClock())
-	ctx := context.Background()
-
-	key, err := native.GenerateRSAPrivateKey()
-	require.NoError(t, err)
-
-	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
-	require.NoError(t, err)
-
-	attestationData := &keys.AttestationData{
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
-		PublicKeyDER:     pubDER,
-	}
-
-	// manually insert attestation data with old style fingerprint.
-	value, err := json.Marshal(attestationData)
-	require.NoError(t, err)
-
-	backendKey, err := local.KeyAttestationDataFingerprintV11(key.Public())
-	require.NoError(t, err)
-
-	item := backend.Item{
-		Key:   backend.Key("key_attestations", backendKey),
-		Value: value,
-	}
-	_, err = identity.Put(ctx, item)
-	require.NoError(t, err)
-
-	// Should be able to retrieve attestation data despite old fingerprint.
-	retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, key.Public())
-	require.NoError(t, err)
-	require.Equal(t, attestationData, retrievedAttestationData)
 }
 
 func TestIdentityService_UpdateAndSwapUser(t *testing.T) {

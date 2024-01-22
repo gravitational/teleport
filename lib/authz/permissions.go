@@ -1043,6 +1043,23 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RW()),
+						// Okta can manage access lists and roles it creates.
+						{
+							Resources: []string{types.KindRole},
+							Verbs:     services.RW(),
+							Where: builder.Equals(
+								builder.Identifier(`resource.metadata.labels["`+types.OriginLabel+`"]`),
+								builder.String(types.OriginOkta),
+							).String(),
+						},
+						{
+							Resources: []string{types.KindAccessList},
+							Verbs:     services.RW(),
+							Where: builder.Equals(
+								builder.Identifier(`resource.metadata.labels["`+types.OriginLabel+`"]`),
+								builder.String(types.OriginOkta),
+							).String(),
+						},
 					},
 				},
 			})
@@ -1589,6 +1606,16 @@ func IsLocalOrRemoteUser(authContext Context) bool {
 	}
 }
 
+// IsLocalOrRemoteService checks if the identity is either a local or remote service.
+func IsLocalOrRemoteService(authContext Context) bool {
+	switch authContext.UnmappedIdentity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
+		return true
+	default:
+		return false
+	}
+}
+
 // IsCurrentUser checks if the identity is a local user matching the given username
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
@@ -1598,4 +1625,18 @@ func IsCurrentUser(authContext Context, username string) bool {
 func IsRemoteUser(authContext Context) bool {
 	_, ok := authContext.UnmappedIdentity.(RemoteUser)
 	return ok
+}
+
+// ConnectionMetadata returns a ConnectionMetadata suitable for events caused by
+// a remote client making a call. If ctx didn't pass through auth middleware or
+// did not come from an HTTP request, empty metadata is returned.
+func ConnectionMetadata(ctx context.Context) apievents.ConnectionMetadata {
+	remoteAddr, err := ClientSrcAddrFromContext(ctx)
+	if err != nil {
+		return apievents.ConnectionMetadata{}
+	}
+
+	return apievents.ConnectionMetadata{
+		RemoteAddr: remoteAddr.String(),
+	}
 }

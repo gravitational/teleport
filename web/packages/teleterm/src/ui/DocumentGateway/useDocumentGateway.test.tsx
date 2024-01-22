@@ -122,6 +122,7 @@ const testSetup = () => {
     gatewayUri: gateway.uri,
     origin: 'resource_table',
     title: '',
+    status: '',
   };
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(cluster.uri, cluster);

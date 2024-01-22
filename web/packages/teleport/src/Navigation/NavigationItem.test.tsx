@@ -20,6 +20,8 @@ import React from 'react';
 
 import { render, screen } from 'design/utils/testing';
 
+import { Server } from 'design/Icon';
+
 import { generatePath, Router } from 'react-router';
 
 import { createMemoryHistory, MemoryHistory } from 'history';
@@ -52,7 +54,7 @@ class MockUserFeature implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.Users,
-    icon: <div />,
+    icon: Server,
     exact: true,
     getLink(clusterId: string) {
       return generatePath('/web/cluster/:clusterId/feature', { clusterId });
@@ -76,7 +78,7 @@ class MockAccessListFeature implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AccessLists,
-    icon: <div />,
+    icon: Server,
     exact: true,
     getLink(clusterId: string) {
       return generatePath('/web/cluster/:clusterId/feature', { clusterId });

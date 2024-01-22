@@ -58,15 +58,15 @@ func (r oidcConnectorClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewOIDCConnectorReconciler instantiates a new Kubernetes controller reconciling oidc_connector resources
-func NewOIDCConnectorReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector] {
+func NewOIDCConnectorReconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
 	oidcClient := &oidcConnectorClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler := NewTeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](
+	resourceReconciler, err := NewTeleportResourceReconciler[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](
 		client,
 		oidcClient,
 	)
 
-	return resourceReconciler
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
 }
