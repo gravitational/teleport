@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -44,8 +43,8 @@ type LoginIdentity interface {
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 }
 
@@ -130,11 +129,11 @@ func (m mfaIdentity) GetTeleportUserByWebauthnID(_ context.Context, _ []byte) (s
 // userSessionStorage implements sessionIdentity using LoginFlow.
 type userSessionStorage LoginFlow
 
-func (s *userSessionStorage) Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error {
+func (s *userSessionStorage) Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error {
 	return s.Identity.UpsertWebauthnSessionData(ctx, user, scopeLogin, sd)
 }
 
-func (s *userSessionStorage) Get(ctx context.Context, user string, _ string) (*wanpb.SessionData, error) {
+func (s *userSessionStorage) Get(ctx context.Context, user string, _ string) (*wantypes.SessionData, error) {
 	return s.Identity.GetWebauthnSessionData(ctx, user, scopeLogin)
 }
 

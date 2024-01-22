@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,15 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package webauthn
+import { Box } from 'design';
+import styled from 'styled-components';
 
-// scopeLogin identifies session data stored for login.
-// It is used as the scope for global session data and as the sessionID for
-// per-user session data.
-// Only one in-flight login is supported for MFA / per-user session data.
-const scopeLogin = "login"
+export enum ItemStatus {
+  Success,
+  Warning,
+  Error,
+}
 
-// scopeSession is used as the per-user sessionID for registrations.
-// Only one in-flight registration is supported per-user, baring registrations
-// that use in-memory storage.
-const scopeSession = "registration"
+export const StatusLight = styled(Box)`
+  border-radius: 50%;
+  margin-right: ${props => props.theme.space[2]}px;
+  width: 8px;
+  height: 8px;
+  background-color: ${({ status, theme }) => {
+    if (status === ItemStatus.Success) {
+      return theme.colors.success.main;
+    }
+    if (status === ItemStatus.Error) {
+      return theme.colors.error.main;
+    }
+    if (status === ItemStatus.Warning) {
+      return theme.colors.warning;
+    }
+    return theme.colors.grey[300]; // Unknown
+  }};
+`;

@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,15 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package webauthn
+import { Flex } from 'design';
+import React from 'react';
 
-// scopeLogin identifies session data stored for login.
-// It is used as the scope for global session data and as the sessionID for
-// per-user session data.
-// Only one in-flight login is supported for MFA / per-user session data.
-const scopeLogin = "login"
+import { DisableableCell as Cell } from 'teleport/Discover/Shared';
 
-// scopeSession is used as the per-user sessionID for registrations.
-// Only one in-flight registration is supported per-user, baring registrations
-// that use in-memory storage.
-const scopeSession = "registration"
+import { StatusLight, ItemStatus } from '../StatusLight';
+
+export const StatusCell = ({
+  status,
+  statusText,
+  disabled,
+  disabledText,
+}: {
+  status: ItemStatus;
+  statusText: string;
+  disabled: boolean;
+  disabledText: string;
+}) => {
+  return (
+    <Cell disabled={disabled} disabledText={disabledText}>
+      <Flex alignItems="baseline">
+        <StatusLight status={status} />
+        {statusText}
+      </Flex>
+    </Cell>
+  );
+};

@@ -18,6 +18,8 @@
 
 import { Platform } from 'design/platform';
 
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
+
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
@@ -29,14 +31,16 @@ import {
   DATABASES_UNGUIDED_DOC,
 } from './databases';
 import {
-  ResourceSpec,
-  DatabaseLocation,
   DatabaseEngine,
+  DatabaseLocation,
+  KubeLocation,
+  ResourceSpec,
   ServerLocation,
 } from './types';
 import { SAML_APPLICATIONS } from './resourcesE';
 
 const baseServerKeywords = 'server node';
+const awsKeywords = 'aws amazon ';
 export const SERVERS: ResourceSpec[] = [
   {
     name: 'Ubuntu 14.04+',
@@ -135,6 +139,15 @@ export const KUBERNETES: ResourceSpec[] = [
     keywords: 'kubernetes cluster kubes',
     icon: 'Kube',
     event: DiscoverEventResource.Kubernetes,
+    kubeMeta: { location: KubeLocation.SelfHosted },
+  },
+  {
+    name: 'EKS',
+    kind: ResourceKind.Kubernetes,
+    keywords: awsKeywords + 'kubernetes cluster kubes eks elastic service',
+    icon: 'Aws',
+    event: DiscoverEventResource.KubernetesEks,
+    kubeMeta: { location: KubeLocation.Aws },
   },
 ];
 
@@ -180,6 +193,18 @@ export function getResourcePretitle(r: ResourceSpec) {
       break;
     case ResourceKind.Desktop:
       return 'Windows Desktop';
+    case ResourceKind.Kubernetes:
+      if (r.kubeMeta) {
+        switch (r.kubeMeta.location) {
+          case KubeLocation.Aws:
+            return 'Amazon Web Services (AWS)';
+          case KubeLocation.SelfHosted:
+            return 'Self-Hosted';
+          default:
+            assertUnreachable(r.kubeMeta.location);
+        }
+      }
+      break;
     case ResourceKind.Server:
       if (r.nodeMeta?.location === ServerLocation.Aws) {
         return 'Amazon Web Services (AWS)';
