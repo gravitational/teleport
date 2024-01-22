@@ -299,8 +299,8 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			// key length and bytes.
 			key_der_len:             C.uint32_t(len(userKeyDER)),
 			key_der:                 (*C.uint8_t)(key_der),
-			screen_width:            C.uint16_t(c.clientWidth),
-			screen_height:           C.uint16_t(c.clientHeight),
+			screen_width:            C.uint16_t(1024),
+			screen_height:           C.uint16_t(768),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
