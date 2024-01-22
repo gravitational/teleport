@@ -5467,7 +5467,7 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 	// Check if MFA is required for admin actions. We don't currently have
 	// a reason to check the name of the admin action in question.
 	if _, ok := req.Target.(*proto.IsMFARequiredRequest_AdminAction); ok {
-		if a.context.AdminActionAuthorized {
+		if a.context.AdminActionAuthState == authz.AdminActionAuthUnauthorized {
 			return &proto.IsMFARequiredResponse{
 				Required:    true,
 				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
