@@ -56,7 +56,8 @@ export function GitHubFlowProvider({
 }: { bot?: CreateBotRequest } & React.PropsWithChildren) {
   const { botService, resourceService, joinTokenService } = useTeleport();
   const { attempt, run } = useAttempt();
-  const [createBotRequest, setCreateBotRequest] = useState<CreateBotRequest>(bot);
+  const [createBotRequest, setCreateBotRequest] =
+    useState<CreateBotRequest>(bot);
   const [repoRules, setRepoRules] = useState<Rule[]>([defaultRule]);
   const [tokenName, setTokenName] = useState('');
 
@@ -74,7 +75,11 @@ export function GitHubFlowProvider({
     return run(() =>
       resourceService
         .createRole(
-          getRoleYaml(createBotRequest.botName, createBotRequest.labels, createBotRequest.login)
+          getRoleYaml(
+            createBotRequest.botName,
+            createBotRequest.labels,
+            createBotRequest.login
+          )
         )
         .then(() => {
           let repoHost = '';

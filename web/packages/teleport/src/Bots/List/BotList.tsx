@@ -61,7 +61,7 @@ export function BotList({ bots }: BotListProps) {
         {
           altKey: 'options-btn',
           render: bot => (
-            <BotOptionsCell bot={bot} onEdit={() => { }} onDelete={() => { }} />
+            <BotOptionsCell bot={bot} onEdit={() => {}} onDelete={() => {}} />
           ),
         },
       ]}

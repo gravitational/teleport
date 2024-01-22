@@ -18,7 +18,7 @@ import {
 import { Box, Flex, Link as ExternalLink, Text } from 'design';
 
 import cfg from 'teleport/config';
-import { BotType } from '../types';
+
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollKind,
@@ -27,13 +27,15 @@ import {
 import { IntegrationTile } from 'teleport/Integrations';
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 
+import { BotType } from '../types';
+
 type BotIntegration = {
   title: string;
   link: string;
   icon: JSX.Element;
   guided: boolean;
   kind: IntegrationEnrollKind;
-}
+};
 
 const integrations: BotIntegration[] = [
   {
@@ -140,7 +142,7 @@ export function AddBotsPicker() {
       </Flex>
     </>
   );
-};
+}
 
 function ExternalLinkTile({ integration }: { integration: BotIntegration }) {
   return (
@@ -165,7 +167,9 @@ function ExternalLinkTile({ integration }: { integration: BotIntegration }) {
 
 function GuidedTile({ integration }: { integration: BotIntegration }) {
   return (
-    <IntegrationTile as={Link} to={integration.link}
+    <IntegrationTile
+      as={Link}
+      to={integration.link}
       onClick={() => {
         userEventService.captureIntegrationEnrollEvent({
           event: IntegrationEnrollEvent.Started,

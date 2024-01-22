@@ -35,7 +35,6 @@ import { botService } from 'teleport/services/bot';
 
 import useTeleport from 'teleport/useTeleport';
 
-
 import { FlowStepProps } from '../Shared/GuidedFlow';
 import { FlowButtons } from '../Shared/FlowButtons';
 
@@ -62,7 +61,10 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
       return;
     }
 
-    if (createBotRequest.labels.length < 1 || createBotRequest.labels[0].name === '') {
+    if (
+      createBotRequest.labels.length < 1 ||
+      createBotRequest.labels[0].name === ''
+    ) {
       setMissingLabels(true);
       return;
     }
@@ -142,7 +144,10 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                 placeholder="ex. ubuntu"
                 value={createBotRequest.login}
                 onChange={e =>
-                  setCreateBotRequest({ ...createBotRequest, login: e.target.value })
+                  setCreateBotRequest({
+                    ...createBotRequest,
+                    login: e.target.value,
+                  })
                 }
               />
             </FormItem>
@@ -155,7 +160,10 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                 placeholder="ex. github-actions-cd"
                 value={createBotRequest.botName}
                 onChange={e =>
-                  setCreateBotRequest({ ...createBotRequest, botName: e.target.value })
+                  setCreateBotRequest({
+                    ...createBotRequest,
+                    botName: e.target.value,
+                  })
                 }
               />
             </FormItem>

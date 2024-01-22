@@ -22,7 +22,7 @@ import cfg from 'teleport/config';
 import { makeBot } from 'teleport/services/bot/consts';
 import { BotsResponse, FlatBot } from 'teleport/Bots/types';
 
-import type { Bot, FetchBotsRequest, CreateBotRequest } from './types';
+import type { FetchBotsRequest, CreateBotRequest } from './types';
 
 export function fetchBots({ signal }: FetchBotsRequest): Promise<BotsResponse> {
   return api
@@ -48,7 +48,9 @@ export const botService = {
 
   async getBot(name: string): Promise<FlatBot | null> {
     try {
-      return await api.get(cfg.getBotsUrl(cfg.proxyCluster, name)).then(makeBot);
+      return await api
+        .get(cfg.getBotsUrl(cfg.proxyCluster, name))
+        .then(makeBot);
     } catch (err) {
       // capture the not found error response and return null instead of throwing
       if (err?.response?.status === 404) {
