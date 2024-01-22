@@ -21,7 +21,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -51,8 +51,8 @@ func TestPerformMFACeremony(t *testing.T) {
 				challengeResponse: testMFAResponse,
 			},
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
-				require.NoError(t, err)
-				require.Equal(t, testMFAResponse, mr)
+				assert.NoError(t, err)
+				assert.Equal(t, testMFAResponse, mr)
 			},
 		}, {
 			name: "OK ceremony not required",
@@ -61,8 +61,8 @@ func TestPerformMFACeremony(t *testing.T) {
 				mfaRequired:       proto.MFARequired_MFA_REQUIRED_NO,
 			},
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
-				require.NoError(t, err)
-				require.Nil(t, mr)
+				assert.NoError(t, err)
+				assert.Nil(t, mr)
 			},
 		}, {
 			name: "NOK create challenge fail",
@@ -71,18 +71,18 @@ func TestPerformMFACeremony(t *testing.T) {
 				createAuthenticateChallengeErr: errors.New("create authenticate challenge failure"),
 			},
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "create authenticate challenge failure")
-				require.Nil(t, mr)
+				assert.ErrorContains(t, err, "create authenticate challenge failure")
+				assert.Nil(t, mr)
 			},
 		}, {
-			name: "NOK create challenge fail",
+			name: "NOK prompt mfa fail",
 			ceremonyClient: &fakeMFACeremonyClient{
 				challengeResponse: testMFAResponse,
 				promptMFAErr:      errors.New("prompt mfa failure"),
 			},
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "prompt mfa failure")
-				require.Nil(t, mr)
+				assert.ErrorContains(t, err, "prompt mfa failure")
+				assert.Nil(t, mr)
 			},
 		},
 	} {
