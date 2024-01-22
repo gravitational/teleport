@@ -132,9 +132,9 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 }
 
 type createAuthenticateChallengeRequest struct {
-	IsMFARequired       *isMFARequiredRequest `json:"is_mfa_required"`
-	ChallengeScope      int                   `json:"challenge_scope"`
-	ChallengeAllowReuse bool                  `json:"challenge_allow_reuse"`
+	IsMFARequiredRequest *isMFARequiredRequest `json:"is_mfa_required_req"`
+	ChallengeScope       int                   `json:"challenge_scope"`
+	ChallengeAllowReuse  bool                  `json:"challenge_allow_reuse"`
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
@@ -150,9 +150,9 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	var isMFARequiredProtoReq *proto.IsMFARequiredRequest
-	if req.IsMFARequired != nil {
-		isMFARequiredProtoReq, err = req.IsMFARequired.checkAndGetProtoRequest()
+	var mfaRequiredCheckProto *proto.IsMFARequiredRequest
+	if req.IsMFARequiredRequest != nil {
+		mfaRequiredCheckProto, err = req.IsMFARequiredRequest.checkAndGetProtoRequest()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -167,7 +167,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
-		MFARequiredCheck: isMFARequiredProtoReq,
+		MFARequiredCheck: mfaRequiredCheckProto,
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope:      mfav1.ChallengeScope(req.ChallengeScope),
 			AllowReuse: allowReuse,

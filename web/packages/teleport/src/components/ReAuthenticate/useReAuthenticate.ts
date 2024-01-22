@@ -118,8 +118,7 @@ type BaseProps = {
   actionText?: string;
   /**
    * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
-   *
-   * */
+   */
   challengeScope: MFAChallengeScope;
 };
 

@@ -290,7 +290,7 @@ const auth = {
       .then(() =>
         api
           .post(cfg.api.mfaAuthnChallengePath, {
-            is_mfa_required: isMFARequiredRequest,
+            is_mfa_required_req: isMFARequiredRequest,
             challenge_scope: scope,
             challenge_allow_reuse: allowReuse,
           })
@@ -303,7 +303,7 @@ const auth = {
       );
   },
 
-  createPrivilegeTokenWithWebauthn(scope) {
+  createPrivilegeTokenWithWebauthn(scope: MFAChallengeScope) {
     return auth.fetchWebauthnChallenge(scope).then(res =>
       api.post(cfg.api.createPrivilegeTokenPath, {
         webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
