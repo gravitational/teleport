@@ -64,3 +64,6 @@ export type BotListParams = {
 export enum BotType {
   GitHubActions = 'github-actions',
 }
+export type BotListProps = {
+  bots: FlatBot[];
+};

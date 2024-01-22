@@ -314,6 +314,7 @@ const LocalForm = ({
                     value={token}
                     onChange={e => setToken(e.target.value)}
                     placeholder="123 456"
+                    disabled={attempt.isProcessing}
                     mb={0}
                   />
                 )}

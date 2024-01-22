@@ -17,7 +17,6 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom'
 
 import { Alert, Box, ButtonPrimary, Indicator } from 'design';
 
@@ -28,41 +27,33 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import useTeleport from 'teleport/useTeleport';
 import { FlatBot } from 'teleport/Bots/types';
 import { BotList } from 'teleport/Bots/List/BotList';
-import cfg from 'teleport/config';
+import { fetchBots } from 'teleport/services/bot/bot';
 
 export function Bots() {
-  const ctx = useTeleport();
   const [bots, setBots] = useState<FlatBot[]>();
-  const { attempt, setAttempt, run } = useAttemptNext('processing');
+  const { attempt, run } = useAttemptNext('processing');
 
   useEffect(() => {
     const signal = new AbortController();
 
-    async function fetchBots(signal: AbortSignal) {
-      try {
-        const res = await ctx.botService.fetchBots({ signal });
-
-        setBots(res.bots);
-        setAttempt({ status: 'success' });
-      } catch (err) {
-        setAttempt({ status: 'failed', statusText: err.message });
-      }
+    async function init(signal: AbortSignal) {
+      const res = await fetchBots({ signal });
+      setBots(res.bots);
     }
 
-    void fetchBots(signal.signal);
+    run(() => init(signal.signal));
     return () => {
       signal.abort();
     };
-  }, [run, ctx.botService, setAttempt]);
+  }, [run]);
 
   return (
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Bots</FeatureHeaderTitle>
-        <ButtonPrimary ml="auto" width="240px" as={Link} to={cfg.getBotsNewRoute()}>
+        <ButtonPrimary ml="auto" width="240px" disabled>
           Enroll New Bot
         </ButtonPrimary>
       </FeatureHeader>

@@ -22,9 +22,9 @@ import React from 'react';
 
 import { BotOptionsCell } from 'teleport/Bots/List/ActionCell';
 
-import { BotListParams } from 'teleport/Bots/types';
+import { BotListProps } from 'teleport/Bots/types';
 
-export function BotList({ bots }: BotListParams) {
+export function BotList({ bots }: BotListProps) {
   return (
     <Table
       data={bots}
@@ -61,7 +61,7 @@ export function BotList({ bots }: BotListParams) {
         {
           altKey: 'options-btn',
           render: bot => (
-            <BotOptionsCell bot={bot} onEdit={() => {}} onDelete={() => {}} />
+            <BotOptionsCell bot={bot} onEdit={() => { }} onDelete={() => { }} />
           ),
         },
       ]}

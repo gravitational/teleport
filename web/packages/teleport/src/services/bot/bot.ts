@@ -24,23 +24,24 @@ import { BotsResponse, FlatBot } from 'teleport/Bots/types';
 
 import type { Bot, FetchBotsRequest, CreateBotRequest } from './types';
 
-export const botService = {
-  fetchBots({ signal }: FetchBotsRequest): Promise<BotsResponse> {
-    return api
-      .get(cfg.getBotsUrl(cfg.proxyCluster), signal)
-      .then(json => {
-        const items = json?.items || [];
-        return {
-          bots: items.map(makeBot),
-          startKey: json?.startKey,
-          totalCount: json?.totalCount,
-        };
-      })
-      .catch(res => {
-        throw res;
-      });
-  },
+export function fetchBots({ signal }: FetchBotsRequest): Promise<BotsResponse> {
+  return api
+    .get(cfg.getBotsUrl(cfg.proxyCluster), signal)
+    .then(json => {
+      const items = json?.items || [];
+      return {
+        bots: items.map(makeBot),
+        startKey: json?.startKey,
+        totalCount: json?.totalCount,
+      };
+    })
+    .catch(res => {
+      throw res;
+    });
+}
 
+// TODO: remove service, leave methods hanging from file
+export const botService = {
   createBot(config: CreateBotRequest): Promise<void> {
     return api.post(cfg.getBotsUrl(cfg.proxyCluster), config);
   },
