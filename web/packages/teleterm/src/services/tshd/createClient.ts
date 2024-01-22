@@ -150,7 +150,7 @@ export function createTshdClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response!.gateways as types.Gateway[]);
+            resolve(response.gateways as types.Gateway[]);
           }
         });
       });
@@ -163,7 +163,7 @@ export function createTshdClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response!.clusters as types.Cluster[]);
+            resolve(response.clusters as types.Cluster[]);
           }
         });
       });
@@ -176,7 +176,7 @@ export function createTshdClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response!.clusters as types.Cluster[]);
+            resolve(response.clusters as types.Cluster[]);
           }
         });
       });
@@ -222,7 +222,7 @@ export function createTshdClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response!.users!);
+            resolve(response.users);
           }
         });
       });
@@ -238,7 +238,7 @@ export function createTshdClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response!.request!);
+            resolve(response.request);
           }
         });
       });
@@ -251,7 +251,7 @@ export function createTshdClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response!.requests!);
+            resolve(response.requests);
           }
         });
       });
@@ -309,7 +309,7 @@ export function createTshdClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response!.request!);
+            resolve(response.request);
           }
         });
       });
@@ -371,7 +371,7 @@ export function createTshdClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response!.request!);
+            resolve(response.request);
           }
         });
       });
@@ -394,7 +394,7 @@ export function createTshdClient(
             if (err) {
               reject(err);
             } else {
-              resolve(response!);
+              resolve(response);
             }
           });
         }
@@ -602,7 +602,7 @@ export function createTshdClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response!);
+            resolve(response);
           }
         });
       });
@@ -739,7 +739,7 @@ export function createTshdClient(
             if (err) {
               reject(err);
             } else {
-              resolve(response!);
+              resolve(response);
             }
           });
         }
@@ -757,7 +757,7 @@ export function createTshdClient(
               if (err) {
                 reject(err);
               } else {
-                resolve(response!);
+                resolve(response);
               }
             }
           );
@@ -840,7 +840,7 @@ export function createTshdClient(
             if (err) {
               reject(err);
             } else {
-              resolve(response!.name as uri.ServerUri);
+              resolve(response.name as uri.ServerUri);
             }
           }
         );
@@ -899,8 +899,8 @@ export function createTshdClient(
                 reject(err);
               } else {
                 resolve({
-                  nextKey: res!.nextKey,
-                  resources: res!.resources
+                  nextKey: res.nextKey,
+                  resources: res.resources
                     .map(p => {
                       if (resourceOneOfIsServer(p.resource)) {
                         return {
@@ -956,7 +956,7 @@ export function createTshdClient(
             if (err) {
               reject(err);
             } else {
-              resolve(response!.userPreferences!);
+              resolve(response.userPreferences);
             }
           });
         });
@@ -967,39 +967,32 @@ export function createTshdClient(
       abortSignal?: types.TshAbortSignal
     ): Promise<api.UserPreferences> {
       const userPreferences = UserPreferences.create();
-      if (params.userPreferences) {
-        if (params.userPreferences.clusterPreferences) {
-          userPreferences.clusterPreferences = ClusterUserPreferences.create({
-            pinnedResources: PinnedResourcesUserPreferences.create({
-              resourceIds:
-                params.userPreferences.clusterPreferences.pinnedResources
-                  ?.resourceIds,
-            }),
-          });
-        }
+      if (params.userPreferences.clusterPreferences) {
+        userPreferences.clusterPreferences = ClusterUserPreferences.create({
+          pinnedResources: PinnedResourcesUserPreferences.create({
+            resourceIds:
+              params.userPreferences.clusterPreferences.pinnedResources
+                ?.resourceIds,
+          }),
+        });
+      }
 
-        if (params.userPreferences.unifiedResourcePreferences) {
-          userPreferences.unifiedResourcePreferences =
-            UnifiedResourcePreferences.create({
-              defaultTab:
-                params.userPreferences.unifiedResourcePreferences.defaultTab,
-              viewMode:
-                params.userPreferences.unifiedResourcePreferences.viewMode,
-              labelsViewMode:
-                params.userPreferences.unifiedResourcePreferences
-                  .labelsViewMode,
-            });
-        }
+      if (params.userPreferences.unifiedResourcePreferences) {
+        userPreferences.unifiedResourcePreferences =
+          UnifiedResourcePreferences.create({
+            defaultTab:
+              params.userPreferences.unifiedResourcePreferences.defaultTab,
+            viewMode:
+              params.userPreferences.unifiedResourcePreferences.viewMode,
+            labelsViewMode:
+              params.userPreferences.unifiedResourcePreferences.labelsViewMode,
+          });
       }
 
       return withAbort(abortSignal, callRef => {
         const req = api.UpdateUserPreferencesRequest.create({
           clusterUri: params.clusterUri,
-          userPreferences: {
-            unifiedResourcePreferences:
-              userPreferences.unifiedResourcePreferences,
-            clusterPreferences: userPreferences.clusterPreferences,
-          },
+          userPreferences,
         });
 
         return new Promise((resolve, reject) => {
@@ -1007,7 +1000,7 @@ export function createTshdClient(
             if (err) {
               reject(err);
             } else {
-              resolve(response!.userPreferences!);
+              resolve(response.userPreferences);
             }
           });
         });
@@ -1030,7 +1023,7 @@ export function createTshdClient(
             if (err) {
               reject(err);
             } else {
-              resolve(response!.request!);
+              resolve(response.request);
             }
           });
         });
@@ -1053,7 +1046,7 @@ export function createTshdClient(
               if (err) {
                 reject(err);
               } else {
-                resolve(response!.accessLists!);
+                resolve(response.accessLists);
               }
             }
           );
