@@ -18,7 +18,8 @@ import ReactDOM from 'react-dom';
 import React from 'react';
 
 import { ElectronGlobals } from 'teleterm/types';
-import { App, FailedApp } from 'teleterm/ui/App';
+import { App } from 'teleterm/ui/App';
+import { FailedApp } from 'teleterm/ui/components/App';
 import AppContext from 'teleterm/ui/appContext';
 import Logger from 'teleterm/logger';
 
