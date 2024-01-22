@@ -19,6 +19,10 @@ const agentOptions: ResourceOption[] = [
     label: 'Servers',
   },
   {
+    value: 'app',
+    label: 'Apps',
+  },
+  {
     value: 'db',
     label: 'Databases',
   },

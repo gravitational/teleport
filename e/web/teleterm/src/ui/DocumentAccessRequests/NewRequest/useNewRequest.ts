@@ -9,6 +9,7 @@ import {
   makeDatabase,
   makeServer,
   makeKube,
+  makeApp,
 } from 'teleterm/ui/services/clusters';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
@@ -24,6 +25,7 @@ import type {
   ResourceIdKind,
   UnifiedResource,
 } from 'teleport/services/agents';
+import type * as teleportApps from 'teleport/services/apps';
 
 const pageSize = 10;
 
@@ -66,6 +68,29 @@ export default function useNewRequest() {
         return makeDatabase(source);
       case 'kube_cluster':
         return makeKube(source);
+      case 'app': {
+        const app: Pick<
+          teleportApps.App,
+          'name' | 'labels' | 'description' | 'userGroups' | 'addrWithProtocol'
+        > = {
+          ...makeApp(source),
+          description: source.desc,
+          labels: source.labelsList,
+          //TODO(gzdunek): Enable requesting apps via user groups in Connect.
+          // To make this work, we need
+          // to fetch user groups while fetching the apps
+          // and then return them for appropriate resources.
+          // See how it was done in web/apps.go
+          //
+          // Additionally, to make this feature complete,
+          // I think we should also add a tab for requesting the user groups.
+          // For that, we would have to add a new RPC that lists them.
+          //
+          // https://github.com/gravitational/teleport.e/issues/3162
+          userGroups: [],
+        };
+        return app;
+      }
       default:
         return source;
     }
@@ -91,6 +116,8 @@ export default function useNewRequest() {
         return retry(() => ctx.resourcesService.fetchDatabases(params));
       case 'kube_cluster':
         return retry(() => ctx.resourcesService.fetchKubes(params));
+      case 'app':
+        return retry(() => ctx.resourcesService.fetchApps(params));
       default: {
         throw new Error(`Fetch not implemented for: ${selectedResource}`);
       }
