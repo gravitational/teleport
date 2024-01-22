@@ -51,6 +51,6 @@ export const Permissions = () => (
 );
 
 const props: FlowStepProps = {
-  nextStep: () => { },
-  prevStep: () => { },
+  nextStep: () => {},
+  prevStep: () => {},
 };

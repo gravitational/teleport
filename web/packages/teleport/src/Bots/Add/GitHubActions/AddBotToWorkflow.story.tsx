@@ -51,6 +51,6 @@ export const AddBot = () => (
 );
 
 const props: FlowStepProps = {
-  nextStep: () => { },
-  prevStep: () => { },
+  nextStep: () => {},
+  prevStep: () => {},
 };

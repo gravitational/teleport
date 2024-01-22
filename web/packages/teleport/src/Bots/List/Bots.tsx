@@ -17,6 +17,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { Alert, Box, ButtonPrimary, Indicator } from 'design';
 
@@ -30,6 +31,7 @@ import {
 import { FlatBot } from 'teleport/Bots/types';
 import { BotList } from 'teleport/Bots/List/BotList';
 import { fetchBots } from 'teleport/services/bot/bot';
+import cfg from 'teleport/config';
 
 export function Bots() {
   const [bots, setBots] = useState<FlatBot[]>();
@@ -53,7 +55,12 @@ export function Bots() {
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Bots</FeatureHeaderTitle>
-        <ButtonPrimary ml="auto" width="240px" disabled>
+        <ButtonPrimary
+          ml="auto"
+          width="240px"
+          as={Link}
+          to={cfg.getBotsNewRoute()}
+        >
           Enroll New Bot
         </ButtonPrimary>
       </FeatureHeader>

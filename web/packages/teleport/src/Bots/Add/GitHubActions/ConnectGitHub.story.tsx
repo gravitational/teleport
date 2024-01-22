@@ -51,6 +51,6 @@ export const RepoRules = () => (
 );
 
 const props: FlowStepProps = {
-  nextStep: () => { },
-  prevStep: () => { },
+  nextStep: () => {},
+  prevStep: () => {},
 };

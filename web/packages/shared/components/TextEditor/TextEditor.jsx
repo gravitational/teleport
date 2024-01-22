@@ -17,11 +17,18 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
 import ace from 'ace-builds/src-min-noconflict/ace';
 
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-yaml';
 import 'ace-builds/src-noconflict/ext-searchbox';
+import { ButtonSecondary } from 'design/Button';
+import Flex from 'design/Flex';
+import { Copy, Download } from 'design/Icon';
+import { copyToClipboard } from 'design/utils/copyToClipboard';
+import { downloadObject } from 'e-teleport/services/downloads';
+
 import StyledTextEditor from './StyledTextEditor';
 
 const { UndoManager } = ace.require('ace/undomanager');
@@ -104,9 +111,33 @@ class TextEditor extends React.Component {
 
   render() {
     const { bg = 'levels.sunken' } = this.props;
+    const hasButton = this.props.copyButton || this.props.downloadButton;
     return (
       <StyledTextEditor bg={bg}>
         <div ref={e => (this.ace_viewer = e)} />
+        {hasButton && (
+          <ButtonSection>
+            {this.props.copyButton && (
+              <EditorButton
+                onClick={() => copyToClipboard(this.editor.session.getValue())}
+              >
+                <Copy />
+              </EditorButton>
+            )}
+            {this.props.downloadButton && (
+              <EditorButton
+                onClick={() =>
+                  downloadObject(
+                    this.props.downloadFileName,
+                    this.editor.session.getValue()
+                  )
+                }
+              >
+                <Download />
+              </EditorButton>
+            )}
+          </ButtonSection>
+        )}
       </StyledTextEditor>
     );
   }
@@ -121,3 +152,14 @@ function getMode(docType) {
 
   return 'ace/mode/yaml';
 }
+
+const EditorButton = styled(ButtonSecondary)`
+  padding: 12px;
+  background-color: transparent;
+`;
+
+const ButtonSection = styled(Flex)`
+  position: absolute;
+  right: 24px;
+  top: 24px;
+`;

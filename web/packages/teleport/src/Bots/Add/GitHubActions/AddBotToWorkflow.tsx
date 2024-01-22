@@ -32,7 +32,7 @@ import { FlowStepProps } from '../Shared/GuidedFlow';
 import { useGitHubFlow } from './useGitHubFlow';
 
 export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
-  const { tokenName } = useGitHubFlow();
+  const { tokenName, createBotRequest } = useGitHubFlow();
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
@@ -52,11 +52,14 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
         an example GitHub Actions workflow doc to help you get started. You can
         find this again from the machine user’s options dropdown
       </Text>
-      <Flex flex="1" height="630px" mb="3">
+      <Flex flex="1" height="630px" maxWidth="840px" mb="3">
         <TextEditor
           readOnly={true}
           bg="levels.deep"
           data={[{ content: yaml, type: 'yaml' }]}
+          copyButton={true}
+          downloadButton={true}
+          downloadFileName={`${createBotRequest.botName}-githubactions.yaml`}
         />
       </Flex>
       <FlowButtons
