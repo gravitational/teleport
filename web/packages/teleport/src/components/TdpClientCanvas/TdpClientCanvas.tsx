@@ -98,6 +98,29 @@ function TdpClientCanvas(props: Props) {
   }, [client, clientOnPngFrame]);
 
   useEffect(() => {
+    if (client) {
+      const canvas = canvasRef.current;
+      const updatePointer = (pointer: {data: ImageData, hotspot_x: number, hotspot_y: number}) => {
+        if (pointer.data === undefined) {
+          canvas.style.cursor = "none";
+          return;
+        }
+        const cursor = canvas.ownerDocument.createElement("canvas");
+        cursor.width = pointer.data.width;
+        cursor.height = pointer.data.height;
+        cursor.getContext('2d').putImageData(pointer.data, 0, 0);
+        canvas.style.cursor = "url(" + cursor.toDataURL() + ") " + pointer.hotspot_x + " " + pointer.hotspot_y + ", auto";
+      };
+
+      client.on(TdpClientEvent.POINTER, updatePointer);
+
+      return () => {
+        client.removeListener(TdpClientEvent.POINTER, updatePointer);
+      };
+    }
+  }, [client]);
+
+  useEffect(() => {
     if (client && clientOnBmpFrame) {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');

@@ -162,7 +162,7 @@ impl FastPathProcessor {
                 user_channel_id,
                 // These should be set to the same values as they're set to in the
                 // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
-                no_server_pointer: true,
+                no_server_pointer: false,
                 pointer_software_rendering: false,
             }
             .build(),
@@ -184,6 +184,7 @@ impl FastPathProcessor {
         cb_context: &JsValue,
         draw_cb: &js_sys::Function,
         respond_cb: &js_sys::Function,
+        update_pointer_cb: &js_sys::Function,
     ) -> Result<(), JsValue> {
         self.check_remote_fx(tdp_fast_path_frame)?;
 
@@ -211,12 +212,17 @@ impl FastPathProcessor {
                     UpdateKind::Region(region) => {
                         outputs.push(ActiveStageOutput::GraphicsUpdate(region));
                     }
-                    UpdateKind::PointerDefault
-                    | UpdateKind::PointerHidden
-                    | UpdateKind::PointerPosition { .. }
-                    | UpdateKind::PointerBitmap(_) => {
-                        warn!("Pointer updates are not supported");
-                        continue;
+                    UpdateKind::PointerDefault => {
+                        outputs.push(ActiveStageOutput::PointerDefault);
+                    }
+                    UpdateKind::PointerHidden => {
+                        outputs.push(ActiveStageOutput::PointerHidden);
+                    }
+                    UpdateKind::PointerPosition { x, y } => {
+                        outputs.push(ActiveStageOutput::PointerPosition { x: x, y: y });
+                    }
+                    UpdateKind::PointerBitmap(pointer) => {
+                        outputs.push(ActiveStageOutput::PointerBitmap(pointer))
                     }
                 }
             }
@@ -239,6 +245,27 @@ impl FastPathProcessor {
                 }
                 ActiveStageOutput::Terminate => {
                     return Err(JsValue::from_str("Terminate should never be returned"));
+                }
+                ActiveStageOutput::PointerBitmap(pointer) => {
+                    let data = &pointer.bitmap_data;
+                    let image_data = create_image_data_from_image_and_region(
+                        data,
+                        InclusiveRectangle {
+                            left: 0,
+                            top: 0,
+                            right: pointer.width - 1,
+                            bottom: pointer.height - 1,
+                        },
+                    )?;
+                    update_pointer_cb.call3(
+                        cb_context,
+                        &JsValue::from(image_data),
+                        &JsValue::from(pointer.hotspot_x),
+                        &JsValue::from(pointer.hotspot_y),
+                    )?;
+                }
+                ActiveStageOutput::PointerHidden => {
+                    update_pointer_cb.call0(cb_context)?;
                 }
                 _ => {
                     debug!("Unhandled ActiveStageOutput: {:?}", output);

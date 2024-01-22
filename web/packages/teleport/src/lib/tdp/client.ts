@@ -73,6 +73,7 @@ export enum TdpClientEvent {
   WS_OPEN = 'ws open',
   WS_CLOSE = 'ws close',
   RESET = 'reset',
+  POINTER = 'pointer',
 }
 
 export enum LogType {
@@ -347,6 +348,9 @@ export default class Client extends EventEmitterWebAuthnSender {
         },
         (responseFrame: ArrayBuffer) => {
           this.sendRDPResponsePDU(responseFrame);
+        },
+        (data: ImageData, hotspot_x: number, hotspot_y: number) => {
+          this.emit(TdpClientEvent.POINTER, {data, hotspot_x, hotspot_y});
         }
       );
     } catch (e) {
