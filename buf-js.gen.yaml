@@ -18,4 +18,5 @@ plugins:
   - name: ts
     strategy: all
     out: gen/proto/js
+    path: /usr/local/lib/node_modules/grpc_tools_node_protoc_ts/bin/protoc-gen-ts
     opt: "service=grpc-node"
