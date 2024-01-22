@@ -117,7 +117,11 @@ type WorkloadIdentityService struct {
 }
 
 func (wis *WorkloadIdentityService) signX509SVID(
-	ctx context.Context, req *pb.SVIDRequest, clusterName string, ca *tlsca.CertAuthority,
+	ctx context.Context,
+	authCtx *authz.Context,
+	req *pb.SVIDRequest,
+	clusterName string,
+	ca *tlsca.CertAuthority,
 ) (*pb.SVIDResponse, error) {
 	// TODO: Authn/authz
 	// TODO: Ensure they can issue the IPs, SANs and SPIFFE ID
@@ -195,6 +199,11 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 		return nil, trace.BadParameter("svids: must be non-empty")
 	}
 
+	authCtx, err := wis.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Fetch info that will be needed for all SPIFFE SVIDs requested
 	clusterName, err := wis.cache.GetClusterName()
 	if err != nil {
@@ -219,7 +228,7 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	res := &pb.SignX509SVIDsResponse{}
 	for i, svidReq := range req.Svids {
 		svidRes, err := wis.signX509SVID(
-			ctx, svidReq, clusterName.GetClusterName(), tlsCA,
+			ctx, authCtx, svidReq, clusterName.GetClusterName(), tlsCA,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "signing svid %d", i)
