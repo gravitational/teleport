@@ -402,6 +402,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if fc.AccessGraph.Endpoint == "" {
 			return trace.BadParameter("Provide access_graph_service.addr configuration variable")
 		}
+		cfg.AccessGraph.Addr = fc.AccessGraph.Endpoint
+		cfg.AccessGraph.CA = fc.AccessGraph.CA
 
 		if fc.AccessGraph.SQLEnabled && fc.AccessGraph.SQLAddr == "" {
 			return trace.BadParameter("Provide access_graph_service.sql_addr configuration variable")
@@ -409,8 +411,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.AccessGraph.SQLEnabled = fc.AccessGraph.SQLEnabled
 		cfg.AccessGraph.SQLAddr = fc.AccessGraph.SQLAddr
 
-		cfg.AccessGraph.Addr = fc.AccessGraph.Endpoint
-		cfg.AccessGraph.CA = fc.AccessGraph.CA
 		// TODO(tigrato): change this behavior when we drop support for plain text connections
 		cfg.AccessGraph.Insecure = fc.AccessGraph.Insecure
 	}
@@ -1685,9 +1685,13 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 // applyDatabasesConfig applies file configuration for the "db_service" section.
 func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Databases.Enabled = true
-	proxyTAG, err := apiutils.ParseBool(fc.Databases.ProxyTAG)
-	if err != nil {
-		return trace.Wrap(err)
+	proxyTAG := false
+	if len(fc.Databases.ProxyTAG) > 0 {
+		var err error
+		proxyTAG, err = apiutils.ParseBool(fc.Databases.ProxyTAG)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	cfg.Databases.ProxyTAG = proxyTAG

@@ -1547,6 +1547,7 @@ type Databases struct {
 	// Service contains common service fields.
 	Service `yaml:",inline"`
 	// ProxyTAG enables proxying of the TAG SQL interface.
+	// This string should be parsed as a boolean.
 	ProxyTAG string `yaml:"proxy_tag,omitempty"`
 	// Databases is a list of databases proxied by the service.
 	Databases []*Database `yaml:"databases"`
