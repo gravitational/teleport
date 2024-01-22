@@ -692,7 +692,7 @@ func (a *awsFetcher) fetchGroupInlinePolicies(ctx context.Context, group *access
 					errCollect(trace.Wrap(err, "failed to fetch group %q inline policy %q", group.Name, *policyName))
 					continue
 				}
-				policies = append(policies, awsGroupPolicyToProtoGroupPolicy(policy, a.AccountID))
+				policies = append(policies, awsGroupPolicyToProtoGroupPolicy(policy, a.AccountID, group))
 			}
 			return !lastPage
 		},
@@ -701,11 +701,11 @@ func (a *awsFetcher) fetchGroupInlinePolicies(ctx context.Context, group *access
 	return policies, trace.Wrap(err)
 }
 
-func awsGroupPolicyToProtoGroupPolicy(policy *iam.GetGroupPolicyOutput, accountID string) *accessgraphv1alpha.AWSGroupInlinePolicyV1 {
+func awsGroupPolicyToProtoGroupPolicy(policy *iam.GetGroupPolicyOutput, accountID string, group *accessgraphv1alpha.AWSGroupV1) *accessgraphv1alpha.AWSGroupInlinePolicyV1 {
 	return &accessgraphv1alpha.AWSGroupInlinePolicyV1{
 		PolicyName:     aws.ToString(policy.PolicyName),
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
-		GroupName:      aws.ToString(policy.GroupName),
+		Group:          group,
 		AccountId:      accountID,
 	}
 }
