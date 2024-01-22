@@ -827,6 +827,10 @@ type AccessGraph struct {
 	Enabled bool `yaml:"enabled"`
 	// Endpoint is the endpoint of the AccessGraph service.
 	Endpoint string `yaml:"endpoint"`
+	// SQLEnabled is true if we should connect to the Access Graph service SQL interface.
+	SQLEnabled bool `yaml:"sql_enabled"`
+	// SQLAddr is the address of the Postgres interface optionally served by the access graph service.
+	SQLAddr string `yaml:"sql_addr"`
 	// CA is the path to the CA certificate for the AccessGraph service.
 	CA string `yaml:"ca"`
 	// Insecure is true if the AccessGraph service should not verify the CA.

@@ -316,6 +316,12 @@ type AccessGraphConfig struct {
 	// Addr of the Access Graph service addr
 	Addr string
 
+	// SQLEnabled is true if we should connect to the Access Graph service SQL interface.
+	SQLEnabled bool
+
+	// SQLAddr is the address of the Postgres interface optionally served by the access graph service.
+	SQLAddr string
+
 	// CA is the path to the CA certificate file
 	CA string
 
