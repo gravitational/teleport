@@ -19,6 +19,9 @@
 package sshutils
 
 import (
+	"net"
+	"strconv"
+
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -68,4 +71,8 @@ func ParseTCPIPForwardReq(data []byte) (*TCPIPForwardReq, error) {
 type CancelTCPIPForwardReq struct {
 	Addr string
 	Port uint32
+}
+
+func (req *TCPIPForwardReq) ListenAddr() string {
+	return net.JoinHostPort(req.Addr, strconv.Itoa(int(req.Port)))
 }

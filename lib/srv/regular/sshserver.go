@@ -22,6 +22,7 @@ package regular
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -77,6 +78,12 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentNode,
 })
+
+type remoteForwardingContext struct {
+	ctx      context.Context
+	scx      *srv.ServerContext
+	listener net.Listener
+}
 
 // Server implements SSH server that uses configuration backend and
 // certificate-based authentication
@@ -242,6 +249,8 @@ type Server struct {
 	proxySigner PROXYHeaderSigner
 	// caGetter is used to get host CA of the cluster to verify signed PROXY headers
 	caGetter CertAuthorityGetter
+
+	remoteForwardingMap utils.SyncMap[string, remoteForwardingContext]
 }
 
 // TargetMetadata returns metadata about the server.
@@ -1240,8 +1249,14 @@ func (s *Server) getTCPIPForwardListener(sctx *srv.ServerContext, addr string) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// The forwarding process may have chosen its own port, so we need to get the
+	// new listen addr.
+	var addrBuf []byte
+	if _, _, err = conn.ReadWithFDs(addrBuf, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &remoteForwardingListener{
-		addr: addr,
+		addr: string(addrBuf),
 		conn: conn,
 	}, nil
 }
@@ -1383,7 +1398,23 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 			}
 		}
 	case teleport.TCPIPForwardRequest:
-		s.handleTCPIPForwardRequest(ctx, r)
+		if err := s.handleTCPIPForwardRequest(ctx, ccx, r); err != nil {
+			s.Logger.WithError(err).Warn("failed to handle tcpip forward request")
+			if r.WantReply {
+				if err := r.Reply(false, nil); err != nil {
+					s.Logger.Warnf("Failed to reply to %q request: %v", r.Type, err)
+				}
+			}
+		}
+	case teleport.CancelTCPIPForwardRequest:
+		if err := s.handleCancelTCPIPForwardRequest(ctx, ccx, r); err != nil {
+			s.Logger.WithError(err).Warn("failed to handle cancel tcpip forward request")
+			if r.WantReply {
+				if err := r.Reply(false, nil); err != nil {
+					s.Logger.Warnf("Failed to reply to %q request: %v", r.Type, err)
+				}
+			}
+		}
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {
@@ -1537,12 +1568,13 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 // canPortForward determines if port forwarding is allowed for the current
 // user/role/node combo. Returns nil if port forwarding is allowed, non-nil
 // if denied.
-func (s *Server) canPortForward(scx *srv.ServerContext, channel ssh.Channel) error {
+func (s *Server) canPortForward(scx *srv.ServerContext) error {
 	// Is the node configured to allow port forwarding?
 	if !s.allowTCPForwarding {
 		return trace.AccessDenied("node does not allow port forwarding")
 	}
 
+	// TODO fix this, both addrs are populated for remote port forwarding
 	// Check if the role allows port forwarding for this user.
 	remoteAddr := scx.DstAddr
 	if remoteAddr == "" {
@@ -1593,7 +1625,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 
 	// Bail out now if TCP port forwarding is not allowed for this node/user/role
 	// combo
-	if err = s.canPortForward(scx, channel); err != nil {
+	if err = s.canPortForward(scx); err != nil {
 		writeStderr(channel, err.Error())
 		return
 	}
@@ -2245,12 +2277,94 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	}
 }
 
-func (s *Server) handleTCPIPForwardRequest(ctx context.Context, r *ssh.Request) {
-	// req, err := sshutils.ParseTCPIPForwardRequest(r.Payload)
-	// if err != nil {
-	// 	s.Logger.WithError(err).Error("Unable to parse tcpip-forward request.")
-	// 	return
-	// }
+func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.ConnectionContext, r *ssh.Request) error {
+	req, err := sshutils.ParseTCPIPForwardRequest(r.Payload)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	identityContext, err := s.authHandlers.CreateIdentityContext(ccx.ServerConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Create context for this request. This context will be closed when the
+	// client cancels remote forwarding.
+	ctx, scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	scx.IsTestStub = s.isTestStub
+	scx.ChannelType = teleport.TCPIPForwardRequest
+
+	listener, err := s.getTCPIPForwardListener(scx, req.ListenAddr())
+	if err != nil {
+		scx.Close()
+		return trace.Wrap(err)
+	}
+	scx.AddCloser(listener)
+	scx.SrcAddr = listener.Addr().String()
+	scx.DstAddr = ccx.NetConn.RemoteAddr().String()
+
+	if err := s.canPortForward(scx); err != nil {
+		scx.Close()
+		return trace.Wrap(err)
+	}
+
+	// Save context and listener.
+	fwdCtx := remoteForwardingContext{
+		ctx:      ctx,
+		scx:      scx,
+		listener: listener,
+	}
+	s.remoteForwardingMap.Store(scx.SrcAddr, fwdCtx)
+
+	// Report addr back to the client.
+	if r.WantReply {
+		_, port, err := net.SplitHostPort(listener.Addr().String())
+		if err != nil {
+			scx.Close()
+			return trace.Wrap(err)
+		}
+		portInt, err := strconv.Atoi(port)
+		if err != nil {
+			scx.Close()
+			return trace.Wrap(err)
+		}
+
+		buf := make([]byte, 0, 4)
+		binary.BigEndian.PutUint32(buf, uint32(portInt))
+		if err := r.Reply(true, buf); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	go s.handleRemoteListener(ctx, ccx, listener)
+
+	return nil
+}
+
+func (s *Server) handleRemoteListener(ctx context.Context, ccx *sshutils.ConnectionContext, l net.Listener) {
+
+}
+
+func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshutils.ConnectionContext, r *ssh.Request) error {
+	req, err := sshutils.ParseTCPIPForwardRequest(r.Payload)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	addr := req.ListenAddr()
+	// TODO should both load and delete be under a lock?
+	fwdCtx, ok := s.remoteForwardingMap.Load(addr)
+	if !ok {
+		return trace.NotFound("no remote forwarding listener at %v", addr)
+	}
+	if r.WantReply {
+		if err := r.Reply(true, nil); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	s.remoteForwardingMap.Delete(addr)
+	return trace.Wrap(fwdCtx.scx.Close())
 }
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
