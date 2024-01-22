@@ -116,37 +116,20 @@ type WorkloadIdentityService struct {
 	clock      clockwork.Clock
 }
 
-func (wis *WorkloadIdentityService) signX509SVID(ctx context.Context, req *pb.SVIDRequest) (*pb.SVIDResponse, error) {
+func (wis *WorkloadIdentityService) signX509SVID(
+	ctx context.Context, req *pb.SVIDRequest, clusterName string, ca *tlsca.CertAuthority,
+) (*pb.SVIDResponse, error) {
 	// TODO: Authn/authz
 	// TODO: Ensure they can issue the IPs, SANs and SPIFFE ID
 	// TODO: Validate req.SpiffeIDPath for any potential weirdness
 
-	clusterName, err := wis.cache.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	spiffeID := &url.URL{
 		Scheme: spiffeScheme,
-		Host:   clusterName.GetClusterName(),
+		Host:   clusterName,
 		Path:   req.SpiffeIdPath,
 	}
 
 	// Sign certificate
-	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: clusterName.GetClusterName(),
-	}, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsCert, tlsSigner, err := wis.keyStorer.GetTLSCertAndSigner(ctx, ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	ipSans := []net.IP{}
 	for _, stringIP := range req.IpSans {
@@ -191,7 +174,7 @@ func (wis *WorkloadIdentityService) signX509SVID(ctx context.Context, req *pb.SV
 	}
 
 	certBytes, err := x509.CreateCertificate(
-		rand.Reader, template, tlsCA.Cert, req.PublicKey, tlsCA.Signer,
+		rand.Reader, template, ca.Cert, req.PublicKey, ca.Signer,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -212,9 +195,32 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 		return nil, trace.BadParameter("svids: must be non-empty")
 	}
 
+	// Fetch info that will be needed for all SPIFFE SVIDs requested
+	clusterName, err := wis.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsCert, tlsSigner, err := wis.keyStorer.GetTLSCertAndSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	res := &pb.SignX509SVIDsResponse{}
 	for i, svidReq := range req.Svids {
-		svidRes, err := wis.signX509SVID(ctx, svidReq)
+		svidRes, err := wis.signX509SVID(
+			ctx, svidReq, clusterName.GetClusterName(), tlsCA,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err, "signing svid %d", i)
 		}
