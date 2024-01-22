@@ -190,7 +190,8 @@ allow:
 
 			roleName := validRandomResourceName("role-")
 
-			obj := resources.GetUnstructuredObjectFromGVK(resources.TeleportRoleGVKV5)
+			obj, err := resources.GetUnstructuredObjectFromGVK(resources.TeleportRoleGVKV5)
+			require.NoError(t, err)
 			obj.Object["spec"] = roleManifest
 			obj.SetName(roleName)
 			obj.SetNamespace(setup.Namespace.Name)

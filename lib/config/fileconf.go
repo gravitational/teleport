@@ -1524,19 +1524,6 @@ type RestrictedSession struct {
 	EventsBufferSize *int `yaml:"events_buffer_size,omitempty"`
 }
 
-// Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*servicecfg.RestrictedSessionConfig, error) {
-	enabled, err := apiutils.ParseBool(r.Enabled)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &servicecfg.RestrictedSessionConfig{
-		Enabled:          enabled,
-		EventsBufferSize: r.EventsBufferSize,
-	}, nil
-}
-
 // X11 is a configuration for X11 forwarding
 type X11 struct {
 	// Enabled controls whether X11 forwarding requests can be granted by the server.

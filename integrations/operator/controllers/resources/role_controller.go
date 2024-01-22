@@ -69,7 +69,10 @@ func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
 	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context.
 	// TODO: (Check how to handle multiple versions)
-	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
+	obj, err := GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
+	if err != nil {
+		return ctrl.Result{}, trace.Wrap(err, "creating object in which the CR will be unmarshalled")
+	}
 	return ResourceBaseReconciler{
 		Client:         r.Client,
 		DeleteExternal: r.Delete,
@@ -85,7 +88,11 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
 	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context
 	// TODO: (Check how to handle multiple versions)
-	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
+	obj, err := GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
+	if err != nil {
+		return trace.Wrap(err, "creating the model object for the manager watcher/client")
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(obj).
 		WithEventFilter(buildPredicate()).
@@ -184,8 +191,19 @@ func (r *RoleReconciler) AddTeleportResourceOrigin(resource types.Role) {
 	resource.SetMetadata(metadata)
 }
 
-func GetUnstructuredObjectFromGVK(gvk schema.GroupVersionKind) *unstructured.Unstructured {
+func GetUnstructuredObjectFromGVK(gvk schema.GroupVersionKind) (*unstructured.Unstructured, error) {
+	if gvk.Empty() {
+		return nil, trace.BadParameter("cannot create an object for an empty GVK, aborting")
+	}
 	obj := unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
-	return &obj
+	return &obj, nil
+}
+
+func NewRoleReconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+	return &RoleReconciler{
+		Client:         client,
+		Scheme:         Scheme,
+		TeleportClient: tClient,
+	}, nil
 }
