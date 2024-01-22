@@ -623,20 +623,16 @@ exports[`auth2faType: optional rendering 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -1160,20 +1156,16 @@ exports[`auth2faType: otp rendering 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -1710,20 +1702,16 @@ exports[`auth2faType: webauthn rendering 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -2321,20 +2309,16 @@ exports[`cloud auth2faType: on rendering 1`] = `
   display: none;
 }
 
-.c17 .react-select--is-disabled,
 .c17 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c17 .react-select--is-disabled .react-select__single-value,
 .c17 .react-select__control--is-disabled .react-select__single-value,
-.c17 .react-select--is-disabled .react-select__placeholder,
 .c17 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c17 .react-select--is-disabled .react-select__indicator,
 .c17 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
