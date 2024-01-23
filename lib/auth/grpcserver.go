@@ -5901,3 +5901,10 @@ func (g *GRPCServer) StreamUnstructuredSessionEventsServer(req *auditlogpb.Strea
 		}
 	}
 }
+
+// FetchAccessGraphSQLProxyInfo loads the local Access Graph configuration and returns appropriate information
+// to the database service.
+func (g *GRPCServer) FetchAccessGraphSQLProxyInfo(ctx context.Context, req *emptypb.Empty) (*authpb.AccessGraphSQLProxyInfo, error) {
+	// TODO(joel): implement this handler
+	return nil, nil
+}

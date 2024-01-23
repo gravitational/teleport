@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db"
@@ -47,7 +48,6 @@ func (process *TeleportProcess) initDatabases() {
 }
 
 func (process *TeleportProcess) initDatabaseService() (retErr error) {
-	// TODO(joel): fetch TAG config and register TAG DB
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 
@@ -84,6 +84,36 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			return trace.Wrap(err)
 		}
 		databases = append(databases, db)
+	}
+
+	// Conditionally add the proxy TAG database to the configuration.
+	if process.Config.Databases.ProxyTAG {
+		tagProxyInfo, err := conn.Client.FetchAccessGraphSQLProxyInfo(process.ExitContext())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if tagProxyInfo.Enabled {
+			log.Debug("TAG SQL is enabled, adding to database configuration.")
+			dbConfig := servicecfg.Database{
+				Name:     "Teleport Access Graph",
+				Protocol: types.DatabaseProtocolPostgreSQL,
+				URI:      tagProxyInfo.Addr,
+				TLS: servicecfg.DatabaseTLS{
+					Mode:   servicecfg.VerifyCA,
+					CACert: tagProxyInfo.CA,
+				},
+			}
+
+			db, err := dbConfig.ToDatabase()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			databases = append(databases, db)
+		} else {
+			log.Warn("TAG SQL is not enabled, but 'proxy_tag' is set to 'true'.")
+		}
 	}
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{

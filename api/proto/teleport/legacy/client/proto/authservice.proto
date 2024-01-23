@@ -2544,6 +2544,19 @@ message AccessRequestAllowedPromotionResponse {
   types.AccessRequestAllowedPromotions allowedPromotions = 1;
 }
 
+// AccessGraphSQLProxyInfo represents info given to database services that want to proxy the TAG SQL interface.
+message AccessGraphSQLProxyInfo {
+  // Enabled indicates whether proxying should be done.
+  bool Enabled = 1;
+
+  // Addr is the address where the database service can reach the TAG SQL proxy.
+  // Should be a host:port pair or otherwise valid network address.
+  string Addr = 2;
+
+  // CA is the CA that database service should use to verify the TAG service certificate.
+  bytes CA = 3;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -3321,4 +3334,7 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // FetchAccessGraphSQLProxyInfo fetches the Access Graph SQL proxy info from the auth server.
+  rpc FetchAccessGraphSQLProxyInfo(google.protobuf.Empty) returns (AccessGraphSQLProxyInfo);
 }
