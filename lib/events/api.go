@@ -716,6 +716,9 @@ const (
 	// ExternalAuditStorageDisableEvent is emitted when External Audit Storage is
 	// disabled.
 	ExternalAuditStorageDisableEvent = "external_audit_storage.disable"
+
+	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
+	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
 )
 
 const (

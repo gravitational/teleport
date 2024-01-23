@@ -27,6 +27,7 @@ export const eventGroupTypes = {
   sftp: 'SFTP',
   subsystem: 'Subsystem Request',
   'user.login': 'User Logins',
+  'spiffe.svid.issued': 'SPIFFE SVID Issuance',
 };
 
 /**
@@ -272,6 +273,8 @@ export const eventCodes = {
   SECURITY_REPORT_RUN: 'SRE002I',
   EXTERNAL_AUDIT_STORAGE_ENABLE: 'TEA001I',
   EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
+  SPIFFE_SVID_ISSUED: 'TSPIFFE000I',
+  SPIFFE_SVID_ISSUED_FAILURE: 'TSPIFFE000E',
 } as const;
 
 /**
@@ -1484,6 +1487,18 @@ export type RawEvents = {
     {
       updated_by: string;
     }
+  >;
+  [eventCodes.SPIFFE_SVID_ISSUED]: RawEvent<
+      typeof eventCodes.SPIFFE_SVID_ISSUED,
+      {
+        spiffe_id: string;
+      }
+  >;
+  [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: RawEvent<
+      typeof eventCodes.SPIFFE_SVID_ISSUED_FAILURE,
+      {
+        spiffe_id: string;
+      }
   >;
 };
 

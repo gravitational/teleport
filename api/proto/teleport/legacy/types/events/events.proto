@@ -3715,6 +3715,41 @@ message DeviceEvent2 {
   ];
 }
 
+// SPIFFESVIDIssued is an event recorded when a SPIFFE SVID is issued.
+message SPIFFESVIDIssued {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SPIFFEID is the SPIFFE ID of the issued SVID
+  string SPIFFEID = 4 [(gogoproto.jsontag) = "spiffe_id"];
+  // DNSSANs is the list of DNS SANs in the issued SVID
+  repeated string DNSSANs = 5 [(gogoproto.jsontag) = "dns_sans"];
+  // IPSANs is the list of IP SANs in the issued SVID
+  repeated string IPSSANs = 6 [(gogoproto.jsontag) = "ip_sans"];
+  // SVIDType is `jwt` or `x509
+  string SVIDType = 7 [(gogoproto.jsontag) = "svid_type"];
+  // SerialNumber is the serial number of the issued SVID
+  string SerialNumber = 8 [(gogoproto.jsontag) = "serial_number"];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
   // Event is one of the audit events
@@ -3863,6 +3898,7 @@ message OneOf {
     events.BotCreate BotCreate = 143;
     events.BotDelete BotDelete = 144;
     events.BotUpdate BotUpdate = 145;
+    events.SPIFFESVIDIssued SPIFFESVIDIssued = 146;
   }
 }
 
