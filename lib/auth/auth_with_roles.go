@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -2824,12 +2825,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
-		dev, _, err := a.authServer.ValidateMFAAuthResponse(
-			ctx, req.GetMFAResponse(), req.Username, false /* passwordless */)
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, req.GetMFAResponse(), req.Username, requiredExt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		verifiedMFADeviceID = dev.Id
+		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
@@ -6823,13 +6824,14 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		mfaDevice, _, err := a.authServer.ValidateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN}
+		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, requiredExt)
 		if err != nil {
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return trace.Wrap(err)
 		}
 
-		replaceHeadlessAuthn.MfaDevice = mfaDevice
+		replaceHeadlessAuthn.MfaDevice = mfaData.Device
 		eventCode = events.UserHeadlessLoginApprovedCode
 	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
 		eventCode = events.UserHeadlessLoginRejectedCode
