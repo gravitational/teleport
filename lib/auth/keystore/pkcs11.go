@@ -117,7 +117,7 @@ func (p *pkcs11KeyStore) findUnusedID() (keyID, error) {
 	// https://developers.yubico.com/YubiHSM2/Concepts/Object_ID.html
 	for id := uint16(1); id < 0xffff; id++ {
 		idBytes := []byte{byte((id >> 8) & 0xff), byte(id & 0xff)}
-		existingSigner, err := p.ctx.FindKeyPair(idBytes, []byte(p.hostUUID))
+		existingSigner, err := p.ctx.FindKeyPair(idBytes, nil /*label*/)
 		// FindKeyPair is expected to return nil, nil if the id is not found,
 		// any error is unexpected.
 		if err != nil {
