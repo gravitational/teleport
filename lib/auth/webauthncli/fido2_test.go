@@ -2091,11 +2091,19 @@ func (f *fakeFIDO2Device) setUP() {
 	f.cond.Broadcast()
 }
 
+func (f *fakeFIDO2Device) IsFIDO2() (bool, error) {
+	return !f.u2fOnly, nil
+}
+
 func (f *fakeFIDO2Device) Cancel() error {
 	f.cond.L.Lock()
 	f.cancel = true
 	f.cond.L.Unlock()
 	f.cond.Broadcast()
+	return nil
+}
+
+func (f *fakeFIDO2Device) Close() error {
 	return nil
 }
 

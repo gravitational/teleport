@@ -60,8 +60,14 @@ type FIDODevice interface {
 	// Info mirrors libfido2.Device.Info.
 	Info() (*libfido2.DeviceInfo, error)
 
+	// IsFIDO2 mirrors libfido2.Device.IsFIDO2.
+	IsFIDO2() (bool, error)
+
 	// Cancel mirrors libfido2.Device.Cancel.
 	Cancel() error
+
+	// Close mirrors libfido2.Device.Close.
+	Close() error
 
 	// MakeCredential mirrors libfido2.Device.MakeCredential.
 	MakeCredential(
