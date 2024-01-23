@@ -71,6 +71,29 @@ RUN git clone --depth=1 https://github.com/git/git.git -b v2.42.0 && \
     make -j"$(nproc)" all && \
     DESTDIR=/opt/git make install"
 
+## NINJA-BUILD ###################################################################
+
+## ninja-build is required for building boringssl. The version included in CentOS 7 AMR64
+## is too old, so we need to build it from source.
+FROM --platform=$BUILDPLATFORM base AS ninja-build
+
+# Install additional required dependencies.
+RUN  yum install -y expat-devel \
+     gettext \
+     libcurl-devel \
+     openssl-devel \
+     pcre-devel \
+     xmlto \
+     zlib-devel \
+     && yum clean all
+
+RUN git clone --depth=1 https://github.com/ninja-build/ninja.git -b v1.11.1 && \
+        cd ninja && \
+        [ "$(git rev-parse HEAD)" = 'a524bf3f6bacd1b4ad85d719eed2737d8562f27a' ] && \
+        scl enable ${DEVTOOLSET} "cmake -Bbuild-cmake && \
+    cmake --build build-cmake -j"$(nproc)" && \
+    cmake --build build-cmake --target  install"
+
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
@@ -222,6 +245,7 @@ RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
 
 # Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
 COPY --from=git2 /opt/git /
+COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Install Go.
 ARG GOLANG_VERSION
