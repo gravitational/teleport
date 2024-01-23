@@ -49,6 +49,10 @@ const (
 	// goroutine.
 	fido2DeviceMaxWait = 100 * time.Millisecond
 
+	// Timeout for blocking operations.
+	// Functions fail with FIDO_ERR_RX on timeout.
+	fido2DeviceTimeout = 30 * time.Second
+
 	// Operation retry interval.
 	// Keep it less frequent than 2Hz / 0.5s.
 	fido2RetryInterval = 500 * time.Millisecond
@@ -83,6 +87,9 @@ type FIDODevice interface {
 
 	// Close mirrors libfido2.Device.Close.
 	Close() error
+
+	// SetTimeout mirrors libfido2.Device.SetTimeout.
+	SetTimeout(d time.Duration) error
 
 	// MakeCredential mirrors libfido2.Device.MakeCredential.
 	MakeCredential(
@@ -756,6 +763,10 @@ func handleDevice(
 		err := dev.Close()
 		log.Debugf("FIDO2: Close device %v, err=%v", path, err)
 	}()
+
+	if err := dev.SetTimeout(fido2DeviceTimeout); err != nil {
+		return trace.Wrap(&nonInteractiveError{err})
+	}
 
 	// Gather device information.
 	var info *libfido2.DeviceInfo
