@@ -87,9 +87,11 @@ RUN  yum install -y expat-devel \
      zlib-devel \
      && yum clean all
 
-RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64" else export BUILDARCH = "x86_64"; fi && \
-    curl -fsSL https://github.com/Kitware/CMake/releases/download/v3.28.1/cmake-3.28.1-linux-${BUILDARCH}.tar.gz | tar xz && \
-    mv cmake-3.28.1-linux-${BUILDARCH} /opt/cmake
+# mno-outline-atomics flag is needed to make the build works on ARM64 docker.
+RUN git clone --depth=1 https://github.com/Kitware/CMake.git -b v3.28.1 && \
+    cd CMake && \
+    [ "$(git rev-parse HEAD)" = '1eed682d7cca9bb2c2b0709a6c3202a3b08613b2' ] && \
+    scl enable ${DEVTOOLSET} "CFLAGS=-mno-outline-atomics ./bootstrap --parallel="$(nproc)" && make -j"$(nproc)" && make install"
 
 ENV PATH="/opt/cmake/bin:$PATH"
 
