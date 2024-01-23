@@ -4497,12 +4497,3 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
 	return resourceusagepb.NewResourceUsageServiceClient(c.conn)
 }
-
-// FetchAccessGraphSQLProxyInfo fetches the Access Graph SQL proxy info from the auth server.
-func (c *Client) FetchAccessGraphSQLProxyInfo(ctx context.Context) (*proto.AccessGraphSQLProxyInfo, error) {
-	resp, err := c.grpc.FetchAccessGraphSQLProxyInfo(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
