@@ -231,8 +231,6 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 RUN yum install -y \
     elfutils-libelf-devel \
     net-tools \
-    # required by boringssl
-    ninja-build \
     # required by Teleport PAM support
     pam-devel \
     perl-IPC-Cmd \
@@ -253,7 +251,6 @@ RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
 
 # Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
 COPY --from=git2 /opt/git /
-COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -339,6 +336,8 @@ COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy the pre-built CentOS 7 assets with clang. Needed to build BoringSSL and BPF tools.
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
+# Bring in our custom ninja build, needed for BorinSSL.
+COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Libclang is needed by boring-rs to generate bindings. libclang is kept in /opt/llvm/lib
 # and without this environment variable, boring-rs will not be able to find it.
