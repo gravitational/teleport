@@ -164,7 +164,7 @@ func fido2Login(
 	pathToRPID := &sync.Map{} // map[string]string
 	filter := func(dev FIDODevice, info *deviceInfo) error {
 		switch {
-		case info.u2f && (uv || passwordless):
+		case !info.fido2 && (uv || passwordless):
 			return errPasswordlessU2F
 		case passwordless && (!info.uvCapable() || !info.rk):
 			return errNoPasswordless
@@ -416,7 +416,7 @@ func fido2Register(
 
 	filter := func(dev FIDODevice, info *deviceInfo) error {
 		switch {
-		case info.u2f && (rrk || uv):
+		case !info.fido2 && (rrk || uv):
 			return errPasswordlessU2F
 		case plat && !info.plat:
 			return errNoPlatform
@@ -773,7 +773,7 @@ func handleDevice(
 	} else {
 		log.Debugf("FIDO2: Device %v: not a FIDO2 device", path)
 	}
-	di := makeDevInfo(path, info, !isFIDO2)
+	di := makeDevInfo(path, info, isFIDO2)
 
 	// Apply initial filters, waiting for confirmation if the filter fails before
 	// relaying the error.
@@ -997,7 +997,7 @@ func withInteractiveError(filter deviceFilterFunc, cb pinAwareCallbackFunc) pinA
 		// U2F devices tend to cause problems with the waitForTouch strategy below,
 		// so we filter them silently, as we used to do with all devices in previous
 		// versions.
-		if info.u2f {
+		if !info.fido2 {
 			log.Warnf("FIDO2: Device %v: U2F device filtered due to lack of capabilities", info.path)
 			return false, &nonInteractiveError{filterErr}
 		}
@@ -1179,7 +1179,7 @@ func findDevices(knownPaths map[string]struct{}) ([]*deviceWithInfo, error) {
 
 		devs = append(devs, &deviceWithInfo{
 			FIDODevice: dev,
-			info:       makeDevInfo(path, info, u2f),
+			info:       makeDevInfo(path, info, !u2f),
 		})
 	}
 
@@ -1235,7 +1235,7 @@ func selectDevice(
 // https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#authenticatorGetInfo.
 type deviceInfo struct {
 	path                           string
-	u2f                            bool
+	fido2                          bool
 	plat                           bool
 	rk                             bool
 	clientPinCapable, clientPinSet bool
@@ -1248,15 +1248,14 @@ func (di *deviceInfo) uvCapable() bool {
 	return di.uv || di.clientPinSet
 }
 
-func makeDevInfo(path string, info *libfido2.DeviceInfo, u2f bool) *deviceInfo {
+func makeDevInfo(path string, info *libfido2.DeviceInfo, fido2 bool) *deviceInfo {
 	di := &deviceInfo{
-		path: path,
-		// TODO(codingllama): Invert U2F to isFIDO2.
-		u2f: u2f,
+		path:  path,
+		fido2: fido2,
 	}
 
 	// U2F devices don't respond to dev.Info().
-	if u2f {
+	if !fido2 {
 		return di
 	}
 
