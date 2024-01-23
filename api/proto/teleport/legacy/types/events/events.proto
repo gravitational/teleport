@@ -3743,11 +3743,13 @@ message SPIFFESVIDIssued {
   // DNSSANs is the list of DNS SANs in the issued SVID
   repeated string DNSSANs = 5 [(gogoproto.jsontag) = "dns_sans"];
   // IPSANs is the list of IP SANs in the issued SVID
-  repeated string IPSSANs = 6 [(gogoproto.jsontag) = "ip_sans"];
+  repeated string IPSANs = 6 [(gogoproto.jsontag) = "ip_sans"];
   // SVIDType is `jwt` or `x509
   string SVIDType = 7 [(gogoproto.jsontag) = "svid_type"];
   // SerialNumber is the serial number of the issued SVID
   string SerialNumber = 8 [(gogoproto.jsontag) = "serial_number"];
+  // Hint is the hint of the issued SVID
+  string Hint = 9 [(gogoproto.jsontag) = "hint"];
 }
 
 // OneOf is a union of one of audit events submitted to the auth service

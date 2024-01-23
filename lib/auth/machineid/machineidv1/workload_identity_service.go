@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -124,11 +125,11 @@ func signx509SVID(
 	spiffeID *url.URL,
 	dnsSANs []string,
 	ipSANS []net.IP,
-) ([]byte, error) {
+) (pemBytes []byte, serialNumber *big.Int, err error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	serialNumber, err = rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
@@ -165,11 +166,10 @@ func signx509SVID(
 		rand.Reader, template, ca.Cert, publicKey, ca.Signer,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
 
-	return pemBytes, nil
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes}), serialNumber, nil
 }
 
 func (wis *WorkloadIdentityService) signX509SVID(
@@ -178,12 +178,40 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	req *pb.SVIDRequest,
 	clusterName string,
 	ca *tlsca.CertAuthority,
-) (*pb.SVIDResponse, error) {
+) (res *pb.SVIDResponse, err error) {
+	var serialNumber *big.Int
+	var spiffeID *url.URL
+	defer func() {
+		evt := &apievents.SPIFFESVIDIssued{
+			Metadata: apievents.Metadata{
+				Type: events.SPIFFESVIDIssuedEvent,
+				Code: events.SPIFFESVIDIssuedSuccessCode,
+			},
+			UserMetadata:       authz.ClientUserMetadata(ctx),
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			SPIFFEID:           req.SpiffeIdPath,
+			Hint:               req.Hint,
+			SVIDType:           "x509",
+			DNSSANs:            req.DnsSans,
+			IPSANs:             req.IpSans,
+		}
+		if err != nil {
+			evt.Code = events.SPIFFESVIDIssuedFailureCode
+		}
+		if serialNumber != nil {
+			evt.SerialNumber = serialNumber.String()
+		}
+		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
+			wis.logger.WithError(emitErr).Warn(
+				"Failed to emit SPIFFE SVID issued event.",
+			)
+		}
+	}()
 	// TODO: Authn/authz
 	// TODO: Ensure they can issue the IPs, SANs and SPIFFE ID
 	// TODO: Validate req.SpiffeIDPath for any potential weirdness
 
-	spiffeID := &url.URL{
+	spiffeID = &url.URL{
 		Scheme: spiffeScheme,
 		Host:   clusterName,
 		Path:   req.SpiffeIdPath,
@@ -200,13 +228,13 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	// TODO: Source TTL from req and enforce DefaultRenewableCertTTL as the
 	// limit in rbac???
 
-	pemBytes, err := signx509SVID(
+	var pemBytes []byte
+	pemBytes, serialNumber, err = signx509SVID(
 		notBefore, notAfter, ca, req.PublicKey, spiffeID, req.DnsSans, ipSans,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO: Audit and analytics event
 
 	return &pb.SVIDResponse{
 		SpiffeId:    spiffeID.String(),
