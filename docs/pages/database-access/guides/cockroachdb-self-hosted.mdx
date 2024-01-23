@@ -23,6 +23,14 @@ description: How to configure Teleport database access with self-hosted Cockroac
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
   Service.
 - (!docs/pages/includes/tctl.mdx!)
+- A certificate authority to issue CockroachDB certificates for nodes in your 
+  CockroachDB cluster.
+  Teleport uses a split CA architecture for database access, and requires that
+  you create your own CA for node-to-node mTLS communication.
+  See [cockroach cert](https://www.cockroachlabs.com/docs/stable/cockroach-cert)
+  for instructions on creating a CA and issuing a client certificate and key
+  for each node. The certificate and key should be named `client.node.crt` and 
+  `client.node.key`.
 
 ## Step 1/4. Set up the Teleport Database Service
 
@@ -99,12 +107,6 @@ The command will produce 4 files:
 Do not rename these files as this is how CockroachDB expects them to be named.
 See [Node key and certificates](https://www.cockroachlabs.com/docs/v21.1/create-security-certificates-custom-ca#node-key-and-certificates)
 for details.
-
-Teleport uses a split CA architecture for database access, and requires that
-you create your own CA for node-to-node client certificates.
-See [cockroach cert](https://www.cockroachlabs.com/docs/stable/cockroach-cert)
-for instructions on creating a client CA and issuing a client certificate for
-each node.
 
 Generate the secrets for each cluster node and make sure to use the hostname
 Teleport will be using to connect to the nodes in the `--host` flag.
