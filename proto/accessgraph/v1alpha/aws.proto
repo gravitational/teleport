@@ -40,7 +40,7 @@ message AWSResource {
     // user_inline_policy is a policy that is inlined to an AWS user.
     AWSUserInlinePolicyV1 user_inline_policy = 3;
     // user_groups is a list of AWS groups that an AWS user belongs to.
-    AWSUserGroupsV1 user_group = 4;
+    AWSUserGroupsV1 user_groups = 4;
     // instance is an AWS instance.
     AWSInstanceV1 instance = 5;
     // policy is an AWS policy.
@@ -228,7 +228,7 @@ message AWSGroupInlinePolicyV1 {
   // policy_name is the name of the policy.
   string policy_name = 1;
   // group is the AWS group.
-  AWSGroupV1 group = 12;
+  AWSGroupV1 group = 2;
   // policy_document is the JSON document that defines the policy.
   bytes policy_document = 3;
   // account_id is the ID of the AWS account that the group belongs to.

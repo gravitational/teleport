@@ -166,15 +166,15 @@ func reconcileUserGroups(
 	})
 	for _, group := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
-			Resource: &accessgraphv1alpha.AWSResource_UserGroup{
-				UserGroup: group,
+			Resource: &accessgraphv1alpha.AWSResource_UserGroups{
+				UserGroups: group,
 			},
 		})
 	}
 	for _, group := range toRemove {
 		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
-			Resource: &accessgraphv1alpha.AWSResource_UserGroup{
-				UserGroup: group,
+			Resource: &accessgraphv1alpha.AWSResource_UserGroups{
+				UserGroups: group,
 			},
 		})
 	}
