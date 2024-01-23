@@ -7082,14 +7082,3 @@ func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks ser
 
 	return okta.CheckAccess(authzCtx, existingLock, verb)
 }
-
-// FetchAccessGraphSQLProxyInfo loads the local Access Graph configuration and returns information required for proxying the SQL interface.
-func (a *ServerWithRoles) FetchAccessGraphSQLProxyInfo(ctx context.Context) (*proto.AccessGraphSQLProxyInfo, error) {
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
-		return nil, trace.AccessDenied("Access Graph SQL Proxy Info is only accessible to Teleport itself")
-	}
-
-	resp, err := a.authServer.FetchAccessGraphSQLProxyInfo(ctx)
-	return resp, trace.Wrap(err)
-}
