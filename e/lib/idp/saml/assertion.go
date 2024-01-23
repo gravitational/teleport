@@ -11,44 +11,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	stringType = "xs:string"
-
-	// The following formats are all defined in the SAML 2.0 Core OS Standard.
-	// https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
-	uriNameFormat         = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri"
-	basicNameFormat       = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"
-	unspecifiedNameFormat = "urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified"
-	transientFormat       = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
-	entityFormat          = "urn:oasis:names:tc:SAML:2.0:nameid-format:entity"
-
-	// The following class refs are defined in the SAML 2.0 Authentication Context Standard.
-	// https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf
-	authnContextClassRef = "urn:oasis:names:tc:SAML:2.0:ac:classes:X509"
-
-	// The following methods are defined in the SAML 2.0 Technical Overview.
-	// http://docs.oasis-open.org/security/saml/Post2.0/sstc-saml-tech-overview-2.0-cd-02.pdf
-	bearerMethod = "urn:oasis:names:tc:SAML:2.0:cm:bearer"
-
-	// The following are object identifiers. A link to the entry for these in the OID-Info DB is
-	// provided if applicable.
-
-	// http://www.oid-info.com/cgi-bin/display?oid=urn%3Aoid%3A0.9.2342.19200300.100.1.1&a=display
-	uidFriendlyName = "uid"
-	uidName         = "urn:oid:0.9.2342.19200300.100.1.1"
-
-	// http://www.oid-info.com/cgi-bin/display?oid=urn%3Aoid%3A1.3.6.1.4.1.5923.1.1.1.1&a=display
-	eduPersonAffiliationFriendlyName = "eduPersonAffiliation"
-	eduPersonAffiliationName         = "urn:oid:1.3.6.1.4.1.5923.1.1.1.1"
-
-	// The following is the general purpose subject identifier defined in SAML 2.0 Subject Identifier Attributes.
-	// http://docs.oasis-open.org/security/saml-subject-id-attr/v1.0/csprd03/saml-subject-id-attr-v1.0-csprd03.pdf
-	subjectIDFriendlyName = ""
-	subjectIDName         = "urn:oasis:names:tc:SAML:attribute:subject-id"
 )
 
 // MakeAssertion implements AssertionMaker. It produces a SAML assertion from the
@@ -99,7 +64,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	// Push in any requested attributes.
 	for _, requestedAttribute := range attributeConsumingService.RequestedAttributes {
 		switch requestedAttribute.NameFormat {
-		case basicNameFormat, unspecifiedNameFormat:
+		case types.SAMLBasicNameFormat, types.SAMLUnspecifiedNameFormat:
 			var value string
 			switch requestedAttribute.Name {
 			case "email", "emailaddress":
@@ -118,9 +83,9 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	}
 
 	// default assertion
-	attributes = addAttribute(attributes, uidFriendlyName, uidName, session.UserName)
-	attributes = addAttribute(attributes, eduPersonAffiliationFriendlyName, eduPersonAffiliationName, session.Groups...)
-	attributes = addAttribute(attributes, subjectIDFriendlyName, subjectIDName, session.SubjectID)
+	attributes = addAttribute(attributes, types.SAMLUIDFriendlyName, types.SAMLUIDName, session.UserName)
+	attributes = addAttribute(attributes, types.SAMLEduPersonAffiliationFriendlyName, types.SAMLEduPersonAffiliationName, session.Groups...)
+	attributes = addAttribute(attributes, "" /* SubjectIDName has no friendly name*/, types.SAMLSubjectIDName, session.SubjectID)
 
 	// custom attribute mapping
 	attrs := attributesToMappableUserSpec(session.CustomAttributes)
@@ -144,7 +109,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	}
 
 	// Default to using the transient format.
-	nameIDFormat := transientFormat
+	nameIDFormat := types.SAMLTransientFormat
 
 	if session.NameIDFormat != "" {
 		nameIDFormat = session.NameIDFormat
@@ -160,7 +125,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 		IssueInstant: s.clock.Now().UTC(),
 		Version:      "2.0",
 		Issuer: saml.Issuer{
-			Format: entityFormat,
+			Format: types.SAMLEntityFormat,
 			Value:  req.IDP.Metadata().EntityID,
 		},
 		Subject: &saml.Subject{
@@ -172,7 +137,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 			},
 			SubjectConfirmations: []saml.SubjectConfirmation{
 				{
-					Method: bearerMethod,
+					Method: types.SAMLBearerMethod,
 					SubjectConfirmationData: &saml.SubjectConfirmationData{
 						Address:      req.HTTPRequest.RemoteAddr,
 						InResponseTo: req.Request.ID,
@@ -198,7 +163,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 				},
 				AuthnContext: saml.AuthnContext{
 					AuthnContextClassRef: &saml.AuthnContextClassRef{
-						Value: authnContextClassRef,
+						Value: types.SAMLAuthnContextPublicKeyX509ClassRef,
 					},
 				},
 			},
@@ -257,7 +222,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 // addAttribute will add an attribute to the given slice if the number of values is non-zero. If there is one element,
 // the attribute will not be added if it is empty.
 func addAttribute(attributes []saml.Attribute, friendlyName, name string, values ...string) []saml.Attribute {
-	return addAttributeWithFormat(attributes, friendlyName, name, uriNameFormat, values...)
+	return addAttributeWithFormat(attributes, friendlyName, name, types.SAMLURINameFormat, values...)
 }
 
 // addAttributeWithFormat has the same behavior as addAttribute but allows for the user to specify the name format.
@@ -279,7 +244,7 @@ func attribute(friendlyName, name, format string, values ...string) saml.Attribu
 	attributeValues := make([]saml.AttributeValue, len(values))
 	for i, value := range values {
 		attributeValues[i] = saml.AttributeValue{
-			Type:  stringType,
+			Type:  types.SAMLStringType,
 			Value: value,
 		}
 	}
