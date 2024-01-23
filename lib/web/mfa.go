@@ -132,7 +132,9 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 }
 
 type createAuthenticateChallengeRequest struct {
-	IsMFARequired *isMFARequiredRequest `json:"is_mfa_required"`
+	IsMFARequiredRequest *isMFARequiredRequest `json:"is_mfa_required_req"`
+	ChallengeScope       int                   `json:"challenge_scope"`
+	ChallengeAllowReuse  bool                  `json:"challenge_allow_reuse"`
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
@@ -148,23 +150,27 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	var isMFARequiredProtoReq *proto.IsMFARequiredRequest
-	if req.IsMFARequired != nil {
-		isMFARequiredProtoReq, err = req.IsMFARequired.checkAndGetProtoRequest()
+	var mfaRequiredCheckProto *proto.IsMFARequiredRequest
+	if req.IsMFARequiredRequest != nil {
+		mfaRequiredCheckProto, err = req.IsMFARequiredRequest.checkAndGetProtoRequest()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	allowReuse := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
+	if req.ChallengeAllowReuse {
+		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
 	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
-		MFARequiredCheck: isMFARequiredProtoReq,
+		MFARequiredCheck: mfaRequiredCheckProto,
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			// TODO(Joerger): Web client needs to provide scope and allow reuse
-			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
-			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_UNSPECIFIED,
+			Scope:      mfav1.ChallengeScope(req.ChallengeScope),
+			AllowReuse: allowReuse,
 		},
 	})
 	if err != nil {

@@ -18,6 +18,8 @@
 
 import React from 'react';
 
+import { MFAChallengeScope } from 'teleport/services/auth/auth';
+
 import { State } from './useReAuthenticate';
 import { ReAuthenticate } from './ReAuthenticate';
 
@@ -47,4 +49,5 @@ const props: State = {
   onClose: () => null,
   auth2faType: 'on',
   actionText: 'performing this action',
+  challengeScope: MFAChallengeScope.UNSPECIFIED,
 };
