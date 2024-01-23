@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	tag_aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/tag-aws-sync"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -120,6 +121,20 @@ func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
 
 	s.submitFetchersEvent(allFetchers)
 
+	return allFetchers
+}
+
+func (s *Server) getAllAWSSyncFetchers() []tag_aws_sync.AWSSync {
+	allFetchers := make([]tag_aws_sync.AWSSync, 0, len(s.dynamicTAGSyncFetchers))
+
+	s.muDynamicTAGSyncFetchers.RLock()
+	for _, fetcherSet := range s.dynamicTAGSyncFetchers {
+		allFetchers = append(allFetchers, fetcherSet...)
+	}
+	s.muDynamicTAGSyncFetchers.RUnlock()
+
+	allFetchers = append(allFetchers, s.staticTAGSyncFetchers...)
+	// TODO: submit fetchers event
 	return allFetchers
 }
 

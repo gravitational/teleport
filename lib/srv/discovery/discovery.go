@@ -355,11 +355,14 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 			)
 			s.staticTAGSyncFetchers = append(s.staticTAGSyncFetchers, fetcher)
 		}
+	}
 
+	if cfg.AccessGraph.Enabled {
 		go func() {
+			reloadCh := s.newDiscoveryConfigChangedSub()
 			for {
 				// reset the currentTAGResources to force a full sync
-				if err := s.initializeAndWatchAccessGraph(ctx); err != nil {
+				if err := s.initializeAndWatchAccessGraph(ctx, reloadCh); err != nil {
 					s.Log.Warnf("Error initializing and watching access graph: %v", err)
 				}
 
@@ -587,6 +590,33 @@ func (s *Server) databaseFetchersFromMatchers(matchers Matchers) ([]common.Fetch
 
 	// There are no Database Matchers for GCP Matchers.
 	// There are no Database Matchers for Kube Matchers.
+
+	return fetchers, nil
+}
+
+// tagSyncFetchersFromMatchers converts Matchers into a set of TAG Sync Fetchers.
+func (s *Server) tagSyncFetchersFromMatchers(matchers Matchers) ([]tag_aws_sync.AWSSync, error) {
+	var fetchers []tag_aws_sync.AWSSync
+
+	if matchers.AccessGraph == nil || len(matchers.AccessGraph.AWS) == 0 {
+		return nil, nil
+	}
+
+	if len(matchers.AccessGraph.AWS) > 0 && !s.Config.AccessGraph.Enabled {
+		s.Log.Warn("Access Graph is not enabled, ignoring Access Graph matchers")
+		return nil, nil
+	}
+
+	for _, awsMatcher := range matchers.AccessGraph.AWS {
+		fetcher := tag_aws_sync.NewAWSFetcher(
+			tag_aws_sync.Config{
+				CloudClients: s.CloudClients,
+				AccountID:    awsMatcher.AccountID,
+				Regions:      awsMatcher.Regions,
+			},
+		)
+		fetchers = append(fetchers, fetcher)
+	}
 
 	return fetchers, nil
 }
@@ -1394,6 +1424,15 @@ func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) erro
 	s.dynamicDatabaseFetchers[dc.GetName()] = databaseFetchers
 	s.muDynamicDatabaseFetchers.Unlock()
 
+	tagSyncFetchers, err := s.tagSyncFetchersFromMatchers(matchers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if tagSyncFetchers != nil {
+		s.muDynamicTAGSyncFetchers.Lock()
+		s.dynamicTAGSyncFetchers[dc.GetName()] = tagSyncFetchers
+		s.muDynamicTAGSyncFetchers.Unlock()
+	}
 	// TODO(marco): add other fetchers: Kube Clusters and Kube Resources (Apps)
 	return nil
 }

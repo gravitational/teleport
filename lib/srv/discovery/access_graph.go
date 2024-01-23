@@ -39,8 +39,10 @@ import (
 
 func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *tag_aws_sync.PollResult, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient) {
 	errG, ctx := errgroup.WithContext(ctx)
-	errs := make([]error, 0, len(s.staticTAGSyncFetchers))
-	results := make([]*tag_aws_sync.PollResult, 0, len(s.staticTAGSyncFetchers))
+	errG.SetLimit(3)
+	allFetchers := s.getAllAWSSyncFetchers()
+	errs := make([]error, 0, len(allFetchers))
+	results := make([]*tag_aws_sync.PollResult, 0, len(allFetchers))
 	resultsMu := sync.Mutex{}
 	collectResults := func(result *tag_aws_sync.PollResult, err error) {
 		resultsMu.Lock()
@@ -52,7 +54,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 			results = append(results, result)
 		}
 	}
-	for _, fetcher := range s.staticTAGSyncFetchers {
+	for _, fetcher := range allFetchers {
 		fetcher := fetcher
 		errG.Go(func() error {
 			result, err := fetcher.Poll(ctx)
@@ -166,7 +168,7 @@ func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config s
 // initializeAndWatchAccessGraph initializes the access graph service and watches the auth server for events.
 // This function acquires a lock on the backend to ensure that only one instance of auth server is sending
 // events to the access graph service at a time.
-func (s *Server) initializeAndWatchAccessGraph(ctx context.Context) error {
+func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-chan struct{}) error {
 	// Configure health check service to monitor access graph service and
 	// automatically reconnect if the connection is lost without
 	// relying on new events from the auth server to trigger a reconnect.
@@ -219,7 +221,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context) error {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		case <-ticker.C:
-
+		case <-reloadCh:
 		}
 	}
 }
