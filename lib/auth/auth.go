@@ -5806,6 +5806,25 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		clusterName, err := a.GetClusterName()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := a.emitter.EmitAuditEvent(ctx, &apievents.CreateMFAAuthChallenge{
+			Metadata: apievents.Metadata{
+				Type:        events.CreateMFAAuthChallengeEvent,
+				Code:        events.CreateMFAAuthChallengeCode,
+				ClusterName: clusterName.GetClusterName(),
+			},
+			UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
+			ChallengeScope:      challengeExtensions.Scope.String(),
+			ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		}); err != nil {
+			log.WithError(err).Warn("Failed to emit CreateMFAAuthChallenge event.")
+		}
+
 		return &proto.MFAAuthenticateChallenge{
 			WebauthnChallenge: wantypes.CredentialAssertionToProto(assertion),
 		}, nil
@@ -5840,6 +5859,24 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 			return nil, trace.Wrap(err)
 		}
 		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
+	}
+
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.CreateMFAAuthChallenge{
+		Metadata: apievents.Metadata{
+			Type:        events.CreateMFAAuthChallengeEvent,
+			Code:        events.CreateMFAAuthChallengeCode,
+			ClusterName: clusterName.GetClusterName(),
+		},
+		UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
+		ChallengeScope:      challengeExtensions.Scope.String(),
+		ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit CreateMFAAuthChallenge event.")
 	}
 
 	return challenge, nil
@@ -5920,7 +5957,7 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 // required challenge extensions will be checked against the stored challenge when
 // applicable (webauthn only). Returns the authentication data derived from the solved
 // challenge.
-func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
+func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (mfaAuthData *authz.MFAAuthData, err error) {
 	if requiredExtensions == nil {
 		return nil, trace.BadParameter("required challenge extensions parameter required")
 	}
@@ -5931,6 +5968,38 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 	if user == "" && !isPasswordless {
 		return nil, trace.BadParameter("user required")
 	}
+
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer func() {
+		auditEvent := &apievents.ValidateMFAAuthResponse{
+			Metadata: apievents.Metadata{
+				Type:        events.ValidateMFAAuthResponseEvent,
+				ClusterName: clusterName.GetClusterName(),
+			},
+			UserMetadata:   authz.ClientUserMetadataWithUser(ctx, user),
+			ChallengeScope: requiredExtensions.Scope.String(),
+		}
+		if err != nil {
+			auditEvent.Code = events.ValidateMFAAuthResponseFailureCode
+			auditEvent.Success = false
+			auditEvent.UserMessage = err.Error()
+			auditEvent.Error = err.Error()
+		} else {
+			auditEvent.Code = events.ValidateMFAAuthResponseCode
+			auditEvent.Status.Success = true
+			deviceMetadata := mfaDeviceEventMetadata(mfaAuthData.Device)
+			auditEvent.MFADevice = &deviceMetadata
+			auditEvent.ChallengeAllowReuse = mfaAuthData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
+		}
+
+		if err := a.emitter.EmitAuditEvent(ctx, auditEvent); err != nil {
+			log.WithError(err).Warn("Failed to emit ValidateMFAAuthResponse event.")
+		}
+	}()
 
 	switch res := resp.Response.(type) {
 	// cases in order of preference
@@ -5970,6 +6039,7 @@ func (a *Server) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAut
 		if err != nil {
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
+
 		return &authz.MFAAuthData{
 			Device:     loginData.Device,
 			User:       loginData.User,
@@ -6117,12 +6187,12 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
 // already present.
 func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAuthority) error {
-	hasUsableKeys, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+	usableKeysResult, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if hasUsableKeys {
-		// nothing to do
+	if usableKeysResult.CAHasPreferredKeyType {
+		// Nothing to do.
 		return nil
 	}
 
@@ -6131,11 +6201,11 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 		return trace.Wrap(err)
 	}
 
-	// The CA still needs an update while the keystore does not have any usable
-	// keys in the CA.
+	// The CA still needs an update while the CA does not contain any keys of
+	// the preferred type.
 	needsUpdate := func(ca types.CertAuthority) (bool, error) {
-		hasUsableKeys, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
-		return !hasUsableKeys, trace.Wrap(err)
+		usableKeysResult, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+		return !usableKeysResult.CAHasPreferredKeyType, trace.Wrap(err)
 	}
 	err = a.addAdditionalTrustedKeysAtomic(ctx, ca, newKeySet, needsUpdate)
 	if err != nil {
