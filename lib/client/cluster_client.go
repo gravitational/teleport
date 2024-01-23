@@ -352,6 +352,9 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 			ContextUser: &proto.ContextUser{},
 		},
 		MFARequiredCheck: mfaRequiredReq,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
