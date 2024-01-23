@@ -259,8 +259,11 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 		MFAPrompt:         c.tc.NewMFAPrompt(),
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
 		MFARequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
-		CertsReq:          certsReq,
-		Key:               key,
+		ChallengeExtensions: mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+		CertsReq: certsReq,
+		Key:      key,
 	})
 	return key, trace.Wrap(err)
 }
@@ -295,6 +298,9 @@ type PerformMFACeremonyParams struct {
 	MFAAgainstRoot bool
 	// MFARequiredReq is the request for the MFA verification check.
 	MFARequiredReq *proto.IsMFARequiredRequest
+	// ChallengeExtensions is used to provide additional extensions to apply to the
+	// MFA challenge used in the ceremony. The scope extension must be supplied.
+	ChallengeExtensions mfav1.ChallengeExtensions
 	// CertsReq is the request for new certificates.
 	CertsReq *proto.UserCertsRequest
 
