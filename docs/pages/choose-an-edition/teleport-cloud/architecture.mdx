@@ -36,7 +36,7 @@ cluster state deleted between 7 and 30 days after the lapse.
 ## High Availability
 
 ### Auth Service
-The Teleport [Auth Service](../../architecture/authentication.mdx) is deployed within a AWS region in 4 availability zones, and can tolerate a single zone failure. AWS guarantees [99.99%](https://aws.amazon.com/compute/sla/) of monthly uptime.
+The Teleport [Auth Service](../../architecture/authentication.mdx) is deployed within a AWS region in 2 availability zones, and can tolerate a single zone failure. AWS guarantees [99.99%](https://aws.amazon.com/compute/sla/) of monthly uptime.
 Teleport Enterprise Cloud allows selection of these AWS regions for the Teleport Auth Service and backend storage.
 
 - us-west-2
