@@ -78,9 +78,7 @@ func PerformAdminActionMFACeremony(ctx context.Context, clt MFACeremonyClient, a
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
 		MFARequiredCheck: &proto.IsMFARequiredRequest{
 			Target: &proto.IsMFARequiredRequest_AdminAction{
-				AdminAction: &proto.AdminAction{
-					Name: adminActionName,
-				},
+				AdminAction: &proto.AdminAction{},
 			},
 		},
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
