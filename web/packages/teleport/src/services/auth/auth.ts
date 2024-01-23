@@ -312,11 +312,18 @@ const auth = {
         if (!isMFARequired.required) {
           return;
         }
-      } catch {
-        // checking MFA requirement for admin actions is not supported by old
-        // auth servers, we expect an error instead. In this case, assume MFA is
-        // not required. Callers should fallback to retrying with MFA if needed.
-        return;
+      } catch (err) {
+        if (
+          err?.response?.status === 400 &&
+          err?.message.includes('missing target for MFA check')
+        ) {
+          // checking MFA requirement for admin actions is not supported by old
+          // auth servers, we expect an error instead. In this case, assume MFA is
+          // not required. Callers should fallback to retrying with MFA if needed.
+          return;
+        }
+
+        throw err;
       }
     }
 
