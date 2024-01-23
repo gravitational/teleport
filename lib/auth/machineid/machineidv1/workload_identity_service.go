@@ -256,18 +256,18 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	// Fetch info that will be needed for all SPIFFE SVIDs requested
 	clusterName, err := wis.cache.GetClusterName()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "getting cluster name")
 	}
 	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "getting SPIFFE CA")
 	}
 	tlsCert, tlsSigner, err := wis.keyStorer.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "getting CA cert and key")
 	}
 	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
 	if err != nil {
