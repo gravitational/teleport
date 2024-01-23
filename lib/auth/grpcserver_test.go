@@ -2374,11 +2374,11 @@ func TestNodesCRUD(t *testing.T) {
 
 			// GetNode should fail if node name isn't provided
 			_, err = clt.GetNode(ctx, apidefaults.Namespace, "")
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter failed: err=%v (%T)", err, trace.Unwrap(err))
 
 			// GetNode should fail if namespace isn't provided
 			_, err = clt.GetNode(ctx, "", "node1")
-			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter failed: err=%v (%T)", err, trace.Unwrap(err))
 		})
 	})
 
@@ -4206,7 +4206,8 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 
 	ctx = authz.ContextWithUser(parentCtx, admin.I)
 	_, err = client.UpsertApplicationServer(ctx, appServer)
-	require.ErrorIs(t, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"), err)
+	require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter failed: err=%v (%T)", err, trace.Unwrap(err))
+	require.ErrorContains(t, err, "only the Okta role can create app servers and apps with an Okta origin")
 
 	// Okta origin should not work with instance and node roles.
 	client, err = server.NewClient(TestIdentity{
@@ -4222,7 +4223,8 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 
 	ctx = authz.ContextWithUser(parentCtx, admin.I)
 	_, err = client.UpsertApplicationServer(ctx, appServer)
-	require.ErrorIs(t, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"), err)
+	require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter failed: err=%v (%T)", err, trace.Unwrap(err))
+	require.ErrorContains(t, err, "only the Okta role can create app servers and apps with an Okta origin")
 
 	// Okta origin should work with Okta role in role field.
 	node := TestIdentity{

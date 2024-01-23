@@ -196,7 +196,7 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
 
 const getDownloadLink = (isCloud: boolean, isEnterprise: boolean) => {
   if (isCloud) {
-    return 'https://goteleport.com/docs/cloud/downloads/';
+    return cfg.routes.downloadCenter;
   }
 
   if (isEnterprise) {

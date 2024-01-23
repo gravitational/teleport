@@ -152,6 +152,8 @@ const cfg = {
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
 
+    downloadCenter: '/web/downloads',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -286,6 +288,11 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
     awsSecurityGroupsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
+
+    eksClustersListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
+    eksEnrollClustersPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
 
     ec2InstancesListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
@@ -920,6 +927,24 @@ const cfg = {
 
   getAccessGraphFeaturesUrl() {
     return cfg.api.accessGraphFeatures;
+  },
+
+  getEnrollEksClusterUrl(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eksEnrollClustersPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getListEKSClustersUrl(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eksClustersListPath, {
+      clusterId,
+      name: integrationName,
+    });
   },
 
   getListEc2InstancesUrl(integrationName: string) {

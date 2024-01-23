@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -872,7 +873,7 @@ func webauthnUserKey(id []byte) []byte {
 	return backend.Key(webauthnPrefix, usersPrefix, key)
 }
 
-func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
+func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
 	switch {
 	case user == "":
 		return trace.BadParameter("missing parameter user")
@@ -894,7 +895,7 @@ func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, s
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
+func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
 	switch {
 	case user == "":
 		return nil, trace.BadParameter("missing parameter user")
@@ -906,7 +907,7 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd := &wanpb.SessionData{}
+	sd := &wantypes.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 
@@ -967,7 +968,7 @@ var sdLimiter = &globalSessionDataLimiter{
 	scopeCount:  make(map[string]int),
 }
 
-func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error {
+func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error {
 	switch {
 	case scope == "":
 		return trace.BadParameter("missing parameter scope")
@@ -1000,7 +1001,7 @@ func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, s
 	return nil
 }
 
-func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error) {
+func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
 	switch {
 	case scope == "":
 		return nil, trace.BadParameter("missing parameter scope")
@@ -1012,7 +1013,7 @@ func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scop
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd := &wanpb.SessionData{}
+	sd := &wantypes.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 

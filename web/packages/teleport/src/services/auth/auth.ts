@@ -48,11 +48,7 @@ const auth = {
       )
     );
   },
-  checkMfaRequired(
-    params: IsMfaRequiredRequest
-  ): Promise<{ required: boolean }> {
-    return api.post(cfg.getMfaRequiredUrl(), params);
-  },
+  checkMfaRequired: checkMfaRequired,
   createMfaRegistrationChallenge(
     tokenId: string,
     deviceType: DeviceType,
@@ -244,13 +240,7 @@ const auth = {
 
   headlessSSOAccept(transactionId: string) {
     return auth
-      .checkWebauthnSupport()
-      .then(() => api.post(cfg.api.mfaAuthnChallengePath))
-      .then(res =>
-        navigator.credentials.get({
-          publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
-        })
-      )
+      .fetchWebauthnChallenge(MFAChallengeScope.HEADLESS_LOGIN)
       .then(res => {
         const request = {
           action: 'accept',
@@ -273,12 +263,37 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  fetchWebauthnChallenge() {
+  async fetchWebauthnChallenge(
+    scope: MFAChallengeScope,
+    allowReuse?: boolean,
+    isMFARequiredRequest?: IsMfaRequiredRequest
+  ) {
+    // TODO(Joerger): DELETE IN 16.0.0
+    // the create mfa challenge endpoint below supports
+    // MFARequired requests without the extra roundtrip.
+    if (isMFARequiredRequest) {
+      try {
+        const isMFARequired = await checkMfaRequired(isMFARequiredRequest);
+        if (!isMFARequired.required) {
+          return;
+        }
+      } catch {
+        // checking MFA requirement for admin actions is not supported by old
+        // auth servers, we expect an error instead. In this case, assume MFA is
+        // not required. Callers should fallback to retrying with MFA if needed.
+        return;
+      }
+    }
+
     return auth
       .checkWebauthnSupport()
       .then(() =>
         api
-          .post(cfg.api.mfaAuthnChallengePath)
+          .post(cfg.api.mfaAuthnChallengePath, {
+            is_mfa_required_req: isMFARequiredRequest,
+            challenge_scope: scope,
+            challenge_allow_reuse: allowReuse,
+          })
           .then(makeMfaAuthenticateChallenge)
       )
       .then(res =>
@@ -288,8 +303,8 @@ const auth = {
       );
   },
 
-  createPrivilegeTokenWithWebauthn() {
-    return auth.fetchWebauthnChallenge().then(res =>
+  createPrivilegeTokenWithWebauthn(scope: MFAChallengeScope) {
+    return auth.fetchWebauthnChallenge(scope).then(res =>
       api.post(cfg.api.createPrivilegeTokenPath, {
         webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
       })
@@ -300,12 +315,22 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
-  getWebauthnResponse() {
+  getWebauthnResponse(
+    scope: MFAChallengeScope,
+    allowReuse?: boolean,
+    isMFARequiredRequest?: IsMfaRequiredRequest
+  ) {
     return auth
-      .fetchWebauthnChallenge()
+      .fetchWebauthnChallenge(scope, allowReuse, isMFARequiredRequest)
       .then(res => makeWebauthnAssertionResponse(res));
   },
 };
+
+function checkMfaRequired(
+  params: IsMfaRequiredRequest
+): Promise<IsMfaRequiredResponse> {
+  return api.post(cfg.getMfaRequiredUrl(), params);
+}
 
 function base64EncodeUnicode(str: string) {
   return window.btoa(
@@ -322,7 +347,12 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredDatabase
   | IsMfaRequiredNode
   | IsMfaRequiredKube
-  | IsMfaRequiredWindowsDesktop;
+  | IsMfaRequiredWindowsDesktop
+  | IsMFARequiredAdminAction;
+
+export type IsMfaRequiredResponse = {
+  required: boolean;
+};
 
 export type IsMfaRequiredDatabase = {
   database: {
@@ -361,3 +391,22 @@ export type IsMfaRequiredKube = {
     cluster_name: string;
   };
 };
+
+export type IsMFARequiredAdminAction = {
+  admin_action: {
+    // name is the name of the admin action RPC.
+    name: string;
+  };
+};
+
+// MFAChallengeScope is an mfa challenge scope. Possible values are defined in mfa.proto
+export enum MFAChallengeScope {
+  UNSPECIFIED = 0,
+  LOGIN = 1,
+  PASSWORDLESS_LOGIN = 2,
+  HEADLESS_LOGIN = 3,
+  MANAGE_DEVICES = 4,
+  ACCOUNT_RECOVERY = 5,
+  USER_SESSION = 6,
+  ADMIN_ACTION = 7,
+}

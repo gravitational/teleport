@@ -6,19 +6,23 @@ Expand the name of the chart.
 {{- end }}
 
 {{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
-If release name contains chart name it will be used as a full name.
+This is a modified version of the default fully qualified app name helper.
+We diverge by always honouring "nameOverride" when it's set, as opposed to the
+default behaviour of shortening if `nameOverride` is included in chart name.
+This is done to avoid naming conflicts when including th chart in `teleport-cluster`
 */}}
 {{- define "teleport-cluster.operator.fullname" -}}
     {{- if .Values.fullnameOverride }}
         {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
     {{- else }}
-        {{- $name := default .Chart.Name .Values.nameOverride }}
-        {{- if contains $name .Release.Name }}
-            {{- .Release.Name | trunc 63 | trimSuffix "-" }}
+        {{- if .Values.nameOverride }}
+            {{- printf "%s-%s" .Release.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
         {{- else }}
-            {{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+            {{- if contains .Chart.Name .Release.Name }}
+                {{- .Release.Name | trunc 63 | trimSuffix "-" }}
+            {{- else }}
+                {{- printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+            {{- end }}
         {{- end }}
     {{- end }}
 {{- end }}

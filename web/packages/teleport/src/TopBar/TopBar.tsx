@@ -25,7 +25,7 @@ import { matchPath, useHistory } from 'react-router';
 
 import { BrainIcon } from 'design/SVGIcon';
 
-import { ArrowLeft, Server, SlidersVertical } from 'design/Icon';
+import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import useTeleport from 'teleport/useTeleport';
@@ -87,6 +87,8 @@ export function TopBar({ CustomLogo }: TopBarProps) {
     history?.location?.pathname === cfg.getUnifiedResourcesRoute(clusterId);
   const managementTabSelected =
     feature?.category === NavigationCategory.Management;
+  const downloadTabSelected =
+    history?.location?.pathname === cfg.routes.downloadCenter;
 
   return (
     <TopBarContainer
@@ -107,57 +109,31 @@ export function TopBar({ CustomLogo }: TopBarProps) {
               }
             `}
           >
-            <NavigationButton
-              selected={resourceTabSelected}
-              to={cfg.getUnifiedResourcesRoute(clusterId)}
-              title="Resources"
-            >
-              <Server
-                color={resourceTabSelected ? 'text.main' : 'text.muted'}
+            {cfg.isDashboard ? (
+              <MainNavItem
+                name="Downloads"
+                to={cfg.routes.downloadCenter}
+                isSelected={downloadTabSelected}
+                Icon={Download}
               />
-              <Text
-                ml={3}
-                fontSize={18}
-                fontWeight={500}
-                css={`
-                  display: none;
-                  @media screen and (min-width: ${p =>
-                      p.theme.breakpoints.medium}px) {
-                    display: block;
-                  }
-                `}
-                color={resourceTabSelected ? 'text.main' : 'text.muted'}
-              >
-                Resources
-              </Text>
-            </NavigationButton>
-            <NavigationButton
-              selected={managementTabSelected}
+            ) : (
+              <MainNavItem
+                name="Resources"
+                to={cfg.getUnifiedResourcesRoute(clusterId)}
+                isSelected={resourceTabSelected}
+                Icon={Server}
+              />
+            )}
+            <MainNavItem
+              name="Access Management"
               to={getFirstRouteForCategory(
                 features,
                 NavigationCategory.Management
               )}
-              title="Access Management"
-            >
-              <SlidersVertical
-                color={managementTabSelected ? 'text.main' : 'text.muted'}
-              />
-              <Text
-                ml={3}
-                fontSize={18}
-                fontWeight={500}
-                css={`
-                  display: none;
-                  @media screen and (min-width: ${p =>
-                      p.theme.breakpoints.medium}px) {
-                    display: block;
-                  }
-                `}
-                color={managementTabSelected ? 'text.main' : 'text.muted'}
-              >
-                Access Management
-              </Text>
-            </NavigationButton>
+              isSelected={managementTabSelected}
+              Icon={SlidersVertical}
+            />
+
             {topBarLinks.map(({ topMenuItem, navigationItem }) => {
               const selected = history.location.pathname.includes(
                 navigationItem.getLink(clusterId)
@@ -183,7 +159,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
           </Flex>
         </>
       )}
-      {feature?.hideFromNavigation && (
+      {feature?.hideNavigation && (
         <ButtonIconContainer onClick={handleBack}>
           <ArrowLeft size="medium" />
         </ButtonIconContainer>
@@ -347,6 +323,38 @@ const NavigationButton = ({
         </Flex>
       </Link>
     </HoverTooltip>
+  );
+};
+
+const MainNavItem = ({
+  isSelected,
+  to,
+  name,
+  Icon,
+}: {
+  isSelected: boolean;
+  to: string;
+  name: string;
+  Icon: (props: { color: string }) => JSX.Element;
+}) => {
+  return (
+    <NavigationButton selected={isSelected} to={to} title={name}>
+      <Icon color={isSelected ? 'text.main' : 'text.muted'} />
+      <Text
+        ml={3}
+        fontSize={18}
+        fontWeight={500}
+        css={`
+          display: none;
+          @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+            display: block;
+          }
+        `}
+        color={isSelected ? 'text.main' : 'text.muted'}
+      >
+        {name}
+      </Text>
+    </NavigationButton>
   );
 };
 

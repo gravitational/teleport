@@ -470,8 +470,7 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	}
 
 	tokenKind := UserTokenTypePrivilege
-	switch hasDevices, err := a.validateMFAAuthResponseForRegister(
-		ctx, req.GetExistingMFAResponse(), username, false /* passwordless */); {
+	switch hasDevices, err := a.validateMFAAuthResponseForRegister(ctx, req.GetExistingMFAResponse(), username); {
 	case err != nil:
 		return nil, trace.Wrap(err)
 	case !hasDevices:

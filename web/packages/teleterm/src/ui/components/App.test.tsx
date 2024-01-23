@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,5 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import CustomRange from './Custom';
-export default CustomRange;
+import { screen, render } from '@testing-library/react';
+import '@testing-library/jest-dom';
+
+import { FailedApp } from './App';
+
+describe('<FailedApp>', () => {
+  it('renders (without ThemeProvider being available)', () => {
+    render(<FailedApp message="Lorem ipsum" />);
+    expect(screen.getByText('Lorem ipsum')).toBeInTheDocument();
+  });
+});
