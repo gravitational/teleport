@@ -21,7 +21,7 @@ import { useAttempt } from 'shared/hooks';
 
 import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
-import auth, { MFAChallengeScope } from 'teleport/services/auth/auth';
+import auth from 'teleport/services/auth/auth';
 
 export default function useUsers({
   InviteCollaborators,

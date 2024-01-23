@@ -16,15 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-
-import ClustersService from '../clusters/clusters';
 
 import makePasswordToken from './makePasswordToken';
 import { makeChangedUserAuthn } from './make';
@@ -413,7 +409,8 @@ export type IsMfaRequiredKube = {
 };
 
 export type IsMFARequiredAdminAction = {
-  admin_action: {};
+  // empty object.
+  admin_action: Record<string, never>;
 };
 
 // MFAChallengeScope is an mfa challenge scope. Possible values are defined in mfa.proto
