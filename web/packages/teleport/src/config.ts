@@ -381,6 +381,10 @@ const cfg = {
     return cfg.auth.allowPasswordless;
   },
 
+  isAdminActionMFAEnforced() {
+    return cfg.auth.preferredLocalMfa === 'webauthn';
+  },
+
   getPrimaryAuthType(): PrimaryAuthType {
     if (cfg.auth.localConnectorName === 'passwordless') {
       return 'passwordless';

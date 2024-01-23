@@ -16,11 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+
+import ClustersService from '../clusters/clusters';
 
 import makePasswordToken from './makePasswordToken';
 import { makeChangedUserAuthn } from './make';
@@ -268,23 +272,6 @@ const auth = {
     allowReuse?: boolean,
     isMFARequiredRequest?: IsMfaRequiredRequest
   ) {
-    // TODO(Joerger): DELETE IN 16.0.0
-    // the create mfa challenge endpoint below supports
-    // MFARequired requests without the extra roundtrip.
-    if (isMFARequiredRequest) {
-      try {
-        const isMFARequired = await checkMfaRequired(isMFARequiredRequest);
-        if (!isMFARequired.required) {
-          return;
-        }
-      } catch {
-        // checking MFA requirement for admin actions is not supported by old
-        // auth servers, we expect an error instead. In this case, assume MFA is
-        // not required. Callers should fallback to retrying with MFA if needed.
-        return;
-      }
-    }
-
     return auth
       .checkWebauthnSupport()
       .then(() =>
@@ -315,11 +302,38 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
-  getWebauthnResponse(
+  async getWebauthnResponse(
     scope: MFAChallengeScope,
     allowReuse?: boolean,
     isMFARequiredRequest?: IsMfaRequiredRequest
   ) {
+    // If the client is checking if MFA is required for an admin action,
+    // but we know admin action MFA is not enforced, return early.
+    if (
+      isMFARequiredRequest !== null &&
+      scope === MFAChallengeScope.ADMIN_ACTION &&
+      !cfg.isAdminActionMFAEnforced()
+    ) {
+      return;
+    }
+
+    // TODO(Joerger): DELETE IN 16.0.0
+    // the create mfa challenge endpoint below supports
+    // MFARequired requests without the extra roundtrip.
+    if (isMFARequiredRequest) {
+      try {
+        const isMFARequired = await checkMfaRequired(isMFARequiredRequest);
+        if (!isMFARequired.required) {
+          return;
+        }
+      } catch {
+        // checking MFA requirement for admin actions is not supported by old
+        // auth servers, we expect an error instead. In this case, assume MFA is
+        // not required. Callers should fallback to retrying with MFA if needed.
+        return;
+      }
+    }
+
     return auth
       .fetchWebauthnChallenge(scope, allowReuse, isMFARequiredRequest)
       .then(res => makeWebauthnAssertionResponse(res));
