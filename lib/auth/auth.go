@@ -6447,3 +6447,8 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 	}
 	return nil
 }
+
+// FetchAccessGraphSQLProxyInfo loads the local Access Graph configuration and returns information required for proxying the SQL interface.
+func (a *Server) FetchAccessGraphSQLProxyInfo(ctx context.Context) (*proto.AccessGraphSQLProxyInfo, error) {
+	return nil, nil
+}
