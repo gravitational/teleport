@@ -91,7 +91,7 @@ RUN  yum install -y expat-devel \
 RUN git clone --depth=1 https://github.com/Kitware/CMake.git -b v3.28.1 && \
     cd CMake && \
     [ "$(git rev-parse HEAD)" = '1eed682d7cca9bb2c2b0709a6c3202a3b08613b2' ] && \
-    scl enable ${DEVTOOLSET} "CFLAGS=-mno-outline-atomics ./bootstrap --parallel="$(nproc)" && make -j"$(nproc)" && make install"
+    scl enable ${DEVTOOLSET} "if [ "${BUILDARCH}" = "arm64" ]; then export CFLAGS=-mno-outline-atomics; fi &&  ./bootstrap --parallel="$(nproc)" && make -j"$(nproc)" && make install"
 
 ENV PATH="/opt/cmake/bin:$PATH"
 
