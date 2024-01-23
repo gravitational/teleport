@@ -79,15 +79,6 @@ export type {
  * utilize the returned object. This helps with keeping type safety in cases where the handler
  * actually uses the returned object.
  */
-
-export type ExtractRequestType<T> = T extends ServerUnaryCall<infer Req, any>
-  ? Req
-  : never;
-
-export type ExtractResponseType<T> = T extends sendUnaryData<infer Res>
-  ? Res
-  : never;
-
 export type TshdEventContextBridgeService = {
   [RpcName in keyof ITshdEventsService]: (args: {
     /**
@@ -105,6 +96,14 @@ export type TshdEventContextBridgeService = {
     ExtractResponseType<Parameters<ITshdEventsService[RpcName]>[1]>
   >;
 };
+
+export type ExtractRequestType<T> = T extends ServerUnaryCall<infer Req, any>
+  ? Req
+  : never;
+
+export type ExtractResponseType<T> = T extends sendUnaryData<infer Res>
+  ? Res
+  : never;
 
 export type ElectronGlobals = {
   readonly mainProcessClient: MainProcessClient;
