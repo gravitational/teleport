@@ -48,6 +48,10 @@ const (
 	// Max wait time for closing devices, before "abandoning" the device
 	// goroutine.
 	fido2DeviceMaxWait = 100 * time.Millisecond
+
+	// Operation retry interval.
+	// Keep it less frequent than 2Hz / 0.5s.
+	fido2RetryInterval = 500 * time.Millisecond
 )
 
 // User-friendly device filter errors.
@@ -763,9 +767,7 @@ func handleDevice(
 		return trace.Wrap(&nonInteractiveError{err: err})
 	}
 	if isFIDO2 {
-		// TODO(codingllama): Retry Info calls.
-		var err error
-		info, err = dev.Info()
+		info, err = devInfo(path, dev)
 		if err != nil {
 			return trace.Wrap(&nonInteractiveError{err: err})
 		}
@@ -834,6 +836,23 @@ func handleDevice(
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(ackTouch())
+}
+
+func devInfo(path string, dev FIDODevice) (*libfido2.DeviceInfo, error) {
+	const infoAttempts = 3
+	var lastErr error
+	for i := 0; i < infoAttempts; i++ {
+		info, err := dev.Info()
+		if err == nil {
+			return info, nil
+		}
+
+		lastErr = err
+		log.Debugf("FIDO2: Device %v: Info failed, retrying after interval: %v", path, err)
+		time.Sleep(fido2RetryInterval)
+	}
+
+	return nil, trace.Wrap(lastErr)
 }
 
 func runOnFIDO2DevicesLegacy(
