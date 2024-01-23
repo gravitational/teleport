@@ -2080,6 +2080,13 @@ func (f *fakeFIDO2Device) IsFIDO2() (bool, error) {
 	return !f.u2fOnly, nil
 }
 
+func (f *fakeFIDO2Device) SetTimeout(d time.Duration) error {
+	if err := f.verifyOpen(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (f *fakeFIDO2Device) MakeCredential(
 	clientDataHash []byte,
 	rp libfido2.RelyingParty,
