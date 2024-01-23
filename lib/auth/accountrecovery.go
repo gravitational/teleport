@@ -91,42 +91,59 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 
 // verifyRecoveryCodeWithRecord validates the recovery code for the user and will unlock their account if
 // the code is valid.  If the code is invalid, a failed recovery attempt will be recorded.
-func (a *Server) verifyRecoveryCodeWithRecord(ctx context.Context, username string, recoveryCode []byte) error {
+func (a *Server) verifyRecoveryCodeWithRecord(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
 	_, err := a.Services.GetUser(ctx, username, false)
-	switch {
-	case trace.IsNotFound(err):
-		// If user is not found, still authenticate. It should always return an error.
-		// This prevents username oracles and timing attacks.
-		return a.verifyRecoveryCode(ctx, username, recoveryCode)
-	case err != nil:
+	if err != nil && !trace.IsNotFound(err) {
+		// In the case of not found, we still want to perform the comparison.
+		// It will result in an error but this avoids timing attacks which expose account presence.
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(startRecoveryGenericErrMsg)
 	}
+	hasRecoveryCodes := false
+	defer func() { // check for result condition in defer func and send the appropriate audit event
+		event := &apievents.RecoveryCodeUsed{
+			Metadata: apievents.Metadata{
+				Type: events.RecoveryCodeUsedEvent,
+				Code: events.RecoveryCodeUseSuccessCode,
+			},
+			UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
+			Status: apievents.Status{
+				Success: errResult == nil,
+			},
+		}
+		if errResult == nil {
+			if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+				log.WithFields(logrus.Fields{"user": username}).Warn("Failed to emit account recovery code used event.")
+			}
+		} else {
+			event.Metadata.Code = events.RecoveryCodeUseFailureCode
+			traceErr := trace.NotFound("invalid user or user does not have recovery codes")
 
-	verifyCodeErr := a.verifyRecoveryCode(ctx, username, recoveryCode)
-	switch {
-	case trace.IsConnectionProblem(verifyCodeErr):
-		return trace.Wrap(verifyCodeErr)
-	case verifyCodeErr == nil:
-		return nil
-	}
+			if hasRecoveryCodes {
+				traceErr = trace.BadParameter("recovery code did not match")
+			}
 
-	if err := a.recordFailedRecoveryAttempt(ctx, username); err != nil {
-		log.WithError(err).Warn("Error recording failed account recovery attempt")
-	}
-	return trace.Wrap(verifyCodeErr)
-}
+			event.Status.Error = traceErr.Error()
+			event.Status.UserMessage = traceErr.Error()
 
-func (a *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode []byte) error {
-	recovery, err := a.GetRecoveryCodes(ctx, user, true /* withSecrets */)
+			if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+				log.WithFields(logrus.Fields{"user": username}).Warn("Failed to emit account recovery code used failed event.")
+			}
+
+			if err := a.recordFailedRecoveryAttempt(ctx, username); err != nil {
+				log.WithError(err).Warn("Error recording failed account recovery attempt")
+			}
+		}
+	}()
+
+	recovery, err := a.GetRecoveryCodes(ctx, username, true /* withSecrets */)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
 	hashedCodes := make([]types.RecoveryCode, numOfRecoveryCodes)
-	hasRecoveryCodes := false
 	if trace.IsNotFound(err) {
-		log.Debugf("Account recovery codes for user %q not found, using fake hashes to mitigate timing attacks.", user)
+		log.Debugf("Account recovery codes for user %q not found, using fake hashes to mitigate timing attacks.", username)
 		for i := 0; i < numOfRecoveryCodes; i++ {
 			hashedCodes[i].HashedCode = fakeRecoveryCodeHash
 		}
@@ -139,52 +156,22 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 	for i, code := range hashedCodes {
 		// Always take the time to check, but ignore the result if the code was
 		// previously used or if checking against fakes.
-		err := bcrypt.CompareHashAndPassword(code.HashedCode, givenCode)
+		err := bcrypt.CompareHashAndPassword(code.HashedCode, recoveryCode)
 		if err != nil || code.IsUsed || !hasRecoveryCodes {
 			continue
 		}
 		codeMatch = true
 		// Mark matched token as used in backend, so it can't be used again.
 		recovery.GetCodes()[i].IsUsed = true
-		if err := a.UpsertRecoveryCodes(ctx, user, recovery); err != nil {
+		if err := a.UpsertRecoveryCodes(ctx, username, recovery); err != nil {
 			log.Error(trace.DebugReport(err))
 			return trace.AccessDenied(startRecoveryGenericErrMsg)
 		}
 		break
 	}
 
-	event := &apievents.RecoveryCodeUsed{
-		Metadata: apievents.Metadata{
-			Type: events.RecoveryCodeUsedEvent,
-			Code: events.RecoveryCodeUseSuccessCode,
-		},
-		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user),
-		Status: apievents.Status{
-			Success: true,
-		},
-	}
-
 	if !codeMatch || !hasRecoveryCodes {
-		event.Status.Success = false
-		event.Metadata.Code = events.RecoveryCodeUseFailureCode
-		traceErr := trace.NotFound("invalid user or user does not have recovery codes")
-
-		if hasRecoveryCodes {
-			traceErr = trace.BadParameter("recovery code did not match")
-		}
-
-		event.Status.Error = traceErr.Error()
-		event.Status.UserMessage = traceErr.Error()
-
-		if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-			log.WithFields(logrus.Fields{"user": user}).Warn("Failed to emit account recovery code used failed event.")
-		}
-
 		return trace.AccessDenied(startRecoveryBadAuthnErrMsg)
-	}
-
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-		log.WithFields(logrus.Fields{"user": user}).Warn("Failed to emit account recovery code used event.")
 	}
 
 	return nil

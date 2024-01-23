@@ -75,7 +75,7 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 		require.True(t, strings.HasPrefix(code, "tele-"))
 
 		// Test codes match.
-		err := srv.Auth().verifyRecoveryCode(ctx, user, []byte(code))
+		err := srv.Auth().verifyRecoveryCodeWithRecord(ctx, user, []byte(code))
 		require.NoError(t, err)
 	}
 
@@ -87,15 +87,15 @@ func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	}
 
 	// Test with a used code returns error.
-	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(rc.Codes[0]))
+	err = srv.Auth().verifyRecoveryCodeWithRecord(ctx, user, []byte(rc.Codes[0]))
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Test with invalid recovery code returns error.
-	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte("invalidcode"))
+	err = srv.Auth().verifyRecoveryCodeWithRecord(ctx, user, []byte("invalidcode"))
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Test with non-existing user returns error.
-	err = srv.Auth().verifyRecoveryCode(ctx, "doesnotexist", []byte(rc.Codes[0]))
+	err = srv.Auth().verifyRecoveryCodeWithRecord(ctx, "doesnotexist", []byte(rc.Codes[0]))
 	require.True(t, trace.IsAccessDenied(err))
 }
 
@@ -116,14 +116,14 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 	require.Equal(t, events.RecoveryCodesGenerateCode, event.GetCode())
 
 	// Test used recovery code event.
-	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(rc.Codes[0]))
+	err = srv.Auth().verifyRecoveryCodeWithRecord(ctx, user, []byte(rc.Codes[0]))
 	require.NoError(t, err)
 	event = mockEmitter.LastEvent()
 	require.Equal(t, events.RecoveryCodeUsedEvent, event.GetType())
 	require.Equal(t, events.RecoveryCodeUseSuccessCode, event.GetCode())
 
 	// Re-using the same token emits failed event.
-	err = srv.Auth().verifyRecoveryCode(ctx, user, []byte(rc.Codes[0]))
+	err = srv.Auth().verifyRecoveryCodeWithRecord(ctx, user, []byte(rc.Codes[0]))
 	require.Error(t, err)
 	event = mockEmitter.LastEvent()
 	require.Equal(t, events.RecoveryCodeUsedEvent, event.GetType())
