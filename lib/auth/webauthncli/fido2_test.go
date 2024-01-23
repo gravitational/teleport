@@ -415,10 +415,9 @@ func TestFIDO2Login(t *testing.T) {
 			},
 		},
 		{
-			name:    "NOK no devices plugged times out",
-			timeout: 10 * time.Millisecond,
-			fido2:   newFakeFIDO2(),
-			setUP:   func() {},
+			name:  "NOK no devices plugged errors",
+			fido2: newFakeFIDO2(),
+			setUP: func() {},
 			createAssertion: func() *wantypes.CredentialAssertion {
 				cp := *baseAssertion
 				cp.Response.AllowedCredentials = []wantypes.CredentialDescriptor{
@@ -426,7 +425,7 @@ func TestFIDO2Login(t *testing.T) {
 				}
 				return &cp
 			},
-			wantErr: context.DeadlineExceeded.Error(),
+			wantErr: "no security keys found",
 		},
 		{
 			name:    "NOK no devices touched times out",
@@ -1151,13 +1150,6 @@ func TestFIDO2Login_errors(t *testing.T) {
 		wantErr   string
 	}{
 		{
-			name:      "ok - timeout", // check that good params are good
-			origin:    origin,
-			assertion: okAssertion,
-			prompt:    prompt,
-			wantErr:   context.DeadlineExceeded.Error(),
-		},
-		{
 			name:      "nil origin",
 			assertion: okAssertion,
 			prompt:    prompt,
@@ -1322,7 +1314,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 			name:            "passwordless U2F",
 			createAssertion: func() *wantypes.CredentialAssertion { return &pwdlessAssertion },
 			prompt:          u2f,
-			wantErr:         context.DeadlineExceeded.Error(), // silently filtered, times out
+			wantErr:         "cannot do passwordless",
 		},
 	} {
 		t.Run("login/"+test.name, func(t *testing.T) {
@@ -1364,7 +1356,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 			name:     "excluded credential (U2F)",
 			createCC: func() *wantypes.CredentialCreation { return &excludeCC },
 			prompt:   u2f,
-			wantErr:  context.DeadlineExceeded.Error(), // silently filtered, times out
+			wantErr:  "registered credential",
 		},
 		{
 			name:     "passwordless lacks UV",
@@ -1383,7 +1375,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 			name:     "passwordless U2F",
 			createCC: func() *wantypes.CredentialCreation { return &pwdlessCC },
 			prompt:   u2f,
-			wantErr:  context.DeadlineExceeded.Error(), // silently filtered, times out
+			wantErr:  "cannot do passwordless",
 		},
 	} {
 		t.Run("register/"+test.name, func(t *testing.T) {
@@ -1617,17 +1609,6 @@ func TestFIDO2Register(t *testing.T) {
 			},
 		},
 		{
-			name:    "NOK timeout without devices",
-			timeout: 10 * time.Millisecond,
-			fido2:   newFakeFIDO2(),
-			setUP:   func() {},
-			createCredential: func() *wantypes.CredentialCreation {
-				cp := *baseCC
-				return &cp
-			},
-			wantErr: context.DeadlineExceeded,
-		},
-		{
 			name:  "passwordless pin device",
 			fido2: newFakeFIDO2(pin2),
 			setUP: pin2.setUP,
@@ -1789,13 +1770,6 @@ func TestFIDO2Register_errors(t *testing.T) {
 		prompt   wancli.RegisterPrompt
 		wantErr  string
 	}{
-		{
-			name:     "ok - timeout", // check that good params are good
-			origin:   origin,
-			createCC: func() *wantypes.CredentialCreation { return okCC },
-			prompt:   prompt,
-			wantErr:  context.DeadlineExceeded.Error(),
-		},
 		{
 			name:     "nil origin",
 			createCC: func() *wantypes.CredentialCreation { return okCC },
