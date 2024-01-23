@@ -329,10 +329,7 @@ const auth = {
       .then(res => makeWebauthnAssertionResponse(res));
   },
 
-  getWebauthnResponseForAdminAction(
-    adminActionName?: string,
-    allowReuse?: boolean
-  ) {
+  getWebauthnResponseForAdminAction(allowReuse?: boolean) {
     // If the client is checking if MFA is required for an admin action,
     // but we know admin action MFA is not enforced, return early.
     if (!cfg.isAdminActionMFAEnforced()) {
@@ -343,9 +340,7 @@ const auth = {
       MFAChallengeScope.ADMIN_ACTION,
       allowReuse,
       {
-        admin_action: {
-          name: adminActionName,
-        },
+        admin_action: {},
       }
     );
   },
@@ -418,10 +413,7 @@ export type IsMfaRequiredKube = {
 };
 
 export type IsMFARequiredAdminAction = {
-  admin_action: {
-    // name is the name of the admin action RPC.
-    name: string;
-  };
+  admin_action: {};
 };
 
 // MFAChallengeScope is an mfa challenge scope. Possible values are defined in mfa.proto

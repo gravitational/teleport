@@ -84,10 +84,7 @@ export default function useUsers({
   }
 
   async function onCreate(u: User) {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(
-      'CreateUser',
-      true
-    );
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
     return ctx.userService
       .createUser(u, webauthnResponse)
       .then(result => setUsers([result, ...users]))
