@@ -119,8 +119,8 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
               Step 2: Input Your GitHub Account Info
             </Text>
             <Text mb="3">
-              These fields will be combined with your machine user’s permissions
-              to create a join token and generate a sample GitHub Actions file.
+              These fields will be combined with your bot's permissions to
+              create a join token and generate a sample GitHub Actions file.
             </Text>
 
             {repoRules.map((rule, i) => (

@@ -105,7 +105,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
       </Text>
 
       <Text bold fontSize={4} mb="3">
-        Step 1: Scope the Permissions for Your Machine User
+        Step 1: Scope the Permissions for Your Bot
       </Text>
       <Validation>
         {({ validator }) => (
@@ -130,7 +130,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
             </Box>
             <FormItem>
               <Text>
-                SSH User that Your Machine User Can Access{' '}
+                SSH User that Your Bot User Can Access{' '}
                 <Text
                   style={{ display: 'inline' }}
                   fontWeight="lighter"
@@ -153,7 +153,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
             </FormItem>
 
             <FormItem>
-              <Text>Create a Name for Your Machine User *</Text>
+              <Text>Create a Name for Your Bot User *</Text>
               <FieldInput
                 rule={requiredField('Name for Machine User is required')}
                 mb={3}

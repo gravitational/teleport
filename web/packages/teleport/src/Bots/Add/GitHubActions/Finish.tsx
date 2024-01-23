@@ -47,17 +47,17 @@ export function Finish() {
     >
       <Image width="120px" height="120px" src={celebratePamPng} />
       <Text mt={3} mb={2} typography="h4" bold>
-        Your Machine User is Added to Teleport
+        Your Bot is Added to Teleport
       </Text>
       <Text mb={3}>
-        Machine User {createBotRequest.botName} has been successfully added to
-        this Teleport Cluster. You can see bot-{createBotRequest.botName} in the
+        Bot {createBotRequest.botName} has been successfully added to this
+        Teleport Cluster. You can see bot-{createBotRequest.botName} in the
         Teleport Users page and you can always find the sample GitHub Actions
-        workflow again from the machine user's options.
+        workflow again from the bot's options.
       </Text>
       <Flex>
-        <ButtonPrimary mr="4" as={Link} to={cfg.routes.users} size="large">
-          View Machine Users
+        <ButtonPrimary mr="4" as={Link} to={cfg.getBotsRoute()} size="large">
+          View Bots
         </ButtonPrimary>
         <ButtonSecondary
           as={Link}

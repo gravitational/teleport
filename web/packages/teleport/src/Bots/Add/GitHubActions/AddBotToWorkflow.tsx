@@ -37,6 +37,7 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
   const cluster = ctx.storeUser.state.cluster;
 
   const yaml = getWorkflowExampleYaml(
+    createBotRequest.botName,
     cluster.authVersion,
     cluster.publicURL,
     tokenName
@@ -45,12 +46,12 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
   return (
     <Box mb="0">
       <Text bold fontSize={4} mb="3">
-        Step 3: Connect Your Machine User in a GitHub Actions Workflow
+        Step 3: Connect Your Bot in a GitHub Actions Workflow
       </Text>
       <Text fontSize={3} mb="3">
-        Teleport has created a role, a machine user, and a join token. Below is
-        an example GitHub Actions workflow doc to help you get started. You can
-        find this again from the machine user’s options dropdown
+        Teleport has created a role, a bot, and a join token. Below is an
+        example GitHub Actions workflow doc to help you get started. You can
+        find this again from the bot’s options dropdown
       </Text>
       <Flex flex="1" height="630px" maxWidth="840px" mb="3">
         <TextEditor
@@ -74,6 +75,7 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
 }
 
 function getWorkflowExampleYaml(
+  botName: string,
   version: string,
   proxyAddr: string,
   tokenName: string
@@ -90,7 +92,7 @@ demo:
     id-token: write
     contents: read
   # if you added a workflow name in the previous step, make sure you use the same value here
-  name: machine-id-example
+  name: ${botName}-example
   runs-on: ubuntu-latest
   steps:
   - name: Checkout repository
