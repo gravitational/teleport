@@ -5772,8 +5772,9 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     true,
 			assertError: require.NoError,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Len(t, emitter.Events(), 1)
-				require.Equal(t, events.UserHeadlessLoginApprovedCode, emitter.LastEvent().GetCode())
+				require.Len(t, emitter.Events(), 2)
+				require.Equal(t, events.ValidateMFAAuthResponseCode, emitter.Events()[0].GetCode())
+				require.Equal(t, events.UserHeadlessLoginApprovedCode, emitter.Events()[1].GetCode())
 			},
 		}, {
 			name:        "NOK same user approved without mfa",
@@ -5781,8 +5782,9 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     false,
 			assertError: assertAccessDenied,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Len(t, emitter.Events(), 1)
-				require.Equal(t, events.UserHeadlessLoginApprovedFailureCode, emitter.LastEvent().GetCode())
+				require.Len(t, emitter.Events(), 2)
+				require.Equal(t, events.ValidateMFAAuthResponseFailureCode, emitter.Events()[0].GetCode())
+				require.Equal(t, events.UserHeadlessLoginApprovedFailureCode, emitter.Events()[1].GetCode())
 			},
 		}, {
 			name:        "NOK not found",
