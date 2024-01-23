@@ -33,6 +33,9 @@ import (
 )
 
 type authServer interface {
+	// GetClusterName returns cluster name
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
 	// GenerateHostCert uses the private key of the CA to sign the public key of
 	// the host (along with metadata like host ID, node name, roles, and ttl)
 	// to generate a host certificate.
@@ -241,6 +244,79 @@ func (s *Service) RotateCertAuthority(ctx context.Context, req *trustpb.RotateCe
 	}
 
 	return &trustpb.RotateCertAuthorityResponse{}, nil
+}
+
+// RotateExternalCertAuthority rotates external certificate authority,
+// this method is called by remote trusted cluster and is used to update
+// only public keys and certificates of the certificate authority.
+func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.RotateExternalCertAuthorityRequest) (*trustpb.RotateExternalCertAuthorityResponse, error) {
+	if req.CertAuthority == nil {
+		return nil, trace.BadParameter("missing certificate authority")
+	}
+
+	if err := services.ValidateCertAuthority(req.CertAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authzCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbRotate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteService(*authzCtx) {
+		return nil, trace.AccessDenied("this request can be only executed by an internal Teleport service")
+	}
+
+	clusterName, err := s.authServer.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// this is just an extra precaution against local admins,
+	// because this is additionally enforced by RBAC as well
+	if req.CertAuthority.GetClusterName() == clusterName.GetClusterName() {
+		return nil, trace.BadParameter("can not rotate local certificate authority")
+	}
+
+	existing, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       req.CertAuthority.GetType(),
+		DomainName: req.CertAuthority.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated := existing.Clone()
+	if err := updated.SetActiveKeys(req.CertAuthority.GetActiveKeys().Clone()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := updated.SetAdditionalTrustedKeys(req.CertAuthority.GetAdditionalTrustedKeys().Clone()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// a rotation state of "" gets stored as "standby" after
+	// CheckAndSetDefaults, so if `ca` came in with a zeroed rotation we must do
+	// this before checking if `updated` is the same as `existing` or the check
+	// will fail for no reason (CheckAndSetDefaults is idempotent, so it's fine
+	// to call it both here and in CompareAndSwapCertAuthority)
+	updated.SetRotation(req.CertAuthority.GetRotation())
+	if err := services.CheckAndSetDefaults(updated); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// CASing `updated` over `existing` if they're equivalent will only cause
+	// backend and watcher spam for no gain, so we exit early if that's the case
+	if services.CertAuthoritiesEquivalent(existing, updated) {
+		return &trustpb.RotateExternalCertAuthorityResponse{}, nil
+	}
+
+	// use compare and swap to protect from concurrent updates
+	// by trusted cluster API
+	if err := s.backend.CompareAndSwapCertAuthority(updated, existing); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &trustpb.RotateExternalCertAuthorityResponse{}, nil
 }
 
 // GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format

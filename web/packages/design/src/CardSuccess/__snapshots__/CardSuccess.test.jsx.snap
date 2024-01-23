@@ -22,13 +22,8 @@ exports[`rendering of CardSuccess components 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: #00BFA6;
   margin-bottom: 16px;
-}
-
-.c2 color {
-  main: #00BFA6;
-  hover: #33CCB8;
-  active: #66D9CA;
 }
 
 <div
@@ -37,7 +32,7 @@ exports[`rendering of CardSuccess components 1`] = `
 >
   <span
     class="c2 icon icon-circlecheck"
-    color="success"
+    color="success.main"
   >
     <svg
       fill="currentColor"

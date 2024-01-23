@@ -853,6 +853,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/eksclusters", h.WithClusterAuth(h.awsOIDCListEKSClusters))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
