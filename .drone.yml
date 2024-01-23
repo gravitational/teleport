@@ -1,32 +1,4 @@
 ---
-kind: pipeline
-type: kubernetes
-name: update-docs-webhook
-
-trigger:
-  event:
-    include:
-      - push
-    exclude:
-      - pull_request
-  branch:
-    include:
-      - master
-      - branch/*
-  repo:
-    include:
-      - gravitational/teleport
-
-clone:
-  disable: true
-
-steps:
-  - name: Trigger docs deployment
-    image: plugins/webhook
-    settings:
-      urls:
-        from_secret: DOCS_DEPLOY_HOOK
----
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
@@ -5535,6 +5507,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 92a1f74b485895beb8d16112085e6e018e471a0125c526a94fdc905706a3a12f
+hmac: 1f1c2c66bc502f81cf78813b509f1da2193af20a24deceddaaaa01d8748bd770
 
 ...
