@@ -428,12 +428,15 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		joinMethod = types.JoinMethodToken
 	}
 
-	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+	templateData := map[string]interface{}{
 		"token":       token.GetName(),
-		"minutes":     int(time.Until(token.Expiry()).Minutes()),
 		"addr":        addr,
 		"join_method": joinMethod,
-	})
+	}
+	if !token.Expiry().IsZero() {
+		templateData["minutes"] = int(time.Until(token.Expiry()).Minutes())
+	}
+	return startMessageTemplate.Execute(os.Stdout, templateData)
 }
 
 func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error {
