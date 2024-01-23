@@ -16,14 +16,14 @@ authenticate to external services.
 - (!docs/pages/includes/tctl.mdx!)
 - If you're new to SAML, consider reviewing our [SAML Identity Provider
   Reference](./saml-reference.mdx) before proceeding.
-- User with permission to create Service Provider resource. The preset `editor` role has this permission.
-- Test SAML application, also known as SAML Service Provider (SP). For this guide, we'll be using
-[samltest.id](https://samltest.id/) to create a test consumer of Teleport's SAML IdP.
+- User with permission to create service provider resource. The preset `editor` role has this permission.
+- SAML application (also known as a SAML service provider or SP) for testing. For this guide, we'll be using
+[samltest.id](https://samltest.id/) as a service provider for Teleport's SAML IdP.
 
-## Step 1/3. Add samltest.id Service Provider to Teleport
+## Step 1/3. Add a service provider to Teleport
 
-The minimum configuration values required to add a Service Provider are:
-1. **Entity ID:** The SAML metadata endpoint of the Service Provider.
+The minimum configuration values required to add a service provider are:
+1. **Entity ID:** The SAML metadata endpoint of the service provider.
 2. **ACS URL:** The endpoint where users will be redirected after SAML authentication. ACS URL
 is also referred to as SAML SSO URL.
 
@@ -51,7 +51,7 @@ $ tctl create saml-sp.yaml
 # SAML IdP service provider 'samltest-id' has been created.
 ```
 
-The above configuration shows creating Service Provider without an entity descriptor.
+The above configuration shows creating service provider without an entity descriptor.
 In this scenario, Teleport first tries to fetch an entity descriptor by quering the `entity_id` endpoint.
 If an entity descriptor is not found at that endpoint, Teleport will generate
 a new entity descriptor with the given `entity_id` and `acs_url` values.
@@ -95,16 +95,16 @@ $ tctl create saml-sp.yaml
 <Admonition type="important">
 If an entity descrpitor is provided, it's content takes preference over values provided in `entity_id` and `acs_url`.
 
-Teleport only tries to fetch or generate entity descriptor when Service Provider is created for the first time.
-Subsequent updates require an entity descrpitor to be present in the Service Provider spec. As such, when updating
-Service Provider, you should first fetch the spec that is stored in Teleport and only then edit the configruation.
+Teleport only tries to fetch or generate entity descriptor when service provider is created for the first time.
+Subsequent updates require an entity descrpitor to be present in the service provider spec. As such, when updating
+service provider, you should first fetch the spec that is stored in Teleport and only then edit the configruation.
 ```code
 # get service provider spec
 $ tctl get saml_idp_service_provider/<service provider name> > service-provider.yml
 ```
 </Admonition>
 
-## Step 2/3. Configure samltest.id to recognize Teleport's SAML IdP
+## Step 2/3. Configure the service provider to recognize Teleport's SAML IdP
 
 First, obtain your Teleport SAML IdP metadata by navigating to `https://<proxy-address>/enterprise/saml-idp/metadata`.
 Save it in an easy to remember file name like `teleport-metadata.xml`.
@@ -134,9 +134,9 @@ where `samltest-id` is the friendly name of the service provider object created 
 You should be redirected to the same successful login page seen earlier.
 
 
-## Optional: Creating dedicated role to manage Service Provider
+## Optional: Creating dedicated role to manage service provider
 
-For production, we recommend creating a dedicated role to manage Service Provider.
+For production, we recommend creating a dedicated role to manage service provider.
 
 To create a dedicated role, first, ensure you are logged into Teleport as a user that has
 permissions to read and modify `saml_idp_service_provider` objects. The default `editor` role
