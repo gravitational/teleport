@@ -51,6 +51,37 @@ type PTYReqParams struct {
 	Modes string
 }
 
+type ForwardedTCPIPRequest struct {
+	WindowSize    uint32
+	MaxPacketSize uint32
+	Addr          string
+	Port          uint32
+	OrigAddr      string
+	OrigPort      uint32
+}
+
+func (req *ForwardedTCPIPRequest) CheckAndSetDefaults() error {
+	if req.WindowSize == 0 {
+		req.WindowSize = 1 // TODO find good default
+	}
+	if req.MaxPacketSize == 0 {
+		req.MaxPacketSize = 1 // TODO find good default
+	}
+	if req.Addr == "" {
+		return trace.BadParameter("missing field Addr")
+	}
+	if req.Port == 0 {
+		return trace.BadParameter("missing field Port")
+	}
+	if req.OrigAddr == "" {
+		return trace.BadParameter("missing field OrigAddr")
+	}
+	if req.OrigPort == 0 {
+		return trace.BadParameter("missing field OrigPort")
+	}
+	return nil
+}
+
 // TerminalModes converts encoded terminal modes into a ssh.TerminalModes map.
 // The encoding is described in: https://tools.ietf.org/html/rfc4254#section-8
 //

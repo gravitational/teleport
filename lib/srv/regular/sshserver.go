@@ -2296,7 +2296,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	scx.IsTestStub = s.isTestStub
 	scx.ChannelType = teleport.TCPIPForwardRequest
 
-	listener, err := s.getTCPIPForwardListener(scx, req.ListenAddr())
+	listener, err := s.getTCPIPForwardListener(scx, sshutils.JoinHostPort(req.Addr, req.Port))
 	if err != nil {
 		scx.Close()
 		return trace.Wrap(err)
@@ -2320,31 +2320,64 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 
 	// Report addr back to the client.
 	if r.WantReply {
-		_, port, err := net.SplitHostPort(listener.Addr().String())
-		if err != nil {
-			scx.Close()
-			return trace.Wrap(err)
-		}
-		portInt, err := strconv.Atoi(port)
+		_, port, err := sshutils.SplitHostPort(listener.Addr().String())
 		if err != nil {
 			scx.Close()
 			return trace.Wrap(err)
 		}
 
 		buf := make([]byte, 0, 4)
-		binary.BigEndian.PutUint32(buf, uint32(portInt))
+		binary.BigEndian.PutUint32(buf, uint32(port))
 		if err := r.Reply(true, buf); err != nil {
+			scx.Close()
 			return trace.Wrap(err)
 		}
 	}
 
-	go s.handleRemoteListener(ctx, ccx, listener)
+	go s.handleRemoteListener(ctx, scx, listener)
 
 	return nil
 }
 
-func (s *Server) handleRemoteListener(ctx context.Context, ccx *sshutils.ConnectionContext, l net.Listener) {
+func (s *Server) handleRemoteListener(ctx context.Context, scx *srv.ServerContext, listener net.Listener) {
+	srcHost, srcPort, err := sshutils.SplitHostPort(scx.SrcAddr)
+	if err != nil {
+		s.Logger.WithError(err).Warn("failed to parse src addr")
+		return
+	}
+	dstHost, dstPort, err := sshutils.SplitHostPort(scx.DstAddr)
+	if err != nil {
+		s.Logger.WithError(err).Warn("failed to parse dst addr")
+		return
+	}
 
+	req := sshutils.ForwardedTCPIPRequest{
+		Addr:     dstHost,
+		Port:     dstPort,
+		OrigAddr: srcHost,
+		OrigPort: srcPort,
+	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		s.Logger.WithError(err).Warn("failed to check and set defaults on forwarded tcpip request")
+		return
+	}
+	reqBytes := ssh.Marshal(req)
+
+	for ctx.Err() == nil {
+		conn, err := listener.Accept()
+		if err != nil {
+			s.Logger.WithError(err).Warn("failed to accept connection")
+			continue
+		}
+
+		ch, rch, err := scx.ConnectionContext.ServerConn.OpenChannel(teleport.ChanForwardedTCPIP, reqBytes)
+		if err != nil {
+			s.Logger.WithError(err).Warn("failed to open channel")
+			continue
+		}
+		go ssh.DiscardRequests(rch)
+		go utils.ProxyConn(ctx, conn, ch)
+	}
 }
 
 func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshutils.ConnectionContext, r *ssh.Request) error {
@@ -2352,7 +2385,7 @@ func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshut
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	addr := req.ListenAddr()
+	addr := sshutils.JoinHostPort(req.Addr, req.Port)
 	// TODO should both load and delete be under a lock?
 	fwdCtx, ok := s.remoteForwardingMap.Load(addr)
 	if !ok {
