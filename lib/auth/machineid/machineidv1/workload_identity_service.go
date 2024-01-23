@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -94,7 +95,6 @@ func NewWorkloadIdentityService(
 		logger:     cfg.Logger,
 		authorizer: cfg.Authorizer,
 		cache:      cfg.Cache,
-		backend:    cfg.Backend,
 		emitter:    cfg.Emitter,
 		reporter:   cfg.Reporter,
 		clock:      cfg.Clock,
@@ -116,30 +116,15 @@ type WorkloadIdentityService struct {
 	clock      clockwork.Clock
 }
 
-func (wis *WorkloadIdentityService) signX509SVID(
-	ctx context.Context,
-	authCtx *authz.Context,
-	req *pb.SVIDRequest,
-	clusterName string,
+func signx509SVID(
+	notBefore time.Time,
+	notAfter time.Time,
 	ca *tlsca.CertAuthority,
-) (*pb.SVIDResponse, error) {
-	// TODO: Authn/authz
-	// TODO: Ensure they can issue the IPs, SANs and SPIFFE ID
-	// TODO: Validate req.SpiffeIDPath for any potential weirdness
-
-	spiffeID := &url.URL{
-		Scheme: spiffeScheme,
-		Host:   clusterName,
-		Path:   req.SpiffeIdPath,
-	}
-
-	// Sign certificate
-
-	ipSans := []net.IP{}
-	for _, stringIP := range req.IpSans {
-		ipSans = append(ipSans, net.ParseIP(stringIP))
-	}
-
+	publicKey []byte,
+	spiffeID *url.URL,
+	dnsSANs []string,
+	ipSANS []net.IP,
+) ([]byte, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
@@ -147,16 +132,15 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	}
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
-		// NotBefore is one minute in the past to prevent "Not yet valid" errors on
-		// time skewed clusters.
-		NotBefore: wis.clock.Now().UTC().Add(-1 * time.Minute),
-		// TODO: Source TTL from req to the configured limit in rbac???
-		NotAfter: wis.clock.Now().UTC().Add(time.Hour),
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
 		// SPEC(X509-SVID) 4.3. Key Usage:
 		// - Leaf SVIDs MUST NOT set keyCertSign or cRLSign.
 		// - Leaf SVIDs MUST set digitalSignature
 		// - They MAY set keyEncipherment and/or keyAgreement;
-		KeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageKeyAgreement,
+		KeyUsage: x509.KeyUsageDigitalSignature |
+			x509.KeyUsageKeyEncipherment |
+			x509.KeyUsageKeyAgreement,
 		// SPEC(X509-SVID) 4.4. Extended Key Usage:
 		// - Leaf SVIDs SHOULD include this extension, and it MAY be marked as critical.
 		// - When included, fields id-kp-serverAuth and id-kp-clientAuth MUST be set.
@@ -173,18 +157,55 @@ func (wis *WorkloadIdentityService) signX509SVID(
 		// - An X.509 SVID MUST contain exactly one URI SAN, and by extension, exactly one SPIFFE ID.
 		// - An X.509 SVID MAY contain any number of other SAN field types, including DNS SANs.
 		URIs:        []*url.URL{spiffeID},
-		DNSNames:    req.DnsSans,
-		IPAddresses: ipSans,
+		DNSNames:    dnsSANs,
+		IPAddresses: ipSANS,
 	}
 
 	certBytes, err := x509.CreateCertificate(
-		rand.Reader, template, ca.Cert, req.PublicKey, ca.Signer,
+		rand.Reader, template, ca.Cert, publicKey, ca.Signer,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
 
+	return pemBytes, nil
+}
+
+func (wis *WorkloadIdentityService) signX509SVID(
+	ctx context.Context,
+	authCtx *authz.Context,
+	req *pb.SVIDRequest,
+	clusterName string,
+	ca *tlsca.CertAuthority,
+) (*pb.SVIDResponse, error) {
+	// TODO: Authn/authz
+	// TODO: Ensure they can issue the IPs, SANs and SPIFFE ID
+	// TODO: Validate req.SpiffeIDPath for any potential weirdness
+
+	spiffeID := &url.URL{
+		Scheme: spiffeScheme,
+		Host:   clusterName,
+		Path:   req.SpiffeIdPath,
+	}
+	ipSans := []net.IP{}
+	for _, stringIP := range req.IpSans {
+		ipSans = append(ipSans, net.ParseIP(stringIP))
+	}
+
+	// NotBefore is one minute in the past to prevent "Not yet valid" errors on
+	// time skewed clusters.
+	notBefore := wis.clock.Now().UTC().Add(-1 * time.Minute)
+	notAfter := wis.clock.Now().Add(defaults.DefaultRenewableCertTTL)
+	// TODO: Source TTL from req and enforce DefaultRenewableCertTTL as the
+	// limit in rbac???
+
+	pemBytes, err := signx509SVID(
+		notBefore, notAfter, ca, req.PublicKey, spiffeID, req.DnsSans, ipSans,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// TODO: Audit and analytics event
 
 	return &pb.SVIDResponse{
