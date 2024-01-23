@@ -17,6 +17,7 @@
  */
 
 import React, { PropsWithChildren } from 'react';
+import { Link } from 'react-router-dom';
 import { Box, Card, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 
@@ -98,10 +99,7 @@ export const Support = ({
             <SupportLink title="Get Started" url={docs.getStarted} />
             <SupportLink title="tsh User Guide" url={docs.tshGuide} />
             <SupportLink title="Admin Guides" url={docs.adminGuide} />
-            <SupportLink
-              title="Download Page"
-              url={getDownloadLink(isCloud, isEnterprise)}
-            />
+            <DownloadLink isCloud={isCloud} isEnterprise={isEnterprise} />
             <SupportLink title="FAQ" url={docs.faq} />
           </Box>
           <Box>
@@ -194,16 +192,33 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   };
 };
 
-const getDownloadLink = (isCloud: boolean, isEnterprise: boolean) => {
+const DownloadLink = ({
+  isCloud,
+  isEnterprise,
+}: {
+  isCloud: boolean;
+  isEnterprise: boolean;
+}) => {
   if (isCloud) {
-    return cfg.routes.downloadCenter;
+    return (
+      <StyledSupportLink as={Link} to={cfg.routes.downloadCenter}>
+        Download Page
+      </StyledSupportLink>
+    );
   }
 
   if (isEnterprise) {
-    return 'https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard';
+    return (
+      <SupportLink
+        title="Download Page"
+        url="https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard"
+      />
+    );
   }
 
-  return 'https://goteleport.com/download/';
+  return (
+    <SupportLink title="Download Page" url="https://goteleport.com/download/" />
+  );
 };
 
 const SupportLink = ({ title = '', url = '' }) => (
