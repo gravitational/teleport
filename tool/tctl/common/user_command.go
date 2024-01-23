@@ -300,7 +300,7 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 
 	// Prompt for admin action MFA if required, allowing reuse for CreateResetPasswordToken.
 	if u.config.Auth.Preference.IsAdminActionMFAEnforced() {
-		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client, "CreateUser", true /*allowReuse*/)
+		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client, true /*allowReuse*/)
 		if err != nil {
 			return trace.Wrap(err)
 		} else if mfaResponse != nil {
