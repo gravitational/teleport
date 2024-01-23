@@ -36,6 +36,7 @@ export function Login({
   onLoginWithSso,
   authProviders,
   auth2faType,
+  checkingValidSession,
   preferredMfaType,
   isLocalAuthEnabled,
   clearAttempt,
@@ -45,6 +46,12 @@ export function Login({
   showMotd,
   acknowledgeMotd,
 }: State) {
+  // while we are checking if a session is valid, we don't return anything
+  // to prevent flickering. The check only happens for a frame or two so
+  // we avoid rendering a loader/indicator since that will flicker as well
+  if (checkingValidSession) {
+    return null;
+  }
   return (
     <>
       <Logo src={logoSrc} />
