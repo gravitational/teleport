@@ -204,7 +204,7 @@ export class ResourceSearchError extends Error {
     getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string
   ) {
     return `${this.messageWithClusterName(getClusterName)}:\n${
-      (this.cause as Record<string, string>)['message']
+      this.cause['message']
     }`;
   }
 }
