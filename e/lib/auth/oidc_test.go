@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
@@ -38,19 +39,25 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type OIDCSuite struct {
-	a   *auth.Server
-	b   backend.Backend
-	c   clockwork.FakeClock
-	oas *OIDCAuthService
+	a       *auth.Server
+	b       backend.Backend
+	c       clockwork.FakeClock
+	oas     *OIDCAuthService
+	emitter *eventstest.MockRecorderEmitter
 }
 
 func setUpSuite(t *testing.T) *OIDCSuite {
-	s := OIDCSuite{}
+	s := OIDCSuite{
+		emitter: &eventstest.MockRecorderEmitter{},
+	}
 
 	ctx := context.Background()
 	s.c = clockwork.NewFakeClockAt(time.Now())
@@ -81,7 +88,7 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 	s.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
 
-	s.oas, err = NewOIDCAuthService(&OIDCAuthServiceConfig{Auth: s.a, License: ValidLicense{}})
+	s.oas, err = NewOIDCAuthService(&OIDCAuthServiceConfig{Auth: s.a, License: ValidLicense{}, Emitter: s.emitter})
 	require.NoError(t, err)
 	s.a.SetOIDCService(s.oas)
 
@@ -344,12 +351,14 @@ func TestSSODiagnostic(t *testing.T) {
 				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 			}
 
+			addr := utils.MustParseAddr("1.1.1.1:42")
 			oidcRequest := types.OIDCAuthRequest{
 				ConnectorID:   "-sso-test-okta",
 				Type:          constants.OIDC,
 				CertTTL:       defaults.OIDCAuthRequestTTL,
 				SSOTestFlow:   true,
 				ConnectorSpec: &spec,
+				ClientLoginIP: addr.String(),
 			}
 
 			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
@@ -367,6 +376,7 @@ func TestSSODiagnostic(t *testing.T) {
 				return tc.claims, nil
 			}
 
+			s.emitter.Reset()
 			resp, err := s.oas.ValidateOIDCAuthCallback(ctx, values)
 			if tc.wantValidateErr != nil {
 				require.ErrorIs(t, err, tc.wantValidateErr)
@@ -385,10 +395,15 @@ func TestSSODiagnostic(t *testing.T) {
 				},
 				Req: OIDCAuthRequestFromProto(request),
 			}, resp)
+			require.NotNil(t, s.emitter.LastEvent())
+			require.Equal(t, events.UserLoginEvent, s.emitter.LastEvent().GetType())
+			require.IsType(t, &apievents.UserLogin{}, s.emitter.LastEvent())
+			loginEvt := s.emitter.LastEvent().(*apievents.UserLogin)
+			require.Equal(t, addr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
 
 			diagCtx := auth.SSODiagContext{}
 
-			resp, err = s.oas.validateOIDCAuthCallback(ctx, &diagCtx, values)
+			resp, loginIP, err := s.oas.validateOIDCAuthCallback(ctx, &diagCtx, values)
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			require.Equal(t, &auth.OIDCAuthResponse{
@@ -432,6 +447,7 @@ func TestSSODiagnostic(t *testing.T) {
 				AppliedLoginRules: expectLoginRules,
 			}, diagCtx.Info, cmpopts.SortSlices(func(a, b string) bool { return a < b }))
 			require.Empty(t, diff, "diagnostic info does not match expected")
+			require.Equal(t, addr.String(), loginIP)
 
 			require.Equal(t, len(tc.loginHooks)*2, int(loginHookCounter.Load()))
 		})

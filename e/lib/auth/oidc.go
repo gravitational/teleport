@@ -339,7 +339,7 @@ func (oas *OIDCAuthService) ValidateOIDCAuthCallback(ctx context.Context, q url.
 
 	diagCtx := auth.NewSSODiagContext(types.KindOIDC, oas.auth)
 
-	auth, err := oas.validateOIDCAuthCallback(ctx, diagCtx, q)
+	auth, loginIP, err := oas.validateOIDCAuthCallback(ctx, diagCtx, q)
 	diagCtx.Info.Error = trace.UserMessage(err)
 
 	diagCtx.WriteToBackend(ctx)
@@ -373,6 +373,7 @@ func (oas *OIDCAuthService) ValidateOIDCAuthCallback(ctx context.Context, q url.
 		return nil, trace.Wrap(err)
 	}
 
+	event.ConnectionMetadata = apievents.ConnectionMetadata{RemoteAddr: loginIP}
 	event.Code = events.UserSSOLoginCode
 	if diagCtx.Info.TestFlow {
 		event.Code = events.UserSSOTestFlowLoginCode
@@ -454,7 +455,7 @@ func validateOIDCAuthCallbackWeb(authClient *auth.ServerWithRoles, w http.Respon
 	return &raw, nil
 }
 
-func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCtx *auth.SSODiagContext, q url.Values) (*auth.OIDCAuthResponse, error) {
+func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCtx *auth.SSODiagContext, q url.Values) (*auth.OIDCAuthResponse, string, error) {
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.
 		state := q.Get("state")
@@ -469,25 +470,25 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 		// optional parameter: error_description
 		errDesc := q.Get("error_description")
 		oidcErr := trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q)
-		return nil, trace.WithUserMessage(oidcErr, "OIDC provider returned error: %v [%v]", errDesc, errParam)
+		return nil, "", trace.WithUserMessage(oidcErr, "OIDC provider returned error: %v [%v]", errDesc, errParam)
 	}
 
 	code := q.Get("code")
 	if code == "" {
 		oidcErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "code query param must be set", q)
-		return nil, trace.WithUserMessage(oidcErr, "Invalid parameters received from OIDC provider.")
+		return nil, "", trace.WithUserMessage(oidcErr, "Invalid parameters received from OIDC provider.")
 	}
 
 	stateToken := q.Get("state")
 	if stateToken == "" {
 		oidcErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "missing state query param", q)
-		return nil, trace.WithUserMessage(oidcErr, "Invalid parameters received from OIDC provider.")
+		return nil, "", trace.WithUserMessage(oidcErr, "Invalid parameters received from OIDC provider.")
 	}
 	diagCtx.RequestID = stateToken
 
 	req, err := oas.auth.GetOIDCAuthRequest(ctx, stateToken)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
+		return nil, "", trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
 	diagCtx.Info.TestFlow = req.SSOTestFlow
 
@@ -497,7 +498,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 
 	connector, client, err := oas.getOIDCConnectorAndClient(ctxC, *req)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to get OIDC connector and client.")
+		return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to get OIDC connector and client.")
 	}
 
 	// extract claims from both the id token and the userinfo endpoint and merge them
@@ -505,10 +506,10 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	if err != nil {
 		// different error message for Google Workspace as likely cause is different.
 		if isGoogleWorkspaceConnector(connector) {
-			return nil, trace.Wrap(err, "Failed to extract OIDC claims. Check your Google Workspace plan and enabled APIs. See: https://goteleport.com/docs/enterprise/sso/google-workspace/#ensure-your-google-workspace-plan-is-correct")
+			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to extract OIDC claims. Check your Google Workspace plan and enabled APIs. See: https://goteleport.com/docs/enterprise/sso/google-workspace/#ensure-your-google-workspace-plan-is-correct")
 		}
 
-		return nil, trace.Wrap(err, "Failed to extract OIDC claims. This may indicate need to set 'provider' flag in connector definition. See: https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds")
+		return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to extract OIDC claims. This may indicate need to set 'provider' flag in connector definition. See: https://goteleport.com/docs/enterprise/sso/#provider-specific-workarounds")
 	}
 	diagCtx.Info.OIDCClaims = types.OIDCClaims(claims)
 
@@ -518,23 +519,23 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	if maxAge, ok := connector.GetMaxAge(); ok {
 		authTime, hasAuthTime, err := claims.TimeClaim("auth_time")
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to parse 'auth_time' claim.")
+			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to parse 'auth_time' claim.")
 		}
 		if !hasAuthTime {
 			oidcErr := trace.OAuth2(oauth2.ErrorAccessDenied, "missing claim auth_time", q)
-			return nil, trace.Wrap(oidcErr, "Invalid parameters received from OIDC provider.")
+			return nil, req.ClientLoginIP, trace.Wrap(oidcErr, "Invalid parameters received from OIDC provider.")
 		}
 
 		maxAge = max(maxAge, authGracePeriod)
 		if time.Since(authTime) > maxAge {
 			oidcErr := trace.OAuth2(oauth2.ErrorAccessDenied, "user needs to reauthenticate", q)
-			return nil, trace.Wrap(oidcErr, "Reauthentication is required.")
+			return nil, req.ClientLoginIP, trace.Wrap(oidcErr, "Reauthentication is required.")
 		}
 	}
 
 	if !connector.GetAllowUnverifiedEmail() {
 		if err := checkEmailVerifiedClaim(claims); err != nil {
-			return nil, trace.Wrap(err, "OIDC provider did not verify email.")
+			return nil, req.ClientLoginIP, trace.Wrap(err, "OIDC provider did not verify email.")
 		}
 	}
 
@@ -543,14 +544,14 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	if acrValue != "" {
 		err := validateACRValues(acrValue, connector.GetProvider(), claims)
 		if err != nil {
-			return nil, trace.Wrap(err, "OIDC ACR validation failure.")
+			return nil, req.ClientLoginIP, trace.Wrap(err, "OIDC ACR validation failure.")
 		}
 		log.Debugf("OIDC ACR values %q successfully validated.", acrValue)
 	}
 
 	ident, err := oidc.IdentityFromClaims(claims)
 	if err != nil {
-		return nil, trace.OAuth2(
+		return nil, req.ClientLoginIP, trace.OAuth2(
 			oauth2.ErrorUnsupportedResponseType, "unable to convert claims to identity", q)
 	}
 	diagCtx.Info.OIDCIdentity = &types.OIDCIdentity{
@@ -563,7 +564,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 
 	if len(connector.GetClaimsToRoles()) == 0 {
 		oidcErr := trace.BadParameter("no claims to roles mapping, check connector documentation")
-		return nil, trace.WithUserMessage(oidcErr, "Claims-to-roles mapping is empty, SSO user will never have any roles.")
+		return nil, req.ClientLoginIP, trace.WithUserMessage(oidcErr, "Claims-to-roles mapping is empty, SSO user will never have any roles.")
 	}
 	log.Debugf("Applying %v OIDC claims to roles mappings.", len(connector.GetClaimsToRoles()))
 	diagCtx.Info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
@@ -572,7 +573,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	// create the user in the backend.
 	params, err := oas.calculateOIDCUser(ctx, diagCtx, connector, claims, ident, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
+		return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
 
 	diagCtx.Info.CreateUserParams = &types.CreateUserParams{
@@ -587,16 +588,16 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 
 	user, err := oas.createOIDCUser(ctx, params, req.SSOTestFlow)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
+		return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
 	if err := oas.auth.CallLoginHooks(ctx, user); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, req.ClientLoginIP, trace.Wrap(err)
 	}
 
 	userState, err := oas.auth.GetUserOrLoginState(ctx, user.GetName())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, req.ClientLoginIP, trace.Wrap(err)
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
@@ -612,11 +613,11 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	// In test flow skip signing and creating web sessions.
 	if req.SSOTestFlow {
 		diagCtx.Info.Success = true
-		return resp, nil
+		return resp, req.ClientLoginIP, nil
 	}
 
 	if !req.CheckUser {
-		return resp, nil
+		return resp, req.ClientLoginIP, nil
 	}
 
 	// If the request is coming from a browser, create a web session.
@@ -631,7 +632,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 			AttestWebSession: true,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to create web session.")
+			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to create web session.")
 		}
 		resp.Session = session
 	}
@@ -641,12 +642,12 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 		sshCert, tlsCert, err := oas.auth.CreateSessionCert(userState, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
 			req.KubernetesCluster, req.ClientLoginIP, keys.AttestationStatementFromProto(req.AttestationStatement))
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to create session certificate.")
+			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to create session certificate.")
 		}
 
 		clusterName, err := oas.auth.GetClusterName()
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to obtain cluster name.")
+			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to obtain cluster name.")
 		}
 		resp.Cert = sshCert
 		resp.TLSCert = tlsCert
@@ -657,12 +658,12 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to obtain cluster's host CA.")
+			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to obtain cluster's host CA.")
 		}
 		resp.HostSigners = append(resp.HostSigners, authority)
 	}
 
-	return resp, nil
+	return resp, req.ClientLoginIP, nil
 }
 
 // OIDCAuthRequestFromProto converts the types.OIDCAuthRequest to OIDCAuthRequest.

@@ -25,12 +25,15 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -463,7 +466,8 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	a := testAuthServer.AuthServer
-	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}, Emitter: mockEmitter})
 
 	// empty response gives error.
 	response, err := a.ValidateSAMLResponse(context.Background(), "", "", "")
@@ -580,6 +584,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.Equal(t, 0, int(loginHookCounter.Load()))
 
 	// check ValidateSAMLResponse takes loginIP from provided clientIP parameter for IdP-initiated flow
+	mockEmitter.Reset()
 	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn, "2.2.2.2")
 	require.NoError(t, err)
 	require.NotNil(t, response)
@@ -588,8 +593,14 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
 	require.Equal(t, "2.2.2.2", identity.LoginIP, "login IP for the session certificate was not propagated correctly")
+	require.NotNil(t, mockEmitter.LastEvent())
+	require.Equal(t, events.UserLoginEvent, mockEmitter.LastEvent().GetType())
+	require.IsType(t, &apievents.UserLogin{}, mockEmitter.LastEvent())
+	loginEvt := mockEmitter.LastEvent().(*apievents.UserLogin)
+	require.Equal(t, "2.2.2.2", loginEvt.ConnectionMetadata.RemoteAddr)
 
 	// check ValidateSAMLResponse takes loginIP from connection for IdP-initiated flow if client IP is empty
+	mockEmitter.Reset()
 	addr := utils.MustParseAddr("1.1.1.1:42")
 	response, err = sas.ValidateSAMLResponse(authz.ContextWithClientSrcAddr(context.Background(), addr), base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn, "")
 	require.NoError(t, err)
@@ -599,6 +610,11 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	identity, err = tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
 	require.Equal(t, addr.Host(), identity.LoginIP, "login IP for the session certificate was not propagated correctly")
+	require.NotNil(t, mockEmitter.LastEvent())
+	require.Equal(t, events.UserLoginEvent, mockEmitter.LastEvent().GetType())
+	require.IsType(t, &apievents.UserLogin{}, mockEmitter.LastEvent())
+	loginEvt = mockEmitter.LastEvent().(*apievents.UserLogin)
+	require.Equal(t, addr.Host(), loginEvt.ConnectionMetadata.RemoteAddr)
 
 	// check ValidateSAMLResponse with login hooks
 	sas.auth.RegisterLoginHook(loginHook)
@@ -613,7 +629,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 
 	// check internal method, validate diagnostic outputs.
 	diagCtx := auth.NewSSODiagContext(types.KindSAML, a)
-	auth, err := sas.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
+	auth, loginIP, err := sas.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
 	require.NoError(t, err)
 
 	// ensure diag info got stored and is identical.
@@ -627,6 +643,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.Equal(t, "ops@gravitational.io", auth.Identity.Username)
 	require.Equal(t, "saml-test-conn", auth.Identity.ConnectorID)
 	require.Equal(t, "_4f256462-6c2d-466d-afc0-6ee36602b6f2", auth.Req.ID)
+	require.Empty(t, loginIP)
 	require.Empty(t, auth.HostSigners)
 
 	authnInstant := time.Date(2022, 4, 25, 8, 3, 11, 779000000, time.UTC)

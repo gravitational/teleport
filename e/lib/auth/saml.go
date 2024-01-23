@@ -398,12 +398,13 @@ func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlRespon
 
 	diagCtx := auth.NewSSODiagContext(types.KindSAML, sas.auth)
 
-	auth, err := sas.validateSAMLResponse(ctx, diagCtx, samlResponse, connectorID, clientIP)
+	auth, loginIP, err := sas.validateSAMLResponse(ctx, diagCtx, samlResponse, connectorID, clientIP)
 	diagCtx.Info.Error = trace.UserMessage(err)
 
 	diagCtx.WriteToBackend(ctx)
 
 	event.AppliedLoginRules = diagCtx.Info.AppliedLoginRules
+	event.ConnectionMetadata = apievents.ConnectionMetadata{RemoteAddr: loginIP}
 
 	attributeStatements := diagCtx.Info.SAMLAttributeStatements
 	if attributeStatements != nil {
@@ -461,7 +462,7 @@ func (sas *SAMLAuthService) checkIDPInitiatedSAML(ctx context.Context, connector
 	return trace.Wrap(err)
 }
 
-func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *auth.SSODiagContext, samlResponse, connectorID, clientIP string) (*auth.SAMLAuthResponse, error) {
+func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *auth.SSODiagContext, samlResponse, connectorID, clientIP string) (*auth.SAMLAuthResponse, string, error) {
 	idpInitiated := false
 	var connector types.SAMLConnector
 	var provider *saml2.SAMLServiceProvider
@@ -478,34 +479,49 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	switch {
 	case trace.IsNotFound(err):
 		if connectorID == "" {
-			return nil, trace.BadParameter("ACS URI did not include a valid SAML connector ID parameter")
+			return nil, "", trace.BadParameter("ACS URI did not include a valid SAML connector ID parameter")
 		}
 
 		idpInitiated = true
 		connector, provider, err = sas.getSAMLConnectorAndProviderByID(ctx, connectorID)
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
+			return nil, "", trace.Wrap(err, "Failed to get SAML connector and provider")
 		}
 	case err != nil:
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	default:
 		diagCtx.RequestID = requestID
 		request, err = sas.auth.Identity.GetSAMLAuthRequest(ctx, requestID)
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to get SAML Auth Request")
+			return nil, "", trace.Wrap(err, "Failed to get SAML Auth Request")
 		}
 
 		diagCtx.Info.TestFlow = request.SSOTestFlow
 		connector, provider, err = sas.getSAMLConnectorAndProvider(ctx, *request)
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
+			return nil, "", trace.Wrap(err, "Failed to get SAML connector and provider")
 		}
+	}
+
+	loginIP := ""
+	if request != nil {
+		loginIP = request.ClientLoginIP
+	} else if clientIP != "" {
+		// In case of IdP initiated login we don't have a request with the client IP, so we take the IP from
+		// incoming connection, sent by the Proxy.
+		loginIP = clientIP
+	} else if addr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		host, _, err := net.SplitHostPort(addr.String())
+		if err != nil {
+			return nil, "", trace.Wrap(err, "failed to parse client source address")
+		}
+		loginIP = host
 	}
 
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
 		samlErr := trace.AccessDenied("received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err)
-		return nil, trace.WithUserMessage(samlErr, "Failed to retrieve assertion info. This may indicate IdP configuration error.")
+		return nil, loginIP, trace.WithUserMessage(samlErr, "Failed to retrieve assertion info. This may indicate IdP configuration error.")
 	}
 
 	if assertionInfo != nil {
@@ -518,18 +534,18 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 				log.Warnf("Failed to process IdP-initiated login request. IdP-initiated login is disabled for this connector: %v.", err)
 			}
 
-			return nil, trace.Wrap(err)
+			return nil, loginIP, trace.Wrap(err)
 		}
 	}
 
 	if assertionInfo.WarningInfo.InvalidTime {
 		samlErr := trace.AccessDenied("invalid time in SAML assertion info")
-		return nil, trace.WithUserMessage(samlErr, "SAML assertion info contained warning: invalid time.")
+		return nil, loginIP, trace.WithUserMessage(samlErr, "SAML assertion info contained warning: invalid time.")
 	}
 
 	if assertionInfo.WarningInfo.NotInAudience {
 		samlErr := trace.AccessDenied("no audience in SAML assertion info")
-		return nil, trace.WithUserMessage(samlErr, "SAML: not in expected audience. Check auth connector audience field and IdP configuration for typos and other errors.")
+		return nil, loginIP, trace.WithUserMessage(samlErr, "SAML: not in expected audience. Check auth connector audience field and IdP configuration for typos and other errors.")
 	}
 
 	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
@@ -551,7 +567,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 
 	user, err := sas.auth.GetUser(ctx, assertionInfo.NameID, false)
 	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+		return nil, loginIP, trace.Wrap(err)
 	}
 
 	// We don't want to overwrite a sync-service based user with an
@@ -570,7 +586,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		// this user.
 		if len(connector.GetAttributesToRoles()) == 0 {
 			samlErr := trace.BadParameter("no attributes to roles mapping, check connector documentation")
-			return nil, trace.WithUserMessage(samlErr, "Attributes-to-roles mapping is empty, SSO user will never have any roles.")
+			return nil, loginIP, trace.WithUserMessage(samlErr, "Attributes-to-roles mapping is empty, SSO user will never have any roles.")
 		}
 
 		log.Debugf("Applying %v SAML attribute to roles mappings.", len(connector.GetAttributesToRoles()))
@@ -579,7 +595,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		// create the user in the backend.
 		params, err := sas.calculateSAMLUser(ctx, diagCtx, connector, *assertionInfo, request)
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to calculate user attributes.")
+			return nil, loginIP, trace.Wrap(err, "Failed to calculate user attributes.")
 		}
 
 		diagCtx.Info.CreateUserParams = &types.CreateUserParams{
@@ -594,7 +610,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 
 		user, err = sas.createSAMLUser(ctx, params, diagCtx.Info.TestFlow)
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
+			return nil, loginIP, trace.Wrap(err, "Failed to create user from provided parameters.")
 		}
 
 		sessionTTL = params.SessionTTL
@@ -603,18 +619,18 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		// the user and their roles.
 		roles, err := services.FetchRoles(user.GetRoles(), sas.auth, user.GetTraits())
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, loginIP, trace.Wrap(err)
 		}
 		sessionTTL = roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
 	}
 
 	if err := sas.auth.CallLoginHooks(ctx, user); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, loginIP, trace.Wrap(err)
 	}
 
 	userState, err := sas.auth.GetUserOrLoginState(ctx, user.GetName())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, loginIP, trace.Wrap(err)
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
@@ -634,20 +650,6 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		}
 	}
 
-	loginIP := ""
-	if request != nil {
-		loginIP = request.ClientLoginIP
-	} else if clientIP != "" {
-		// In case of IdP initiated login we don't have a request with the client IP, so we take the IP from
-		// incoming connection, sent by the Proxy.
-		loginIP = clientIP
-	} else if addr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
-		host, _, err := net.SplitHostPort(addr.String())
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse client source address")
-		}
-		loginIP = host
-	}
 	// If the request is coming from a browser, create a web session.
 	if request == nil || request.CreateWebSession {
 		session, err := sas.auth.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
@@ -660,7 +662,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 			AttestWebSession: true,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to create web session.")
+			return nil, loginIP, trace.Wrap(err, "Failed to create web session.")
 		}
 
 		resp.Session = session
@@ -671,11 +673,11 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		sshCert, tlsCert, err := sas.auth.CreateSessionCert(userState, sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
 			request.KubernetesCluster, loginIP, keys.AttestationStatementFromProto(request.AttestationStatement))
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to create session certificate.")
+			return nil, loginIP, trace.Wrap(err, "Failed to create session certificate.")
 		}
 		clusterName, err := sas.auth.GetClusterName()
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to obtain cluster name.")
+			return nil, loginIP, trace.Wrap(err, "Failed to obtain cluster name.")
 		}
 		resp.Cert = sshCert
 		resp.TLSCert = tlsCert
@@ -686,13 +688,13 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 			DomainName: clusterName.GetClusterName(),
 		}, false)
 		if err != nil {
-			return nil, trace.Wrap(err, "Failed to obtain cluster's host CA.")
+			return nil, loginIP, trace.Wrap(err, "Failed to obtain cluster's host CA.")
 		}
 		resp.HostSigners = append(resp.HostSigners, authority)
 	}
 
 	diagCtx.Info.Success = true
-	return resp, nil
+	return resp, loginIP, nil
 }
 
 // validateSAMLResponseWeb provides a HTTP/JSON interface to
