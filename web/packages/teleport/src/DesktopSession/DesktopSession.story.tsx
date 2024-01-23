@@ -77,6 +77,7 @@ const props: State = {
   canvasOnMouseUp: () => {},
   canvasOnMouseWheelScroll: () => {},
   canvasOnContextMenu: () => false,
+  canvasOnFocusOut: () => {},
   clientOnClipboardData: async () => {},
   setTdpConnection: () => {},
   webauthn: {
