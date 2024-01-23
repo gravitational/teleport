@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
@@ -169,10 +168,6 @@ type testClient struct {
 	services.Trust
 	services.RoleGetter
 	services.UserGetter
-}
-
-func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	return nil, "", nil
 }
 
 func createUsersAndRoles(t *testing.T, roleSvc *local.AccessService, ctx context.Context, userSvc *local.IdentityService) {

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -100,10 +99,6 @@ func (t testClient) TestSAMLIdPAttributeMapping(ctx context.Context, req *samlid
 		ctx = t.signingCtx
 	}
 	return t.samlIdPService.TestSAMLIdPAttributeMapping(ctx, req)
-}
-
-func (t *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	return nil, "", nil
 }
 
 func samlTestService(ctx context.Context, t *testing.T, clock clockwork.Clock) testServices {

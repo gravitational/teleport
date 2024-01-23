@@ -661,10 +661,6 @@ type testClient struct {
 	services.UserGetter
 }
 
-func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	return nil, "", nil
-}
-
 type testEnvironment struct {
 	identity services.Identity
 }
@@ -1412,7 +1408,8 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1, a2, a3}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1})
 
 	upsertAccessListWithMembers := func(t *testing.T, ctx context.Context, accessList *accesslist.AccessList,
-		members []*accesslist.AccessListMember, wantErrFn require.ErrorAssertionFunc) {
+		members []*accesslist.AccessListMember, wantErrFn require.ErrorAssertionFunc,
+	) {
 		oldAccessListResp, err := c.svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{
 			Name: accessList.GetName(),
 		})
@@ -2153,7 +2150,8 @@ func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Servic
 }
 
 func createReviews(ctx context.Context, t *testing.T, svc *Service, emitter *eventstest.ChannelEmitter, usageEvents *usageEventsClient,
-	reviews []*accesslist.Review) {
+	reviews []*accesslist.Review,
+) {
 	t.Helper()
 
 	user, err := authz.UserFromContext(ctx)

@@ -3,6 +3,8 @@ import { Text, Box, ButtonPrimary, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 
+import { MFAChallengeScope } from 'teleport/services/auth/auth';
+
 import useTeleportE from 'e-teleport/useTeleportE';
 
 import RecoveryCodesDialog from './RecoveryCodesDialog';
@@ -84,6 +86,7 @@ export function Recovery({
             <ReAuthenticate
               onAuthenticated={setToken}
               onClose={hideReAuthenticate}
+              challengeScope={MFAChallengeScope.ACCOUNT_RECOVERY}
             />
           )}
           {isCodesVisible && (
