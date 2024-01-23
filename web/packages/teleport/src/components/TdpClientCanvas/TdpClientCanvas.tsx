@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 
-import { TdpClientEvent } from 'teleport/lib/tdp';
+import { TdpClientEvent, TdpClient } from 'teleport/lib/tdp';
 import { BitmapFrame } from 'teleport/lib/tdp/client';
 
 import type { CSSProperties } from 'react';
@@ -27,9 +27,8 @@ import type {
   ClientScreenSpec,
   ClipboardData,
 } from 'teleport/lib/tdp/codec';
-import type { TdpClient } from 'teleport/lib/tdp';
 
-export default function TdpClientCanvas(props: Props) {
+function TdpClientCanvas(props: Props) {
   const {
     client,
     clientShouldConnect = false,
@@ -44,6 +43,7 @@ export default function TdpClientCanvas(props: Props) {
     clientOnClientScreenSpec,
     canvasOnKeyDown,
     canvasOnKeyUp,
+    canvasOnFocusOut,
     canvasOnMouseMove,
     canvasOnMouseDown,
     canvasOnMouseUp,
@@ -51,17 +51,21 @@ export default function TdpClientCanvas(props: Props) {
     canvasOnContextMenu,
     style,
   } = props;
-
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  if (canvasRef.current) {
-    // Make the canvas a focusable keyboard listener
-    // https://stackoverflow.com/a/51267699/6277051
-    // https://stackoverflow.com/a/16492878/6277051
-    canvasRef.current.tabIndex = -1;
-    canvasRef.current.style.outline = 'none';
-    canvasRef.current.focus();
-  }
+  useEffect(() => {
+    // Empty dependency array ensures this runs only once after initial render.
+    // This code will run after the component has been mounted and the canvasRef has been assigned.
+    const canvas = canvasRef.current;
+    if (canvas) {
+      // Make the canvas a focusable keyboard listener
+      // https://stackoverflow.com/a/51267699/6277051
+      // https://stackoverflow.com/a/16492878/6277051
+      canvas.tabIndex = -1;
+      canvas.style.outline = 'none';
+      canvas.focus();
+    }
+  }, []);
 
   useEffect(() => {
     if (client && clientOnPngFrame) {
@@ -226,8 +230,9 @@ export default function TdpClientCanvas(props: Props) {
     }
 
     return () => {
-      if (canvasOnMouseMove)
+      if (canvasOnMouseMove) {
         canvas.removeEventListener('mousemove', _onmousemove);
+      }
     };
   }, [client, canvasOnMouseMove]);
 
@@ -303,7 +308,36 @@ export default function TdpClientCanvas(props: Props) {
     };
   }, [client, canvasOnKeyUp]);
 
-  // Call init after all listeners have been registered
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const _onfocusout = () => {
+      canvasOnFocusOut(client);
+    };
+    if (canvasOnFocusOut) {
+      canvas.addEventListener('focusout', _onfocusout);
+    }
+
+    return () => {
+      if (canvasOnFocusOut) canvas.removeEventListener('focusout', _onfocusout);
+    };
+  }, [client, canvasOnFocusOut]);
+
+  useEffect(() => {
+    if (client) {
+      const canvas = canvasRef.current;
+      const _clearCanvas = () => {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      };
+      client.on(TdpClientEvent.RESET, _clearCanvas);
+
+      return () => {
+        client.removeListener(TdpClientEvent.RESET, _clearCanvas);
+      };
+    }
+  }, [client]);
+
+  // Call connect after all listeners have been registered
   useEffect(() => {
     if (client && clientShouldConnect) {
       client.connect(clientScreenSpecToRequest);
@@ -344,6 +378,7 @@ export type Props = {
   ) => void;
   canvasOnKeyDown?: (cli: TdpClient, e: KeyboardEvent) => void;
   canvasOnKeyUp?: (cli: TdpClient, e: KeyboardEvent) => void;
+  canvasOnFocusOut?: (cli: TdpClient) => void;
   canvasOnMouseMove?: (
     cli: TdpClient,
     canvas: HTMLCanvasElement,
@@ -355,3 +390,5 @@ export type Props = {
   canvasOnContextMenu?: () => boolean;
   style?: CSSProperties;
 };
+
+export default memo(TdpClientCanvas);

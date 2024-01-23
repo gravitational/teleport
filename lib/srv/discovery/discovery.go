@@ -1269,7 +1269,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 // newDiscoveryConfigChangedSub creates a new subscription for DiscoveryConfig events.
 // The consumer must have an active reader on the returned channel, and start a new Poll when it returns a value.
 func (s *Server) newDiscoveryConfigChangedSub() (ch chan struct{}) {
-	chSubscription := make(chan struct{})
+	chSubscription := make(chan struct{}, 1)
 	s.triggerFetchMu.Lock()
 	s.TriggerFetchC = append(s.TriggerFetchC, chSubscription)
 	s.triggerFetchMu.Unlock()

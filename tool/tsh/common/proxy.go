@@ -70,10 +70,11 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
 		target := net.JoinHostPort(targetHost, targetPort)
 
-		conn, _, err := clt.ProxyClient.DialHost(cf.Context, target, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
+		conn, _, err := clt.DialHostWithResumption(cf.Context, target, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		defer conn.Close()
 
 		stdio := utils.CombineReadWriteCloser(io.NopCloser(os.Stdin), utils.NopWriteCloser(os.Stdout))

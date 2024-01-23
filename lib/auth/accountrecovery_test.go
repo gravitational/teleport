@@ -408,10 +408,9 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 
 			// Get request with authn.
 			mfaChallenge, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-					Username: u.username,
-					Password: u.password,
-				}},
+				Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{
+					RecoveryStartTokenID: startToken.GetName(),
+				},
 			})
 			require.NoError(t, err)
 			req := c.createValidReq(mfaChallenge)
@@ -1072,10 +1071,9 @@ func TestAccountRecoveryFlow(t *testing.T) {
 
 			// Step 2: Obtain an approval token using the start token.
 			mfaChallenge, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
-					Username: user.username,
-					Password: user.password,
-				}},
+				Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{
+					RecoveryStartTokenID: startToken.GetName(),
+				},
 			})
 			require.NoError(t, err)
 			approvedToken, err := srv.Auth().VerifyAccountRecovery(ctx, c.getApproveRequest(user, mfaChallenge, startToken.GetName()))
@@ -1192,10 +1190,9 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 	require.NoError(t, err)
 
 	cases := []struct {
-		name        string
-		wantErr     bool
-		forRecovery bool
-		getRequest  func() *proto.CreateAccountRecoveryCodesRequest
+		name       string
+		wantErr    bool
+		getRequest func() *proto.CreateAccountRecoveryCodesRequest
 	}{
 		{
 			name:    "invalid token type",
@@ -1231,8 +1228,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 			},
 		},
 		{
-			name:        "recovery approved token",
-			forRecovery: true,
+			name: "recovery approved token",
 			getRequest: func() *proto.CreateAccountRecoveryCodesRequest {
 				token, err := srv.Auth().createRecoveryToken(ctx, "llama@example.com", UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_MFA)
 				require.NoError(t, err)
@@ -1271,12 +1267,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 
 				// Check token is deleted after success.
 				_, err = srv.Auth().GetUserToken(ctx, req.TokenID)
-				switch {
-				case c.forRecovery:
-					require.True(t, trace.IsNotFound(err))
-				default:
-					require.NoError(t, err)
-				}
+				require.True(t, trace.IsNotFound(err))
 			}
 		})
 	}
@@ -1317,7 +1308,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 
 func triggerLoginLock(t *testing.T, srv *Server, username string) {
 	for i := 1; i <= defaults.MaxLoginAttempts; i++ {
-		_, _, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{
+		_, _, _, err := srv.authenticateUser(context.Background(), AuthenticateUserRequest{
 			Username: username,
 			OTP:      &OTPCreds{},
 		})

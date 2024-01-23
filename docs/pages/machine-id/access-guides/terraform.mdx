@@ -144,6 +144,7 @@ provider "teleport" {
 # with Terraform. See the following reference for supported options:
 # https://goteleport.com/docs/reference/terraform-provider/
 resource "teleport_role" "terraform-test" {
+  version = "v7"
   metadata = {
     name        = "terraform-test"
     description = "Example role created by Terraform"

@@ -70,7 +70,7 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 	switch ca.GetType() {
 	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA:
 		err = checkDatabaseCA(ca)
 	case types.OpenSSHCA:
 		err = checkOpenSSHCA(ca)
@@ -118,7 +118,7 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 	}
 
 	if len(ca.Spec.ActiveKeys.TLS) == 0 {
-		return trace.BadParameter("DB certificate authority missing TLS key pairs")
+		return trace.BadParameter("%s certificate authority missing TLS key pairs", ca.GetType())
 	}
 
 	for _, pair := range ca.GetTrustedTLSKeyPairs() {

@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -264,8 +265,8 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		}
 
 		if err := a.verifyAuthnWithRecoveryLock(ctx, startToken, func() error {
-			_, _, err := a.ValidateMFAAuthResponse(
-				ctx, req.GetMFAAuthenticateResponse(), startToken.GetUser(), false /* passwordless */)
+			requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY}
+			_, err := a.ValidateMFAAuthResponse(ctx, req.GetMFAAuthenticateResponse(), startToken.GetUser(), requiredExt)
 			return err
 		}); err != nil {
 			return nil, trace.Wrap(err)
@@ -488,11 +489,8 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
-	// If used as part of the recovery flow, getting new recovery codes marks the end of the flow in the UI.
-	if token.GetSubKind() == UserTokenTypeRecoveryApproved {
-		if err := a.deleteUserTokens(ctx, token.GetUser()); err != nil {
-			log.Error(trace.DebugReport(err))
-		}
+	if err := a.deleteUserTokens(ctx, token.GetUser()); err != nil {
+		log.Error(trace.DebugReport(err))
 	}
 
 	return newRecovery, nil

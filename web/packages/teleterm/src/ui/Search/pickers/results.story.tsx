@@ -28,6 +28,7 @@ import {
   makeServer,
   makeLabelsList,
   makeRootCluster,
+  makeApp,
 } from 'teleterm/services/tshd/testHelpers';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
@@ -165,6 +166,82 @@ const SearchResultItems = () => {
         }),
       }),
     }),
+    makeResourceResult({
+      kind: 'app',
+      resource: makeApp({
+        uri: `${clusterUri}/apps/no-desc`,
+        name: 'no-desc',
+        desc: '',
+        labelsList: makeLabelsList({
+          access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'app',
+      resource: makeApp({
+        uri: `${clusterUri}/apps/short-desc`,
+        name: 'short-desc',
+        desc: 'Lorem ipsum',
+        labelsList: makeLabelsList({
+          access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'app',
+      resource: makeApp({
+        uri: `${clusterUri}/apps/long-desc`,
+        name: 'long-desc',
+        desc: 'Eget dignissim lectus nisi vitae nunc',
+        labelsList: makeLabelsList({
+          access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'app',
+      resource: makeApp({
+        uri: `${clusterUri}/apps/super-long-desc`,
+        name: 'super-long-desc',
+        desc: 'Duis id tortor at purus tincidunt finibus. Mauris eu semper orci, non commodo lacus. Praesent sollicitudin magna id laoreet porta. Nunc lobortis varius sem vel fringilla.',
+        labelsList: makeLabelsList({
+          access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'app',
+      resource: makeApp({
+        name: 'super-long-app-with-uuid-1f96e498-88ec-442f-a25b-569fa915041c',
+        desc: 'short-desc',
+        uri: `${longClusterUri}/apps/super-long-desc`,
+        labelsList: makeLabelsList({
+          access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+
     makeResourceResult({
       kind: 'database',
       resource: makeDatabase({

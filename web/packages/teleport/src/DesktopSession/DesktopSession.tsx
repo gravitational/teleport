@@ -36,7 +36,11 @@ import Dialog, {
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 
-import useDesktopSession from './useDesktopSession';
+import useDesktopSession, {
+  directorySharingPossible,
+  isSharingClipboard,
+  isSharingDirectory,
+} from './useDesktopSession';
 import TopBar from './TopBar';
 
 import type { PropsWithChildren } from 'react';
@@ -242,7 +246,7 @@ function Session({
   tdpClient,
   username,
   hostname,
-  setClipboardSharingEnabled,
+  setClipboardSharingState,
   directorySharingState,
   setDirectorySharingState,
   clientOnPngFrame,
@@ -255,6 +259,7 @@ function Session({
   clientOnWsOpen,
   canvasOnKeyDown,
   canvasOnKeyUp,
+  canvasOnFocusOut,
   canvasOnMouseMove,
   canvasOnMouseDown,
   canvasOnMouseUp,
@@ -263,7 +268,7 @@ function Session({
   clientShouldConnect,
   clientScreenSpecToRequest,
   displayCanvas,
-  clipboardSharingEnabled,
+  clipboardSharingState,
   onShareDirectory,
   warnings,
   onRemoveWarning,
@@ -274,7 +279,10 @@ function Session({
       <TopBar
         onDisconnect={() => {
           setDisconnected(true);
-          setClipboardSharingEnabled(false);
+          setClipboardSharingState(prevState => ({
+            ...prevState,
+            isSharing: false,
+          }));
           setDirectorySharingState(prevState => ({
             ...prevState,
             isSharing: false,
@@ -282,9 +290,9 @@ function Session({
           tdpClient.shutdown();
         }}
         userHost={`${username}@${hostname}`}
-        canShareDirectory={directorySharingState.canShare}
-        isSharingDirectory={directorySharingState.isSharing}
-        clipboardSharingEnabled={clipboardSharingEnabled}
+        canShareDirectory={directorySharingPossible(directorySharingState)}
+        isSharingDirectory={isSharingDirectory(directorySharingState)}
+        isSharingClipboard={isSharingClipboard(clipboardSharingState)}
         onShareDirectory={onShareDirectory}
         warnings={warnings}
         onRemoveWarning={onRemoveWarning}
@@ -325,6 +333,7 @@ function Session({
         clientOnWsOpen={clientOnWsOpen}
         canvasOnKeyDown={canvasOnKeyDown}
         canvasOnKeyUp={canvasOnKeyUp}
+        canvasOnFocusOut={canvasOnFocusOut}
         canvasOnMouseMove={canvasOnMouseMove}
         canvasOnMouseDown={canvasOnMouseDown}
         canvasOnMouseUp={canvasOnMouseUp}

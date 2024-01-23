@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import { Danger } from 'design/Alert';
 import { Indicator, Box } from 'design';
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import RangePicker from 'teleport/components/EventRangePicker';
 import {
@@ -50,7 +51,9 @@ export function Recordings({
   rangeOptions,
   attempt,
   clusterId,
+  ctx,
 }: State) {
+  const [errorMessage, setErrorMessage] = useState('');
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
@@ -63,6 +66,16 @@ export function Recordings({
         />
       </FeatureHeader>
       <ExternalAuditStorageCta />
+      {!errorMessage && (
+        <Box mb={4}>
+          <ClusterDropdown
+            clusterLoader={ctx.clusterService}
+            clusterId={clusterId}
+            onError={setErrorMessage}
+          />
+        </Box>
+      )}
+      {errorMessage && <Danger>{errorMessage}</Danger>}
       {attempt.status === 'failed' && <Danger> {attempt.statusText} </Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>

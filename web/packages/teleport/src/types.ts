@@ -32,7 +32,7 @@ export interface Context {
 
 export interface TeleportFeatureNavigationItem {
   title: NavTitle;
-  icon: React.ReactNode;
+  icon: (props) => JSX.Element;
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
@@ -156,6 +156,7 @@ export interface FeatureFlags {
   accessRequests: boolean;
   newAccessRequest: boolean;
   downloadCenter: boolean;
+  supportLink: boolean;
   discover: boolean;
   plugins: boolean;
   integrations: boolean;

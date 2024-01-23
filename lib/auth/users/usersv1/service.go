@@ -218,7 +218,8 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	// Support reused MFA for bulk tctl create requests and chained invite commands (CreateResetPasswordToken).
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -285,11 +286,23 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	// Allow reused MFA responses to allow Updating a user after get (WebUI).
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err = okta.CheckOrigin(authzCtx, req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// ValidateUser is called a bit later by LegacyUpdateUser. However, it's clearer
+	// to do it here like the other verbs, plus it won't break again when we'll
+	// get rid of the legacy update function.
+	if err := services.ValidateUser(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -356,7 +369,16 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authzCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUser(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

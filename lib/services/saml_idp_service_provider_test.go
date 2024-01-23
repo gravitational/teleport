@@ -97,16 +97,17 @@ func TestFilterSAMLEntityDescriptor(t *testing.T) {
 		{
 			eds: edBuilder().
 				ACS(saml.HTTPArtifactBinding, "https://example.com/acs").
+				ACS("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST-SimpleSign", "https://example.com/POST-SimpleSign").
 				ACS(saml.HTTPPostBinding, "https://example.com/acs").
 				Done(),
 			ok:     true,
-			before: 2,
+			before: 3,
 			after:  1,
 			name:   "binding filtering",
 		},
 		{
 			eds: edBuilder().
-				ACS(saml.HTTPArtifactBinding, "https://example.com/acs").
+				ACS("urn:oasis:names:tc:SAML:2.0:bindings:PAOS", "https://example.com/ECP").
 				ACS(saml.HTTPPostBinding, "http://example.com/acs").
 				Done(),
 			ok:     false,
@@ -123,7 +124,7 @@ func TestFilterSAMLEntityDescriptor(t *testing.T) {
 
 			require.Equal(t, tt.before, getACSCount(ed))
 
-			err = FilterSAMLEntityDescriptor(ed)
+			err = FilterSAMLEntityDescriptor(ed, false /* quiet */)
 			if !tt.ok {
 				require.Error(t, err)
 				return

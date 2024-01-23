@@ -59,6 +59,31 @@ export interface Server extends apiServer.Server.AsObject {
 
 export interface App extends apiApp.App.AsObject {
   uri: uri.AppUri;
+  /** Name of the application. */
+  name: string;
+  /** URI and port the target application is available at. */
+  endpointUri: string;
+  /** Description of the application. */
+  desc: string;
+  /** Indicates if the application is an AWS management console. */
+  awsConsole: boolean;
+  /**
+   * The application public address.
+   * By default, it is a subdomain of the cluster (e.g., dumper.example.com).
+   * Optionally, it can be overridden (by the 'public_addr' field in the app config)
+   * with an address available on the internet.
+   *
+   * Always empty for SAML applications.
+   */
+  publicAddr: string;
+  /**
+   * Right now, `friendlyName` is set only for Okta applications.
+   * It is constructed from a label value.
+   * See more in api/types/resource.go.
+   */
+  friendlyName: string;
+  /** Indicates if the application is a SAML Application (SAML IdP Service Provider). */
+  samlApp: boolean;
 }
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
@@ -101,6 +126,10 @@ export interface GetDatabasesResponse
 
 export interface GetKubesResponse extends apiService.GetKubesResponse.AsObject {
   agentsList: Kube[];
+}
+
+export interface GetAppsResponse extends apiService.GetAppsResponse.AsObject {
+  agentsList: App[];
 }
 
 export type GetRequestableRolesResponse =
@@ -194,10 +223,11 @@ export type WebauthnLoginCredentialPrompt = {
 export type LoginPasswordlessRequest =
   Partial<apiService.LoginPasswordlessRequest.AsObject>;
 
-export type TshClient = {
+export type TshdClient = {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
   getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
+  getApps: (params: GetResourcesParams) => Promise<GetAppsResponse>;
   getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
   assumeRole: (
@@ -309,6 +339,8 @@ export type TshClient = {
     params: PromoteAccessRequestParams,
     abortSignal?: TshAbortSignal
   ) => Promise<AccessRequest>;
+
+  updateTshdEventsServerAddress: (address: string) => Promise<void>;
 };
 
 export type TshAbortController = {

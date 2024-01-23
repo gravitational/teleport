@@ -302,7 +302,7 @@ type AccessListSpec struct {
 	//	                      user must both meet the `membership_requires`
 	//	                      conditions AND be explicitly added to the list.
 	//	`implicit`: Any user meeting the `membership_requires` conditions will automatically
-	//	          be cosidered a member of this list.
+	//	          be considered a member of this list.
 	Membership string `protobuf:"bytes,9,opt,name=membership,proto3" json:"membership,omitempty"`
 	// ownership defines how list ownership of this list is determined. There are
 	// two possible values:
