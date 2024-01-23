@@ -52,10 +52,10 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 	}
 
 	chal, err := clt.CreateAuthenticateChallenge(ctx, challengeRequest)
-	if trace.IsAccessDenied(err) {
-		// Access is denied for CreateAuthenticateChallenge when the the client user
-		// is not a local user, for example the AdminRole. Treat this as a false MFA
-		// required check.
+	if trace.IsBadParameter(err) && challengeRequest.MFARequiredCheck != nil {
+		// CreateAuthenticateChallenge returns a bad parameter error when the the client
+		// user is not a Teleport user. For example, the AdminRole. Treat this as a false
+		// MFA required check if a check was requested.
 		return nil, nil
 	} else if err != nil {
 		return nil, trace.Wrap(err)

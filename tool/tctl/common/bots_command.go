@@ -50,7 +50,6 @@ import (
 )
 
 type BotsCommand struct {
-	config *servicecfg.Config
 	format string
 
 	lockExpires string
@@ -75,8 +74,6 @@ type BotsCommand struct {
 
 // Initialize sets up the "tctl bots" command.
 func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
-	c.config = config
-
 	bots := app.Command("bots", "Operate on certificate renewal bots registered with the cluster.")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
@@ -305,13 +302,11 @@ func (c *BotsCommand) addBotLegacy(ctx context.Context, client auth.ClientI) err
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
-	if c.config.Auth.Preference.IsAdminActionMFAEnforced() {
-		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client, "AddBot", true /*allowReuse*/)
-		if err != nil {
-			return trace.Wrap(err)
-		} else if mfaResponse != nil {
-			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-		}
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client, "AddBot", true /*allowReuse*/)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if mfaResponse != nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
 	}
 
 	// Jankily call the endpoint invalidly. This lets us version check and use
@@ -332,7 +327,6 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
 	}
 	var token types.ProvisionToken
-	var err error
 	if c.tokenID == "" {
 		// If there's no token specified, generate one
 		tokenName, err := utils.CryptoRandomHex(16)
