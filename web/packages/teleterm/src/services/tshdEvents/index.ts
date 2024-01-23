@@ -184,12 +184,7 @@ function createService(logger: Logger): {
       throw new Error(`No context bridge handler for ${rpcName}`);
     }
 
-    contextBridgeHandler({
-      // `as` is a workaround. We'd have to tell TypeScript somehow that `Request` is the same
-      // between `contextBridgeService` and `processEvent`, but it's not clear how to achieve that.
-      request,
-      onRequestCancelled,
-    }).then(
+    contextBridgeHandler({ request, onRequestCancelled }).then(
       response => {
         if (call.cancelled) {
           return;
