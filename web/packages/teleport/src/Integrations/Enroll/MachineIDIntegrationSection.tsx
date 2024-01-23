@@ -39,6 +39,7 @@ import {
 } from 'teleport/services/userEvent';
 
 import { IntegrationTile } from './common';
+import { BotTiles } from 'teleport/Bots/Add/AddBotsPicker';
 
 interface Integration {
   title: string;
@@ -128,32 +129,7 @@ export const MachineIDIntegrationSection = () => {
           to access resources protected by Teleport.
         </Text>
       </Box>
-      <Flex mb={2} gap={3} flexWrap="wrap">
-        {integrations.map(i => {
-          return (
-            <IntegrationTile
-              key={i.title}
-              as={ExternalLink}
-              href={i.link}
-              target="_blank"
-              onClick={() => {
-                userEventService.captureIntegrationEnrollEvent({
-                  event: IntegrationEnrollEvent.Started,
-                  eventData: {
-                    id: crypto.randomUUID(),
-                    kind: i.kind,
-                  },
-                });
-              }}
-            >
-              <Box mt={3} mb={2}>
-                {i.icon}
-              </Box>
-              <Text>{i.title}</Text>
-            </IntegrationTile>
-          );
-        })}
-      </Flex>
+      <BotTiles />
     </>
   );
 };

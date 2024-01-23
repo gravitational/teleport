@@ -129,19 +129,23 @@ export function AddBotsPicker() {
         to access resources protected by Teleport.
       </Text>
 
-      <Flex mt={5} gap={3} flexWrap="wrap">
-        {integrations.map(i => (
-          <Box key={i.title}>
-            {i.guided ? (
-              <GuidedTile integration={i} />
-            ) : (
-              <ExternalLinkTile integration={i} />
-            )}
-          </Box>
-        ))}
-      </Flex>
+      <BotTiles />
     </>
   );
+}
+
+export function BotTiles({ }) {
+  return (<Flex mt={5} gap={3} flexWrap="wrap">
+    {integrations.map(i => (
+      <Box key={i.title}>
+        {i.guided ? (
+          <GuidedTile integration={i} />
+        ) : (
+          <ExternalLinkTile integration={i} />
+        )}
+      </Box>
+    ))}
+  </Flex>)
 }
 
 function ExternalLinkTile({ integration }: { integration: BotIntegration }) {
