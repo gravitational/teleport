@@ -84,14 +84,9 @@ export default function useUsers({
   }
 
   async function onCreate(u: User) {
-    const webauthnResponse = await auth.getWebauthnResponse(
-      MFAChallengeScope.ADMIN_ACTION,
-      true,
-      {
-        admin_action: {
-          name: 'CreateUser',
-        },
-      }
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(
+      'CreateUser',
+      true
     );
     return ctx.userService
       .createUser(u, webauthnResponse)

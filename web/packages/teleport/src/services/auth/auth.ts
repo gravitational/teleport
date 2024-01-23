@@ -307,16 +307,6 @@ const auth = {
     allowReuse?: boolean,
     isMFARequiredRequest?: IsMfaRequiredRequest
   ) {
-    // If the client is checking if MFA is required for an admin action,
-    // but we know admin action MFA is not enforced, return early.
-    if (
-      isMFARequiredRequest !== null &&
-      scope === MFAChallengeScope.ADMIN_ACTION &&
-      !cfg.isAdminActionMFAEnforced()
-    ) {
-      return;
-    }
-
     // TODO(Joerger): DELETE IN 16.0.0
     // the create mfa challenge endpoint below supports
     // MFARequired requests without the extra roundtrip.
@@ -337,6 +327,27 @@ const auth = {
     return auth
       .fetchWebauthnChallenge(scope, allowReuse, isMFARequiredRequest)
       .then(res => makeWebauthnAssertionResponse(res));
+  },
+
+  getWebauthnResponseForAdminAction(
+    adminActionName?: string,
+    allowReuse?: boolean
+  ) {
+    // If the client is checking if MFA is required for an admin action,
+    // but we know admin action MFA is not enforced, return early.
+    if (!cfg.isAdminActionMFAEnforced()) {
+      return;
+    }
+
+    return auth.getWebauthnResponse(
+      MFAChallengeScope.ADMIN_ACTION,
+      allowReuse,
+      {
+        admin_action: {
+          name: adminActionName,
+        },
+      }
+    );
   },
 };
 
