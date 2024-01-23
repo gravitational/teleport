@@ -28,7 +28,7 @@ import celebratePamPng from './celebrate-pam.png';
 import type { AgentStepProps } from '../../types';
 
 export function Finished(props: AgentStepProps) {
-  if (props.agentMeta.autoDiscovery) {
+  if (props.agentMeta?.autoDiscovery) {
     return (
       <Container>
         <Image width="120px" height="120px" src={celebratePamPng} />
