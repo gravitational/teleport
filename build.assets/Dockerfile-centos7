@@ -87,6 +87,12 @@ RUN  yum install -y expat-devel \
      zlib-devel \
      && yum clean all
 
+RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64" else export BUILDARCH = "x86_64"; fi && \
+    curl -fsSL https://github.com/Kitware/CMake/releases/download/v3.28.1/cmake-3.28.1-linux-${BUILDARCH}.tar.gz | tar xz && \
+    mv cmake-3.28.1-linux-${BUILDARCH} /opt/cmake
+
+ENV PATH="/opt/cmake/bin:$PATH"
+
 RUN git clone --depth=1 https://github.com/ninja-build/ninja.git -b v1.11.1 && \
         cd ninja && \
         [ "$(git rev-parse HEAD)" = 'a524bf3f6bacd1b4ad85d719eed2737d8562f27a' ] && \
