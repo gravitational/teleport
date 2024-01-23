@@ -34,7 +34,6 @@ module.exports = {
     expect: true,
     jest: true,
   },
-  ignorePatterns: ['**/dist/**'],
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',

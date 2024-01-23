@@ -4,4 +4,4 @@
 # Ignore WASM generated files:
 web/packages/teleport/src/ironrdp/pkg
 
-build
+web/packages/teleterm/build
