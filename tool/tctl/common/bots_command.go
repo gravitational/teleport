@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -49,6 +50,7 @@ import (
 )
 
 type BotsCommand struct {
+	config *servicecfg.Config
 	format string
 
 	lockExpires string
@@ -73,6 +75,8 @@ type BotsCommand struct {
 
 // Initialize sets up the "tctl bots" command.
 func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+	c.config = config
+
 	bots := app.Command("bots", "Operate on certificate renewal bots registered with the cluster.")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
@@ -300,6 +304,16 @@ func (c *BotsCommand) addBotLegacy(ctx context.Context, client auth.ClientI) err
 
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
+	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
+	if c.config.Auth.Preference.IsAdminActionMFAEnforced() {
+		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client, "AddBot", true /*allowReuse*/)
+		if err != nil {
+			return trace.Wrap(err)
+		} else if mfaResponse != nil {
+			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+		}
+	}
+
 	// Jankily call the endpoint invalidly. This lets us version check and use
 	// the legacy version of this CLI tool if we are talking to an older
 	// server.
