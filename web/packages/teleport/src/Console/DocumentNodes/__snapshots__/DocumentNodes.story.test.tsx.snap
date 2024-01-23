@@ -722,20 +722,16 @@ exports[`render DocumentNodes 1`] = `
   display: none;
 }
 
-.c6 .react-select--is-disabled,
 .c6 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c6 .react-select--is-disabled .react-select__single-value,
 .c6 .react-select__control--is-disabled .react-select__single-value,
-.c6 .react-select--is-disabled .react-select__placeholder,
 .c6 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c6 .react-select--is-disabled .react-select__indicator,
 .c6 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
