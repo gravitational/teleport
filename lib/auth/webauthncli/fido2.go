@@ -181,8 +181,6 @@ func fido2Login(
 			return nil
 		}
 
-		// TODO(codingllama): Kill discoverRPID? It makes behavioral assumptions
-		//  that caused problems before.
 		// Does the device have a suitable credential?
 		const pin = ""
 		actualRPID, err := discoverRPID(dev, info, pin, rpID, appID, allowedCreds)
@@ -280,6 +278,10 @@ func discoverRPID(dev FIDODevice, info *deviceInfo, pin, rpID, appID string, all
 	// The actual hash is not necessary here.
 	const cdh = "00000000000000000000000000000000"
 
+	// TODO(codingllama): We could cut an assertion here by checking just for
+	//  appID, if it's not empty, and assuming it's rpID otherwise.
+	//  This moves certain "no credentials" handling from the "filter" step to the
+	//  "callback" step, which has a few knock-on effects in the code.
 	opts := &libfido2.AssertionOpts{
 		UP: libfido2.False,
 	}
