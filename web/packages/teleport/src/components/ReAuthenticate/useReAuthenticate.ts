@@ -119,7 +119,7 @@ type BaseProps = {
   /**
    * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
    */
-  challengeScope: MFAChallengeScope;
+  challengeScope?: MFAChallengeScope;
 };
 
 // MfaResponseProps defines a function
