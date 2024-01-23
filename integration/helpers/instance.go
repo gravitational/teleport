@@ -192,6 +192,21 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	dbClientCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.DatabaseClientCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Key:     s.PrivKey,
+				KeyType: types.PrivateKeyType_RAW,
+				Cert:    s.TLSCACert,
+			}},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	osshCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.OpenSSHCA,
 		ClusterName: s.SiteName,
@@ -207,7 +222,7 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return []types.CertAuthority{hostCA, userCA, dbCA, osshCA}, nil
+	return []types.CertAuthority{hostCA, userCA, dbCA, dbClientCA, osshCA}, nil
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
@@ -1287,6 +1302,8 @@ type ClientConfig struct {
 	Stdout io.Writer
 	// ALBAddr is the address to a local server that simulates a layer 7 load balancer.
 	ALBAddr string
+	// DisableSSHResumption disables SSH connection resumption.
+	DisableSSHResumption bool
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1365,6 +1382,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Stdin:                         cfg.Stdin,
 		Stdout:                        cfg.Stdout,
 		NonInteractive:                true,
+		DisableSSHResumption:          cfg.DisableSSHResumption,
 	}
 
 	// JumpHost turns on jump host mode

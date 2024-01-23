@@ -23,9 +23,9 @@ import {
   CirclePlay,
   ClipboardUser,
   Cluster,
-  EqualizersVertical,
   Integrations as IntegrationsIcon,
   Laptop,
+  ListAddCheck,
   ListThin,
   Lock,
   Question,
@@ -51,7 +51,7 @@ import type { FeatureFlags, TeleportFeature } from './types';
 const Audit = lazy(() => import('./Audit'));
 const Sessions = lazy(() => import('./Sessions'));
 const UnifiedResources = lazy(() => import('./UnifiedResources'));
-const Account = lazy(() => import('./Account'));
+const Account = lazy(() => import('./Account/AccountNew'));
 const Support = lazy(() => import('./Support'));
 const Clusters = lazy(() => import('./Clusters'));
 const Nodes = lazy(() => import('./Nodes'));
@@ -90,7 +90,7 @@ class AccessRequests implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AccessRequests,
-    icon: EqualizersVertical,
+    icon: ListAddCheck,
     exact: true,
     getLink() {
       return cfg.routes.accessRequest;

@@ -43,10 +43,10 @@ import {
   UpdateHeadlessAuthenticationStateParams,
 } from './types';
 
-export default function createClient(
+export function createTshdClient(
   addr: string,
   credentials: grpc.ChannelCredentials
-) {
+): types.TshdClient {
   const logger = new Logger('tshd');
   const tshd = middleware(new TerminalServiceClient(addr, credentials), [
     withLogging(logger),

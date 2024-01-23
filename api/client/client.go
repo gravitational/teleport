@@ -479,7 +479,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
-			interceptors.WithMFAUnaryInterceptor(c.performMFACeremony),
+			interceptors.WithMFAUnaryInterceptor(c),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
@@ -1687,8 +1687,9 @@ func (c *Client) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	return resp, nil
 }
 
-// GenerateDatabaseCert generates client certificate used by a database
-// service to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	resp, err := c.grpc.GenerateDatabaseCert(ctx, req)
 	if err != nil {
@@ -4339,6 +4340,20 @@ func (c *Client) RotateCertAuthority(ctx context.Context, rr types.RotateRequest
 	}
 
 	_, err := c.TrustClient().RotateCertAuthority(ctx, req)
+	return trace.Wrap(err)
+}
+
+// RotateExternalCertAuthority rotates the provided cert authority.
+func (c *Client) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	cav2, ok := ca.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unexpected ca type %T", ca)
+	}
+
+	_, err := c.TrustClient().RotateExternalCertAuthority(ctx, &trustpb.RotateExternalCertAuthorityRequest{
+		CertAuthority: cav2,
+	})
+
 	return trace.Wrap(err)
 }
 

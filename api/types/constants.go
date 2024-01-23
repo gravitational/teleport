@@ -394,7 +394,8 @@ const (
 	// KindConnectionDiagnostic is a resource that tracks the result of testing a connection
 	KindConnectionDiagnostic = "connection_diagnostic"
 
-	// KindDatabaseCertificate is a resource to control Database Certificates generation
+	// KindDatabaseCertificate is a resource to control db CA cert
+	// generation.
 	KindDatabaseCertificate = "database_certificate"
 
 	// KindInstaller is a resource that holds a node installer script
@@ -787,6 +788,8 @@ const (
 	DiscoveryLabelWorkgroup = "workgroup"
 	// DiscoveryLabelStatus is the label key containing the database status, e.g. "available"
 	DiscoveryLabelStatus = "status"
+	// DiscoveryLabelAWSArn is an internal label that contains AWS Arn of the resource.
+	DiscoveryLabelAWSArn = TeleportInternalLabelPrefix + "aws-arn"
 
 	// DiscoveryLabelAzureSubscriptionID is the label key for Azure subscription ID.
 	DiscoveryLabelAzureSubscriptionID = "subscription-id"

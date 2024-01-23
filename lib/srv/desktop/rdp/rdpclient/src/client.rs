@@ -18,14 +18,16 @@ use crate::rdpdr::tdp;
 use crate::{
     cgo_handle_fastpath_pdu, cgo_handle_rdp_connection_initialized, cgo_handle_remote_copy, ssl,
     CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel,
-    CgoHandle,
+    CGOSyncKeys, CgoHandle,
 };
 #[cfg(feature = "fips")]
 use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrSvcMessages};
 use ironrdp_connector::{Config, ConnectorError, Credentials};
-use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
+use ironrdp_pdu::input::fast_path::{
+    FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
+};
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
@@ -316,6 +318,9 @@ impl Client {
                         ClientFunction::WriteRdpPointer(args) => {
                             Client::write_rdp_pointer(&mut write_stream, args).await?;
                         }
+                        ClientFunction::WriteRdpSyncKeys(args) => {
+                            Client::write_rdp_sync_keys(&mut write_stream, args).await?;
+                        }
                         ClientFunction::WriteRawPdu(args) => {
                             Client::write_raw_pdu(&mut write_stream, args).await?;
                         }
@@ -427,29 +432,19 @@ impl Client {
         write_stream: &mut RdpWriteStream,
         key: CGOKeyboardEvent,
     ) -> ClientResult<()> {
-        let mut fastpath_events = Vec::new();
-
         let mut flags: KeyboardFlags = KeyboardFlags::empty();
         if !key.down {
             flags = KeyboardFlags::RELEASE;
         }
         let event = FastPathInputEvent::KeyboardEvent(flags, key.code as u8);
-        fastpath_events.push(event);
 
-        let mut data: Vec<u8> = Vec::new();
-        let input_pdu = FastPathInput(fastpath_events);
-        input_pdu.to_buffer(&mut data)?;
-
-        write_stream.write_all(&data).await?;
-        Ok(())
+        Self::write_fast_path_input_event(write_stream, event).await
     }
 
     async fn write_rdp_pointer(
         write_stream: &mut RdpWriteStream,
         pointer: CGOMousePointerEvent,
     ) -> ClientResult<()> {
-        let mut fastpath_events = Vec::new();
-
         let mut flags = match pointer.button {
             CGOPointerButton::PointerButtonLeft => PointerFlags::LEFT_BUTTON,
             CGOPointerButton::PointerButtonRight => PointerFlags::RIGHT_BUTTON,
@@ -480,10 +475,40 @@ impl Client {
             x_position: pointer.x,
             y_position: pointer.y,
         });
-        fastpath_events.push(event);
 
+        Self::write_fast_path_input_event(write_stream, event).await
+    }
+
+    async fn write_rdp_sync_keys(
+        write_stream: &mut RdpWriteStream,
+        keys: CGOSyncKeys,
+    ) -> ClientResult<()> {
+        let mut flags = SynchronizeFlags::empty();
+        if keys.scroll_lock_down {
+            flags |= SynchronizeFlags::SCROLL_LOCK;
+        }
+        if keys.num_lock_down {
+            flags |= SynchronizeFlags::NUM_LOCK;
+        }
+        if keys.caps_lock_down {
+            flags |= SynchronizeFlags::CAPS_LOCK;
+        }
+        if keys.kana_lock_down {
+            flags |= SynchronizeFlags::KANA_LOCK;
+        }
+
+        let event = FastPathInputEvent::SyncEvent(flags);
+
+        Self::write_fast_path_input_event(write_stream, event).await
+    }
+
+    /// Helper function for writing a single [`FastPathInputEvent`] to the RDP server.
+    async fn write_fast_path_input_event(
+        write_stream: &mut RdpWriteStream,
+        event: FastPathInputEvent,
+    ) -> ClientResult<()> {
         let mut data: Vec<u8> = Vec::new();
-        let input_pdu = FastPathInput(fastpath_events);
+        let input_pdu = FastPathInput(vec![event]);
         input_pdu.to_buffer(&mut data)?;
 
         write_stream.write_all(&data).await?;
@@ -778,6 +803,8 @@ enum ClientFunction {
     WriteRdpPointer(CGOMousePointerEvent),
     /// Corresponds to [`Client::write_rdp_key`]
     WriteRdpKey(CGOKeyboardEvent),
+    /// Corresponds to [`Client::write_rdp_sync_keys`]
+    WriteRdpSyncKeys(CGOSyncKeys),
     /// Corresponds to [`Client::write_raw_pdu`]
     WriteRawPdu(Vec<u8>),
     /// Corresponds to [`Client::write_rdpdr`]
@@ -834,6 +861,14 @@ impl ClientHandle {
 
     pub async fn write_rdp_key_async(&self, key: CGOKeyboardEvent) -> ClientResult<()> {
         self.send(ClientFunction::WriteRdpKey(key)).await
+    }
+
+    pub fn write_rdp_sync_keys(&self, keys: CGOSyncKeys) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteRdpSyncKeys(keys))
+    }
+
+    pub async fn write_rdp_sync_keys_async(&self, keys: CGOSyncKeys) -> ClientResult<()> {
+        self.send(ClientFunction::WriteRdpSyncKeys(keys)).await
     }
 
     pub fn write_raw_pdu(&self, resp: Vec<u8>) -> ClientResult<()> {

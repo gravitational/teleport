@@ -1088,7 +1088,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 }
 
 // TestGenerateDatabaseCert makes sure users and services with appropriate
-// permissions can generate certificates for self-hosted databases.
+// permissions can generate database certificates.
 func TestGenerateDatabaseCert(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1109,22 +1109,26 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		desc     string
-		identity TestIdentity
-		err      string
+		desc      string
+		identity  TestIdentity
+		requester proto.DatabaseCertRequest_Requester
+		err       string
 	}{
 		{
-			desc:     "user can't sign database certs",
-			identity: TestUser(userWithoutAccess.GetName()),
-			err:      "access denied",
+			desc:      "user can't sign database certs",
+			identity:  TestUser(userWithoutAccess.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
+			err:       "access denied",
 		},
 		{
-			desc:     "user can impersonate Db and sign database certs",
-			identity: TestUser(userImpersonateDb.GetName()),
+			desc:      "user can impersonate Db and sign database certs",
+			identity:  TestUser(userImpersonateDb.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
-			desc:     "built-in admin can sign database certs",
-			identity: TestAdmin(),
+			desc:      "built-in admin can sign database certs",
+			identity:  TestAdmin(),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
 			desc:     "database service can sign database certs",
@@ -1144,7 +1148,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 			client, err := srv.NewClient(test.identity)
 			require.NoError(t, err)
 
-			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
+			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr, RequesterName: test.requester})
 			if test.err != "" {
 				require.ErrorContains(t, err, test.err)
 			} else {
@@ -1818,9 +1822,9 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	require.NoError(t, err)
 
 	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
+	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer.Services, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
-	authContext.AdminActionAuthorized = true
+	authContext.AdminActionAuthState = authz.AdminActionAuthMFAVerified
 
 	return &ServerWithRoles{
 		authServer: srv.AuthServer,
@@ -5768,8 +5772,9 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     true,
 			assertError: require.NoError,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Len(t, emitter.Events(), 1)
-				require.Equal(t, events.UserHeadlessLoginApprovedCode, emitter.LastEvent().GetCode())
+				require.Len(t, emitter.Events(), 2)
+				require.Equal(t, events.ValidateMFAAuthResponseCode, emitter.Events()[0].GetCode())
+				require.Equal(t, events.UserHeadlessLoginApprovedCode, emitter.Events()[1].GetCode())
 			},
 		}, {
 			name:        "NOK same user approved without mfa",
@@ -5777,8 +5782,9 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     false,
 			assertError: assertAccessDenied,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Len(t, emitter.Events(), 1)
-				require.Equal(t, events.UserHeadlessLoginApprovedFailureCode, emitter.LastEvent().GetCode())
+				require.Len(t, emitter.Events(), 2)
+				require.Equal(t, events.ValidateMFAAuthResponseFailureCode, emitter.Events()[0].GetCode())
+				require.Equal(t, events.UserHeadlessLoginApprovedFailureCode, emitter.Events()[1].GetCode())
 			},
 		}, {
 			name:        "NOK not found",
@@ -6868,5 +6874,56 @@ func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tic
 				return
 			}
 		}
+	}
+}
+
+func TestIsMFARequired_AdminAction(t *testing.T) {
+	for _, tt := range []struct {
+		name                 string
+		adminActionAuthState authz.AdminActionAuthState
+		expectResp           *proto.IsMFARequiredResponse
+	}{
+		{
+			name:                 "unauthorized",
+			adminActionAuthState: authz.AdminActionAuthUnauthorized,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			},
+		}, {
+			name:                 "not required",
+			adminActionAuthState: authz.AdminActionAuthNotRequired,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			},
+		}, {
+			name:                 "mfa verified",
+			adminActionAuthState: authz.AdminActionAuthMFAVerified,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			},
+		}, {
+			name:                 "mfa verified with reuse",
+			adminActionAuthState: authz.AdminActionAuthMFAVerifiedWithReuse,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			server := ServerWithRoles{
+				context: authz.Context{
+					AdminActionAuthState: tt.adminActionAuthState,
+				},
+			}
+			resp, err := server.IsMFARequired(context.Background(), &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_AdminAction{},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.expectResp, resp)
+		})
 	}
 }

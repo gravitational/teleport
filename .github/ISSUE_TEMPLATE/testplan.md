@@ -165,6 +165,23 @@ as well as an upgrade of the previous version of Teleport.
     sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
     ```
 
+- [ ] External Audit Storage
+
+    External Audit Storage must be tested on an Enterprise Cloud tenant.
+    Instructions for deploying a custom release to a cloud staging tenant: https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md
+
+  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/choose-an-edition/teleport-cloud/external-audit-storage/
+    - [ ] Docs (including screenshots) are up to date
+    - [ ] Discover flow works with or without an existing AWS OIDC integration
+    - [ ] Draft configuration can be resumed after navigating away
+    - [ ] Bootstrap step (oneoff command pasted into CloudShell) works to create infra
+    - [ ] Created IAM policy (attached to AWS OIDC integration role) matches docs example
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) are stored in configured S3 buckets
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) can be queried and played in the web UI
+    - [ ] `tsh play <session-id>` works
+  - [ ] Existing EAS configuration can be replaced with a new one via Discover flow
+  - [ ] Existing EAS configuration can be deleted (disabling EAS)
+
 - [ ] Interact with a cluster using `tsh`
 
    These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
@@ -371,7 +388,7 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
 
 ### Migrations
 
-* [ ] Migrate trusted clusters from 2.4.0 to 2.5.0
+* [ ] Migrate trusted clusters
   * [ ] Migrate auth server on main cluster, then rest of the servers on main cluster
         SSH should work for both main and old clusters
   * [ ] Migrate auth server on remote cluster, then rest of the remote cluster
@@ -654,28 +671,33 @@ tsh ssh node-that-requires-device-trust
   - [ ] device_trust.mode="optional" doesn't impede access, but issues device
         extensions on login
   - [ ] device_trust.mode="required" enforces enrolled devices
-  - [ ] device_trust.mode="required" is enforced by processes, and not only by
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+    - [ ] App Access NOT enforced in global mode
+  - [ ] device_trust.mode="required" is enforced by processes and not only by
         Auth APIs
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
 
     Testing this requires issuing a certificate without device extensions
     (mode="off"), then changing the cluster configuration to mode="required" and
     attempting to access a process directly, without a login attempt.
 
   - [ ] Role-based authz enforces enrolled devices
-        (device_trust.mode="off" or "optional",
-        role.spec.options.device_trust_mode="required")
+        (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+    - [ ] App Access
   - [ ] Device authorization works correctly for both require_session_mfa=false
         and require_session_mfa=true
-
-  - [ ] Device authorization applies to SSH access (all items above)
-  - [ ] Device authorization applies to Trusted Clusters (root with
-        mode="optional" and leaf with mode="required")
-  - [ ] Device authorization applies to Database access (all items above)
-  - [ ] Device authorization applies to Kubernetes access (all items above)
-
-  - [ ] Cluster-wide device authorization __does not apply__ to App access
-  - [ ] Role-based device authorization __applies__ to App access
-
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+  - [ ] Device authorization applies to Trusted Clusters
+        (root with mode="optional" and leaf with mode="required")
   - [ ] Device authorization __does not apply__ to Windows Desktop access
         (both cluster-wide and role)
 
@@ -757,6 +779,11 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
   - [ ] Make sure docs/links are up to date
   - [ ] New cluster with CloudHSM CA works
   - [ ] Migrating a software cluster to CloudHSM works
+  - [ ] CA rotation works
+- [ ] AWS KMS Support
+  - [ ] Make sure docs/links are up to date
+  - [ ] New cluster with AWS KMS CA works
+  - [ ] Migrating a software cluster to AWS KMS works
   - [ ] CA rotation works
 - [ ] GCP KMS Support
   - [ ] Make sure docs/links are up to date

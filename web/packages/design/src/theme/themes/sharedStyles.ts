@@ -41,8 +41,8 @@ export const sharedStyles: SharedStyles = {
     tablet: 800 + sidebarWidth,
     desktop: 1200 + sidebarWidth,
     // use these from now on
-    small: 690,
-    medium: 1053,
+    small: 600,
+    medium: 1024,
     large: 1280,
   },
   topBarHeight: [48, 56, 72],

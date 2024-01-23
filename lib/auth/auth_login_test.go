@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -192,7 +193,8 @@ func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
 	// TODO(codingllama): Use a public endpoint to verify?
 	mfaResp, err := u.webDev.SolveAuthn(res)
 	require.NoError(t, err)
-	_, _, err = srv.Auth().ValidateMFAAuthResponse(ctx, mfaResp, u.username, false /* passwordless */)
+	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN}
+	_, err = srv.Auth().ValidateMFAAuthResponse(ctx, mfaResp, u.username, requiredExt)
 	require.NoError(t, err)
 }
 
@@ -905,7 +907,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 				},
 				TTL: 24 * time.Hour,
 			})
-			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied")
+			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied", err)
 			attempts, err := authServer.GetUserLoginAttempts(user)
 			require.NoError(t, err)
 			require.NotEmpty(t, attempts, "Want at least one failed login attempt")

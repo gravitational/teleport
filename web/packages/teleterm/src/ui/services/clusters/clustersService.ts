@@ -55,7 +55,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   state: types.ClustersServiceState = createClusterServiceState();
 
   constructor(
-    public client: tsh.TshClient,
+    public client: tsh.TshdClient,
     private mainProcessClient: MainProcessClient,
     private notificationsService: NotificationsService,
     private usageService: UsageService
