@@ -21,6 +21,8 @@ import cfg from 'teleport/config';
 
 import makeNode from '../nodes/makeNode';
 
+import auth from '../auth/auth';
+
 import {
   Integration,
   IntegrationCreateRequest,
@@ -143,21 +145,35 @@ export const integrationService = {
       });
   },
 
-  deployAwsOidcService(
+  async deployAwsOidcService(
     integrationName,
     req: AwsOidcDeployServiceRequest
   ): Promise<string> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+
     return api
-      .post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req)
+      .post(
+        cfg.getAwsDeployTeleportServiceUrl(integrationName),
+        req,
+        null,
+        webauthnResponse
+      )
       .then(resp => resp.serviceDashboardUrl);
   },
 
-  deployDatabaseServices(
+  async deployDatabaseServices(
     integrationName,
     req: AwsOidcDeployDatabaseServicesRequest
   ): Promise<string> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+
     return api
-      .post(cfg.getAwsRdsDbsDeployServicesUrl(integrationName), req)
+      .post(
+        cfg.getAwsRdsDbsDeployServicesUrl(integrationName),
+        req,
+        null,
+        webauthnResponse
+      )
       .then(resp => resp.clusterDashboardUrl);
   },
 
