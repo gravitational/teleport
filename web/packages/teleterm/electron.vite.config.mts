@@ -75,7 +75,7 @@ const config = defineConfig(env => {
         //
         // If we were to get rid of this, we'd somehow need to set NODE_ENV when the packaged app
         // gets started.
-        'process.env': { NODE_ENV: process.env.NODE_ENV },
+        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
       },
     },
     preload: {
@@ -93,7 +93,7 @@ const config = defineConfig(env => {
       plugins: commonPlugins,
       define: {
         // Preload is also mean to be run by Node, see the comment for define under main.
-        'process.env': { NODE_ENV: process.env.NODE_ENV },
+        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
       },
     },
     renderer: {
@@ -126,7 +126,7 @@ const config = defineConfig(env => {
         tsConfigPathsPlugin,
       ],
       define: {
-        'process.env': { NODE_ENV: process.env.NODE_ENV },
+        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
       },
     },
   };

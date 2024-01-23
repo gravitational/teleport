@@ -57,13 +57,8 @@ export async function buildPtyOptions(
       throw error;
     })
     .then(({ shellEnv, creationStatus }) => {
-      const processEnv = { ...process.env };
-      // Vite injects process.env.NODE_ENV due to define being used. We don't want every shell
-      // started from within Connect to inherit this env var, so let's remove it here.
-      delete processEnv['NODE_ENV'];
-
       const combinedEnv = {
-        ...processEnv,
+        ...process.env,
         ...shellEnv,
         TELEPORT_HOME: settings.tshd.homeDir,
         TELEPORT_CLUSTER: cmd.clusterName,

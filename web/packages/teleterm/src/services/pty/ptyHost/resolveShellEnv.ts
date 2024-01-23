@@ -87,14 +87,11 @@ async function resolveUnixShellEnv(
   const mark = unique().replace(/-/g, '').substring(0, 12);
   const regex = new RegExp(mark + '(.*)' + mark);
 
-  const childEnv = {
+  const env = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: '1',
     ELECTRON_NO_ATTACH_CONSOLE: '1',
   };
-  // Vite injects process.env.NODE_ENV due to define being used. We don't want every shell started
-  // from within Connect to inherit this env var, so let's remove it here.
-  delete childEnv['NODE_ENV'];
 
   return new Promise<typeof process.env>((resolve, reject) => {
     const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
@@ -107,7 +104,7 @@ async function resolveUnixShellEnv(
     const child = spawn(shell, [...shellArgs, command], {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: childEnv,
+      env,
     });
 
     abortSignal.onabort = () => {
