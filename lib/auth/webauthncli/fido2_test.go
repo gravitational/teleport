@@ -589,8 +589,8 @@ func TestFIDO2Login(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		runTest := func(t *testing.T, f2 *fakeFIDO2) {
-			f2.setCallbacks()
+		t.Run(test.name, func(t *testing.T) {
+			test.fido2.setCallbacks()
 			test.setUP()
 
 			timeout := test.timeout
@@ -660,17 +660,6 @@ func TestFIDO2Login(t *testing.T) {
 			}
 
 			assert.Equal(t, test.wantUser, actualUser, "actual user mismatch")
-		}
-
-		// Run tests against both "metered" and "non-metered" fake variants, so we
-		// can ensure both behave correctly.
-		// There shouldn't be much of a difference, but tests are fast enough that
-		// it doesn't hurt either.
-		t.Run(test.name+"/metered", func(t *testing.T) {
-			runTest(t, test.fido2)
-		})
-		t.Run(test.name+"/nonMetered", func(t *testing.T) {
-			runTest(t, test.fido2.withNonMeteredLocations())
 		})
 	}
 }
@@ -690,7 +679,7 @@ func TestFIDO2Login_retryUVFailures(t *testing.T) {
 	})
 	pin1.failUV = true // fail UV regardless of PIN
 
-	f2 := newFakeFIDO2(pin1).withNonMeteredLocations()
+	f2 := newFakeFIDO2(pin1)
 	f2.setCallbacks()
 
 	const rpID = "example.com"
@@ -744,7 +733,7 @@ func TestFIDO2Login_singleResidentCredential(t *testing.T) {
 			},
 		})
 
-	f2 := newFakeFIDO2(oneCredential, manyCredentials).withNonMeteredLocations()
+	f2 := newFakeFIDO2(oneCredential, manyCredentials)
 	f2.setCallbacks()
 
 	const rpID = "example.com"
@@ -912,7 +901,7 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 		},
 		{
 			name:        "Passwordless PIN plugged requires two touches",
-			fido2:       newFakeFIDO2(pin1).withNonMeteredLocations(),
+			fido2:       newFakeFIDO2(pin1),
 			assertion:   pwdlessAssertion,
 			prompt:      pin1,
 			wantTouches: 2,
@@ -965,7 +954,7 @@ func TestFIDO2Login_u2fDevice(t *testing.T) {
 	dev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
 	dev.u2fOnly = true
 
-	f2 := newFakeFIDO2(dev).withNonMeteredLocations()
+	f2 := newFakeFIDO2(dev)
 	f2.setCallbacks()
 
 	const rpID = "example.com"
@@ -1041,7 +1030,7 @@ func TestFIDO2Login_bioErrorHandling(t *testing.T) {
 		},
 	})
 
-	f2 := newFakeFIDO2(bio).withNonMeteredLocations()
+	f2 := newFakeFIDO2(bio)
 	f2.setCallbacks()
 
 	// Prepare a passwordless assertion.
@@ -1222,7 +1211,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 	u2f := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
 	u2f.u2fOnly = true
 
-	f2 := newFakeFIDO2(notRegistered, noPIN, noRK, u2f).withNonMeteredLocations()
+	f2 := newFakeFIDO2(notRegistered, noPIN, noRK, u2f)
 	f2.setCallbacks()
 
 	const rpID = "goteleport.com"
@@ -1863,7 +1852,7 @@ func TestFIDO2Register_u2fExcludedCredentials(t *testing.T) {
 		Options: authOpts,
 	})
 
-	f2 := newFakeFIDO2(u2fDev, otherDev).withNonMeteredLocations()
+	f2 := newFakeFIDO2(u2fDev, otherDev)
 	f2.setCallbacks()
 
 	const origin = "https://example.com"
@@ -1923,8 +1912,6 @@ func resetFIDO2AfterTests(t *testing.T) {
 }
 
 type fakeFIDO2 struct {
-	useNonMeteredLocs bool
-
 	locs    []*libfido2.DeviceLocation
 	devices map[string]*fakeFIDO2Device
 }
@@ -1945,33 +1932,9 @@ func newFakeFIDO2(devs ...*fakeFIDO2Device) *fakeFIDO2 {
 	return f
 }
 
-// withNonMeteredLocations makes fakeFIDO2 return all known devices immediately.
-// Useful to test flows that optimize for plugged devices.
-func (f *fakeFIDO2) withNonMeteredLocations() *fakeFIDO2 {
-	f.useNonMeteredLocs = true
-	return f
-}
-
 func (f *fakeFIDO2) setCallbacks() {
-	if f.useNonMeteredLocs {
-		*wancli.FIDODeviceLocations = f.DeviceLocations
-	} else {
-		*wancli.FIDODeviceLocations = f.newMeteredDeviceLocations()
-	}
+	*wancli.FIDODeviceLocations = f.DeviceLocations
 	*wancli.FIDONewDevice = f.NewDevice
-}
-
-func (f *fakeFIDO2) newMeteredDeviceLocations() func() ([]*libfido2.DeviceLocation, error) {
-	i := 0
-	return func() ([]*libfido2.DeviceLocation, error) {
-		// Delay showing devices for a while to exercise polling.
-		i++
-		const minLoops = 2
-		if i < minLoops {
-			return nil, nil
-		}
-		return f.locs, nil
-	}
 }
 
 func (f *fakeFIDO2) DeviceLocations() ([]*libfido2.DeviceLocation, error) {
