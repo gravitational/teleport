@@ -69,6 +69,14 @@ const config = defineConfig(env => {
         },
       },
       plugins: commonPlugins,
+      define: {
+        // It's not common to pre-process Node code with NODE_ENV, but this is what our Webpack
+        // config used to do, so for compatibility purposes we kept the Vite config this way.
+        //
+        // If we were to get rid of this, we'd somehow need to set NODE_ENV when the packaged app
+        // gets started.
+        'process.env': { NODE_ENV: process.env.NODE_ENV },
+      },
     },
     preload: {
       build: {
@@ -83,6 +91,10 @@ const config = defineConfig(env => {
         },
       },
       plugins: commonPlugins,
+      define: {
+        // Preload is also mean to be run by Node, see the comment for define under main.
+        'process.env': { NODE_ENV: process.env.NODE_ENV },
+      },
     },
     renderer: {
       root: '.',
