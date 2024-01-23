@@ -148,7 +148,7 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 	return p.pin, nil
 }
 
-func (p pinCancelPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
+func (p *pinCancelPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
 	// 2nd touch never happens
 	return func() error { return nil }, nil
 }
@@ -163,7 +163,7 @@ func TestIsFIDO2Available(t *testing.T) {
 		{
 			name: "env var unset",
 			setenv: func() {
-				os.Unsetenv(fido2Key)
+				_ = os.Unsetenv(fido2Key)
 			},
 			want: true,
 		},
