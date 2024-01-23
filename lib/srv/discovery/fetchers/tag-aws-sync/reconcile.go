@@ -45,6 +45,10 @@ func ReconcilePollResult(old *PollResult, new *PollResult) (*accessgraphv1alpha.
 		reconcilePolicies(old.Policies, new.Policies),
 		reconcileInstances(old.Instances, new.Instances),
 		reconcileS3(old.S3Buckets, new.S3Buckets),
+		reconcileRoles(old.Roles, new.Roles),
+		reconcileRoleInlinePolicies(old.RoleInlinePolicies, new.RoleInlinePolicies),
+		reconcileRoleAttachedPolicies(old.RoleAttachedPolicies, new.RoleAttachedPolicies),
+		reconcileInstanceProfiles(old.InstanceProfiles, new.InstanceProfiles),
 	} {
 		upsert.Resources = append(upsert.Resources, results.upsert.Resources...)
 		delete.Resources = append(delete.Resources, results.delete.Resources...)
@@ -333,6 +337,107 @@ func reconcileS3(old []*accessgraphv1alpha.AWSS3BucketV1, new []*accessgraphv1al
 		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_S3Bucket{
 				S3Bucket: s3,
+			},
+		})
+	}
+	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func reconcileRoles(old []*accessgraphv1alpha.AWSRoleV1, new []*accessgraphv1alpha.AWSRoleV1) *reconcileIntermeditateResult {
+	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
+	toAdd, toRemove := reconcile(old, new, func(role *accessgraphv1alpha.AWSRoleV1) string {
+		return fmt.Sprintf("%s;%s", role.AccountId, role.Arn)
+	})
+
+	for _, role := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_Role{
+				Role: role,
+			},
+		})
+	}
+	for _, role := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_Role{
+				Role: role,
+			},
+		})
+	}
+	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func reconcileRoleInlinePolicies(
+	old []*accessgraphv1alpha.AWSRoleInlinePolicyV1,
+	new []*accessgraphv1alpha.AWSRoleInlinePolicyV1,
+) *reconcileIntermeditateResult {
+	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
+	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSRoleInlinePolicyV1) string {
+		return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.Role, policy.PolicyName)
+	})
+
+	for _, policy := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_RoleInlinePolicy{
+				RoleInlinePolicy: policy,
+			},
+		})
+	}
+	for _, policy := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_RoleInlinePolicy{
+				RoleInlinePolicy: policy,
+			},
+		})
+	}
+	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func reconcileRoleAttachedPolicies(
+	old []*accessgraphv1alpha.AWSRoleAttachedPolicies,
+	new []*accessgraphv1alpha.AWSRoleAttachedPolicies,
+) *reconcileIntermeditateResult {
+	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
+	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSRoleAttachedPolicies) string {
+		return fmt.Sprintf("%s;%s", policy.Role.Arn, policy.AccountId)
+	})
+
+	for _, policy := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_RoleAttachedPolicies{
+				RoleAttachedPolicies: policy,
+			},
+		})
+	}
+	for _, policy := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_RoleAttachedPolicies{
+				RoleAttachedPolicies: policy,
+			},
+		})
+	}
+	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func reconcileInstanceProfiles(
+	old []*accessgraphv1alpha.AWSInstanceProfileV1,
+	new []*accessgraphv1alpha.AWSInstanceProfileV1,
+) *reconcileIntermeditateResult {
+	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
+	toAdd, toRemove := reconcile(old, new, func(profile *accessgraphv1alpha.AWSInstanceProfileV1) string {
+		return fmt.Sprintf("%s;%s", profile.AccountId, profile.InstanceProfileId)
+	})
+
+	for _, profile := range toAdd {
+		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_InstanceProfile{
+				InstanceProfile: profile,
+			},
+		})
+	}
+	for _, profile := range toRemove {
+		delete.Resources = append(delete.Resources, &accessgraphv1alpha.AWSResource{
+			Resource: &accessgraphv1alpha.AWSResource_InstanceProfile{
+				InstanceProfile: profile,
 			},
 		})
 	}

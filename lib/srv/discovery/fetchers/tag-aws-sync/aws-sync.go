@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -72,6 +73,10 @@ type PollResult struct {
 	Instances             []*accessgraphv1alpha.AWSInstanceV1
 	Policies              []*accessgraphv1alpha.AWSPolicyV1
 	S3Buckets             []*accessgraphv1alpha.AWSS3BucketV1
+	Roles                 []*accessgraphv1alpha.AWSRoleV1
+	RoleInlinePolicies    []*accessgraphv1alpha.AWSRoleInlinePolicyV1
+	RoleAttachedPolicies  []*accessgraphv1alpha.AWSRoleAttachedPolicies
+	InstanceProfiles      []*accessgraphv1alpha.AWSInstanceProfileV1
 }
 
 func MergePollResults(results ...*PollResult) *PollResult {
@@ -87,6 +92,10 @@ func MergePollResults(results ...*PollResult) *PollResult {
 		result.Instances = append(result.Instances, r.Instances...)
 		result.Policies = append(result.Policies, r.Policies...)
 		result.S3Buckets = append(result.S3Buckets, r.S3Buckets...)
+		result.Roles = append(result.Roles, r.Roles...)
+		result.RoleInlinePolicies = append(result.RoleInlinePolicies, r.RoleInlinePolicies...)
+		result.RoleAttachedPolicies = append(result.RoleAttachedPolicies, r.RoleAttachedPolicies...)
+		result.InstanceProfiles = append(result.InstanceProfiles, r.InstanceProfiles...)
 	}
 	return result
 }
@@ -161,6 +170,44 @@ func (a *awsFetcher) syncIAM(ctx context.Context) (*PollResult, error) {
 
 	eGroup.Go(func() error {
 		var err error
+
+		result.Roles, err = a.fetchRoles(ctx)
+		if err != nil {
+			collectErr(trace.Wrap(err, "failed to fetch users"))
+			return nil
+		}
+
+		eG, ctx := errgroup.WithContext(ctx)
+		eG.SetLimit(10)
+		roleMu := sync.Mutex{}
+		for _, role := range result.Roles {
+			role := role
+			eG.Go(func() error {
+				roleInlinePolicies, err := a.fetchRoleInlinePolicies(ctx, role)
+				if err != nil {
+					collectErr(trace.Wrap(err, "failed to fetch user %q inline policies", role.Name))
+				}
+
+				roleAttachedPolicies, err := a.fetchRoleAttachedPolicies(ctx, role)
+				if err != nil {
+					collectErr(trace.Wrap(err, "failed to fetch user %q attached policies", role.Name))
+				}
+
+				roleMu.Lock()
+				result.RoleInlinePolicies = append(result.RoleInlinePolicies, roleInlinePolicies...)
+				if roleAttachedPolicies != nil {
+					result.RoleAttachedPolicies = append(result.RoleAttachedPolicies, roleAttachedPolicies)
+				}
+				roleMu.Unlock()
+				return nil
+			})
+		}
+		_ = eG.Wait()
+		return nil
+	})
+
+	eGroup.Go(func() error {
+		var err error
 		result.Groups, err = a.fetchGroups(ctx)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to fetch groups"))
@@ -203,6 +250,10 @@ func (a *awsFetcher) syncIAM(ctx context.Context) (*PollResult, error) {
 		result.Instances, err = a.fetchAWSEC2Instances(ctx)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to fetch instances"))
+		}
+		result.InstanceProfiles, err = a.fetchInstanceProfiles(ctx)
+		if err != nil {
+			collectErr(trace.Wrap(err, "failed to fetch instance profiles"))
 		}
 		return nil
 	})
@@ -306,6 +357,166 @@ func awsInstanceToProtoInstance(instance *ec2.Instance, accountID string) *acces
 		Tags:                  tags,
 		LaunchTime:            awsTimeToProtoTime(instance.LaunchTime),
 	}
+}
+
+func (a *awsFetcher) fetchRoles(ctx context.Context) ([]*accessgraphv1alpha.AWSRoleV1, error) {
+	var roles []*accessgraphv1alpha.AWSRoleV1
+
+	iamClient, err := a.CloudClients.GetAWSIAMClient(
+		ctx,
+		"", /* region is empty because roles are global */
+		a.getAWSOptions()...,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = iamClient.ListRolesPagesWithContext(ctx, &iam.ListRolesInput{
+		MaxItems: &pageSize,
+	},
+		func(page *iam.ListRolesOutput, lastPage bool) bool {
+			for _, role := range page.Roles {
+				roles = append(roles, awsRoleToProtoRole(role, a.AccountID))
+			}
+			return !lastPage
+		},
+	)
+
+	return roles, trace.Wrap(err)
+}
+
+func (a *awsFetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) ([]*accessgraphv1alpha.AWSRoleInlinePolicyV1, error) {
+	var policies []*accessgraphv1alpha.AWSRoleInlinePolicyV1
+	var errs []error
+	errCollect := func(err error) {
+		errs = append(errs, err)
+	}
+	iamClient, err := a.CloudClients.GetAWSIAMClient(
+		ctx,
+		"", /* region is empty because users and groups are global */
+		a.getAWSOptions()...,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = iamClient.ListRolePoliciesPagesWithContext(
+		ctx,
+		&iam.ListRolePoliciesInput{
+			RoleName: aws.String(role.Name),
+			MaxItems: &pageSize,
+		},
+		func(page *iam.ListRolePoliciesOutput, lastPage bool) bool {
+			for _, policyName := range page.PolicyNames {
+				policy, err := iamClient.GetRolePolicyWithContext(ctx, &iam.GetRolePolicyInput{
+					RoleName:   aws.String(role.Name),
+					PolicyName: policyName,
+				})
+				if err != nil {
+					errCollect(trace.Wrap(err, "failed to fetch user %q inline policy %q", role.Name, *policyName))
+					continue
+				}
+
+				policies = append(policies, awsRolePolicyToProtoUserPolicy(policy, a.AccountID))
+			}
+			return !lastPage
+		})
+
+	return policies, trace.NewAggregate(append(errs, err)...)
+}
+
+func (a *awsFetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) (*accessgraphv1alpha.AWSRoleAttachedPolicies, error) {
+	rsp := &accessgraphv1alpha.AWSRoleAttachedPolicies{
+		Role:      role,
+		AccountId: a.AccountID,
+	}
+
+	iamClient, err := a.CloudClients.GetAWSIAMClient(
+		ctx,
+		"", /* region is empty because users and groups are global */
+		a.getAWSOptions()...,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = iamClient.ListAttachedRolePoliciesPagesWithContext(
+		ctx,
+		&iam.ListAttachedRolePoliciesInput{
+			RoleName: aws.String(role.Name),
+			MaxItems: &pageSize,
+		},
+		func(page *iam.ListAttachedRolePoliciesOutput, lastPage bool) bool {
+			for _, policy := range page.AttachedPolicies {
+				rsp.Policies = append(
+					rsp.Policies,
+					&accessgraphv1alpha.AttachedPolicyV1{
+						Arn:        aws.ToString(policy.PolicyArn),
+						PolicyName: aws.ToString(policy.PolicyName),
+					},
+				)
+			}
+			return !lastPage
+		},
+	)
+
+	return rsp, trace.Wrap(err)
+}
+
+func (a *awsFetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceProfileV1, error) {
+	var profiles []*accessgraphv1alpha.AWSInstanceProfileV1
+	iamClient, err := a.CloudClients.GetAWSIAMClient(
+		ctx,
+		"", /* region is empty because users and groups are global */
+		a.getAWSOptions()...,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = iamClient.ListInstanceProfilesPagesWithContext(
+		ctx,
+		&iam.ListInstanceProfilesInput{
+			MaxItems: &pageSize,
+		},
+		func(page *iam.ListInstanceProfilesOutput, lastPage bool) bool {
+			for _, profile := range page.InstanceProfiles {
+				profiles = append(
+					profiles,
+					awsInstanceProfileToProtoInstanceProfile(profile, a.AccountID),
+				)
+			}
+			return !lastPage
+		},
+	)
+
+	return profiles, trace.Wrap(err)
+}
+
+func awsInstanceProfileToProtoInstanceProfile(profile *iam.InstanceProfile, accountID string) *accessgraphv1alpha.AWSInstanceProfileV1 {
+	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(profile.Tags))
+	for _, tag := range profile.Tags {
+		tags = append(tags, &accessgraphv1alpha.AWSTag{
+			Key:   aws.ToString(tag.Key),
+			Value: strPtrToWrapper(tag.Value),
+		})
+	}
+
+	out := &accessgraphv1alpha.AWSInstanceProfileV1{
+		InstanceProfileId:   aws.ToString(profile.InstanceProfileId),
+		InstanceProfileName: aws.ToString(profile.InstanceProfileName),
+		Arn:                 aws.ToString(profile.Arn),
+		Path:                aws.ToString(profile.Path),
+		AccountId:           accountID,
+		Tags:                tags,
+		CreatedAt:           awsTimeToProtoTime(profile.CreateDate),
+	}
+	for _, role := range profile.Roles {
+		if role == nil {
+			continue
+		}
+		out.Roles = append(out.Roles, awsRoleToProtoRole(role, accountID))
+	}
+	return out
 }
 
 func (a *awsFetcher) fetchUsers(ctx context.Context) ([]*accessgraphv1alpha.AWSUserV1, error) {
@@ -600,6 +811,15 @@ func awsUserPolicyToProtoUserPolicy(policy *iam.GetUserPolicyOutput, accountID s
 	}
 }
 
+func awsRolePolicyToProtoUserPolicy(policy *iam.GetRolePolicyOutput, accountID string) *accessgraphv1alpha.AWSRoleInlinePolicyV1 {
+	return &accessgraphv1alpha.AWSRoleInlinePolicyV1{
+		PolicyName:     aws.ToString(policy.PolicyName),
+		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
+		Role:           aws.ToString(policy.RoleName),
+		AccountId:      accountID,
+	}
+}
+
 func awsPolicyToProtoPolicy(policy *iam.Policy, policyDoc []byte, accountID string) *accessgraphv1alpha.AWSPolicyV1 {
 	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(policy.Tags))
 	for _, tag := range policy.Tags {
@@ -820,4 +1040,54 @@ func awsACLsToProtoACLs(grants []*s3.Grant) []*accessgraphv1alpha.AWSS3BucketACL
 		})
 	}
 	return acls
+}
+
+// awsRoleToProtoRole converts an AWS IAM Role to a proto Role.
+func awsRoleToProtoRole(role *iam.Role, accountID string) *accessgraphv1alpha.AWSRoleV1 {
+	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(role.Tags))
+	for _, tag := range role.Tags {
+		tags = append(tags, &accessgraphv1alpha.AWSTag{
+			Key:   aws.ToString(tag.Key),
+			Value: strPtrToWrapper(tag.Value),
+		})
+	}
+
+	var permissionsBoundary *accessgraphv1alpha.RolePermissionsBoundaryV1
+
+	if role.PermissionsBoundary != nil {
+		permissionsBoundary = &accessgraphv1alpha.RolePermissionsBoundaryV1{
+			PermissionsBoundaryArn:  aws.ToString(role.PermissionsBoundary.PermissionsBoundaryArn),
+			PermissionsBoundaryType: accessgraphv1alpha.RolePermissionsBoundaryType_ROLE_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY,
+		}
+	}
+
+	var lastTimeUsed *accessgraphv1alpha.RoleLastUsedV1
+	if role.RoleLastUsed != nil {
+		lastTimeUsed = &accessgraphv1alpha.RoleLastUsedV1{
+			LastUsedDate: awsTimeToProtoTime(role.RoleLastUsed.LastUsedDate),
+			Region:       aws.ToString(role.RoleLastUsed.Region),
+		}
+	}
+
+	return &accessgraphv1alpha.AWSRoleV1{
+		Name:                     aws.ToString(role.RoleName),
+		Arn:                      aws.ToString(role.Arn),
+		AssumeRolePolicyDocument: strPtrToByteSlice(role.AssumeRolePolicyDocument),
+		Path:                     aws.ToString(role.Path),
+		Description:              aws.ToString(role.Description),
+		MaxSessionDuration:       durationpb.New(time.Duration(aws.ToInt64(role.MaxSessionDuration)) * time.Second),
+		RoleId:                   aws.ToString(role.RoleId),
+		CreatedAt:                awsTimeToProtoTime(role.CreateDate),
+		AccountId:                accountID,
+		RoleLastUsed:             lastTimeUsed,
+		Tags:                     tags,
+		PermissionsBoundary:      permissionsBoundary,
+	}
+}
+
+func strPtrToByteSlice(s *string) []byte {
+	if s == nil {
+		return nil
+	}
+	return []byte(*s)
 }
