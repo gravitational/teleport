@@ -413,6 +413,13 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 
 	req.SetReviews(append(req.GetReviews(), rev))
 
+	if rev.AssumeStartTime != nil {
+		if rev.AssumeStartTime.After(req.GetAccessExpiry()) {
+			return trace.BadParameter("assumeStartTime is after request AccessExpiry")
+		}
+		req.SetAssumeStartTime(*rev.AssumeStartTime)
+	}
+
 	// request is still pending, so check to see if this
 	// review introduces a state-transition.
 	res, err := calculateReviewBasedResolution(req)
@@ -432,12 +439,6 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
 	}
 	req.SetExpiry(req.GetAccessExpiry())
-	if rev.AssumeStartTime != nil {
-		if rev.AssumeStartTime.After(req.GetAccessExpiry()) {
-			return trace.BadParameter("assumeStartTime is after request AccessExpiry")
-		}
-		req.SetAssumeStartTime(*rev.AssumeStartTime)
-	}
 	return nil
 }
 
