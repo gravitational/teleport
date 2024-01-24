@@ -1571,9 +1571,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
 		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		h.log.WithError(err).Error("Cannot read target version")
 	}
 
 	webCfg := webclient.WebConfig{
