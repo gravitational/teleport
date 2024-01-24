@@ -26,6 +26,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -43,7 +45,14 @@ import (
 var (
 	ErrMirrorNotSupported           = errors.New("mirror mode not supported")
 	ErrConcurrentAccessNotSupported = errors.New("concurrent access not supported")
+	ttlDeleteTimeout                = time.Second * 10
 )
+
+func init() {
+	if i, err := strconv.Atoi(os.Getenv("TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT")); err == nil {
+		ttlDeleteTimeout = time.Duration(i) * time.Second
+	}
+}
 
 type ConstructionOptions struct {
 	MirrorMode bool
@@ -619,19 +628,8 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	_, err = uut.Get(ctx, item.Key)
 	require.Error(t, err)
 
-	// A backend may implement the ttldeleter interface
-	// to do synchronous TTL deletion during testing.
-	type ttldeleter interface {
-		TTLDelete(context.Context) error
-	}
-
-	if ttl, ok := uut.(ttldeleter); ok {
-		err := ttl.TTLDelete(ctx)
-		require.NoError(t, err)
-	}
-
 	// Make sure a DELETE event is emitted.
-	requireEvent(t, watcher, types.OpDelete, item.Key, eventTimeout)
+	requireEvent(t, watcher, types.OpDelete, item.Key, ttlDeleteTimeout)
 }
 
 // testFetchLimit tests fetch max items size limit.
