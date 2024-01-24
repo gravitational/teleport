@@ -690,7 +690,8 @@ func startDevices(
 		closeAll()
 		return nil, nil, trace.Wrap(err)
 	}
-	closeAll = nil // Do not call from this point onwards.
+	//nolint:ineffassign // closeAll not meant to be used from here onwards.
+	closeAll = nil
 
 	errC := make(chan error, len(fidoDevs))
 	devices = &openedDevices{
