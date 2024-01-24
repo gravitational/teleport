@@ -98,18 +98,3 @@ jobs:
           file: ./integrations/operator/Dockerfile.gha
           platforms: ${{ steps.params.outputs.platforms }}
           tags: ${{ inputs.dest-image-prefix }}/teleport-operator:${{ inputs.teleport-version }}
-
-      # TODO(camh): Drop this step in v15
-      # A single multi-arch image should be sufficient. An architecture-specific image can
-      # be pulled from that with `docker pull --platform linux/<arch> <image>`
-      - name: Push OCI Single-arch Images
-        env:
-          ARCHITECTURES: ${{ inputs.architectures }}
-          IMAGE: ${{ inputs.dest-image-prefix }}/teleport-operator:${{ inputs.teleport-version }}
-        run: |
-          read -ra arches <<<"${ARCHITECTURES}"
-          for arch in "${arches[@]}"; do
-            docker pull --platform "linux/${arch}" "${IMAGE}"
-            docker tag "${IMAGE}" "${IMAGE}-${arch}"
-            docker push "${IMAGE}-${arch}"
-          done
