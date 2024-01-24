@@ -247,7 +247,7 @@ function initializeApp(): void {
         );
         dialog.showErrorBox(
           'Cannot open this link',
-          'The domain this link points to does not match any of the allowed domains. Check main.log for more details.'
+          'The domain does not match any of the allowed domains. Check main.log for more details.'
         );
       }
 
