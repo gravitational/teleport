@@ -88,8 +88,7 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 	return token, nil
 }
 
-// verifyRecoveryCode validates the recovery code for the user and will unlock their account if
-// the code is valid.  If the code is invalid, a failed recovery attempt will be recorded.
+// verifyRecoveryCode validates the recovery code for the user and will unlock their account if the code is valid.
 func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
 	_, err := a.Services.GetUser(ctx, username, false)
 	if err != nil && !trace.IsNotFound(err) {
@@ -195,7 +194,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 			return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 		}
 
-		if err := a.verifyAuthnRecoveryWithRecord(ctx, startToken, func() error {
+		if err := a.verifyAuthnRecovery(ctx, startToken, func() error {
 			return a.checkPasswordWOToken(startToken.GetUser(), req.GetPassword())
 		}); err != nil {
 			return nil, trace.Wrap(err)
@@ -207,7 +206,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 			return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 		}
 
-		if err := a.verifyAuthnRecoveryWithRecord(ctx, startToken, func() error {
+		if err := a.verifyAuthnRecovery(ctx, startToken, func() error {
 			requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY}
 			_, err := a.ValidateMFAAuthResponse(ctx, req.GetMFAAuthenticateResponse(), startToken.GetUser(), requiredExt)
 			return err
@@ -232,9 +231,8 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 	return approvedToken, nil
 }
 
-// verifyAuthnRecoveryWithRecord validates the recovery code (through authenticateFn).  If the code is invalid,
-// a failed recovery attempt will be recorded.
-func (a *Server) verifyAuthnRecoveryWithRecord(ctx context.Context, startToken types.UserToken, authenticateFn func() error) error {
+// verifyAuthnRecovery validates the recovery code (through authenticateFn).
+func (a *Server) verifyAuthnRecovery(ctx context.Context, startToken types.UserToken, authenticateFn func() error) error {
 	// Determine user exists first since an existence of token
 	// does not guarantee the user defined in token exists anymore.
 	_, err := a.Services.GetUser(ctx, startToken.GetUser(), false)

@@ -1818,7 +1818,6 @@ const (
 	webauthnLocalAuthPrefix     = "webauthnlocalauth"
 	webauthnSessionData         = "webauthnsessiondata"
 	recoveryCodesPrefix         = "recoverycodes"
-	recoveryAttemptsPrefix      = "recoveryattempts"
 	attestationsPrefix          = "key_attestations"
 	assistantMessagePrefix      = "assistant_messages"
 	assistantConversationPrefix = "assistant_conversations"
