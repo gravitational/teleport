@@ -111,7 +111,6 @@ export function Account({
   hideReAuthenticate,
   hideAddDevice,
   hideRemoveDevice,
-  mfaDisabled,
   isSso,
   canAddMFA,
   canAddPasskeys,
@@ -184,7 +183,7 @@ export function Account({
                   <ActionButton
                     disabled={disableAddPasskey}
                     title={
-                      mfaDisabled
+                      disableAddPasskey
                         ? 'Passwordless authentication is disabled'
                         : ''
                     }
@@ -223,7 +222,7 @@ export function Account({
                   <ActionButton
                     disabled={disableAddMFA}
                     title={
-                      mfaDisabled
+                      disableAddMFA
                         ? 'Multi-factor authentication is disabled'
                         : ''
                     }
