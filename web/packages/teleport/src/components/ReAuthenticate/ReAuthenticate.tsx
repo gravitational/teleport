@@ -47,6 +47,7 @@ export function ReAuthenticate({
   auth2faType,
   preferredMfaType,
   actionText,
+  challengeScope,
 }: State) {
   const [otpToken, setOtpToken] = useState('');
   const mfaOptions = createMfaOptions({
@@ -60,7 +61,7 @@ export function ReAuthenticate({
     e.preventDefault();
 
     if (mfaOption?.value === 'webauthn') {
-      submitWithWebauthn();
+      submitWithWebauthn(challengeScope);
     }
     if (mfaOption?.value === 'otp') {
       submitWithTotp(otpToken);

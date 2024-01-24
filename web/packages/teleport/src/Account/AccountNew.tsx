@@ -28,6 +28,8 @@ import { FeatureBox } from 'teleport/components/Layout';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import { RemoveDialog } from 'teleport/components/MfaDeviceList';
 
+import { MFAChallengeScope } from 'teleport/services/auth/auth';
+
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
   State as ManageDevicesState,
@@ -214,6 +216,7 @@ export function Account({
             onAuthenticated={setToken}
             onClose={hideReAuthenticate}
             actionText="registering a new device"
+            challengeScope={MFAChallengeScope.USER_SESSION}
           />
         )}
         {isAddDeviceVisible && (
