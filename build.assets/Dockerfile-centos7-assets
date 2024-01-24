@@ -93,7 +93,7 @@ RUN git clone --branch llvmorg-14.0.6 --depth=1 https://github.com/llvm/llvm-pro
 -DLLVM_ENABLE_PROJECTS=\"clang;libcxx;libcxxabi\" \
 -DLLVM_ENABLE_LIBCXX=ON \
 -G \"Ninja\" ../llvm && \
-    cmake3 --build . -j 2 && \
+    cmake3 --build . && \
     cmake3 -DCMAKE_INSTALL_PREFIX=/opt/llvm -P cmake_install.cmake"' && \
     cd ../.. && \
     rm -rf llvm-project

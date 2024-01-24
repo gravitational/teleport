@@ -293,11 +293,14 @@ RUN cd /usr/local/lib64 && \
 COPY pkgconfig/centos7/ /
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 
+# Install libpcsclite.
 COPY --from=libpcsclite /usr/local/include/ /usr/local/include/
 COPY --from=libpcsclite /usr/local/lib/pkgconfig/ /usr/local/lib64/pkgconfig/
 COPY --from=libpcsclite \
     /usr/local/lib/libpcsclite.a \
     /usr/local/lib/
+# Set LIBRARY_PATH so that libpcsclite can be found by the linker.
+ENV LIBRARY_PATH=/usr/local/lib:${LIBRARY_PATH}
 
 # Copy libbpf into the final image.
 ARG LIBBPF_VERSION
