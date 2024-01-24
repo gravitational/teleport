@@ -27,7 +27,9 @@ import {
   height,
   maxWidth,
   maxHeight,
+  minWidth,
   alignSelf,
+  flex,
 } from 'design/system';
 
 const Image = props => {
@@ -43,6 +45,8 @@ Image.propTypes = {
   ...height.propTypes,
   ...maxWidth.propTypes,
   ...maxHeight.propTypes,
+  ...minWidth.propTypes,
+  ...flex.propTypes,
 };
 
 Image.displayName = 'Logo';
@@ -52,5 +56,5 @@ export default Image;
 const StyledImg = styled.img`
   display: block;
   outline: none;
-  ${color} ${space} ${width} ${height} ${maxWidth} ${maxHeight} ${alignSelf}
+  ${color} ${space} ${width} ${height} ${maxWidth} ${maxHeight} ${minWidth} ${alignSelf} ${flex}
 `;
