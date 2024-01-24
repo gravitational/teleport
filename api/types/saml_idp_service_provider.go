@@ -42,27 +42,27 @@ const (
 // SAML Name ID formats.
 // https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
 const (
-	// SAMLUnspecifiedNameIDFormat indicates Name ID format of unknown type and it is upto the
-	// service provider to intrepret the format of the value. [Saml Core v2, 8.3.1]
+	// SAMLUnspecifiedNameIDFormat is a Name ID format of unknown type and it is upto the
+	// service provider to interpret the format of the value. [Saml Core v2, 8.3.1]
 	SAMLUnspecifiedNameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
-	// SAMLEmailAddressNameIDFormat indicates Name ID format of email address type as specified
+	// SAMLEmailAddressNameIDFormat is a Name ID format of email address type as specified
 	// in IETF RFC 2822 [RFC 2822] Section 3.4.1. [Saml Core v2, 8.3.2]
 	SAMLEmailAddressNameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-	// SAMLX509SubjectNameNameIDFormat indicates Name ID format of the X.509 certificate
+	// SAMLX509SubjectNameNameIDFormat is a Name ID format of the X.509 certificate
 	// subject name which is used in XML Signature Recommendation (XMLSig). [Saml Core v2, 8.3.3].
 	SAMLX509SubjectNameNameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName"
-	// SAMLWindowsDomainQualifiedNameNameIDFormat indicates Name ID format to be of Windows Domain Qualified
-	// Name format, whose syntax is "DomainName\UserName". [Saml Core v2, 8.3.4].
+	// SAMLWindowsDomainQualifiedNameNameIDFormat is a Name ID format of Windows Domain Qualified
+	// Name whose syntax "DomainName\UserName". [Saml Core v2, 8.3.4].
 	SAMLWindowsDomainQualifiedNameNameIDFormat = "urn:oasis:names:tc:SAML:1.1:nameid-format:WindowsDomainQualifiedName"
-	// SAMLKerberosPrincipalNameNameNameIDFormat indicates Name ID format of Kerberos Principal Name
+	// SAMLKerberosPrincipalNameNameNameIDFormat is a Name ID format of Kerberos Principal Name
 	// whose syntax is "name[/instance]@REALM". IETF RFC 1510 [RFC 1510]. [Saml Core v2, 8.3.5].
 	SAMLKerberosPrincipalNameNameNameIDFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:kerberos"
-	// SAMLEntityNameIDFormat indicates Name ID format for SAML IdP Entity ID value. [Saml Core v2, 8.3.6].
+	// SAMLEntityNameIDFormat is a Name ID format for SAML IdP Entity ID value. [Saml Core v2, 8.3.6].
 	SAMLEntityNameIDFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:entity"
-	// SAMLPersistentNameIDFormat indicates the value of the Name ID to be treated as a persistent user identitifer
-	// by the service provider.	[Saml Core v2, 8.3.7]
+	// SAMLPersistentNameIDFormat is a Name ID format whose value is to be treated as a persistent
+	// user identitifer by the service provider. [Saml Core v2, 8.3.7]
 	SAMLPersistentNameIDFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
-	// SAMLTransientNameIDFormat indicates the value of Name ID format is to be treated as a temporary value by the
+	// SAMLTransientNameIDFormat is a Name ID format whose value is to be treated as a temporary value by the
 	// service provider. [Saml Core v2, 8.3.8]
 	SAMLTransientNameIDFormat = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
 )
