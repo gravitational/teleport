@@ -381,7 +381,7 @@ const cfg = {
     return cfg.auth.allowPasswordless;
   },
 
-  isAdminActionMFAEnforced() {
+  isAdminActionMfaEnforced() {
     return cfg.auth.preferredLocalMfa === 'webauthn';
   },
 

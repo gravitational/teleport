@@ -17,7 +17,7 @@
  */
 
 import 'whatwg-fetch';
-import auth, { MFAChallengeScope } from 'teleport/services/auth/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import { storageService } from '../storageService';
 import { WebauthnAssertionResponse } from '../auth';
@@ -130,7 +130,7 @@ const api = {
     let webauthnResponseForRetry;
     try {
       webauthnResponseForRetry = await auth.getWebauthnResponse(
-        MFAChallengeScope.ADMIN_ACTION
+        MfaChallengeScope.ADMIN_ACTION
       );
     } catch (err) {
       throw new Error(

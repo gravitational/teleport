@@ -240,7 +240,7 @@ const auth = {
 
   headlessSSOAccept(transactionId: string) {
     return auth
-      .fetchWebauthnChallenge(MFAChallengeScope.HEADLESS_LOGIN)
+      .fetchWebauthnChallenge(MfaChallengeScope.HEADLESS_LOGIN)
       .then(res => {
         const request = {
           action: 'accept',
@@ -264,16 +264,16 @@ const auth = {
   },
 
   async fetchWebauthnChallenge(
-    scope: MFAChallengeScope,
+    scope: MfaChallengeScope,
     allowReuse?: boolean,
-    isMFARequiredRequest?: IsMfaRequiredRequest
+    isMfaRequiredRequest?: IsMfaRequiredRequest
   ) {
     return auth
       .checkWebauthnSupport()
       .then(() =>
         api
           .post(cfg.api.mfaAuthnChallengePath, {
-            is_mfa_required_req: isMFARequiredRequest,
+            is_mfa_required_req: isMfaRequiredRequest,
             challenge_scope: scope,
             challenge_allow_reuse: allowReuse,
           })
@@ -286,7 +286,7 @@ const auth = {
       );
   },
 
-  createPrivilegeTokenWithWebauthn(scope: MFAChallengeScope) {
+  createPrivilegeTokenWithWebauthn(scope: MfaChallengeScope) {
     return auth.fetchWebauthnChallenge(scope).then(res =>
       api.post(cfg.api.createPrivilegeTokenPath, {
         webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
@@ -299,16 +299,16 @@ const auth = {
   },
 
   async getWebauthnResponse(
-    scope: MFAChallengeScope,
+    scope: MfaChallengeScope,
     allowReuse?: boolean,
-    isMFARequiredRequest?: IsMfaRequiredRequest
+    isMfaRequiredRequest?: IsMfaRequiredRequest
   ) {
     // TODO(Joerger): DELETE IN 16.0.0
     // the create mfa challenge endpoint below supports
     // MFARequired requests without the extra roundtrip.
-    if (isMFARequiredRequest) {
+    if (isMfaRequiredRequest) {
       try {
-        const isMFARequired = await checkMfaRequired(isMFARequiredRequest);
+        const isMFARequired = await checkMfaRequired(isMfaRequiredRequest);
         if (!isMFARequired.required) {
           return;
         }
@@ -328,19 +328,19 @@ const auth = {
     }
 
     return auth
-      .fetchWebauthnChallenge(scope, allowReuse, isMFARequiredRequest)
+      .fetchWebauthnChallenge(scope, allowReuse, isMfaRequiredRequest)
       .then(res => makeWebauthnAssertionResponse(res));
   },
 
   getWebauthnResponseForAdminAction(allowReuse?: boolean) {
     // If the client is checking if MFA is required for an admin action,
     // but we know admin action MFA is not enforced, return early.
-    if (!cfg.isAdminActionMFAEnforced()) {
+    if (!cfg.isAdminActionMfaEnforced()) {
       return;
     }
 
     return auth.getWebauthnResponse(
-      MFAChallengeScope.ADMIN_ACTION,
+      MfaChallengeScope.ADMIN_ACTION,
       allowReuse,
       {
         admin_action: {},
@@ -371,7 +371,7 @@ export type IsMfaRequiredRequest =
   | IsMfaRequiredNode
   | IsMfaRequiredKube
   | IsMfaRequiredWindowsDesktop
-  | IsMFARequiredAdminAction;
+  | IsMfaRequiredAdminAction;
 
 export type IsMfaRequiredResponse = {
   required: boolean;
@@ -415,13 +415,13 @@ export type IsMfaRequiredKube = {
   };
 };
 
-export type IsMFARequiredAdminAction = {
+export type IsMfaRequiredAdminAction = {
   // empty object.
   admin_action: Record<string, never>;
 };
 
-// MFAChallengeScope is an mfa challenge scope. Possible values are defined in mfa.proto
-export enum MFAChallengeScope {
+// MfaChallengeScope is an mfa challenge scope. Possible values are defined in mfa.proto
+export enum MfaChallengeScope {
   UNSPECIFIED = 0,
   LOGIN = 1,
   PASSWORDLESS_LOGIN = 2,
