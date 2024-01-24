@@ -87,6 +87,8 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		{name: "UserV2"},
 		// Role V5 is using the RoleV6 message
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5)}},
+		// For backward compatibility in v15, it actually creates v5 roles though.
+		{name: "RoleV6"},
 		// Role V6 and V7 have their own Kubernetes kind
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionInKindOverride()}},
 		// Role V7 is using the RoleV6 message
