@@ -37,6 +37,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
@@ -443,6 +444,10 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 
 func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
+}
+
+func (c *Client) OktaPluginConfigHelperServiceClient() oktav1.OktaPluginConfigHelperServiceClient {
+	return c.APIClient.OktaPluginConfigHelperServiceClient()
 }
 
 func (c *Client) SCIMClient() services.SCIM {
@@ -927,6 +932,10 @@ type ClientI interface {
 	// still get an Okta client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	OktaClient() services.Okta
+
+	// OktaPluginConfigHelperServiceClient returns an undorned client for helping with
+	// Okta plugin configuration.
+	OktaPluginConfigHelperServiceClient() oktav1.OktaPluginConfigHelperServiceClient
 
 	// SCIMClient returns a client for the SCIM provisioning service. Clients
 	// connecting to OSS clusters will still get a client when calling this method,

@@ -4243,6 +4243,12 @@ func (c *Client) OktaClient() *okta.Client {
 	return okta.NewClient(oktapb.NewOktaServiceClient(c.conn))
 }
 
+// OktaPluginConfigHelperServiceClient returns an undorned client for helping with
+// Okta plugin configuration.
+func (c *Client) OktaPluginConfigHelperServiceClient() oktapb.OktaPluginConfigHelperServiceClient {
+	return oktapb.NewOktaPluginConfigHelperServiceClient(c.conn)
+}
+
 func (c *Client) SCIMClient() *scim.Client {
 	return scim.NewClientFromConn(c.conn)
 }
