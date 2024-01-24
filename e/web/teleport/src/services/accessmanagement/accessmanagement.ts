@@ -1,6 +1,8 @@
 import api from 'teleport/services/api';
 import { makeTraits } from 'teleport/services/user/makeUser';
 
+import auth from 'teleport/services/auth/auth';
+
 import cfg from 'e-teleport/config';
 
 import {
@@ -140,8 +142,13 @@ export const accessManagementService = {
 
     return api.put(cfg.getAccessManagementListUrl(original.id), madeReq);
   },
-  deleteAccessList(accessListId: string): Promise<void> {
-    return api.delete(cfg.getAccessManagementListUrl(accessListId));
+  async deleteAccessList(accessListId: string): Promise<void> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    return api.delete(
+      cfg.getAccessManagementListUrl(accessListId),
+      null,
+      webauthnResponse
+    );
   },
 };
 

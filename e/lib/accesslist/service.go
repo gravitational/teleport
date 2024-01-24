@@ -600,7 +600,8 @@ func (s *Service) deleteAccessList(ctx context.Context, authCtx *authz.Context, 
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	// Allow reused MFA responses to allow deleting an access list after deleting all members.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1068,7 +1069,8 @@ func (s *Service) DeleteAllAccessListMembersForAccessList(ctx context.Context, r
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	// Allow reused MFA responses to allow deleting an access list after deleting all members.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
