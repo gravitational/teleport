@@ -105,6 +105,8 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 	var expires time.Time
 	var tokenName string
+	var labels map[string]string
+
 	switch req.JoinMethod {
 	case types.JoinMethodIAM:
 		// to prevent generation of redundant IAM tokens
@@ -164,6 +166,10 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		}
 	case types.JoinMethodGitHub:
 		tokenName = generateGitHubTokenName(req)
+		// TODO use constants, write tests
+		labels = map[string]string{
+			botWebFlowLabelKey: botWebFlowLabelValGitGubActions,
+		}
 	default:
 		tokenName, err = utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
@@ -186,7 +192,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
 	}
 
-	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
+	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req, labels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

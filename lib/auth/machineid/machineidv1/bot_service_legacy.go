@@ -118,7 +118,7 @@ func (bs *BotService) checkOrCreateBotToken(ctx context.Context, req *proto.Crea
 		JoinMethod: types.JoinMethodToken,
 		BotName:    req.Name,
 	}
-	token, err := types.NewProvisionTokenFromSpec(tokenName, bs.clock.Now().Add(ttl), tokenSpec)
+	token, err := types.NewProvisionTokenFromSpec(tokenName, bs.clock.Now().Add(ttl), tokenSpec, map[string]string{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

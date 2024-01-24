@@ -152,7 +152,7 @@ func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCrea
 		Roles: []types.SystemRole{types.RoleKube, types.RoleApp, types.RoleDiscovery},
 	}
 
-	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
+	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req, make(map[string]string))
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}

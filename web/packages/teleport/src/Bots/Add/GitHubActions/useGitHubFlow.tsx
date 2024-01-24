@@ -27,6 +27,10 @@ import { CreateBotRequest } from 'teleport/services/bot/types';
 import { GitHubRepoRule, RefType } from 'teleport/services/joinToken';
 import useTeleport from 'teleport/useTeleport';
 
+const GITHUB_HOST = 'github.com';
+const GITHUB_ACTIONS_LABEL_KEY = 'teleport.internal/ui-flow';
+const GITHUB_ACTIONS_LABEL_VAL = 'github-actions';
+
 type GitHubFlowContext = {
   attempt: Attempt;
   createBotRequest: CreateBotRequest;
@@ -38,8 +42,6 @@ type GitHubFlowContext = {
   createBot: () => Promise<boolean>;
   resetAttempt: () => void;
 };
-
-const GITHUB_HOST = 'github.com';
 
 const gitHubFlowContext = React.createContext<GitHubFlowContext>(null);
 
@@ -214,7 +216,7 @@ export function parseRepoAddress(repoAddr: string): {
 }
 
 function getRoleYaml(botName: string, labels: ResourceLabel[], login): string {
-  const labelsStanza = labels.map(
+  const nodeLabelsStanza = labels.map(
     label => `'${label.name}': '${label.value}'\n`
   );
   const timestamp = new Date().getTime();
@@ -222,11 +224,13 @@ function getRoleYaml(botName: string, labels: ResourceLabel[], login): string {
   return `kind: role
 metadata:
   name: bot-${botName}-role-${timestamp}
+  labels:
+    ${GITHUB_ACTIONS_LABEL_KEY}: ${GITHUB_ACTIONS_LABEL_VAL}
 spec:
   allow:
     # List of Kubernetes cluster users can access the k8s API
     kubernetes_labels:
-    ${labelsStanza}
+    ${nodeLabelsStanza}
     kubernetes_groups:
     - '{{internal.kubernetes_groups}}'
     kubernetes_users:
@@ -243,7 +247,7 @@ spec:
 
     # List of node labels that users can SSH into
     node_labels:
-    ${labelsStanza}
+    ${nodeLabelsStanza}
     rules:
     - resources:
       - event
