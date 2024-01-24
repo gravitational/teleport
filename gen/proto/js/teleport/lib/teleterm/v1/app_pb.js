@@ -87,7 +87,8 @@ proto.teleport.lib.teleterm.v1.App.toObject = function(includeInstance, msg) {
     friendlyName: jspb.Message.getFieldWithDefault(msg, 7, ""),
     samlApp: jspb.Message.getBooleanFieldWithDefault(msg, 8, false),
     labelsList: jspb.Message.toObjectList(msg.getLabelsList(),
-    teleport_lib_teleterm_v1_label_pb.Label.toObject, includeInstance)
+    teleport_lib_teleterm_v1_label_pb.Label.toObject, includeInstance),
+    fqdn: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -160,6 +161,10 @@ proto.teleport.lib.teleterm.v1.App.deserializeBinaryFromReader = function(msg, r
       var value = new teleport_lib_teleterm_v1_label_pb.Label;
       reader.readMessage(value,teleport_lib_teleterm_v1_label_pb.Label.deserializeBinaryFromReader);
       msg.addLabels(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setFqdn(value);
       break;
     default:
       reader.skipField();
@@ -252,6 +257,13 @@ proto.teleport.lib.teleterm.v1.App.serializeBinaryToWriter = function(message, w
       9,
       f,
       teleport_lib_teleterm_v1_label_pb.Label.serializeBinaryToWriter
+    );
+  }
+  f = message.getFqdn();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
+      f
     );
   }
 };
@@ -436,6 +448,24 @@ proto.teleport.lib.teleterm.v1.App.prototype.addLabels = function(opt_value, opt
  */
 proto.teleport.lib.teleterm.v1.App.prototype.clearLabelsList = function() {
   return this.setLabelsList([]);
+};
+
+
+/**
+ * optional string fqdn = 10;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.App.prototype.getFqdn = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.App} returns this
+ */
+proto.teleport.lib.teleterm.v1.App.prototype.setFqdn = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
 };
 
 

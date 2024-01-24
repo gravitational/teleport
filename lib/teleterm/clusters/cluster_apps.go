@@ -31,12 +31,17 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // App describes an app resource.
 type App struct {
 	// URI is the app URI
 	URI uri.ResourceURI
+	// FQDN is the hostname under which the app is accessible within the root cluster.
+	// It is included in this struct because the callsite which constructs FQDN must have access to
+	// clusters.Cluster.
+	FQDN string
 
 	App types.Application
 }
@@ -103,8 +108,9 @@ func (c *Cluster) GetApps(ctx context.Context, r *api.GetAppsRequest) (*GetAppsR
 		if appServerOrProvider.IsAppServer() {
 			app := appServerOrProvider.GetAppServer().GetApp()
 			results = append(results, AppServerOrSAMLIdPServiceProvider{App: &App{
-				URI: c.URI.AppendApp(app.GetName()),
-				App: app,
+				URI:  c.URI.AppendApp(app.GetName()),
+				FQDN: c.AssembleAppFQDN(app),
+				App:  app,
 			}})
 		} else {
 			provider := appServerOrProvider.GetSAMLIdPServiceProvider()
@@ -216,4 +222,35 @@ func (c *Cluster) reissueAppCert(ctx context.Context, app types.Application) (tl
 
 	tlsCert, err := key.TLSCertificate(cert)
 	return tlsCert, trace.Wrap(err)
+}
+
+// AssembleAppFQDN is a wrapper on top of [utils.AssembleAppFQDN] which encapsulates translation
+// between lib/teleterm and lib/web terminology.
+//
+// It assumes that app was fetched from c, as there's no way to check that in runtime.
+func (c *Cluster) AssembleAppFQDN(app types.Application) string {
+	// "local" in the context of the Web UI means "belonging to the cluster of this proxy service".
+	// If you're looking at leaf resources in the Web UI, you're doing this through the Web UI of the
+	// root cluster, so "local cluster" in this case is the root cluster.
+	//
+	// In case of lib/teleterm, clusters.Cluster can represent either a root cluster or a leaf
+	// cluster. Variables prefixed with "local" are set to values associated with the root cluster.
+	//
+	// ProfileName is the same as the proxy hostname, as it's the name that tsh uses to store files
+	// associated with the profile in ~/tsh. Technically, ProfileName is not necessarily the same as
+	// the cluster name. However, localClusterName is used by utils.AssembleAppFQDN merely to
+	// differentiate between leaf and root cluster apps.
+	localClusterName := c.ProfileName
+	localProxyDNSName := c.GetProxyHostname()
+	// Since utils.AssembleAppFQDN uses localClusterName and appClusterName to differentiate between
+	// root and local apps, appClusterName is set to ProfileName so that appClusterName equals
+	// localClusterName for root cluster apps.
+	appClusterName := c.ProfileName
+
+	leafClusterName := c.URI.GetLeafClusterName()
+	if leafClusterName != "" {
+		appClusterName = leafClusterName
+	}
+
+	return utils.AssembleAppFQDN(localClusterName, localProxyDNSName, appClusterName, app)
 }
