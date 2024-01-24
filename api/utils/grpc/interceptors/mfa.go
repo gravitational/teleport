@@ -54,7 +54,7 @@ func WithMFAUnaryInterceptor(clt mfa.MFACeremonyClient) grpc.UnaryClientIntercep
 		// Start an MFA prompt that shares what API request caused MFA to be prompted.
 		// ex: MFA is required for admin-level API request: "CreateUser"
 		mfaResp, ceremonyErr := mfa.PerformAdminActionMFACeremony(ctx, clt, false /*allowReuse*/)
-		if ceremonyErr != nil || mfaResp == nil {
+		if ceremonyErr != nil {
 			return trace.NewAggregate(trail.FromGRPC(err), ceremonyErr)
 		}
 

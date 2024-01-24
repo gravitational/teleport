@@ -36,8 +36,7 @@ type MFACeremonyClient interface {
 
 // PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
 // and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
-// an MFA challenge response for the user. A nil response will be returned if an MFA required check
-// is provided and MFA is not required.
+// an MFA challenge response for the user.
 func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	if challengeRequest == nil {
 		return nil, trace.BadParameter("missing challenge request")
@@ -52,19 +51,20 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 	}
 
 	chal, err := clt.CreateAuthenticateChallenge(ctx, challengeRequest)
-	if trace.IsBadParameter(err) && challengeRequest.MFARequiredCheck != nil {
+	if err != nil {
 		// CreateAuthenticateChallenge returns a bad parameter error when the the client
 		// user is not a Teleport user. For example, the AdminRole. Treat this as a false
 		// MFA required check if a check was requested.
-		return nil, nil
-	} else if err != nil {
+		if trace.IsBadParameter(err) {
+			return nil, &ErrMFANotRequired
+		}
 		return nil, trace.Wrap(err)
 	}
 
 	// If an MFA required check was provided, and the client discovers MFA is not required,
 	// skip the MFA prompt and return an empty response.
 	if chal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-		return nil, nil
+		return nil, &ErrMFANotRequired
 	}
 
 	return clt.PromptMFA(ctx, chal, promptOpts...)

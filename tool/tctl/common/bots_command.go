@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -303,10 +304,10 @@ func (c *BotsCommand) addBotLegacy(ctx context.Context, client auth.ClientI) err
 func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client, true /*allowReuse*/)
-	if err != nil {
-		return trace.Wrap(err)
-	} else if mfaResponse != nil {
+	if err == nil {
 		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) {
+		return trace.Wrap(err)
 	}
 
 	// Jankily call the endpoint invalidly. This lets us version check and use

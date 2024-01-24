@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -300,10 +301,10 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 
 	// Prompt for admin action MFA if required, allowing reuse for CreateResetPasswordToken.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client, true /*allowReuse*/)
-	if err != nil {
-		return trace.Wrap(err)
-	} else if mfaResponse != nil {
+	if err == nil {
 		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) {
+		return trace.Wrap(err)
 	}
 
 	if _, err := client.CreateUser(ctx, user); err != nil {
