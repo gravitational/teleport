@@ -30,7 +30,6 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -205,7 +204,7 @@ func (c *Cluster) reissueAppCert(ctx context.Context, app types.Application) (tl
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	key, err := c.clusterClient.LocalAgent().GetKey(c.clusterClient.SiteName, libclient.WithAppCerts{})
+	key, err := c.clusterClient.LocalAgent().GetKey(c.clusterClient.SiteName, client.WithAppCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
