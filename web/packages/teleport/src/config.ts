@@ -382,7 +382,7 @@ const cfg = {
   },
 
   isAdminActionMfaEnforced() {
-    return cfg.auth.preferredLocalMfa === 'webauthn';
+    return cfg.auth.second_factor === 'webauthn';
   },
 
   getPrimaryAuthType(): PrimaryAuthType {
