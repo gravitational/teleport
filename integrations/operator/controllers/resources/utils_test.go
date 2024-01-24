@@ -19,11 +19,11 @@
 package resources
 
 import (
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/gravitational/teleport/api/types"
 )

@@ -21,6 +21,7 @@ package resources
 import (
 	"context"
 	"fmt"
+
 	"github.com/gravitational/trace"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -88,7 +89,7 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 		return ctrl.Result{}, trace.Wrap(err)
 	}
 
-	if checkAnnotationFlag(obj, AnnotationFlagIgnore, false /* defaults to false */) {
+	if isIgnored(obj) {
 		log.Info(fmt.Sprintf("Resource is flagged with annotation %q, it will not be reconciled.", AnnotationFlagIgnore))
 		return ctrl.Result{}, nil
 	}
@@ -99,7 +100,7 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 	// Delete
 	if isMarkedToBeDeleted {
 		if hasDeletionFinalizer {
-			if checkAnnotationFlag(obj, AnnotationFlagKeep, false /* defaults to false */) {
+			if isKept(obj) {
 				log.Info(fmt.Sprintf("Resource is flagged with annotation %q, it will not be deleted in Teleport.", AnnotationFlagKeep))
 			} else {
 				log.Info("deleting object in Teleport")
@@ -132,4 +133,14 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 	log.Info("upsert object in Teleport")
 	err := r.UpsertExternal(ctx, obj)
 	return ctrl.Result{}, trace.Wrap(err)
+}
+
+// isIgnored checks if the CR should be ignored
+func isIgnored(obj kclient.Object) bool {
+	return checkAnnotationFlag(obj, AnnotationFlagIgnore, false /* defaults to false */)
+}
+
+// isKept checks if the Teleport resource should be kept if the CR is deleted
+func isKept(obj kclient.Object) bool {
+	return checkAnnotationFlag(obj, AnnotationFlagKeep, false /* defaults to false */)
 }
