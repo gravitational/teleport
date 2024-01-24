@@ -2280,6 +2280,57 @@ func (f *fakeFIDO2Device) Assertion(
 	}
 }
 
+type fakeTouchRequest struct {
+	dev  *fakeFIDO2Device
+	done bool // guarded by the device's lock
+}
+
+func (f *fakeFIDO2Device) TouchBegin() (wancli.TouchRequest, error) {
+	return &fakeTouchRequest{dev: f}, nil
+}
+
+func (r *fakeTouchRequest) Status(timeout time.Duration) (touched bool, err error) {
+	r.dev.cond.L.Lock()
+
+	// Read/reset up.
+	up := r.dev.up
+	if up {
+		r.dev.up = false
+		r.done = true
+	}
+
+	// Read/reset cancel.
+	cancel := r.dev.cancel
+	if cancel {
+		r.dev.cancel = false
+		r.done = true
+	}
+
+	r.dev.cond.L.Unlock()
+
+	if cancel {
+		return false, libfido2.ErrKeepaliveCancel
+	}
+	if up {
+		return true, nil
+	}
+
+	time.Sleep(1 * time.Millisecond) // Take a quick sleep to avoid tight loops.
+	return false, nil
+}
+
+func (r *fakeTouchRequest) Stop() error {
+	r.dev.cond.L.Lock()
+	if r.done {
+		r.dev.cond.L.Unlock()
+		return nil
+	}
+	r.done = true
+	r.dev.cond.L.Unlock()
+
+	return r.dev.Cancel()
+}
+
 func (f *fakeFIDO2Device) validatePIN(pin string) error {
 	switch {
 	case f.isBio() && pin == "": // OK, biometric check supersedes PIN.
