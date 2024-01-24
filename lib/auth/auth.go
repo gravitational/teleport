@@ -520,6 +520,7 @@ type Services struct {
 	services.Embeddings
 	services.UserPreferences
 	services.PluginData
+	services.SCIM
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -551,6 +552,13 @@ func (r *Services) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateA
 // OktaClient returns the okta client.
 func (r *Services) OktaClient() services.Okta {
 	return r
+}
+
+// SCIMClient returns a client for the SCIM service. Note that in an OSS
+// Teleport cluster, or an Enterprise cluster with IGS disabled, the SCIM
+// service on the other end will return "NotImplemented" for every call.
+func (r *Services) SCIMClient() services.SCIM {
+	return r.SCIM
 }
 
 // AccessListClient returns the access list client.
@@ -1570,6 +1578,10 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.clock = clock
+}
+
+func (a *Server) SetSCIMService(scim services.SCIM) {
+	a.Services.SCIM = scim
 }
 
 // SetAuditLog sets the server's audit log
@@ -6187,12 +6199,12 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 // ensureLocalAdditionalKeys adds additional trusted keys to the CA if they are not
 // already present.
 func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAuthority) error {
-	hasUsableKeys, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+	usableKeysResult, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if hasUsableKeys {
-		// nothing to do
+	if usableKeysResult.CAHasPreferredKeyType {
+		// Nothing to do.
 		return nil
 	}
 
@@ -6201,11 +6213,11 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 		return trace.Wrap(err)
 	}
 
-	// The CA still needs an update while the keystore does not have any usable
-	// keys in the CA.
+	// The CA still needs an update while the CA does not contain any keys of
+	// the preferred type.
 	needsUpdate := func(ca types.CertAuthority) (bool, error) {
-		hasUsableKeys, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
-		return !hasUsableKeys, trace.Wrap(err)
+		usableKeysResult, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+		return !usableKeysResult.CAHasPreferredKeyType, trace.Wrap(err)
 	}
 	err = a.addAdditionalTrustedKeysAtomic(ctx, ca, newKeySet, needsUpdate)
 	if err != nil {
