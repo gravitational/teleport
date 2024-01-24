@@ -410,7 +410,10 @@ export type RawEvents = {
     }
   >;
   [eventCodes.SCP_DISALLOWED]: RawEvent<
-    typeof eventCodes.SCP_DISALLOWED
+    typeof eventCodes.SCP_DISALLOWED,
+    {
+      user: string;
+    }
   >;
   [eventCodes.SFTP_OPEN]: RawEventSFTP<typeof eventCodes.SFTP_OPEN>;
   [eventCodes.SFTP_OPEN_FAILURE]: RawEventSFTP<
