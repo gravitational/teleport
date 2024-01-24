@@ -189,6 +189,11 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
+              "title": "Migrating from v11 to v12",
+              "slug": "/deploy-a-cluster/helm-deployments/migration-v12/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
               "title": "Kubernetes 1.25 and PSP removal",
               "slug": "/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/",
               "forScopes": ["oss", "enterprise"]
@@ -2137,7 +2142,7 @@
     },
     {
       "source": "/kubernetes-access/helm/guides/migration/",
-      "destination": "/deploy-a-cluster/helm-deployments/",
+      "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
       "permanent": true
     },
     {
@@ -2337,7 +2342,7 @@
     },
     {
       "source": "/setup/helm-deployments/migration/",
-      "destination": "/deploy-a-cluster/helm-deployments/",
+      "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
       "permanent": true
     },
     {
@@ -3044,11 +3049,6 @@
       "source": "/management/admin/upgrading-the-teleport-binary/",
       "destination": "/upgrading/",
       "permanent": true
-    },
-    {
-    	"source": "/deploy-a-cluster/helm-deployments/migration-v12/",
-    	"destination": "/deploy-a-cluster/helm-deployments/",
-    	"permanent": true
     }
   ]
 }
