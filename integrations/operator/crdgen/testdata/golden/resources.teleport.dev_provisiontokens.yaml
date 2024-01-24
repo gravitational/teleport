@@ -263,8 +263,7 @@ spec:
                 type: object
             type: object
           status:
-            description: TeleportProvisionTokenStatus defines the observed state of
-              TeleportProvisionToken
+            description: Status defines the observed state of the Teleport resource
             properties:
               conditions:
                 description: Conditions represent the latest available observations
