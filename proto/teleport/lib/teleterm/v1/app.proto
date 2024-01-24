@@ -30,7 +30,8 @@ message App {
   string uri = 1;
   // name is the name of the app.
   string name = 2;
-  // endpoint_uri is the app connection endpoint.
+  // endpoint_uri is the URI to which the app service is going to proxy requests. It corresponds to
+  // app_service.apps[].uri in the Teleport configuration.
   string endpoint_uri = 3;
   // desc is the app description.
   string desc = 4;

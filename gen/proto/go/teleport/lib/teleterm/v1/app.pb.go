@@ -47,7 +47,8 @@ type App struct {
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// name is the name of the app.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// endpoint_uri is the app connection endpoint.
+	// endpoint_uri is the URI to which the app service is going to proxy requests. It corresponds to
+	// app_service.apps[].uri in the Teleport configuration.
 	EndpointUri string `protobuf:"bytes,3,opt,name=endpoint_uri,json=endpointUri,proto3" json:"endpoint_uri,omitempty"`
 	// desc is the app description.
 	Desc string `protobuf:"bytes,4,opt,name=desc,proto3" json:"desc,omitempty"`
