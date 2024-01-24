@@ -7,6 +7,7 @@ exports[`render multi bash texts 1`] = `
   padding-left: 16px;
   padding-right: 48px;
   padding-top: 8px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
@@ -129,13 +130,14 @@ exports[`render multi bash texts 1`] = `
   word-break: break-all;
   font-size: 12px;
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
-  overflow: scroll;
+  overflow-x: scroll;
   line-height: 20px;
   color: #FFFFFF;
 }
 
 .c1 {
   position: relative;
+  overflow-y: scroll;
 }
 
 .c7 {
@@ -149,7 +151,7 @@ exports[`render multi bash texts 1`] = `
 
 <div>
   <div
-    class="c0 c1"
+    class="c0 c1 props => props.className"
   >
     <div
       class="c2 c3"
@@ -400,6 +402,7 @@ exports[`render multi bash texts with comment 1`] = `
   padding-left: 16px;
   padding-right: 48px;
   padding-top: 8px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
@@ -526,13 +529,14 @@ exports[`render multi bash texts with comment 1`] = `
   word-break: break-all;
   font-size: 12px;
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
-  overflow: scroll;
+  overflow-x: scroll;
   line-height: 20px;
   color: #FFFFFF;
 }
 
 .c1 {
   position: relative;
+  overflow-y: scroll;
 }
 
 .c8 {
@@ -546,7 +550,7 @@ exports[`render multi bash texts with comment 1`] = `
 
 <div>
   <div
-    class="c0 c1"
+    class="c0 c1 props => props.className"
   >
     <div
       class="c2 c3"
@@ -814,6 +818,7 @@ exports[`render non bash single text 1`] = `
   padding-left: 16px;
   padding-right: 48px;
   padding-top: 8px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
@@ -930,13 +935,14 @@ exports[`render non bash single text 1`] = `
   word-break: break-all;
   font-size: 12px;
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
-  overflow: scroll;
+  overflow-x: scroll;
   line-height: 20px;
   color: #FFFFFF;
 }
 
 .c1 {
   position: relative;
+  overflow-y: scroll;
 }
 
 .c7 {
@@ -950,7 +956,7 @@ exports[`render non bash single text 1`] = `
 
 <div>
   <div
-    class="c0 c1"
+    class="c0 c1 props => props.className"
   >
     <div
       class="c2 c3"
@@ -1040,6 +1046,7 @@ exports[`render single bash text 1`] = `
   padding-left: 16px;
   padding-right: 48px;
   padding-top: 8px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
@@ -1156,13 +1163,14 @@ exports[`render single bash text 1`] = `
   word-break: break-all;
   font-size: 12px;
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
-  overflow: scroll;
+  overflow-x: scroll;
   line-height: 20px;
   color: #FFFFFF;
 }
 
 .c1 {
   position: relative;
+  overflow-y: scroll;
 }
 
 .c7 {
@@ -1176,7 +1184,7 @@ exports[`render single bash text 1`] = `
 
 <div>
   <div
-    class="c0 c1"
+    class="c0 c1 props => props.className"
   >
     <div
       class="c2 c3"
@@ -1271,6 +1279,7 @@ exports[`render single bash text with comment 1`] = `
   padding-left: 16px;
   padding-right: 48px;
   padding-top: 8px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
@@ -1391,13 +1400,14 @@ exports[`render single bash text with comment 1`] = `
   word-break: break-all;
   font-size: 12px;
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
-  overflow: scroll;
+  overflow-x: scroll;
   line-height: 20px;
   color: #FFFFFF;
 }
 
 .c1 {
   position: relative;
+  overflow-y: scroll;
 }
 
 .c8 {
@@ -1411,7 +1421,7 @@ exports[`render single bash text with comment 1`] = `
 
 <div>
   <div
-    class="c0 c1"
+    class="c0 c1 props => props.className"
   >
     <div
       class="c2 c3"
