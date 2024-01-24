@@ -77,7 +77,7 @@ func WithPromptReason(hint string) PromptOpt {
 
 // WithPromptReasonAdminAction sets the prompt's PromptReason field to a standard admin action message.
 func WithPromptReasonAdminAction() PromptOpt {
-	adminMFAPromptReason := fmt.Sprint("This is an admin-level action and requires MFA to complete")
+	adminMFAPromptReason := "This is an admin-level action and requires MFA to complete"
 	return WithPromptReason(adminMFAPromptReason)
 }
 
