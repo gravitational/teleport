@@ -20,7 +20,7 @@ package resources
 
 import (
 	"context"
-
+	"fmt"
 	"github.com/gravitational/trace"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -29,9 +29,18 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// DeletionFinalizer is a name of finalizer added to resource's 'finalizers' field
-// for tracking deletion events.
-const DeletionFinalizer = "resources.teleport.dev/deletion"
+const (
+	// DeletionFinalizer is a name of finalizer added to resource's 'finalizers' field
+	// for tracking deletion events.
+	DeletionFinalizer = "resources.teleport.dev/deletion"
+	// AnnotationFlagIgnore is the Kubernetes annotation containing the "ignore" flag.
+	// When set to true, the operator will not reconcile the CR.
+	AnnotationFlagIgnore = "teleport.dev/ignore"
+	// AnnotationFlagKeep is the Kubernetes annotation containing the "keep" flag.
+	// When set to true, the operator will not delete the Teleport resource if the
+	// CR is deleted.
+	AnnotationFlagKeep = "teleport.dev/keep"
+)
 
 type DeleteExternal func(context.Context, kclient.Object) error
 type UpsertExternal func(context.Context, kclient.Object) error
@@ -79,15 +88,24 @@ func (r ResourceBaseReconciler) Do(ctx context.Context, req ctrl.Request, obj kc
 		return ctrl.Result{}, trace.Wrap(err)
 	}
 
+	if checkAnnotationFlag(obj, AnnotationFlagIgnore, false /* defaults to false */) {
+		log.Info(fmt.Sprintf("Resource is flagged with annotation %q, it will not be reconciled.", AnnotationFlagIgnore))
+		return ctrl.Result{}, nil
+	}
+
 	hasDeletionFinalizer := controllerutil.ContainsFinalizer(obj, DeletionFinalizer)
 	isMarkedToBeDeleted := !obj.GetDeletionTimestamp().IsZero()
 
 	// Delete
 	if isMarkedToBeDeleted {
 		if hasDeletionFinalizer {
-			log.Info("deleting object in Teleport")
-			if err := r.DeleteExternal(ctx, obj); err != nil && !trace.IsNotFound(err) {
-				return ctrl.Result{}, trace.Wrap(err)
+			if checkAnnotationFlag(obj, AnnotationFlagKeep, false /* defaults to false */) {
+				log.Info(fmt.Sprintf("Resource is flagged with annotation %q, it will not be deleted in Teleport.", AnnotationFlagKeep))
+			} else {
+				log.Info("deleting object in Teleport")
+				if err := r.DeleteExternal(ctx, obj); err != nil && !trace.IsNotFound(err) {
+					return ctrl.Result{}, trace.Wrap(err)
+				}
 			}
 
 			log.Info("removing finalizer")
