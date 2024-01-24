@@ -2395,14 +2395,14 @@ func (o *OktaSync) Parse() (*servicecfg.OktaSyncSettings, error) {
 	for _, filter := range o.GroupFilters {
 		_, err := utils.CompileExpression(filter)
 		if err != nil {
-			return nil, trace.Wrap(err, "error parsing group filter")
+			return nil, trace.Wrap(err, "error parsing group filter: %s", filter)
 		}
 	}
 
 	for _, filter := range o.AppFilters {
 		_, err := utils.CompileExpression(filter)
 		if err != nil {
-			return nil, trace.Wrap(err, "error parsing app filter")
+			return nil, trace.Wrap(err, "error parsing app filter: %s", filter)
 		}
 	}
 
