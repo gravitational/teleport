@@ -284,8 +284,8 @@ export const formatters: Formatters = {
   [eventCodes.SCP_DISALLOWED]: {
     type: 'scp',
     desc: 'SCP Disallowed',
-    format: ({ ...rest }) =>
-      `SCP command to node [${
+    format: ({ user, ...rest }) =>
+      `SCP command from user [${user}] to node [${
         rest['server_hostname'] || rest['addr.local']
       }] blocked`,
   },
