@@ -71,20 +71,20 @@ export const Support = ({
           <Box>
             <Header title="Support" icon={<Icons.Headset />} />
             {isEnterprise && !showPremiumSupportCTA && (
-              <SupportLink
+              <ExternalSupportLink
                 title="Create a Support Ticket"
                 url="https://support.goteleport.com"
               />
             )}
-            <SupportLink
+            <ExternalSupportLink
               title="Ask the Community Questions"
               url="https://github.com/gravitational/teleport/discussions"
             />
-            <SupportLink
+            <ExternalSupportLink
               title="Request a New Feature"
               url="https://github.com/gravitational/teleport/issues/new/choose"
             />
-            <SupportLink
+            <ExternalSupportLink
               title="Send Product Feedback"
               url="mailto:support@goteleport.com"
             />
@@ -96,23 +96,26 @@ export const Support = ({
           </Box>
           <Box>
             <Header title="Resources" icon={<Icons.BookOpenText />} />
-            <SupportLink title="Get Started" url={docs.getStarted} />
-            <SupportLink title="tsh User Guide" url={docs.tshGuide} />
-            <SupportLink title="Admin Guides" url={docs.adminGuide} />
+            <ExternalSupportLink title="Get Started" url={docs.getStarted} />
+            <ExternalSupportLink title="tsh User Guide" url={docs.tshGuide} />
+            <ExternalSupportLink title="Admin Guides" url={docs.adminGuide} />
             <DownloadLink isCloud={isCloud} isEnterprise={isEnterprise} />
-            <SupportLink title="FAQ" url={docs.faq} />
+            <ExternalSupportLink title="FAQ" url={docs.faq} />
           </Box>
           <Box>
             <Header title="Troubleshooting" icon={<Icons.Graph />} />
-            <SupportLink
+            <ExternalSupportLink
               title="Monitoring & Debugging"
               url={docs.troubleshooting}
             />
           </Box>
           <Box>
             <Header title="Updates" icon={<Icons.NotificationsActive />} />
-            <SupportLink title="Product Changelog" url={docs.changeLog} />
-            <SupportLink
+            <ExternalSupportLink
+              title="Product Changelog"
+              url={docs.changeLog}
+            />
+            <ExternalSupportLink
               title="Teleport Blog"
               url="https://goteleport.com/blog/"
             />
@@ -209,7 +212,7 @@ const DownloadLink = ({
 
   if (isEnterprise) {
     return (
-      <SupportLink
+      <ExternalSupportLink
         title="Download Page"
         url="https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard"
       />
@@ -217,11 +220,14 @@ const DownloadLink = ({
   }
 
   return (
-    <SupportLink title="Download Page" url="https://goteleport.com/download/" />
+    <ExternalSupportLink
+      title="Download Page"
+      url="https://goteleport.com/download/"
+    />
   );
 };
 
-const SupportLink = ({ title = '', url = '' }) => (
+const ExternalSupportLink = ({ title = '', url = '' }) => (
   <StyledSupportLink href={url} target="_blank">
     {title}
   </StyledSupportLink>
