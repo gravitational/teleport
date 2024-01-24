@@ -315,5 +315,11 @@ COPY --from=teleport-buildbox-centos7-assets /usr/local/bin/ninja /usr/local/bin
 # and without this environment variable, boring-rs will not be able to find it.
 ENV LIBCLANG_PATH=/opt/llvm/lib/
 
+# C++14 compatible headers are required to build boring-rs.
+# Teleport's boring fork includes a patch that reads this variable
+# and injects it into the environment as CPLUS_INCLUDE_PATH before
+# boring is built.
+ENV BORING_BSSL_FIPS_CPLUS_INCLUDE_PATH=/opt/llvm/include/c++/v1/
+
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

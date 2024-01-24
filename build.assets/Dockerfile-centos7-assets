@@ -88,11 +88,11 @@ RUN git clone --branch llvmorg-14.0.6 --depth=1 https://github.com/llvm/llvm-pro
     [ "$(git rev-parse HEAD)" = 'f28c006a5895fc0e329fe15fead81e37457cb1d1' ] && \
     mkdir build && cd build/ && \
     scl enable ${DEVTOOLSET} 'bash -c "cmake3 \
--DCMAKE_BUILD_TYPE=Release \
--DCMAKE_INSTALL_PREFIX=/opt/llvm \
--DLLVM_ENABLE_PROJECTS=\"clang;libcxx;libcxxabi\" \
--DLLVM_ENABLE_LIBCXX=ON \
--G \"Ninja\" ../llvm && \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/opt/llvm \
+    -DLLVM_ENABLE_PROJECTS=\"clang;libcxx;libcxxabi\" \
+    -DLLVM_ENABLE_LIBCXX=ON \
+    -G \"Ninja\" ../llvm && \
     cmake3 --build . && \
     cmake3 -DCMAKE_INSTALL_PREFIX=/opt/llvm -P cmake_install.cmake"' && \
     cd ../.. && \
