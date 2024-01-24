@@ -367,6 +367,7 @@ do_upgrade() {
                 -o APT::Get::List-Cleanup="0"
             # restart the service if it is currently running
             apt install -y --allow-downgrades "$package_name=$target_version"
+            systemctl daemon-reload
             systemctl try-restart teleport.service
             return 0
             ;;
@@ -396,6 +397,7 @@ do_upgrade() {
             fi
 
             # restart the service if it is currently running
+            systemctl daemon-reload
             systemctl try-restart teleport.service
             return 0
             ;;
@@ -404,6 +406,7 @@ do_upgrade() {
             zypper refresh --repo="teleport"
             zypper install --oldpackage --no-confirm --repo="teleport" "$package_name-$target_version"
             # restart the service if it is currently running
+            systemctl daemon-reload
             systemctl try-restart teleport.service
             return 0
             ;;
