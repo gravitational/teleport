@@ -2862,13 +2862,6 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	}
 	status := user.GetStatus()
 	if status.IsLocked {
-		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
-			log.Debugf("%v exceeds %v failed account recovery attempts, locked until %v",
-				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
-
-			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
-			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
-		}
 		if status.LockExpires.After(a.clock.Now().UTC()) {
 			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
