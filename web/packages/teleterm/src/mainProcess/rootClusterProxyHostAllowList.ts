@@ -77,7 +77,7 @@ export function manageRootClusterProxyHostAllowList({
         browserProxyHost = proxyHostToBrowserProxyHost(rootCluster.proxyHost);
       } catch (error) {
         logger.error(
-          'Ran into an error whin converting proxy host to browser proxy host',
+          'Ran into an error when converting proxy host to browser proxy host',
           error
         );
         return;
