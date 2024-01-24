@@ -106,3 +106,17 @@ export const NonBash = () => {
     />
   );
 };
+
+export const Download = () => {
+  return (
+    <Component
+      lines={[
+        {
+          text: "click download icon to save this content as a file",
+        },
+      ]}
+      bash={false}
+      saveContent={{save: true, filename: 'testfile.txt'}}
+    />
+  );
+};
