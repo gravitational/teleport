@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -426,6 +427,16 @@ func (a *authorizer) checkAdminActionVerification(ctx context.Context, authConte
 }
 
 func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, authContext *Context) (bool, error) {
+	// Provide a way to turn off admin MFA requirements in case expected functionality
+	// is disrupted by this requirement, such as for integrations essential to a user
+	// which do not yet make use of a machine ID / AdminRole impersonated identity.
+	//
+	// TODO(Joerger): once we have fully transitioned to requiring machine ID for
+	// integrations and ironed out any bugs with admin MFA, this env var should be removed.
+	if os.Getenv("TELEPORT_UNSTABLE_DISABLE_MFA_ADMIN_ACTIONS") == "yes" {
+		return false, nil
+	}
+
 	// Builtin roles do not require MFA to perform admin actions.
 	switch authContext.Identity.(type) {
 	case BuiltinRole, RemoteBuiltinRole:
