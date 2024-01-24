@@ -1441,8 +1441,8 @@ message NodeLogin {
 
 // AdminAction specifies an admin action.
 message AdminAction {
-  // Name is the name of the admin action RPC.
-  string Name = 1;
+  reserved 1;
+  reserved "Name";
 }
 
 // IsMFARequiredResponse is a response for MFA requirement check.
