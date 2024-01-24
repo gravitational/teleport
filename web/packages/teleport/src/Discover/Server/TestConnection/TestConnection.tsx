@@ -33,7 +33,7 @@ import {
 } from 'teleport/Discover/Shared';
 import { sortNodeLogins } from 'teleport/services/nodes';
 
-import { MFAChallengeScope } from 'teleport/services/auth/auth';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import { NodeMeta } from '../../useDiscover';
 
@@ -89,7 +89,7 @@ export function TestConnection(props: AgentStepProps) {
         <ReAuthenticate
           onMfaResponse={res => testConnection(selectedOpt.value, res)}
           onClose={cancelMfaDialog}
-          challengeScope={MFAChallengeScope.USER_SESSION}
+          challengeScope={MfaChallengeScope.USER_SESSION}
         />
       )}
       <Header>Test Connection</Header>
