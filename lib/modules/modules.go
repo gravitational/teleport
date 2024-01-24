@@ -107,9 +107,9 @@ type Features struct {
 	AccessMonitoring AccessMonitoringFeature
 	// ProductType describes the product being used.
 	ProductType ProductType
-	// Policy enables the Teleport Policy feature set.
+	// Policy holds settings for the Teleport Policy feature set.
 	// At the time of writing, this includes Teleport Access Graph (TAG).
-	Policy bool
+	Policy PolicyFeature
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -154,6 +154,11 @@ type AccessMonitoringFeature struct {
 	MaxReportRangeLimit int
 }
 
+type PolicyFeature struct {
+	// Enabled is set to `true` if Teleport Policy is enabled in the license.
+	Enabled bool
+}
+
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
 	return &proto.Features{
@@ -191,7 +196,9 @@ func (f Features) ToProto() *proto.Features {
 		AccessList: &proto.AccessListFeature{
 			CreateLimit: int32(f.AccessList.CreateLimit),
 		},
-		Policy: f.Policy,
+		Policy: &proto.PolicyFeature{
+			Enabled: f.Policy.Enabled,
+		},
 	}
 }
 
