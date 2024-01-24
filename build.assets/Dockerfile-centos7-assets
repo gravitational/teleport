@@ -35,10 +35,44 @@ RUN yum install --nogpgcheck -y \
         ${DEVTOOLSET}-make && \
     yum clean all
 
+## NINJA-BUILD ###################################################################
+
+## ninja-build is required for building boringssl. The version included in CentOS 7 AMR64
+## is too old, so we need to build it from source.
+FROM --platform=$BUILDPLATFORM centos-devtoolset AS ninja-build
+
+# Install additional required dependencies.
+RUN  yum install -y expat-devel \
+     gettext \
+     libcurl-devel \
+     openssl-devel \
+     pcre-devel \
+     xmlto \
+     zlib-devel \
+     && yum clean all
+
+# mno-outline-atomics flag is needed to make the build works on ARM64 docker.
+RUN git clone --depth=1 https://github.com/Kitware/CMake.git -b v3.28.1 && \
+    cd CMake && \
+    [ "$(git rev-parse HEAD)" = '1eed682d7cca9bb2c2b0709a6c3202a3b08613b2' ] && \
+    scl enable ${DEVTOOLSET} "if [ "${BUILDARCH}" = "arm64" ]; then export CFLAGS=-mno-outline-atomics; fi &&  ./bootstrap --parallel="$(nproc)" && make -j"$(nproc)" && make install"
+
+ENV PATH="/opt/cmake/bin:$PATH"
+
+RUN git clone --depth=1 https://github.com/ninja-build/ninja.git -b v1.11.1 && \
+        cd ninja && \
+        [ "$(git rev-parse HEAD)" = 'a524bf3f6bacd1b4ad85d719eed2737d8562f27a' ] && \
+        scl enable ${DEVTOOLSET} "cmake -Bbuild-cmake && \
+    cmake --build build-cmake -j"$(nproc)" && \
+    cmake --build build-cmake --target  install"
+
 # Use just created devtool image with newer GCC and Cmake
 FROM --platform=$BUILDPLATFORM centos-devtoolset as clang14
 
 ARG DEVTOOLSET
+
+# Bring in our custom ninja build, needed for building clang.
+COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Compile Clang 14.0.6 from source. It is needed to create BoringSSL and BPF files.
 # CentOS 7 doesn't provide it as a package unfortunately.
@@ -59,7 +93,7 @@ RUN git clone --branch llvmorg-14.0.6 --depth=1 https://github.com/llvm/llvm-pro
 -DLLVM_ENABLE_PROJECTS=\"clang;libcxx;libcxxabi\" \
 -DLLVM_ENABLE_LIBCXX=ON \
 -G \"Ninja\" ../llvm && \
-    cmake3 --build . && \
+    cmake3 --build . -j 2 && \
     cmake3 -DCMAKE_INSTALL_PREFIX=/opt/llvm -P cmake_install.cmake"' && \
     cd ../.. && \
     rm -rf llvm-project
@@ -94,6 +128,9 @@ FROM scratch AS buildbox-centos7-assets
 
 # Copy Clang into the final image.
 COPY --from=clang14 /opt/llvm /opt/llvm/
+
+# Copy ninja into the final image.
+COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Copy custom packages into the final image.
 COPY --from=custom-packages /opt/custom-packages /opt/custom-packages/

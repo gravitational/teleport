@@ -71,37 +71,6 @@ RUN git clone --depth=1 https://github.com/git/git.git -b v2.42.0 && \
     make -j"$(nproc)" all && \
     DESTDIR=/opt/git make install"
 
-## NINJA-BUILD ###################################################################
-
-## ninja-build is required for building boringssl. The version included in CentOS 7 AMR64
-## is too old, so we need to build it from source.
-FROM --platform=$BUILDPLATFORM base AS ninja-build
-
-# Install additional required dependencies.
-RUN  yum install -y expat-devel \
-     gettext \
-     libcurl-devel \
-     openssl-devel \
-     pcre-devel \
-     xmlto \
-     zlib-devel \
-     && yum clean all
-
-# mno-outline-atomics flag is needed to make the build works on ARM64 docker.
-RUN git clone --depth=1 https://github.com/Kitware/CMake.git -b v3.28.1 && \
-    cd CMake && \
-    [ "$(git rev-parse HEAD)" = '1eed682d7cca9bb2c2b0709a6c3202a3b08613b2' ] && \
-    scl enable ${DEVTOOLSET} "if [ "${BUILDARCH}" = "arm64" ]; then export CFLAGS=-mno-outline-atomics; fi &&  ./bootstrap --parallel="$(nproc)" && make -j"$(nproc)" && make install"
-
-ENV PATH="/opt/cmake/bin:$PATH"
-
-RUN git clone --depth=1 https://github.com/ninja-build/ninja.git -b v1.11.1 && \
-        cd ninja && \
-        [ "$(git rev-parse HEAD)" = 'a524bf3f6bacd1b4ad85d719eed2737d8562f27a' ] && \
-        scl enable ${DEVTOOLSET} "cmake -Bbuild-cmake && \
-    cmake --build build-cmake -j"$(nproc)" && \
-    cmake --build build-cmake --target  install"
-
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
@@ -337,7 +306,7 @@ COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 # Copy the pre-built CentOS 7 assets with clang. Needed to build BoringSSL and BPF tools.
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
 # Bring in our custom ninja build, needed for BorinSSL.
-COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
+COPY --from=teleport-buildbox-centos7-assets /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Libclang is needed by boring-rs to generate bindings. libclang is kept in /opt/llvm/lib
 # and without this environment variable, boring-rs will not be able to find it.
