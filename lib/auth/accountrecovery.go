@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -70,7 +69,7 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
 	}
 
-	if err := a.verifyRecoveryCodeWithRecord(ctx, req.GetUsername(), req.GetRecoveryCode()); err != nil {
+	if err := a.verifyRecoveryCode(ctx, req.GetUsername(), req.GetRecoveryCode()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -89,9 +88,9 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 	return token, nil
 }
 
-// verifyRecoveryCodeWithRecord validates the recovery code for the user and will unlock their account if
+// verifyRecoveryCode validates the recovery code for the user and will unlock their account if
 // the code is valid.  If the code is invalid, a failed recovery attempt will be recorded.
-func (a *Server) verifyRecoveryCodeWithRecord(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
+func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
 	_, err := a.Services.GetUser(ctx, username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		// In the case of not found, we still want to perform the comparison.
@@ -117,21 +116,14 @@ func (a *Server) verifyRecoveryCodeWithRecord(ctx context.Context, username stri
 			}
 		} else {
 			event.Metadata.Code = events.RecoveryCodeUseFailureCode
-			traceErr := trace.NotFound("invalid user or user does not have recovery codes")
-
 			if hasRecoveryCodes {
-				traceErr = trace.BadParameter("recovery code did not match")
+				event.Status.Error = "recovery code did not match"
+			} else {
+				event.Status.Error = "invalid user or user does not have recovery codes"
 			}
-
-			event.Status.Error = traceErr.Error()
-			event.Status.UserMessage = traceErr.Error()
 
 			if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
 				log.WithFields(logrus.Fields{"user": username}).Warn("Failed to emit account recovery code used failed event.")
-			}
-
-			if err := a.recordFailedRecoveryAttempt(ctx, username); err != nil {
-				log.WithError(err).Warn("Error recording failed account recovery attempt")
 			}
 		}
 	}()
@@ -262,20 +254,7 @@ func (a *Server) verifyAuthnRecoveryWithRecord(ctx context.Context, startToken t
 		return nil
 	}
 
-	log.Error(trace.DebugReport(verifyAuthnErr))
-	if err := a.recordFailedRecoveryAttempt(ctx, startToken.GetUser()); err != nil {
-		log.WithError(err).Warn("Error recording failed account recovery attempt")
-	}
-
 	return trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
-}
-
-// recordFailedRecoveryAttempt creates and inserts a recovery attempt and if user has reached max failed attempts.
-func (a *Server) recordFailedRecoveryAttempt(ctx context.Context, username string) error {
-	// Record and log failed attempt.
-	now := a.clock.Now().UTC()
-	attempt := &types.RecoveryAttempt{Time: now, Expires: now.Add(defaults.AttemptTTL)}
-	return trace.Wrap(a.CreateUserRecoveryAttempt(ctx, username, attempt))
 }
 
 // CompleteAccountRecovery implements AuthService.CompleteAccountRecovery.

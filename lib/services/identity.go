@@ -266,9 +266,6 @@ type Identity interface {
 	// GetRecoveryCodes gets a user's recovery codes.
 	GetRecoveryCodes(ctx context.Context, user string, withSecrets bool) (*types.RecoveryCodesV1, error)
 
-	// CreateUserRecoveryAttempt logs user recovery attempt.
-	CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error
-
 	// UpsertKeyAttestationData upserts a verified public key attestation response.
 	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error
 
