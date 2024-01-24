@@ -224,6 +224,9 @@ export const eventCodes = {
   USER_HEADLESS_LOGIN_APPROVED: 'T1013I',
   USER_HEADLESS_LOGIN_APPROVEDFAILURE: 'T1013W',
   USER_HEADLESS_LOGIN_REJECTED: 'T1014W',
+  CREATE_MFA_AUTH_CHALLENGE: 'T1015I',
+  VALIDATE_MFA_AUTH_RESPONSE: 'T1016I',
+  VALIDATE_MFA_AUTH_RESPONSEFAILURE: 'T1016W',
   USER_UPDATED: 'T1003I',
   X11_FORWARD: 'T3008I',
   X11_FORWARD_FAILURE: 'T3008W',
@@ -1481,6 +1484,24 @@ export type RawEvents = {
   >;
   [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: RawEvent<
     typeof eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE,
+    {
+      updated_by: string;
+    }
+  >;
+  [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: RawEvent<
+    typeof eventCodes.CREATE_MFA_AUTH_CHALLENGE,
+    {
+      updated_by: string;
+    }
+  >;
+  [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: RawEvent<
+    typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSE,
+    {
+      updated_by: string;
+    }
+  >;
+  [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: RawEvent<
+    typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE,
     {
       updated_by: string;
     }
