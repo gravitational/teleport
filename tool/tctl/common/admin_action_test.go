@@ -995,6 +995,12 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
 		},
+		MFAPromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				// return MFA not required to gracefully skip the MFA prompt.
+				return nil, &mfa.ErrMFANotRequired
+			})
+		},
 	})
 	require.NoError(t, err)
 
