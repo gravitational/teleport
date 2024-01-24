@@ -1,6 +1,8 @@
 import api from 'teleport/services/api';
 import { User } from 'teleport/services/user/types';
 
+import auth from 'teleport/services/auth/auth';
+
 import cfg from 'e-teleport/config';
 
 import {
@@ -81,8 +83,9 @@ class CloudService {
     return api.delete(cfg.api.billingPath);
   }
 
-  sendTeleportInvite(req: SendTeleportInvite): Promise<User[]> {
-    return api.post(cfg.api.teleportInvitePath, req);
+  async sendTeleportInvite(req: SendTeleportInvite): Promise<User[]> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+    return api.post(cfg.api.teleportInvitePath, req, null, webauthnResponse);
   }
 
   sendTeleportCredentialReset(req: SendTeleportCredentialReset): Promise<void> {
