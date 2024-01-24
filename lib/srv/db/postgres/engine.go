@@ -417,8 +417,6 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 	// parse and count the messages from the server in a separate goroutine,
 	// operating on a copy of the server message stream. the copy is arranged below.
 	copyReader, copyWriter := io.Pipe()
-	defer copyWriter.Close()
-
 	closeChan := make(chan struct{})
 
 	go func() {
@@ -459,6 +457,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 		log.WithError(err).Warn("Server -> Client copy finished with unexpected error.")
 	}
 
+	copyWriter.Close()
 	<-closeChan
 
 	serverErrCh <- trace.Wrap(err)
