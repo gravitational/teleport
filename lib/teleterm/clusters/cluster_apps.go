@@ -50,6 +50,11 @@ type SAMLIdPServiceProvider struct {
 	Provider types.SAMLIdPServiceProvider
 }
 
+type AppServerOrSAMLIdPServiceProvider struct {
+	App                    *App
+	SAMLIdPServiceProvider *SAMLIdPServiceProvider
+}
+
 // GetApps returns a paginated apps list
 func (c *Cluster) GetApps(ctx context.Context, r *api.GetAppsRequest) (*GetAppsResponse, error) {
 	var (
@@ -118,16 +123,11 @@ func (c *Cluster) GetApps(ctx context.Context, r *api.GetAppsRequest) (*GetAppsR
 	}, nil
 }
 
-type AppServerOrSAMLIdPServiceProvider struct {
-	App                    *App
-	SAMLIdPServiceProvider *SAMLIdPServiceProvider
-}
-
 type GetAppsResponse struct {
 	Apps []AppServerOrSAMLIdPServiceProvider
 	// StartKey is the next key to use as a starting point.
 	StartKey string
-	// // TotalCount is the total number of resources available as a whole.
+	// TotalCount is the total number of resources available as a whole.
 	TotalCount int
 }
 
