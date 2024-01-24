@@ -910,7 +910,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorWebauthn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
