@@ -18,6 +18,7 @@
 
 import React, { useEffect, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
+import { sharedStyles } from 'design/theme/themes/sharedStyles';
 
 import { Header } from 'teleport/Assist/Header';
 import { ConversationHistory } from 'teleport/Assist/ConversationHistory';
@@ -32,6 +33,8 @@ import { Settings } from 'teleport/Assist/Settings';
 import { ErrorBanner, ErrorList } from 'teleport/Assist/ErrorBanner';
 import { useUser } from 'teleport/User/UserContext';
 import { LandingPage } from 'teleport/Assist/LandingPage';
+
+const { dockedAssistWidth } = sharedStyles;
 
 interface AssistProps {
   onClose: () => void;
@@ -94,7 +97,7 @@ function variables(props: { viewMode: ViewMode }) {
         '--assist-border-radius': '0',
         '--assist-left': 'auto',
         '--assist-right': '0',
-        '--assist-width': '520px',
+        '--assist-width': `${dockedAssistWidth}px`,
         '--assist-height': '100vh',
         '--assist-box-shadow': 'none',
         '--assist-left-border': '1px solid rgba(0, 0, 0, 0.1)',
@@ -157,8 +160,8 @@ function sidebarVariables(props: {
     case ViewMode.Docked:
       if (props.sidebarVisible) {
         return {
-          '--conversation-width': '520px',
-          '--conversation-list-width': '520px',
+          '--conversation-width': `${dockedAssistWidth}px`,
+          '--conversation-list-width': `${dockedAssistWidth}px`,
           '--conversation-list-margin': '0',
           '--command-input-width': '380px',
           '--conversation-list-display': 'flex',
@@ -168,7 +171,7 @@ function sidebarVariables(props: {
 
       return {
         '--conversation-width': '525px',
-        '--conversation-list-width': '520px',
+        '--conversation-list-width': `${dockedAssistWidth}px`,
         '--conversation-list-margin':
           'calc((var(--conversation-list-width) * -1) - 1px)',
         '--command-input-width': '380px',
@@ -180,7 +183,17 @@ function sidebarVariables(props: {
 
 const Container = styled.div<{ docked: boolean }>`
   position: fixed;
-  top: 0;
+  ${p =>
+    p.docked
+      ? `top: ${p.theme.topBarHeight[0]}px;
+  @media screen and (min-width: ${p.theme.breakpoints.small}px) {
+    top: ${p.theme.topBarHeight[1]}px;
+  }
+  @media screen and (min-width: ${p.theme.breakpoints.large}px) {
+    top: ${p.theme.topBarHeight[2]}px;
+  }
+  `
+      : 'top: 0;'}
   left: ${p => (p.docked ? 'auto' : '0')};
   right: 0;
   bottom: 0;
@@ -192,7 +205,7 @@ const Container = styled.div<{ docked: boolean }>`
   justify-content: flex-end;
 `;
 
-const AssistContainer = styled.div`
+const AssistContainer = styled.div<{ docked: boolean }>`
   ${variables};
   ${sidebarVariables};
 
@@ -210,7 +223,17 @@ const AssistContainer = styled.div`
   position: absolute;
   width: var(--assist-width);
   max-height: calc(100vh - var(--assist-gutter) * 2);
-  height: var(--assist-height);
+  ${p =>
+    p.docked
+      ? `height: calc(100vh - ${p.theme.topBarHeight[0]}px);
+  @media screen and (min-width: ${p.theme.breakpoints.small}px) {
+    height: calc(100vh - ${p.theme.topBarHeight[1]}px);
+  }
+  @media screen and (min-width: ${p.theme.breakpoints.large}px) {
+    height: calc(100vh - ${p.theme.topBarHeight[2]}px);
+  }
+  `
+      : 'height: var(--assist-height);'}
   top: var(--assist-gutter);
   right: var(--assist-right);
   left: var(--assist-left);
@@ -342,11 +365,10 @@ function AssistContent(props: AssistProps) {
     </ErrorBanner>
   ));
 
+  const docked = preferences.assist.viewMode === ViewMode.Docked;
+
   return (
-    <Container
-      onClick={handleClose}
-      docked={preferences.assist.viewMode === ViewMode.Docked}
-    >
+    <Container onClick={handleClose} docked={docked}>
       {settingsOpen && (
         <Settings
           onClose={() => setSettingsOpen(false)}
@@ -359,6 +381,7 @@ function AssistContent(props: AssistProps) {
         onClick={handleClick}
         viewMode={preferences.assist.viewMode}
         sidebarVisible={sidebarVisible}
+        docked={docked}
       >
         <Header
           onClose={handleClose}
