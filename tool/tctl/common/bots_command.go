@@ -302,7 +302,7 @@ func (c *BotsCommand) addBotLegacy(ctx context.Context, client auth.ClientI) err
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
-	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client, "AddBot", true /*allowReuse*/)
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client, true /*allowReuse*/)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if mfaResponse != nil {
