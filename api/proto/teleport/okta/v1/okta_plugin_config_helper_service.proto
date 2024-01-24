@@ -1,0 +1,79 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.okta.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1;oktav1";
+
+// OktaPluginConfigHelperService provides methods that will help with plugin configuration.
+// This service can only be contacted by the proxy.
+service OktaPluginConfigHelperService {
+  // GetOktaGroups will return all groups known to Okta.
+  rpc GetOktaGroups(GetOktaGroupsRequest) returns (GetOktaGroupsResponse);
+  // GetOktaApps will return all applications known to Okta.
+  rpc GetOktaApps(GetOktaAppsRequest) returns (GetOktaAppsResponse);
+}
+
+// GetOktaGroupsRequest is the request for getting all Okta groups.
+message GetOktaGroupsRequest {
+  // OrgURL is the Okta org URL.
+  string org_url = 1;
+
+  // APIToken is the Okta API token.
+  string api_token = 2;
+
+  // Filters (optional) are any filters to apply to the returned results.
+  repeated string filters = 3;
+}
+
+// GetOktaGroupsResponse is the response for getting all Okta groups.
+message GetOktaGroupsResponse {
+  // Groups is the list of filtered groups retrieved from Okta.
+  repeated OktaGroup groups = 1;
+}
+
+// OktaGroup is an Okta group.
+message OktaGroup {
+  // Name is the name of the group.
+  string name = 1;
+
+  // Description is the description of the group.
+  string description = 2;
+}
+
+// GetOktaAppsRequest is the request for getting all Okta applications.
+message GetOktaAppsRequest {
+  // OrgURL is the Okta org URL.
+  string org_url = 1;
+
+  // APIToken is the Okta API token.
+  string api_token = 2;
+
+  // Filters (optional) are any filters to apply to the returned results.
+  repeated string filters = 3;
+}
+
+// GetOktaAppsResponse is the response for getting all Okta applications.
+message GetOktaAppsResponse {
+  // Apps is the list of filtered apps retrieve from Okta.
+  repeated OktaApp apps = 1;
+}
+
+// OktaApp is an Okta application.
+message OktaApp {
+  // Name is the name of the application.
+  string name = 1;
+}
