@@ -2,6 +2,7 @@ package okta
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -50,7 +51,7 @@ func (w *wrappedClient) iterateUsers(ctx context.Context, fn func(*okta.User) er
 
 		for _, user := range users {
 			if err = fn(user); err != nil {
-				if err == stopIteration {
+				if errors.Is(err, errStopIteration) {
 					break
 				}
 				return trace.Wrap(w.oktaErrToTrace(ctx, err), "error while inspecting okta user %s", user.Id)
@@ -84,7 +85,7 @@ func (w *wrappedClient) iterateGroups(ctx context.Context, fn func(*okta.Group) 
 
 		for _, oktaGroup := range oktaGroups {
 			if err := fn(oktaGroup); err != nil {
-				if err == stopIteration {
+				if errors.Is(err, errStopIteration) {
 					break
 				}
 				return trace.Wrap(err)
@@ -118,7 +119,7 @@ func (w *wrappedClient) iterateApps(ctx context.Context, fn func(okta.App) error
 
 		for _, oktaApp := range oktaApps {
 			if err := fn(oktaApp); err != nil {
-				if err == stopIteration {
+				if errors.Is(err, errStopIteration) {
 					break
 				}
 				return trace.Wrap(err)

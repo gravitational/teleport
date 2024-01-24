@@ -282,7 +282,7 @@ func findOktaBuiltinGroup(ctx context.Context, oktaClient oktaClient, name strin
 	err := oktaClient.iterateGroups(ctx, func(g *okta.Group) error {
 		if g.Type == "BUILT_IN" && g.Profile.Name == name {
 			result = g
-			return stopIteration
+			return trace.Wrap(errStopIteration)
 		}
 		return nil
 	})

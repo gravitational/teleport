@@ -31,12 +31,14 @@ const (
 // service factory (As opposed to the okta.Config struct, which holds a lot of
 // implementation details)
 type oktaSettings struct {
-	apiEndPoint      string
-	apiToken         string
-	pluginStatusSink common.StatusSink
-	syncPeriod       time.Duration
-	userSyncEnabled  bool
-	ssoConnectorID   string
+	apiEndPoint           string
+	apiToken              string
+	pluginStatusSink      common.StatusSink
+	syncPeriod            time.Duration
+	userSyncEnabled       bool
+	ssoConnectorID        string
+	accessListSyncEnabled bool
+	defaultOwners         []string
 }
 
 // InitOkta will initialize and start the Okta service.
@@ -53,10 +55,12 @@ func InitOkta(process *service.TeleportProcess) error {
 	process.RegisterCriticalFunc(oktaInit, func() error {
 		return initOktaService(process.ExitContext(), process,
 			oktaSettings{
-				apiEndPoint:     process.Config.Okta.APIEndpoint,
-				apiToken:        token,
-				syncPeriod:      process.Config.Okta.SyncPeriod,
-				userSyncEnabled: false,
+				apiEndPoint:           process.Config.Okta.APIEndpoint,
+				apiToken:              token,
+				syncPeriod:            process.Config.Okta.SyncSettings.AppGroupSyncPeriod,
+				userSyncEnabled:       false,
+				accessListSyncEnabled: process.Config.Okta.SyncSettings.SyncAccessLists,
+				defaultOwners:         process.Config.Okta.SyncSettings.DefaultOwners,
 			},
 			process.GetID())
 	})
@@ -79,11 +83,13 @@ func InitOktaPlugin(ctx context.Context, process *service.TeleportProcess, plugi
 	process.RegisterFunc(oktaInit, func() error {
 		return initOktaService(ctx, process,
 			oktaSettings{
-				apiEndPoint:      settings.OrgUrl,
-				apiToken:         token,
-				pluginStatusSink: pluginStatusSink,
-				userSyncEnabled:  settings.EnableUserSync,
-				ssoConnectorID:   settings.SsoConnectorId,
+				apiEndPoint:           settings.OrgUrl,
+				apiToken:              token,
+				pluginStatusSink:      pluginStatusSink,
+				userSyncEnabled:       settings.SyncSettings.SyncUsers,
+				ssoConnectorID:        settings.SyncSettings.SsoConnectorId,
+				accessListSyncEnabled: settings.SyncSettings.SyncAccessLists,
+				defaultOwners:         settings.SyncSettings.DefaultOwners,
 			},
 			pluginLogComponent(pluginName), components...)
 	})
@@ -165,23 +171,27 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	}
 
 	oktaService, err := okta.New(ctx, okta.Config{
-		Log:              log,
-		Clock:            process.Clock,
-		TLSConfig:        tlsConfig,
-		Authorizer:       authorizer,
-		ClusterName:      clusterName,
-		Hostname:         process.Config.Hostname,
-		HostID:           process.Config.HostUUID,
-		RotationGetter:   process.GetRotation,
-		Emitter:          asyncEmitter,
-		AccessPoint:      accessPoint,
-		OnHeartbeat:      process.OnHeartbeat(teleport.Okta),
-		OktaAPIEndpoint:  settings.apiEndPoint,
-		OktaAPIToken:     settings.apiToken,
-		PluginStatusSink: settings.pluginStatusSink,
-		TimeBetweenSyncs: settings.syncPeriod,
-		UserSyncEnabled:  settings.userSyncEnabled,
-		SSOConnectorID:   settings.ssoConnectorID,
+		Log:                   log,
+		Clock:                 process.Clock,
+		TLSConfig:             tlsConfig,
+		Authorizer:            authorizer,
+		ClusterName:           clusterName,
+		Hostname:              process.Config.Hostname,
+		HostID:                process.Config.HostUUID,
+		RotationGetter:        process.GetRotation,
+		Emitter:               asyncEmitter,
+		AccessPoint:           accessPoint,
+		Access:                conn.Client,
+		AccessLists:           conn.Client.AccessListClient(),
+		OnHeartbeat:           process.OnHeartbeat(teleport.Okta),
+		OktaAPIEndpoint:       settings.apiEndPoint,
+		OktaAPIToken:          settings.apiToken,
+		PluginStatusSink:      settings.pluginStatusSink,
+		TimeBetweenSyncs:      settings.syncPeriod,
+		UserSyncEnabled:       settings.userSyncEnabled,
+		SSOConnectorID:        settings.ssoConnectorID,
+		AccessListSyncEnabled: settings.accessListSyncEnabled,
+		DefaultOwners:         settings.defaultOwners,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -235,14 +245,16 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 // combinedOktaClient is an auth.Client client with services.Okta added to it.
 type combinedOktaClient struct {
 	auth.ClientI
+	services.AccessLists
 	services.Okta
 }
 
 // newLocalCacheForOkta returns a new instance of access point for an Okta service. Returns
 // a cleanup function for the cache as well.
 func newLocalCacheForOkta(process *service.TeleportProcess, clt auth.ClientI, cacheName []string) (auth.OktaAccessPoint, func() error, error) {
+	accessListClient := clt.AccessListClient()
 	oktaClient := clt.OktaClient()
-	client := combinedOktaClient{clt, oktaClient}
+	client := combinedOktaClient{clt, accessListClient, oktaClient}
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return client, nil, nil

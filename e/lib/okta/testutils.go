@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -49,6 +50,7 @@ type testAccessPoint struct {
 	io.Closer
 	*local.DynamicAccessService
 	services.Access
+	services.AccessLists
 	services.ClusterConfiguration
 	services.ConnectionsDiagnostic
 	services.DatabaseServices
@@ -100,6 +102,8 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 	streamer := events.NewDiscardStreamer()
 
 	access := local.NewAccessService(backend)
+	accessLists, err := local.NewAccessListService(backend, clock)
+	require.NoError(t, err)
 	ca := local.NewCAService(backend)
 	clusterConfiguration, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)
@@ -129,6 +133,7 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 		Streamer:              streamer,
 		Closer:                io.NopCloser(nil),
 		Access:                access,
+		AccessLists:           accessLists,
 		ClusterConfiguration:  clusterConfiguration,
 		ConnectionsDiagnostic: connectionsDiagnostic,
 		DatabaseServices:      databaseServices,
@@ -180,6 +185,8 @@ func newTestService(t *testing.T, ap *testAccessPoint) (*Service, *testOktaClien
 		RotationGetter:  func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		ProxyGetter:     &testProxyGetter{},
 		AccessPoint:     ap,
+		Access:          ap,
+		AccessLists:     ap,
 		OnHeartbeat:     func(err error) {},
 		Emitter:         emitter,
 		OktaAPIEndpoint: "dummy",
@@ -263,7 +270,7 @@ func newTestClient() *testOktaClient {
 func (t *testOktaClient) iterateUsers(_ context.Context, fn func(*okta.User) error) error {
 	for _, oktaUser := range t.oktaUsers {
 		if err := fn(oktaUser); err != nil {
-			if err == stopIteration {
+			if errors.Is(err, errStopIteration) {
 				break
 			}
 			return trace.Wrap(err)
@@ -276,7 +283,7 @@ func (t *testOktaClient) iterateUsers(_ context.Context, fn func(*okta.User) err
 func (t *testOktaClient) iterateGroups(_ context.Context, fn func(*okta.Group) error) error {
 	for _, oktaGroup := range t.oktaGroups {
 		if err := fn(oktaGroup); err != nil {
-			if err == stopIteration {
+			if errors.Is(err, errStopIteration) {
 				break
 			}
 			return trace.Wrap(err)
@@ -289,7 +296,7 @@ func (t *testOktaClient) iterateGroups(_ context.Context, fn func(*okta.Group) e
 func (t *testOktaClient) iterateApps(_ context.Context, fn func(okta.App) error) error {
 	for _, oktaApp := range t.oktaApps {
 		if err := fn(oktaApp); err != nil {
-			if err == stopIteration {
+			if errors.Is(err, errStopIteration) {
 				break
 			}
 			return trace.Wrap(err)
@@ -475,8 +482,36 @@ func (t *testOktaClient) doHttp(ctx context.Context, method string, url *url.URL
 	return nil, trace.NotImplemented("doHttp")
 }
 
+func (t *testOktaClient) addGroupAssignments(groupID string, users ...string) {
+	t.groupsToUsersMu.Lock()
+	defer t.groupsToUsersMu.Unlock()
+
+	if _, ok := t.groupsToUsers[groupID]; !ok {
+		t.groupsToUsers[groupID] = map[string]bool{}
+	}
+
+	for _, user := range users {
+		t.groupsToUsers[groupID][user] = true
+	}
+}
+
+func (t *testOktaClient) addAppAssignments(appID string, users ...string) {
+	t.appsToUsersMu.Lock()
+	defer t.appsToUsersMu.Unlock()
+
+	if _, ok := t.appsToUsers[appID]; !ok {
+		t.appsToUsers[appID] = map[string]bool{}
+	}
+
+	for _, user := range users {
+		t.appsToUsers[appID][user] = true
+	}
+}
+
 // generateTestTLSConfig will generate a TLS config for testing.
 func generateTestTLSConfig(t *testing.T, name string, roles []string, extensions ...pkix.AttributeTypeAndValue) *tls.Config {
+	t.Helper()
+
 	keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
 		Organization: roles,
 		CommonName:   name,
@@ -508,6 +543,8 @@ func generateTestTLSConfig(t *testing.T, name string, roles []string, extensions
 
 // waitForResult will wait for a value on a channel and see if the value matches the expected value.
 func waitForResult[T any](t *testing.T, ch chan T, expected T, numTimes int) {
+	t.Helper()
+
 	for i := 0; i < numTimes; i++ {
 		select {
 		case val := <-ch:
@@ -519,12 +556,16 @@ func waitForResult[T any](t *testing.T, ch chan T, expected T, numTimes int) {
 }
 
 func mustAppName(t *testing.T, hash crypto.Hash, name, appLinkName string) string {
+	t.Helper()
+
 	appName, err := appName(hash, name, appLinkName)
 	require.NoError(t, err)
 	return appName
 }
 
 func newApp(t *testing.T, metadata types.Metadata, appSpec types.AppSpecV3) *types.AppV3 {
+	t.Helper()
+
 	app, err := types.NewAppV3(metadata, appSpec)
 	require.NoError(t, err)
 
@@ -532,6 +573,8 @@ func newApp(t *testing.T, metadata types.Metadata, appSpec types.AppSpecV3) *typ
 }
 
 func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin, orgURL, hostID string) types.AppServer {
+	t.Helper()
+
 	labels := map[string]string{
 		types.OriginLabel:       origin,
 		teleport.OktaAppIDLabel: name,
@@ -558,6 +601,8 @@ func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin, orgU
 }
 
 func group(t *testing.T, name, origin, orgURL string) types.UserGroup {
+	t.Helper()
+
 	userGroup, err := types.NewUserGroup(types.Metadata{
 		Name: name,
 		Labels: map[string]string{
@@ -576,6 +621,8 @@ func target(targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType, id
 func assignment(t *testing.T, accessRequestName, user string, cleanupTime time.Time, status string, lastTransition time.Time,
 	finalized bool, targets ...*types.OktaAssignmentTargetV1,
 ) types.OktaAssignment {
+	t.Helper()
+
 	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: accessRequestName,
 		Labels: map[string]string{
@@ -601,6 +648,8 @@ func assignmentLess(a1, a2 types.OktaAssignment) bool {
 }
 
 func expectAuditEvent[T any](t *testing.T, emitter *eventstest.ChannelEmitter, fn func(T)) {
+	t.Helper()
+
 	select {
 	case event := <-emitter.C():
 		auditEvent, ok := event.(T)

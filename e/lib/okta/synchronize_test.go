@@ -383,12 +383,8 @@ func TestTickerUpdates(t *testing.T) {
 	svc.clock = clock
 	svc.timeBetweenSyncs = time.Second * 10
 
-	ticker, timeBetweenSyncs := svc.setupSynchronizerTicker(ctx)
-	require.Equal(t, svc.timeBetweenSyncs, timeBetweenSyncs)
-
-	// 10 second timeout expected here.
-	advanceAndDontExpectSignal(t, clock, time.Second*5, ticker)
-	advanceAndExpectSignal(t, clock, time.Second*20, ticker)
+	interval := svc.getSynchronizerInterval(ctx)
+	require.Equal(t, svc.timeBetweenSyncs, interval)
 
 	// Set the time between syncs to 300 seconds
 	pref, err := ap.GetAuthPreference(ctx)
@@ -396,46 +392,15 @@ func TestTickerUpdates(t *testing.T) {
 	pref.SetOktaSyncPeriod(time.Second * 300)
 	require.NoError(t, ap.SetAuthPreference(ctx, pref))
 
-	timeBetweenSyncs = svc.updateSynchronizerTicker(ctx, ticker, timeBetweenSyncs)
-
-	// The next tick should require 300 seconds.
-	advanceAndDontExpectSignal(t, clock, time.Second*20, ticker)
-	advanceAndExpectSignal(t, clock, time.Second*310, ticker)
+	interval = svc.getSynchronizerInterval(ctx)
+	require.Equal(t, pref.GetOktaSyncPeriod(), interval)
 
 	// Set the duration back to zero, should set the ticker back to 10 seconds.
 	pref.SetOktaSyncPeriod(0)
 	require.NoError(t, ap.SetAuthPreference(ctx, pref))
 
-	svc.updateSynchronizerTicker(ctx, ticker, timeBetweenSyncs)
-	advanceAndExpectSignal(t, clock, time.Second*20, ticker)
-}
-
-func advanceAndExpectSignal(t *testing.T, clock clockwork.FakeClock, advance time.Duration, ticker clockwork.Ticker) {
-	t.Helper()
-
-	// Make sure the ticker is registered as a waiter.
-	clock.BlockUntil(1)
-
-	clock.Advance(advance)
-	select {
-	case <-ticker.Chan():
-	default:
-		require.Fail(t, "signal expected on channel")
-	}
-}
-
-func advanceAndDontExpectSignal(t *testing.T, clock clockwork.FakeClock, advance time.Duration, ticker clockwork.Ticker) {
-	t.Helper()
-
-	// Make sure the ticker is registered as a waiter.
-	clock.BlockUntil(1)
-
-	clock.Advance(advance)
-	select {
-	case <-ticker.Chan():
-		require.Fail(t, "no signal expected on channel")
-	default:
-	}
+	interval = svc.getSynchronizerInterval(ctx)
+	require.Equal(t, svc.timeBetweenSyncs, interval)
 }
 
 func addApp(t *testing.T, name, origin, orgURL string, svc *Service) {
@@ -476,11 +441,11 @@ func addGroup(t *testing.T, name, origin, orgURL string, ap auth.OktaAccessPoint
 	require.NoError(t, ap.CreateUserGroup(context.Background(), userGroup))
 }
 
-func mapOfAllApps(t *testing.T, svc *Service) map[string]*types.AppV3 {
+func mapOfAllApps(t *testing.T, svc *Service) map[string]types.Application {
 	svc.appsMu.Lock()
 	defer svc.appsMu.Unlock()
 
-	appMap := map[string]*types.AppV3{}
+	appMap := map[string]types.Application{}
 	for _, app := range svc.apps {
 		appMap[app.GetName()] = app
 	}

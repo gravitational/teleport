@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -37,37 +36,32 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 		return
 	}
 
-	ticker, timeBetweenSyncs := s.setupSynchronizerTicker(ctx)
-	defer ticker.Stop()
+	defer func() {
+		s.log.Info("Synchronizer stopped.")
+		s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
+	}()
 
-	s.log.Infof("Synchronizer started with a refresh period of %s.", timeBetweenSyncs)
+	interval := s.getSynchronizerInterval(ctx)
 
-Loop:
+	// Generate a random jitter between 0 and 10 seconds
+	timer := s.clock.NewTimer(interval + utils.RandomDuration(syncJitter))
+	defer timer.Stop()
+
+	s.log.Infof("Synchronizer started with a refresh period of %s.", interval)
+
 	for {
-		// If the parent Okta service is not the leader, skip synchronizing.
-		if s.leadershipAcquired.Load() {
-			timeoutCtx, cancel := context.WithTimeout(ctx, timeBetweenSyncs)
-			if err := s.synchronize(timeoutCtx); err != nil {
-				s.log.Errorf("Error while synchronizing Okta resources with Teleport: %v", err)
-				s.emitSyncError(ctx, err)
-			}
-			cancel()
-		}
+		s.synchronizeAndEmitEvents(ctx)
 
 		select {
-		case <-ticker.Chan():
+		case <-timer.Chan():
+			interval = s.getSynchronizerInterval(ctx)
+			timer.Reset(interval + utils.RandomDuration(syncJitter))
 		case <-s.stopCh:
-			break Loop
+			return
 		case <-ctx.Done():
-			break Loop
+			return
 		}
-
-		timeBetweenSyncs = s.updateSynchronizerTicker(ctx, ticker, timeBetweenSyncs)
 	}
-
-	s.log.Infof("Synchronizer stopped.")
-
-	s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
 }
 
 // waitIfNotLeader will wait for this service to become the leader. It will return true if the service should stop.
@@ -114,8 +108,8 @@ func (s *Service) emitSyncError(ctx context.Context, err error) {
 	}
 }
 
-// setupSynchronizerTicker creates the ticker for the synchronizer.
-func (s *Service) setupSynchronizerTicker(ctx context.Context) (clockwork.Ticker, time.Duration) {
+// getSynchronizerInterval creates the ticker for the synchronizer.
+func (s *Service) getSynchronizerInterval(ctx context.Context) time.Duration {
 	timeBetweenSyncs := s.timeBetweenSyncs
 	pref, err := s.accessPoint.GetAuthPreference(ctx)
 	if err != nil {
@@ -126,35 +120,34 @@ func (s *Service) setupSynchronizerTicker(ctx context.Context) (clockwork.Ticker
 		}
 	}
 
-	// Generate a random jitter between 0 and 10 seconds
-	ticker := s.clock.NewTicker(s.timeBetweenSyncs + utils.RandomDuration(syncJitter))
-
-	return ticker, timeBetweenSyncs
+	return timeBetweenSyncs
 }
 
-// updateSynchronizerTicker updates the ticker for the synchronizer if necessary.
-func (s *Service) updateSynchronizerTicker(ctx context.Context, ticker clockwork.Ticker, timeBetweenSyncs time.Duration) time.Duration {
-	pref, err := s.accessPoint.GetAuthPreference(ctx)
-	if err != nil {
-		s.log.WithError(err).Error("Error getting auth preference during synchronization, continuing anyway")
-		return timeBetweenSyncs
+// synchronizeAndEmitEvents will run synchronization, emit events on success or failure, and mark the synchronization
+// successful if no errors were encountered.
+func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
+	// If the parent Okta service is not the leader, skip synchronizing.
+	if !s.leadershipAcquired.Load() {
+		return
 	}
 
-	if timeBetweenSyncs != pref.GetOktaSyncPeriod() {
-		if pref.GetOktaSyncPeriod() == 0 {
-			timeBetweenSyncs = s.timeBetweenSyncs
-		} else {
-			timeBetweenSyncs = pref.GetOktaSyncPeriod()
-		}
+	// Add to the synchronizing wait group so that the importer waits if we're actively synchronizing.
+	s.synchronizingMu.Lock()
+	defer s.synchronizingMu.Unlock()
 
-		ticker.Reset(timeBetweenSyncs + utils.RandomDuration(syncJitter))
-		s.log.Infof("Synchronizer refresh period updated to %s.", timeBetweenSyncs)
+	if err := s.synchronize(ctx); err != nil {
+		s.log.Errorf("Error while synchronizing Okta resources with Teleport: %v", err)
+		s.emitSyncError(ctx, err)
+	} else {
+		// The synchronizer has completed at least once successfully. This will allow the access
+		// list sync to proceed.
+		s.synchronizerSuccess.Store(true)
 	}
-	return timeBetweenSyncs
 }
 
 // synchronize will synchronize the Okta groups and applications with the backend.
 func (s *Service) synchronize(ctx context.Context) error {
+
 	if err := s.syncUsers(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -230,7 +223,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 	s.log.Debug("Synchronizing applications")
 
 	groupsToAppsMapping := userGroupsToApplications{}
-	newApps := map[string]*types.AppV3{}
+	newApps := map[string]types.Application{}
 	err := s.client.iterateApps(ctx, func(oktaApp okta.App) error {
 		// This type assertion is necessary as okta.App, which is supplied by the Okta go SDK,
 		// does not contain all of the information that we need to create a types.Application
@@ -344,7 +337,7 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig[*types.AppV3]{
+	s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.Application]{
 		Matcher:             s.appsMatcher,
 		GetCurrentResources: s.getApps,
 		GetNewResources:     s.getNewApps,
@@ -462,13 +455,13 @@ func (s *Service) onDeleteGroup(ctx context.Context, group types.UserGroup) erro
 }
 
 // appMatcher will match applications.
-func (s *Service) appsMatcher(resource *types.AppV3) bool {
+func (s *Service) appsMatcher(resource types.Application) bool {
 	return resource.GetKind() == types.KindApp && resource.Origin() == types.OriginOkta
 }
 
 // getApps returns a copy of the current mapping of apps.
-func (s *Service) getApps() map[string]*types.AppV3 {
-	apps := map[string]*types.AppV3{}
+func (s *Service) getApps() map[string]types.Application {
+	apps := map[string]types.Application{}
 	s.appsMu.RLock()
 	defer s.appsMu.RUnlock()
 
@@ -481,8 +474,8 @@ func (s *Service) getApps() map[string]*types.AppV3 {
 
 // getNewApps returns a copy of the current mapping of new apps, unprocessed
 // by the reconciler.
-func (s *Service) getNewApps() map[string]*types.AppV3 {
-	newApps := map[string]*types.AppV3{}
+func (s *Service) getNewApps() map[string]types.Application {
+	newApps := map[string]types.Application{}
 	s.newAppsMu.RLock()
 	defer s.newAppsMu.RUnlock()
 
@@ -494,7 +487,7 @@ func (s *Service) getNewApps() map[string]*types.AppV3 {
 }
 
 // onCreateApp will run when an application is created.
-func (s *Service) onCreateApp(ctx context.Context, app *types.AppV3) error {
+func (s *Service) onCreateApp(ctx context.Context, app types.Application) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -513,7 +506,7 @@ func (s *Service) onCreateApp(ctx context.Context, app *types.AppV3) error {
 }
 
 // onUpdateGroup will run when an application is updated.
-func (s *Service) onUpdateApp(ctx context.Context, app, _ *types.AppV3) error {
+func (s *Service) onUpdateApp(ctx context.Context, app, _ types.Application) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -528,7 +521,7 @@ func (s *Service) onUpdateApp(ctx context.Context, app, _ *types.AppV3) error {
 }
 
 // onDeleteApp will run when an application is deleted.
-func (s *Service) onDeleteApp(ctx context.Context, app *types.AppV3) error {
+func (s *Service) onDeleteApp(ctx context.Context, app types.Application) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}

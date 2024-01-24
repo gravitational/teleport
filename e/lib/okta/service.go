@@ -91,6 +91,12 @@ type Config struct {
 	// manipulate the Teleport cluster.
 	AccessPoint auth.OktaAccessPoint
 
+	// Access is the service for interacting with roles.
+	Access services.Access
+
+	// AccessLists is the service for interacting with access lists.
+	AccessLists services.AccessLists
+
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
 
@@ -115,6 +121,13 @@ type Config struct {
 
 	// SSOConnectorID specifies which SSO connector users will be joining from
 	SSOConnectorID string
+
+	// AccessListSyncEnabled indicates that the Okta service will try to sync
+	// Okta permissions via access lists.
+	AccessListSyncEnabled bool
+
+	// DefaultOwners is the list of default owners for imported access lists.
+	DefaultOwners []string
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -171,30 +184,42 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("Okta SSO Connector ID must be set if user sync is enabled")
 	}
 
+	if c.AccessListSyncEnabled {
+		if c.Access == nil {
+			return trace.BadParameter("access is missing")
+		}
+		if c.AccessLists == nil {
+			return trace.BadParameter("access lists is missing")
+		}
+		if len(c.DefaultOwners) == 0 {
+			return trace.BadParameter("default owners is missing")
+		}
+	}
+
 	return nil
 }
 
-// stopIteration is a sentinel value that iterator functions can use to
+// errStopIteration is a sentinel value that iterator functions can use to
 // signals oktaClient iterate* methods to stop iterating without it
 // being passed up the call stack.
-var stopIteration error = errors.New("stop iterating")
+var errStopIteration = errors.New("stop iterating")
 
 // oktaClient is an Okta client interface that can be mocked for testing.
 type oktaClient interface {
 	// iterateUsers will iterate over the list of all Okta users. The supplied
-	// iterator callback may return stopIteration to signal that it does not want
+	// iterator callback may return errStopIteration to signal that it does not want
 	// to continue receiving users. All other non-nil return values are
 	// considered an error and will be propagated to the caller.
 	iterateUsers(context.Context, func(*okta.User) error) error
 
 	// iterateGroups will iterate over the list of all Okta groups. The supplied
-	// iterator callback may return stopIteration to signal that it does not want
+	// iterator callback may return errStopIteration to signal that it does not want
 	// to continue receiving groups. All other non-nil return values are
 	// considered an error and will be propagated to the caller.
 	iterateGroups(context.Context, func(*okta.Group) error) error
 
 	// iterateApps will iterate over the list of all Okta applications. The
-	// supplied iterator callback may return stopIteration to signal that it
+	// supplied iterator callback may return errStopIteration to signal that it
 	// does not want to continue receiving apps. All other non-nil return values
 	// are considered an error and will be propagated to the caller.
 	iterateApps(context.Context, func(okta.App) error) error
@@ -294,16 +319,16 @@ type Service struct {
 	groupsDeleted []*apievents.OktaResource
 
 	// appsReconciler will reconcile applications discovered in Okta.
-	appsReconciler *services.Reconciler[*types.AppV3]
+	appsReconciler *services.Reconciler[types.Application]
 
 	// apps is the current mapping of apps.
 	appsMu sync.RWMutex
-	apps   map[string]*types.AppV3
+	apps   map[string]types.Application
 
 	// newApps is the mapping of apps discovered by Okta, not yet synchronzied
 	// to the apps reconciler.
 	newAppsMu sync.RWMutex
-	newApps   map[string]*types.AppV3
+	newApps   map[string]types.Application
 
 	// app stats for the audit even for a particular reconcile.
 	appsAdded   []*apievents.OktaResource
@@ -334,6 +359,11 @@ type Service struct {
 
 	pluginStatusSink common.StatusSink
 
+	// synchronizerSuccess will be set to true if the synchronizer has completed at least
+	// once successfully.
+	synchronizerSuccess atomic.Bool
+
+	synchronizingMu        sync.RWMutex
 	leadershipAcquired     atomic.Bool
 	leadershipRenewRetries atomic.Int32
 
@@ -346,6 +376,12 @@ type Service struct {
 	// users associated with this integration. May be empty if user sync is
 	// disabled (i.e. if `userReconciler` is `nil`)
 	ssoConnectorID string
+
+	// accessListSync is used to synchronize and import user permissions from
+	// Okta into Teleport, using access lists and roles to represent them. If
+	// this value is `nil`, it means that access list sync is disabled via
+	// config.
+	accessListSync *accessListSync
 }
 
 // rateLimitingHTTPTransport will only perform HTTP requests after waiting the
@@ -507,8 +543,8 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		heartbeats:           map[string]*srv.Heartbeat{},
 		groups:               map[string]types.UserGroup{},
 		newGroups:            map[string]types.UserGroup{},
-		apps:                 map[string]*types.AppV3{},
-		newApps:              map[string]*types.AppV3{},
+		apps:                 map[string]types.Application{},
+		newApps:              map[string]types.Application{},
 		groupIRMapping:       map[string]prioritizedLabels{},
 		applicationIRMapping: map[string]prioritizedLabels{},
 		groupNameRegexes:     []regexAndPriorityLabels{},
@@ -530,6 +566,31 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 
 	s.assignmentReconciler = newAssignmentReconciler(ctx, clusterName.GetClusterName(), s)
 
+	if config.AccessListSyncEnabled {
+		config.Log.Info("Access list synchronization is enabled. Configuring synchronizer.")
+		alSync, err := newAccessListSync(accessListSyncConfig{
+			Log:          s.log,
+			Clock:        s.clock,
+			Client:       s.client,
+			Access:       config.Access,
+			AccessLists:  config.AccessLists,
+			OrgURL:       s.orgURL,
+			Owners:       config.DefaultOwners,
+			AppsGetter:   s.getApps,
+			GroupsGetter: s.getGroups,
+
+			SynchronizerSuccess: &s.synchronizerSuccess,
+			SynchronizingMu:     &s.synchronizingMu,
+			StopChannel:         s.stopCh,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		s.accessListSync = alSync
+	} else {
+		config.Log.Info("Access list synchronization is disabled.")
+	}
+
 	reportPluginStatus(ctx, config.Log, config.PluginStatusSink, types.PluginStatusCode_RUNNING)
 
 	return s, nil
@@ -549,6 +610,10 @@ func (s *Service) Start(ctx context.Context) error {
 
 	if err := s.assignmentReconciler.start(ctx); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if s.accessListSync != nil {
+		go s.accessListSync.startSync(ctx)
 	}
 
 	return nil

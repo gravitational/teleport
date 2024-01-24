@@ -15,7 +15,7 @@ import (
 )
 
 // startHeartbeat starts the registration heartbeat to the auth server.
-func (s *Service) startHeartbeat(ctx context.Context, app *types.AppV3) error {
+func (s *Service) startHeartbeat(ctx context.Context, app types.Application) error {
 	appName := app.GetName()
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Context:         ctx,
