@@ -68,7 +68,7 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 // PerformAdminActionMFACeremony retrieves an MFA challenge from the server for an admin
 // action, prompts the user to answer the challenge, and returns the resulting MFA response.
 // An empty response will be returned if MFA is not required for the given admin action.
-func PerformAdminActionMFACeremony(ctx context.Context, clt MFACeremonyClient, adminActionName string, allowReuse bool) (*proto.MFAAuthenticateResponse, error) {
+func PerformAdminActionMFACeremony(ctx context.Context, clt MFACeremonyClient, allowReuse bool) (*proto.MFAAuthenticateResponse, error) {
 	allowReuseExt := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
 	if allowReuse {
 		allowReuseExt = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
@@ -87,5 +87,5 @@ func PerformAdminActionMFACeremony(ctx context.Context, clt MFACeremonyClient, a
 		},
 	}
 
-	return PerformMFACeremony(ctx, clt, challengeRequest, WithPromptReasonAdminAction(adminActionName))
+	return PerformMFACeremony(ctx, clt, challengeRequest, WithPromptReasonAdminAction())
 }
