@@ -14494,7 +14494,7 @@ type PluginOktaSyncSettings struct {
 	// app. When empty the plugin will fall back to the legacy behaviour of syncing
 	// users from the entre organization.
 	AppId string `protobuf:"bytes,5,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
-	// GroupFilters are filters for which Okta applications to synchronize as access lists.
+	// GroupFilters are filters for which Okta groups to synchronize as access lists.
 	// These are globs/regexes.
 	GroupFilters []string `protobuf:"bytes,6,rep,name=group_filters,json=groupFilters,proto3" json:"group_filters,omitempty"`
 	// AppFilters are filters for which Okta applications to synchronize as access lists.

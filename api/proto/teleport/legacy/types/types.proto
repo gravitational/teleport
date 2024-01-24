@@ -5666,7 +5666,7 @@ message PluginOktaSyncSettings {
   // users from the entre organization.
   string app_id = 5;
 
-  // GroupFilters are filters for which Okta applications to synchronize as access lists.
+  // GroupFilters are filters for which Okta groups to synchronize as access lists.
   // These are globs/regexes.
   repeated string group_filters = 6;
 
