@@ -82,14 +82,27 @@ $ tctl auth sign --format=redis --host=redis2.example.com,10.0.0.2 --out=redis2 
 (!docs/pages/includes/database-access/ttl-note.mdx!)
 
 The command will create three files:
-- `server.cas` with Teleport's certificate authority
-- `server.key` with a generated private key
-- `server.crt` with a generated user certificate
+- `out.cas` with Teleport's database client certificate authority
+- `out.key` with a generated private key
+- `out.crt` with a generated certificate issued by Teleport's database server 
+certificate authority
 
 You will need these files to enable mutual TLS on your Redis server.
 
-Use the generated secrets to enable mutual TLS in your `redis.conf` configuration
-file and restart the database:
+<Tabs>
+<TabItem label="tls-cluster yes">
+If you wish to enable intra-cluster TLS communication in Redis, you will need 
+to generate and manage a CA to issue certificates for Redis Cluster nodes,
+and configure your Teleport Database Service to trust that CA.
+
+Concatenate your CA's cert (in PEM format) with Teleport's database client 
+certificate authority:
+```sh
+cat /path/to/your/ca.crt out.cas > pem-bundle.cas
+```
+
+Using your CA, issue `server.crt` for your Redis Cluster node and enable mutual 
+TLS in your `redis.conf` configuration file, then restart the database:
 
 ```ini
 tls-port 7001
@@ -102,9 +115,46 @@ masterauth GENERATED_STRONG_PASSWORD
 masteruser replica-user
 tls-cert-file /usr/local/etc/redis/certs/server.crt
 tls-key-file /usr/local/etc/redis/certs/server.key
+tls-ca-cert-file /usr/local/etc/redis/certs/pem-bundle.cas
+tls-protocols "TLSv1.2 TLSv1.3"
+```
+
+Modify your Teleport Database Service to trust your Redis Cluster CA:
+```yaml
+  databases:
+  - name: "example-redis"
+    protocol: "redis"
+    uri: "rediss://redis.example.com:6379?mode=cluster"
+    static_labels:
+      "env": "dev"
+    tls:
+      ca_cert_file: "/path/to/your/ca.crt"
+```
+</TabItem>
+<TabItem label="tls-cluster no">
+Use the generated secrets to enable mutual TLS in your `redis.conf` configuration
+file and restart the database:
+
+```ini
+tls-port 7001
+port 0
+cluster-enabled yes
+tls-replication no
+tls-cluster no
+aclfile /path/to/users.acl
+masterauth GENERATED_STRONG_PASSWORD
+masteruser replica-user
+tls-cert-file /usr/local/etc/redis/certs/server.crt
+tls-key-file /usr/local/etc/redis/certs/server.key
 tls-ca-cert-file /usr/local/etc/redis/certs/server.cas
 tls-protocols "TLSv1.2 TLSv1.3"
 ```
+
+With this configuration, communication between user clients and the Redis 
+Cluster will still use TLS, but Redis nodes will not use TLS to communicate with
+each other.
+</TabItem>
+</Tabs>
 
 Once mutual TLS has been enabled, you will no longer be able to connect to
 the cluster without providing a valid client certificate. You can use the
