@@ -221,8 +221,10 @@ okta_service:
 // NoServicesConfigString is a configuration file with no services enabled
 // but with values for all services set.
 const NoServicesConfigString = `
+version: v3
 teleport:
   nodename: node.example.com
+  proxy_server: "example.com"
 
 auth_service:
   enabled: no

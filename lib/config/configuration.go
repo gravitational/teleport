@@ -1375,13 +1375,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Regions:        matcher.Regions,
 			ResourceTags:   matcher.ResourceTags,
 		}
-
-		if matcher.InstallParams != nil {
+		if slices.Contains(matcher.Types, services.AzureMatcherVM) {
 			m.Params = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+			}
+			if matcher.InstallParams != nil {
+				m.Params.JoinMethod = matcher.InstallParams.JoinParams.Method
+				m.Params.JoinToken = matcher.InstallParams.JoinParams.TokenName
+				m.Params.ScriptName = matcher.InstallParams.ScriptName
 			}
 		}
 		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
@@ -1396,12 +1397,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			ProjectIDs:      matcher.ProjectIDs,
 			ServiceAccounts: matcher.ServiceAccounts,
 		}
-		if matcher.InstallParams != nil {
+		if slices.Contains(matcher.Types, services.GCPMatcherCompute) {
 			m.Params = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+			}
+			if matcher.InstallParams != nil {
+				m.Params.JoinMethod = matcher.InstallParams.JoinParams.Method
+				m.Params.JoinToken = matcher.InstallParams.JoinParams.TokenName
+				m.Params.ScriptName = matcher.InstallParams.ScriptName
 			}
 		}
 		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, m)

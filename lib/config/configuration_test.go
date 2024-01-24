@@ -3779,7 +3779,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 			discoveryConfig: Discovery{
 				AzureMatchers: []AzureMatcher{
 					{
-						Types:         []string{"aks"},
+						Types:         []string{"aks", "vm"},
 						Subscriptions: []string{"abcd"},
 					},
 				},
@@ -3789,7 +3789,67 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 				AzureMatchers: []types.AzureMatcher{
 					{
 						Subscriptions: []string{"abcd"},
-						Types:         []string{"aks"},
+						Types:         []string{"aks", "vm"},
+						Params: &types.InstallerParams{
+							PublicProxyAddr: "example.com",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "gcp matchers",
+			discoveryConfig: Discovery{
+				GCPMatchers: []GCPMatcher{
+					{
+						Types:      []string{"gce"},
+						ProjectIDs: []string{"abcd"},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: "gcp-token",
+								Method:    "gcp",
+							},
+							ScriptName:      "default-installer",
+							PublicProxyAddr: "proxy.example.com",
+						},
+					},
+				},
+			},
+			expectedDiscovery: servicecfg.DiscoveryConfig{
+				Enabled: true,
+				GCPMatchers: []types.GCPMatcher{
+					{
+						Types:      []string{"gce"},
+						ProjectIDs: []string{"abcd"},
+						Params: &types.InstallerParams{
+							JoinMethod:      "gcp",
+							JoinToken:       "gcp-token",
+							ScriptName:      "default-installer",
+							PublicProxyAddr: "proxy.example.com",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "gcp matchers no installer",
+			discoveryConfig: Discovery{
+				GCPMatchers: []GCPMatcher{
+					{
+						Types:      []string{"gce"},
+						ProjectIDs: []string{"abcd"},
+					},
+				},
+			},
+			expectedDiscovery: servicecfg.DiscoveryConfig{
+				Enabled: true,
+				GCPMatchers: []types.GCPMatcher{
+					{
+						Types:      []string{"gce"},
+						ProjectIDs: []string{"abcd"},
+						Params: &types.InstallerParams{
+							PublicProxyAddr: "example.com",
+						},
 					},
 				},
 			},
