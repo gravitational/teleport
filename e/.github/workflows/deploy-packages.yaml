@@ -67,10 +67,10 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
         run: |
           case "$ENVIRONMENT" in
-            "promote" | "production")
+            "promote" | "build-prod")
               RUNNER_LABEL_ENVIRONMENT="prod"
             ;;
-            "build" | "staging")
+            "build" | "build-stage")
               RUNNER_LABEL_ENVIRONMENT="dev"
             ;;
             *)
@@ -427,7 +427,7 @@ jobs:
         run: |
           echo "APT_REPO_DOMAIN_NAME=apt.releases.teleport.dev" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
-        if: inputs.environment == 'staging' || inputs.environment == 'build'
+        if: inputs.environment == 'build-stage' || inputs.environment == 'build'
         run: |
           echo "APT_REPO_DOMAIN_NAME=apt.releases.development.teleport.dev" >> "$GITHUB_ENV"
       - name: Log set variables
@@ -532,7 +532,7 @@ jobs:
           echo "YUM_REPO_DOMAIN_NAME=yum.releases.teleport.dev" >> "$GITHUB_ENV"
           echo "FORCE_INSTALL_PROD_PUBLIC_KEY=false" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
-        if: inputs.environment == 'staging' || inputs.environment == 'build'
+        if: inputs.environment == 'build-stage' || inputs.environment == 'build'
         run: |
           echo "YUM_REPO_DOMAIN_NAME=yum.releases.development.teleport.dev" >> "$GITHUB_ENV"
           # This is required as the RPMs are signed by the prod key, not the dev key
@@ -620,7 +620,7 @@ jobs:
       fail-fast: false
       matrix:
         # Multiple images are used to test for the ever recurring libc version issue
-        container-image: 
+        container-image:
           # SUSE Linux Enterprise Edition
           - registry.suse.com/suse/sles12sp5:latest # The other tags are too specific so latest is used instead
           - registry.suse.com/bci/bci-base:15.5
@@ -638,7 +638,7 @@ jobs:
           echo "ZYPPER_REPO_DOMAIN_NAME=zypper.releases.teleport.dev" >> "$GITHUB_ENV"
           echo "FORCE_INSTALL_PROD_PUBLIC_KEY=false" >> "$GITHUB_ENV"
       - name: Derive and set Github environment-specific variables for development
-        if: inputs.environment == 'staging' || inputs.environment == 'build'
+        if: inputs.environment == 'build-stage' || inputs.environment == 'build'
         run: |
           echo "ZYPPER_REPO_DOMAIN_NAME=zypper.releases.development.teleport.dev" >> "$GITHUB_ENV"
           # This is required as the RPMs are signed by the prod key, not the dev key

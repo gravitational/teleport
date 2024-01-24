@@ -40,7 +40,7 @@ jobs:
           echo "ecr-password=$ECR_PASSWORD" >> "$GITHUB_OUTPUT"
   publish:
     runs-on: ubuntu-latest
-    environment: "publish-prod" # TODO make this variable when staging env is introduced
+    environment: "publish-prod" # TODO make this variable when stage env is introduced
     needs:
       - setup
     container:

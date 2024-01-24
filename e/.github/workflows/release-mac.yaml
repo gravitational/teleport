@@ -117,11 +117,11 @@ jobs:
       release-version: ${{ inputs.release-version }}
       environment: ${{ inputs.build-environment }}
 
-  upload-artifacts-to-dronestaging:
-    name: Upload Artifacts to Drone staging bucket
+  upload-artifacts:
+    name: Upload Artifacts to pending bucket
     if: inputs.release-artifacts
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ inputs.build-environment }}
     permissions:
       id-token: write  # required for aws-actions/configure-aws-credentials
       contents: read
@@ -139,16 +139,14 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region:  us-west-2
-          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
-          role-to-assume: ${{ secrets.STAGING_DEPLOYMENT_AWS_ROLE }}
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: "gha-teleport-build-${{ github.run_number }}"
           role-duration-seconds: 3600
 
-      - name: Copy artifacts to staging area
+      - name: Copy artifacts to pending bucket
         working-directory: ${{ steps.download.outputs.download-path }}
         env:
-          TARGET_BUCKET: ${{ secrets.STAGING_AWS_S3_BUCKET }}
+          TARGET_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
           TELEPORT_VERSION: ${{ needs.version.outputs.teleport-version }}
         run: |
           aws s3 sync . s3://${TARGET_BUCKET}/teleport/tag/${TELEPORT_VERSION}
@@ -158,7 +156,7 @@ jobs:
     if: inputs.release-artifacts
     needs: [ build-artifacts-universal, version ]
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ inputs.build-environment }}
     steps:
       - name: Download artifacts
         id: download
@@ -172,9 +170,9 @@ jobs:
       - name: Register artifacts
         env:
           ARTIFACT_DIR: ${{ steps.download.outputs.download-path }}
-          RELEASES_HOST: https://releases-prod.platform.teleport.sh
-          RELEASES_KEY: ${{ secrets.RELEASES_API_KEY }}
-          RELEASES_CERT: ${{ secrets.RELEASES_API_CERT }}
+          RELEASES_HOST: ${{ vars.RELEASES_HOST }}
+          RELEASES_CERT: ${{ vars.RELEASES_CERT }}
+          RELEASES_KEY: ${{ secrets.RELEASES_KEY }}
           TELEPORT_VERSION: ${{ needs.version.outputs.teleport-version }}
         shell: bash
         working-directory: ${{ steps.download.outputs.download-path }}
@@ -234,8 +232,8 @@ jobs:
             rs_curl() {
               status_code=$(
                 curl \
-                  --cert <(printenv RELEASES_CERT | base64 -d) \
-                  --key <(printenv RELEASES_KEY | base64 -d) \
+                  --cert <(printenv RELEASES_CERT) \
+                  --key <(printenv RELEASES_KEY) \
                   -o "./curl_out.txt" -w "%{http_code}" "$@"
               )
               if (( status_code != 200 && status_code != 409 )); then

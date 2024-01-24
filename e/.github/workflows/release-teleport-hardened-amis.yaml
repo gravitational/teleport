@@ -30,7 +30,7 @@ on:
         type: string
         default: ""
 
-      ci-storage-bucket-name:
+      pending-bucket-name:
         description: |
           Name of the AWS S3 bucket holding the Teleport binary tarballs for
           this release
@@ -38,10 +38,9 @@ on:
         type: string
         default: dronestorage.gravitational.io
 
-      ci-storage-access-role-arn:
+      pending-access-role-arn:
         description: |
-          ARN of the role used to access the dronestorage bucket, for retrieving
-          artifacts built by Drone.
+          ARN of the role used to access the pending bucket.
         required: true
         type: string
         default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
@@ -126,7 +125,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ inputs.ci-storage-access-role-arn }}
+          role-to-assume: ${{ inputs.pending-access-role-arn }}
           role-session-name: "gha-ami-build-${{ github.run_number }}-${{ inputs.source-tag }}"
           role-duration-seconds: 3600
 
@@ -137,7 +136,7 @@ jobs:
           TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
           TAR_EDITION_INFIX: ${{ matrix.edition-infix }}
           TAR_FIPS_INFIX: ${{ matrix.fips-infix }}
-          SRC_BUCKET: ${{ inputs.ci-storage-bucket-name }}
+          SRC_BUCKET: ${{ inputs.pending-bucket-name }}
         run: |
           TARBALL_NAME=teleport${TAR_EDITION_INFIX}-v${TELEPORT_VERSION}-linux-${ARCHITECTURE}${TAR_FIPS_INFIX}-bin.tar.gz
           aws s3 cp s3://${SRC_BUCKET}/teleport/tag/${TELEPORT_VERSION}/${TARBALL_NAME} ./${TARBALL_NAME}

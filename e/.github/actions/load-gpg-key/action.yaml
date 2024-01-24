@@ -4,8 +4,7 @@ description: Loads the provided GPG key(s) from a tar'd, base 64 encoded format 
 inputs:
   gpg-signing-archive:
     description: >
-      The GNUPGHOME directory that has been tarchived and base64 encoded.
-      See the `GPG_RPM_SIGNING_ARCHIVE` secret in drone for an example.
+      A GNUPGHOME directory that has been tarchived and base64 encoded.
     required: true
   gnupghome:
     description: The value of the GNUPGHOME environment variable where the GPG key should be loaded.

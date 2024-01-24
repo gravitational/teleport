@@ -24,10 +24,17 @@ on:
 
       upload-artifacts:
         description:  |
-          Should the workflow upload the resulting artifacts to the Release
-          staging area?
+          Should the workflow upload the resulting artifacts to the pending buckets?
         type: boolean
         default: false
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `build-prod` or `build-stage`.
+        type: string
+        required: false
+        default: build-prod
 
       release-version:
         description: |
@@ -53,9 +60,9 @@ jobs:
     steps:
       - name: ${{ inputs.workflow-tag }}
         run: echo ${{ inputs.workflow-tag }}
-        
+
   build-artifacts:
-    name: Build Artifacts    
+    name: Build Artifacts
     strategy:
       matrix:
         release: ['oss', 'enterprise']
@@ -81,11 +88,11 @@ jobs:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
-  upload-artifacts-to-dronestaging:
-    name: Upload Artifacts to Drone staging bucket
+  upload-artifacts:
+    name: Upload Artifacts to pending buckets
     if: ${{ inputs.upload-artifacts }}
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ inputs.environment }}
     permissions:
       id-token: write  # required for aws-actions/configure-aws-credentials
       contents: read
@@ -116,21 +123,19 @@ jobs:
         with:
           role-skip-session-tagging: true
           aws-region:  us-west-2
-          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
-          role-to-assume: ${{ secrets.STAGING_DEPLOYMENT_AWS_ROLE }}
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: "gha-teleport-build-${{ github.run_number }}"
           role-duration-seconds: 3600
 
-      - name: Copy artifacts to staging area
+      - name: Copy artifacts to pending bucket
         working-directory: ${{ steps.download.outputs.download-path }}
-        run: aws s3 sync . s3://${{ secrets.STAGING_AWS_S3_BUCKET }}/teleport/tag/${{ env.TELEPORT_VERSION }}
+        run: aws s3 sync . s3://${{ secrets.ARTIFACT_SOURCE_BUCKET }}/teleport/tag/${{ env.TELEPORT_VERSION }}
 
   register-assets-with-release-server:
     name: Register artifacts with releases API
     if: ${{ inputs.upload-artifacts }}
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ inputs.environment }}
     needs: build-artifacts
     steps:
       - name: Download artifacts
@@ -159,9 +164,9 @@ jobs:
         shell: bash
         env:
           ARTIFACT_DIR: ${{ steps.download.outputs.download-path }}
-          RELEASES_HOST: https://releases-prod.platform.teleport.sh
-          RELEASES_KEY: ${{ secrets.RELEASES_API_KEY }}
-          RELEASES_CERT: ${{ secrets.RELEASES_API_CERT }}
+          RELEASES_HOST: ${{ vars.RELASES_HOST }}
+          RELEASES_CERT: ${{ vars.RELEASES_CERT }}
+          RELEASES_KEY: ${{ secrets.RELEASES_KEY }}
         run: |
           for file in "${ARTIFACT_DIR}"/teleport-*.tar.gz
           do
@@ -174,8 +179,8 @@ jobs:
             rs_curl() {
               status_code=$(
                 curl \
-                  --cert <(printenv RELEASES_CERT | base64 -d) \
-                  --key <(printenv RELEASES_KEY | base64 -d) \
+                  --cert <(printenv RELEASES_CERT) \
+                  --key <(printenv RELEASES_KEY) \
                   -o "./curl_out.txt" -w "%{http_code}" "$@"
               )
               if (( status_code != 200 && status_code != 409 )); then

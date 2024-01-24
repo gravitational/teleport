@@ -43,6 +43,14 @@ on:
         required: false
         type: string
 
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `build-stage` or `build-prod`.
+        required: false
+        type: string
+        default: build-prod
+
       teleport-release:
         description: |
           The release of teleport to include on the image. Must be either `oss`
@@ -57,19 +65,18 @@ on:
         required: true
         type: string
 
-      dronestorage-access-role-arn:
+      pending-access-role-arn:
         description: |
-          ARN of the role used to access the dronestorage bucket, for retreiving
-          artefacts built by Drone. This is required only when
-          inputs.dronestorage-bucket-name is set.
+          ARN of the role used to access the pending bucket. This is required
+          only when inputs.pending-bucket-name is set.
         required: false
         type: string
 
-      dronestorage-bucket-name:
+      pending-bucket-name:
         description: |
-          Name of the dronestorage bucket holding the debian package artifacts
-          built by Drone. This is required only when building the main teleport
-          image because it fetches build artifacts from drone. The workflow will
+          Name of the pending bucket holding the Debian package artifacts
+          This is required only when building the main Teleport image
+          because it relies on previously built images. The workflow will
           skip the package download steps when the input is not provided.
         required: false
         type: string
@@ -176,7 +183,7 @@ jobs:
   build-docker-image:
     name: Build Multiarch OCI image
     runs-on: ubuntu-22.04-16core
-    environment: staging
+    environment: ${{ inputs.environment }}
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
       image-built: ${{ steps.check.outputs.build_image }}
@@ -258,19 +265,19 @@ jobs:
 
       - name: Assume Legacy Drone storage AWS role
         uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
-        if: inputs.dronestorage-bucket-name != ''
+        if: inputs.pending-bucket-name != ''
         with:
           aws-region:  us-west-2
-          role-to-assume: ${{ inputs.dronestorage-access-role-arn }}
+          role-to-assume: ${{ inputs.pending-access-role-arn }}
           role-session-name: "gha-oci-image-build-${{ github.run_number }}-${{ inputs.source-tag }}"
           role-duration-seconds: 3600
 
       - name: Download Teleport Debian packages
-        if: inputs.dronestorage-bucket-name != ''
+        if: inputs.pending-bucket-name != ''
         env:
           ARCHITECTURES: ${{ inputs.architectures }}
           TELEPORT_VERSION: ${{ inputs.teleport-version }}
-          DST_BUCKET: ${{ inputs.dronestorage-bucket-name }}
+          DST_BUCKET: ${{ inputs.pending-bucket-name }}
         run: |
           for arch in $ARCHITECTURES; do
             export TELEPORT_DEB_FILE_NAME=teleport${DEB_RELEASE_INFIX}_${TELEPORT_VERSION}${DEB_FIPS_INFIX}_${arch}.deb
@@ -380,7 +387,7 @@ jobs:
     if: inputs.scan-image && (needs.build-docker-image.outputs.image-built == 'true')
     runs-on: ubuntu-latest
     needs: build-docker-image
-    environment: staging
+    environment: ${{ inputs.environment }}
     steps:
       - name: Assume tag build AWS role
         uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1

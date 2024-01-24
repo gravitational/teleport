@@ -23,18 +23,16 @@ on:
         type: string
         default: ""
 
-      dronestorage-bucket-name:
+      pending-bucket-name:
         description: |
-          Name of the dronestorage bucket holding the debian package artifacts
-          built by Drone
+          Name of the pending bucket holding the Debian package artifacts.
         required: true
         type: string
         default: dronestorage.gravitational.io
 
-      dronestorage-access-role-arn:
+      pending-access-role-arn:
         description: |
-          ARN of the role used to access the dronestorage bucket, for retreiving
-          artefacts built by Drone.
+          ARN of the role used to access the pending bucket, for downloading .
         required: true
         type: string
         default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
@@ -137,8 +135,8 @@ jobs:
       base-image: ${{ matrix.base-image }}
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-      dronestorage-bucket-name: ${{ inputs.dronestorage-bucket-name }}
-      dronestorage-access-role-arn: ${{ inputs.dronestorage-access-role-arn }}
+      pending-bucket-name: ${{ inputs.pending-bucket-name }}
+      pending-access-role-arn: ${{ inputs.pending-access-role-arn }}
       source-tag: ${{ inputs.source-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport_version }}
       dest-image-registry: ${{ inputs.dest-repo-prefix }}
