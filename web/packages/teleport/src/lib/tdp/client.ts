@@ -53,6 +53,7 @@ import type {
   SharedDirectoryCreateResponse,
   SharedDirectoryDeleteResponse,
   FileSystemObject,
+  SyncKeys,
 } from './codec';
 import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 
@@ -599,6 +600,10 @@ export default class Client extends EventEmitterWebAuthnSender {
     // Only send message if key is recognized, otherwise do nothing.
     const msg = this.codec.encodeKeyboardInput(code, state);
     if (msg) this.send(msg);
+  }
+
+  sendSyncKeys(syncKeys: SyncKeys) {
+    this.send(this.codec.encodeSyncKeys(syncKeys));
   }
 
   sendClipboardData(clipboardData: ClipboardData) {
