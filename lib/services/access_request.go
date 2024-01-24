@@ -436,6 +436,9 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 	}
 	req.SetExpiry(req.GetAccessExpiry())
 	if rev.AssumeStartTime != nil {
+		if rev.AssumeStartTime.After(req.GetAccessExpiry()) {
+			return trace.BadParameter("assumeStartTime is after request AccessExpiry")
+		}
 		req.SetAssumeStartTime(*rev.AssumeStartTime)
 	}
 	return nil
