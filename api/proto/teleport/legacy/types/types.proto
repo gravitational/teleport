@@ -5665,6 +5665,14 @@ message PluginOktaSyncSettings {
   // app. When empty the plugin will fall back to the legacy behaviour of syncing
   // users from the entre organization.
   string app_id = 5;
+
+  // GroupFilters are filters for which Okta applications to synchronize as access lists.
+  // These are globs/regexes.
+  repeated string group_filters = 6;
+
+  // AppFilters are filters for which Okta applications to synchronize as access lists.
+  // These are globs/regexes.
+  repeated string app_filters = 7;
 }
 
 // Defines a set of discord channel IDs
