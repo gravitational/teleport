@@ -21,8 +21,13 @@ package common
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -32,9 +37,11 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"text/template"
 	"time"
+	_ "unsafe"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -56,23 +63,66 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+//go:linkname x509_systemRootsMu crypto/x509.systemRootsMu
+var x509_systemRootsMu sync.RWMutex
+
+//go:linkname x509_systemRoots crypto/x509.systemRoots
+var x509_systemRoots *x509.CertPool
+
+func setSystemRoots(pool *x509.CertPool) (reset func()) {
+	// ensure that systemRoots was already set, or the next call to
+	// x509.SystemCertPool() will overwrite it
+	_, _ = x509.SystemCertPool()
+
+	x509_systemRootsMu.Lock()
+	previousSystemRoots := x509_systemRoots
+	x509_systemRoots = pool
+	x509_systemRootsMu.Unlock()
+
+	return func() {
+		x509_systemRootsMu.Lock()
+		x509_systemRoots = previousSystemRoots
+		x509_systemRootsMu.Unlock()
+	}
+}
 
 // TestSSH verifies "tsh ssh" command.
 func TestSSH(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
+	t.Setenv("_TELEPORT_TEST_NO_PARALLEL", "1")
+	defer lib.SetInsecureDevMode(lib.IsInsecureDevMode())
+	lib.SetInsecureDevMode(false)
+
+	d := t.TempDir()
+	webCertPath := path.Join(d, "cert.pem")
+	webKeyPath := path.Join(d, "key.pem")
+	webCertPEM := generateWebPKICA(t, webCertPath, webKeyPath)
+
+	certPool := x509.NewCertPool()
+	require.True(t, certPool.AppendCertsFromPEM(webCertPEM))
+
+	reset := setSystemRoots(certPool)
+	defer reset()
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Proxy.KeyPairs = []servicecfg.KeyPairPath{{
+				PrivateKey:  webKeyPath,
+				Certificate: webCertPath,
+			}}
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 		}),
 	)
+
+	// just in case someone changes newTestSuite
+	require.False(t, lib.IsInsecureDevMode())
 
 	tests := []struct {
 		name string
@@ -102,7 +152,6 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	identityFile := mustLoginIdentity(t, s)
 	err = Run(context.Background(), []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
-		"--insecure",
 		"-i", identityFile,
 		"ssh",
 		"localhost",
@@ -127,7 +176,6 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	identityFile := mustLoginIdentity(t, s)
 	err := Run(context.Background(), []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
-		"--insecure",
 		"-i", identityFile,
 		"ssh",
 		"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
@@ -144,7 +192,6 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	// Switch to leaf cluster
 	err := Run(context.Background(), []string{
 		"login",
-		"--insecure",
 		s.leaf.Config.Auth.ClusterName.GetClusterName(),
 	}, setMockSSOLogin(t, s), setHomePath(tshHome))
 	require.NoError(t, err)
@@ -152,7 +199,6 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	// Connect to leaf node though jump host set to leaf proxy SSH port.
 	err = Run(context.Background(), []string{
 		"ssh",
-		"--insecure",
 		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
 		s.leaf.Config.Hostname,
 		"echo", "hello",
@@ -163,7 +209,6 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 		// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
 		err = Run(context.Background(), []string{
 			"ssh",
-			"--insecure",
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
 			s.leaf.Config.Hostname,
 			"echo", "hello",
@@ -179,13 +224,37 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 		// Check JumpHost flow when root cluster is offline.
 		err = Run(context.Background(), []string{
 			"ssh",
-			"--insecure",
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
 			s.leaf.Config.Hostname,
 			"echo", "hello",
 		}, setMockSSOLogin(t, s), setHomePath(tshHome))
 		require.NoError(t, err)
 	})
+}
+
+func generateWebPKICA(t *testing.T, certPath, keyPath string) (certPEM []byte) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(t, err)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
+	require.NotNil(t, keyPEM)
+
+	certPEM, err = tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: key,
+		Entity: pkix.Name{CommonName: "webpki ca"},
+		TTL:    time.Hour * 24 * 365,
+		// not sure why the CA needs to self-certify a specific address, but
+		// something in the crypto/tls verification checks for this when
+		// connecting to 127.0.0.1
+		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1)},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(certPath, certPEM, 0o644))
+	require.NoError(t, os.WriteFile(keyPath, keyPEM, 0o644))
+
+	return certPEM
 }
 
 // TestWithRsync tests that Teleport works with rsync.
