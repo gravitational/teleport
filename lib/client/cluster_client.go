@@ -358,7 +358,12 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
+	} else if authnChal.TOTP == nil && authnChal.WebauthnChallenge == nil {
+		// TODO(Joerger): DELETE IN 16.0.0 since CreateAuthenticateChallenge should return
+		// this error directly instead of an empty challenge.
+		return nil, nil, auth.ErrNoMFADevices
 	}
+
 	log.Debugf("MFA requirement from CreateAuthenticateChallenge, MFARequired=%s", authnChal.GetMFARequired())
 	if authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
 		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
