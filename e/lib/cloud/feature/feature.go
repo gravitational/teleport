@@ -77,6 +77,9 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 		DeviceTrust: modules.DeviceTrustFeature{
 			Enabled: true,
 		},
+		Policy: modules.PolicyFeature{
+			Enabled: resp.Policy,
+		},
 	}
 
 	// TODO(lisa): these should be set to true from salescenter.

@@ -224,6 +224,9 @@ func getLicenseFeatures(license types.License) modules.Features {
 			Enabled: true,
 		},
 		IdentityGovernanceSecurity: license.GetSupportsIdentityGovernanceSecurity().Value(),
+		Policy: modules.PolicyFeature{
+			Enabled: license.GetSupportsPolicy().Value(),
+		},
 	}
 
 	// There is only two types of `on-prem` licenses:

@@ -126,8 +126,8 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		// since Cloud features are loaded dynamically. More detailed explanation in:
 		// https://github.com/gravitational/teleport/blob/3af6d9c1a25836bb160589a27a7d168a19a4992b/lib/service/service.go#L1873
 		features := modules.GetModules().Features()
-		if features.Cloud && !features.IsTeam() {
-			cfg.Log.Info("Access Graph specified in config, but the Cloud license is not for the Team plan. Access Graph sync will not be enabled")
+		if !features.Policy.Enabled {
+			cfg.Log.Info("Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
 			return nil
 		}
 		modules.GetModules().EnableAccessGraph()
