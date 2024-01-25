@@ -28,14 +28,11 @@ export function getWebAppLaunchUrl({
   rootCluster: Cluster;
   cluster: Cluster;
 }): string {
-  const { fqdn, publicAddr } = app;
-
-  const canCreateUrl =
-    rootCluster.proxyHost && fqdn && cluster?.name && publicAddr;
-
-  if (!canCreateUrl) {
+  if (!isWebApp(app)) {
     return '';
   }
+
+  const { fqdn, publicAddr } = app;
   return `https://${rootCluster.proxyHost}/web/launch/${fqdn}/${cluster.name}/${publicAddr}`;
 }
 
