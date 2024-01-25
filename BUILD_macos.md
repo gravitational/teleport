@@ -81,6 +81,11 @@ PRs with corrections and updates are welcome!
   * `brew install node yarn`
   * Currently, [`yarn`](https://classic.yarnpkg.com/en/docs/install) (< 2.0.0) is required
 
+* Yarn uses wasm-pack, so if that's not present, we need to install it
+  ```shell
+  curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+  ```
+
 ##### Local Tests Dependencies
 
 To run a full test suite locally, you will need
