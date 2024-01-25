@@ -20,7 +20,6 @@ package resources
 
 import (
 	"context"
-	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 )
 
 // roleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile roles
