@@ -141,6 +141,7 @@ export function convertUserPreferences(
   return {
     ...preferences,
     clusterPreferences: {
+      ...preferences.clusterPreferences,
       pinnedResources:
         preferences.clusterPreferences?.pinnedResources?.resourceIds ?? [],
     },
@@ -153,6 +154,7 @@ export function convertBackendUserPreferences(
   return {
     ...preferences,
     clusterPreferences: {
+      ...preferences.clusterPreferences,
       pinnedResources: {
         resourceIds: preferences.clusterPreferences?.pinnedResources ?? [],
       },
