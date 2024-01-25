@@ -77,6 +77,44 @@ export interface UserLoginEvent {
     requiredPrivateKeyPolicy: string;
 }
 /**
+ * MFAAuthenticationEvent is emitted when a user performs MFA authentication.
+ *
+ * @generated from protobuf message prehog.v1alpha.MFAAuthenticationEvent
+ */
+export interface MFAAuthenticationEvent {
+    /**
+     * anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
+     * should always be a real user as bots and service accounts with long-term
+     * credentials don't ever login
+     *
+     * PostHog property: tp.user_name
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * anonymized device ID, empty or 32 bytes (HMAC-SHA-256) encoded in base64;
+     * for logins where device trust is enabled
+     *
+     * PostHog property: tp.device_id
+     *
+     * @generated from protobuf field: string device_id = 2;
+     */
+    deviceId: string;
+    /**
+     * device type is the type of MFA device used
+     *
+     * @generated from protobuf field: string device_type = 3;
+     */
+    deviceType: string;
+    /**
+     * the authorization scope the MFA authentication
+     *
+     * @generated from protobuf field: string mfa_challenge_scope = 4;
+     */
+    mfaChallengeScope: string;
+}
+/**
  * @generated from protobuf message prehog.v1alpha.SSOCreateEvent
  */
 export interface SSOCreateEvent {
@@ -2500,6 +2538,12 @@ export interface SubmitEventRequest {
          */
         accessListReviewCompliance: AccessListReviewComplianceEvent;
     } | {
+        oneofKind: "mfaAuthenticationEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.MFAAuthenticationEvent mfa_authentication_event = 78;
+         */
+        mfaAuthenticationEvent: MFAAuthenticationEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -3153,6 +3197,77 @@ class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
  * @generated MessageType for protobuf message prehog.v1alpha.UserLoginEvent
  */
 export const UserLoginEvent = new UserLoginEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class MFAAuthenticationEvent$Type extends MessageType<MFAAuthenticationEvent> {
+    constructor() {
+        super("prehog.v1alpha.MFAAuthenticationEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "device_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "device_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "mfa_challenge_scope", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<MFAAuthenticationEvent>): MFAAuthenticationEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.deviceId = "";
+        message.deviceType = "";
+        message.mfaChallengeScope = "";
+        if (value !== undefined)
+            reflectionMergePartial<MFAAuthenticationEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MFAAuthenticationEvent): MFAAuthenticationEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* string device_id */ 2:
+                    message.deviceId = reader.string();
+                    break;
+                case /* string device_type */ 3:
+                    message.deviceType = reader.string();
+                    break;
+                case /* string mfa_challenge_scope */ 4:
+                    message.mfaChallengeScope = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: MFAAuthenticationEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* string device_id = 2; */
+        if (message.deviceId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.deviceId);
+        /* string device_type = 3; */
+        if (message.deviceType !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.deviceType);
+        /* string mfa_challenge_scope = 4; */
+        if (message.mfaChallengeScope !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.mfaChallengeScope);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.MFAAuthenticationEvent
+ */
+export const MFAAuthenticationEvent = new MFAAuthenticationEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SSOCreateEvent$Type extends MessageType<SSOCreateEvent> {
     constructor() {
@@ -8058,7 +8173,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 74, name: "discovery_fetch_event", kind: "message", oneof: "event", T: () => DiscoveryFetchEvent },
             { no: 75, name: "access_list_review_create", kind: "message", oneof: "event", T: () => AccessListReviewCreateEvent },
             { no: 76, name: "access_list_review_delete", kind: "message", oneof: "event", T: () => AccessListReviewDeleteEvent },
-            { no: 77, name: "access_list_review_compliance", kind: "message", oneof: "event", T: () => AccessListReviewComplianceEvent }
+            { no: 77, name: "access_list_review_compliance", kind: "message", oneof: "event", T: () => AccessListReviewComplianceEvent },
+            { no: 78, name: "mfa_authentication_event", kind: "message", oneof: "event", T: () => MFAAuthenticationEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -8524,6 +8640,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         accessListReviewCompliance: AccessListReviewComplianceEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessListReviewCompliance)
                     };
                     break;
+                case /* prehog.v1alpha.MFAAuthenticationEvent mfa_authentication_event */ 78:
+                    message.event = {
+                        oneofKind: "mfaAuthenticationEvent",
+                        mfaAuthenticationEvent: MFAAuthenticationEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).mfaAuthenticationEvent)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -8764,6 +8886,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.AccessListReviewComplianceEvent access_list_review_compliance = 77; */
         if (message.event.oneofKind === "accessListReviewCompliance")
             AccessListReviewComplianceEvent.internalBinaryWrite(message.event.accessListReviewCompliance, writer.tag(77, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.MFAAuthenticationEvent mfa_authentication_event = 78; */
+        if (message.event.oneofKind === "mfaAuthenticationEvent")
+            MFAAuthenticationEvent.internalBinaryWrite(message.event.mfaAuthenticationEvent, writer.tag(78, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
