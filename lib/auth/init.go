@@ -611,13 +611,22 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 			if err := asrv.ensureLocalAdditionalKeys(ctx, ca); err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
+			ca, err = asrv.Services.GetCertAuthority(ctx, caID, true)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			usableKeysResult, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+		} else {
+			log.Warnf("This Auth Service is configured to use %s but the %s CA contains only %s. "+
+				"No new certificates can be signed with the existing keys. "+
+				"You must perform a CA rotation to generate new keys, or adjust your configuration to use the existing keys.",
+				usableKeysResult.PreferredKeyType,
+				caID.Type,
+				strings.Join(usableKeysResult.CAKeyTypes, " and "))
 		}
-		log.Warnf("This Auth Service is configured to use %s but the %s CA contains only %s. "+
-			"No new certificates can be signed with the existing keys. "+
-			"You must perform a CA rotation to generate new keys, or adjust your configuration to use the existing keys.",
-			usableKeysResult.PreferredKeyType,
-			caID.Type,
-			strings.Join(usableKeysResult.CAKeyTypes, " and "))
 	} else if !usableKeysResult.CAHasPreferredKeyType {
 		log.Warnf("This Auth Service is configured to use %s but the %s CA contains only %s. "+
 			"New certificates will continue to be signed with raw software keys but you must perform a CA rotation to begin using %s.",
