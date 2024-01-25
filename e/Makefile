@@ -174,7 +174,7 @@ else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
 CGOFLAG = CGO_ENABLED=1 $(if $(IS_NATIVE_BUILD),,CC=arm-linux-gnueabihf-gcc)
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 
 endif
 endif
