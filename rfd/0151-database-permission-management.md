@@ -36,11 +36,12 @@ import rule defines a set of database labels that must match in order for the
 import rule to fire. The rules are processed in order (as defined by the
 `priority` field).
 
-Each import rule defines a set mappings. Individual mapping consists of a set of
-attributes to match, like `name`, `object kind` or `schema`, and a list of
-labels to apply. The expected values for an attribute are specified as a list,
-while the matching uses glob-like semantics, with `*` matching any set of
-characters.
+Each import rule defines a set mappings. Individual mapping consists of a scope
+definition (`database_names`, `schema_names`), object names to match
+(`procedure_names`, `table_names`, ...) and a list of labels to apply. The
+expected values for object names are specified as a list, while the matching
+uses glob-like semantics, with `*` matching any set of characters. Empty list of
+names matches nothing, while an empty scope matches everything.
 
 #### Examples
 
@@ -165,12 +166,8 @@ spec:
         custom_label: my_custom_value
         env: staging
       match:
-        procedure_names:
-          - ''
         table_names:
           - '*'
-        view_names:
-          - ''
       scope:
         schema_names:
           - public
@@ -192,14 +189,10 @@ spec:
         custom_label: my_custom_value
         env: dev
       match:
-        procedure_names:
-          - ''
         table_names:
           - table1
           - table2
           - table3
-        view_names:
-          - ''
       scope:
         schema_names:
           - public
@@ -297,33 +290,18 @@ spec:
     - add_labels:
         kind: table
       match:
-        procedure_names:
-          - ''
         table_names:
           - '*'
-        view_names:
-          - ''
-      scope: {}
     - add_labels:
         kind: view
       match:
-        procedure_names:
-          - ''
-        table_names:
-          - ''
         view_names:
           - '*'
-      scope: {}
     - add_labels:
         kind: procedure
       match:
         procedure_names:
           - '*'
-        table_names:
-          - ''
-        view_names:
-          - ''
-      scope: {}
   priority: 100
 version: v1
 ```
