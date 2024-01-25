@@ -753,7 +753,7 @@ func (f *Forwarder) setupContext(
 	if !isRemoteCluster {
 		kubeServers, err = f.getKubernetesServersForKubeCluster(ctx, kubeCluster)
 		if err != nil || len(kubeServers) == 0 {
-			return nil, trace.NotFound("cluster %q not found", kubeCluster)
+			return nil, trace.NotFound("kube cluster %q not found", kubeCluster)
 		}
 	}
 	if f.isLocalKubeCluster(isRemoteCluster, kubeCluster) {
