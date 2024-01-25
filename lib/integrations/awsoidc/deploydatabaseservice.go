@@ -65,6 +65,10 @@ type DeployDatabaseServiceRequest struct {
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
 	ResourceCreationTags AWSTags
 
+	// DeployServiceConfigString creates a teleport.yaml configuration that the agent
+	// deployed in a ECS Cluster (using Fargate) will use.
+	DeployServiceConfigString func(proxyHostPort, iamToken string, resourceMatcherLabels types.Labels) (string, error)
+
 	// ecsClusterName is the ECS Cluster Name to be used.
 	// It is based on the Teleport Cluster's Name.
 	ecsClusterName string
@@ -117,6 +121,10 @@ func (r *DeployDatabaseServiceRequest) CheckAndSetDefaults() error {
 
 	if r.ResourceCreationTags == nil {
 		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+	}
+
+	if r.DeployServiceConfigString == nil {
+		return trace.BadParameter("deploy service config is required")
 	}
 
 	r.ecsClusterName = normalizeECSClusterName(r.TeleportClusterName)
@@ -218,16 +226,15 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 	}
 
 	for _, deployment := range req.Deployments {
-		teleportConfigString, err := generateTeleportConfigString(generateTeleportConfigParams{
-			ProxyServerHostPort:  req.ProxyServerHostPort,
-			TeleportIAMTokenName: req.teleportIAMTokenNameForTask,
-			DeploymentMode:       DatabaseServiceDeploymentMode,
-			DatabaseResourceMatcherLabels: types.Labels{
+		teleportConfigString, err := req.DeployServiceConfigString(
+			req.ProxyServerHostPort,
+			req.teleportIAMTokenNameForTask,
+			types.Labels{
 				types.DiscoveryLabelRegion:    []string{req.Region},
 				types.DiscoveryLabelAccountID: []string{req.accountID},
 				types.DiscoveryLabelVPCID:     []string{deployment.VPCID},
 			},
-		})
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
