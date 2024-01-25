@@ -1740,83 +1740,6 @@ func (s *IdentityService) UpsertRecoveryCodes(ctx context.Context, user string, 
 	return trace.Wrap(err)
 }
 
-// CreateUserRecoveryAttempt creates new user recovery attempt.
-func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error {
-	if user == "" {
-		return trace.BadParameter("missing parameter user")
-	}
-
-	if err := attempt.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	value, err := json.Marshal(attempt)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New().String()),
-		Value:   value,
-		Expires: attempt.Expires,
-	}
-
-	_, err = s.Create(ctx, item)
-	return trace.Wrap(err)
-}
-
-// GetUserRecoveryAttempts returns users recovery attempts.
-func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error) {
-	if user == "" {
-		return nil, trace.BadParameter("missing parameter user")
-	}
-
-	startKey := backend.ExactKey(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out := make([]*types.RecoveryAttempt, len(result.Items))
-	for i, item := range result.Items {
-		var a types.RecoveryAttempt
-		if err := json.Unmarshal(item.Value, &a); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out[i] = &a
-	}
-
-	sort.Sort(recoveryAttemptsChronologically(out))
-
-	return out, nil
-}
-
-// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
-func (s *IdentityService) DeleteUserRecoveryAttempts(ctx context.Context, user string) error {
-	if user == "" {
-		return trace.BadParameter("missing parameter user")
-	}
-
-	startKey := backend.ExactKey(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
-	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
-}
-
-// recoveryAttemptsChronologically sorts recovery attempts by oldest to latest time.
-type recoveryAttemptsChronologically []*types.RecoveryAttempt
-
-func (s recoveryAttemptsChronologically) Len() int {
-	return len(s)
-}
-
-// Less stacks latest attempts to the end of the list.
-func (s recoveryAttemptsChronologically) Less(i, j int) bool {
-	return s[i].Time.Before(s[j].Time)
-}
-
-func (s recoveryAttemptsChronologically) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 // UpsertKeyAttestationData upserts a verified public key attestation response.
 func (s *IdentityService) UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error {
 	value, err := json.Marshal(attestationData)
@@ -1895,7 +1818,6 @@ const (
 	webauthnLocalAuthPrefix     = "webauthnlocalauth"
 	webauthnSessionData         = "webauthnsessiondata"
 	recoveryCodesPrefix         = "recoverycodes"
-	recoveryAttemptsPrefix      = "recoveryattempts"
 	attestationsPrefix          = "key_attestations"
 	assistantMessagePrefix      = "assistant_messages"
 	assistantConversationPrefix = "assistant_conversations"
