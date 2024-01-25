@@ -173,7 +173,7 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 
 	token := c.value
 	if c.value == "" {
-		token, err = utils.CryptoRandomHex(auth.TokenLenBytes)
+		token, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return trace.Wrap(err, "generating token value")
 		}
