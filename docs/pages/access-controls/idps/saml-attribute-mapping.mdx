@@ -10,9 +10,9 @@ The Teleport SAML IdP supports three configurable fields for attribute mapping:
 - `value`: Value defined using a [predicate expression](../../reference/predicate-language.mdx), which can reference
 Teleport usernames, roles or traits. Required.
 - `name_format`: SAML attribute name format. Optional. The following formats are supported:
-    - `unspecified`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified`. Used as a default value.
-    - `uri`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:uri`.
-    - `basic`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:basic`.
+ - `unspecified`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified`. Used as a default value.
+ - `uri`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:uri`.
+ - `basic`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:basic`.
 
 Attribute mapping can be configured when adding a SAML application in Teleport web UI, or with `saml_idp_service_provider`
 resource spec created with `tctl create` or via API.
