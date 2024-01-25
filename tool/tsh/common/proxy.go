@@ -659,9 +659,8 @@ Use the following credentials to connect to the {{.database}} proxy:
   ca_file={{.ca}}
   cert_file={{.cert}}
   key_file={{.key}}
-  db_user={{.databaseUser}}
-{{if .databaseName}}  db_name={{.databaseName}}
-{{end -}}
+
+Your database user is "{{.databaseUser}}".{{if .databaseName}} The target database name is "{{.databaseName}}"".{{end}}
 
 `))
 
