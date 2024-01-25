@@ -640,3 +640,24 @@ export function makeApp(source: tsh.App): App {
 
   return { ...source, addrWithProtocol };
 }
+
+/** Returns a URL that can be used to open the app in a browser. */
+export function getWebAppLaunchUrl(
+  app: tsh.App,
+  clustersService: ClustersService
+): string {
+  const { fqdn, publicAddr } = app;
+
+  const rootCluster = clustersService.findCluster(
+    routing.ensureRootClusterUri(app.uri)
+  );
+  const cluster = clustersService.findClusterByResource(app.uri);
+
+  const canCreateUrl =
+    rootCluster.proxyHost && fqdn && cluster?.name && publicAddr;
+
+  if (!canCreateUrl) {
+    return '';
+  }
+  return `https://${rootCluster.proxyHost}/web/launch/${fqdn}/${cluster.name}/${publicAddr}`;
+}
