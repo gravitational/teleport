@@ -18,7 +18,7 @@
 
 import { App, Cluster } from 'teleterm/services/tshd/types';
 
-/** Returns a URL that can be used to open the app in a browser. */
+/** Returns a URL that can be used to open the app in the browser. */
 export function getWebAppLaunchUrl({
   app,
   cluster,
