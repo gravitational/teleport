@@ -5667,11 +5667,21 @@ message PluginOktaSyncSettings {
   string app_id = 5;
 
   // GroupFilters are filters for which Okta groups to synchronize as access lists.
-  // These are globs/regexes.
+  // Filters can be globs, for example:
+  //   group*
+  //   *service*
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //   ^group.*$
+  //   ^.*service.*$
   repeated string group_filters = 6;
 
   // AppFilters are filters for which Okta applications to synchronize as access lists.
-  // These are globs/regexes.
+  // Filters can be globs, for example:
+  //   app*
+  //   *service*
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //   ^app.*$
+  //   ^.*service.*$
   repeated string app_filters = 7;
 }
 
