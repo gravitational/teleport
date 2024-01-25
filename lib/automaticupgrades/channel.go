@@ -20,11 +20,12 @@ package automaticupgrades
 
 import (
 	"context"
-	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
