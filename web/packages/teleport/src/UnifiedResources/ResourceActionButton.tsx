@@ -152,9 +152,14 @@ const AppLaunch = ({ app }: { app: App }) => {
     return (
       <AwsLaunchButton
         awsRoles={awsRoles}
-        fqdn={fqdn}
-        clusterId={clusterId}
-        publicAddr={publicAddr}
+        getLaunchUrl={arn =>
+          cfg.getAppLauncherRoute({
+            fqdn,
+            clusterId,
+            publicAddr,
+            arn,
+          })
+        }
       />
     );
   }

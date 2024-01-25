@@ -22,7 +22,6 @@ import { ButtonBorder, Text } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { ChevronDown } from 'design/Icon';
 
-import cfg from 'teleport/config';
 import { AwsRole } from 'teleport/services/apps';
 
 export class AwsLaunchButton extends React.Component<Props> {
@@ -43,7 +42,7 @@ export class AwsLaunchButton extends React.Component<Props> {
 
   render() {
     const { open } = this.state;
-    const { awsRoles, fqdn, clusterId, publicAddr } = this.props;
+    const { awsRoles, getLaunchUrl } = this.props;
     return (
       <>
         <ButtonBorder
@@ -76,9 +75,7 @@ export class AwsLaunchButton extends React.Component<Props> {
         >
           <RoleItemList
             awsRoles={awsRoles}
-            fqdn={fqdn}
-            clusterId={clusterId}
-            publicAddr={publicAddr}
+            getLaunchUrl={getLaunchUrl}
             closeMenu={this.onClose}
           />
         </Menu>
@@ -89,19 +86,12 @@ export class AwsLaunchButton extends React.Component<Props> {
 
 function RoleItemList({
   awsRoles,
-  fqdn,
-  clusterId,
-  publicAddr,
+  getLaunchUrl,
   closeMenu,
 }: Props & { closeMenu: () => void }) {
   const awsRoleItems = awsRoles.map((item, key) => {
     const { display, arn } = item;
-    const launchUrl = cfg.getAppLauncherRoute({
-      fqdn,
-      clusterId,
-      publicAddr,
-      arn,
-    });
+    const launchUrl = getLaunchUrl(arn);
     return (
       <StyledMenuItem
         as="a"
@@ -144,9 +134,7 @@ function RoleItemList({
 
 type Props = {
   awsRoles: AwsRole[];
-  fqdn: string;
-  clusterId: string;
-  publicAddr: string;
+  getLaunchUrl(arn: string): string;
 };
 
 const StyledMenuItem = styled(MenuItem)(
