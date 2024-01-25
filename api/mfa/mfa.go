@@ -33,9 +33,16 @@ import (
 // ResponseMetadataKey is the context metadata key for an MFA response in a gRPC request.
 const ResponseMetadataKey = "mfa_challenge_response"
 
-// ErrAdminActionMFARequired is an error indicating that an admin-level
-// API request failed due to missing MFA verification.
-var ErrAdminActionMFARequired = trace.AccessDeniedError{Message: "admin-level API request requires MFA verification"}
+var (
+	// ErrAdminActionMFARequired is an error indicating that an admin-level
+	// API request failed due to missing MFA verification.
+	ErrAdminActionMFARequired = trace.AccessDeniedError{Message: "admin-level API request requires MFA verification"}
+
+	// ErrMFANotRequired is returned by MFA ceremonies when it is discovered or
+	// inferred that the MFA ceremony is not necessary. This is usually because
+	// the server does require/support MFA for the user.
+	ErrMFANotRequired = trace.BadParameterError{Message: "re-authentication with MFA is not required"}
+)
 
 // WithCredentials can be called on a GRPC client request to attach
 // MFA credentials to the GRPC metadata for requests that require MFA,
