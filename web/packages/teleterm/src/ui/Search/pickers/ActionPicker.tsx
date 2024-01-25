@@ -768,7 +768,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
       >
         <Text typography="body1">
           {isWebApp(app) ? (
-            <>Launch {$appName} app in a browser</>
+            <>Launch {$appName} app in the browser</>
           ) : (
             <>Set up an app connection to {$appName}</>
           )}

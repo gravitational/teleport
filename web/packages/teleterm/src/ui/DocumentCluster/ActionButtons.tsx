@@ -210,7 +210,7 @@ function AppButton(props: {
   if (!props.isWebApp) {
     return (
       <ButtonBorder size="small" onClick={props.connect}>
-        Set up connection
+        Connect
       </ButtonBorder>
     );
   }
@@ -223,7 +223,7 @@ function AppButton(props: {
         href={props.launchUrl}
         onClick={props.onLaunchUrl}
         target="_blank"
-        title="Launch app in a browser"
+        title="Launch app in the browser"
         css={`
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
