@@ -5735,10 +5735,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	oktapb.RegisterOktaServiceServer(server, oktaServiceServer)
 
 	integrationServiceServer, err := integrationService.NewService(&integrationService.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
-		Cache:      cfg.AuthServer,
-		Clock:      cfg.AuthServer.clock,
+		Authorizer:      cfg.Authorizer,
+		Backend:         cfg.AuthServer.Services,
+		Cache:           cfg.AuthServer.Cache,
+		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
+		Clock:           cfg.AuthServer.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -44,21 +44,21 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.Gen
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetDomainName()
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.OIDCIdPCA,
-		DomainName: clusterName,
+		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Extract the JWT signing key and sign the claims.
-	signer, err := s.cache.GetKeyStore().GetJWTSigner(ctx, ca)
+	signer, err := s.keyStoreManager.GetJWTSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
