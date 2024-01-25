@@ -891,7 +891,7 @@ func TestJoinScript(t *testing.T) {
 	}
 
 	t.Run("direct download links", func(t *testing.T) {
-		getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://cnd\.teleport\.dev/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
+		getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://cdn\.teleport\.dev/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
 
 		t.Run("oss", func(t *testing.T) {
 			// Using the OSS Version, all the links must contain only teleport as package name.
