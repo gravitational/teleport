@@ -661,3 +661,13 @@ export function getWebAppLaunchUrl(
   }
   return `https://${rootCluster.proxyHost}/web/launch/${fqdn}/${cluster.name}/${publicAddr}`;
 }
+
+export function isWebApp(app: tsh.App): boolean {
+  if (app.samlApp || app.awsConsole) {
+    return false;
+  }
+  return (
+    app.endpointUri.startsWith('http://') ||
+    app.endpointUri.startsWith('https://')
+  );
+}

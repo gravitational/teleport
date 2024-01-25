@@ -16,16 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
-
-import { ButtonBorder } from 'design';
+import { ButtonBorder, MenuItem, Flex } from 'design';
+import { ChevronDown } from 'design/Icon';
+import Menu from 'design/Menu';
 
 import {
   connectToServer,
   connectToDatabase,
   connectToKube,
   connectToApp,
+  captureAppLaunchInBrowser,
 } from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -39,6 +41,7 @@ import {
 import { DatabaseUri } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import { isWebApp, getWebAppLaunchUrl } from 'teleterm/ui/services/clusters';
 
 export function ConnectServerActionButton(props: {
   server: Server;
@@ -105,9 +108,16 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   }
 
   return (
-    <ButtonBorder size="small" onClick={connect}>
-      Connect
-    </ButtonBorder>
+    <AppButton
+      connect={connect}
+      isWebApp={isWebApp(props.app)}
+      launchUrl={getWebAppLaunchUrl(props.app, appContext.clustersService)}
+      onLaunchUrl={() => {
+        captureAppLaunchInBrowser(appContext, props.app, {
+          origin: 'resource_table',
+        });
+      }}
+    />
   );
 }
 
@@ -179,4 +189,78 @@ async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
 
     throw e;
   }
+}
+
+function AppButton(props: {
+  isWebApp: boolean;
+  launchUrl: string;
+  connect(): void;
+  onLaunchUrl(): void;
+}) {
+  const ref = useRef<HTMLButtonElement>();
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!props.isWebApp) {
+    return (
+      <ButtonBorder size="small" onClick={props.connect}>
+        Set up connection
+      </ButtonBorder>
+    );
+  }
+
+  return (
+    <Flex>
+      <ButtonBorder
+        size="small"
+        forwardedAs="a"
+        href={props.launchUrl}
+        onClick={props.onLaunchUrl}
+        target="_blank"
+        title="Launch app in a browser"
+        css={`
+          border-top-right-radius: 0;
+          border-bottom-right-radius: 0;
+        `}
+      >
+        Launch
+      </ButtonBorder>
+      <ButtonBorder
+        css={`
+          border-left: none;
+          border-top-left-radius: 0;
+          border-bottom-left-radius: 0;
+        `}
+        setRef={ref}
+        px={1}
+        size="small"
+        onClick={() => setIsOpen(true)}
+      >
+        <ChevronDown size="small" color="text.slightlyMuted" />
+      </ButtonBorder>
+      <Menu
+        anchorEl={ref.current}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        // hack to properly position the menu
+        getContentAnchorEl={null}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <MenuItem
+          onClick={() => {
+            setIsOpen(false);
+            props.connect();
+          }}
+        >
+          Set up connection
+        </MenuItem>
+      </Menu>
+    </Flex>
+  );
 }
