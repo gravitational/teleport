@@ -68,3 +68,15 @@ export async function connectToApp(
     documentsService.open(doc.uri);
   }
 }
+
+/**
+ * When the app is opened outside Connect,
+ * the usage event has to be captured manually.
+ */
+export function captureAppLaunchInBrowser(
+  ctx: IAppContext,
+  target: Pick<App, 'uri'>,
+  telemetry: { origin: DocumentOrigin }
+) {
+  ctx.usageService.captureProtocolUse(target.uri, 'app', telemetry.origin);
+}
