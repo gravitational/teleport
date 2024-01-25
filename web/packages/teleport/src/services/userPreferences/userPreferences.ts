@@ -96,7 +96,10 @@ export function updateUserClusterPreferences(
 }
 
 export function updateUserPreferences(preferences: Partial<UserPreferences>) {
-  return api.put(cfg.api.userPreferencesPath, preferences);
+  return api.put(
+    cfg.api.userPreferencesPath,
+    convertUserPreferences(preferences as UserPreferences)
+  );
 }
 
 export function makeDefaultUserPreferences(): UserPreferences {
