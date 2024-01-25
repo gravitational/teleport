@@ -992,10 +992,6 @@
               "slug": "/server-access/guides/bpf-session-recording/"
             },
             {
-              "title": "Restricted Session",
-              "slug": "/server-access/guides/restricted-session/"
-            },
-            {
               "title": "Visual Studio Code",
               "slug": "/server-access/guides/vscode/"
             },
@@ -3048,6 +3044,11 @@
     {
       "source": "/management/admin/upgrading-the-teleport-binary/",
       "destination": "/upgrading/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/restricted-session/",
+      "destination": "/server-access/guides/",
       "permanent": true
     }
   ]

@@ -36,6 +36,10 @@ export default function createAbortController(): TshAbortController {
     // function from the shared package.
     //
     // TshAbortSignal doesn't accept the event name as the first argument.
+    //
+    // TshAbortSignal still needs to have some kind of a unique property so that Connect functions
+    // can enforce on a type level that they can only accept TshAbortSignal. Regular abort signals
+    // won't work in Connect since abort signals are often passed through the context bridge.
     addEventListener(cb: (...args: any[]) => void) {
       emitter.once('abort', cb);
     },
