@@ -25,7 +25,7 @@ import { ChevronDown } from 'design/Icon';
 import cfg from 'teleport/config';
 import { AwsRole } from 'teleport/services/apps';
 
-export default class AwsLaunchButton extends React.Component<Props> {
+export class AwsLaunchButton extends React.Component<Props> {
   anchorEl = React.createRef();
 
   state = {

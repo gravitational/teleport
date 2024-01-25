@@ -19,11 +19,11 @@
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
+import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
 
-import AwsLaunchButton from 'teleport/UnifiedResources/AwsLaunchButton/AwsLaunchButton';
 import useTeleport from 'teleport/useTeleport';
 import { Database } from 'teleport/services/databases';
 import { openNewTab } from 'teleport/lib/util';
