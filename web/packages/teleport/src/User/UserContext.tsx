@@ -83,7 +83,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     const prefs = await service.getUserClusterPreferences(clusterId);
     if (prefs) {
       clusterPreferences.current[clusterId] = prefs;
-      return prefs.pinnedResources;
+      return prefs.pinnedResources.resourceIds;
     }
     return null;
   }, []);

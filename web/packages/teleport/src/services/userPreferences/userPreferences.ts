@@ -61,16 +61,18 @@ export async function getUserPreferences(): Promise<UserPreferences> {
   return convertBackendUserPreferences(res);
 }
 
-export async function getUserClusterPreferences(clusterId: string) {
+export async function getUserClusterPreferences(
+  clusterId: string
+): Promise<ClusterUserPreferences> {
   return await api
     .get(cfg.getUserClusterPreferencesUrl(clusterId))
-    .then(res => {
+    .then((res: BackendClusterUserPreferences) => {
       // TODO (avatus) DELETE IN 16
       // this item is used to disabled the pinned resources button if they
       // haven't upgraded to 14.1.0 yet. Anything lower than 14 doesn't matter
       // because the unified resource view isn't enabled so pinning isn't there either
       localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
-      return res;
+      return convertBackendClusterUserPreferences(res);
     })
     .catch(res => {
       if (res.response?.status === 403 || res.response?.status === 404) {
@@ -153,11 +155,19 @@ export function convertBackendUserPreferences(
 ): UserPreferences {
   return {
     ...preferences,
-    clusterPreferences: {
-      ...preferences.clusterPreferences,
-      pinnedResources: {
-        resourceIds: preferences.clusterPreferences?.pinnedResources ?? [],
-      },
+    clusterPreferences: convertBackendClusterUserPreferences(
+      preferences.clusterPreferences
+    ),
+  };
+}
+
+export function convertBackendClusterUserPreferences(
+  clusterPreferences: BackendClusterUserPreferences
+): ClusterUserPreferences {
+  return {
+    ...clusterPreferences,
+    pinnedResources: {
+      resourceIds: clusterPreferences?.pinnedResources ?? [],
     },
   };
 }
