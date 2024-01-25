@@ -249,135 +249,143 @@ func TestManager(t *testing.T) {
 	const clusterName = "test-cluster"
 
 	for _, backendDesc := range pack.backends {
-		manager, err := NewManager(ctx, backendDesc.config)
-		require.NoError(t, err)
+		t.Run(backendDesc.name, func(t *testing.T) {
+			manager, err := NewManager(ctx, backendDesc.config)
+			require.NoError(t, err)
 
-		// Delete all keys to clean up the test.
-		t.Cleanup(func() {
-			require.NoError(t, manager.DeleteUnusedKeys(context.Background(), nil /*activeKeys*/))
+			// Delete all keys to clean up the test.
+			t.Cleanup(func() {
+				require.NoError(t, manager.DeleteUnusedKeys(context.Background(), nil /*activeKeys*/))
+			})
+
+			sshKeyPair, err := manager.NewSSHKeyPair(ctx)
+			require.NoError(t, err)
+			require.Equal(t, backendDesc.expectedKeyType, sshKeyPair.PrivateKeyType)
+
+			tlsKeyPair, err := manager.NewTLSKeyPair(ctx, clusterName)
+			require.NoError(t, err)
+			require.Equal(t, backendDesc.expectedKeyType, tlsKeyPair.KeyType)
+
+			jwtKeyPair, err := manager.NewJWTKeyPair(ctx)
+			require.NoError(t, err)
+			require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
+
+			// Test a CA with multiple active keypairs. Each element of ActiveKeys
+			// includes a keypair generated above and a PKCS11 keypair with a
+			// different hostID that this manager should not be able to use.
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: clusterName,
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{
+						testPKCS11SSHKeyPair,
+						sshKeyPair,
+					},
+					TLS: []*types.TLSKeyPair{
+						testPKCS11TLSKeyPair,
+						tlsKeyPair,
+					},
+					JWT: []*types.JWTKeyPair{
+						testPKCS11JWTKeyPair,
+						jwtKeyPair,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// Test that the manager is able to select the correct key and get a
+			// signer.
+			sshSigner, err := manager.GetSSHSigner(ctx, ca)
+			require.NoError(t, err, trace.DebugReport(err))
+			require.Equal(t, sshKeyPair.PublicKey, ssh.MarshalAuthorizedKey(sshSigner.PublicKey()))
+
+			tlsCert, tlsSigner, err := manager.GetTLSCertAndSigner(ctx, ca)
+			require.NoError(t, err)
+			require.Equal(t, tlsKeyPair.Cert, tlsCert)
+			require.NotNil(t, tlsSigner)
+
+			jwtSigner, err := manager.GetJWTSigner(ctx, ca)
+			require.NoError(t, err, trace.DebugReport(err))
+			pubkeyPem, err := utils.MarshalPublicKey(jwtSigner)
+			require.NoError(t, err)
+			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
+
+			// Test what happens when the CA has only raw keys, which will be the
+			// initial state when migrating from software to a HSM/KMS backend.
+			ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: clusterName,
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{
+						testRawSSHKeyPair,
+					},
+					TLS: []*types.TLSKeyPair{
+						testRawTLSKeyPair,
+					},
+					JWT: []*types.JWTKeyPair{
+						testRawJWTKeyPair,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// Manager should always be able to get a signer for software keys.
+			usableKeysResult, err := manager.HasUsableActiveKeys(ctx, ca)
+			require.NoError(t, err)
+			require.True(t, usableKeysResult.CAHasUsableKeys)
+			if backendDesc.expectedKeyType == types.PrivateKeyType_RAW {
+				require.True(t, usableKeysResult.CAHasPreferredKeyType)
+			} else {
+				require.False(t, usableKeysResult.CAHasPreferredKeyType)
+			}
+
+			sshSigner, err = manager.GetSSHSigner(ctx, ca)
+			require.NoError(t, err)
+			require.NotNil(t, sshSigner)
+
+			tlsCert, tlsSigner, err = manager.GetTLSCertAndSigner(ctx, ca)
+			require.NoError(t, err)
+			require.NotNil(t, tlsCert)
+			require.NotNil(t, tlsSigner)
+
+			jwtSigner, err = manager.GetJWTSigner(ctx, ca)
+			require.NoError(t, err)
+			require.NotNil(t, jwtSigner)
+
+			// Test a CA with only unusable keypairs - PKCS11 keypairs with a
+			// different hostID that this manager should not be able to use.
+			ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: clusterName,
+				ActiveKeys: types.CAKeySet{
+					SSH: []*types.SSHKeyPair{
+						testPKCS11SSHKeyPair,
+					},
+					TLS: []*types.TLSKeyPair{
+						testPKCS11TLSKeyPair,
+					},
+					JWT: []*types.JWTKeyPair{
+						testPKCS11JWTKeyPair,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			// The manager should not be able to select a key.
+			usableKeysResult, err = manager.HasUsableActiveKeys(ctx, ca)
+			require.NoError(t, err)
+			require.False(t, usableKeysResult.CAHasUsableKeys)
+			require.False(t, usableKeysResult.CAHasPreferredKeyType)
+
+			_, err = manager.GetSSHSigner(ctx, ca)
+			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+			_, _, err = manager.GetTLSCertAndSigner(ctx, ca)
+			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+			_, err = manager.GetJWTSigner(ctx, ca)
+			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 		})
-
-		sshKeyPair, err := manager.NewSSHKeyPair(ctx)
-		require.NoError(t, err)
-		require.Equal(t, backendDesc.expectedKeyType, sshKeyPair.PrivateKeyType)
-
-		tlsKeyPair, err := manager.NewTLSKeyPair(ctx, clusterName)
-		require.NoError(t, err)
-		require.Equal(t, backendDesc.expectedKeyType, tlsKeyPair.KeyType)
-
-		jwtKeyPair, err := manager.NewJWTKeyPair(ctx)
-		require.NoError(t, err)
-		require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
-
-		// Test a CA with multiple active keypairs. Each element of ActiveKeys
-		// includes a keypair generated above and a PKCS11 keypair with a
-		// different hostID that this manager should not be able to use.
-		ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.HostCA,
-			ClusterName: clusterName,
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{
-					testPKCS11SSHKeyPair,
-					sshKeyPair,
-				},
-				TLS: []*types.TLSKeyPair{
-					testPKCS11TLSKeyPair,
-					tlsKeyPair,
-				},
-				JWT: []*types.JWTKeyPair{
-					testPKCS11JWTKeyPair,
-					jwtKeyPair,
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		// Test that the manager is able to select the correct key and get a
-		// signer.
-		sshSigner, err := manager.GetSSHSigner(ctx, ca)
-		require.NoError(t, err, trace.DebugReport(err))
-		require.Equal(t, sshKeyPair.PublicKey, ssh.MarshalAuthorizedKey(sshSigner.PublicKey()))
-
-		tlsCert, tlsSigner, err := manager.GetTLSCertAndSigner(ctx, ca)
-		require.NoError(t, err)
-		require.Equal(t, tlsKeyPair.Cert, tlsCert)
-		require.NotNil(t, tlsSigner)
-
-		jwtSigner, err := manager.GetJWTSigner(ctx, ca)
-		require.NoError(t, err, trace.DebugReport(err))
-		pubkeyPem, err := utils.MarshalPublicKey(jwtSigner)
-		require.NoError(t, err)
-		require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
-
-		// Test what happens when the CA has only raw keys, which will be the
-		// initial state when migrating from software to a HSM/KMS backend.
-		ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.HostCA,
-			ClusterName: clusterName,
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{
-					testRawSSHKeyPair,
-				},
-				TLS: []*types.TLSKeyPair{
-					testRawTLSKeyPair,
-				},
-				JWT: []*types.JWTKeyPair{
-					testRawJWTKeyPair,
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		// Manager should always be able to get a signer for software keys.
-		hasUsableKeys, err := manager.HasUsableActiveKeys(ctx, ca)
-		require.NoError(t, err)
-		require.True(t, hasUsableKeys)
-
-		sshSigner, err = manager.GetSSHSigner(ctx, ca)
-		require.NoError(t, err)
-		require.NotNil(t, sshSigner)
-
-		tlsCert, tlsSigner, err = manager.GetTLSCertAndSigner(ctx, ca)
-		require.NoError(t, err)
-		require.NotNil(t, tlsCert)
-		require.NotNil(t, tlsSigner)
-
-		jwtSigner, err = manager.GetJWTSigner(ctx, ca)
-		require.NoError(t, err)
-		require.NotNil(t, jwtSigner)
-
-		// Test a CA with only unusable keypairs - PKCS11 keypairs with a
-		// different hostID that this manager should not be able to use.
-		ca, err = types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.HostCA,
-			ClusterName: clusterName,
-			ActiveKeys: types.CAKeySet{
-				SSH: []*types.SSHKeyPair{
-					testPKCS11SSHKeyPair,
-				},
-				TLS: []*types.TLSKeyPair{
-					testPKCS11TLSKeyPair,
-				},
-				JWT: []*types.JWTKeyPair{
-					testPKCS11JWTKeyPair,
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		// The manager should not be able to select a key.
-		hasUsableKeys, err = manager.HasUsableActiveKeys(ctx, ca)
-		require.NoError(t, err)
-		require.False(t, hasUsableKeys)
-
-		_, err = manager.GetSSHSigner(ctx, ca)
-		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
-
-		_, _, err = manager.GetTLSCertAndSigner(ctx, ca)
-		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
-
-		_, err = manager.GetJWTSigner(ctx, ca)
-		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 	}
 }
 
