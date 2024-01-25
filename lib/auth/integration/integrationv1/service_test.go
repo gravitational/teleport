@@ -382,26 +382,22 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	})
 	require.NoError(t, err)
 
-	caGetter := &mockCAGetter{
+	cache := &mockCache{
 		domainName: clusterName,
 		ca:         ca,
 		keystore:   keystoreManager,
-	}
-
-	proxiesGetter := &mockProxyGetter{
 		proxies: []types.Server{
 			&types.ServerV2{Spec: types.ServerSpecV2{
 				PublicAddrs: []string{proxyPublicAddr},
 			}},
 		},
+		IntegrationsService: *localResourceService,
 	}
 
 	resourceSvc, err := NewService(&ServiceConfig{
-		Backend:       localResourceService,
-		Authorizer:    authorizer,
-		Cache:         localResourceService,
-		CAGetter:      caGetter,
-		ProxiesGetter: proxiesGetter,
+		Backend:    localResourceService,
+		Authorizer: authorizer,
+		Cache:      cache,
 	})
 	require.NoError(t, err)
 
@@ -416,38 +412,37 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	}, resourceSvc
 }
 
-type mockProxyGetter struct {
+type mockCache struct {
+	domainName string
+	ca         types.CertAuthority
+	keystore   *keystore.Manager
+
 	proxies   []types.Server
 	returnErr error
+
+	local.IntegrationsService
 }
 
-func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
+func (m *mockCache) GetProxies() ([]types.Server, error) {
 	if m.returnErr != nil {
 		return nil, m.returnErr
 	}
 	return m.proxies, nil
 }
 
-// mockCAGetter implements CAGetter.
-type mockCAGetter struct {
-	domainName string
-	ca         types.CertAuthority
-	keystore   *keystore.Manager
-}
-
 // GetDomainName returns local auth domain of the current auth server
-func (m *mockCAGetter) GetDomainName() (string, error) {
+func (m *mockCache) GetDomainName() (string, error) {
 	return m.domainName, nil
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (m *mockCAGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+func (m *mockCache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
 	return m.ca, nil
 }
 
 // GetKeyStore returns the KeyStore used by the auth server
-func (m *mockCAGetter) GetKeyStore() *keystore.Manager {
+func (m *mockCache) GetKeyStore() *keystore.Manager {
 	return m.keystore
 }
 

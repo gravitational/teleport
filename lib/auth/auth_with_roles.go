@@ -279,7 +279,7 @@ func (a *ServerWithRoles) integrationsService() (*integrationv1.Service, error) 
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:   a.authServer.Cache,
+		Cache:   a.authServer,
 		Backend: a.authServer.Services,
 	})
 	if err != nil {

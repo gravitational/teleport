@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// CAGetter describes the required methods to sign a JWT to be used for AWS OIDC Integration.
-type CAGetter interface {
+// Cache is the subset of the cached resources that the Service queries.
+type Cache interface {
 	// GetDomainName returns local auth domain of the current auth server
 	GetDomainName() (string, error)
 
@@ -44,24 +44,22 @@ type CAGetter interface {
 
 	// GetKeyStore returns the KeyStore used by the auth server
 	GetKeyStore() *keystore.Manager
-}
 
-// ProxyGetter is a service that gets proxies.
-type ProxiesGetter interface {
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]types.Server, error)
+
+	// IntegrationsGetter defines methods to access Integration resources.
+	services.IntegrationsGetter
 }
 
 // ServiceConfig holds configuration options for
 // the Integration gRPC service.
 type ServiceConfig struct {
-	Authorizer    authz.Authorizer
-	Cache         services.IntegrationsGetter
-	Backend       services.Integrations
-	CAGetter      CAGetter
-	ProxiesGetter ProxiesGetter
-	Logger        *logrus.Entry
-	Clock         clockwork.Clock
+	Authorizer authz.Authorizer
+	Backend    services.Integrations
+	Cache      Cache
+	Logger     *logrus.Entry
+	Clock      clockwork.Clock
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -80,14 +78,6 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("authorizer is required")
 	}
 
-	if s.CAGetter == nil {
-		return trace.BadParameter("ca getter is required")
-	}
-
-	if s.ProxiesGetter == nil {
-		return trace.BadParameter("proxies getter is required")
-	}
-
 	if s.Logger == nil {
 		s.Logger = logrus.WithField(trace.Component, "integrations.service")
 	}
@@ -102,13 +92,11 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 // Service implements the teleport.integration.v1.IntegrationService RPC service.
 type Service struct {
 	integrationpb.UnimplementedIntegrationServiceServer
-	authorizer    authz.Authorizer
-	cache         services.IntegrationsGetter
-	backend       services.Integrations
-	caGetter      CAGetter
-	proxiesGetter ProxiesGetter
-	logger        *logrus.Entry
-	clock         clockwork.Clock
+	authorizer authz.Authorizer
+	cache      Cache
+	backend    services.Integrations
+	logger     *logrus.Entry
+	clock      clockwork.Clock
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -118,13 +106,11 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:        cfg.Logger,
-		authorizer:    cfg.Authorizer,
-		cache:         cfg.Cache,
-		backend:       cfg.Backend,
-		caGetter:      cfg.CAGetter,
-		proxiesGetter: cfg.ProxiesGetter,
-		clock:         cfg.Clock,
+		logger:     cfg.Logger,
+		authorizer: cfg.Authorizer,
+		cache:      cfg.Cache,
+		backend:    cfg.Backend,
+		clock:      cfg.Clock,
 	}, nil
 }
 
