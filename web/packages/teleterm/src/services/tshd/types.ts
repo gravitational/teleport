@@ -179,6 +179,14 @@ export interface Cluster extends apiCluster.Cluster.AsObject {
    * user is yet to log in, loggedInUser is not present.
    */
   loggedInUser?: LoggedInUser;
+  /**
+   * Address of the proxy used to connect to this cluster. Always includes port number. Present only
+   * for root clusters.
+   *
+   * @example
+   * "teleport-14-ent.example.com:3090"
+   */
+  proxyHost: string;
 }
 
 /**
@@ -224,7 +232,7 @@ export type LoginPasswordlessRequest =
   Partial<apiService.LoginPasswordlessRequest.AsObject>;
 
 export type TshdClient = {
-  listRootClusters: () => Promise<Cluster[]>;
+  listRootClusters: (abortSignal?: TshAbortSignal) => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
   getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
   getApps: (params: GetResourcesParams) => Promise<GetAppsResponse>;
