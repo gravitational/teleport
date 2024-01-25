@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -67,6 +66,10 @@ import (
 
 // TestSSH verifies "tsh ssh" command.
 func TestSSH(t *testing.T) {
+	if webpkiCACert == nil {
+		t.Skip("the current platform doesn't support adding CAs to the system pool")
+	}
+
 	t.Setenv("_TELEPORT_TEST_NO_PARALLEL", "1")
 	defer lib.SetInsecureDevMode(lib.IsInsecureDevMode())
 	lib.SetInsecureDevMode(false)
@@ -74,12 +77,7 @@ func TestSSH(t *testing.T) {
 	d := t.TempDir()
 	webCertPath := path.Join(d, "cert.pem")
 	webKeyPath := path.Join(d, "key.pem")
-	webCertPEM := generateWebPKICA(t, webCertPath, webKeyPath)
-
-	certPool := x509.NewCertPool()
-	require.True(t, certPool.AppendCertsFromPEM(webCertPEM))
-
-	helpers.OverrideSystemRoots(t, certPool)
+	generateWebPKICert(t, webCertPath, webKeyPath)
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
@@ -207,7 +205,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	})
 }
 
-func generateWebPKICA(t *testing.T, certPath, keyPath string) (certPEM []byte) {
+func generateWebPKICert(t *testing.T, certPath, keyPath string) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
@@ -215,21 +213,21 @@ func generateWebPKICA(t *testing.T, certPath, keyPath string) (certPEM []byte) {
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
 	require.NotNil(t, keyPEM)
 
-	certPEM, err = tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Signer: key,
-		Entity: pkix.Name{CommonName: "webpki ca"},
-		TTL:    time.Hour * 24 * 365,
-		// not sure why the CA needs to self-certify a specific address, but
-		// something in the crypto/tls verification checks for this when
-		// connecting to 127.0.0.1
-		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1)},
+	ca := &tlsca.CertAuthority{
+		Cert:   webpkiCACert,
+		Signer: webpkiCAKey,
+	}
+	certPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: key.Public(),
+		Subject:   pkix.Name{CommonName: "proxy web addr cert"},
+		NotAfter:  time.Now().Add(12 * time.Hour),
+		DNSNames:  []string{"127.0.0.1"},
+		KeyUsage:  x509.KeyUsageDigitalSignature,
 	})
 	require.NoError(t, err)
 
 	require.NoError(t, os.WriteFile(certPath, certPEM, 0o644))
 	require.NoError(t, os.WriteFile(keyPath, keyPEM, 0o644))
-
-	return certPEM
 }
 
 // TestWithRsync tests that Teleport works with rsync.
