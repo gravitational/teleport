@@ -20,6 +20,7 @@ package integrationv1
 
 import (
 	"context"
+	"crypto"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -28,22 +29,18 @@ import (
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // Cache is the subset of the cached resources that the Service queries.
 type Cache interface {
-	// GetDomainName returns local auth domain of the current auth server
-	GetDomainName() (string, error)
+	// GetClusterName returns local cluster name of the current auth server
+	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
 
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
-
-	// GetKeyStore returns the KeyStore used by the auth server
-	GetKeyStore() *keystore.Manager
 
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]types.Server, error)
@@ -52,14 +49,21 @@ type Cache interface {
 	services.IntegrationsGetter
 }
 
+// KeyStoreManager defines methods to get signers using the server's keystore.
+type KeyStoreManager interface {
+	// GetJWTSigner selects a usable JWT keypair from the given keySet and returns a [crypto.Signer].
+	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
+}
+
 // ServiceConfig holds configuration options for
 // the Integration gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Backend    services.Integrations
-	Cache      Cache
-	Logger     *logrus.Entry
-	Clock      clockwork.Clock
+	Authorizer      authz.Authorizer
+	Backend         services.Integrations
+	Cache           Cache
+	KeyStoreManager KeyStoreManager
+	Logger          *logrus.Entry
+	Clock           clockwork.Clock
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -68,6 +72,10 @@ type ServiceConfig struct {
 func (s *ServiceConfig) CheckAndSetDefaults() error {
 	if s.Cache == nil {
 		return trace.BadParameter("cache is required")
+	}
+
+	if s.KeyStoreManager == nil {
+		return trace.BadParameter("keystore manager is required")
 	}
 
 	if s.Backend == nil {
@@ -92,11 +100,12 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 // Service implements the teleport.integration.v1.IntegrationService RPC service.
 type Service struct {
 	integrationpb.UnimplementedIntegrationServiceServer
-	authorizer authz.Authorizer
-	cache      Cache
-	backend    services.Integrations
-	logger     *logrus.Entry
-	clock      clockwork.Clock
+	authorizer      authz.Authorizer
+	cache           Cache
+	keyStoreManager KeyStoreManager
+	backend         services.Integrations
+	logger          *logrus.Entry
+	clock           clockwork.Clock
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -106,11 +115,12 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
-		backend:    cfg.Backend,
-		clock:      cfg.Clock,
+		logger:          cfg.Logger,
+		authorizer:      cfg.Authorizer,
+		cache:           cfg.Cache,
+		keyStoreManager: cfg.KeyStoreManager,
+		backend:         cfg.Backend,
+		clock:           cfg.Clock,
 	}, nil
 }
 

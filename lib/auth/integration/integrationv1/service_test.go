@@ -385,7 +385,6 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	cache := &mockCache{
 		domainName: clusterName,
 		ca:         ca,
-		keystore:   keystoreManager,
 		proxies: []types.Server{
 			&types.ServerV2{Spec: types.ServerSpecV2{
 				PublicAddrs: []string{proxyPublicAddr},
@@ -395,9 +394,10 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	}
 
 	resourceSvc, err := NewService(&ServiceConfig{
-		Backend:    localResourceService,
-		Authorizer: authorizer,
-		Cache:      cache,
+		Backend:         localResourceService,
+		Authorizer:      authorizer,
+		Cache:           cache,
+		KeyStoreManager: keystoreManager,
 	})
 	require.NoError(t, err)
 
@@ -415,7 +415,6 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 type mockCache struct {
 	domainName string
 	ca         types.CertAuthority
-	keystore   *keystore.Manager
 
 	proxies   []types.Server
 	returnErr error
@@ -430,20 +429,19 @@ func (m *mockCache) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
-// GetDomainName returns local auth domain of the current auth server
-func (m *mockCache) GetDomainName() (string, error) {
-	return m.domainName, nil
+// GetClusterName returns local auth domain of the current auth server
+func (m *mockCache) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
+	return &types.ClusterNameV2{
+		Spec: types.ClusterNameSpecV2{
+			ClusterName: m.domainName,
+		},
+	}, nil
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
 func (m *mockCache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
 	return m.ca, nil
-}
-
-// GetKeyStore returns the KeyStore used by the auth server
-func (m *mockCache) GetKeyStore() *keystore.Manager {
-	return m.keystore
 }
 
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
