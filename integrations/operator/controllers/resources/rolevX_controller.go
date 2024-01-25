@@ -46,13 +46,13 @@ func (r roleClient) Get(ctx context.Context, name string) (types.Role, error) {
 
 // Create creates a Teleport role
 func (r roleClient) Create(ctx context.Context, role types.Role) error {
-	_, err := r.teleportClient.CreateRole(ctx, role)
+	_, err := r.teleportClient.UpsertRole(ctx, role)
 	return trace.Wrap(err)
 }
 
 // Update updates a Teleport role
 func (r roleClient) Update(ctx context.Context, role types.Role) error {
-	_, err := r.teleportClient.UpdateRole(ctx, role)
+	_, err := r.teleportClient.UpsertRole(ctx, role)
 	return trace.Wrap(err)
 }
 
