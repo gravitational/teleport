@@ -330,7 +330,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	var token types.ProvisionToken
 	if c.tokenID == "" {
 		// If there's no token specified, generate one
-		tokenName, err := utils.CryptoRandomHex(16)
+		tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
