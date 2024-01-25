@@ -31,12 +31,15 @@ import (
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	awsV1Http "github.com/aws/smithy-go/transport/http"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 )
 
 func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
@@ -56,6 +59,7 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				SubnetIDs:        []string{"subnet-1", "subnet-2"},
 				SecurityGroupIDs: []string{"sg-1", "sg-2"},
 			}},
+			DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
 		}
 	}
 
@@ -158,6 +162,7 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				}},
 				ecsClusterName:              "mycluster-teleport",
 				teleportIAMTokenNameForTask: "discover-aws-oidc-iam-token",
+				DeployServiceConfigString:   deployserviceconfig.GenerateTeleportConfigString,
 			},
 		},
 	} {
@@ -170,7 +175,12 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				return
 			}
 			if tt.expected != nil {
-				require.Equal(t, *tt.expected, r)
+				require.Empty(t, cmp.Diff(
+					*tt.expected,
+					r,
+					cmpopts.IgnoreFields(DeployDatabaseServiceRequest{}, "DeployServiceConfigString"),
+					cmpopts.IgnoreUnexported(DeployDatabaseServiceRequest{}),
+				))
 			}
 		})
 	}
@@ -393,6 +403,7 @@ func TestDeployDatabaseService(t *testing.T) {
 					SubnetIDs: []string{"subnet-1", "subnet-2"},
 				},
 			},
+			DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
 		})
 		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %+v", err)
 	})
@@ -418,6 +429,7 @@ func TestDeployDatabaseService(t *testing.T) {
 						SubnetIDs: []string{"subnet-1", "subnet-2"},
 					},
 				},
+				DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
 			},
 		)
 		require.NoError(t, err)
@@ -462,6 +474,7 @@ func TestDeployDatabaseService(t *testing.T) {
 						SubnetIDs: []string{"subnet-1", "subnet-2"},
 					},
 				},
+				DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
 			},
 		)
 		require.NoError(t, err)
@@ -524,6 +537,7 @@ func TestDeployDatabaseService(t *testing.T) {
 						SubnetIDs: []string{"subnet-1", "subnet-2"},
 					},
 				},
+				DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
 			},
 		)
 		require.NoError(t, err)
