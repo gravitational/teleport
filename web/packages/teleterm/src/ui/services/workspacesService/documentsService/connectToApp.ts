@@ -20,13 +20,18 @@ import { routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 
 import { App } from 'teleterm/services/tshd/types';
+import { getWebAppLaunchUrl, isWebApp } from 'teleterm/ui/services/clusters';
 
 import { DocumentOrigin } from './types';
 
 export async function connectToApp(
   ctx: IAppContext,
   target: App,
-  telemetry: { origin: DocumentOrigin }
+  telemetry: { origin: DocumentOrigin },
+  options?: {
+    /** If the app is a web app, it will be launched in a browser. */
+    launchInBrowser: boolean;
+  }
 ): Promise<void> {
   //TODO(gzdunek): Add regular dialogs for connecting to unsupported apps (non HTTP/TCP)
   // that will explain that the user can connect via tsh/Web UI to them.
@@ -43,6 +48,19 @@ export async function connectToApp(
 
   if (target.endpointUri.startsWith('cloud://')) {
     alert('Cloud apps are supported only in tsh.');
+    return;
+  }
+
+  if (isWebApp(target) && options?.launchInBrowser) {
+    captureAppLaunchInBrowser(ctx, target, telemetry);
+    // Generally, links should be opened with <a> elements.
+    // Unfortunately, in some cases it is not possible,
+    // for example, in the search bar.
+    window.open(
+      getWebAppLaunchUrl(target, ctx.clustersService),
+      '_blank',
+      'noreferrer'
+    );
     return;
   }
 
