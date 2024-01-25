@@ -29,8 +29,7 @@ export async function connectToApp(
   target: App,
   telemetry: { origin: DocumentOrigin },
   options?: {
-    /** If the app is a web app, it will be launched in a browser. */
-    launchInBrowser: boolean;
+    launchInBrowserIfWebApp: boolean;
   }
 ): Promise<void> {
   //TODO(gzdunek): Add regular dialogs for connecting to unsupported apps (non HTTP/TCP)
@@ -51,7 +50,7 @@ export async function connectToApp(
     return;
   }
 
-  if (isWebApp(target) && options?.launchInBrowser) {
+  if (isWebApp(target) && options?.launchInBrowserIfWebApp) {
     captureAppLaunchInBrowser(ctx, target, telemetry);
     const rootCluster = ctx.clustersService.findCluster(
       routing.ensureRootClusterUri(target.uri)

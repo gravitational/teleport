@@ -107,7 +107,7 @@ export function mapToAction(
             {
               origin: 'search_bar',
             },
-            { launchInBrowser: true }
+            { launchInBrowserIfWebApp: true }
           ),
       };
     }
