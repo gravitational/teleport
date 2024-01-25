@@ -19,12 +19,6 @@
 import { Flex, Text, Box } from 'design';
 
 import {
-  ConnectAppActionButton,
-  ConnectServerActionButton,
-  ConnectDatabaseActionButton,
-  ConnectKubeActionButton,
-} from 'teleterm/ui/DocumentCluster/actionButtons';
-import {
   makeApp,
   makeRootCluster,
   makeServer,
@@ -33,6 +27,13 @@ import {
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+
+import {
+  ConnectAppActionButton,
+  ConnectServerActionButton,
+  ConnectDatabaseActionButton,
+  ConnectKubeActionButton,
+} from './ActionButtons';
 
 export default {
   title: 'Teleterm/DocumentCluster',
