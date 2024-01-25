@@ -197,6 +197,11 @@ flag. This flag is available for the
 [`tsh request create`](../../reference/cli/tsh.mdx#tsh-request-create) and [`tsh request
 review`](../../reference/cli/tsh.mdx#tsh-request-review) commands. The format accepted
 is defined in [RFC 3339](https://datatracker.ietf.org/doc/html/rfc3339), e.g, `2023-12-12T23:20:50.52Z`.
+The time specified must be in the future.
+
+Reviewers can override this time when approving an Access Request.
+If multiple reviewers override the start time, the most recent
+override will be chosen.
 
 ### The `request.max_duration` field
 

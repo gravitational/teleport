@@ -109,7 +109,7 @@ export function makeWebauthnCreationResponse(res) {
 // - response.clientDataJSON
 // - response.signature
 // - response.userHandle
-export function makeWebauthnAssertionResponse(res) {
+export function makeWebauthnAssertionResponse(res): WebauthnAssertionResponse {
   // Response can be null if Credential cannot be unambiguously obtained.
   if (!res) {
     throw new Error(

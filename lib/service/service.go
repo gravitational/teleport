@@ -87,11 +87,11 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
-	"github.com/gravitational/teleport/lib/backend/etcdbk"
+	_ "github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
-	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/pgbk"
+	_ "github.com/gravitational/teleport/lib/backend/lite"
+	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -121,7 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/clusterdial"
 	"github.com/gravitational/teleport/lib/proxy/peer"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -1786,6 +1786,12 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	cloudClients, err := cloud.NewClients()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(
 		process.ExitContext(),
@@ -1830,6 +1836,7 @@ func (process *TeleportProcess) initAuthService() error {
 			EmbeddingRetriever:      embeddingsRetriever,
 			EmbeddingClient:         embedderClient,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
+			CloudClients:            cloudClients,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
@@ -1959,10 +1966,11 @@ func (process *TeleportProcess) initAuthService() error {
 	// each serving requests for a "role" which is assigned to every connected
 	// client based on their certificate (user, server, admin, etc)
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: authServer,
-		LockWatcher: lockWatcher,
-		Logger:      log,
+		ClusterName:      clusterName,
+		AccessPoint:      authServer,
+		MFAAuthenticator: authServer,
+		LockWatcher:      lockWatcher,
+		Logger:           log,
 		// Auth Server does explicit device authorization.
 		// Various Auth APIs must allow access to unauthorized devices, otherwise it
 		// is not possible to acquire device-aware certificates in the first place.
@@ -2498,12 +2506,6 @@ func (process *TeleportProcess) initSSH() error {
 				"the cluster level, then restart Teleport.")
 		}
 
-		// Restricted session requires BPF (enhanced recording)
-		if cfg.SSH.RestrictedSession.Enabled && !cfg.SSH.BPF.Enabled {
-			return trace.BadParameter("restricted_session requires enhanced_recording " +
-				"to be enabled")
-		}
-
 		// If BPF is enabled in file configuration, but the operating system does
 		// not support enhanced session recording (like macOS), exit right away.
 		if cfg.SSH.BPF.Enabled && !bpf.SystemHasBPF() {
@@ -2515,20 +2517,11 @@ func (process *TeleportProcess) initSSH() error {
 		// Start BPF programs. This is blocking and if the BPF programs fail to
 		// load, the node will not start. If BPF is not enabled, this will simply
 		// return a NOP struct that can be used to discard BPF data.
-		ebpf, err := bpf.New(cfg.SSH.BPF, cfg.SSH.RestrictedSession)
+		ebpf, err := bpf.New(cfg.SSH.BPF)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer func() { warnOnErr(ebpf.Close(restartingOnGracefulShutdown), log) }()
-
-		// Start access control programs. This is blocking and if the BPF programs fail to
-		// load, the node will not start. If access control is not enabled, this will simply
-		// return a NOP struct.
-		rm, err := restricted.New(cfg.SSH.RestrictedSession, conn.Client)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// TODO: are we missing rm.Close()
 
 		// make sure the default namespace is used
 		if ns := cfg.SSH.Namespace; ns != "" && ns != apidefaults.Namespace {
@@ -2633,7 +2626,6 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetUseTunnel(conn.UseTunnel()),
 			regular.SetFIPS(cfg.FIPS),
 			regular.SetBPF(ebpf),
-			regular.SetRestrictedSessionManager(rm),
 			regular.SetOnHeartbeat(process.OnHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
@@ -2653,6 +2645,15 @@ func (process *TeleportProcess) initSSH() error {
 		}
 		defer func() { warnOnErr(s.Close(), log) }()
 
+		var resumableServer *resumption.SSHServerWrapper
+		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {
+			resumableServer = resumption.NewSSHServerWrapper(
+				log.WithField(trace.Component, teleport.Component(teleport.ComponentNode, resumption.Component)),
+				s.HandleConnection,
+				serverID,
+			)
+		}
+
 		var agentPool *reversetunnel.AgentPool
 		if !conn.UseTunnel() {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
@@ -2664,6 +2665,11 @@ func (process *TeleportProcess) initSSH() error {
 
 			log.Infof("Service %s:%s is starting on %v %v.", teleport.Version, teleport.Gitref, cfg.SSH.Addr.Addr, process.Config.CachePolicy)
 
+			preDetect := resumption.PreDetectFixedSSHVersion(sshutils.SSHVersionPrefix)
+			if resumableServer != nil {
+				preDetect = resumableServer.PreDetect
+			}
+
 			// Use multiplexer to leverage support for signed PROXY protocol headers.
 			mux, err := multiplexer.New(multiplexer.Config{
 				Context:             process.ExitContext(),
@@ -2672,7 +2678,7 @@ func (process *TeleportProcess) initSSH() error {
 				ID:                  teleport.Component(teleport.ComponentNode, process.id),
 				CertAuthorityGetter: authClient.GetCertAuthority,
 				LocalClusterName:    conn.ServerIdentity.ClusterName,
-				FixedHeader:         sshutils.SSHVersionPrefix + "\r\n",
+				PreDetect:           preDetect,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -2693,6 +2699,11 @@ func (process *TeleportProcess) initSSH() error {
 				return trace.Wrap(err)
 			}
 
+			var serverHandler reversetunnel.ServerHandler = s
+			if resumableServer != nil {
+				serverHandler = resumableServer
+			}
+
 			// Create and start an agent pool.
 			agentPool, err = reversetunnel.NewAgentPool(
 				process.ExitContext(),
@@ -2704,7 +2715,7 @@ func (process *TeleportProcess) initSSH() error {
 					AccessPoint:          conn.Client,
 					HostSigner:           conn.ServerIdentity.KeySigner,
 					Cluster:              conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-					Server:               s,
+					Server:               serverHandler,
 					FIPS:                 process.Config.FIPS,
 					ConnectedProxyGetter: proxyGetter,
 				})
@@ -5443,32 +5454,15 @@ func warnOnErr(err error, log logrus.FieldLogger) {
 }
 
 // initAuthStorage initializes the storage backend for the auth service.
-func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error) {
+func (process *TeleportProcess) initAuthStorage() (backend.Backend, error) {
 	ctx := context.TODO()
-	bc := &process.Config.Auth.StorageConfig
-	process.log.Debugf("Using %v backend.", bc.Type)
-	switch bc.Type {
-	// SQLite backend (or alt name dir).
-	case lite.GetName():
-		bk, err = lite.New(ctx, bc.Params)
-	// Firestore backend:
-	case firestore.GetName():
-		bk, err = firestore.New(ctx, bc.Params, firestore.Options{})
-	// DynamoDB backend.
-	case dynamo.GetName():
-		bk, err = dynamo.New(ctx, bc.Params)
-	// etcd backend.
-	case etcdbk.GetName():
-		bk, err = etcdbk.New(ctx, bc.Params)
-	// PostgreSQL backend
-	case pgbk.Name, pgbk.AltName:
-		bk, err = pgbk.NewFromParams(ctx, bc.Params)
-	default:
-		err = trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
-	}
+	process.log.Debugf("Using %v backend.", process.Config.Auth.StorageConfig.Type)
+	bc := process.Config.Auth.StorageConfig
+	bk, err := backend.New(ctx, bc.Type, bc.Params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentBackend,
 		Backend:   backend.NewSanitizer(bk),

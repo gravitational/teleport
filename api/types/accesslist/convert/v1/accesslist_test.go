@@ -176,6 +176,14 @@ func TestFromProtoNils(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, accesslist.InclusionExplicit, uut.Spec.Ownership)
 	})
+
+	t.Run("owner_grants", func(t *testing.T) {
+		msg := ToProto(newAccessList(t, "access-list"))
+		msg.Spec.OwnerGrants = nil
+
+		_, err := FromProto(msg)
+		require.NoError(t, err)
+	})
 }
 
 func newAccessList(t *testing.T, name string) *accesslist.AccessList {
@@ -220,6 +228,13 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+			},
+			OwnerGrants: accesslist.Grants{
+				Roles: []string{"ogrole1", "ogrole2"},
+				Traits: map[string][]string{
+					"ogtrait1": {"ogvalue1", "ogvalue2"},
+					"ogtrait2": {"ogvalue3", "ogvalue4"},
 				},
 			},
 		},

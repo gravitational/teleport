@@ -43,10 +43,10 @@ import {
   UpdateHeadlessAuthenticationStateParams,
 } from './types';
 
-export default function createClient(
+export function createTshdClient(
   addr: string,
   credentials: grpc.ChannelCredentials
-) {
+): types.TshdClient {
   const logger = new Logger('tshd');
   const tshd = middleware(new TerminalServiceClient(addr, credentials), [
     withLogging(logger),
@@ -101,6 +101,38 @@ export default function createClient(
       });
     },
 
+    async getApps({
+      clusterUri,
+      search,
+      sort,
+      query,
+      searchAsRoles,
+      startKey,
+      limit,
+    }: types.GetResourcesParams) {
+      const req = new api.GetAppsRequest()
+        .setClusterUri(clusterUri)
+        .setSearchAsRoles(searchAsRoles)
+        .setStartKey(startKey)
+        .setSearch(search)
+        .setQuery(query)
+        .setLimit(limit);
+
+      if (sort) {
+        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
+      }
+
+      return new Promise<types.GetAppsResponse>((resolve, reject) => {
+        tshd.getApps(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject() as types.GetAppsResponse);
+          }
+        });
+      });
+    },
+
     async listGateways() {
       const req = new api.ListGatewaysRequest();
       return new Promise<types.Gateway[]>((resolve, reject) => {
@@ -127,15 +159,19 @@ export default function createClient(
       });
     },
 
-    async listRootClusters() {
-      const req = new api.ListClustersRequest();
-      return new Promise<types.Cluster[]>((resolve, reject) => {
-        tshd.listRootClusters(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().clustersList as types.Cluster[]);
-          }
+    async listRootClusters(abortSignal?: types.TshAbortSignal) {
+      return withAbort(abortSignal, callRef => {
+        return new Promise<types.Cluster[]>((resolve, reject) => {
+          callRef.current = tshd.listRootClusters(
+            new api.ListClustersRequest(),
+            (err, response) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(response.toObject().clustersList as types.Cluster[]);
+              }
+            }
+          );
         });
       });
     },
@@ -848,6 +884,11 @@ export default function createClient(
                           return {
                             kind: 'kube' as const,
                             resource: p.getKube().toObject() as types.Kube,
+                          };
+                        case api.PaginatedResource.ResourceCase.APP:
+                          return {
+                            kind: 'app' as const,
+                            resource: p.getApp().toObject() as types.App,
                           };
                         default:
                           logger.info(

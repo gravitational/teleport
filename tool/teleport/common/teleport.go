@@ -453,7 +453,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	joinOpenSSH.Flag("sshd-check-command", "Command to use when checking OpenSSH config for validity. (sshd -t -f <sshd_config>)").Default("sshd -t -f").StringVar(&ccf.CheckCommand)
 	joinOpenSSH.Flag("sshd-restart-command", "Command to use when restarting openssh.").Default(openssh.DefaultRestartCommand).StringVar(&ccf.RestartCommand)
 	joinOpenSSH.Flag("labels", "Comma-separated list of labels for this OpenSSH node, for example env=dev,app=web.").StringVar(&ccf.Labels)
-	joinOpenSSH.Flag("address", "IP Address of this OpenSSH node.").StringVar(&ccf.Address)
+	joinOpenSSH.Flag("address", "Hostname or IP address of this OpenSSH node.").StringVar(&ccf.Address)
 	joinOpenSSH.Flag("additional-principals", "Additional principal to include, can be specified multiple times.").StringVar(&ccf.AdditionalPrincipals)
 	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
 
@@ -471,6 +471,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEICECmd := integrationConfigureCmd.Command("eice-iam", "Adds required IAM permissions to connect to EC2 Instances using EC2 Instance Connect Endpoint.")
 	integrationConfEICECmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Region)
 	integrationConfEICECmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Role)
+
+	integrationConfEKSCmd := integrationConfigureCmd.Command("eks-iam", "Adds required IAM permissions for enrollment of EKS clusters to Teleport.")
+	integrationConfEKSCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEKSIAMArguments.Region)
+	integrationConfEKSCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEKSIAMArguments.Role)
 
 	integrationConfAWSOIDCIdPCmd := integrationConfigureCmd.Command("awsoidc-idp", "Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration to access AWS APIs.")
 	integrationConfAWSOIDCIdPCmd.Flag("cluster", "Teleport Cluster name.").Required().StringVar(&ccf.
@@ -500,7 +504,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
 
 	if options.EnableCloudAWSCredCmd {
-		app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
+		cloudAWSCred := app.Command("cloud-aws-cred", "Helper command used by Teleport Cloud to produce credentials.").Hidden()
+		cloudAWSCred.Flag("config",
+			fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
+			Short('c').ExistingFileVar(&ccf.ConfigFile)
 	}
 
 	// parse CLI commands+flags:
@@ -592,6 +599,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onIntegrationConfDeployService(ccf.IntegrationConfDeployServiceIAMArguments)
 	case integrationConfEICECmd.FullCommand():
 		err = onIntegrationConfEICEIAM(ccf.IntegrationConfEICEIAMArguments)
+	case integrationConfEKSCmd.FullCommand():
+		err = onIntegrationConfEKSIAM(ccf.IntegrationConfEKSIAMArguments)
 	case integrationConfAWSOIDCIdPCmd.FullCommand():
 		err = onIntegrationConfAWSOIDCIdP(ccf.IntegrationConfAWSOIDCIdPArguments)
 	case integrationConfListDatabasesCmd.FullCommand():
@@ -602,6 +611,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	if err != nil {
 		utils.FatalError(err)
 	}
+
+	if options.EnableCloudAWSCredCmd && command == app.GetCommand("cloud-aws-cred").FullCommand() {
+		if err = config.Configure(&ccf, conf, false); err != nil {
+			utils.FatalError(err)
+		}
+	}
+
 	return app, command, conf
 }
 
@@ -963,6 +979,25 @@ func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 	}
 
 	err = awsoidc.ConfigureEICEIAM(ctx, iamClient, awsoidc.EICEIAMConfigureRequest{
+		Region:          params.Region,
+		IntegrationRole: params.Role,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
+	ctx := context.Background()
+
+	iamClient, err := awsoidc.NewEKSIAMConfigureClient(ctx, params.Region)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = awsoidc.ConfigureEKSIAM(ctx, iamClient, awsoidc.EKSIAMConfigureRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 	})

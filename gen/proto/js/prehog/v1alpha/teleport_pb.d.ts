@@ -41,6 +41,39 @@ export namespace UserLoginEvent {
     }
 }
 
+export class MFAAuthenticationEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): MFAAuthenticationEvent;
+
+    getDeviceId(): string;
+    setDeviceId(value: string): MFAAuthenticationEvent;
+
+    getDeviceType(): string;
+    setDeviceType(value: string): MFAAuthenticationEvent;
+
+    getMfaChallengeScope(): string;
+    setMfaChallengeScope(value: string): MFAAuthenticationEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): MFAAuthenticationEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: MFAAuthenticationEvent): MFAAuthenticationEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: MFAAuthenticationEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): MFAAuthenticationEvent;
+    static deserializeBinaryFromReader(message: MFAAuthenticationEvent, reader: jspb.BinaryReader): MFAAuthenticationEvent;
+}
+
+export namespace MFAAuthenticationEvent {
+    export type AsObject = {
+        userName: string,
+        deviceId: string,
+        deviceType: string,
+        mfaChallengeScope: string,
+    }
+}
+
 export class SSOCreateEvent extends jspb.Message { 
     getConnectorType(): string;
     setConnectorType(value: string): SSOCreateEvent;
@@ -173,6 +206,9 @@ export class SessionStartEvent extends jspb.Message {
     getDesktop(): SessionStartDesktopMetadata | undefined;
     setDesktop(value?: SessionStartDesktopMetadata): SessionStartEvent;
 
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): SessionStartEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartEvent.AsObject;
@@ -190,6 +226,7 @@ export namespace SessionStartEvent {
         sessionType: string,
         database?: SessionStartDatabaseMetadata.AsObject,
         desktop?: SessionStartDesktopMetadata.AsObject,
+        userKind: UserKind,
     }
 }
 
@@ -1480,6 +1517,9 @@ export class KubeRequestEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): KubeRequestEvent;
 
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): KubeRequestEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): KubeRequestEvent.AsObject;
@@ -1494,6 +1534,7 @@ export class KubeRequestEvent extends jspb.Message {
 export namespace KubeRequestEvent {
     export type AsObject = {
         userName: string,
+        userKind: UserKind,
     }
 }
 
@@ -1503,6 +1544,9 @@ export class SFTPEvent extends jspb.Message {
 
     getAction(): number;
     setAction(value: number): SFTPEvent;
+
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): SFTPEvent;
 
 
     serializeBinary(): Uint8Array;
@@ -1519,6 +1563,7 @@ export namespace SFTPEvent {
     export type AsObject = {
         userName: string,
         action: number,
+        userKind: UserKind,
     }
 }
 
@@ -2947,6 +2992,12 @@ export class SubmitEventRequest extends jspb.Message {
     setAccessListReviewCompliance(value?: AccessListReviewComplianceEvent): SubmitEventRequest;
 
 
+    hasMfaAuthenticationEvent(): boolean;
+    clearMfaAuthenticationEvent(): void;
+    getMfaAuthenticationEvent(): MFAAuthenticationEvent | undefined;
+    setMfaAuthenticationEvent(value?: MFAAuthenticationEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -3037,6 +3088,7 @@ export namespace SubmitEventRequest {
         accessListReviewCreate?: AccessListReviewCreateEvent.AsObject,
         accessListReviewDelete?: AccessListReviewDeleteEvent.AsObject,
         accessListReviewCompliance?: AccessListReviewComplianceEvent.AsObject,
+        mfaAuthenticationEvent?: MFAAuthenticationEvent.AsObject,
     }
 
     export enum EventCase {
@@ -3190,6 +3242,8 @@ export namespace SubmitEventRequest {
 
     ACCESS_LIST_REVIEW_COMPLIANCE = 77,
 
+    MFA_AUTHENTICATION_EVENT = 78,
+
     }
 
 }
@@ -3296,6 +3350,12 @@ export enum ResourceKind {
     RESOURCE_KIND_NODE_OPENSSH_EICE = 7,
 }
 
+export enum UserKind {
+    USER_KIND_UNSPECIFIED = 0,
+    USER_KIND_HUMAN = 1,
+    USER_KIND_BOT = 2,
+}
+
 export enum DiscoverResource {
     DISCOVER_RESOURCE_UNSPECIFIED = 0,
     DISCOVER_RESOURCE_SERVER = 1,
@@ -3336,6 +3396,7 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
     DISCOVER_RESOURCE_SAML_APPLICATION = 37,
     DISCOVER_RESOURCE_EC2_INSTANCE = 38,
+    DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39,
 }
 
 export enum DiscoverStatus {

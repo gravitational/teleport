@@ -49,7 +49,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
-		OnUpdate:            s.upsertDesktop,
+		OnUpdate:            s.updateDesktop,
 		OnDelete:            s.deleteDesktop,
 		Log:                 s.cfg.Log,
 	})
@@ -139,6 +139,10 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 	s.lastDiscoveryResults = result
 
 	return result
+}
+
+func (s *WindowsService) updateDesktop(ctx context.Context, desktop, _ types.WindowsDesktop) error {
+	return s.upsertDesktop(ctx, desktop)
 }
 
 func (s *WindowsService) upsertDesktop(ctx context.Context, d types.WindowsDesktop) error {

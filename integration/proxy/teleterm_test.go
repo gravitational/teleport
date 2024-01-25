@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
@@ -57,9 +58,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// testTeletermGatewaysCertRenewal is run from within TestALPNSNIProxyDatabaseAccess to amortize the
+// testTeletermDbGatewaysCertRenewal is run from within TestALPNSNIProxyDatabaseAccess to amortize the
 // cost of setting up clusters in tests.
-func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack) {
+func testTeletermDbGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack) {
 	ctx := context.Background()
 
 	t.Run("root cluster", func(t *testing.T) {
@@ -97,48 +98,62 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, databaseURI uri.ResourceURI) {
 	t.Helper()
 
+	tc, err := pack.Root.Cluster.NewClient(helpers.ClientConfig{
+		Login:   pack.Root.User.GetName(),
+		Cluster: pack.Root.Cluster.Secrets.SiteName,
+		ALBAddr: albAddr,
+	})
+	require.NoError(t, err)
+
 	testGatewayCertRenewal(
 		ctx,
 		t,
 		gatewayCertRenewalParams{
-			inst:     pack.Root.Cluster,
-			username: pack.Root.User.GetName(),
-			albAddr:  albAddr,
+			tc:      tc,
+			albAddr: albAddr,
 			createGatewayParams: daemon.CreateGatewayParams{
 				TargetURI:  databaseURI.String(),
 				TargetUser: pack.Root.User.GetName(),
 			},
 			testGatewayConnectionFunc: mustConnectDatabaseGateway,
+			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
+				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+					Process:  pack.Root.Cluster.Process,
+					Username: tc.Username,
+					TTL:      ttl,
+				})
+				require.NoError(t, err)
+				err = helpers.SetupUserCreds(tc, pack.Root.Cluster.Process.Config.Proxy.SSHAddr.Addr, *creds)
+				require.NoError(t, err)
+			},
 		},
 	)
 }
 
 type testGatewayConnectionFunc func(*testing.T, *daemon.Service, gateway.Gateway)
 
+type generateAndSetupUserCredsFunc func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration)
+
 type gatewayCertRenewalParams struct {
-	inst                      *helpers.TeleInstance
-	username                  string
+	tc                        *libclient.TeleportClient
 	albAddr                   string
 	createGatewayParams       daemon.CreateGatewayParams
 	testGatewayConnectionFunc testGatewayConnectionFunc
 	webauthnLogin             libclient.WebauthnLoginFunc
+	generateAndSetupUserCreds generateAndSetupUserCredsFunc
 }
 
 func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCertRenewalParams) {
 	t.Helper()
 
-	tc, err := params.inst.NewClient(helpers.ClientConfig{
-		Login:   params.username,
-		Cluster: params.inst.Secrets.SiteName,
-		ALBAddr: params.albAddr,
-	})
+	tc := params.tc
+
+	// Save the profile yaml file to disk as test helpers like helpers.NewClientWithCreds don't do
+	// that by themselves.
+	err := tc.SaveProfile(false /* makeCurrent */)
 	require.NoError(t, err)
 
-	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
-	err = tc.SaveProfile(false /* makeCurrent */)
-	require.NoError(t, err)
-
-	tshdEventsService := newMockTSHDEventsServiceServer(t, tc, params.inst, params.username)
+	tshdEventsService := newMockTSHDEventsServiceServer(t, tc, params.generateAndSetupUserCreds)
 
 	var webauthLoginCalls atomic.Uint32
 	webauthnLogin := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
@@ -204,14 +219,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	fakeClock.Advance(time.Hour * 48)
 
 	// Overwrite user certs with expired ones to simulate the user cert expiry.
-	expiredCreds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:  params.inst.Process,
-		Username: params.username,
-		TTL:      -time.Hour,
-	})
-	require.NoError(t, err)
-	err = helpers.SetupUserCreds(tc, params.inst.Config.Proxy.SSHAddr.Addr, *expiredCreds)
-	require.NoError(t, err)
+	params.generateAndSetupUserCreds(t, tc, -time.Hour)
 
 	// Open a new connection.
 	// This should trigger the relogin flow. The middleware will notice that the cert has expired
@@ -235,26 +243,26 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 type mockTSHDEventsService struct {
 	*api.UnimplementedTshdEventsServiceServer
 
+	t                         *testing.T
 	tc                        *libclient.TeleportClient
-	inst                      *helpers.TeleInstance
-	username                  string
 	addr                      string
 	reloginCallCount          atomic.Uint32
 	sendNotificationCallCount atomic.Uint32
 	promptMFACallCount        atomic.Uint32
+	generateAndSetupUserCreds generateAndSetupUserCredsFunc
 }
 
-func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, inst *helpers.TeleInstance, username string) (service *mockTSHDEventsService) {
+func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, generateAndSetupUserCreds generateAndSetupUserCredsFunc) (service *mockTSHDEventsService) {
 	t.Helper()
 
 	ls, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	tshdEventsService := &mockTSHDEventsService{
-		tc:       tc,
-		inst:     inst,
-		username: username,
-		addr:     ls.Addr().String(),
+		t:                         t,
+		tc:                        tc,
+		addr:                      ls.Addr().String(),
+		generateAndSetupUserCreds: generateAndSetupUserCreds,
 	}
 
 	grpcServer := grpc.NewServer()
@@ -284,17 +292,9 @@ func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, 
 // cert on disk with a valid one.
 func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*api.ReloginResponse, error) {
 	c.reloginCallCount.Add(1)
-	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
-		Process:  c.inst.Process,
-		Username: c.username,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = helpers.SetupUserCreds(c.tc, c.inst.Config.Proxy.SSHAddr.Addr, *creds)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
+	// Generate valid certs with the default TTL.
+	c.generateAndSetupUserCreds(c.t, c.tc, 0 /* ttl */)
 
 	return &api.ReloginResponse{}, nil
 }
@@ -460,6 +460,13 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 		teleportCluster = params.kubeURI.GetLeafClusterName()
 	}
 
+	tc, err := params.suite.root.NewClient(helpers.ClientConfig{
+		Login:   params.suite.username,
+		Cluster: params.suite.root.Secrets.SiteName,
+		ALBAddr: params.albAddr,
+	})
+	require.NoError(t, err)
+
 	testKubeConnection := func(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway) {
 		t.Helper()
 
@@ -480,14 +487,23 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 		ctx,
 		t,
 		gatewayCertRenewalParams{
-			inst:     params.suite.root,
-			username: params.suite.username,
-			albAddr:  params.albAddr,
+			albAddr: params.albAddr,
+			tc:      tc,
 			createGatewayParams: daemon.CreateGatewayParams{
 				TargetURI: params.kubeURI.String(),
 			},
 			testGatewayConnectionFunc: testKubeConnection,
 			webauthnLogin:             params.webauthnLogin,
+			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
+				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+					Process:  params.suite.root.Process,
+					Username: tc.Username,
+					TTL:      ttl,
+				})
+				require.NoError(t, err)
+				err = helpers.SetupUserCreds(tc, params.suite.root.Process.Config.Proxy.SSHAddr.Addr, *creds)
+				require.NoError(t, err)
+			},
 		},
 	)
 }
@@ -575,4 +591,44 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, ro
 	}
 
 	return webauthnLogin
+}
+
+func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack) {
+	ctx := context.Background()
+
+	t.Run("root cluster", func(t *testing.T) {
+		profileName := mustGetProfileName(t, pack.RootWebAddr())
+		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
+
+		testAppGatewayCertRenewal(ctx, t, pack, appURI)
+	})
+
+	t.Run("leaf cluster", func(t *testing.T) {
+		profileName := mustGetProfileName(t, pack.RootWebAddr())
+		appURI := uri.NewClusterURI(profileName).
+			AppendLeafCluster(pack.LeafAppClusterName()).
+			AppendApp(pack.LeafAppName())
+
+		testAppGatewayCertRenewal(ctx, t, pack, appURI)
+	})
+}
+
+func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, appURI uri.ResourceURI) {
+	t.Helper()
+
+	user, _ := pack.CreateUser(t)
+	tc := pack.MakeTeleportClient(t, user.GetName())
+
+	testGatewayCertRenewal(
+		ctx,
+		t,
+		gatewayCertRenewalParams{
+			tc: tc,
+			createGatewayParams: daemon.CreateGatewayParams{
+				TargetURI: appURI.String(),
+			},
+			testGatewayConnectionFunc: mustConnectAppGateway,
+			generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
+		},
+	)
 }

@@ -42,6 +42,8 @@ service AccessListService {
 
   // ListAccessListMembers returns a paginated list of all access list members.
   rpc ListAccessListMembers(ListAccessListMembersRequest) returns (ListAccessListMembersResponse);
+  // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+  rpc ListAllAccessListMembers(ListAllAccessListMembersRequest) returns (ListAllAccessListMembersResponse);
   // GetAccessListMember returns the specified access list member resource.
   rpc GetAccessListMember(GetAccessListMemberRequest) returns (Member);
   // UpsertAccessListMember creates or updates an access list member resource.
@@ -58,6 +60,8 @@ service AccessListService {
 
   // ListAccessListReviews will list access list reviews for a particular access list.
   rpc ListAccessListReviews(ListAccessListReviewsRequest) returns (ListAccessListReviewsResponse);
+  // ListAllAccessListReviews will list access list reviews for all access lists.
+  rpc ListAllAccessListReviews(ListAllAccessListReviewsRequest) returns (ListAllAccessListReviewsResponse);
   // CreateAccessListReview will create a new review for an access list. It will also modify the original access list
   // and its members depending on the details of the review.
   rpc CreateAccessListReview(CreateAccessListReviewRequest) returns (CreateAccessListReviewResponse);
@@ -146,6 +150,23 @@ message ListAccessListMembersResponse {
   string next_page_token = 2;
 }
 
+// ListAllAccessListMembersRequest is the request for getting paginated access list members for all access lists.
+message ListAllAccessListMembersRequest {
+  // page_size is the size of the page to request.
+  int32 page_size = 1;
+
+  // page_token is the page token.
+  string page_token = 2;
+}
+
+// ListAllAccessListMembersResponse is the response for getting paginated access list members for all access lists.
+message ListAllAccessListMembersResponse {
+  // members is the list of access list members.
+  repeated Member members = 1;
+  // next_page_token is the next page token.
+  string next_page_token = 2;
+}
+
 // UpsertAccessListWithMembers is the request for upserting an access list with members.
 message UpsertAccessListWithMembersRequest {
   // access_list is the access list to upsert.
@@ -217,6 +238,24 @@ message ListAccessListReviewsRequest {
 
 // ListAccessListReviewsResponse is the response for getting paginated access list reviews for a particular access list.
 message ListAccessListReviewsResponse {
+  // reviews is the list of access list reviews.
+  repeated Review reviews = 1;
+
+  // next_token is the next page token.
+  string next_token = 2;
+}
+
+// ListAllAccessListReviewsRequest is the request for getting paginated access list reviews for all access lists.
+message ListAllAccessListReviewsRequest {
+  // page_size is the size of the page to request.
+  int32 page_size = 1;
+
+  // next_token is the page token.
+  string next_token = 2;
+}
+
+// ListAllAccessListReviewsResponse is the response for getting paginated access list reviews for all access lists.
+message ListAllAccessListReviewsResponse {
   // reviews is the list of access list reviews.
   repeated Review reviews = 1;
 

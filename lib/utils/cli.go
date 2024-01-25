@@ -128,14 +128,15 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 		}
 
 		formatter = textFormatter
-		handler = logutils.NewSlogTextHandler(w, &logutils.SlogTextHandlerConfig{
+		handler = logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
 			Level:        level,
 			EnableColors: enableColors,
-			WithCaller:   true,
 		})
 	case LogFormatJSON:
 		formatter = &logutils.JSONFormatter{}
-		handler = logutils.NewSlogJSONHandler(w, level)
+		handler = logutils.NewSlogJSONHandler(w, logutils.SlogJSONHandlerConfig{
+			Level: level,
+		})
 	}
 
 	logrus.SetFormatter(formatter)
@@ -164,7 +165,7 @@ func InitLoggerForTests() {
 
 		output := logutils.NewSharedWriter(w)
 		logger.SetOutput(output)
-		slog.SetDefault(slog.New(logutils.NewSlogJSONHandler(output, level)))
+		slog.SetDefault(slog.New(logutils.NewSlogJSONHandler(output, logutils.SlogJSONHandlerConfig{Level: level})))
 	})
 }
 
@@ -199,14 +200,6 @@ type Logger interface {
 	GetLevel() logrus.Level
 	// SetLevel sets the logger's level to the specified value
 	SetLevel(level logrus.Level)
-}
-
-// FieldLoggerWithWriter describes a logger that can expose a writer
-// to be used by stdlib loggers.
-type FieldLoggerWithWriter interface {
-	logrus.FieldLogger
-	Writer() *io.PipeWriter
-	WriterLevel(logrus.Level) *io.PipeWriter
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging

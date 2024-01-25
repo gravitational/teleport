@@ -17,8 +17,7 @@
  */
 
 import Select, { SelectAsync, SelectCreatable, StyledSelect } from './Select';
-import DarkStyledSelect from './DarkStyledSelect';
 
 export * from './types';
 export default Select;
-export { SelectAsync, SelectCreatable, DarkStyledSelect, StyledSelect };
+export { SelectAsync, SelectCreatable, StyledSelect };

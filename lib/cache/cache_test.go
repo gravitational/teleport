@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/secreports"
@@ -106,6 +107,7 @@ type testPack struct {
 	discoveryConfigs        services.DiscoveryConfigs
 	userLoginStates         services.UserLoginStates
 	secReports              services.SecReports
+	accessLists             services.AccessLists
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -275,6 +277,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.secReports = secReportsSvc
 
+	accessListsSvc, err := local.NewAccessListService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.accessLists = accessListsSvc
+
 	return p, nil
 }
 
@@ -315,6 +323,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
+		AccessLists:             p.accessLists,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -712,6 +721,7 @@ func TestCompletenessInit(t *testing.T) {
 			DiscoveryConfigs:        p.discoveryConfigs,
 			UserLoginStates:         p.userLoginStates,
 			SecReports:              p.secReports,
+			AccessLists:             p.accessLists,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -783,6 +793,7 @@ func TestCompletenessReset(t *testing.T) {
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
+		AccessLists:             p.accessLists,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -966,6 +977,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
+		AccessLists:             p.accessLists,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1048,6 +1060,7 @@ func initStrategy(t *testing.T) {
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
+		AccessLists:             p.accessLists,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2264,6 +2277,132 @@ func TestUserLoginStates(t *testing.T) {
 	})
 }
 
+// TestAccessList tests that CRUD operations on access list resources are
+// replicated from the backend to the cache.
+func TestAccessList(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	testResources(t, p, testFuncs[*accesslist.AccessList]{
+		newResource: func(name string) (*accesslist.AccessList, error) {
+			return newAccessList(t, name, clock), nil
+		},
+		create: func(ctx context.Context, item *accesslist.AccessList) error {
+			_, err := p.accessLists.UpsertAccessList(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*accesslist.AccessList, error) {
+			items, _, err := p.accessLists.ListAccessLists(ctx, 0 /* page size */, "")
+			return items, trace.Wrap(err)
+		},
+		cacheGet: p.cache.GetAccessList,
+		cacheList: func(ctx context.Context) ([]*accesslist.AccessList, error) {
+			items, _, err := p.cache.ListAccessLists(ctx, 0 /* page size */, "")
+			return items, trace.Wrap(err)
+		},
+		update: func(ctx context.Context, item *accesslist.AccessList) error {
+			_, err := p.accessLists.UpsertAccessList(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.accessLists.DeleteAllAccessLists,
+	})
+}
+
+// TestAccessListMembers tests that CRUD operations on access list member resources are
+// replicated from the backend to the cache.
+func TestAccessListMembers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	al, err := p.accessLists.UpsertAccessList(context.Background(), newAccessList(t, "access-list", clock))
+	require.NoError(t, err)
+
+	testResources(t, p, testFuncs[*accesslist.AccessListMember]{
+		newResource: func(name string) (*accesslist.AccessListMember, error) {
+			return newAccessListMember(t, al.GetName(), name), nil
+		},
+		create: func(ctx context.Context, item *accesslist.AccessListMember) error {
+			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
+			items, _, err := p.accessLists.ListAllAccessListMembers(ctx, 0 /* page size */, "")
+			return items, trace.Wrap(err)
+		},
+		cacheGet: func(ctx context.Context, name string) (*accesslist.AccessListMember, error) {
+			return p.cache.GetAccessListMember(ctx, al.GetName(), name)
+		},
+		cacheList: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
+			items, _, err := p.cache.ListAccessListMembers(ctx, al.GetName(), 0 /* page size */, "")
+			return items, trace.Wrap(err)
+		},
+		update: func(ctx context.Context, item *accesslist.AccessListMember) error {
+			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.accessLists.DeleteAllAccessListMembers,
+	})
+}
+
+// TestAccessListReviews tests that CRUD operations on access list review resources are
+// replicated from the backend to the cache.
+func TestAccessListReviews(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	al, _, err := p.accessLists.UpsertAccessListWithMembers(context.Background(), newAccessList(t, "access-list", clock),
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, "access-list", "member1"),
+			newAccessListMember(t, "access-list", "member2"),
+			newAccessListMember(t, "access-list", "member3"),
+			newAccessListMember(t, "access-list", "member4"),
+			newAccessListMember(t, "access-list", "member5"),
+		})
+	require.NoError(t, err)
+
+	// Keep track of the reviews, as create can update them. We'll use this
+	// to make sure the values are up to date during the test.
+	reviews := map[string]*accesslist.Review{}
+
+	testResources(t, p, testFuncs[*accesslist.Review]{
+		newResource: func(name string) (*accesslist.Review, error) {
+			review := newAccessListReview(t, al.GetName(), name)
+			// Store the name in the description.
+			review.Metadata.Description = name
+			reviews[name] = review
+			return review, nil
+		},
+		create: func(ctx context.Context, item *accesslist.Review) error {
+			review, _, err := p.accessLists.CreateAccessListReview(ctx, item)
+			// Use the old name from the description.
+			oldName := review.Metadata.Description
+			reviews[oldName].SetName(review.GetName())
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*accesslist.Review, error) {
+			items, _, err := p.accessLists.ListAllAccessListReviews(ctx, 0 /* page size */, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*accesslist.Review, error) {
+			items, _, err := p.cache.ListAccessListReviews(ctx, al.GetName(), 0 /* page size */, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: p.accessLists.DeleteAllAccessListReviews,
+	})
+}
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
@@ -2302,10 +2441,13 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
 	}
 
-	// Update the resource and upsert it into the backend again.
-	r.SetExpiry(r.Expiry().Add(30 * time.Minute))
-	err = funcs.update(ctx, r)
-	require.NoError(t, err)
+	// update is optional as not every resource implements it
+	if funcs.update != nil {
+		// Update the resource and upsert it into the backend again.
+		r.SetExpiry(r.Expiry().Add(30 * time.Minute))
+		err = funcs.update(ctx, r)
+		require.NoError(t, err)
+	}
 
 	// Check that the resource is in the backend and only one exists (so an
 	// update occurred).
@@ -2560,6 +2702,25 @@ func TestCache_Backoff(t *testing.T) {
 
 // TestSetupConfigFns ensures that all WatchKinds used in setup config functions are present in ForAuth() as well.
 func TestSetupConfigFns(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Mirror:  true,
+	})
+	require.NoError(t, err)
+	defer bk.Close()
+
+	clusterConfigCache, err := local.NewClusterConfigurationService(bk)
+	require.NoError(t, err)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "example.com",
+	})
+	require.NoError(t, err)
+	err = clusterConfigCache.UpsertClusterName(clusterName)
+	require.NoError(t, err)
+
 	setupFuncs := map[string]SetupConfigFn{
 		"ForProxy":          ForProxy,
 		"ForRemoteProxy":    ForRemoteProxy,
@@ -2574,20 +2735,27 @@ func TestSetupConfigFns(t *testing.T) {
 	}
 
 	authKindMap := make(map[resourceKind]types.WatchKind)
-	for _, wk := range ForAuth(Config{}).Watches {
+	for _, wk := range ForAuth(Config{ClusterConfig: clusterConfigCache}).Watches {
 		authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}] = wk
 	}
 
 	for name, f := range setupFuncs {
 		t.Run(name, func(t *testing.T) {
-			for _, wk := range f(Config{}).Watches {
+			for _, wk := range f(Config{ClusterConfig: clusterConfigCache}).Watches {
 				authWK, ok := authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}]
 				if !ok || !authWK.Contains(wk) {
 					t.Errorf("%s includes WatchKind %s that is missing from ForAuth", name, wk.String())
 				}
+				if wk.Kind == types.KindCertAuthority {
+					require.NotEmpty(t, wk.Filter, "every setup fn except auth should have a CA filter")
+				}
 			}
 		})
 	}
+
+	authCAWatchKind, ok := authKindMap[resourceKind{kind: types.KindCertAuthority}]
+	require.True(t, ok)
+	require.Empty(t, authCAWatchKind.Filter, "auth should not use a CA filter")
 }
 
 type proxyEvents struct {
@@ -2660,6 +2828,8 @@ func newProxyEvents(events types.Events, ignoreKinds []types.WatchKind) *proxyEv
 func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	t.Parallel()
 
+	clock := clockwork.NewFakeClockAt(time.Now())
+
 	cases := map[string]Config{
 		"ForAuth":           ForAuth(Config{}),
 		"ForProxy":          ForProxy(Config{}),
@@ -2720,6 +2890,9 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAuditQuery:              newAuditQuery(t, "audit-query"),
 		types.KindSecurityReport:          newSecurityReport(t, "security-report"),
 		types.KindSecurityReportState:     newSecurityReport(t, "security-report-state"),
+		types.KindAccessList:              newAccessList(t, "access-list", clock),
+		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
+		types.KindAccessListReview:        newAccessListReview(t, "access-list", "review"),
 	}
 
 	for name, cfg := range cases {
@@ -3018,6 +3191,124 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 	return uls
 }
 
+func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
+	t.Helper()
+
+	accessList, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: name,
+		},
+		accesslist.Spec{
+			Title:       "title",
+			Description: "test access list",
+			Owners: []accesslist.Owner{
+				{
+					Name:        "test-user1",
+					Description: "test user 1",
+				},
+				{
+					Name:        "test-user2",
+					Description: "test user 2",
+				},
+			},
+			Audit: accesslist.Audit{
+				NextAuditDate: clock.Now(),
+			},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			OwnershipRequires: accesslist.Requires{
+				Roles: []string{"orole1", "orole2"},
+				Traits: map[string][]string{
+					"otrait1": {"ovalue1", "ovalue2"},
+					"otrait2": {"ovalue3", "ovalue4"},
+				},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"grole1", "grole2"},
+				Traits: map[string][]string{
+					"gtrait1": {"gvalue1", "gvalue2"},
+					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	return accessList
+}
+
+func newAccessListMember(t *testing.T, accessList, name string) *accesslist.AccessListMember {
+	t.Helper()
+
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: name,
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: accessList,
+			Name:       name,
+			Joined:     time.Now(),
+			Expires:    time.Now().Add(time.Hour * 24),
+			Reason:     "a reason",
+			AddedBy:    "dummy",
+		},
+	)
+	require.NoError(t, err)
+
+	return member
+}
+
+func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Review {
+	t.Helper()
+
+	review, err := accesslist.NewReview(
+		header.Metadata{
+			Name: name,
+		},
+		accesslist.ReviewSpec{
+			AccessList: accessList,
+			Reviewers: []string{
+				"user1",
+				"user2",
+			},
+			ReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			Notes:      "Some notes",
+			Changes: accesslist.ReviewChanges{
+				MembershipRequirementsChanged: &accesslist.Requires{
+					Roles: []string{
+						"role1",
+						"role2",
+					},
+					Traits: trait.Traits{
+						"trait1": []string{
+							"value1",
+							"value2",
+						},
+						"trait2": []string{
+							"value1",
+							"value2",
+						},
+					},
+				},
+				RemovedMembers: []string{
+					"member1",
+					"member2",
+				},
+				ReviewFrequencyChanged:  accesslist.ThreeMonths,
+				ReviewDayOfMonthChanged: accesslist.FifteenthDayOfMonth,
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	return review
+}
+
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
 	return func(ctx context.Context, resource T) error {
 		_, err := fn(ctx, resource)
@@ -3041,3 +3332,86 @@ const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
    </md:SPSSODescriptor>
 </md:EntityDescriptor>
 `
+
+// TestCAWatcherFilters tests cache CA watchers with filters are not rejected
+// by auth, even if a CA filter includes a "new" CA type.
+func TestCAWatcherFilters(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	allCAsAndNewCAFilter := makeAllKnownCAsFilter()
+	// auth will never send such an event, but it won't reject the watch request
+	// either since auth cache's confirmedKinds dont have a CA filter.
+	allCAsAndNewCAFilter["someBackportedCAType"] = "*"
+
+	tests := []struct {
+		desc    string
+		filter  types.CertAuthorityFilter
+		watcher types.Watcher
+	}{
+		{
+			desc: "empty filter",
+		},
+		{
+			desc:   "all CAs filter",
+			filter: makeAllKnownCAsFilter(),
+		},
+		{
+			desc:   "all CAs and a new CA filter",
+			filter: allCAsAndNewCAFilter,
+		},
+	}
+
+	// setup watchers for each test case before we generate events.
+	for i := range tests {
+		test := &tests[i]
+		w, err := p.cache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
+			{
+				Kind:   types.KindCertAuthority,
+				Filter: test.filter.IntoMap(),
+			},
+		}})
+		require.NoError(t, err)
+		test.watcher = w
+		t.Cleanup(func() {
+			require.NoError(t, w.Close())
+		})
+	}
+
+	// generate an OpPut event.
+	ca := suite.NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
+
+	const fetchTimeout = time.Second
+	for _, test := range tests {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			event := fetchEvent(t, test.watcher, fetchTimeout)
+			require.Equal(t, types.OpInit, event.Type)
+
+			event = fetchEvent(t, test.watcher, fetchTimeout)
+			require.Equal(t, types.OpPut, event.Type)
+			require.Equal(t, types.KindCertAuthority, event.Resource.GetKind())
+			gotCA, ok := event.Resource.(*types.CertAuthorityV2)
+			require.True(t, ok)
+			require.Equal(t, types.UserCA, gotCA.GetType())
+		})
+	}
+}
+
+func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Event {
+	t.Helper()
+	timeoutC := time.After(timeout)
+	var ev types.Event
+	select {
+	case <-timeoutC:
+		require.Fail(t, "Timeout waiting for event", w.Error())
+	case <-w.Done():
+		require.Fail(t, "Watcher exited with error", w.Error())
+	case ev = <-w.Events():
+	}
+	return ev
+}

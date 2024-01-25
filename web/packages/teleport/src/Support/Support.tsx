@@ -184,7 +184,7 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
     adminGuide: withUTM(
       `https://goteleport.com/docs${docVer}/management/admin/`
     ),
-    faq: withUTM(`https://goteleport.com${docVer}/docs/faq`),
+    faq: withUTM(`https://goteleport.com/docs${docVer}/faq`),
     troubleshooting: withUTM(
       `https://goteleport.com/docs${docVer}/management/admin/troubleshooting/`
     ),
@@ -196,7 +196,7 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
 
 const getDownloadLink = (isCloud: boolean, isEnterprise: boolean) => {
   if (isCloud) {
-    return 'https://goteleport.com/docs/cloud/downloads/';
+    return cfg.routes.downloadCenter;
   }
 
   if (isEnterprise) {

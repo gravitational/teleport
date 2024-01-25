@@ -43,7 +43,7 @@ type ReconcilerConfig[T Reconciled] struct {
 	// OnCreate is called when a new resource is detected.
 	OnCreate func(context.Context, T) error
 	// OnUpdate is called when an existing resource is updated.
-	OnUpdate func(context.Context, T) error
+	OnUpdate func(ctx context.Context, new, old T) error
 	// OnDelete is called when an existing resource is deleted.
 	OnDelete func(context.Context, T) error
 	// Log is the reconciler's logger.
@@ -86,7 +86,12 @@ func NewReconciler[T Reconciled](cfg ReconcilerConfig[T]) (*Reconciler[T], error
 	}
 	return &Reconciler[T]{
 		cfg: cfg,
-		log: cfg.Log,
+		// We do a WithFields here to force this into a *logrus.Entry, which has the ability to
+		// log at the Trace level. If we were to change this in ReconcilerConfig, we'd have to
+		// refactor existing code to use *logrus.Entry instead of logrus.FieldLogger, and with
+		// the eventual change to slog, it seems easier to do this for now until this can be
+		// changed to slog.
+		log: cfg.Log.WithFields(nil),
 	}, nil
 }
 
@@ -97,7 +102,7 @@ func NewReconciler[T Reconciled](cfg ReconcilerConfig[T]) (*Reconciler[T], error
 // to enable dynamically registered resources.
 type Reconciler[T Reconciled] struct {
 	cfg ReconcilerConfig[T]
-	log logrus.FieldLogger
+	log *logrus.Entry
 }
 
 // Reconcile reconciles currently registered resources with new resources and
@@ -180,7 +185,7 @@ func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources
 	if CompareResources(newT, registered) != Equal {
 		if r.cfg.Matcher(newT) {
 			r.log.Infof("%v %v updated, updating.", kind, name)
-			if err := r.cfg.OnUpdate(ctx, newT); err != nil {
+			if err := r.cfg.OnUpdate(ctx, newT, registered); err != nil {
 				return trace.Wrap(err, "failed to update %v %v", kind, name)
 			}
 			return nil
@@ -192,6 +197,6 @@ func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources
 		return nil
 	}
 
-	r.log.Debugf("%v %v is already registered.", kind, name)
+	r.log.Tracef("%v %v is already registered.", kind, name)
 	return nil
 }

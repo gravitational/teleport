@@ -43,6 +43,7 @@
     "DHDR",
     "DQMB",
     "DSID",
+    "DWORD",
     "Decisiv",
     "Deeplink",
     "Dfnnpu",
@@ -80,6 +81,7 @@
     "Grafana's",
     "Gtczk",
     "HKEY",
+    "HKLM",
     "HSTS",
     "Hqlo",
     "IAMR",
@@ -283,6 +285,7 @@
     "azblob",
     "azuread",
     "azuredatabases",
+    "azurerm",
     "backoff",
     "backported",
     "backporting",
@@ -882,5 +885,7 @@
     "vtgate",
     "clientcert"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

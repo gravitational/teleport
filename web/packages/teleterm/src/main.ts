@@ -20,7 +20,7 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, globalShortcut, shell, nativeTheme } from 'electron';
+import { app, dialog, globalShortcut, shell, nativeTheme } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
 
@@ -38,6 +38,7 @@ import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { parseDeepLink } from 'teleterm/deepLinks';
 import { assertUnreachable } from 'teleterm/ui/utils';
+import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 
 // Set the app as a default protocol client only if it wasn't started through `electron .`.
 if (!process.defaultApp) {
@@ -147,19 +148,51 @@ function initializeApp(): void {
   // triggered on macOS if the app is not already running when the user opens a deep link.
   setUpDeepLinks(logger, windowsManager, settings);
 
-  app.whenReady().then(() => {
-    if (mainProcess.settings.dev) {
-      // allow restarts on F6
-      globalShortcut.register('F6', () => {
-        devRelaunchScheduled = true;
-        app.quit();
-      });
-    }
+  const rootClusterProxyHostAllowList = new Set<string>();
 
-    enableWebHandlersProtection();
+  (async () => {
+    const tshdClient = await mainProcess.initTshdClient();
 
-    windowsManager.createWindow();
+    manageRootClusterProxyHostAllowList({
+      tshdClient,
+      logger,
+      allowList: rootClusterProxyHostAllowList,
+    });
+  })().catch(error => {
+    const message =
+      'Could not initialize tsh daemon client in the main process';
+    logger.error(message, error);
+    dialog.showErrorBox(
+      'Error during main process startup',
+      `${message}: ${error}`
+    );
+    app.quit();
   });
+
+  app
+    .whenReady()
+    .then(() => {
+      if (mainProcess.settings.dev) {
+        // allow restarts on F6
+        globalShortcut.register('F6', () => {
+          devRelaunchScheduled = true;
+          app.quit();
+        });
+      }
+
+      enableWebHandlersProtection();
+
+      windowsManager.createWindow();
+    })
+    .catch(error => {
+      const message = 'Could not initialize the app';
+      logger.error(message, error);
+      dialog.showErrorBox(
+        'Error during app initialization',
+        `${message}: ${error}`
+      );
+      app.quit();
+    });
 
   // Limit navigation capabilities to reduce the attack surface.
   // See TEL-Q122-19 from "Teleport Core Testing Q1 2022" security audit.
@@ -197,6 +230,11 @@ function initializeApp(): void {
         ) {
           return true;
         }
+
+        // Allow opening links to the Web UIs of root clusters currently added in the app.
+        if (rootClusterProxyHostAllowList.has(url.host)) {
+          return true;
+        }
       }
 
       // Open links to documentation and GitHub issues in the external browser.
@@ -206,6 +244,10 @@ function initializeApp(): void {
       } else {
         logger.warn(
           `Opening a new window to ${url} blocked by 'setWindowOpenHandler'`
+        );
+        dialog.showErrorBox(
+          'Cannot open this link',
+          'The domain does not match any of the allowed domains. Check main.log for more details.'
         );
       }
 

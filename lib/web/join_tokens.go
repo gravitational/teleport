@@ -78,6 +78,9 @@ type scriptSettings struct {
 	databaseInstallMode bool
 	installUpdater      bool
 
+	discoveryInstallMode bool
+	discoveryGroup       string
+
 	// automaticUpgradesVersion is the target automatic upgrades version.
 	// The version must be valid semver, with the leading 'v'. e.g. v15.0.0-dev
 	// Required when installUpdater is true.
@@ -339,6 +342,53 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 	return nil, nil
 }
 
+func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+	queryValues := r.URL.Query()
+	const discoveryGroupQueryParam = "discoveryGroup"
+
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	discoveryGroup, err := url.QueryUnescape(queryValues.Get(discoveryGroupQueryParam))
+	if err != nil {
+		log.WithField("query-param", discoveryGroupQueryParam).WithError(err).Debug("Failed to return the discovery install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+	if discoveryGroup == "" {
+		log.WithField("query-param", discoveryGroupQueryParam).Debug("Failed to return the discovery install script. Missing required fields.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	settings := scriptSettings{
+		token:                    params.ByName("token"),
+		discoveryInstallMode:     true,
+		discoveryGroup:           discoveryGroup,
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
+	}
+
+	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
+	if err != nil {
+		log.WithError(err).Info("Failed to return the discovery install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := fmt.Fprintln(w, script); err != nil {
+		log.WithError(err).Debug("Failed to return the discovery install script.")
+		w.Write(scripts.ErrorBashScript)
+	}
+
+	return nil, nil
+}
+
 func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter) (string, error) {
 	switch types.JoinMethod(settings.joinMethod) {
 	case types.JoinMethodUnspecified, types.JoinMethodToken:
@@ -416,6 +466,12 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		}
 	}
 
+	if settings.discoveryInstallMode {
+		if settings.discoveryGroup == "" {
+			return "", trace.BadParameter("discovery group is required")
+		}
+	}
+
 	packageName := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
 		packageName = types.PackageNameEnt
@@ -463,6 +519,8 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"labels":                     strings.Join(labelsList, ","),
 		"databaseInstallMode":        strconv.FormatBool(settings.databaseInstallMode),
 		"db_service_resource_labels": dbServiceResourceLabels,
+		"discoveryInstallMode":       settings.discoveryInstallMode,
+		"discoveryGroup":             settings.discoveryGroup,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

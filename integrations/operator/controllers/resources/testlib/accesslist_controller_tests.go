@@ -26,6 +26,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
@@ -144,13 +146,7 @@ func (g *accessListTestingPrimitives) ModifyKubernetesResource(ctx context.Conte
 }
 
 func (g *accessListTestingPrimitives) CompareTeleportAndKubernetesResource(tResource *accesslist.AccessList, kubeResource *resourcesv1.TeleportAccessList) (bool, string) {
-	opts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Labels", "Revision"),
-		cmpopts.IgnoreFields(header.ResourceHeader{}, "Kind"),
-		cmpopts.EquateApproxTime(MaxTimeDiff),
-		// Notifications are set by CheckAndSetDefaults server-side most of the time
-		cmpopts.IgnoreFields(accesslist.Audit{}, "Notifications"),
-	}
+	opts := CompareOptions()
 	// If the kubernetes resource does not specify an audit date, it will be computed server-side
 	if kubeResource.Spec.Audit.NextAuditDate.IsZero() {
 		opts = append(opts, cmpopts.IgnoreFields(accesslist.Audit{}, "Notifications", "NextAuditDate"))
@@ -217,10 +213,24 @@ func AccessListMutateExistingTest(t *testing.T, clt *client.Client) {
 	}
 	require.NoError(t, setup.K8sClient.Get(ctx, key, kubeAccessList))
 
-	reconciler := resources.NewAccessListReconciler(setup.K8sClient, clt)
+	reconciler, err := resources.NewAccessListReconciler(setup.K8sClient, clt)
+	require.NoError(t, err)
 
+	// TODO: remove this hack when the role controller uses the teleport reconciler
+	// and we can simplify Do, UpsertExternal, Upsert and Reconcile
+	r, ok := reconciler.(interface {
+		Upsert(context.Context, kclient.Object) error
+	})
+	require.True(t, ok)
+
+	// Also a hack: convert the structured object into an unstructured one
+	// to accommodate the teleport reconciler that casts first as an
+	// unstructured object before converting into the final struct.
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(kubeAccessList)
+	require.NoError(t, err)
+	obj := &unstructured.Unstructured{Object: content}
 	// Test execution: we trigger a single reconciliation
-	require.NoError(t, reconciler.Upsert(ctx, kubeAccessList))
+	require.NoError(t, r.Upsert(ctx, obj))
 
 	// Then we check if the AccessList audit date has been preserved in teleport
 	accessList, err = clt.AccessListClient().GetAccessList(ctx, name)

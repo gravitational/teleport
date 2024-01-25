@@ -243,7 +243,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				if !utils.IsOKNetworkError(err) {
+				if !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) {
 					s.cfg.Logger.Errorf("ssh stream terminated unexpectedly: %v", err)
 				}
 
@@ -317,7 +317,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 
 	// copy data to/from the host/user
 	err = utils.ProxyConn(monitorCtx, hostConn, userConn)
-	if errors.Is(err, io.EOF) {
+	if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 		err = nil
 	}
 	return trace.Wrap(err)

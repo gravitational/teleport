@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -53,8 +53,8 @@ type loginIdentity interface {
 // * Passwordless uses global variants
 // (services.Identity.Update/Get/DeleteGlobalWebauthnSessionData methods).
 type sessionIdentity interface {
-	Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error
-	Get(ctx context.Context, user string, challenge string) (*wanpb.SessionData, error)
+	Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error
+	Get(ctx context.Context, user string, challenge string) (*wantypes.SessionData, error)
 	Delete(ctx context.Context, user string, challenge string) error
 }
 
@@ -67,7 +67,16 @@ type loginFlow struct {
 	sessionData sessionIdentity
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialAssertion, error) {
+func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
+	if challengeExtensions == nil {
+		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
+	}
+
+	if challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && challengeExtensions.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION {
+		return nil, trace.BadParameter("mfa challenges with scope %s cannot allow reuse", challengeExtensions.Scope)
+	}
+
+	passwordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
@@ -163,11 +172,13 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	}
 
 	// Store SessionData - it's checked against the user response by Finish.
-	sessionDataPB, err := sessionToPB(sessionData)
+	sd, err := wantypes.SessionDataFromProtocol(sessionData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := f.sessionData.Upsert(ctx, user, sessionDataPB); err != nil {
+	sd.ChallengeExtensions = challengeExtensions
+
+	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -185,44 +196,61 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 	return wla.UserID, nil
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
+// LoginData is data gathered from a successful webauthn login.
+type LoginData struct {
+	// User is the Teleport user.
+	User string
+	// Device is the MFA device used to authenticate the user.
+	Device *types.MFADevice
+	// AllowReuse is whether the webauthn challenge used for this login
+	// can be reused by the user for subsequent logins, until it expires.
+	AllowReuse mfav1.ChallengeAllowReuse
+}
+
+func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*LoginData, error) {
+	if requiredExtensions == nil {
+		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
+	}
+
+	passwordless := requiredExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+
 	switch {
 	case user == "" && !passwordless:
-		return nil, "", trace.BadParameter("user required")
+		return nil, trace.BadParameter("user required")
 	case resp == nil:
 		// resp != nil is good enough to proceed, we leave remaining validations to
 		// duo-labs/webauthn.
-		return nil, "", trace.BadParameter("credential assertion response required")
+		return nil, trace.BadParameter("credential assertion response required")
 	}
 
 	parsedResp, err := parseCredentialResponse(resp)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	origin := parsedResp.Response.CollectedClientData.Origin
 	if err := validateOrigin(origin, f.Webauthn.RPID); err != nil {
 		log.WithError(err).Debugf("WebAuthn: origin validation failed")
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	var webID []byte
 	if passwordless {
 		webID = parsedResp.Response.UserHandle
 		if len(webID) == 0 {
-			return nil, "", trace.BadParameter("webauthn user handle required for passwordless")
+			return nil, trace.BadParameter("webauthn user handle required for passwordless")
 		}
 
 		// Fetch user from WebAuthn UserHandle (aka User ID).
 		teleportUser, err := f.identity.GetTeleportUserByWebauthnID(ctx, webID)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		user = teleportUser
 	} else {
 		webID, err = f.getWebID(ctx, user)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -230,11 +258,11 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	// registered device.
 	devices, err := f.identity.GetMFADevices(ctx, user, false /* withSecrets */)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	dev, ok := findDeviceByID(devices, parsedResp.RawID)
 	if !ok {
-		return nil, "", trace.BadParameter(
+		return nil, trace.BadParameter(
 			"unknown device credential: %q", base64.RawURLEncoding.EncodeToString(parsedResp.RawID))
 	}
 
@@ -245,7 +273,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	rpID := f.Webauthn.RPID
 	switch {
 	case dev.GetU2F() != nil && f.U2F == nil:
-		return nil, "", trace.BadParameter("U2F device attempted login, but U2F configuration not present")
+		return nil, trace.BadParameter("U2F device attempted login, but U2F configuration not present")
 	case dev.GetU2F() != nil:
 		rpID = f.U2F.AppID
 	}
@@ -254,11 +282,26 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	// Fetch the previously-stored SessionData, so it's checked against the user
 	// response.
 	challenge := parsedResp.Response.CollectedClientData.Challenge
-	sessionDataPB, err := f.sessionData.Get(ctx, user, challenge)
+	sd, err := f.sessionData.Get(ctx, user, challenge)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	sessionData := sessionFromPB(sessionDataPB)
+
+	// Check if the given scope is satisfied by the challenge scope.
+	if requiredExtensions.Scope != sd.ChallengeExtensions.Scope && requiredExtensions.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+		// old clients do not yet provide a scope, so we only enforce scope opportunistically.
+		// TODO(Joerger): DELETE IN v16.0.0
+		if sd.ChallengeExtensions.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+			return nil, trace.AccessDenied("required scope %q is not satisfied by the given webauthn session with scope %q", requiredExtensions.Scope, sd.ChallengeExtensions.Scope)
+		}
+	}
+
+	// If this session is reusable, but this login forbids reusable sessions, return an error.
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && sd.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		return nil, trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context")
+	}
+
+	sessionData := wantypes.SessionDataToProtocol(sd)
 
 	// Make sure _all_ credentials in the session are accounted for by the user.
 	// webauthn.ValidateLogin requires it.
@@ -280,7 +323,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		requireUserVerification: passwordless,
 	})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	var credential *wan.Credential
@@ -291,7 +334,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		credential, err = web.ValidateLogin(u, *sessionData, parsedResp)
 	}
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if credential.Authenticator.CloneWarning {
 		log.Warnf(
@@ -300,7 +343,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 
 	// Update last used timestamp and device counter.
 	if err := setCounterAndTimestamps(dev, credential); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// Retroactively write the credential RPID, now that it cleared authn.
 	if webDev := dev.GetWebauthn(); webDev != nil && webDev.CredentialRpId == "" {
@@ -309,16 +352,24 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 
 	if err := f.identity.UpsertMFADevice(ctx, user, dev); err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// The user just solved the challenge, so let's make sure it won't be used
-	// again.
-	if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
-		log.Warnf("WebAuthn: failed to delete login SessionData for user %v (passwordless = %v)", user, passwordless)
+	// again, unless reuse is explicitly allowed.
+	// Note that even reusable sessions are deleted when their expiration time
+	// passes.
+	if sd.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
+			log.Warnf("WebAuthn: failed to delete login SessionData for user %v (scope = %s)", user, sd.ChallengeExtensions.Scope)
+		}
 	}
 
-	return dev, user, nil
+	return &LoginData{
+		User:       user,
+		Device:     dev,
+		AllowReuse: sd.ChallengeExtensions.AllowReuse,
+	}, nil
 }
 
 func parseCredentialResponse(resp *wantypes.CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {

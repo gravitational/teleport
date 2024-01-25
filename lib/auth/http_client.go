@@ -338,28 +338,6 @@ func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	return &re, nil
 }
 
-// RotateCertAuthority starts or restarts certificate authority rotation process.
-func (c *HTTPClient) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
-	_, err := c.PostJSON(ctx, c.Endpoint("authorities", string(req.Type), "rotate"), req)
-	return trace.Wrap(err)
-}
-
-// RotateExternalCertAuthority rotates external certificate authority,
-// this method is used to update only public keys and certificates of the
-// the certificate authorities of trusted clusters.
-func (c *HTTPClient) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
-	if err := services.ValidateCertAuthority(ca); err != nil {
-		return trace.Wrap(err)
-	}
-	data, err := services.MarshalCertAuthority(ca)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostJSON(ctx, c.Endpoint("authorities", string(ca.GetType()), "rotate", "external"),
-		&rotateExternalCertAuthorityRawReq{CA: data})
-	return trace.Wrap(err)
-}
-
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via CreateToken/UpsertToken.
 func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -852,7 +830,10 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 // GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
 // session stream, starting from 'offset', up to 'max' in length. The upper bound
 // of 'max' is set to events.MaxChunkBytes
+//
+// Deprecated: use StreamSessionEvents API instead
 func (c *HTTPClient) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	// DELETE IN 16(zmb3): v15 web UIs stopped calling this
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
@@ -867,12 +848,10 @@ func (c *HTTPClient) GetSessionChunk(namespace string, sid session.ID, offsetByt
 	return response.Bytes(), nil
 }
 
-// Returns events that happen during a session sorted by time
-// (oldest first).
-//
-// afterN allows to filter by "newer than N" value where N is the cursor ID
-// of previously returned bunch (good for polling for latest)
+// Deprecated: use StreamSessionEvents API instead.
+// TODO(zmb3): remove from ClientI interface
 func (c *HTTPClient) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
+	// DELETE IN 16(zmb3): v15 web UIs stopped calling this
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
@@ -952,42 +931,6 @@ func (c *HTTPClient) SetClusterName(cn types.ClusterName) error {
 	}
 
 	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "name"), &setClusterNameReq{ClusterName: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// DeleteStaticTokens deletes static tokens
-func (c *HTTPClient) DeleteStaticTokens() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("configuration", "static_tokens"))
-	return trace.Wrap(err)
-}
-
-// GetStaticTokens returns a list of static register tokens
-func (c *HTTPClient) GetStaticTokens() (types.StaticTokens, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("configuration", "static_tokens"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	st, err := services.UnmarshalStaticTokens(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return st, err
-}
-
-// SetStaticTokens sets a list of static register tokens
-func (c *HTTPClient) SetStaticTokens(st types.StaticTokens) error {
-	data, err := services.MarshalStaticTokens(st)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "static_tokens"), &setStaticTokensReq{StaticTokens: data})
 	if err != nil {
 		return trace.Wrap(err)
 	}

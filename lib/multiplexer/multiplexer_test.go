@@ -445,7 +445,7 @@ func TestMux(t *testing.T) {
 		defer backend1.Close()
 
 		_, err = ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-			Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+			Auth:            []ssh.AuthMethod{ssh.Password("abcdef123456")},
 			Timeout:         time.Second,
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
@@ -1394,54 +1394,4 @@ func TestIsDifferentTCPVersion(t *testing.T) {
 		require.Equal(t, tt.expected, isDifferentTCPVersion(addr1, addr2),
 			fmt.Sprintf("Unexpected result for %q, %q", tt.addr1, tt.addr2))
 	}
-}
-
-func TestFixedHeader(t *testing.T) {
-	t.Parallel()
-	require := require.New(t)
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(err)
-	t.Cleanup(func() { listener.Close() })
-
-	const defaultSSHVersionIdentifier = "SSH-2.0-Go\r\n"
-	mux, err := New(Config{
-		Listener:    listener,
-		FixedHeader: defaultSSHVersionIdentifier,
-	})
-	require.NoError(err)
-	t.Cleanup(func() { mux.Close() })
-	go mux.Serve()
-
-	go startSSHServer(t, mux.SSH())
-
-	netConn, err := net.DialTimeout(listener.Addr().Network(), listener.Addr().String(), 5*time.Second)
-	require.NoError(err)
-	t.Cleanup(func() { netConn.Close() })
-
-	// the SSH transport layer protocol rfc (5423) states that SSH servers must
-	// send a version string immediately after the connection is established, so
-	// we expect (a specific) version string without sending anything
-	buf := make([]byte, len(defaultSSHVersionIdentifier))
-	_, err = io.ReadFull(netConn, buf)
-	require.NoError(err)
-	require.Equal(defaultSSHVersionIdentifier, string(buf))
-
-	// the SSH server hasn't even been touched yet, so we can connect to it from
-	// a separate connection (we have to, in fact, or startSSHServer will fail
-	// the test)
-
-	sshClient, err := ssh.Dial(listener.Addr().Network(), listener.Addr().String(), &ssh.ClientConfig{
-		User:            "bob",
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         5 * time.Second,
-	})
-	require.NoError(err)
-	t.Cleanup(func() { sshClient.Close() })
-
-	const payload = "this is a bit useless since we already went through a full handshake"
-	ok, echoReply, err := sshClient.Conn.SendRequest("echo", true, []byte(payload))
-	require.NoError(err)
-	require.True(ok)
-	require.Equal(payload, string(echoReply))
 }
