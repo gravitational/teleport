@@ -99,7 +99,7 @@ describe('gitHub component', () => {
   it('allows the user to go through the whole flow', async () => {
     setup({});
     expect(
-      screen.getByText(/Step 1: Scope the Permissions for Your Machine User/)
+      screen.getByText(/Step 1: Scope the Permissions for Your Bot/)
     ).toBeInTheDocument();
     // fill up the forms and go through the flow
     // step 1: Configure Bot Access
@@ -117,16 +117,14 @@ describe('gitHub component', () => {
     await userEvent.click(screen.getByTestId('button-next'));
     // step 3: Add Bot to GitHub
     expect(
-      screen.getByText(
-        /Step 3: Connect Your Machine User in a GitHub Actions Workflow/
-      )
+      screen.getByText(/Step 3: Connect Your Bot in a GitHub Actions Workflow/)
     ).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('button-next'));
     // Finish screen
     expect(
-      screen.getByText(/Your Machine User is Added to Teleport/)
+      screen.getByText(/Your Bot is Added to Teleport/)
     ).toBeInTheDocument();
-    expect(screen.getByText(/View Machine Users/)).toBeInTheDocument();
+    expect(screen.getByText(/View Bots/)).toBeInTheDocument();
     expect(screen.getByText(/Add Another Integration/)).toBeInTheDocument();
   });
 });

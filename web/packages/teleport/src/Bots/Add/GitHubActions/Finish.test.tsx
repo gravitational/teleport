@@ -44,22 +44,17 @@ describe('finish Component', () => {
   it('renders with dynamic content based on hook', () => {
     setup({ botName: 'test-bot' });
     expect(
-      screen.getByText('Your Machine User is Added to Teleport')
+      screen.getByText('Your Bot is Added to Teleport')
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        `Machine User test-bot has been successfully added to this Teleport Cluster. You can see bot-test-bot in the Teleport Users page and you can always find the sample GitHub Actions workflow again from the machine user's options.`
-      )
-    ).toBeInTheDocument();
-    expect(screen.getByText('View Machine Users')).toBeInTheDocument();
+    expect(screen.getByText('View Bots')).toBeInTheDocument();
     expect(screen.getByText('Add Another Integration')).toBeInTheDocument();
   });
 
   it('has correct links on buttons', () => {
     setup({ botName: 'test-bot' });
-    expect(screen.getByText('View Machine Users').closest('a')).toHaveAttribute(
+    expect(screen.getByText('View Bots').closest('a')).toHaveAttribute(
       'href',
-      cfg.routes.users
+      cfg.getBotsRoute()
     );
     expect(
       screen.getByText('Add Another Integration').closest('a')

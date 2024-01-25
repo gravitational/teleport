@@ -18,7 +18,6 @@
 
 import { ApiBot, FlatBot } from 'teleport/services/bot/types';
 
-
 export function makeBot(json: any): FlatBot {
   json = json || {};
 
@@ -36,9 +35,8 @@ export function makeBot(json: any): FlatBot {
 
     roles: json.spec.roles,
     traits: json.spec.traits,
-  }
+  };
 }
-
 
 export function makeListBot(bot: ApiBot): FlatBot {
   return {

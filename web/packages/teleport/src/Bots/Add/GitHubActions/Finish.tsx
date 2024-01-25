@@ -51,9 +51,9 @@ export function Finish() {
       </Text>
       <Text mb={3}>
         Bot {createBotRequest.botName} has been successfully added to this
-        Teleport Cluster. You can see bot-{createBotRequest.botName} in the
-        Teleport Users page and you can always find the sample GitHub Actions
-        workflow again from the bot's options.
+        Teleport Cluster. You can see bot-{createBotRequest.botName} in the Bots
+        page and you can always find the sample GitHub Actions workflow again
+        from the bot's options.
       </Text>
       <Flex>
         <ButtonPrimary mr="4" as={Link} to={cfg.getBotsRoute()} size="large">

@@ -19,8 +19,6 @@
 import { Dispatch, SetStateAction } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { FlatBot } from 'teleport/services/bot/types';
-
 export type BotsResponse = {
   bots: FlatBot[];
   startKey?: string;
@@ -56,7 +54,6 @@ export type Bot = {
 
 export type FlatBot = Omit<Bot, 'metadata' | 'spec'> & BotMetadata & BotSpec;
 
-
 export type BotListParams = {
   bots: FlatBot[];
 };
@@ -64,8 +61,6 @@ export type BotListParams = {
 export enum BotType {
   GitHubActions = 'github-actions',
 }
-
-
 
 export type BotOptionsCellProps = {
   bot: FlatBot;

@@ -144,15 +144,16 @@ type ProvisionToken interface {
 func NewProvisionToken(token string, roles SystemRoles, expires time.Time) (ProvisionToken, error) {
 	return NewProvisionTokenFromSpec(token, expires, ProvisionTokenSpecV2{
 		Roles: roles,
-	})
+	}, map[string]string{})
 }
 
 // NewProvisionTokenFromSpec returns a new provision token with the given spec.
-func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTokenSpecV2) (ProvisionToken, error) {
+func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTokenSpecV2, labels map[string]string) (ProvisionToken, error) {
 	t := &ProvisionTokenV2{
 		Metadata: Metadata{
 			Name:    token,
 			Expires: &expires,
+			Labels:  labels,
 		},
 		Spec: spec,
 	}

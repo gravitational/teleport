@@ -33,7 +33,7 @@ export type CreateBotRequest = {
   labels: ResourceLabel[];
   roles: string[];
   login: string;
-}
+};
 
 export type ApiBotMetadata = {
   description: string;
