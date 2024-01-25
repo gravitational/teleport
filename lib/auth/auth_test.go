@@ -365,8 +365,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantID, *gotID)
 
-	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
-	// generation.
 	kubeCluster, err := types.NewKubernetesClusterV3(
 		types.Metadata{
 			Name: "root-kube-cluster",
@@ -411,8 +409,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantID, *gotID)
 
-	// Login without specifying kube cluster. A registered one should be picked
-	// automatically.
+	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username:  user,
@@ -435,7 +432,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
-		KubernetesCluster: "root-kube-cluster",
+		KubernetesCluster: "",
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
@@ -476,8 +473,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantID, *gotID)
 
-	// Login without specifying kube cluster. A registered one should be picked
-	// automatically.
+	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username:  user,
@@ -500,7 +496,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
 		KubernetesUsers:   []string{user},
 		KubernetesGroups:  []string{"system:masters"},
-		KubernetesCluster: "root-kube-cluster",
+		KubernetesCluster: "",
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
