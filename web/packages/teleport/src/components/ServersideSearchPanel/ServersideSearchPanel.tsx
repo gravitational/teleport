@@ -17,18 +17,17 @@
  */
 
 import React from 'react';
-import { PageIndicatorText } from 'shared/components/Search';
-import { Box, Flex } from 'design';
-import { StyledPanel } from 'design/DataTable';
+import { Flex } from 'design';
 import InputSearch from 'design/DataTable/InputSearch';
+import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
 
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
 import { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
 import useServersideSearchPanel, {
-  SearchPanelState,
   HookProps,
+  SearchPanelState,
 } from './useServerSideSearchPanel';
 
 interface ComponentProps {
@@ -66,36 +65,26 @@ export function ServersideSearchPanel({
   }
 
   return (
-    <StyledPanel
+    <Flex
       as="form"
       onSubmit={onSubmitSearch}
-      borderTopLeftRadius={3}
-      borderTopRightRadius={3}
       style={disabled ? { pointerEvents: 'none', opacity: '0.5' } : {}}
+      flexDirection="column"
     >
-      <Flex justifyContent="space-between" alignItems="center" width="100%">
-        <Flex style={{ width: '70%' }} alignItems="center">
-          <Box width="100%" mr={3}>
-            <InputSearch
-              searchValue={searchString}
-              setSearchValue={setSearchString}
-            >
-              <AdvancedSearchToggle
-                isToggled={isAdvancedSearch}
-                onToggle={onToggle}
-                px={4}
-              />
-            </InputSearch>
-          </Box>
-        </Flex>
-        <Flex>
-          <PageIndicatorText
-            from={pageIndicators.from}
-            to={pageIndicators.to}
-            count={pageIndicators.totalCount}
-          />
-        </Flex>
+      <InputSearch searchValue={searchString} setSearchValue={setSearchString}>
+        <AdvancedSearchToggle
+          isToggled={isAdvancedSearch}
+          onToggle={onToggle}
+          px={4}
+        />
+      </InputSearch>
+      <Flex justifyContent="flex-end" mr={2} mb={1}>
+        <PageIndicatorText
+          from={pageIndicators.from}
+          to={pageIndicators.to}
+          count={pageIndicators.totalCount}
+        />
       </Flex>
-    </StyledPanel>
+    </Flex>
   );
 }
