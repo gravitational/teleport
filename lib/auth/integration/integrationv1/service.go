@@ -46,15 +46,22 @@ type CAGetter interface {
 	GetKeyStore() *keystore.Manager
 }
 
+// ProxyGetter is a service that gets proxies.
+type ProxiesGetter interface {
+	// GetProxies returns a list of registered proxies.
+	GetProxies() ([]types.Server, error)
+}
+
 // ServiceConfig holds configuration options for
 // the Integration gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      services.IntegrationsGetter
-	Backend    services.Integrations
-	CAGetter   CAGetter
-	Logger     *logrus.Entry
-	Clock      clockwork.Clock
+	Authorizer    authz.Authorizer
+	Cache         services.IntegrationsGetter
+	Backend       services.Integrations
+	CAGetter      CAGetter
+	ProxiesGetter ProxiesGetter
+	Logger        *logrus.Entry
+	Clock         clockwork.Clock
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -77,6 +84,10 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("ca getter is required")
 	}
 
+	if s.ProxiesGetter == nil {
+		return trace.BadParameter("proxies getter is required")
+	}
+
 	if s.Logger == nil {
 		s.Logger = logrus.WithField(trace.Component, "integrations.service")
 	}
@@ -91,12 +102,13 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 // Service implements the teleport.integration.v1.IntegrationService RPC service.
 type Service struct {
 	integrationpb.UnimplementedIntegrationServiceServer
-	authorizer authz.Authorizer
-	cache      services.IntegrationsGetter
-	backend    services.Integrations
-	caGetter   CAGetter
-	logger     *logrus.Entry
-	clock      clockwork.Clock
+	authorizer    authz.Authorizer
+	cache         services.IntegrationsGetter
+	backend       services.Integrations
+	caGetter      CAGetter
+	proxiesGetter ProxiesGetter
+	logger        *logrus.Entry
+	clock         clockwork.Clock
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -106,12 +118,13 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
-		backend:    cfg.Backend,
-		caGetter:   cfg.CAGetter,
-		clock:      cfg.Clock,
+		logger:        cfg.Logger,
+		authorizer:    cfg.Authorizer,
+		cache:         cfg.Cache,
+		backend:       cfg.Backend,
+		caGetter:      cfg.CAGetter,
+		proxiesGetter: cfg.ProxiesGetter,
+		clock:         cfg.Clock,
 	}, nil
 }
 
