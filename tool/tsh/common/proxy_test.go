@@ -37,11 +37,9 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"testing"
 	"text/template"
 	"time"
-	_ "unsafe"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -54,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -65,29 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
-
-//go:linkname x509_systemRootsMu crypto/x509.systemRootsMu
-var x509_systemRootsMu sync.RWMutex
-
-//go:linkname x509_systemRoots crypto/x509.systemRoots
-var x509_systemRoots *x509.CertPool
-
-func setSystemRoots(pool *x509.CertPool) (reset func()) {
-	// ensure that systemRoots was already set, or the next call to
-	// x509.SystemCertPool() will overwrite it
-	_, _ = x509.SystemCertPool()
-
-	x509_systemRootsMu.Lock()
-	previousSystemRoots := x509_systemRoots
-	x509_systemRoots = pool
-	x509_systemRootsMu.Unlock()
-
-	return func() {
-		x509_systemRootsMu.Lock()
-		x509_systemRoots = previousSystemRoots
-		x509_systemRootsMu.Unlock()
-	}
-}
 
 // TestSSH verifies "tsh ssh" command.
 func TestSSH(t *testing.T) {
@@ -103,8 +79,7 @@ func TestSSH(t *testing.T) {
 	certPool := x509.NewCertPool()
 	require.True(t, certPool.AppendCertsFromPEM(webCertPEM))
 
-	reset := setSystemRoots(certPool)
-	defer reset()
+	helpers.OverrideSystemRoots(t, certPool)
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
