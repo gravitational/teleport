@@ -20,13 +20,11 @@ package automaticupgrades
 
 import (
 	"context"
+	"github.com/gravitational/trace"
+	"golang.org/x/mod/semver"
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -179,21 +177,6 @@ func (c *Channel) GetCritical(ctx context.Context) (bool, error) {
 	return c.criticalTrigger.CanStart(ctx, nil)
 }
 
-var newDefaultChannel = sync.OnceValues[*Channel, error](
-	func() (*Channel, error) {
-		forwardURL := GetChannel()
-		if forwardURL == "" {
-			forwardURL = stableCloudVersionBaseURL
-		}
-		defaultChannel := &Channel{
-			ForwardURL: forwardURL,
-		}
-		if err := defaultChannel.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return defaultChannel, nil
-	})
-
 // NewDefaultChannel creates a default automatic upgrade channel
 // It looks up the TELEPORT_AUTOMATIC_UPGRADES_CHANNEL environment variable for
 // backward compatibility, and if not found uses the default base URL.
@@ -201,7 +184,17 @@ var newDefaultChannel = sync.OnceValues[*Channel, error](
 // or in other Teleport processes such as integration services deploying and
 // updating teleport agents.
 func NewDefaultChannel() (*Channel, error) {
-	return newDefaultChannel()
+	forwardURL := GetChannel()
+	if forwardURL == "" {
+		forwardURL = stableCloudVersionBaseURL
+	}
+	defaultChannel := &Channel{
+		ForwardURL: forwardURL,
+	}
+	if err := defaultChannel.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return defaultChannel, nil
 }
 
 func parseMajorFromVersionString(v string) (int, error) {
