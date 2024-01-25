@@ -27,6 +27,12 @@ import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1
 import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
+import {
+  BackendUserPreferences,
+  convertBackendUserPreferences,
+  isBackendUserPreferences,
+} from 'teleport/services/userPreferences/userPreferences';
+
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
 
 import type { RecommendFeature } from 'teleport/types';
@@ -107,7 +113,17 @@ export const storageService = {
   getUserPreferences(): UserPreferences {
     const preferences = window.localStorage.getItem(KeysEnum.USER_PREFERENCES);
     if (preferences) {
-      return JSON.parse(preferences);
+      const parsed: UserPreferences | BackendUserPreferences =
+        JSON.parse(preferences);
+
+      // TODO(ryan): DELETE in v17: remove reference to `BackendUserPreferences` - all
+      //             locally stored copies of user preferences should be `UserPreferences` by then
+      //             (they are updated on every login)
+      if (isBackendUserPreferences(parsed)) {
+        return convertBackendUserPreferences(parsed);
+      }
+
+      return parsed;
     }
     return null;
   },

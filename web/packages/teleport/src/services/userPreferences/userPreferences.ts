@@ -19,10 +19,14 @@
 import {
   DefaultTab,
   LabelsViewMode,
+  UnifiedResourcePreferences,
   ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
-import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
+import {
+  AssistUserPreferences,
+  AssistViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
 
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
@@ -30,15 +34,31 @@ import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1
 
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
+import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { KeysEnum } from '../storageService';
 
-export async function getUserPreferences() {
-  const res: UserPreferences = await api.get(cfg.api.userPreferencesPath);
+interface BackendClusterUserPreferences {
+  pinnedResources?: string[];
+}
 
-  return res;
+export interface BackendUserPreferences {
+  assist?: AssistUserPreferences;
+  theme: Theme;
+  onboard?: OnboardUserPreferences;
+  clusterPreferences?: BackendClusterUserPreferences;
+  unifiedResourcePreferences?: UnifiedResourcePreferences;
+}
+
+export async function getUserPreferences(): Promise<UserPreferences> {
+  const res: BackendUserPreferences = await api.get(
+    cfg.api.userPreferencesPath
+  );
+
+  return convertBackendUserPreferences(res);
 }
 
 export async function getUserClusterPreferences(clusterId: string) {
@@ -69,7 +89,10 @@ export function updateUserClusterPreferences(
   clusterId: string,
   preferences: UserPreferences
 ) {
-  return api.put(cfg.getUserClusterPreferencesUrl(clusterId), preferences);
+  return api.put(
+    cfg.getUserClusterPreferencesUrl(clusterId),
+    convertUserPreferences(preferences)
+  );
 }
 
 export function updateUserPreferences(preferences: Partial<UserPreferences>) {
@@ -107,4 +130,37 @@ export function makeDefaultUserClusterPreferences(): ClusterUserPreferences {
       resourceIds: [],
     },
   };
+}
+
+export function convertUserPreferences(
+  preferences: UserPreferences
+): BackendUserPreferences {
+  return {
+    ...preferences,
+    clusterPreferences: {
+      pinnedResources:
+        preferences.clusterPreferences?.pinnedResources?.resourceIds ?? [],
+    },
+  };
+}
+
+export function convertBackendUserPreferences(
+  preferences: BackendUserPreferences
+): UserPreferences {
+  return {
+    ...preferences,
+    clusterPreferences: {
+      pinnedResources: {
+        resourceIds: preferences.clusterPreferences?.pinnedResources ?? [],
+      },
+    },
+  };
+}
+
+export function isBackendUserPreferences(
+  preferences: UserPreferences | BackendUserPreferences
+): preferences is BackendUserPreferences {
+  return Array.isArray(
+    (preferences as BackendUserPreferences).clusterPreferences?.pinnedResources
+  );
 }
