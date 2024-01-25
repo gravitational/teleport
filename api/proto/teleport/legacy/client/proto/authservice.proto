@@ -553,7 +553,11 @@ message Features {
   // IdentityGovernance indicates whether IGS related features are enabled:
   // access list, access request, access monitoring, device trust.
   bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
-  // AccessGraph indicates whether Teleport Access Graph is enabled.
+  // AccessGraph enables the usage of access graph.
+  // NOTE: this is a legacy flag that is currently used to signal
+  // that Access Graph integration is *enabled* on a cluster.
+  // *Access* to the feature is gated on the `Policy` flag.
+  // TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
   bool AccessGraph = 24 [(gogoproto.jsontag) = "access_graph,omitempty"];
   // AccessListFeature holds its namesake feature settings.
   AccessListFeature AccessList = 25 [(gogoproto.jsontag) = "access_list,omitempty"];
@@ -561,6 +565,9 @@ message Features {
   AccessMonitoringFeature AccessMonitoring = 26 [(gogoproto.jsontag) = "access_monitoring,omitempty"];
   // ProductType describes the product being used.
   ProductType ProductType = 27 [(gogoproto.jsontag) = "product_type,omitempty"];
+  // Policy enables the Teleport Policy feature set.
+  // At the time of writing, this includes Teleport Access Graph (TAG).
+  PolicyFeature Policy = 28 [(gogoproto.jsontag) = "policy,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -606,6 +613,12 @@ message AccessMonitoringFeature {
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // Defines the max number of days to include in an access report.
   int32 max_report_range_limit = 2 [(gogoproto.jsontag) = "max_report_range_limit,omitempty"];
+}
+
+// PolicyFeature holds the Teleport Policy feature set settings.
+message PolicyFeature {
+  // True if Teleport Policy is enabled in the license.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -1428,8 +1441,8 @@ message NodeLogin {
 
 // AdminAction specifies an admin action.
 message AdminAction {
-  // Name is the name of the admin action RPC.
-  string Name = 1;
+  reserved 1;
+  reserved "Name";
 }
 
 // IsMFARequiredResponse is a response for MFA requirement check.

@@ -358,6 +358,11 @@
               "forScopes": ["enterprise", "cloud", "team"]
             },
             {
+              "title": "SAML Attribute Mapping",
+              "slug": "/access-controls/idps/saml-attribute-mapping/",
+              "forScopes": ["enterprise", "cloud", "team"]
+            },
+            {
               "title": "Authenticate to Grafana with Teleport SAML",
               "slug": "/access-controls/idps/saml-grafana/",
               "forScopes": ["enterprise", "cloud", "team"]
@@ -990,10 +995,6 @@
             {
               "title": "BPF Session Recording",
               "slug": "/server-access/guides/bpf-session-recording/"
-            },
-            {
-              "title": "Restricted Session",
-              "slug": "/server-access/guides/restricted-session/"
             },
             {
               "title": "Visual Studio Code",
@@ -3048,6 +3049,11 @@
     {
       "source": "/management/admin/upgrading-the-teleport-binary/",
       "destination": "/upgrading/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/restricted-session/",
+      "destination": "/server-access/guides/",
       "permanent": true
     }
   ]

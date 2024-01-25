@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/mfa"
@@ -48,10 +49,11 @@ func WithMFAUnaryInterceptor(clt mfa.MFACeremonyClient) grpc.UnaryClientIntercep
 		// we just want the method name.
 		splitMethod := strings.Split(method, "/")
 		readableMethodName := splitMethod[len(splitMethod)-1]
+		logrus.Debugf("Retrying API request %q with Admin MFA", readableMethodName)
 
 		// Start an MFA prompt that shares what API request caused MFA to be prompted.
 		// ex: MFA is required for admin-level API request: "CreateUser"
-		mfaResp, ceremonyErr := mfa.PerformAdminActionMFACeremony(ctx, clt, readableMethodName, false /*allowReuse*/)
+		mfaResp, ceremonyErr := mfa.PerformAdminActionMFACeremony(ctx, clt, false /*allowReuse*/)
 		if ceremonyErr != nil {
 			return trace.NewAggregate(trail.FromGRPC(err), ceremonyErr)
 		}

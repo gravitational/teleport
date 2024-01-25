@@ -166,11 +166,11 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		hasUsableKeys, err := t.process.GetAuthServer().GetKeyStore().HasUsableAdditionalKeys(ctx, ca)
+		usableKeysResult, err := t.process.GetAuthServer().GetKeyStore().HasUsableAdditionalKeys(ctx, ca)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if hasUsableKeys {
+		if usableKeysResult.CAHasUsableKeys {
 			break
 		}
 	}
