@@ -179,6 +179,8 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	clusterName string,
 	ca *tlsca.CertAuthority,
 ) (res *pb.SVIDResponse, err error) {
+	// Setup audit log event, we will emit these even on failure to catch any
+	// authz denials
 	var serialNumber *big.Int
 	var spiffeID *url.URL
 	defer func() {
@@ -207,6 +209,10 @@ func (wis *WorkloadIdentityService) signX509SVID(
 			)
 		}
 	}()
+
+	// Perform authz checks. They must be allowed to issue the SPIFFE ID and
+	// any listed spans.
+
 	// TODO: Authn/authz
 	// TODO: Ensure they can issue the IPs, SANs and SPIFFE ID
 	// TODO: Validate req.SpiffeIDPath for any potential weirdness
@@ -221,12 +227,19 @@ func (wis *WorkloadIdentityService) signX509SVID(
 		ipSans = append(ipSans, net.ParseIP(stringIP))
 	}
 
+	// Default TTL is 1 hour - maximum is 24 hours. If TTL is greater than max,
+	// we will use the max.
+	ttl := defaults.DefaultRenewableCertTTL
+	if reqTTL := req.Ttl.AsDuration(); reqTTL > 0 {
+		ttl = reqTTL
+	}
+	if ttl > defaults.MaxRenewableCertTTL {
+		ttl = defaults.MaxRenewableCertTTL
+	}
+	notAfter := wis.clock.Now().Add(ttl)
 	// NotBefore is one minute in the past to prevent "Not yet valid" errors on
 	// time skewed clusters.
 	notBefore := wis.clock.Now().UTC().Add(-1 * time.Minute)
-	notAfter := wis.clock.Now().Add(defaults.DefaultRenewableCertTTL)
-	// TODO: Source TTL from req and enforce DefaultRenewableCertTTL as the
-	// limit in rbac???
 
 	var pemBytes []byte
 	pemBytes, serialNumber, err = signx509SVID(

@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.machineid.v1;
 
+import "google/protobuf/duration.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
 
 // WorkloadIdentityService provides the signing of workload identity documents.
@@ -46,6 +48,11 @@ message SVIDRequest {
   // user configured and are sent back to the actual workload.
   // Optional.
   string hint = 5;
+  // The TTL to use for the x509 SVID. A maximum value is enforced on this
+  // field. Callers should inspect the returned cert to determine if their
+  // requested TTL has been met, and if not, adjust their behaviour. If not
+  // supplied, the default TTL will be the maximum value.
+  google.protobuf.Duration ttl = 6;
 }
 
 // The generated x509 SVID.
