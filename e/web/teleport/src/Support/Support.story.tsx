@@ -1,4 +1,5 @@
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { SupportE } from './Support';
 
@@ -9,7 +10,9 @@ export default {
 };
 
 export const CloudSection = () => (
-  <SupportE {...props} isCloud={true}></SupportE>
+  <MemoryRouter>
+    <SupportE {...props} isCloud={true}></SupportE>
+  </MemoryRouter>
 );
 
 const props: Props = {
