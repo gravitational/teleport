@@ -265,6 +265,9 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Fetch info that will be needed for all SPIFFE SVIDs requested
 	clusterName, err := wis.cache.GetClusterName()
