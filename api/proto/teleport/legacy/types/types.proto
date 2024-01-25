@@ -2984,16 +2984,9 @@ message SPIFFERoleConditions {
   // Matching:
   // - '*' matches zero or more characters.
   // - '?' matches any single character.
-  // If empty:
-  // - When evaluating allow, no DNS sans will be permitted.
-  // - When evaluating deny, all DNS SANs will be permitted.
   repeated string DNSSANs = 2 [(gogoproto.jsontag) = "dns_sans,omitempty"];
   // IPSANs specifies a matcher IP SANs which have been requested in the SVID.
   // It supports IPv4 and IPv6.
-  // If empty:
-  // - When evaluating allow, no IP sans will be permitted.
-  // - When evaluating deny, all IP SANs will be permitted.
-  // A range of IPs can be specified using CIDR notation: 10.0.0.0/24
   repeated string IPSANs = 3 [(gogoproto.jsontag) = "ip_sans,omitempty"];
 }
 

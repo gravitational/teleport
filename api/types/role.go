@@ -243,6 +243,11 @@ type Role interface {
 	GetGroupLabels(RoleConditionType) Labels
 	// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
 	SetGroupLabels(RoleConditionType, Labels)
+
+	// GetSPIFFEConditions returns the allow or deny SPIFFERoleConditions.
+	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleConditions
+	// SetSPIFFEConditions sets the allow or deny SPIFFERoleConditions.
+	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleConditions)
 }
 
 // NewRole constructs new standard V7 role.
@@ -723,6 +728,23 @@ func (r *RoleV6) SetImpersonateConditions(rct RoleConditionType, cond Impersonat
 		r.Spec.Allow.Impersonate = &cond
 	} else {
 		r.Spec.Deny.Impersonate = &cond
+	}
+}
+
+// GetSPIFFEConditions returns the allow or deny SPIFFERoleConditions.
+func (r *RoleV6) GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleConditions {
+	if rct == Allow {
+		return r.Spec.Allow.SPIFFE
+	}
+	return r.Spec.Deny.SPIFFE
+}
+
+// SetSPIFFEConditions sets the allow or deny SPIFFERoleConditions.
+func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleConditions) {
+	if rct == Allow {
+		r.Spec.Allow.SPIFFE = cond
+	} else {
+		r.Spec.Deny.SPIFFE = cond
 	}
 }
 

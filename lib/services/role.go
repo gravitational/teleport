@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"path"
 	"regexp"
 	"slices"
@@ -1803,6 +1804,74 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 	}
 
 	return constants.SessionRecordingModeBestEffort
+}
+
+func matchDenySPIFFESVIDCondition(conds []*types.SPIFFERoleConditions, spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) (bool, error) {
+	// TODO???
+	return false, nil
+}
+
+func matchAllowSPIFFESVIDCondition(conds []*types.SPIFFERoleConditions, spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) (bool, error) {
+	for _, cond := range conds {
+		// Match SPIFFE ID path. TODO: Globby
+		if spiffeIDPath != cond.Path {
+			continue
+		}
+		// All DNS SANs requested must match one of the DNS SAN matchers
+		for _, dnsSAN := range dnsSANs {
+			matched := false
+			for _, condDNSSAN := range cond.DNSSANs {
+
+			}
+			if !matched {
+				continue
+			}
+		}
+		// All IP SANs requested must match one of the IP SAN matchers
+		for _, ipSAN := range ipSANs {
+			matched := false
+			for _, condIPSAN := range cond.DNSSANs {
+
+			}
+			if !matched {
+				continue
+			}
+		}
+	}
+	return false, nil
+}
+
+// CheckSPIFFESVID checks if the role set has access to generating the
+// requested SPIFFE ID. Returns an error if the role set does not have the
+// ability to generate the requested SVID.
+func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) error {
+	accessDenied := trace.AccessDenied("access denied to generate SVID %q", spiffeIDPath)
+
+	// check deny: a single match on a deny rule prohibits generation
+	for _, role := range set {
+		cond := role.GetSPIFFEConditions(types.Deny)
+		matched, err := matchDenySPIFFESVIDCondition(cond, spiffeIDPath, dnsSANs, ipSANs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return accessDenied
+		}
+	}
+
+	// check allow: if a single condition matches, allow generation
+	for _, role := range set {
+		cond := role.GetSPIFFEConditions(types.Allow)
+		matched, err := matchAllowSPIFFESVIDCondition(cond, spiffeIDPath, dnsSANs, ipSANs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return nil
+		}
+	}
+
+	return accessDenied
 }
 
 func roleNames(roles []types.Role) string {
