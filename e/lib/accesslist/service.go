@@ -41,6 +41,9 @@ const (
 
 	// eventMemberBatches is the number of members to emit per event. This will batch member events emitted by this service.
 	eventMemberBatches = 50
+
+	// oktaErrorMsg is the message to display when the modification of an Okta access list is attempted.
+	oktaErrorMsg = "Okta sourced access lists cannot be modified"
 )
 
 var (
@@ -451,18 +454,47 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 
 	accessListName := newAccessList.GetName()
 
-	authCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.log, s.authorizer, true, newAccessList, types.VerbCreate, types.VerbUpdate)
+	oldAccessList, getErr := s.accessLists.GetAccessList(ctx, accessListName)
+	if getErr != nil && !trace.IsNotFound(getErr) {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	verbs := []string{types.VerbCreate}
+
+	if oldAccessList != nil {
+		verbs = []string{types.VerbUpdate}
+		_, err := authz.AuthorizeResourceWithVerbs(ctx, s.log, s.authorizer, true, oldAccessList, verbs...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Update the revision to make sure that the future upsert is rejected if somebody else has modified it while we're
+		// running this function.
+		newAccessList.SetRevision(oldAccessList.GetRevision())
+	}
+
+	authCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.log, s.authorizer, true, newAccessList, verbs...)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if !oktaModificationAllowed(*authCtx, oldAccessList, newAccessList) {
+		return nil, trace.AccessDenied(oktaErrorMsg)
 	}
 
 	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, updated, upsertErr := s.upsertAccessList(ctx, newAccessList)
+	username, err := getUsername(authCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	s.emitUpsertAccessListEvent(ctx, authCtx.Identity.GetIdentity().Username, updated, accessListName, upsertErr)
+	updated := oldAccessList != nil
+	resp, upsertErr := s.upsertAccessList(ctx, authCtx, newAccessList)
+
+	s.emitUpsertAccessListEvent(ctx, username, updated, accessListName, upsertErr)
 
 	if upsertErr == nil {
 		s.emitUpsertAccessListUsageEvent(ctx, updated, accessListName)
@@ -472,17 +504,13 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 }
 
 // upsertAccessList is a helper for upserting the access list that returns the response, whether this was an update request, and an error.
-func (s *Service) upsertAccessList(ctx context.Context, newAccessList *accesslist.AccessList) (resp *accesslistv1.AccessList, updated bool, err error) {
-	if _, err := s.accessLists.GetAccessList(ctx, newAccessList.GetName()); err == nil {
-		updated = true
-	}
-
+func (s *Service) upsertAccessList(ctx context.Context, authCtx *authz.Context, newAccessList *accesslist.AccessList) (resp *accesslistv1.AccessList, err error) {
 	responseAccessList, err := s.accessLists.UpsertAccessList(ctx, newAccessList)
 	if err != nil {
-		return nil, updated, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return conv.ToProto(responseAccessList), updated, nil
+	return conv.ToProto(responseAccessList), nil
 }
 
 // emitUpsertAccessListEvent will emit the create/update event for the access list.
@@ -820,7 +848,10 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	username := authCtx.Identity.GetIdentity().Username
+	username, err := getUsername(authCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	resp, accessListName, updated, upsertErr := s.upsertAccessListMember(ctx, authCtx, member)
 
@@ -842,7 +873,10 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 // upsertAccessListMember is a helper for creating or updating access list members that returns the response, whether this was an update, and an error.
 func (s *Service) upsertAccessListMember(ctx context.Context, authCtx *authz.Context, member *accesslist.AccessListMember) (resultProto *accesslistv1.Member, accessListName string, updated bool, err error) {
 	updated = false
-	username := authCtx.Identity.GetIdentity().Username
+	username, err := getUsername(authCtx)
+	if err != nil {
+		return nil, member.Spec.AccessList, updated, trace.Wrap(err)
+	}
 
 	// If the user didn't exist before, make sure the current user is recorded as the user that added it.
 	if oldMember, err := s.accessLists.GetAccessListMember(ctx, member.Spec.AccessList, member.GetName()); err == nil || trace.IsNotFound(err) {
@@ -986,7 +1020,10 @@ func (s *Service) DeleteAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	username := authCtx.Identity.GetIdentity().Username
+	username, err := getUsername(authCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	resp, deleteErr := s.deleteAccessListMember(ctx, req)
 
@@ -1074,7 +1111,10 @@ func (s *Service) DeleteAllAccessListMembersForAccessList(ctx context.Context, r
 		return nil, trace.Wrap(err)
 	}
 
-	username := authCtx.Identity.GetIdentity().Username
+	username, err := getUsername(authCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	resp, deleteErr := s.deleteAllAccessListMembersForAccessList(ctx, req)
 
@@ -1140,7 +1180,10 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 		return nil, trace.Wrap(err)
 	}
 
-	username := authCtx.Identity.GetIdentity().Username
+	username, err := getUsername(authCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	resp, updated, accessListModified, modifiedMembers, upsertErr := s.upsertAccessListWithMembers(ctx, authCtx, req)
 
@@ -1217,6 +1260,10 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	oldAccessList, err := s.accessLists.GetAccessList(ctx, newAccessList.GetName())
 	if oldAccessList != nil {
 		updated = true
+
+		// Update the revision to make sure that the future upsert is rejected if somebody else has modified it while we're
+		// running this function.
+		newAccessList.SetRevision(oldAccessList.GetRevision())
 	}
 
 	if err != nil && !trace.IsNotFound(err) {
@@ -1228,22 +1275,28 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	// Modifying the access list requires RBAC access.
 	var authErrOld error
 
+	verbs := []string{types.VerbCreate}
 	// Make sure the user has access to the old access list if it exists.
 	if oldAccessList != nil {
-		authErrOld = s.hasAccessListRBAC(ctx, authCtx, oldAccessList, types.VerbCreate, types.VerbUpdate)
+		verbs = []string{types.VerbUpdate}
+		authErrOld = s.hasAccessListRBAC(ctx, authCtx, oldAccessList, verbs...)
 		if services.IsAccessExplicitlyDenied(authErrOld) {
 			return nil, updated, accessListModified, nil, trace.Wrap(authErrOld)
 		}
 	}
 
 	// Make sure the user also has access to the access list to be created.
-	authErrNew := s.hasAccessListRBAC(ctx, authCtx, newAccessList, types.VerbCreate, types.VerbUpdate)
+	authErrNew := s.hasAccessListRBAC(ctx, authCtx, newAccessList, verbs...)
 	if services.IsAccessExplicitlyDenied(authErrNew) {
 		return nil, updated, accessListModified, nil, trace.Wrap(authErrNew)
 	}
 
 	hasRBAC := authErrOld == nil && authErrNew == nil
 	isOwner := s.isOwnerOfAccessList(ctx, authCtx, newAccessList) == nil
+
+	if accessListModified && !oktaModificationAllowed(*authCtx, oldAccessList, newAccessList) {
+		return nil, updated, accessListModified, nil, trace.AccessDenied(oktaErrorMsg)
+	}
 
 	// The logic here is as follows:
 	// - If the user has RBAC permissions, anything is permitted.
@@ -1264,7 +1317,10 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 		return nil, updated, accessListModified, nil, trace.Wrap(err)
 	}
 
-	username := authCtx.Identity.GetIdentity().Username
+	username, err := getUsername(authCtx)
+	if err != nil {
+		return nil, updated, accessListModified, nil, trace.Wrap(err)
+	}
 
 	// Convert members
 	members := make([]*accesslist.AccessListMember, 0, len(req.Members))
@@ -1412,6 +1468,24 @@ func (s *Service) hasUserRBAC(ctx context.Context, authCtx *authz.Context, verbs
 	}
 
 	return authErr == nil
+}
+
+// oktaModificationAllowed will return true if an Okta modification is allowed. If the access list is not an Okta object,
+// this will return true.
+func oktaModificationAllowed(authCtx authz.Context, accessLists ...*accesslist.AccessList) bool {
+	hasOktaOrigin := false
+	for _, accessList := range accessLists {
+		if accessList != nil && accessList.Origin() == types.OriginOkta {
+			hasOktaOrigin = true
+			break
+		}
+	}
+
+	if !hasOktaOrigin {
+		return true
+	}
+
+	return authz.HasBuiltinRole(authCtx, string(types.RoleOkta))
 }
 
 // isOwnerOfAccessList checks if this user owns this access list.
@@ -1563,7 +1637,10 @@ func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	username := authCtx.Identity.GetIdentity().Username
+	username, err := getUsername(authCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	resp, updatedReview, createErr := s.createAccessListReview(ctx, review, authCtx, accessList, username)
 
 	s.emitCreateAccessListReview(ctx, username, updatedReview, createErr)
@@ -1586,8 +1663,14 @@ func (s *Service) createAccessListReview(ctx context.Context, review *accesslist
 	accessListModified := !cmp.Equal(accesslist.ReviewChanges{}, review.Spec.Changes, reviewValidOwnerChanges...)
 
 	// Make sure the owner can't modify the access list.
-	if accessListModified && !hasRBAC {
-		return nil, review, trace.AccessDenied("user cannot modify the access list as part of the review")
+	if accessListModified {
+		if !hasRBAC {
+			return nil, review, trace.AccessDenied("user cannot modify the access list as part of the review")
+		}
+
+		if !oktaModificationAllowed(*authCtx, accessList) {
+			return nil, review, trace.AccessDenied(oktaErrorMsg)
+		}
 	}
 
 	// Make sure the reviewers reflect the current user and the review date is recorded as now.
@@ -1961,4 +2044,18 @@ func batchAccessListMemberMetadata(accessListName string, members []*apievents.A
 	}
 
 	return batches
+}
+
+func getUsername(authCtx *authz.Context) (string, error) {
+	if authCtx == nil {
+		return "", trace.BadParameter("authCtx is nil")
+	}
+
+	if authz.HasBuiltinRole(*authCtx, string(types.RoleOkta)) {
+		return "okta-service", nil
+	}
+
+	identity := authCtx.Identity.GetIdentity()
+
+	return identity.Username, nil
 }
