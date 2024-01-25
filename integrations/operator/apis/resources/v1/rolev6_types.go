@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package v2
+package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,71 +26,70 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&TeleportUser{}, &TeleportUserList{})
+	SchemeBuilder.Register(&TeleportRoleV6{}, &TeleportRoleV6List{})
 }
 
-// TeleportUserSpec defines the desired state of TeleportUser
-type TeleportUserSpec types.UserSpecV2
+// TeleportRoleV6Spec defines the desired state of TeleportRoleV6
+type TeleportRoleV6Spec types.RoleSpecV6
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// TeleportUser is the Schema for the users API
-type TeleportUser struct {
+// TeleportRoleV6 is the Schema for the roles API
+type TeleportRoleV6 struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportUserSpec `json:"spec,omitempty"`
-	Status resources.Status `json:"status,omitempty"`
+	Spec   TeleportRoleV6Spec `json:"spec,omitempty"`
+	Status resources.Status   `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// TeleportUserList contains a list of TeleportUser
-type TeleportUserList struct {
+// TeleportRoleV6List contains a list of TeleportRoleV6
+type TeleportRoleV6List struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []TeleportUser `json:"items"`
+	Items           []TeleportRoleV6 `json:"items"`
 }
 
-func (u TeleportUser) ToTeleport() types.User {
-	return &types.UserV2{
-		Kind:    types.KindUser,
-		Version: types.V2,
+func (r TeleportRoleV6) ToTeleport() types.Role {
+	return &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
 		Metadata: types.Metadata{
-			Name:        u.Name,
-			Labels:      u.Labels,
-			Description: u.Annotations[resources.DescriptionKey],
+			Name:        r.Name,
+			Labels:      r.Labels,
+			Description: r.Annotations[resources.DescriptionKey],
 		},
-		Spec: types.UserSpecV2(u.Spec),
+		Spec: types.RoleSpecV6(r.Spec),
 	}
 }
 
-// StatusConditions returns a pointer to Status.Conditions slice. This is used
-// by the teleport resource controller to report conditions back to on resource.
-func (u *TeleportUser) StatusConditions() *[]metav1.Condition {
-	return &u.Status.Conditions
-}
-
 // Marshal serializes a spec into binary data.
-func (spec *TeleportUserSpec) Marshal() ([]byte, error) {
-	return (*types.UserSpecV2)(spec).Marshal()
+func (spec *TeleportRoleV6Spec) Marshal() ([]byte, error) {
+	return (*types.RoleSpecV6)(spec).Marshal()
 }
 
 // Unmarshal deserializes a spec from binary data.
-func (spec *TeleportUserSpec) Unmarshal(data []byte) error {
-	return (*types.UserSpecV2)(spec).Unmarshal(data)
+func (spec *TeleportRoleV6Spec) Unmarshal(data []byte) error {
+	return (*types.RoleSpecV6)(spec).Unmarshal(data)
 }
 
-// DeepCopyInto deep-copies one user spec into another.
+// DeepCopyInto deep-copies one role spec into another.
 // Required to satisfy runtime.Object interface.
-func (spec *TeleportUserSpec) DeepCopyInto(out *TeleportUserSpec) {
+func (spec *TeleportRoleV6Spec) DeepCopyInto(out *TeleportRoleV6Spec) {
 	data, err := spec.Marshal()
 	if err != nil {
 		panic(err)
 	}
-	*out = TeleportUserSpec{}
+	*out = TeleportRoleV6Spec{}
 	if err = out.Unmarshal(data); err != nil {
 		panic(err)
 	}
+}
+
+// StatusConditions returns a pointer to Status.Conditions slice.
+func (r *TeleportRoleV6) StatusConditions() *[]metav1.Condition {
+	return &r.Status.Conditions
 }
