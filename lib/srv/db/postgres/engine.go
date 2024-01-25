@@ -459,6 +459,11 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 		log.WithError(err).Warn("Server -> Client copy finished with unexpected error.")
 	}
 
+	// We need to close the writer half of the pipe to notify the analysis
+	// goroutine that the connection is done. This will result in the goroutine
+	// receiving an io.ErrClosedPipe error, which will cause it to finish its
+	// execution. After that, wait until the closeChan is closed to ensure the
+	// goroutine is completed, avoiding data races.
 	copyWriter.Close()
 	<-closeChan
 
