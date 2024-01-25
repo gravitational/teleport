@@ -40,9 +40,10 @@ import (
 func TestIntegrationCRUD(t *testing.T) {
 	t.Parallel()
 	clusterName := "test-cluster"
+	proxyPublicAddr := "127.0.0.1.nip.io"
 
 	ca := newCertAuthority(t, types.HostCA, clusterName)
-	ctx, localClient, resourceSvc := initSvc(t, types.KindIntegration, ca, clusterName)
+	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
 
 	noError := func(err error) bool {
 		return err == nil
@@ -330,7 +331,7 @@ type testClient struct {
 	services.UserGetter
 }
 
-func initSvc(t *testing.T, kind string, ca types.CertAuthority, clusterName string) (context.Context, localClient, *Service) {
+func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPublicAddr string) (context.Context, localClient, *Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -387,11 +388,20 @@ func initSvc(t *testing.T, kind string, ca types.CertAuthority, clusterName stri
 		keystore:   keystoreManager,
 	}
 
+	proxiesGetter := &mockProxyGetter{
+		proxies: []types.Server{
+			&types.ServerV2{Spec: types.ServerSpecV2{
+				PublicAddrs: []string{proxyPublicAddr},
+			}},
+		},
+	}
+
 	resourceSvc, err := NewService(&ServiceConfig{
-		Backend:    localResourceService,
-		Authorizer: authorizer,
-		Cache:      localResourceService,
-		CAGetter:   caGetter,
+		Backend:       localResourceService,
+		Authorizer:    authorizer,
+		Cache:         localResourceService,
+		CAGetter:      caGetter,
+		ProxiesGetter: proxiesGetter,
 	})
 	require.NoError(t, err)
 
@@ -404,6 +414,18 @@ func initSvc(t *testing.T, kind string, ca types.CertAuthority, clusterName stri
 		IdentityService:     userSvc,
 		IntegrationsService: localResourceService,
 	}, resourceSvc
+}
+
+type mockProxyGetter struct {
+	proxies   []types.Server
+	returnErr error
+}
+
+func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
+	if m.returnErr != nil {
+		return nil, m.returnErr
+	}
+	return m.proxies, nil
 }
 
 // mockCAGetter implements CAGetter.
