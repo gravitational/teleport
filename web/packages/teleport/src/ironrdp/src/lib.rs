@@ -255,7 +255,7 @@ impl FastPathProcessor {
         if !self.remote_fx_check_required {
             return Ok(());
         }
-        debug!("RemoteFX check");
+
         // we have to, at least partially, parse frame to check update code,
         // code here is copied from fast_path::Processor::process
         let mut input = ReadCursor::new(tdp_fast_path_frame);
