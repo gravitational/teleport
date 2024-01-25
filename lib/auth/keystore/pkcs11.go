@@ -153,12 +153,12 @@ func (p *pkcs11KeyStore) generateRSA(ctx context.Context, options ...RSAKeyOptio
 		<-p.semaphore
 	}()
 
-	p.log.Debug("Creating new HSM keypair")
-
 	id, err := p.findUnusedID()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	p.log.Debugf("Creating new HSM keypair %v", id)
 
 	ckaID, err := id.pkcs11Key(p.isYubiHSM)
 	if err != nil {
@@ -201,7 +201,7 @@ func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey [
 		return nil, trace.Wrap(err)
 	}
 	if signer == nil {
-		return nil, trace.NotFound("failed to find keypair for given id")
+		return nil, trace.NotFound("failed to find keypair with id %v", keyID)
 	}
 	return signer, nil
 }
@@ -308,6 +308,7 @@ func (p *pkcs11KeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		if keyIsActive(signer) {
 			continue
 		}
+		p.log.Infof("Deleting unused key from HSM")
 		if err := signer.Delete(); err != nil {
 			// Key deletion is best-effort, log a warning on errors, and
 			// continue trying to delete other keys. Errors have been observed
