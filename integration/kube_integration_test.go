@@ -697,6 +697,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		T:              main,
 		Username:       username,
 		KubeGroups:     mainKubeGroups,
+		KubeCluster:    "cluster-aux",
 		RouteToCluster: clusterAux,
 	})
 	require.NoError(t, err)

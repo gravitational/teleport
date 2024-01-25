@@ -96,13 +96,19 @@ func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
+	kubeServers, _ := authServer.GetKubernetesServers(ctx)
+	kubeCluster := cfg.KubeCluster
+	if cfg.KubeCluster == "" && len(kubeServers) > 0 {
+		kubeCluster = kubeServers[0].GetCluster().GetName()
+	}
+
 	id := tlsca.Identity{
 		Username:          cfg.Username,
 		Groups:            user.GetRoles(),
 		KubernetesUsers:   cfg.KubeUsers,
 		KubernetesGroups:  cfg.KubeGroups,
 		RouteToCluster:    cfg.RouteToCluster,
-		KubernetesCluster: cfg.KubeCluster,
+		KubernetesCluster: kubeCluster,
 		PinnedIP:          cfg.PinnedIP,
 	}
 	subj, err := id.Subject()
