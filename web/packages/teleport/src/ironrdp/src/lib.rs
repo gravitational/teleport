@@ -271,7 +271,7 @@ impl FastPathProcessor {
             }
             Bitmap => Err(JsValue::from_str(concat!(
                 "Teleport requires the RemoteFX codec for Windows desktop sessions, ",
-                "but it is not curently enabled. For detailed instructions, see:\n",
+                "but it is not currently enabled. For detailed instructions, see:\n",
                 "https://goteleport.com/docs/ver/15.x/desktop-access/active-directory-manual/#enable-remotefx"
             ))),
             _ => Ok(()),
