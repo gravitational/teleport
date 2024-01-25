@@ -329,8 +329,8 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 	// The piv-go library wraps error codes like this with a user readable message: "security status not satisfied".
 	const pivGenericAuthErrCodeString = "6982"
 
-	signature, err := signer.Sign(rand, digest, opts)
-	if err != nil && strings.Contains(err.Error(), pivGenericAuthErrCodeString) && manualRetryWithPIN {
+	signature, signErr := signer.Sign(rand, digest, opts)
+	if signErr != nil && strings.Contains(signErr.Error(), pivGenericAuthErrCodeString) && manualRetryWithPIN {
 		pin, err := promptPIN()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -338,11 +338,11 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 		if err := yk.VerifyPIN(pin); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signature, err = signer.Sign(rand, digest, opts)
+		signature, signErr = signer.Sign(rand, digest, opts)
 	}
 
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if signErr != nil {
+		return nil, trace.Wrap(signErr)
 	}
 
 	return signature, nil
