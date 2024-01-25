@@ -7,20 +7,20 @@ state: draft
 
 ## Required Approvers
 
-- Engineering:
-- Security:
-- Product:
+- Engineering: (@zmb3 || @codingllama)
+- Security: @jentfoo
+- Product: @roraback
 
 ## What
 
 We want to improve the UX of our flows related to changing passwords and management of authentication devices (both MFA and passwordless). The following new features must be supported:
 
 - The user must be able to set password having only passwordless credentials configured.
-- We should do our best to visualize the status of user's password. Unfortunately, due to past design decisions, we will not be able to do it in every case; see the [Details](#details) section.
+- We should do our best to indicate which authentication methods a user has configured. Unfortunately, due to past design decisions, we will not be able to do it in every case; see the [Details](#details) section.
 
 ## Why
 
-We are promoting passwordless authentication and would like to make it a default in our cloud environments. We need to decrease the UX friction and fill the missing gaps.
+We are [promoting passwordless authentication](https://github.com/gravitational/teleport/issues/19671) and would like to make it a default in our cloud environments. We need to decrease the UX friction and fill the missing gaps.
 
 ## Details
 
@@ -32,7 +32,7 @@ Currently, it's impossible to tell whether a user has a password configured. Thi
 
 When the user wants to change their password, we need to first confirm their identity. Currently, we confirm the user's identity both by asking for the previous password, as well as performing a passkey/MFA token confirmation. To support adding a password where no password is configured, we propose to relax the confirmation conditions and allow setting password with _only_ passwordless token if such one has been used for confirming user's identity.
 
-Rationale: as there is no reliable way to verify that the user actually has a password configured, we _have to_ allow setting a password without providing the current password for those whose password status is unknown. We could potentially require current password for those users whose password status is _known_ (see [Recognizing Users Who Configured Their Passwords](#recognizing-users-who-configured-their-passwords)). This, however, is not necessary: if a potential attacker is able to prove their identity using a passwordless key (as opposed to an MFA key or an app token), they already are able to sign in and perform _any_ other action, including adding their own passwordless keys, as well as removing existing passwordless keys of the user under attack. 
+Rationale: as there is no reliable way to verify that the user actually has a password configured, we _have to_ allow setting a password without providing the current password for those whose password status is unknown (unspecified). We could potentially require current password for those users whose password status is _known_ (see [Recognizing Users Who Configured Their Passwords](#recognizing-users-who-configured-their-passwords)). This, however, is not necessary: if a potential attacker is able to prove their identity using a passwordless key (as opposed to an MFA key or an app token), they already are able to sign in and perform _any_ other action, including adding their own passwordless keys, as well as removing existing passwordless keys of the user under attack. 
 
 The following diagram sums up the modified process:
 
@@ -72,12 +72,12 @@ message LocalAuthSecrets {
   WebauthnLocalAuth Webauthn = 6 [(gogoproto.jsontag) = "webauthn,omitempty"];
 
   // New field
-  PasswordState PasswordState = 7 [(gogoproto.jsontag) = "password_flags,omitempty"];
+  PasswordState PasswordState = 7 [(gogoproto.jsontag) = "password_state,omitempty"];
 }
 
 enum PasswordState {
   // Unable to tell whether the password has been configured.
-  PASSWORD_STATE_UNKNOWN = 0;
+  PASSWORD_STATE_UNSPECIFIED = 0;
   // Password is known to be not configured.
   PASSWORD_STATE_UNSET = 1;
   // Password is known to be configured.
@@ -87,9 +87,9 @@ enum PasswordState {
 
 This field will be stored under its own resource key, since there is no top-level local auth secrets object in the database; the password hash, MFA and WebAuthn keys are stored separately. Also, the hash is a plain string, not a structured object, so we can't extend it with another field. The resource key will have the following form: `/web/users/<username>/pwd_state`. The resource will be removed along with other user data upon user deletion, since it is located within the username scope.
 
-`PASSWORD_STATE_UNKNOWN` is deliberately set to 0, since this is the default value when there's no information about the password state in the database.
+`PASSWORD_STATE_UNSPECIFIED` is deliberately set to 0, since this is the default value when there's no information about the password state in the database.
 
-The state changes to `PASSWORD_STATE_UNSET` whenever another user (or cluster onboarding flow) creates a password reset token for a given user, or removes the password (see [Removing a Password](#removing-a-password)). These are scenarios when the system becomes confident that the user has no password. As a consequence, users created after this change is made will never have their password in an unknown state.
+The state changes to `PASSWORD_STATE_UNSET` whenever another user (or cluster onboarding flow) creates a password reset token for a given user, or removes the password (see [Removing a Password](#removing-a-password)). These are scenarios when the system becomes confident that the user has no password. As a consequence, users created after this change is made will never have their password in an unspecified state.
 
 The state changes to `PASSWORD_STATE_SET` whenever user sets/resets their password or successfully signs in using a password. The last scenario, in particular, will allow us to gradually fill in information about existing users that have passwords.
 
