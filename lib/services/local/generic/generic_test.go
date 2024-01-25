@@ -233,6 +233,15 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
+	// Conditonally update resource.
+	r1Rev := r1.GetRevision()
+	r1.SetRevision("bad-revision")
+	_, err = service.ConditionallyUpdateResource(ctx, r1)
+	require.Error(t, err)
+	r1.SetRevision(r1Rev)
+	r1, err = service.ConditionallyUpdateResource(ctx, r1)
+	require.NoError(t, err)
+
 	// Update and swap a value
 	r2, err = service.UpdateAndSwapResource(ctx, r2.GetName(), func(tr *testResource) error {
 		tr.SetStaticLabels(map[string]string{"updateandswap": "labelvalue"})
@@ -264,6 +273,12 @@ func TestGenericCRUD(t *testing.T) {
 
 		return nil
 	})
+	require.NoError(t, err)
+
+	// Conditionally delete resource.
+	err = service.ConditionallyDeleteResource(ctx, r1.GetName(), "bad-revision")
+	require.Error(t, err)
+	err = service.ConditionallyDeleteResource(ctx, r1.GetName(), r1.GetRevision())
 	require.NoError(t, err)
 
 	// Delete all resources.

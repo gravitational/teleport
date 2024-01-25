@@ -189,7 +189,12 @@ func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *ac
 				ownerMap[owner.Name] = struct{}{}
 			}
 
-			upserted, err = a.service.UpsertResource(ctx, accessList)
+			if oldAccessList == nil {
+				upserted, err = a.service.UpsertResource(ctx, accessList)
+				return trace.Wrap(err)
+			}
+
+			upserted, err = a.service.ConditionallyUpdateResource(ctx, accessList)
 			return trace.Wrap(err)
 		})
 	}
@@ -440,7 +445,12 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 				member.SetRevision(upserted.GetRevision())
 			}
 
-			accessList, err = a.service.UpsertResource(ctx, accessList)
+			if oldAccessList == nil {
+				accessList, err = a.service.UpsertResource(ctx, accessList)
+				return trace.Wrap(err)
+			}
+
+			accessList, err = a.service.ConditionallyUpdateResource(ctx, accessList)
 			return trace.Wrap(err)
 		})
 	}

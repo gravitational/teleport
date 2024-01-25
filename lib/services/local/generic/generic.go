@@ -246,9 +246,38 @@ func (s *Service[T]) UpsertResource(ctx context.Context, resource T) (T, error) 
 	return resource, nil
 }
 
+// ConditionallyUpdateResource conditionally updates a resource.
+func (s *Service[T]) ConditionallyUpdateResource(ctx context.Context, resource T) (T, error) {
+	var t T
+	item, err := s.MakeBackendItem(resource, resource.GetName())
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	lease, err := s.backend.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	types.SetRevision(resource, lease.Revision)
+	return resource, nil
+}
+
 // DeleteResource removes the specified resource.
 func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
 	err := s.backend.Delete(ctx, s.MakeKey(name))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// ConditionallyDeleteResource conditionally deletes a resource.
+func (s *Service[T]) ConditionallyDeleteResource(ctx context.Context, name, revision string) error {
+	err := s.backend.ConditionalDelete(ctx, s.MakeKey(name), revision)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
