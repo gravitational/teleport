@@ -33,4 +33,43 @@ export type CreateBotRequest = {
   labels: ResourceLabel[];
   roles: string[];
   login: string;
+}
+
+export type ApiBotMetadata = {
+  description: string;
+  labels: Map<string, string>;
+  name: string;
+  namespace: string;
+  revision: string;
+};
+
+export type ApiBotSpec = {
+  roles: string[];
+  traits: ApiBotTrait[];
+};
+
+export type ApiBotTrait = {
+  name: string;
+  values: string[];
+};
+
+export type ApiBot = {
+  kind: string;
+  metadata: ApiBotMetadata;
+  spec: ApiBotSpec;
+  status: string;
+  subKind: string;
+  version: string;
+};
+
+export type BotList = {
+  bots: FlatBot[];
+};
+
+export type FlatBot = Omit<ApiBot, 'metadata' | 'spec'> &
+  ApiBotMetadata &
+  ApiBotSpec;
+
+export type BotResponse = {
+  items: ApiBot[];
 };

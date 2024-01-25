@@ -33,12 +33,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestListBotsPagination(t *testing.T) {
+func TestListBots(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -52,9 +49,9 @@ func TestListBotsPagination(t *testing.T) {
 		"bot",
 	)
 
-	// create bots to test pagination against
-	n := 1
-	for n < 25 {
+	created := 5
+	n := 0
+	for n < created {
 		n += 1
 		_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
 			BotName: "test-bot-" + strconv.Itoa(n),
@@ -63,42 +60,17 @@ func TestListBotsPagination(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	tt := []struct {
-		name                string
-		pageSize            string
-		expectedSize        int
-		pageTwoExpectedSize int
-	}{
-		{
-			name:                "defaults to 20",
-			pageSize:            "0",
-			expectedSize:        20,
-			pageTwoExpectedSize: 5, // there are only 25 bots created
-		},
-		{
-			name:                "set size",
-			pageSize:            "5",
-			expectedSize:        5,
-			pageTwoExpectedSize: 5,
-		},
-	}
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{
+		"page_token": []string{""},  // default to the start
+		"page_size":  []string{"2"}, // is ignored
+	})
+	require.NoError(t, err)
 
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			page1, err := pack.clt.Get(ctx, endpoint, url.Values{
-				"page_token": []string{""}, // default to the start
-				"page_size":  []string{tc.pageSize},
-			})
-			require.NoError(t, err)
+	var bots ListBotsResponse
+	require.NoError(t, json.Unmarshal(response.Bytes(), &bots), "invalid response received")
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
 
-			var page1Bots ListBotsResponse
-			require.NoError(t, json.Unmarshal(page1.Bytes(), &page1Bots), "invalid response received")
-			assert.Equal(t, http.StatusOK, page1.Code(), "unexpected status code getting connectors")
-
-			// todo (michellescripts) re-evaluate assertions once we agree on a pagination approach
-			assert.Greater(t, len(page1Bots.Items), 0)
-		})
-	}
+	assert.Equal(t, created, len(bots.Items))
 }
 
 func TestListBots_UnauthenticatedError(t *testing.T) {
@@ -176,4 +148,63 @@ func TestCreateBot(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestDeleteBot_UnauthenticatedError(t *testing.T) {
+	ctx := context.Background()
+	s := newWebSuite(t)
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+		"testname",
+	)
+
+	publicClt := s.client(t)
+	_, err := publicClt.Delete(ctx, endpoint)
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestDeleteBot(t *testing.T) {
+	botName := "bot-bravo"
+
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+	)
+
+	// create bot to delete
+	_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
+		BotName: botName,
+		Roles:   []string{""},
+	})
+	require.NoError(t, err)
+
+	endpoint = pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+		botName,
+	)
+
+	resp, err := pack.clt.Delete(ctx, endpoint)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
 }

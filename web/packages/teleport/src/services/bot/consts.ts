@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { FlatBot } from 'teleport/Bots/types';
+import { ApiBot, FlatBot } from 'teleport/services/bot/types';
+
 
 export function makeBot(json: any): FlatBot {
   json = json || {};
@@ -35,5 +36,24 @@ export function makeBot(json: any): FlatBot {
 
     roles: json.spec.roles,
     traits: json.spec.traits,
+  }
+}
+
+
+export function makeListBot(bot: ApiBot): FlatBot {
+  return {
+    kind: bot?.kind,
+    status: bot?.status,
+    subKind: bot?.subKind,
+    version: bot?.version,
+
+    name: bot?.metadata?.name,
+    namespace: bot?.metadata?.namespace,
+    description: bot?.metadata?.description,
+    labels: bot?.metadata?.labels,
+    revision: bot?.metadata?.revision,
+
+    roles: bot?.spec?.roles,
+    traits: bot?.spec?.traits,
   };
 }

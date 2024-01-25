@@ -38,8 +38,6 @@ const (
 type ListBotsResponse struct {
 	// Items is a list of resources retrieved.
 	Items []*machineidv1.Bot `json:"items"`
-	// StartKey is the position to resume search events.
-	StartKey string `json:"startKey"`
 }
 
 type CreateBotRequest struct {
@@ -54,47 +52,34 @@ type CreateBotRequest struct {
 	Traits []*machineidv1.Trait `json:"traits"`
 }
 
-// listBots returns a paginated list of bots for a given cluster site
+// listBots returns a list of bots for a given cluster site. It does not leverage pagination from the UI. Due to the
+// nature of the bot:user relationship, pagination is not yet supported. This endpoint will return all bots.
 func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	bots, err := clt.BotServiceClient().ListBots(r.Context(), &machineidv1.ListBotsRequest{
-		// todo (michellescripts) re-evaluate once we agree on a pagination approach
-		PageSize:  int32(1000),
-		PageToken: "",
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "error getting bots")
+	var items []*machineidv1.Bot
+	for pageToken := ""; ; {
+		bots, err := clt.BotServiceClient().ListBots(r.Context(), &machineidv1.ListBotsRequest{
+			PageSize:  int32(1000),
+			PageToken: pageToken,
+		})
+		// todo (michellescripts) consider returning partial results
+		if err != nil {
+			return nil, trace.Wrap(err, "error getting bots")
+		}
+		items = append(items, bots.Bots...)
+		pageToken = bots.NextPageToken
+		if pageToken == "" {
+			break
+		}
 	}
 
 	return ListBotsResponse{
-		Items:    bots.Bots,
-		StartKey: bots.NextPageToken,
+		Items: items,
 	}, nil
-}
-
-// getBot retrieves a bot by name
-func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	botName := p.ByName("name")
-	if botName == "" {
-		return nil, trace.BadParameter("empty name")
-	}
-
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	bot, err := clt.BotServiceClient().GetBot(r.Context(), &machineidv1.GetBotRequest{
-		BotName: botName,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "error querying bot")
-	}
-
-	return bot, nil
 }
 
 // createBot creates a bot
@@ -125,6 +110,25 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "error creating bot")
+	}
+
+	return OK(), nil
+}
+
+func (h *Handler) deleteBot(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	name := params.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("missing bot name")
+	}
+
+	_, err = clt.BotServiceClient().DeleteBot(r.Context(), &machineidv1.DeleteBotRequest{BotName: name})
+	if err != nil {
+		return nil, trace.Wrap(err, "error deleting bot")
 	}
 
 	return OK(), nil

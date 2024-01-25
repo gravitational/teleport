@@ -56,6 +56,10 @@ import {
   Document,
   DocumentsService,
   getDefaultDocumentClusterQueryParams,
+  DocumentCluster,
+  DocumentGateway,
+  DocumentTshKube,
+  DocumentTshNode,
 } from './documentsService';
 
 export interface WorkspacesState {
@@ -425,27 +429,29 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           d.kind === 'doc.terminal_tsh_kube' ||
           d.kind === 'doc.terminal_tsh_node'
         ) {
-          return {
+          const documentTerminal: DocumentTshKube | DocumentTshNode = {
             ...d,
             status: 'connecting',
             origin: 'reopened_session',
           };
+          return documentTerminal;
         }
 
         if (d.kind === 'doc.gateway') {
-          return {
+          const documentGateway: DocumentGateway = {
             ...d,
             origin: 'reopened_session',
           };
+          return documentGateway;
         }
 
         if (d.kind === 'doc.cluster') {
           const defaultParams = getDefaultDocumentClusterQueryParams();
           // TODO(gzdunek): this should be parsed by a tool like zod
-          return {
+          const documentCluster: DocumentCluster = {
             ...d,
             queryParams: {
-              defaultParams,
+              ...defaultParams,
               ...d.queryParams,
               sort: {
                 ...defaultParams.sort,
@@ -453,6 +459,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
               },
             },
           };
+          return documentCluster;
         }
 
         return d;

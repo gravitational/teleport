@@ -23,51 +23,56 @@ import React from 'react';
 import { BotOptionsCell } from 'teleport/Bots/List/ActionCell';
 
 import { BotListProps } from 'teleport/Bots/types';
+import { DeleteBot } from 'teleport/Bots/DeleteBot';
 
-export function BotList({ bots }: BotListProps) {
+export function BotList({
+  attempt,
+  bots,
+  onClose,
+  onDelete,
+  selectedBot,
+  setSelectedBot,
+}: BotListProps) {
   return (
-    <Table
-      data={bots}
-      columns={[
-        {
-          key: 'name',
-          headerText: 'Bot Name',
-          isSortable: true,
-        },
-        {
-          key: 'kind',
-          headerText: 'Type',
-          isSortable: true,
-        },
-        {
-          key: 'roles',
-          headerText: 'Roles',
-          isSortable: true,
-          onSort: (a: string[], b: string[]) => {
-            const aStr = a.toString();
-            const bStr = b.toString();
-
-            if (aStr < bStr) {
-              return -1;
-            }
-            if (aStr > bStr) {
-              return 1;
-            }
-
-            return 0;
+    <>
+      <Table
+        data={bots}
+        columns={[
+          {
+            key: 'name',
+            headerText: 'Bot Name',
+            isSortable: true,
           },
-          render: ({ roles }) => <LabelCell data={roles} />,
-        },
-        {
-          altKey: 'options-btn',
-          render: bot => (
-            <BotOptionsCell bot={bot} onEdit={() => {}} onDelete={() => {}} />
-          ),
-        },
-      ]}
-      emptyText="No Bots Found"
-      isSearchable
-      pagination={{ pageSize: 20 }}
-    />
+          {
+            key: 'roles',
+            headerText: 'Roles',
+            isSortable: true,
+            onSort: (a: string[], b: string[]) =>
+              a.toString().localeCompare(b.toString()),
+            render: ({ roles }) => <LabelCell data={roles} />,
+          },
+          {
+            altKey: 'options-btn',
+            render: bot => (
+              <BotOptionsCell
+                bot={bot}
+                onClickDelete={() => setSelectedBot(bot)}
+              />
+            ),
+          },
+        ]}
+        emptyText="No Bots Found"
+        isSearchable
+        pagination={{ pageSize: 20 }}
+      />
+      {selectedBot && (
+        <DeleteBot
+          attempt={attempt}
+          name={selectedBot.name}
+          onClose={onClose}
+          onDelete={onDelete}
+        />
+      )}
+    </>
   );
 }

@@ -266,6 +266,8 @@ operator:
   #    memory: "1Gi"
   joinMethod: "kubernetes"
   token: "teleport-operator"
+  # This is needed to have a sensible name and predictible service account name.
+  nameOverride: operator
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/

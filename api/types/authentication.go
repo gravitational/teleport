@@ -63,6 +63,8 @@ type AuthPreference interface {
 	// IsSecondFactorWebauthnAllowed checks if users are allowed to register
 	// Webauthn devices.
 	IsSecondFactorWebauthnAllowed() bool
+	// IsAdminActionMFAEnforced checks if admin action MFA is enforced.
+	IsAdminActionMFAEnforced() bool
 
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If
 	// this value is empty, we fall back to the first connector in the backend.
@@ -323,6 +325,12 @@ func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 	return c.Spec.SecondFactor == constants.SecondFactorWebauthn ||
 		c.Spec.SecondFactor == constants.SecondFactorOptional ||
 		c.Spec.SecondFactor == constants.SecondFactorOn
+}
+
+// IsAdminActionMFAEnforced checks if admin action MFA is enforced. Currently, the only
+// prerequisite for admin action MFA enforcement is whether Webauthn is enforced.
+func (c *AuthPreferenceV2) IsAdminActionMFAEnforced() bool {
+	return c.Spec.SecondFactor == constants.SecondFactorWebauthn
 }
 
 // GetConnectorName gets the name of the OIDC or SAML connector to use. If

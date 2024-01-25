@@ -26,5 +26,14 @@ export default {
 };
 
 export const List = () => {
-  return <BotList bots={botsFixture} />;
+  return (
+    <BotList
+      attempt={{ status: '' }}
+      bots={botsFixture}
+      onDelete={() => { }}
+      onClose={() => { }}
+      selectedBot={null}
+      setSelectedBot={() => { }}
+    />
+  );
 };

@@ -385,6 +385,10 @@ const cfg = {
     return cfg.auth.allowPasswordless;
   },
 
+  isAdminActionMfaEnforced() {
+    return cfg.auth.second_factor === 'webauthn';
+  },
+
   getPrimaryAuthType(): PrimaryAuthType {
     if (cfg.auth.localConnectorName === 'passwordless') {
       return 'passwordless';
@@ -1029,6 +1033,10 @@ const cfg = {
   },
 
   getBotsUrl(clusterId: string, name: string = null) {
+    return generatePath(cfg.api.botsPath, { clusterId, name });
+  },
+
+  getBotUrlWithName(clusterId: string, name: string) {
     return generatePath(cfg.api.botsPath, { clusterId, name });
   },
 

@@ -17,7 +17,6 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import { Alert, Box, ButtonPrimary, Indicator } from 'design';
 
@@ -28,51 +27,67 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { FlatBot } from 'teleport/Bots/types';
 import { BotList } from 'teleport/Bots/List/BotList';
-import { fetchBots } from 'teleport/services/bot/bot';
-import cfg from 'teleport/config';
+import { deleteBot, fetchBots } from 'teleport/services/bot/bot';
+import { FlatBot } from 'teleport/services/bot/types';
 
 export function Bots() {
   const [bots, setBots] = useState<FlatBot[]>();
-  const { attempt, run } = useAttemptNext('processing');
+  const [selectedBot, setSelectedBot] = useState<FlatBot>();
+  const { attempt: deleteAttempt, run: deleteRun } = useAttemptNext();
+  const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext('processing');
 
   useEffect(() => {
     const signal = new AbortController();
 
     async function init(signal: AbortSignal) {
-      const res = await fetchBots({ signal });
+      const res = await fetchBots(signal);
       setBots(res.bots);
     }
 
-    run(() => init(signal.signal));
+    fetchRun(() => init(signal.signal));
     return () => {
       signal.abort();
     };
-  }, [run]);
+  }, [fetchRun]);
+
+  function onDelete() {
+    deleteRun(() => deleteBot(selectedBot.name)).then(() => {
+      setBots(bots.filter(bot => bot.name !== selectedBot.name));
+      onClose();
+    });
+  }
+
+  function onClose() {
+    setSelectedBot(null);
+  }
 
   return (
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Bots</FeatureHeaderTitle>
-        <ButtonPrimary
-          ml="auto"
-          width="240px"
-          as={Link}
-          to={cfg.getBotsNewRoute()}
-        >
+        <ButtonPrimary ml="auto" width="240px" disabled>
           Enroll New Bot
         </ButtonPrimary>
       </FeatureHeader>
-      {attempt.status == 'processing' && (
+      {fetchAttempt.status == 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {attempt.status == 'failed' && (
-        <Alert kind="danger" children={attempt.statusText} />
+      {fetchAttempt.status == 'failed' && (
+        <Alert kind="danger" children={fetchAttempt.statusText} />
       )}
-      {attempt.status == 'success' && <BotList bots={bots} />}
+      {fetchAttempt.status == 'success' && (
+        <BotList
+          attempt={deleteAttempt}
+          bots={bots}
+          onClose={onClose}
+          onDelete={onDelete}
+          selectedBot={selectedBot}
+          setSelectedBot={setSelectedBot}
+        />
+      )}
     </FeatureBox>
   );
 }

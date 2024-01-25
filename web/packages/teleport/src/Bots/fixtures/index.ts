@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { FlatBot } from 'teleport/Bots/types';
+import { ApiBot, BotResponse, FlatBot } from 'teleport/services/bot/types';
 
 // nonDisplayedFields are not leveraged in the UI, so we don't explicitly set them
 const nonDisplayedFields = {
@@ -35,13 +35,13 @@ export const botsFixture: FlatBot[] = [
     ...nonDisplayedFields,
     kind: 'GitHub Actions',
     name: 'bot-github-actions',
-    roles: ['bot-github-actions-bot'],
+    roles: ['bot-bot-role'],
   },
   {
     ...nonDisplayedFields,
     kind: 'IAM',
     name: 'bot-slack-iam',
-    roles: ['bot-slack-iam'],
+    roles: ['bot-iam-role'],
   },
   {
     ...nonDisplayedFields,
@@ -62,3 +62,47 @@ export const botsFixture: FlatBot[] = [
     roles: [],
   },
 ];
+
+const getEmptyApiBot = (
+  kind: string,
+  name: string,
+  roles: string[]
+): ApiBot => ({
+  kind: kind,
+  metadata: {
+    description: '',
+    labels: null,
+    name: name,
+    namespace: '',
+    revision: '',
+  },
+  spec: {
+    roles: roles,
+    traits: [],
+  },
+  status: '',
+  subKind: '',
+  version: '',
+});
+
+export const botsApiResponseFixture: BotResponse = {
+  items: [
+    {
+      ...getEmptyApiBot('GitHub Actions', 'bot-github-actions', [
+        'bot-bot-role',
+      ]),
+    },
+    {
+      ...getEmptyApiBot('IAM', 'bot-slack-iam', ['bot-iam-role']),
+    },
+    {
+      ...getEmptyApiBot('GitHub SSO', 'github-integration', []),
+    },
+    {
+      ...getEmptyApiBot('Access Plugin', 'Pagerduty', ['access-plugin']),
+    },
+    {
+      ...getEmptyApiBot('Terraform', 'terraform', []),
+    },
+  ],
+};

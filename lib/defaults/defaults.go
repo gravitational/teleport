@@ -234,10 +234,6 @@ const (
 	// before a user account is locked for AccountLockInterval
 	MaxLoginAttempts int = 5
 
-	// MaxAccountRecoveryAttempts sets the max number of allowed failed recovery attempts
-	// before a user is locked from login and further recovery attempts for AccountLockInterval.
-	MaxAccountRecoveryAttempts = 3
-
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts.
 	// PCI DSS v4.0 control 8.3.4 requires a minimum lockout duration of 30 minutes.

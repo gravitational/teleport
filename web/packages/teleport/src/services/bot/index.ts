@@ -17,3 +17,4 @@
  */
 
 export { botService } from './bot';
+export { fetchBots, deleteBot } from './bot';

@@ -19,21 +19,16 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { makeBot } from 'teleport/services/bot/consts';
-import { BotsResponse, FlatBot } from 'teleport/Bots/types';
+import { makeBot, makeListBot } from 'teleport/services/bot/consts';
 
-import type { FetchBotsRequest, CreateBotRequest } from './types';
+import { BotList, BotResponse, FlatBot, CreateBotRequest } from './types';
 
-export function fetchBots({ signal }: FetchBotsRequest): Promise<BotsResponse> {
+export function fetchBots(signal: AbortSignal): Promise<BotList> {
   return api
     .get(cfg.getBotsUrl(cfg.proxyCluster), signal)
-    .then(json => {
+    .then((json: BotResponse) => {
       const items = json?.items || [];
-      return {
-        bots: items.map(makeBot),
-        startKey: json?.startKey,
-        totalCount: json?.totalCount,
-      };
+      return { bots: items.map(makeListBot) };
     })
     .catch(res => {
       throw res;
@@ -60,3 +55,7 @@ export const botService = {
     }
   },
 };
+
+export function deleteBot(name: string) {
+  return api.delete(cfg.getBotUrlWithName(cfg.proxyCluster, name));
+}

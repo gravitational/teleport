@@ -80,8 +80,6 @@ type User interface {
 	GetStatus() LoginStatus
 	// SetLocked sets login status to locked
 	SetLocked(until time.Time, reason string)
-	// SetRecoveryAttemptLockExpires sets the lock expiry time for both recovery and login attempt.
-	SetRecoveryAttemptLockExpires(until time.Time, reason string)
 	// ResetLocks resets lock related fields to empty values.
 	ResetLocks()
 	// SetRoles sets user roles
@@ -527,18 +525,11 @@ func (u *UserV2) SetLocked(until time.Time, reason string) {
 	u.Spec.Status.LockedTime = time.Now().UTC()
 }
 
-// SetRecoveryAttemptLockExpires sets the lock expiry time for both recovery and login attempt.
-func (u *UserV2) SetRecoveryAttemptLockExpires(until time.Time, reason string) {
-	u.Spec.Status.RecoveryAttemptLockExpires = until
-	u.SetLocked(until, reason)
-}
-
 // ResetLocks resets lock related fields to empty values.
 func (u *UserV2) ResetLocks() {
 	u.Spec.Status.IsLocked = false
 	u.Spec.Status.LockedMessage = ""
 	u.Spec.Status.LockExpires = time.Time{}
-	u.Spec.Status.RecoveryAttemptLockExpires = time.Time{}
 }
 
 // DeepCopy creates a clone of this user value.
