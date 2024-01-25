@@ -38,10 +38,10 @@ import {
   App,
 } from 'teleterm/services/tshd/types';
 
-import { DatabaseUri } from 'teleterm/ui/uri';
+import { DatabaseUri, routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { isWebApp, getWebAppLaunchUrl } from 'teleterm/ui/services/clusters';
+import { isWebApp, getWebAppLaunchUrl } from 'teleterm/services/tshd/app';
 
 export function ConnectServerActionButton(props: {
   server: Server;
@@ -107,11 +107,18 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
     connectToApp(appContext, props.app, { origin: 'resource_table' });
   }
 
+  const rootCluster = appContext.clustersService.findCluster(
+    routing.ensureRootClusterUri(props.app.uri)
+  );
+  const cluster = appContext.clustersService.findClusterByResource(
+    props.app.uri
+  );
+
   return (
     <AppButton
       connect={connect}
       isWebApp={isWebApp(props.app)}
-      launchUrl={getWebAppLaunchUrl(props.app, appContext.clustersService)}
+      launchUrl={getWebAppLaunchUrl({ app: props.app, rootCluster, cluster })}
       onLaunchUrl={() => {
         captureAppLaunchInBrowser(appContext, props.app, {
           origin: 'resource_table',
