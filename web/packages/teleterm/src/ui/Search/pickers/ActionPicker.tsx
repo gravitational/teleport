@@ -49,6 +49,7 @@ import * as uri from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { assertUnreachable } from 'teleterm/ui/utils';
+import { isWebApp } from 'teleterm/ui/services/clusters';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
@@ -720,6 +721,15 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
   const { searchResult } = props;
   const app = searchResult.resource;
 
+  const $appName = (
+    <strong>
+      <HighlightField
+        field={app.friendlyName ? 'friendlyName' : 'name'}
+        searchResult={searchResult}
+      />
+    </strong>
+  );
+
   const $resourceFields = (
     <ResourceFields>
       {app.addrWithProtocol && (
@@ -757,13 +767,11 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
         gap={1}
       >
         <Text typography="body1">
-          Set up an app connection to{' '}
-          <strong>
-            <HighlightField
-              field={app.friendlyName ? 'friendlyName' : 'name'}
-              searchResult={searchResult}
-            />
-          </strong>
+          {isWebApp(app) ? (
+            <>Launch {$appName} app in a browser</>
+          ) : (
+            <>Set up an app connection to {$appName}</>
+          )}
         </Text>
         <Box ml="auto">
           <Text typography="body2" fontSize={0}>
@@ -986,6 +994,7 @@ const LabelsFlex = styled(Flex).attrs({ gap: 1 })`
 
   // Make the children not shrink, otherwise they would shrink in attempt to render all labels in
   // the same row.
+
   & > * {
     flex-shrink: 0;
   }

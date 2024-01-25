@@ -101,9 +101,14 @@ export function mapToAction(
         type: 'simple-action',
         searchResult: result,
         perform: () =>
-          connectToApp(ctx, result.resource, {
-            origin: 'search_bar',
-          }),
+          connectToApp(
+            ctx,
+            result.resource,
+            {
+              origin: 'search_bar',
+            },
+            { launchInBrowser: true }
+          ),
       };
     }
     case 'database': {
