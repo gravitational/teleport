@@ -299,12 +299,12 @@ function AgentSetup() {
 
   const steps = [
     {
-      name: 'Setting up the role',
-      attempt: createRoleAttempt,
-    },
-    {
       name: 'Downloading the agent',
       attempt: downloadAgentAttempt,
+    },
+    {
+      name: 'Setting up the role',
+      attempt: createRoleAttempt,
     },
     {
       name: 'Generating the config file',
@@ -381,14 +381,14 @@ function AgentSetup() {
     // all steps have to be cleared when starting the setup process;
     // otherwise we could see old errors on retry
     // (the error would be cleared when the given step starts, but it would be too late)
-    setCreateRoleAttempt(makeEmptyAttempt());
     setDownloadAgentAttempt(makeEmptyAttempt());
+    setCreateRoleAttempt(makeEmptyAttempt());
     setGenerateConfigFileAttempt(makeEmptyAttempt());
     setJoinClusterAttempt(makeEmptyAttempt());
 
     const actions = [
-      withEventOnFailure(runCreateRoleAttempt, 'setting_up_role'),
       withEventOnFailure(runDownloadAgentAttempt, 'downloading_agent'),
+      withEventOnFailure(runCreateRoleAttempt, 'setting_up_role'),
       withEventOnFailure(
         runGenerateConfigFileAttempt,
         'generating_config_file'
@@ -413,8 +413,8 @@ function AgentSetup() {
   useEffect(() => {
     if (
       [
-        createRoleAttempt,
         downloadAgentAttempt,
+        createRoleAttempt,
         generateConfigFileAttempt,
         joinClusterAttempt,
       ].every(attempt => attempt.status === '')
