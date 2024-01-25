@@ -263,7 +263,8 @@ func (bs *BotService) createBotAuthz(ctx context.Context) (*authz.Context, error
 		}
 		bs.logger.Warn("CreateBot authz fell back to legacy resource/verbs. Explicitly grant access to the Bot resource. From V16.0.0, this will fail!")
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return authCtx, nil
@@ -382,7 +383,8 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
