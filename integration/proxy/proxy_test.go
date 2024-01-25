@@ -642,6 +642,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 					Username:            kubeRoleSpec.Allow.Logins[0],
 					KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 					KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+					KubeCluster:         kubeClusterName,
 					CustomTLSServerName: kubeCluster,
 					TargetAddress:       targetAddr,
 					RouteToCluster:      testCluster.Secrets.SiteName,

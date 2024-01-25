@@ -45,6 +45,7 @@ type ProxyConfig struct {
 	PinnedIP            string
 	KubeUsers           []string
 	KubeGroups          []string
+	KubeCluster         string
 	Impersonation       *rest.ImpersonationConfig
 	RouteToCluster      string
 	CustomTLSServerName string
@@ -96,12 +97,13 @@ func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 	}
 
 	id := tlsca.Identity{
-		Username:         cfg.Username,
-		Groups:           user.GetRoles(),
-		KubernetesUsers:  cfg.KubeUsers,
-		KubernetesGroups: cfg.KubeGroups,
-		RouteToCluster:   cfg.RouteToCluster,
-		PinnedIP:         cfg.PinnedIP,
+		Username:          cfg.Username,
+		Groups:            user.GetRoles(),
+		KubernetesUsers:   cfg.KubeUsers,
+		KubernetesGroups:  cfg.KubeGroups,
+		RouteToCluster:    cfg.RouteToCluster,
+		KubernetesCluster: cfg.KubeCluster,
+		PinnedIP:          cfg.PinnedIP,
 	}
 	subj, err := id.Subject()
 	if err != nil {
