@@ -49,7 +49,7 @@ import * as uri from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { assertUnreachable } from 'teleterm/ui/utils';
-import { isWebApp } from 'teleterm/ui/services/clusters';
+import { isWebApp } from 'teleterm/services/tshd/app';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';

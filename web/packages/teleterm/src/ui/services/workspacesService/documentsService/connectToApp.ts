@@ -20,7 +20,7 @@ import { routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 
 import { App } from 'teleterm/services/tshd/types';
-import { getWebAppLaunchUrl, isWebApp } from 'teleterm/ui/services/clusters';
+import { getWebAppLaunchUrl, isWebApp } from 'teleterm/services/tshd/app';
 
 import { DocumentOrigin } from './types';
 
@@ -53,11 +53,15 @@ export async function connectToApp(
 
   if (isWebApp(target) && options?.launchInBrowser) {
     captureAppLaunchInBrowser(ctx, target, telemetry);
+    const rootCluster = ctx.clustersService.findCluster(
+      routing.ensureRootClusterUri(target.uri)
+    );
+    const cluster = ctx.clustersService.findClusterByResource(target.uri);
     // Generally, links should be opened with <a> elements.
     // Unfortunately, in some cases it is not possible,
     // for example, in the search bar.
     window.open(
-      getWebAppLaunchUrl(target, ctx.clustersService),
+      getWebAppLaunchUrl({ app: target, rootCluster, cluster }),
       '_blank',
       'noreferrer'
     );
