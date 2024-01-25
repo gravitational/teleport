@@ -1304,6 +1304,9 @@ https://goteleport.com/docs/installation/#operating-system-support
 - [ ] `tsh` runs on the minimum supported Windows version
 - [ ] Teleport Connect runs on the minimum supported Windows version
 
+Azure offers virtual machines with the Windows 10 2016 LTSB image. This image runs on Windows 10
+rev. 1607, which is the exact minimum Windows version that we support.
+
 ### macOS
 
 - [ ] `tsh` runs on the minimum supported macOS version
