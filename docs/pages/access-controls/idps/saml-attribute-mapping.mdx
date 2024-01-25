@@ -4,16 +4,6 @@ description: How to map user attributes to custom SAML response
 h1: SAML Attribute Mapping
 ---
 
-This page explains how the SAML attribute mapping works in Teleport, which can be used to assert custom
-user attribute name and values in a SAML response.
-
-## Prerequisites
-
-(!docs/pages/includes/no-oss-prereqs-tabs.mdx!)
-
-- Teleport user with permission to create a service provider resource. The preset `editor` role has this permission.
-
-## Concepts
 Attribute mapping configures Teleport SAML Identity Provider to assert custom user attributes in SAML response.
 The Teleport SAML IdP supports three configurable fields for attribute mapping:
 - `name`: Name of the outgoing attribute. Required. Name should be unique across attribute mapping.
@@ -43,6 +33,14 @@ spec:
     name_format: urn:oasis:names:tc:SAML:2.0:attrname-format:basic # optional, full urn format.
     value: user.spec.roles
 ```
+
+## Prerequisites
+
+(!docs/pages/includes/no-oss-prereqs-tabs.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
+- Teleport user with permission to create a service provider resource. The preset `editor` role has this permission.
+- If you're new to SAML, consider reviewing our [SAML Identity Provider
+  Reference](./saml-reference.mdx) before proceeding.
 
 ## Predicate expressions
 
