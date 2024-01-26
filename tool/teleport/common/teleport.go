@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
+	extauditconfig "github.com/gravitational/teleport/api/types/externalauditstorage/config"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/configurators"
@@ -1058,7 +1059,7 @@ func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabase
 	return nil
 }
 
-func onIntegrationConfExternalAuditCmd(params config.IntegrationConfExternalAuditStorage) error {
+func onIntegrationConfExternalAuditCmd(params extauditconfig.IntegrationConfExternalAuditStorage) error {
 	ctx := context.Background()
 	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
 	if err != nil {

@@ -30,9 +30,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types/externalauditstorage/config"
 	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/config"
 )
 
 // ConfigureExternalAuditStorageClient is an interface for the AWS client methods

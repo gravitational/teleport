@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	extauditconfig "github.com/gravitational/teleport/api/types/externalauditstorage/config"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -225,7 +226,7 @@ type CommandLineFlags struct {
 
 	// IntegrationConfExternalAuditStorageArguments contains the arguments of the
 	// `teleport integration configure externalauditstorage` command
-	IntegrationConfExternalAuditStorageArguments IntegrationConfExternalAuditStorage
+	IntegrationConfExternalAuditStorageArguments extauditconfig.IntegrationConfExternalAuditStorage
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
