@@ -20,7 +20,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
-import { MFAChallengeScope } from 'teleport/services/auth/auth';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
@@ -53,7 +53,7 @@ export default function useReAuthenticate(props: Props) {
       .catch(handleError);
   }
 
-  function submitWithWebauthn(scope: MFAChallengeScope) {
+  function submitWithWebauthn(scope: MfaChallengeScope) {
     setAttempt({ status: 'processing' });
 
     if ('onMfaResponse' in props) {
@@ -118,8 +118,10 @@ type BaseProps = {
   actionText?: string;
   /**
    * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
+   *
+   * TODO(Joerger): change to required field once provided by /e references
    */
-  challengeScope?: MFAChallengeScope;
+  challengeScope?: MfaChallengeScope;
 };
 
 // MfaResponseProps defines a function

@@ -1480,11 +1480,6 @@ workspace:
   path: /go
 clone:
   disable: true
-depends_on:
-- build-linux-amd64
-- build-linux-amd64-fips
-- build-linux-arm64
-- build-linux-arm
 steps:
 - name: Check out code
   image: docker:git
@@ -5394,6 +5389,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 8e9f95b945748bf4403596a258adf687a3627396d8db24a7b0c4fa8756c141f4
+hmac: 629eccbd2728a9c39a165ab17e8bdcc710d79ebdecc8e2ed84ac546d04ae98fe
 
 ...
