@@ -54,7 +54,9 @@ type SAMLIdPServiceProvider struct {
 	Provider types.SAMLIdPServiceProvider
 }
 
-type AppServerOrSAMLIdPServiceProvider struct {
+// AppOrSAMLIdPServiceProvider holds either App or SAMLIdPServiceProvider but not both. It is
+// a teleterm version of [proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider].
+type AppOrSAMLIdPServiceProvider struct {
 	App                    *App
 	SAMLIdPServiceProvider *SAMLIdPServiceProvider
 }
@@ -103,18 +105,18 @@ func (c *Cluster) GetApps(ctx context.Context, r *api.GetAppsRequest) (*GetAppsR
 		return nil, trace.Wrap(err)
 	}
 
-	results := make([]AppServerOrSAMLIdPServiceProvider, 0, len(page.Resources))
+	results := make([]AppOrSAMLIdPServiceProvider, 0, len(page.Resources))
 	for _, appServerOrProvider := range page.Resources {
 		if appServerOrProvider.IsAppServer() {
 			app := appServerOrProvider.GetAppServer().GetApp()
-			results = append(results, AppServerOrSAMLIdPServiceProvider{App: &App{
+			results = append(results, AppOrSAMLIdPServiceProvider{App: &App{
 				URI:  c.URI.AppendApp(app.GetName()),
 				FQDN: c.AssembleAppFQDN(app),
 				App:  app,
 			}})
 		} else {
 			provider := appServerOrProvider.GetSAMLIdPServiceProvider()
-			results = append(results, AppServerOrSAMLIdPServiceProvider{SAMLIdPServiceProvider: &SAMLIdPServiceProvider{
+			results = append(results, AppOrSAMLIdPServiceProvider{SAMLIdPServiceProvider: &SAMLIdPServiceProvider{
 				URI:      c.URI.AppendApp(provider.GetName()),
 				Provider: provider,
 			}})
@@ -129,7 +131,7 @@ func (c *Cluster) GetApps(ctx context.Context, r *api.GetAppsRequest) (*GetAppsR
 }
 
 type GetAppsResponse struct {
-	Apps []AppServerOrSAMLIdPServiceProvider
+	Apps []AppOrSAMLIdPServiceProvider
 	// StartKey is the next key to use as a starting point.
 	StartKey string
 	// TotalCount is the total number of resources available as a whole.
