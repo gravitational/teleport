@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Flex, Input, Text, Toggle } from 'design';
+import { Box, Flex, Input, Text, Toggle, Mark } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
@@ -46,7 +46,7 @@ import {
 import useTeleport from 'teleport/useTeleport';
 import { Tabs } from 'teleport/components/Tabs';
 
-import { ActionButtons, Header, Mark, StyledBox } from '../../Shared';
+import { ActionButtons, Header, StyledBox } from '../../Shared';
 
 import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
 import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';

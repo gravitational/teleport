@@ -16,14 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+import Text from '../Text';
 
-export const Mark = styled.mark`
-  padding: 2px 5px;
-  border-radius: 6px;
-  font-family: ${props => props.theme.fonts.mono};
-  font-size: 12px;
-  background-color: ${props =>
-    props.light ? '#d3d3d3' : props.theme.colors.spotBackground[2]};
-  color: inherit;
-`;
+import { Mark as MarkComponent } from '.';
+export default {
+  title: 'Design/Mark',
+};
+
+export const Mark = () => {
+  return (
+    <Text>
+      Example of <MarkComponent>marking</MarkComponent> a word. <br />
+      Here is another example: <MarkComponent>George Washington</MarkComponent>.
+    </Text>
+  );
+};

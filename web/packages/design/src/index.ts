@@ -42,6 +42,7 @@ import SideNav, { SideNavItem } from './SideNav';
 import { StepSlider } from './StepSlider';
 import TopNav from './TopNav';
 import Flex from './Flex';
+import { Mark } from './Mark';
 import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
@@ -81,6 +82,7 @@ export {
   StepSlider,
   Text,
   TopNav,
+  Mark,
   Menu,
   MenuItem,
   MenuItemIcon,

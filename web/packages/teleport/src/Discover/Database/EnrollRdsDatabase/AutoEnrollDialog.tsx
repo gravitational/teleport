@@ -23,11 +23,10 @@ import {
   AnimatedProgressBar,
   ButtonPrimary,
   ButtonSecondary,
+  Mark,
 } from 'design';
 import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
-
-import { Mark } from 'teleport/Discover/Shared';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 

@@ -21,7 +21,7 @@ import styled from 'styled-components';
 
 import logoSrc from 'design/assets/images/teleport-medallion.svg';
 
-import { Box, Text } from 'design';
+import { Box, Text, Mark } from 'design';
 
 import { ButtonPrimary } from 'design/Button';
 
@@ -34,7 +34,7 @@ import {
 
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { HintBox } from 'teleport/Discover/Shared/HintBox';
-import { Mark, ResourceKind, useShowHint } from 'teleport/Discover/Shared';
+import { ResourceKind, useShowHint } from 'teleport/Discover/Shared';
 import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 
 interface StartTeleportProps {

@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Box, Text, Flex, Link } from 'design';
+import { Box, Text, Flex, Link, Mark } from 'design';
 import { Info as InfoIcon } from 'design/Icon';
 
 import {
@@ -28,7 +28,7 @@ import {
   useUserTraits,
   SetupAccessWrapper,
 } from 'teleport/Discover/Shared/SetupAccess';
-import { Mark, StyledBox } from 'teleport/Discover/Shared';
+import { StyledBox } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { DbMeta } from 'teleport/Discover/useDiscover';
 import { Tabs } from 'teleport/components/Tabs';
