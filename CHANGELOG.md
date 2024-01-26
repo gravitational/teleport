@@ -50,11 +50,12 @@ create Teleport Roles v6 and v7.
 Existing kinds will remain unchanged in Teleport 15, but will be renamed in
 Teleport 16 for consistency.
 
-To migrate an existing `TeleportRole` to a `TeleportRoleV7`, you must:
+To migrate an existing Custom Resource (CR) `TeleportRole` to
+a `TeleportRoleV7`, you must:
 - upgrade Teleport and the operator to v15
-- annotate the exiting Custom Resource with `teleport.dev/keep: "true"`
-- delete the Custom Resource (it won't delete the resource thanks to the annotation)
-- create a new `TeleportRoleV7` with the same name
+- annotate the exiting `TeleportRole` CR with `teleport.dev/keep: "true"`
+- delete the `TeleportRole` CR (it won't delete the role in Teleport thanks to the annotation)
+- create a new `TeleportRoleV7` CR with the same name
 
 ### Breaking changes and deprecations
 
@@ -227,8 +228,8 @@ is designed to run a specific Teleport and operator version. If you want to
 deploy a specific Teleport version, use Helm's `--version X.Y.Z` instead.
 
 The operator now joins using a Kubernetes ServiceAccount token. To validate the
-token, the auth must have access to the `TokenReview` API. The chart configures
-this for you since v12, unless you disabled `rbac` creation.
+token, the Teleport Auth Service must have access to the `TokenReview` API.
+The chart configures this for you since v12, unless you disabled `rbac` creation.
 
 ### Other changes
 
