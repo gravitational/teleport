@@ -278,6 +278,13 @@ To configure Teleport to use PostgreSQL:
   setting populated with the address of a load balancer for Auth Service
   instances.
 
+<Admonition
+  type="warning"
+  title="IMPORTANT"
+>
+Teleport must connect directly to the Postgres server. `pgbouncer` is incompatible with the Teleport PostgreSQL storage backend.
+</Admonition>
+
 ```yaml
 teleport:
   storage:
