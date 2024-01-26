@@ -7,6 +7,7 @@ exports[`render multi bash texts 1`] = `
   padding-left: 16px;
   padding-right: 48px;
   padding-top: 8px;
+  min-height: 50px;
   max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
@@ -402,6 +403,7 @@ exports[`render multi bash texts with comment 1`] = `
   padding-left: 16px;
   padding-right: 48px;
   padding-top: 8px;
+  min-height: 50px;
   max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
@@ -818,6 +820,7 @@ exports[`render non bash single text 1`] = `
   padding-left: 16px;
   padding-right: 48px;
   padding-top: 8px;
+  min-height: 50px;
   max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
@@ -1046,6 +1049,7 @@ exports[`render single bash text 1`] = `
   padding-left: 16px;
   padding-right: 48px;
   padding-top: 8px;
+  min-height: 50px;
   max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
@@ -1279,6 +1283,7 @@ exports[`render single bash text with comment 1`] = `
   padding-left: 16px;
   padding-right: 48px;
   padding-top: 8px;
+  min-height: 50px;
   max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
