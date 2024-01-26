@@ -220,7 +220,7 @@ function AppButton(props: {
   if (props.app.awsConsole) {
     return (
       <AwsLaunchButton
-        awsRoles={props.app.awsRolesList}
+        awsRoles={props.app.awsRoles}
         getLaunchUrl={arn =>
           getAwsAppLaunchUrl({
             app: props.app,
