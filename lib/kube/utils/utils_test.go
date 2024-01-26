@@ -29,7 +29,7 @@ import (
 
 func TestCheckKubeCluster(t *testing.T) {
 	t.Parallel()
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	kubeServers := []types.KubeServer{
 		kubeServer(t, "k8s-1", "server1", "uuuid"),

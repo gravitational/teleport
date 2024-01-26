@@ -738,14 +738,14 @@ func (f *Forwarder) setupContext(
 		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
 	}
 
-	kubeCluster := identity.KubernetesCluster
-
 	var (
 		kubeServers  []types.KubeServer
 		kubeResource *types.KubernetesResource
 		apiResource  apiResource
 		err          error
 	)
+
+	kubeCluster := identity.KubernetesCluster
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
