@@ -11,6 +11,10 @@ rules:
     resources:
       - teleportroles
       - teleportroles/status
+      - teleportrolesv6
+      - teleportrolesv6/status
+      - teleportrolesv7
+      - teleportrolesv7/status
       - teleportusers
       - teleportusers/status
       - teleportgithubconnectors
