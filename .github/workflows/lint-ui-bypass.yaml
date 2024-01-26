@@ -16,10 +16,12 @@ on:
     paths-ignore:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
   merge_group:
     paths-ignore:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
 
 jobs:
   lint:

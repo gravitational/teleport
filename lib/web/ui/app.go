@@ -19,13 +19,13 @@
 package ui
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -90,7 +90,7 @@ type MakeAppsConfig struct {
 // MakeApp creates an application object for the WebUI.
 func MakeApp(app types.Application, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
-	fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+	fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
 	var ugs types.UserGroups
 	for _, userGroupName := range app.GetUserGroups() {
 		userGroup := c.UserGroupLookup[userGroupName]
@@ -164,7 +164,7 @@ func MakeApps(c MakeAppsConfig) []App {
 	for _, appOrSP := range c.AppServersAndSAMLIdPServiceProviders {
 		if appOrSP.IsAppServer() {
 			app := appOrSP.GetAppServer().GetApp()
-			fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+			fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
 			labels := makeLabels(app.GetAllLabels())
 
 			userGroups := c.AppsToUserGroups[app.GetName()]
@@ -216,20 +216,4 @@ func MakeApps(c MakeAppsConfig) []App {
 	}
 
 	return result
-}
-
-// AssembleAppFQDN returns the application's FQDN.
-//
-// If the application is running within the local cluster and it has a public
-// address specified, the application's public address is used.
-//
-// In all other cases, i.e. if the public address is not set or the application
-// is running in a remote cluster, the FQDN is formatted as
-// <appName>.<localProxyDNSName>
-func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClusterName string, app types.Application) string {
-	isLocalCluster := localClusterName == appClusterName
-	if isLocalCluster && app.GetPublicAddr() != "" {
-		return app.GetPublicAddr()
-	}
-	return fmt.Sprintf("%v.%v", app.GetName(), localProxyDNSName)
 }

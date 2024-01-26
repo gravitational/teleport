@@ -6,10 +6,12 @@ on:
     paths:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
   merge_group:
     paths:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
 
 jobs:
   lint:
