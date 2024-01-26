@@ -179,7 +179,7 @@ export function Account({
               <Header
                 title="Passkeys"
                 description="Enable secure passwordless sign-in using
-                fingerprint or facial identification, a device code, or
+                fingerprint or facial recognition, a one-time code, or
                 a device password."
                 icon={<Icon.Key />}
                 showIndicator={fetchDevicesAttempt.status === 'processing'}
