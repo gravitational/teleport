@@ -51,7 +51,7 @@ func HSMTestConfig(t *testing.T) Config {
 		t.Log("Running test with SoftHSM")
 		return cfg
 	}
-	t.Fatal("No HSM available for test")
+	t.Skip("No HSM available for test")
 	return Config{}
 }
 

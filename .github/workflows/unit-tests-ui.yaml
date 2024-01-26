@@ -7,11 +7,13 @@ on:
       - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
   merge_group:
     paths:
       - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
 
 jobs:
   test:
