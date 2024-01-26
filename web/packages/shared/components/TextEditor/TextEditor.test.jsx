@@ -19,7 +19,7 @@
 import React from 'react';
 import { render, userEvent, screen } from 'design/utils/testing';
 import * as copyModule from 'design/utils/copyToClipboard';
-import * as downloadsModule from 'e-teleport/services/downloads/downloads';
+import * as downloadsModule from 'shared/utils/download';
 
 import TextEditor from '.';
 
