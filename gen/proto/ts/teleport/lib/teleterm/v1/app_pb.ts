@@ -50,7 +50,8 @@ export interface App {
      */
     name: string;
     /**
-     * endpoint_uri is the app connection endpoint.
+     * endpoint_uri is the URI to which the app service is going to proxy requests. It corresponds to
+     * app_service.apps[].uri in the Teleport configuration.
      *
      * @generated from protobuf field: string endpoint_uri = 3;
      */
@@ -91,6 +92,20 @@ export interface App {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Label labels = 9;
      */
     labels: Label[];
+    /**
+     * fqdn is the hostname under which the app is accessible within the root cluster. It doesn't
+     * include the port number. It is used by the Web UI to route the requests to /web/launch to the
+     * correct app.
+     *
+     * If the app belongs to a root cluster, fqdn is equal to public_addr or <name>.<root cluster
+     * proxy hostname> if public_addr is not present.
+     * If the app belongs to a leaf cluster, fqdn is equal to <name>.<root cluster proxy hostname>.
+     *
+     * fqdn is not present for SAML applications.
+     *
+     * @generated from protobuf field: string fqdn = 10;
+     */
+    fqdn: string;
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class App$Type extends MessageType<App> {
@@ -104,7 +119,8 @@ class App$Type extends MessageType<App> {
             { no: 6, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "friendly_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 8, name: "saml_app", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 9, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label }
+            { no: 9, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
+            { no: 10, name: "fqdn", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<App>): App {
@@ -118,6 +134,7 @@ class App$Type extends MessageType<App> {
         message.friendlyName = "";
         message.samlApp = false;
         message.labels = [];
+        message.fqdn = "";
         if (value !== undefined)
             reflectionMergePartial<App>(this, message, value);
         return message;
@@ -153,6 +170,9 @@ class App$Type extends MessageType<App> {
                     break;
                 case /* repeated teleport.lib.teleterm.v1.Label labels */ 9:
                     message.labels.push(Label.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string fqdn */ 10:
+                    message.fqdn = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -193,6 +213,9 @@ class App$Type extends MessageType<App> {
         /* repeated teleport.lib.teleterm.v1.Label labels = 9; */
         for (let i = 0; i < message.labels.length; i++)
             Label.internalBinaryWrite(message.labels[i], writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* string fqdn = 10; */
+        if (message.fqdn !== "")
+            writer.tag(10, WireType.LengthDelimited).string(message.fqdn);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
