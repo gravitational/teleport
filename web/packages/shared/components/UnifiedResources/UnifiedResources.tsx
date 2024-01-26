@@ -43,10 +43,11 @@ import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
   DefaultTab,
-  ViewMode,
-  UnifiedResourcePreferences,
   LabelsViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
 import { HoverTooltip } from 'shared/components/ToolTip';
 import {
   makeEmptyAttempt,
@@ -90,11 +91,11 @@ export const PINNING_NOT_SUPPORTED_MESSAGE =
 const tabs: { label: string; value: DefaultTab }[] = [
   {
     label: 'All Resources',
-    value: DefaultTab.DEFAULT_TAB_ALL,
+    value: DefaultTab.ALL,
   },
   {
     label: 'Pinned Resources',
-    value: DefaultTab.DEFAULT_TAB_PINNED,
+    value: DefaultTab.PINNED,
   },
 ];
 
@@ -304,7 +305,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   };
 
   const selectTab = (value: DefaultTab) => {
-    const pinnedOnly = value === DefaultTab.DEFAULT_TAB_PINNED;
+    const pinnedOnly = value === DefaultTab.PINNED;
     setParams({
       ...params,
       pinnedOnly,
@@ -366,8 +367,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   };
 
   const expandAllLabels =
-    unifiedResourcePreferences.labelsViewMode ===
-    LabelsViewMode.LABELS_VIEW_MODE_EXPANDED;
+    unifiedResourcePreferences.labelsViewMode === LabelsViewMode.EXPANDED;
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver(entries => {
@@ -386,8 +386,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   }, []);
 
   const ViewComponent =
-    unifiedResourcePreferences.viewMode === ViewMode.VIEW_MODE_CARD ||
-    forceCardView
+    unifiedResourcePreferences.viewMode === ViewMode.CARD || forceCardView
       ? CardsView
       : ListView;
 
@@ -448,9 +447,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         ClusterDropdown={ClusterDropdown}
         setExpandAllLabels={expandAllLabels => {
           setLabelsViewMode(
-            expandAllLabels
-              ? LabelsViewMode.LABELS_VIEW_MODE_EXPANDED
-              : LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED
+            expandAllLabels ? LabelsViewMode.EXPANDED : LabelsViewMode.COLLAPSED
           );
         }}
         hideViewModeOptions={forceCardView}
@@ -498,14 +495,14 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               key={tab.value}
               onClick={() => selectTab(tab.value)}
               disabled={
-                tab.value === DefaultTab.DEFAULT_TAB_PINNED &&
+                tab.value === DefaultTab.PINNED &&
                 pinning.kind === 'not-supported'
               }
               title={tab.label}
               isSelected={
                 params.pinnedOnly
-                  ? tab.value === DefaultTab.DEFAULT_TAB_PINNED
-                  : tab.value === DefaultTab.DEFAULT_TAB_ALL
+                  ? tab.value === DefaultTab.PINNED
+                  : tab.value === DefaultTab.ALL
               }
             />
           ))}

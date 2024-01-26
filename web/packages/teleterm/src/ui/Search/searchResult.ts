@@ -109,10 +109,7 @@ export const mainResourceField: {
 // fields of string type.
 export const searchableFields: {
   [Kind in ResourceSearchResult['kind']]: ReadonlyArray<
-    Exclude<
-      keyof resourcesServiceTypes.SearchResultResource<Kind>,
-      'labelsList'
-    >
+    Exclude<keyof resourcesServiceTypes.SearchResultResource<Kind>, 'labels'>
   >;
 } = {
   server: ['name', 'hostname', 'addr'],

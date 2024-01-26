@@ -177,6 +177,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         clusters.map(c => [c.uri, this.removeInternalLoginsFromCluster(c)])
       );
     });
+
     clusters
       .filter(c => c.connected)
       .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
@@ -520,7 +521,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     // TODO: this information should eventually be gathered by getCluster
     const assumedRequests = cluster.loggedInUser
       ? await this.fetchClusterAssumedRequests(
-          cluster.loggedInUser.activeRequestsList,
+          cluster.loggedInUser.activeRequests,
           clusterUri
         )
       : undefined;
@@ -555,7 +556,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       requestsMap[request.id] = {
         id: request.id,
         expires: new Date(request.expires.seconds * 1000),
-        roles: request.rolesList,
+        roles: request.roles,
       };
       return requestsMap;
     }, {});
@@ -569,7 +570,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       ...cluster,
       loggedInUser: cluster.loggedInUser && {
         ...cluster.loggedInUser,
-        sshLoginsList: cluster.loggedInUser.sshLoginsList.filter(
+        sshLogins: cluster.loggedInUser.sshLogins.filter(
           login => !login.startsWith('-')
         ),
       },
@@ -583,7 +584,7 @@ export function makeServer(source: tsh.Server) {
     id: source.name,
     clusterId: source.name,
     hostname: source.hostname,
-    labels: source.labelsList,
+    labels: source.labels,
     addr: source.addr,
     tunnel: source.tunnel,
     sshLogins: [],
@@ -600,7 +601,7 @@ export function makeDatabase(source: tsh.Database) {
       source.protocol as DbProtocol
     ).title,
     protocol: source.protocol,
-    labels: source.labelsList,
+    labels: source.labels,
   };
 }
 
@@ -608,7 +609,7 @@ export function makeKube(source: tsh.Kube) {
   return {
     uri: source.uri,
     name: source.name,
-    labels: source.labelsList,
+    labels: source.labels,
   };
 }
 

@@ -56,7 +56,7 @@ export function ConnectServerActionButton(props: {
 
   function getSshLogins(): string[] {
     const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
-    return cluster?.loggedInUser?.sshLoginsList || [];
+    return cluster?.loggedInUser?.sshLogins || [];
   }
 
   function connect(login: string): void {
@@ -220,7 +220,7 @@ function AppButton(props: {
   if (props.app.awsConsole) {
     return (
       <AwsLaunchButton
-        awsRoles={props.app.awsRolesList}
+        awsRoles={props.app.awsRoles}
         getLaunchUrl={arn =>
           getAwsAppLaunchUrl({
             app: props.app,
