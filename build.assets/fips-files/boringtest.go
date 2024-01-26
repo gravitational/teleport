@@ -1,5 +1,6 @@
 package main
 
+// nolint
 import (
 	"crypto/boring"
 	"os"
