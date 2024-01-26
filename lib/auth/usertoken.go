@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
@@ -470,7 +471,8 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	}
 
 	tokenKind := UserTokenTypePrivilege
-	switch hasDevices, err := a.validateMFAAuthResponseForRegister(ctx, req.GetExistingMFAResponse(), username); {
+	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES}
+	switch hasDevices, err := a.validateMFAAuthResponseForRegister(ctx, req.GetExistingMFAResponse(), username, requiredExt); {
 	case err != nil:
 		return nil, trace.Wrap(err)
 	case !hasDevices:
