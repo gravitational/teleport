@@ -45,14 +45,7 @@ import (
 var (
 	ErrMirrorNotSupported           = errors.New("mirror mode not supported")
 	ErrConcurrentAccessNotSupported = errors.New("concurrent access not supported")
-	ttlDeleteTimeout                = time.Second * 10
 )
-
-func init() {
-	if i, err := strconv.Atoi(os.Getenv("TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT")); err == nil {
-		ttlDeleteTimeout = time.Duration(i) * time.Second
-	}
-}
 
 type ConstructionOptions struct {
 	MirrorMode bool
@@ -561,6 +554,10 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 // testEvents tests scenarios with event watches
 func testEvents(t *testing.T, newBackend Constructor) {
 	const eventTimeout = 10 * time.Second
+	var ttlDeleteTimeout = eventTimeout
+	if i, err := strconv.Atoi(os.Getenv("TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT")); err == nil {
+		ttlDeleteTimeout = time.Duration(i) * time.Second
+	}
 
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
