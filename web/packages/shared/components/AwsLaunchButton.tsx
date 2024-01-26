@@ -22,7 +22,7 @@ import { ButtonBorder, Text } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { ChevronDown } from 'design/Icon';
 
-import { AwsRole } from 'teleport/services/apps';
+import { AwsRole } from 'shared/services/apps';
 
 export class AwsLaunchButton extends React.Component<Props> {
   anchorEl = React.createRef();
