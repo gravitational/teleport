@@ -145,8 +145,9 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 	}
 }
 
-// Returns an username that is prefixed with "remote-" and suffixed with
-// cluster name with the hope that it does not match a real local user.
+// UsernameForRemoteCluster returns an username that is prefixed with "remote-"
+// and suffixed with cluster name with the hope that it does not match a real
+// local user.
 func UsernameForRemoteCluster(localUsername, localClusterName string) string {
 	return fmt.Sprintf("remote-%v-%v", localUsername, localClusterName)
 }
