@@ -576,7 +576,7 @@ export const formatters: Formatters = {
   [eventCodes.SFTP_DISALLOWED]: {
     type: 'sftp',
     desc: 'SFTP Disallowed',
-    format: ({ user, path, ...rest }) =>
+    format: ({ user, ...rest }) =>
       `User [${user}] was blocked from creating an SFTP session on node [${
         rest['server_hostname'] || rest['addr.local']
       }]`,
