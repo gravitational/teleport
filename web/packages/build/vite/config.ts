@@ -158,29 +158,29 @@ export function createViteConfig(
             secure: false,
           },
         };
-      }
 
-      if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
-        config.server.https = {
-          key: readFileSync(process.env.VITE_HTTPS_KEY),
-          cert: readFileSync(process.env.VITE_HTTPS_CERT),
-        };
-      } else {
-        const certsDirectory = resolve(rootDirectory, 'web/certs');
+        if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
+          config.server.https = {
+            key: readFileSync(process.env.VITE_HTTPS_KEY),
+            cert: readFileSync(process.env.VITE_HTTPS_CERT),
+          };
+        } else {
+          const certsDirectory = resolve(rootDirectory, 'web/certs');
 
-        if (!existsSync(certsDirectory)) {
-          throw new Error(
-            'Could not find SSL certificates. Please follow web/README.md to generate certificates.'
-          );
+          if (!existsSync(certsDirectory)) {
+            throw new Error(
+              'Could not find SSL certificates. Please follow web/README.md to generate certificates.'
+            );
+          }
+
+          const keyPath = resolve(certsDirectory, 'server.key');
+          const certPath = resolve(certsDirectory, 'server.crt');
+
+          config.server.https = {
+            key: readFileSync(keyPath),
+            cert: readFileSync(certPath),
+          };
         }
-
-        const keyPath = resolve(certsDirectory, 'server.key');
-        const certPath = resolve(certsDirectory, 'server.crt');
-
-        config.server.https = {
-          key: readFileSync(keyPath),
-          cert: readFileSync(certPath),
-        };
       }
     }
 
