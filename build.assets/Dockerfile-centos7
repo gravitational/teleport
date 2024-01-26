@@ -308,6 +308,7 @@ COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy the pre-built CentOS 7 assets with clang. Needed to build BoringSSL and BPF tools.
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
+COPY --from=teleport-buildbox-centos7-assets /opt/llvm/bin/clang-14 /opt/llvm/bin/clang-14
 # Bring in our custom ninja build, needed for BorinSSL.
 COPY --from=teleport-buildbox-centos7-assets /usr/local/bin/ninja /usr/local/bin/ninja
 

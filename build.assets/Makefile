@@ -121,6 +121,11 @@ build-binaries-fips: buildbox-centos7-fips webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) FIPS=yes clean full
 
+
+.PHONY:clear-docker-builder-cache
+clear-docker-builder-cache:
+	docker builder prune -f
+
 #
 # Builds a Docker container which is used for building official Teleport binaries
 # If running in CI and there is no image with the buildbox name:tag combination present locally,
@@ -130,7 +135,8 @@ build-binaries-fips: buildbox-centos7-fips webassets
 #
 .PHONY:buildbox
 buildbox:
-	docker build \
+	$(call PULL_ON_CI,$(BUILDBOX))
+	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -144,6 +150,8 @@ buildbox:
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
 		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
+		--cache-from $(BUILDBOX) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX) .
 
 # Builds a Docker buildbox for FIPS
@@ -163,8 +171,10 @@ buildbox-fips: buildbox-centos7-fips
 # building locally it can be called manually if the assets need to be rebuilt.
 #
 .PHONY:buildbox-centos7
-buildbox-centos7:
-	docker build \
+buildbox-centos7: clear-docker-builder-cache
+	$(REQUIRE_HOST_ARCH)
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH))
+	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
@@ -176,6 +186,8 @@ buildbox-centos7:
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
+		--cache-from $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) -f Dockerfile-centos7 .
 
 #
@@ -184,8 +196,11 @@ buildbox-centos7:
 #
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips: buildbox-centos7
-	docker build \
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH))
+	docker buildx build \
 		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
+		--cache-from $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) -f Dockerfile-centos7-fips .
 
 #
@@ -590,7 +605,7 @@ print-buildbox-version:
 #
 .PHONY:build-centos7-assets
 build-centos7-assets:
-	docker build \
+	docker buildx build \
 		--build-arg BUILDARCH=$(HOST_ARCH) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
