@@ -35,7 +35,7 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 	publicURL := "https://example.com"
 
 	ca := newCertAuthority(t, types.HostCA, clusterName)
-	ctx, localClient, resourceSvc := initSvc(t, types.KindIntegration, ca, clusterName)
+	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, publicURL)
 
 	ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
 		Allow: types.RoleConditions{Rules: []types.Rule{
@@ -43,9 +43,7 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 		}},
 	}, localClient)
 
-	resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{
-		Issuer: publicURL,
-	})
+	resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
 	require.NoError(t, err)
 
 	// Get Public Key
