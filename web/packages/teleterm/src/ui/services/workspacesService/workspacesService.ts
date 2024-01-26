@@ -25,11 +25,11 @@ import { arrayObjectIsEqual } from 'shared/utils/highbar';
 import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 
 import {
-  UnifiedResourcePreferences,
   DefaultTab,
-  ViewMode,
   LabelsViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
