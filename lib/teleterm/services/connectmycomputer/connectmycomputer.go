@@ -117,8 +117,8 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		if err != nil {
 			return noCertsReloaded, trace.Wrap(err)
 		}
-		if role, err = accessAndIdentity.UpsertRole(ctx, role); err != nil {
-			return noCertsReloaded, trace.Wrap(err, "creating role %v", role.GetName())
+		if _, err = accessAndIdentity.UpsertRole(ctx, role); err != nil {
+			return noCertsReloaded, trace.Wrap(err, "creating role %v", roleName)
 		}
 	} else {
 		s.cfg.Log.Infof("The role %v already exists", roleName)
@@ -147,6 +147,9 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		// value will make sure that the user is able to connect to relevant nodes. This is done more to
 		// reduce the support load than to make the feature more secure.
 		allowedNodeLabels := existingRole.GetNodeLabels(types.Allow)
+		if allowedNodeLabels == nil {
+			allowedNodeLabels = make(types.Labels)
+		}
 		ownerNodeLabelValue := allowedNodeLabels[types.ConnectMyComputerNodeOwnerLabel]
 		expectedOwnerNodeLabelValue := []string{clusterUser.GetName()}
 
@@ -161,7 +164,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 			timeoutCtx, cancel := context.WithTimeout(ctx, resourceUpdateTimeout)
 			defer cancel()
 			err = s.syncResourceUpdate(timeoutCtx, accessAndIdentity, existingRole, func(ctx context.Context) error {
-				existingRole, err := accessAndIdentity.UpsertRole(ctx, existingRole)
+				_, err := accessAndIdentity.UpsertRole(ctx, existingRole)
 				return trace.Wrap(err, "updating role %v", existingRole.GetName())
 			})
 			if err != nil {
