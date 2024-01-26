@@ -77,6 +77,7 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		Desc:         app.GetDescription(),
 		AwsConsole:   app.IsAWSConsole(),
 		PublicAddr:   app.GetPublicAddr(),
+		Fqdn:         clusterApp.FQDN,
 		FriendlyName: types.FriendlyName(app),
 		SamlApp:      false,
 		Labels:       apiLabels,

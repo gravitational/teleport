@@ -133,7 +133,7 @@ value (`amd64`, `arm64`, or `arm`). All example commands using this variable
 will update after one is filled out.
 
 ```code
-$ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM_ARCH"/>-bin.tar.gz.sha256
+$ curl https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM_ARCH"/>-bin.tar.gz.sha256
 # <checksum> <filename>
 $ curl -O https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM_ARCH"/>-bin.tar.gz
 $ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM_ARCH"/>-bin.tar.gz
@@ -147,7 +147,7 @@ For FedRAMP/FIPS-compliant installations of Teleport Enterprise, package URLs
 will be slightly different:
 
 ```code
-$ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz.sha256
+$ curl https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz.sha256
 # <checksum> <filename>
 $ curl -O https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz
 $ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM_ARCH"/>-fips-bin.tar.gz

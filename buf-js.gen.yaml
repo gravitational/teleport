@@ -18,4 +18,11 @@ plugins:
   - name: ts
     strategy: all
     out: gen/proto/js
+    path:
+      - npm
+      - exec
+      - --yes
+      - --package=grpc_tools_node_protoc_ts@5.0.1
+      - --
+      - protoc-gen-ts
     opt: "service=grpc-node"

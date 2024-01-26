@@ -300,9 +300,9 @@ func (a *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, erro
 	var err error
 	var proxyHost string
 
-	tokenLenBytes := TokenLenBytes
+	tokenLenBytes := defaults.TokenLenBytes
 	if req.Type == UserTokenTypeRecoveryStart {
-		tokenLenBytes = RecoveryTokenLenBytes
+		tokenLenBytes = defaults.RecoveryTokenLenBytes
 	}
 
 	tokenID, err := utils.CryptoRandomHex(tokenLenBytes)
@@ -470,8 +470,7 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	}
 
 	tokenKind := UserTokenTypePrivilege
-	switch hasDevices, err := a.validateMFAAuthResponseForRegister(
-		ctx, req.GetExistingMFAResponse(), username, false /* passwordless */); {
+	switch hasDevices, err := a.validateMFAAuthResponseForRegister(ctx, req.GetExistingMFAResponse(), username); {
 	case err != nil:
 		return nil, trace.Wrap(err)
 	case !hasDevices:

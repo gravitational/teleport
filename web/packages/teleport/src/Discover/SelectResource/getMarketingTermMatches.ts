@@ -16,21 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  ClusterResource,
-  MarketingParams,
-} from 'teleport/services/userPreferences/types';
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
+import { MarketingParams } from 'teleport/services/userPreferences/types';
 
 /**
  * Returns a list of resource kinds that match provided marketing parameters.
  *
  * @param marketingParams - MarketingParams from cluster user preferences which are set at signup
- * @returns an array of ClusterResource associated with the marketing params for resource discoverability
+ * @returns an array of Resource associated with the marketing params for resource discoverability
  *
  */
 export const getMarketingTermMatches = (
   marketingParams: MarketingParams
-): ClusterResource[] => {
+): Resource[] => {
   const params = [];
   if (marketingParams) {
     marketingParams.campaign && params.push(marketingParams.campaign);
@@ -42,7 +41,7 @@ export const getMarketingTermMatches = (
     return [];
   }
 
-  const matches = new Set<ClusterResource>();
+  const matches = new Set<Resource>();
   params.forEach(p => {
     Object.values(TermMatch).forEach(m => {
       const clusterResource = matchTerm(m);
@@ -68,22 +67,22 @@ export enum TermMatch {
   AWS = 'aws',
 }
 
-const matchTerm = (m: string): ClusterResource => {
+const matchTerm = (m: string): Resource => {
   switch (m) {
     case TermMatch.App:
-      return ClusterResource.RESOURCE_WEB_APPLICATIONS;
+      return Resource.WEB_APPLICATIONS;
     case TermMatch.Database:
-      return ClusterResource.RESOURCE_DATABASES;
+      return Resource.DATABASES;
     case TermMatch.Kube:
     case TermMatch.Kubernetes:
     case TermMatch.K8s:
-      return ClusterResource.RESOURCE_KUBERNETES;
+      return Resource.KUBERNETES;
     case TermMatch.SSH:
     case TermMatch.Server:
-      return ClusterResource.RESOURCE_SERVER_SSH;
+      return Resource.SERVER_SSH;
     case TermMatch.Desktop:
     case TermMatch.Windows:
-      return ClusterResource.RESOURCE_WINDOWS_DESKTOPS;
+      return Resource.WINDOWS_DESKTOPS;
     // currently we have no resource kind nor cluster resource defined for AWS
     // in the future, we can search the resources based on this term.
     case TermMatch.AWS:

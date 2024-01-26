@@ -23,3 +23,9 @@ Object.defineProperty(globalThis, 'crypto', {
     randomUUID: () => crypt.randomUUID(),
   },
 });
+
+global.ResizeObserver = jest.fn().mockImplementation(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}));
