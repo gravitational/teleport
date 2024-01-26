@@ -285,7 +285,7 @@ export const formatters: Formatters = {
     type: 'scp',
     desc: 'SCP Disallowed',
     format: ({ user, ...rest }) =>
-      `SCP command from user [${user}] to node [${
+      `User [${user}] SCP file transfer on node [${
         rest['server_hostname'] || rest['addr.local']
       }] blocked`,
   },
