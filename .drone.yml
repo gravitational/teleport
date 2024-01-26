@@ -445,7 +445,7 @@ kind: pipeline
 type: kubernetes
 name: clean-up-previous-build
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:prod-7680ffb-20240117T224722
 trigger:
   event:
     include:
@@ -1624,12 +1624,6 @@ workspace:
   path: /go
 clone:
   disable: true
-depends_on:
-- build-linux-amd64
-- build-linux-amd64-fips
-- build-linux-arm64
-- build-linux-arm64-fips
-- build-linux-arm
 steps:
 - name: Check out code
   image: docker:git
@@ -5412,7 +5406,7 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:prod-7680ffb-20240117T224722
 trigger:
   event:
     include:
@@ -5541,6 +5535,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: b8fe5b33da2949efb4e4626c111017a6baeccee74106fd2fb3ea5c36a91a74c5
+hmac: 1201ae30cc439265cf33baf9b9e4d964fda6cd8197989b4930a308325c2b16b3
 
 ...

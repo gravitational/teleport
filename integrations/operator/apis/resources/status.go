@@ -16,25 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package v6 contains API Schema definitions for the resources v6 API group
-// +kubebuilder:object:generate=true
-// +groupName=resources.teleport.dev
-package v6
+package resources
 
 import (
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/scheme"
-
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var (
-	// GroupVersion is group version used to register these objects
-	GroupVersion = schema.GroupVersion{Group: resources.GroupName, Version: "v6"}
+// Status defines the observed state of the Teleport resource
+type Status struct {
+	// Conditions represent the latest available observations of an object's state
+	// +optional
+	Conditions []metav1.Condition `json:"conditions"`
+	// +optional
+	TeleportResourceID int64 `json:"teleportResourceID"`
+}
 
-	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
-	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
-
-	// AddToScheme adds the types in this group-version to the given scheme.
-	AddToScheme = SchemeBuilder.AddToScheme
-)
+// DeepCopyInto deep-copies one resource status into another.
+// Required to satisfy runtime.Object interface.
+func (status *Status) DeepCopyInto(out *Status) {
+	*out = Status{}
+	out.Conditions = make([]metav1.Condition, len(status.Conditions))
+	copy(out.Conditions, status.Conditions)
+	out.TeleportResourceID = status.TeleportResourceID
+}

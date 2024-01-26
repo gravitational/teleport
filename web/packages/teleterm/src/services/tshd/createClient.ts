@@ -159,15 +159,19 @@ export function createTshdClient(
       });
     },
 
-    async listRootClusters() {
-      const req = new api.ListClustersRequest();
-      return new Promise<types.Cluster[]>((resolve, reject) => {
-        tshd.listRootClusters(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().clustersList as types.Cluster[]);
-          }
+    async listRootClusters(abortSignal?: types.TshAbortSignal) {
+      return withAbort(abortSignal, callRef => {
+        return new Promise<types.Cluster[]>((resolve, reject) => {
+          callRef.current = tshd.listRootClusters(
+            new api.ListClustersRequest(),
+            (err, response) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(response.toObject().clustersList as types.Cluster[]);
+              }
+            }
+          );
         });
       });
     },

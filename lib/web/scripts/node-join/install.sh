@@ -809,7 +809,7 @@ fi
 install_from_file() {
     # select correct URL/installation method based on distro
     if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
-        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
+        URL="https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
 
         # check that needed tools are installed
         check_exists_fatal curl tar
@@ -834,7 +834,7 @@ install_from_file() {
         elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
             DEB_ARCH="arm64"
         fi
-        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
+        URL="https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
         check_deb_not_already_installed
         # check that needed tools are installed
         check_exists_fatal curl dpkg
@@ -856,7 +856,7 @@ install_from_file() {
         elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
             RPM_ARCH="arm64"
         fi
-        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
+        URL="https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
         check_rpm_not_already_installed
         # check for package managers
         if check_exists dnf; then
