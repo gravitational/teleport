@@ -138,7 +138,6 @@ func TestMakeAssertion(t *testing.T) {
 					ProtocolSupportEnumeration: "urn:oasis:names:tc:SAML:2.0:protocol",
 				},
 				NameIDFormats: []saml.NameIDFormat{
-					"urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
 					"urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
 				},
 			},
@@ -207,7 +206,7 @@ func testAssertion(clock clockwork.Clock, conditions *saml.Conditions, address, 
 			NameID: &saml.NameID{
 				NameQualifier:   "https://test.url/enterprise/saml-idp/metadata",
 				SPNameQualifier: "sp1",
-				Format:          "urn:oasis:names:tc:SAML:2.0:nameid-format:transient",
+				Format:          "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
 			},
 			SubjectConfirmations: []saml.SubjectConfirmation{
 				{

@@ -108,9 +108,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 		notOnOrAfterAfter = notBefore.Add(saml.MaxIssueDelay)
 	}
 
-	// Default to using the transient format.
-	nameIDFormat := types.SAMLTransientFormat
-
+	nameIDFormat := getNameIDFormatFromSPSSODescriptor(req.ServiceProviderMetadata.SPSSODescriptors)
 	if session.NameIDFormat != "" {
 		nameIDFormat = session.NameIDFormat
 	}
@@ -125,7 +123,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 		IssueInstant: s.clock.Now().UTC(),
 		Version:      "2.0",
 		Issuer: saml.Issuer{
-			Format: types.SAMLEntityFormat,
+			Format: types.SAMLEntityNameIDFormat,
 			Value:  req.IDP.Metadata().EntityID,
 		},
 		Subject: &saml.Subject{
@@ -278,4 +276,45 @@ func samlAttributeValuesToSlice(attrVals []saml.AttributeValue) []string {
 		attrValues = append(attrValues, values.Value)
 	}
 	return attrValues
+}
+
+func getNameIDFormatFromSPSSODescriptor(spSSODescriptors []saml.SPSSODescriptor) string {
+	for _, spSSODescriptor := range spSSODescriptors {
+		for _, acs := range spSSODescriptor.AssertionConsumerServices {
+			if acs.Binding == "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" {
+				if len(spSSODescriptor.NameIDFormats) == 0 {
+					// Empty Name ID element isn't generally expected but SP may not specify
+					// the format and expect IdP to respond with IdP preferred NameID format.
+					// It's also best for us to rule out malformed entity descriptor and save
+					// us from index out of range panic below.
+					return types.SAMLUnspecifiedNameIDFormat
+				} else {
+					// Only one Name ID element is expected. But SAML specification allows SP
+					// to advertise multiple supported Name ID formats. We will pick the first
+					// one available.
+					// TODO(sshah): investigate if we would like to have a preferred Name ID format.
+					// If we have one, instead of picking the first element, we can iterate
+					// through all values and elect the format we prefer.
+					return nameIDFormatStringFromSAMLNameIDType(spSSODescriptor.NameIDFormats[0])
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func nameIDFormatStringFromSAMLNameIDType(nameIDType saml.NameIDFormat) string {
+	switch nameIDType {
+	case types.SAMLUnspecifiedNameIDFormat,
+		types.SAMLEmailAddressNameIDFormat,
+		types.SAMLWindowsDomainQualifiedNameNameIDFormat,
+		types.SAMLKerberosPrincipalNameNameNameIDFormat,
+		types.SAMLX509SubjectNameNameIDFormat,
+		types.SAMLEntityNameIDFormat,
+		types.SAMLPersistentNameIDFormat,
+		types.SAMLTransientNameIDFormat:
+		return string(nameIDType)
+	default:
+		return types.SAMLUnspecifiedNameIDFormat
+	}
 }
