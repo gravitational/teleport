@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -555,8 +554,11 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 func testEvents(t *testing.T, newBackend Constructor) {
 	const eventTimeout = 10 * time.Second
 	var ttlDeleteTimeout = eventTimeout
-	if i, err := strconv.Atoi(os.Getenv("TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT")); err == nil {
-		ttlDeleteTimeout = time.Duration(i) * time.Second
+	// TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT may be set to extend the time waited
+	// for TTL deletion to occur. This is useful for backends where TTL deletion is
+	// handled externally and may take longer than the default of 10 seconds.
+	if d, err := time.ParseDuration(os.Getenv("TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT")); err == nil {
+		ttlDeleteTimeout = d
 	}
 
 	uut, clock, err := newBackend()
