@@ -1806,35 +1806,50 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 	return constants.SessionRecordingModeBestEffort
 }
 
-func matchDenySPIFFESVIDCondition(conds []*types.SPIFFERoleConditions, spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) (bool, error) {
-	// TODO???
-	return false, nil
-}
-
-func matchAllowSPIFFESVIDCondition(conds []*types.SPIFFERoleConditions, spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) (bool, error) {
+// matchSPIFFESVIDConditions compares a slice of SPIFFE Role Conditions against
+// a requested SPIFFE SVID generation. All fields within a condition must match,
+// but any condition in the slice can match for the function to return true.
+func matchSPIFFESVIDConditions(
+	conds []*types.SPIFFERoleConditions,
+	spiffeIDPath string,
+	dnsSANs []string,
+	ipSANs []net.IP,
+) (bool, error) {
+ConditionLoop:
 	for _, cond := range conds {
 		// Match SPIFFE ID path. TODO: Globby
 		if spiffeIDPath != cond.Path {
+			// No match - skip to next condition.
 			continue
 		}
-		// All DNS SANs requested must match one of the DNS SAN matchers
+		// All DNS SANs requested must match one of the DNS SAN matchers in the
+		// condition.
 		for _, dnsSAN := range dnsSANs {
-			matched := false
-			for _, condDNSSAN := range cond.DNSSANs {
-
-			}
+			matched := slices.ContainsFunc(cond.DNSSANs, func(s string) bool {
+				// TODO: Globby
+				if dnsSAN == s {
+					return true
+				}
+				return false
+			})
 			if !matched {
-				continue
+				// The requested DNS SAN did not match any in the current
+				// condition, so this condition is not a match.
+				continue ConditionLoop
 			}
 		}
-		// All IP SANs requested must match one of the IP SAN matchers
+		// All IP SANs requested must match one of the IP SAN matchers in the
+		// condition.
 		for _, ipSAN := range ipSANs {
-			matched := false
-			for _, condIPSAN := range cond.DNSSANs {
-
-			}
+			matched := slices.ContainsFunc(cond.IPSANs, func(s string) bool {
+				// TODO: CIDR matching
+				log.Infof(ipSAN.String())
+				return true
+			})
 			if !matched {
-				continue
+				// The requested IP SAN did not match any in the current
+				// condition, so this condition is not a match.
+				continue ConditionLoop
 			}
 		}
 	}
@@ -1850,7 +1865,7 @@ func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs
 	// check deny: a single match on a deny rule prohibits generation
 	for _, role := range set {
 		cond := role.GetSPIFFEConditions(types.Deny)
-		matched, err := matchDenySPIFFESVIDCondition(cond, spiffeIDPath, dnsSANs, ipSANs)
+		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1862,7 +1877,7 @@ func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs
 	// check allow: if a single condition matches, allow generation
 	for _, role := range set {
 		cond := role.GetSPIFFEConditions(types.Allow)
-		matched, err := matchAllowSPIFFESVIDCondition(cond, spiffeIDPath, dnsSANs, ipSANs)
+		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
