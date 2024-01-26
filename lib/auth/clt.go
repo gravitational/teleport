@@ -35,6 +35,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -470,6 +471,10 @@ func (c *Client) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
 	return accessgraphv1.NewAccessGraphServiceClient(c.APIClient.GetConnection())
 }
 
+func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
+	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
+}
+
 // UpsertUser user updates user entry.
 // TODO(tross): DELETE IN 16.0.0
 func (c *Client) UpsertUser(ctx context.Context, user types.User) (types.User, error) {
@@ -808,6 +813,9 @@ type ClientI interface {
 
 	// AccessGraphClient returns a client to the Access Graph gRPC service.
 	AccessGraphClient() accessgraphv1.AccessGraphServiceClient
+
+	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
+	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
