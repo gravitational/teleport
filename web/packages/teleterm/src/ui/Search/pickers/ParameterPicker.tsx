@@ -22,6 +22,7 @@ import {
   makeSuccessAttempt,
   mapAttempt,
   useAsync,
+  Attempt,
 } from 'shared/hooks/useAsync';
 import { Text } from 'design';
 import * as icons from 'design/Icon';
@@ -55,10 +56,10 @@ export function ParameterPicker(props: ParameterPickerProps) {
         { value: inputValue, displayText: inputValue },
       ]
   );
-  const $suggestionsError =
-    suggestionsAttempt.status === 'error' ? (
-      <SuggestionsError statusText={suggestionsAttempt.statusText} />
-    ) : null;
+  const $suggestionsMessage = getSuggestionsMessage({
+    suggestionsAttempt,
+    parameter: props.action.parameter,
+  });
 
   useEffect(() => {
     getSuggestions();
@@ -98,7 +99,7 @@ export function ParameterPicker(props: ParameterPickerProps) {
       {props.input}
       <ResultList<Parameter>
         attempts={[inputSuggestionAttempt, attempt]}
-        ExtraTopComponent={$suggestionsError}
+        ExtraTopComponent={$suggestionsMessage}
         onPick={onPick}
         onBack={onBack}
         addWindowEventListener={addWindowEventListener}
@@ -115,13 +116,51 @@ export function ParameterPicker(props: ParameterPickerProps) {
   );
 }
 
-export const SuggestionsError = ({ statusText }: { statusText: string }) => (
+export const SuggestionsError = ({
+  statusText,
+  allowOnlySuggestions,
+}: {
+  statusText: string;
+  allowOnlySuggestions?: boolean;
+}) => (
   <NonInteractiveItem>
     <IconAndContent Icon={icons.Warning} iconColor="warning.main">
       <Text typography="body1">
-        Could not fetch suggestions. Type in the desired value to continue.
+        Could not fetch suggestions.{' '}
+        {!allowOnlySuggestions && 'Type in the desired value to continue.'}
       </Text>
       <Text typography="body2">{statusText}</Text>
     </IconAndContent>
   </NonInteractiveItem>
 );
+
+export const NoSuggestionsAvailable = ({ message }: { message: string }) => (
+  <NonInteractiveItem>
+    <IconAndContent Icon={icons.Info} iconColor="text.slightlyMuted">
+      <Text typography="body1">{message}</Text>
+    </IconAndContent>
+  </NonInteractiveItem>
+);
+
+function getSuggestionsMessage({
+  suggestionsAttempt,
+  parameter,
+}: {
+  suggestionsAttempt: Attempt<Parameter[]>;
+  parameter?: ParametrizedAction['parameter'];
+}) {
+  if (suggestionsAttempt.status === 'error') {
+    return <SuggestionsError statusText={suggestionsAttempt.statusText} />;
+  }
+  if (
+    parameter.allowOnlySuggestions &&
+    suggestionsAttempt.status === 'success' &&
+    suggestionsAttempt.data.length === 0
+  ) {
+    return (
+      <NoSuggestionsAvailable
+        message={parameter.noSuggestionsAvailableMessage}
+      />
+    );
+  }
+}

@@ -46,6 +46,11 @@ export interface ParametrizedAction {
     getSuggestions(): Promise<Parameter[]>;
     /** Disables providing new values. */
     allowOnlySuggestions?: boolean;
+    /**
+     * Displayed when the suggestions list is empty and `allowOnlySuggestions`
+     * is true.
+     */
+    noSuggestionsAvailableMessage?: string;
     placeholder: string;
   };
   perform(parameter: Parameter): void;
@@ -125,6 +130,7 @@ export function mapToAction(
                 displayText: a.display,
               })),
             allowOnlySuggestions: true,
+            noSuggestionsAvailableMessage: 'No roles found.',
             placeholder: 'Select IAM Role',
           },
           perform: parameter =>
