@@ -29,7 +29,7 @@ export function TextSelectCopyMulti({
   lines,
   bash = true,
   maxHeight = 'none',
-  saveContent = {save: false, filename: ''}
+  saveContent = { save: false, filename: '' },
 }: Props) {
   const refs = useRef<HTMLElement[]>([]);
 
@@ -51,7 +51,7 @@ export function TextSelectCopyMulti({
 
   function saveContentAsFile(content: string): void {
     const a = document.createElement('a');
-    const blob = new Blob([content], {type: "plain/text"});
+    const blob = new Blob([content], { type: 'plain/text' });
     a.href = window.URL.createObjectURL(blob);
     a.download = saveContent.filename;
     document.body.appendChild(a);
@@ -71,6 +71,7 @@ export function TextSelectCopyMulti({
       pr={7}
       borderRadius={2}
       maxHeight={maxHeight}
+      minHeight="50px"
       // Firefox does not add space for visible scrollbars
       // like it does for chrome and safari.
       pb={isFirefox ? 3 : 2}
@@ -106,12 +107,15 @@ export function TextSelectCopyMulti({
                   `}
                 >
                   {saveContent.save && (
-                    <StyledButtonSecondary mr={2} onClick={() => saveContentAsFile(line.text)}>
-                        <Download
-                          data-testid="btn-download"
-                          color="light"
-                          size={16}
-                        />
+                    <StyledButtonSecondary
+                      mr={2}
+                      onClick={() => saveContentAsFile(line.text)}
+                    >
+                      <Download
+                        data-testid="btn-download"
+                        color="light"
+                        size={16}
+                      />
                     </StyledButtonSecondary>
                   )}
                   <StyledButtonSecondary onClick={() => onCopyClick(index)}>
@@ -195,4 +199,4 @@ export type Props = {
 type saveContent = {
   save: boolean;
   filename: string;
-}
+};
