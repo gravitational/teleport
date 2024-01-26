@@ -216,7 +216,6 @@ function AgentSetup() {
   } = useConnectMyComputerContext();
   const { requestResourcesRefresh } = useResourcesContext();
   const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
-  const nodeToken = useRef<string>();
 
   // The verify agent step checks if we can execute the binary. This triggers OS-level checks, such
   // as Gatekeeper on macOS, before we do any real work. It is useful because it makes failures due
@@ -265,20 +264,18 @@ function AgentSetup() {
     runGenerateConfigFileAttempt,
     setGenerateConfigFileAttempt,
   ] = useAsync(
-    useCallback(async () => {
-      const { token } = await retryWithRelogin(ctx, rootClusterUri, () =>
-        ctx.connectMyComputerService.createAgentConfigFile(rootCluster)
-      );
-      nodeToken.current = token;
-    }, [rootCluster, ctx, rootClusterUri])
+    useCallback(
+      () =>
+        retryWithRelogin(ctx, rootClusterUri, () =>
+          ctx.connectMyComputerService.createAgentConfigFile(rootCluster)
+        ),
+      [rootCluster, ctx, rootClusterUri]
+    )
   );
 
   const [joinClusterAttempt, runJoinClusterAttempt, setJoinClusterAttempt] =
     useAsync(
       useCallback(async () => {
-        if (!nodeToken.current) {
-          throw new Error('Node token is empty');
-        }
         const [, error] = await startAgent();
         if (error) {
           throw error;
@@ -287,27 +284,7 @@ function AgentSetup() {
         // Now that the node has joined the server, let's refresh all open DocumentCluster instances
         // to show the new node.
         requestResourcesRefresh();
-
-        try {
-          await ctx.connectMyComputerService.deleteToken(
-            rootCluster.uri,
-            nodeToken.current
-          );
-        } catch (error) {
-          // the user may not have permissions to remove the token, but it will expire in a few minutes anyway
-          if (isAccessDeniedError(error)) {
-            logger.error('Access denied when deleting a token.', error);
-            return;
-          }
-          throw error;
-        }
-      }, [
-        startAgent,
-        ctx.connectMyComputerService,
-        rootCluster.uri,
-        requestResourcesRefresh,
-        logger,
-      ])
+      }, [startAgent, requestResourcesRefresh])
     );
 
   const steps: SetupStep[] = [

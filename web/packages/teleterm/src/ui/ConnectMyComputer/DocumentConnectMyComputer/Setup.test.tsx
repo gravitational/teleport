@@ -46,50 +46,6 @@ beforeEach(() => {
 });
 
 describe('setup of DocumentConnectMyComputer', () => {
-  const tests: Array<{
-    name: string;
-    expectedStatus: AttemptStatus;
-    mockAppContext?: (appContext: MockAppContext) => void;
-  }> = [
-    {
-      name: 'ignores access denied errors from deleting the token',
-      expectedStatus: 'success',
-      // TODO(ravicious): In the future, it's probably better to make default mocks set up a happy
-      // path and then use mockAppContext to reset any mocks that should behave differently for this
-      // particular test.
-      mockAppContext: appContext => {
-        jest
-          .spyOn(appContext.connectMyComputerService, 'deleteToken')
-          .mockRejectedValue(new Error('7 PERMISSION_DENIED: access denied'));
-      },
-    },
-    {
-      name: 'does not ignore other errors when deleting the token',
-      expectedStatus: 'error',
-      mockAppContext: appContext => {
-        jest
-          .spyOn(appContext.connectMyComputerService, 'deleteToken')
-          .mockRejectedValue(new Error('unknown error'));
-      },
-    },
-  ];
-  test.each(tests)('$name', async ({ expectedStatus, mockAppContext }) => {
-    const { appContext, elementToRender } = setupAppContext();
-    mockAppContext?.(appContext);
-
-    render(elementToRender);
-
-    act(() => screen.getByText('Connect').click());
-
-    const step = await screen.findByTestId('Joining the cluster');
-
-    await waitFor(
-      () => expect(step).toHaveAttribute('data-teststatus', expectedStatus),
-      // This makes debugging easier, as the error output will show the DOM for this step only.
-      { container: step }
-    );
-  });
-
   it('calls requestResourcesRefresh after setup is done', async () => {
     const mockResourcesContext = {
       requestResourcesRefresh: jest.fn(),
@@ -195,7 +151,7 @@ function setupAppContext(): {
     .mockResolvedValue({ certsReloaded: false });
   jest
     .spyOn(appContext.connectMyComputerService, 'createAgentConfigFile')
-    .mockResolvedValue({ token: '1234' });
+    .mockResolvedValue();
   jest
     .spyOn(appContext.connectMyComputerService, 'runAgent')
     .mockResolvedValue();
