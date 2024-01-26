@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev-walt-doze.2"
+.version: &version "16.0.0-dev-walt-doze.3"
 
 name: teleport-cluster
 apiVersion: v2
