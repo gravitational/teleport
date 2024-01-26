@@ -112,11 +112,11 @@ export const Download = () => {
     <Component
       lines={[
         {
-          text: "click download icon to save this content as a file",
+          text: 'click download icon to save this content as a file',
         },
       ]}
       bash={false}
-      saveContent={{save: true, filename: 'testfile.txt'}}
+      saveContent={{ save: true, filename: 'testfile.txt' }}
     />
   );
 };
