@@ -513,7 +513,6 @@ func TestCheckKubeCluster(t *testing.T) {
 			leafCluster:        teleportCluster,
 			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
 			outputFormat:       identityfile.FormatKubernetes,
-			want:               "",
 			assertErr:          require.NoError,
 		},
 		{
