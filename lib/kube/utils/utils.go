@@ -227,7 +227,7 @@ func CheckKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClusterNa
 		return trace.Wrap(err, "failed to get list of available Kubernetes clusters.")
 	}
 	if !slices.Contains(kubeClusterNames, kubeClusterName) {
-		return trace.BadParameter("Kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube ls'", kubeClusterName)
+		return trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", kubeClusterName)
 	}
 
 	return nil
