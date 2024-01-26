@@ -43,12 +43,15 @@ export interface ParametrizedAction {
   searchResult: SearchResult;
   preventAutoClose?: boolean;
   parameter: {
-    getSuggestions(): Promise<string[]>;
+    getSuggestions(): Promise<Parameter[]>;
+    /** Disables providing new values. */
+    allowOnlySuggestions?: boolean;
     placeholder: string;
   };
-
-  perform(parameter: string): void;
+  perform(parameter: Parameter): void;
 }
+
+export type Parameter = { key: string; display: string };
 
 export type SearchAction = SimpleAction | ParametrizedAction;
 
@@ -63,16 +66,19 @@ export function mapToAction(
         type: 'parametrized-action',
         searchResult: result,
         parameter: {
-          getSuggestions: async () =>
-            ctx.clustersService.findClusterByResource(result.resource.uri)
-              ?.loggedInUser?.sshLoginsList,
+          getSuggestions: async () => {
+            const sshLogins = ctx.clustersService.findClusterByResource(
+              result.resource.uri
+            )?.loggedInUser?.sshLoginsList;
+            return sshLogins?.map(login => ({ key: login, display: login }));
+          },
           placeholder: 'Provide login',
         },
         perform: login => {
           const { uri, hostname } = result.resource;
           return connectToServer(
             ctx,
-            { uri, hostname, login },
+            { uri, hostname, login: login.key },
             {
               origin: 'search_bar',
             }
@@ -117,9 +123,12 @@ export function mapToAction(
         searchResult: result,
         parameter: {
           getSuggestions: () =>
-            retryWithRelogin(ctx, result.resource.uri, () =>
-              ctx.resourcesService.getDbUsers(result.resource.uri)
-            ),
+            retryWithRelogin(ctx, result.resource.uri, async () => {
+              const dbUsers = await ctx.resourcesService.getDbUsers(
+                result.resource.uri
+              );
+              return dbUsers.map(dbUser => ({ key: dbUser, display: dbUser }));
+            }),
           placeholder: 'Provide db username',
         },
         perform: dbUser => {
@@ -130,7 +139,7 @@ export function mapToAction(
               uri,
               name,
               protocol,
-              dbUser,
+              dbUser: dbUser.key,
             },
             {
               origin: 'search_bar',

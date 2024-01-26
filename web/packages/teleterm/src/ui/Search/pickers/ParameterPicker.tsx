@@ -27,7 +27,7 @@ import { Text } from 'design';
 import * as icons from 'design/Icon';
 
 import { useSearchContext } from '../SearchContext';
-import { ParametrizedAction } from '../actions';
+import { ParametrizedAction, Parameter } from '../actions';
 
 import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
 import { actionPicker } from './pickers';
@@ -49,7 +49,12 @@ export function ParameterPicker(props: ParameterPickerProps) {
   const [suggestionsAttempt, getSuggestions] = useAsync(
     props.action.parameter.getSuggestions
   );
-  const inputSuggestionAttempt = makeSuccessAttempt(inputValue && [inputValue]);
+  const inputSuggestionAttempt = makeSuccessAttempt(
+    inputValue &&
+      !props.action.parameter.allowOnlySuggestions && [
+        { key: inputValue, display: inputValue },
+      ]
+  );
   const $suggestionsError =
     suggestionsAttempt.status === 'error' ? (
       <SuggestionsError statusText={suggestionsAttempt.statusText} />
@@ -65,13 +70,14 @@ export function ParameterPicker(props: ParameterPickerProps) {
   const attempt = mapAttempt(suggestionsAttempt, suggestions =>
     suggestions.filter(
       v =>
-        v.toLocaleLowerCase().includes(inputValue.toLocaleLowerCase()) &&
-        v !== inputValue
+        v.display
+          .toLocaleLowerCase()
+          .includes(inputValue.toLocaleLowerCase()) && v.display !== inputValue
     )
   );
 
   const onPick = useCallback(
-    (item: string) => {
+    (item: Parameter) => {
       props.action.perform(item);
 
       resetInput();
@@ -89,17 +95,17 @@ export function ParameterPicker(props: ParameterPickerProps) {
   return (
     <PickerContainer>
       {props.input}
-      <ResultList<string>
+      <ResultList<Parameter>
         attempts={[inputSuggestionAttempt, attempt]}
         ExtraTopComponent={$suggestionsError}
         onPick={onPick}
         onBack={onBack}
         addWindowEventListener={addWindowEventListener}
         render={item => ({
-          key: item,
+          key: item.key,
           Component: (
             <Text typography="body1" fontSize={1}>
-              <Highlight text={item} keywords={[inputValue]}></Highlight>
+              <Highlight text={item.display} keywords={[inputValue]} />
             </Text>
           ),
         })}
