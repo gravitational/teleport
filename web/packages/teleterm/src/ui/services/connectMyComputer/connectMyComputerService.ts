@@ -37,6 +37,10 @@ export class ConnectMyComputerService {
     await this.mainProcessClient.downloadAgent();
   }
 
+  async verifyAgent(): Promise<void> {
+    await this.mainProcessClient.verifyAgent();
+  }
+
   createRole(
     rootClusterUri: uri.RootClusterUri
   ): Promise<CreateConnectMyComputerRoleResponse> {

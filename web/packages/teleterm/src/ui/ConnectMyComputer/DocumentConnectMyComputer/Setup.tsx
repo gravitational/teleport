@@ -218,6 +218,17 @@ function AgentSetup() {
   const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
 
+  // The verify agent step checks if we can execute the binary. This triggers OS-level checks, such
+  // as Gatekeeper on macOS, before we do any real work. It is useful because it makes failures due
+  // to OS protections be reported in telemetry as failures of the verify agent step.
+  //
+  // If we didn't have this check as a separate step, then the step with generating the config file
+  // could run into Gatekeeper problems and that step can already fail for a myriad of other reasons.
+  const [verifyAgentAttempt, runVerifyAgentAttempt, setVerifyAgentAttempt] =
+    useAsync(
+      useCallback(() => ctx.connectMyComputerService.verifyAgent(), [ctx])
+    );
+
   const [createRoleAttempt, runCreateRoleAttempt, setCreateRoleAttempt] =
     useAsync(
       useCallback(
@@ -261,6 +272,7 @@ function AgentSetup() {
       nodeToken.current = token;
     }, [rootCluster, ctx, rootClusterUri])
   );
+
   const [joinClusterAttempt, runJoinClusterAttempt, setJoinClusterAttempt] =
     useAsync(
       useCallback(async () => {
@@ -305,6 +317,13 @@ function AgentSetup() {
       attempt: downloadAgentAttempt,
       runAttempt: runDownloadAgentAttempt,
       setAttempt: setDownloadAgentAttempt,
+    },
+    {
+      name: 'Verifying the agent',
+      nameInFailureEvent: 'verifying_agent',
+      attempt: verifyAgentAttempt,
+      runAttempt: runVerifyAgentAttempt,
+      setAttempt: setVerifyAgentAttempt,
     },
     {
       name: 'Setting up the role',
