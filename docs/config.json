@@ -8,6 +8,10 @@
           "title": "Get Started with Teleport",
           "slug": "/"
         },
+	{
+	  "title": "Documentation Overview",
+	  "slug": "/documentation-overview/"
+	},
         {
           "title": "Core Concepts",
           "slug": "/core-concepts/"
