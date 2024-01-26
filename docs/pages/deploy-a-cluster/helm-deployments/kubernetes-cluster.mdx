@@ -288,6 +288,8 @@ To demonstrate how to create a local user and authenticate to Teleport in order
 to access your Kubernetes cluster, let's create a local user who has access to
 Kubernetes group `system:masters` via the Teleport role `member`.
 
+Paste the following role specification into a file called `member.yaml`:
+
 (!docs/pages/includes/kubernetes-access/member-role.mdx!)
 
 
@@ -298,7 +300,8 @@ Kubernetes group `system:masters` via the Teleport role `member`.
    role 'member' has been created
    ```
 
-1. Create the user and generate an invite link:
+1. Create the user and generate an invite link, replacing <Var name="myuser" />
+   with the name of the local Teleport user you want to create:
 
    ```code
    $ kubectl exec -ti deployment/teleport-cluster-auth -- tctl users add <Var name="myuser" /> --roles=member

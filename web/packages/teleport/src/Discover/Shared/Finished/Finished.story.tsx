@@ -28,12 +28,16 @@ export default {
 
 export const Finished = () => <Component {...props} />;
 
+export const FinishedWithoutAgentMeta = () => (
+  <Component {...props} agentMeta={undefined} />
+);
+
 export const FinishedWithAutoEnroll = () => (
   <Component
     {...props}
-    agentMeta={
-      {
-        autoDiscoveryConfig: {
+    agentMeta={{
+      autoDiscovery: {
+        config: {
           name: 'some-name',
           discoveryGroup: 'some-group',
           aws: [
@@ -45,8 +49,9 @@ export const FinishedWithAutoEnroll = () => (
             },
           ],
         },
-      } as any
-    }
+        requiredVpcsAndSubnets: undefined,
+      },
+    }}
   />
 );
 
