@@ -1157,7 +1157,7 @@ func TestIsSameAzureRuleSet(t *testing.T) {
 }
 
 func TestGenerateGitHubTokenName(t *testing.T) {
-	require.True(t, strings.Contains(generateGitHubTokenName(types.ProvisionTokenSpecV2{
+	require.True(t, strings.HasPrefix(generateGitHubTokenName(types.ProvisionTokenSpecV2{
 		BotName: "botName",
 	}), "botName-"))
 }
