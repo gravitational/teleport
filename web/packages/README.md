@@ -5,10 +5,10 @@ library referenced by other packages.
 
 ## Description
 
-| Package    | Description                                                             |
-| ---------- | ----------------------------------------------------------------------- |
-| `teleport` | Open-source version of Teleport Web UI                                  |
-| `teleterm` | Open-source version of Teleport Connect (Electron app)                  |
-| `build`    | Collection of webpack and build scripts used to build Teleport packages |
-| `design`   | Teleport design system                                                  |
-| `shared`   | Shared code                                                             |
+| Package    | Description                                                          |
+| ---------- |----------------------------------------------------------------------|
+| `teleport` | Open-source version of Teleport Web UI                               |
+| `teleterm` | Open-source version of Teleport Connect (Electron app)               |
+| `build`    | Collection of Vite and build scripts used to build Teleport packages |
+| `design`   | Teleport design system                                               |
+| `shared`   | Shared code                                                          |
