@@ -452,8 +452,15 @@ release-arm64:
 	$(MAKE) release-centos7 ARCH=arm64 FIDO2=yes PIV=yes
 
 .PHONY: release-arm64-fips
-release-arm64-fips:
+release-arm64-fips: print-docker-versions
 	$(MAKE) release-centos7-fips ARCH=arm64 FIDO2=yes PIV=yes FIPS=yes
+
+.PHONY: print-docker-versions
+print-docker-versions:
+	@echo "Docker version:"
+	@docker --version
+	@echo "Docker Buildx version:"
+	@docker buildx version
 
 # We depend on webassets to pre-build them in the buildbox-node container
 # so that we don't need to install node.js and rust on the buildbox-arm container.
