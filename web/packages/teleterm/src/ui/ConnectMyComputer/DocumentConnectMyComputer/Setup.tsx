@@ -19,7 +19,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
-import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
 
@@ -248,6 +248,7 @@ function AgentSetup() {
         [ctx, rootClusterUri]
       )
     );
+
   const [
     generateConfigFileAttempt,
     runGenerateConfigFileAttempt,
@@ -297,22 +298,34 @@ function AgentSetup() {
       ])
     );
 
-  const steps = [
+  const steps: SetupStep[] = [
     {
       name: 'Downloading the agent',
+      nameInFailureEvent: 'downloading_agent',
       attempt: downloadAgentAttempt,
+      runAttempt: runDownloadAgentAttempt,
+      setAttempt: setDownloadAgentAttempt,
     },
     {
       name: 'Setting up the role',
+      nameInFailureEvent: 'setting_up_role',
       attempt: createRoleAttempt,
+      runAttempt: runCreateRoleAttempt,
+      setAttempt: setCreateRoleAttempt,
     },
     {
       name: 'Generating the config file',
+      nameInFailureEvent: 'generating_config_file',
       attempt: generateConfigFileAttempt,
+      runAttempt: runGenerateConfigFileAttempt,
+      setAttempt: setGenerateConfigFileAttempt,
     },
     {
       name: 'Joining the cluster',
+      nameInFailureEvent: 'joining_cluster',
       attempt: joinClusterAttempt,
+      runAttempt: runJoinClusterAttempt,
+      setAttempt: setJoinClusterAttempt,
       customError: () => {
         if (joinClusterAttempt.status !== 'error') {
           return;
@@ -361,46 +374,25 @@ function AgentSetup() {
   ];
 
   const runSteps = async () => {
-    function withEventOnFailure(
-      fn: () => Promise<[void, Error]>,
-      failedStep: string
-    ): () => Promise<[void, Error]> {
-      return async () => {
-        const result = await fn();
-        const [, error] = result;
-        if (error) {
-          ctx.usageService.captureConnectMyComputerSetup(rootCluster.uri, {
-            success: false,
-            failedStep,
-          });
-        }
-        return result;
-      };
-    }
-
-    // all steps have to be cleared when starting the setup process;
+    // all steps have to be cleared before starting the setup process;
     // otherwise we could see old errors on retry
     // (the error would be cleared when the given step starts, but it would be too late)
-    setDownloadAgentAttempt(makeEmptyAttempt());
-    setCreateRoleAttempt(makeEmptyAttempt());
-    setGenerateConfigFileAttempt(makeEmptyAttempt());
-    setJoinClusterAttempt(makeEmptyAttempt());
+    for (const step of steps) {
+      step.setAttempt(makeEmptyAttempt());
+    }
 
-    const actions = [
-      withEventOnFailure(runDownloadAgentAttempt, 'downloading_agent'),
-      withEventOnFailure(runCreateRoleAttempt, 'setting_up_role'),
-      withEventOnFailure(
-        runGenerateConfigFileAttempt,
-        'generating_config_file'
-      ),
-      withEventOnFailure(runJoinClusterAttempt, 'joining_cluster'),
-    ];
-    for (const action of actions) {
-      const [, error] = await action();
+    for (const step of steps) {
+      const [, error] = await step.runAttempt();
       if (error) {
+        ctx.usageService.captureConnectMyComputerSetup(rootCluster.uri, {
+          success: false,
+          failedStep: step.nameInFailureEvent,
+        });
+        // The error is reported by showing the attempt in the UI.
         return;
       }
     }
+
     ctx.usageService.captureConnectMyComputerSetup(rootCluster.uri, {
       success: true,
     });
@@ -411,14 +403,7 @@ function AgentSetup() {
   };
 
   useEffect(() => {
-    if (
-      [
-        downloadAgentAttempt,
-        createRoleAttempt,
-        generateConfigFileAttempt,
-        joinClusterAttempt,
-      ].every(attempt => attempt.status === '')
-    ) {
+    if (steps.every(step => step.attempt.status === '')) {
       runSteps();
     }
   }, []);
@@ -507,3 +492,12 @@ const Separator = styled(Box)`
   background: ${props => props.theme.colors.spotBackground[2]};
   height: 1px;
 `;
+
+type SetupStep = {
+  name: string;
+  nameInFailureEvent: string;
+  attempt: Attempt<void>;
+  runAttempt: () => Promise<[void, Error]>;
+  setAttempt: (attempt: Attempt<void>) => void;
+  customError?: () => JSX.Element;
+};
