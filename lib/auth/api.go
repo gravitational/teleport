@@ -754,7 +754,7 @@ type DiscoveryAccessPoint interface {
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context) (string, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1312,8 +1312,8 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
-	return w.NoCache.GenerateAWSOIDCToken(ctx, req)
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx)
 }
 
 // Close closes all associated resources
