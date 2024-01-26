@@ -28,8 +28,9 @@ export default {
 
 export const Editor = () => {
   return (
-    <Flex height="600px" width="600px">
+    <Flex height="600px" width="600px" py={3} pr={3} bg="levels.deep">
       <TextEditor
+        bg="levels.deep"
         data={[
           {
             content,
@@ -43,8 +44,9 @@ export const Editor = () => {
 
 export const ReadOnly = () => {
   return (
-    <Flex height="600px" width="600px">
+    <Flex height="600px" width="600px" py={3} pr={3} bg="levels.deep">
       <TextEditor
+        bg="levels.deep"
         readOnly
         data={[
           {
@@ -59,8 +61,9 @@ export const ReadOnly = () => {
 
 export const WithButtons = () => {
   return (
-    <Flex height="600px" width="600px">
+    <Flex height="600px" width="600px" py={3} pr={3} bg="levels.deep">
       <TextEditor
+        bg="levels.deep"
         data={[
           {
             content,

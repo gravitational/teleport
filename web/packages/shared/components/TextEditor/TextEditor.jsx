@@ -156,14 +156,14 @@ function getMode(docType) {
 }
 
 const EditorButton = styled(ButtonSecondary)`
-  padding: ${({theme}) => theme.space[2]}px;
+  padding: ${({ theme }) => theme.space[2]}px;
   background-color: transparent;
 `;
 
 const ButtonSection = styled(Flex)`
   position: absolute;
-  right: ${({theme}) => theme.space[4]}px;
-  top: ${({theme}) => theme.space[4]}px;
+  right: 0;
+  top: 0;
 `;
 
 export default TextEditor;
