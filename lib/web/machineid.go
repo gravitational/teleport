@@ -28,6 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
+const (
+	// webUIFlowBotGitHubActions is the key of the webUIFlowLabelKey
+	// added to a resource created via the Bot GitHub Actions web UI flow.
+	webUIFlowBotGitHubActions = "github-actions"
+)
+
 type CreateBotRequest struct {
 	// BotName is the name of the bot
 	BotName string `json:"botName"`
@@ -55,6 +61,9 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 		Bot: &machineidv1.Bot{
 			Metadata: &headerv1.Metadata{
 				Name: req.BotName,
+				Labels: map[string]string{
+					webUIFlowLabelKey: webUIFlowBotGitHubActions,
+				},
 			},
 			Spec: &machineidv1.BotSpec{
 				Roles:  req.Roles,

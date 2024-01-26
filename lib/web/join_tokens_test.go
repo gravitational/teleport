@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -1153,6 +1154,12 @@ func TestIsSameAzureRuleSet(t *testing.T) {
 			require.Equal(t, tc.expected, isSameAzureRuleSet(tc.r1, tc.r2))
 		})
 	}
+}
+
+func TestGenerateGitHubTokenName(t *testing.T) {
+	require.True(t, strings.Contains(generateGitHubTokenName(types.ProvisionTokenSpecV2{
+		BotName: "botName",
+	}), "botName-"))
 }
 
 type mockedNodeAPIGetter struct {

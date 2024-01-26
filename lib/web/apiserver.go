@@ -108,6 +108,9 @@ const (
 	// assistantLimiterCapacity is the total capacity of the token bucket for the assistant rate limiter.
 	// The bucket starts full, prefilled for a week.
 	assistantLimiterCapacity = assistantTokensPerHour * 24 * 7
+	// webUIFlowLabelKey is a label added may be added to resources
+	// created via the web UI
+	webUIFlowLabelKey = "teleport.internal/ui-flow"
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
