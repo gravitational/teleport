@@ -94,9 +94,9 @@ export class MockMainProcessClient implements MainProcessClient {
     return true;
   }
 
-  downloadAgent() {
-    return Promise.resolve();
-  }
+  async downloadAgent() {}
+
+  async verifyAgent() {}
 
   createAgentConfigFile() {
     return Promise.resolve();
