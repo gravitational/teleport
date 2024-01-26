@@ -947,6 +947,9 @@ func TestDiscoveryConfig(t *testing.T) {
 						Labels: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
 						ProjectIDs: []string{"p1", "p2"},
 					},
 				},
@@ -973,9 +976,12 @@ func TestDiscoveryConfig(t *testing.T) {
 			expectedDiscoverySection: Discovery{
 				GCPMatchers: []GCPMatcher{
 					{
-						Types:     []string{"gke"},
+						Types:     []string{"gce"},
 						Locations: []string{"eucentral1"},
 						Labels: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						Tags: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
 						ProjectIDs:      []string{"p1", "p2"},
@@ -1436,6 +1442,9 @@ func TestDiscoveryConfig(t *testing.T) {
 			}
 			if expectedAzure := testCase.expectedDiscoverySection.AzureMatchers; expectedAzure != nil {
 				require.Equal(t, expectedAzure, cfg.Discovery.AzureMatchers)
+			}
+			if expectedGCP := testCase.expectedDiscoverySection.GCPMatchers; expectedGCP != nil {
+				require.Equal(t, expectedGCP, cfg.Discovery.GCPMatchers)
 			}
 		})
 	}
