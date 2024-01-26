@@ -103,14 +103,14 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
     // },
     created: request.created.seconds * 1000,
     expires: request.expires.seconds * 1000,
-    roles: request.rolesList,
-    reviews: request.reviewsList.map(review => ({
+    roles: request.roles,
+    reviews: request.reviews.map(review => ({
       ...review,
       created: review.created.seconds * 1000,
     })),
-    suggestedReviewers: request.suggestedReviewersList,
-    thresholdNames: request.thresholdNamesList,
-    resources: request.resourcesList,
+    suggestedReviewers: request.suggestedReviewers,
+    thresholdNames: request.thresholdNames,
+    resources: request.resources,
   });
 }
 

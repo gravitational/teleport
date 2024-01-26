@@ -5,7 +5,8 @@ import kubernetes from 'design/assets/resources/kubernetes.png';
 import stack from 'design/assets/resources/stack.png';
 import { Option } from 'shared/components/Select';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
-import { ClusterResource } from 'teleport/services/userPreferences/types';
+
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
 import {
   EmployeeOption,
@@ -66,12 +67,10 @@ export const requiredResourceField = (value: ResourceOption[]) => () => {
   };
 };
 
-export const resourceMapping: { [key in ResourceOption]: ClusterResource } = {
-  [ResourceOption.RESOURCE_WINDOWS_DESKTOPS]:
-    ClusterResource.RESOURCE_WINDOWS_DESKTOPS,
-  [ResourceOption.RESOURCE_SERVER_SSH]: ClusterResource.RESOURCE_SERVER_SSH,
-  [ResourceOption.RESOURCE_DATABASES]: ClusterResource.RESOURCE_DATABASES,
-  [ResourceOption.RESOURCE_KUBERNETES]: ClusterResource.RESOURCE_KUBERNETES,
-  [ResourceOption.RESOURCE_WEB_APPLICATIONS]:
-    ClusterResource.RESOURCE_WEB_APPLICATIONS,
+export const resourceMapping: { [key in ResourceOption]: Resource } = {
+  [ResourceOption.RESOURCE_WINDOWS_DESKTOPS]: Resource.WINDOWS_DESKTOPS,
+  [ResourceOption.RESOURCE_SERVER_SSH]: Resource.SERVER_SSH,
+  [ResourceOption.RESOURCE_DATABASES]: Resource.DATABASES,
+  [ResourceOption.RESOURCE_KUBERNETES]: Resource.KUBERNETES,
+  [ResourceOption.RESOURCE_WEB_APPLICATIONS]: Resource.WEB_APPLICATIONS,
 };

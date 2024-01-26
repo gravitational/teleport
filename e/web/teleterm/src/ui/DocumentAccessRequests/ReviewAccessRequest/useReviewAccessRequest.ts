@@ -186,10 +186,10 @@ function makeUiAccessList(al: tsh.AccessList): SuggestedAccessList {
     title: spec.title,
     description: spec.description,
     grants: {
-      roles: spec.grants.rolesList.sort(),
-      traits: spec.grants.traitsList.reduce<Record<string, string[]>>(
+      roles: spec.grants.roles.sort(),
+      traits: spec.grants.traits.reduce<Record<string, string[]>>(
         (accumulator, trait) => {
-          accumulator[trait.key] = trait.valuesList;
+          accumulator[trait.key] = trait.values;
           return accumulator;
         },
         {}

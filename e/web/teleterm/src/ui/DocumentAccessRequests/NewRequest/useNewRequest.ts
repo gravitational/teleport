@@ -14,7 +14,7 @@ import {
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { ServerSideParams } from 'teleterm/services/tshd/types';
+import { ServerSideParams, App as tshdApp } from 'teleterm/services/tshd/types';
 import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
@@ -45,7 +45,7 @@ export default function useNewRequest() {
   const [fetchedData, setFetchedData] = useState<
     ResourcesResponse<UnifiedResource>
   >(getEmptyFetchedDataState());
-  const requestableRoles = loggedInUser?.requestableRolesList || [];
+  const requestableRoles = loggedInUser?.requestableRoles || [];
   const [selectedResource, setSelectedResource] =
     useState<ResourceKind>('node');
   const [agentFilter, setAgentFilter] = useState<AgentFilter>({
@@ -69,13 +69,13 @@ export default function useNewRequest() {
       case 'kube_cluster':
         return makeKube(source);
       case 'app': {
+        const tshdApp: tshdApp = source;
         const app: Pick<
           teleportApps.App,
           'name' | 'labels' | 'description' | 'userGroups' | 'addrWithProtocol'
         > = {
           ...makeApp(source),
-          description: source.desc,
-          labels: source.labelsList,
+          description: tshdApp.desc,
           //TODO(gzdunek): Enable requesting apps via user groups in Connect.
           // To make this work, we need
           // to fetch user groups while fetching the apps
@@ -135,7 +135,7 @@ export default function useNewRequest() {
           searchAsRoles: 'yes',
         });
         setFetchedData({
-          agents: data.agentsList.map(makeAgent),
+          agents: data.agents.map(makeAgent),
           startKey: data.startKey,
           totalCount: data.totalCount,
         });
@@ -197,7 +197,7 @@ export default function useNewRequest() {
       });
       setFetchedData({
         ...fetchedData,
-        agents: data.agentsList.map(makeAgent),
+        agents: data.agents.map(makeAgent),
         startKey: data.startKey,
       });
       setPage({
@@ -224,7 +224,7 @@ export default function useNewRequest() {
       });
       setFetchedData({
         ...fetchedData,
-        agents: data.agentsList.map(makeAgent),
+        agents: data.agents.map(makeAgent),
         startKey: data.startKey,
       });
       setPage({

@@ -17,7 +17,7 @@ export default function useAccessRequestCheckout() {
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
 
   const loggedInUser = useLoggedInUser();
-  const suggestedReviewers = loggedInUser?.suggestedReviewersList || [];
+  const suggestedReviewers = loggedInUser?.suggestedReviewers || [];
 
   const [showCheckout, setShowCheckout] = useState(false);
   const [hasExited, setHasExited] = useState(false);
@@ -57,8 +57,8 @@ export default function useAccessRequestCheckout() {
       retryWithRelogin(ctx, clusterUri, () =>
         ctx.clustersService.getRequestableRoles(req)
       ).then(response => {
-        setResourceRequestRoles(response.applicableRolesList);
-        setSelectedResourceRequestRoles(response.applicableRolesList);
+        setResourceRequestRoles(response.applicableRoles);
+        setSelectedResourceRequestRoles(response.applicableRoles);
       })
     );
   }, [pendingAccessRequest]);

@@ -3,7 +3,6 @@ import { ButtonPrimary, Indicator, Text } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-import { ClusterResource } from 'teleport/services/userPreferences/types';
 import * as service from 'teleport/services/userPreferences';
 
 import {
@@ -12,6 +11,8 @@ import {
 } from 'teleport/services/storageService';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
+
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
 import {
   MarketingParamData,
@@ -94,7 +95,7 @@ export const Questionnaire = ({
     }
 
     // maps the string enum used for UI display with proto int
-    const clusterResources: ClusterResource[] = formFields.resources.map(
+    const clusterResources: Resource[] = formFields.resources.map(
       r => resourceMapping[ResourceOption[r]]
     );
 
