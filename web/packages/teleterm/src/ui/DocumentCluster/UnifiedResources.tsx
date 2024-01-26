@@ -64,7 +64,7 @@ import {
   ConnectKubeActionButton,
   ConnectDatabaseActionButton,
   ConnectAppActionButton,
-} from './actionButtons';
+} from './ActionButtons';
 import { useResourcesContext, ResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
 
