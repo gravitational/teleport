@@ -183,7 +183,7 @@ func TestStartAccountRecovery(t *testing.T) {
 			// Test token returned correct byte length.
 			bytes, err := hex.DecodeString(startToken.GetName())
 			require.NoError(t, err)
-			require.Len(t, bytes, RecoveryTokenLenBytes)
+			require.Len(t, bytes, defaults.RecoveryTokenLenBytes)
 
 			// Test expired token.
 			fakeClock.Advance(defaults.RecoveryStartTokenTTL)

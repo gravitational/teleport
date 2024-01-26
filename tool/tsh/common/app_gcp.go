@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -130,7 +130,7 @@ func getGCPSecret() (string, error) {
 		return secret, nil
 	}
 
-	return utils.CryptoRandomHex(auth.TokenLenBytes)
+	return utils.CryptoRandomHex(defaults.TokenLenBytes)
 }
 
 // StartLocalProxies sets up local proxies for serving GCP clients.

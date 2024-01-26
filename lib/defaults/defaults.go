@@ -184,6 +184,19 @@ const (
 	// ResetPasswordLength is the length of the reset user password
 	ResetPasswordLength = 16
 
+	// BearerTokenTTL specifies standard bearer token to exist before
+	// it has to be renewed by the client
+	BearerTokenTTL = 10 * time.Minute
+
+	// TokenLenBytes is len in bytes of the invite token
+	TokenLenBytes = 16
+
+	// RecoveryTokenLenBytes is len in bytes of a user token for recovery.
+	RecoveryTokenLenBytes = 32
+
+	// SessionTokenBytes is the number of bytes of a web or application session.
+	SessionTokenBytes = 32
+
 	// ProvisioningTokenTTL is a the default TTL for server provisioning
 	// tokens. When a user generates a token without an explicit TTL, this
 	// value is used.
