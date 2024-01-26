@@ -48,7 +48,7 @@ export function IdentityList(props: IdentityListProps) {
             <Box>
               <Text bold>{props.loggedInUser.name}</Text>
               <Flex flexWrap="wrap" gap={1}>
-                {props.loggedInUser.rolesList.map(role => (
+                {props.loggedInUser.roles.map(role => (
                   <Label key={role} kind="secondary">
                     {role}
                   </Label>

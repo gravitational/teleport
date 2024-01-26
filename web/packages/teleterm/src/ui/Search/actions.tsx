@@ -82,7 +82,7 @@ export function mapToAction(
           getSuggestions: async () => {
             const sshLogins = ctx.clustersService.findClusterByResource(
               result.resource.uri
-            )?.loggedInUser?.sshLoginsList;
+            )?.loggedInUser?.sshLogins;
             return sshLogins?.map(login => ({
               value: login,
               displayText: login,
@@ -125,7 +125,7 @@ export function mapToAction(
           searchResult: result,
           parameter: {
             getSuggestions: async () =>
-              result.resource.awsRolesList.map(a => ({
+              result.resource.awsRoles.map(a => ({
                 value: a.arn,
                 displayText: a.display,
               })),

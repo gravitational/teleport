@@ -18,23 +18,7 @@
 
 import { DeprecatedThemeOption } from 'design/theme';
 
-import type { UnifiedResourcePreferences } from 'shared/services/unifiedResourcePreferences';
-
-import type { AssistUserPreferences } from 'teleport/Assist/types';
-
-export enum ThemePreference {
-  Light = 1,
-  Dark = 2,
-}
-
-export enum ClusterResource {
-  RESOURCE_UNSPECIFIED = 0,
-  RESOURCE_WINDOWS_DESKTOPS = 1,
-  RESOURCE_SERVER_SSH = 2,
-  RESOURCE_DATABASES = 3,
-  RESOURCE_KUBERNETES = 4,
-  RESOURCE_WEB_APPLICATIONS = 5,
-}
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 export type MarketingParams = {
   campaign: string;
@@ -43,36 +27,13 @@ export type MarketingParams = {
   intent: string;
 };
 
-export type OnboardUserPreferences = {
-  preferredResources: ClusterResource[];
-  marketingParams: MarketingParams;
-};
-
-export interface UserPreferences {
-  theme: ThemePreference;
-  assist: AssistUserPreferences;
-  onboard: OnboardUserPreferences;
-  clusterPreferences: UserClusterPreferences;
-  unifiedResourcePreferences: UnifiedResourcePreferences;
-}
-
-// UserClusterPreferences are user preferences that are
-// different per cluster.
-export interface UserClusterPreferences {
-  // pinnedResources is an array of resource IDs.
-  pinnedResources: string[];
-}
-
-export type GetUserClusterPreferencesResponse = UserClusterPreferences;
-export type GetUserPreferencesResponse = UserPreferences;
-
 export function deprecatedThemeToThemePreference(
   theme: DeprecatedThemeOption
-): ThemePreference {
+): Theme {
   switch (theme) {
     case 'light':
-      return ThemePreference.Light;
+      return Theme.LIGHT;
     case 'dark':
-      return ThemePreference.Dark;
+      return Theme.DARK;
   }
 }
