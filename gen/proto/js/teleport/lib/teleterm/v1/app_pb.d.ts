@@ -37,6 +37,9 @@ export class App extends jspb.Message {
     setLabelsList(value: Array<teleport_lib_teleterm_v1_label_pb.Label>): App;
     addLabels(value?: teleport_lib_teleterm_v1_label_pb.Label, index?: number): teleport_lib_teleterm_v1_label_pb.Label;
 
+    getFqdn(): string;
+    setFqdn(value: string): App;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): App.AsObject;
@@ -59,5 +62,6 @@ export namespace App {
         friendlyName: string,
         samlApp: boolean,
         labelsList: Array<teleport_lib_teleterm_v1_label_pb.Label.AsObject>,
+        fqdn: string,
     }
 }

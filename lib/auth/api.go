@@ -90,10 +90,6 @@ type accessPoint interface {
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
-
-	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-	// Returns the device used to solve the challenge (if applicable) and the username.
-	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -758,7 +754,7 @@ type DiscoveryAccessPoint interface {
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context) (string, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1316,8 +1312,8 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
-	return w.NoCache.GenerateAWSOIDCToken(ctx, req)
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx)
 }
 
 // Close closes all associated resources

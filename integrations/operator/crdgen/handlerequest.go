@@ -85,8 +85,14 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 
 	resources := []resource{
 		{name: "UserV2"},
+		// Role V5 is using the RoleV6 message
 		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5)}},
+		// For backward compatibility in v15, it actually creates v5 roles though.
 		{name: "RoleV6"},
+		// Role V6 and V7 have their own Kubernetes kind
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionInKindOverride()}},
+		// Role V7 is using the RoleV6 message
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V7), withVersionInKindOverride()}},
 		{name: "SAMLConnectorV2"},
 		{name: "OIDCConnectorV3"},
 		{name: "GithubConnectorV3"},
@@ -122,10 +128,13 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 	}
 
 	for _, root := range generator.roots {
-		crd := root.CustomResourceDefinition()
+		crd, err := root.CustomResourceDefinition()
+		if err != nil {
+			return trace.Wrap(err, "generating CRD")
+		}
 		data, err := yaml.Marshal(crd)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "marshaling CRD")
 		}
 		name := fmt.Sprintf("%s_%s.yaml", groupName, root.pluralName)
 		content := string(data)

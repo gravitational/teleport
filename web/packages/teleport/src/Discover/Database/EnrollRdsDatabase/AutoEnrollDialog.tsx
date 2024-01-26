@@ -80,7 +80,7 @@ export function AutoEnrollDialog({
     content = (
       <>
         <Flex mb={5}>
-          <Icons.Check size="small" ml={1} mr={2} color="success" />
+          <Icons.Check size="small" ml={1} mr={2} color="success.main" />
           <Text>
             Discovery config successfully created.
             {skipDeployment && (
