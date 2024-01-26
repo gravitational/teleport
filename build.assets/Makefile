@@ -191,11 +191,8 @@ buildbox-centos7:
 #
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips: buildbox-centos7
-	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH))
-	docker buildx build \
+	docker build \
 		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
-		--cache-from $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
-		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) -f Dockerfile-centos7-fips .
 
 #
