@@ -103,6 +103,30 @@ export function mapToAction(
       };
     }
     case 'app': {
+      if (result.resource.awsConsole) {
+        return {
+          type: 'parametrized-action',
+          searchResult: result,
+          parameter: {
+            getSuggestions: async () =>
+              result.resource.awsRolesList.map(a => ({
+                key: a.arn,
+                display: a.display,
+              })),
+            allowOnlySuggestions: true,
+            placeholder: 'Select IAM Role',
+          },
+          perform: parameter =>
+            connectToApp(
+              ctx,
+              result.resource,
+              {
+                origin: 'search_bar',
+              },
+              { arnForAwsApp: parameter.key }
+            ),
+        };
+      }
       return {
         type: 'simple-action',
         searchResult: result,
