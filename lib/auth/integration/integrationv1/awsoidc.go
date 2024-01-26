@@ -29,10 +29,11 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbUse)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -43,21 +44,21 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.caGetter.GetDomainName()
+	clusterName, err := s.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ca, err := s.caGetter.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.OIDCIdPCA,
-		DomainName: clusterName,
+		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Extract the JWT signing key and sign the claims.
-	signer, err := s.caGetter.GetKeyStore().GetJWTSigner(ctx, ca)
+	signer, err := s.keyStoreManager.GetJWTSigner(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -67,11 +68,16 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 		return nil, trace.Wrap(err)
 	}
 
+	issuer, err := oidc.IssuerForCluster(ctx, s.cache)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
 		Username: username,
 		Audience: types.IntegrationAWSOIDCAudience,
 		Subject:  types.IntegrationAWSOIDCSubject,
-		Issuer:   req.Issuer,
+		Issuer:   issuer,
 		// Token expiration is not controlled by the Expires property.
 		// It is defined by assumed IAM Role's "Maximum session duration" (usually 1h).
 		Expires: s.clock.Now().Add(time.Minute),
