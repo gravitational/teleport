@@ -35,7 +35,6 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -293,7 +292,7 @@ func NewTokenProvisioner(cfg *TokenProvisionerConfig) *TokenProvisioner {
 
 // CreateNodeToken creates a node join token that is valid for 5 minutes.
 func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Provisioner, cluster *clusters.Cluster) (string, error) {
-	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
