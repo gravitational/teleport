@@ -16,6 +16,7 @@ package connectmycomputer
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -85,6 +86,54 @@ func TestRoleSetupRun_Idempotency(t *testing.T) {
 
 	require.Equal(t, 1, accessAndIdentity.callCounts["UpsertRole"], "expected two runs to update the role only once")
 	require.Equal(t, 1, accessAndIdentity.callCounts["UpdateUser"], "expected two runs to update the user only once")
+}
+
+func TestRoleSetupRun_RoleErrors(t *testing.T) {
+	existingRole, err := types.NewRole("connect-my-computer-alice", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		upsertRoleErr error
+		existingRole  types.Role
+	}{
+		{
+			name:          "creating role fails",
+			upsertRoleErr: errors.New("something went wrong"),
+		},
+		{
+			name:          "updating role fails",
+			upsertRoleErr: errors.New("something went wrong"),
+			existingRole:  existingRole,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			user, err := types.NewUser("alice")
+			require.NoError(t, err)
+
+			events := &mockEvents{}
+			certManager := &mockCertManager{}
+			accessAndIdentity := &mockAccessAndIdentity{
+				user:          user,
+				callCounts:    make(map[string]int),
+				events:        events,
+				upsertRoleErr: tt.upsertRoleErr,
+				role:          tt.existingRole,
+			}
+
+			roleSetup, err := NewRoleSetup(&RoleSetupConfig{})
+			require.NoError(t, err)
+
+			_, err = roleSetup.Run(ctx, accessAndIdentity, certManager, &clusters.Cluster{URI: uri.NewClusterURI("foo")})
+			require.Error(t, err)
+			require.ErrorIs(t, err, tt.upsertRoleErr)
+		})
+	}
 }
 
 const nodejoinWaitTestTimeout = 10 * time.Second
@@ -243,6 +292,7 @@ type mockAccessAndIdentity struct {
 	requireManualOpInitFire bool
 	node                    types.Server
 	nodeErr                 error
+	upsertRoleErr           error
 }
 
 func (m *mockAccessAndIdentity) GetUser(name string, withSecrets bool) (types.User, error) {
@@ -258,6 +308,11 @@ func (m *mockAccessAndIdentity) GetRole(ctx context.Context, name string) (types
 
 func (m *mockAccessAndIdentity) UpsertRole(ctx context.Context, role types.Role) error {
 	m.callCounts["UpsertRole"]++
+
+	if m.upsertRoleErr != nil {
+		return m.upsertRoleErr
+	}
+
 	m.role = role
 	m.events.Fire(types.Event{
 		Type:     types.OpPut,
