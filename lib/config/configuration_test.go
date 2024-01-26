@@ -3785,7 +3785,7 @@ func TestApplyOktaConfig(t *testing.T) {
 		errAssertionFunc require.ErrorAssertionFunc
 	}{
 		{
-			desc:            "valid config (import defaults to false)",
+			desc:            "valid config (access list sync defaults to false)",
 			createTokenFile: true,
 			oktaConfig: Okta{
 				Service: Service{
@@ -3803,7 +3803,7 @@ func TestApplyOktaConfig(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
-			desc:            "valid config (import enabled)",
+			desc:            "valid config (access list sync enabled)",
 			createTokenFile: true,
 			oktaConfig: Okta{
 				Service: Service{
@@ -3821,6 +3821,45 @@ func TestApplyOktaConfig(t *testing.T) {
 				SyncSettings: servicecfg.OktaSyncSettings{
 					SyncAccessLists: true,
 					DefaultOwners:   []string{"owner1"},
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:            "valid config (access list sync with filters)",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+					DefaultOwners:       []string{"owner1"},
+					GroupFilters: []string{
+						"group*",
+						"^admin-.*$",
+					},
+					AppFilters: []string{
+						"app*",
+						"^admin-.*$",
+					},
+				},
+			},
+			expectedOkta: servicecfg.OktaConfig{
+				Enabled:     true,
+				APIEndpoint: "https://test-endpoint",
+				SyncSettings: servicecfg.OktaSyncSettings{
+					SyncAccessLists: true,
+					DefaultOwners:   []string{"owner1"},
+					GroupFilters: []string{
+						"group*",
+						"^admin-.*$",
+					},
+					AppFilters: []string{
+						"app*",
+						"^admin-.*$",
+					},
 				},
 			},
 			errAssertionFunc: require.NoError,
@@ -3915,6 +3954,46 @@ func TestApplyOktaConfig(t *testing.T) {
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("default owners must be set when access list import is enabled"))
+			},
+		},
+		{
+			desc:            "bad group filter",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+					DefaultOwners:       []string{"owner1"},
+					GroupFilters: []string{
+						"^admin-.[[[*$",
+					},
+				},
+			},
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "error parsing group filter: ^admin-.[[[*$")
+			},
+		},
+		{
+			desc:            "bad app filter",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+					DefaultOwners:       []string{"owner1"},
+					AppFilters: []string{
+						"^admin-.[[[*$",
+					},
+				},
+			},
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "error parsing app filter: ^admin-.[[[*$")
 			},
 		},
 	}
@@ -4304,6 +4383,11 @@ func TestDiscoveryConfig(t *testing.T) {
 						"service_accounts": []string{"a@example.com", "b@example.com"},
 					},
 				}
+				cfg["version"] = "v3"
+				cfg["teleport"].(cfgMap)["proxy_server"] = "example.com"
+				cfg["proxy_service"] = cfgMap{
+					"enabled": "no",
+				}
 			},
 			expectedGCPMatchers: []types.GCPMatcher{{
 				Types:     []string{"gce"},
@@ -4317,9 +4401,10 @@ func TestDiscoveryConfig(t *testing.T) {
 				ProjectIDs:      []string{"p1", "p2"},
 				ServiceAccounts: []string{"a@example.com", "b@example.com"},
 				Params: &types.InstallerParams{
-					JoinMethod: types.JoinMethodGCP,
-					JoinToken:  types.GCPInviteTokenName,
-					ScriptName: installers.InstallerScriptName,
+					JoinMethod:      types.JoinMethodGCP,
+					JoinToken:       types.GCPInviteTokenName,
+					ScriptName:      installers.InstallerScriptName,
+					PublicProxyAddr: "example.com",
 				},
 			}},
 		},
@@ -4632,6 +4717,11 @@ func TestDiscoveryConfig(t *testing.T) {
 						},
 					},
 				}
+				cfg["version"] = "v3"
+				cfg["teleport"].(cfgMap)["proxy_server"] = "example.com"
+				cfg["proxy_service"] = cfgMap{
+					"enabled": "no",
+				}
 			},
 			expectedAzureMatchers: []types.AzureMatcher{{
 				Types:          []string{"vm"},
@@ -4642,10 +4732,11 @@ func TestDiscoveryConfig(t *testing.T) {
 					"discover_teleport": []string{"yes"},
 				},
 				Params: &types.InstallerParams{
-					JoinMethod: "azure",
-					JoinToken:  "azure-discovery-token",
-					ScriptName: "default-installer",
-					Azure:      &types.AzureInstallerParams{},
+					JoinMethod:      "azure",
+					JoinToken:       "azure-discovery-token",
+					ScriptName:      "default-installer",
+					PublicProxyAddr: "example.com",
+					Azure:           &types.AzureInstallerParams{},
 				},
 			}},
 		},

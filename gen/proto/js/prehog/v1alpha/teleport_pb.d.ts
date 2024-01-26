@@ -41,6 +41,39 @@ export namespace UserLoginEvent {
     }
 }
 
+export class MFAAuthenticationEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): MFAAuthenticationEvent;
+
+    getDeviceId(): string;
+    setDeviceId(value: string): MFAAuthenticationEvent;
+
+    getDeviceType(): string;
+    setDeviceType(value: string): MFAAuthenticationEvent;
+
+    getMfaChallengeScope(): string;
+    setMfaChallengeScope(value: string): MFAAuthenticationEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): MFAAuthenticationEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: MFAAuthenticationEvent): MFAAuthenticationEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: MFAAuthenticationEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): MFAAuthenticationEvent;
+    static deserializeBinaryFromReader(message: MFAAuthenticationEvent, reader: jspb.BinaryReader): MFAAuthenticationEvent;
+}
+
+export namespace MFAAuthenticationEvent {
+    export type AsObject = {
+        userName: string,
+        deviceId: string,
+        deviceType: string,
+        mfaChallengeScope: string,
+    }
+}
+
 export class SSOCreateEvent extends jspb.Message { 
     getConnectorType(): string;
     setConnectorType(value: string): SSOCreateEvent;
@@ -2959,6 +2992,12 @@ export class SubmitEventRequest extends jspb.Message {
     setAccessListReviewCompliance(value?: AccessListReviewComplianceEvent): SubmitEventRequest;
 
 
+    hasMfaAuthenticationEvent(): boolean;
+    clearMfaAuthenticationEvent(): void;
+    getMfaAuthenticationEvent(): MFAAuthenticationEvent | undefined;
+    setMfaAuthenticationEvent(value?: MFAAuthenticationEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -3049,6 +3088,7 @@ export namespace SubmitEventRequest {
         accessListReviewCreate?: AccessListReviewCreateEvent.AsObject,
         accessListReviewDelete?: AccessListReviewDeleteEvent.AsObject,
         accessListReviewCompliance?: AccessListReviewComplianceEvent.AsObject,
+        mfaAuthenticationEvent?: MFAAuthenticationEvent.AsObject,
     }
 
     export enum EventCase {
@@ -3201,6 +3241,8 @@ export namespace SubmitEventRequest {
     ACCESS_LIST_REVIEW_DELETE = 76,
 
     ACCESS_LIST_REVIEW_COMPLIANCE = 77,
+
+    MFA_AUTHENTICATION_EVENT = 78,
 
     }
 

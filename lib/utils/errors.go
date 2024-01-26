@@ -75,11 +75,6 @@ func IsConnectionRefused(err error) bool {
 	return false
 }
 
-// IsExpiredCredentialError checks if an error corresponds to expired credentials.
-func IsExpiredCredentialError(err error) bool {
-	return IsHandshakeFailedError(err) || IsCertExpiredError(err) || trace.IsBadParameter(err) || trace.IsTrustError(err)
-}
-
 // IsUntrustedCertErr checks if an error is an untrusted cert error.
 func IsUntrustedCertErr(err error) bool {
 	if err == nil {
