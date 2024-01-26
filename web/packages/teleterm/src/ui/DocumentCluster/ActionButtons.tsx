@@ -72,6 +72,7 @@ export function ConnectServerActionButton(props: {
 
   return (
     <MenuLogin
+      textTransform="none"
       getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
       onSelect={(e, login) => connect(login)}
       transformOrigin={{
@@ -100,7 +101,7 @@ export function ConnectKubeActionButton(props: {
   }
 
   return (
-    <ButtonBorder size="small" onClick={connect}>
+    <ButtonBorder textTransform="none" size="small" onClick={connect}>
       Connect
     </ButtonBorder>
   );
@@ -154,6 +155,7 @@ export function ConnectDatabaseActionButton(props: {
       {...getDatabaseMenuLoginOptions(
         props.database.protocol as GatewayProtocol
       )}
+      textTransform="none"
       width="195px"
       getLoginItems={() => getDatabaseUsers(appContext, props.database.uri)}
       onSelect={(_, user) => {
@@ -235,6 +237,7 @@ function AppButton(props: {
     return (
       <Flex>
         <ButtonBorder
+          textTransform="none"
           size="small"
           forwardedAs="a"
           href={getWebAppLaunchUrl({
@@ -294,7 +297,7 @@ function AppButton(props: {
   }
 
   return (
-    <ButtonBorder size="small" onClick={props.connect}>
+    <ButtonBorder size="small" onClick={props.connect} textTransform="none">
       Connect
     </ButtonBorder>
   );
