@@ -97,11 +97,19 @@ func TestRetryWithMFA(t *testing.T) {
 		assert.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired, "Ping error mismatch")
 	})
 
-	okMFAClient := &fakeMFACeremonyClient{}
+	okMFACeremony := func(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_TOTP{
+				TOTP: &proto.TOTPResponse{
+					Code: otpTestCode,
+				},
+			},
+		}, nil
+	}
 
 	mfaCeremonyErr := trace.BadParameter("client does not support mfa")
-	nokMFAClient := &fakeMFACeremonyClient{
-		ceremonyErr: mfaCeremonyErr,
+	nokMFACeremony := func(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+		return nil, mfaCeremonyErr
 	}
 
 	t.Run("with interceptor", func(t *testing.T) {
@@ -110,7 +118,7 @@ func TestRetryWithMFA(t *testing.T) {
 				listener.Addr().String(),
 				grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
 				grpc.WithChainUnaryInterceptor(
-					interceptors.WithMFAUnaryInterceptor(okMFAClient),
+					interceptors.WithMFAUnaryInterceptor(okMFACeremony),
 					interceptors.GRPCClientUnaryErrorInterceptor,
 				),
 			)
@@ -127,7 +135,7 @@ func TestRetryWithMFA(t *testing.T) {
 				listener.Addr().String(),
 				grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
 				grpc.WithChainUnaryInterceptor(
-					interceptors.WithMFAUnaryInterceptor(nokMFAClient),
+					interceptors.WithMFAUnaryInterceptor(nokMFACeremony),
 					interceptors.GRPCClientUnaryErrorInterceptor,
 				),
 			)
@@ -145,14 +153,14 @@ func TestRetryWithMFA(t *testing.T) {
 				listener.Addr().String(),
 				grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
 				grpc.WithChainUnaryInterceptor(
-					interceptors.WithMFAUnaryInterceptor(okMFAClient),
+					interceptors.WithMFAUnaryInterceptor(nokMFACeremony),
 					interceptors.GRPCClientUnaryErrorInterceptor,
 				),
 			)
 			require.NoError(t, err)
 			defer conn.Close()
 
-			mfaResp, _ := okMFAClient.PromptMFA(ctx, nil)
+			mfaResp, _ := okMFACeremony(ctx, nil)
 			ctx := mfa.ContextWithMFAResponse(ctx, mfaResp)
 
 			client := proto.NewAuthServiceClient(conn)
@@ -160,26 +168,4 @@ func TestRetryWithMFA(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	})
-}
-
-type fakeMFACeremonyClient struct {
-	ceremonyErr error
-}
-
-func (c *fakeMFACeremonyClient) CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
-	return &proto.MFAAuthenticateChallenge{}, nil
-}
-
-func (c *fakeMFACeremonyClient) PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
-	if c.ceremonyErr != nil {
-		return nil, c.ceremonyErr
-	}
-
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{
-				Code: otpTestCode,
-			},
-		},
-	}, nil
 }
