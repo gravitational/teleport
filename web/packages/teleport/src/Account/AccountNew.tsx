@@ -244,7 +244,7 @@ export function Account({
             onAuthenticated={setToken}
             onClose={hideReAuthenticate}
             actionText="registering a new device"
-            challengeScope={MfaChallengeScope.USER_SESSION}
+            challengeScope={MfaChallengeScope.MANAGE_DEVICES}
           />
         )}
         {isAddDeviceVisible && (
