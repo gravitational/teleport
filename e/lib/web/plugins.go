@@ -307,6 +307,40 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 	return nil, nil
 }
 
+func (p *Plugin) getOktaGroups(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	orgURL := r.FormValue("orgURL")
+	apiToken := r.FormValue("apiToken")
+	var filters []string
+	filtersString := r.FormValue("filters")
+	if filtersString != "" {
+		filters = []string{}
+		if err := json.Unmarshal([]byte(r.FormValue("filters")), &filters); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	groups, err := p.oktaPluginConfigHelper.GetOktaGroups(r.Context(), orgURL, apiToken, filters)
+
+	return groups, trace.Wrap(err)
+}
+
+func (p *Plugin) getOktaApps(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	orgURL := r.FormValue("orgURL")
+	apiToken := r.FormValue("apiToken")
+	var filters []string
+	filtersString := r.FormValue("filters")
+	if filtersString != "" {
+		filters = []string{}
+		if err := json.Unmarshal([]byte(r.FormValue("filters")), &filters); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	apps, err := p.oktaPluginConfigHelper.GetOktaApps(r.Context(), orgURL, apiToken, filters)
+
+	return apps, trace.Wrap(err)
+}
+
 func (p *Plugin) getPluginTypeMeta(ctx context.Context, sctx *web.SessionContext, typ string) (*pluginspb.PluginType, error) {
 	pluginsClt, err := getPluginClientFromSessionContext(sctx)
 	if err != nil {

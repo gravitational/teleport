@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
+	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -57,8 +58,14 @@ func NewPlugin(cfg Config) (*Plugin, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	oktaPluginConfigHelper, err := okta.NewPluginConfigHelper(okta.PluginConfigHelperConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Plugin{
-		Config: cfg,
+		Config:                 cfg,
+		oktaPluginConfigHelper: oktaPluginConfigHelper,
 	}, nil
 }
 
@@ -75,6 +82,9 @@ type Plugin struct {
 	// authMiddleware is the auth middleware.
 	authMiddlewareMu sync.RWMutex
 	authMiddleware   *auth.Middleware
+
+	// oktaPluginConfigHelper helps with the multistage configuration of Okta plugins.
+	oktaPluginConfigHelper *okta.PluginConfigHelper
 }
 
 // GetName returns plugin name
@@ -205,6 +215,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
 	// get supported plugins
 	h.GET("/enterprise/plugins/types", h.WithAuth(p.getAvailablePluginTypesHandle))
+	h.POST("/enterprise/pluginconfig/okta/groups", h.WithAuth(p.getOktaGroups))
+	h.POST("/enterprise/pluginconfig/okta/apps", h.WithAuth(p.getOktaApps))
 
 	// Security reports API
 	h.GET("/webapi/sites/:site/audit/reports/:name", h.WithClusterAuth(p.getSecurityReport))

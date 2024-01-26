@@ -475,22 +475,18 @@ func NewClient(ctx context.Context, cfg ClientConfig) (oktaClient, error) {
 	}, nil
 }
 
-// New will create a new Okta service.
-func New(ctx context.Context, config Config) (*Service, error) {
-	clientFactory := func(context.Context, Config) (oktaClient, error) {
-		return NewClient(ctx, ClientConfig{
-			Endpoint:   config.OktaAPIEndpoint,
-			Token:      config.OktaAPIToken,
-			Log:        config.Log,
-			StatusSink: config.PluginStatusSink,
-		})
-	}
+// oktaClientFn is a function interface for creating Okta client.
+type oktaClientFn func(context.Context, ClientConfig) (oktaClient, error)
 
-	return newWithClientCreator(ctx, config, clientFactory)
+// createNewOktaClient will create a new Okta client.
+func createNewOktaClient(ctx context.Context, config ClientConfig) (oktaClient, error) {
+	return NewClient(ctx, config)
 }
 
-// oktaClientFn is a function interface for creating Okta client.
-type oktaClientFn func(context.Context, Config) (oktaClient, error)
+// New will create a new Okta service.
+func New(ctx context.Context, config Config) (*Service, error) {
+	return newWithClientCreator(ctx, config, createNewOktaClient)
+}
 
 // newWithClientCreator will create a new Okta service with the given oktaClient.
 func newWithClientCreator(ctx context.Context, config Config, creator oktaClientFn) (*Service, error) {
@@ -499,7 +495,12 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := creator(ctx, config)
+	client, err := creator(ctx, ClientConfig{
+		Endpoint:   config.OktaAPIEndpoint,
+		Token:      config.OktaAPIToken,
+		Log:        config.Log,
+		StatusSink: config.PluginStatusSink,
+	})
 	if err != nil {
 		reportPluginStatus(ctx, config.Log, config.PluginStatusSink, types.PluginStatusCode_OTHER_ERROR)
 		return nil, trace.Wrap(err)

@@ -191,9 +191,7 @@ func newTestService(t *testing.T, ap *testAccessPoint) (*Service, *testOktaClien
 		Emitter:         emitter,
 		OktaAPIEndpoint: "dummy",
 		OktaAPIToken:    "dummy",
-	}, func(_ context.Context, _ Config) (oktaClient, error) {
-		return client, nil
-	})
+	}, creatorFromTestClient(client))
 	require.NoError(t, err)
 
 	// Skip client cert verification for tests.
@@ -263,6 +261,12 @@ func newTestClient() *testOktaClient {
 		unassignGroupErr:   map[string]error{},
 		unassignAppErr:     map[string]error{},
 		oktaOrgURL:         testOrgURL,
+	}
+}
+
+func creatorFromTestClient(testClient *testOktaClient) oktaClientFn {
+	return func(_ context.Context, _ ClientConfig) (oktaClient, error) {
+		return testClient, nil
 	}
 }
 
@@ -378,6 +382,15 @@ func (t *testOktaClient) addGroupToMapping(groupId string) {
 	t.groupsToUsers[groupId] = map[string]bool{}
 }
 
+// addOktaGroupToMapping will add the given Okta group to the group to user mapping in the test client.
+func (t *testOktaClient) addOktaGroupToMapping(group *okta.Group) {
+	t.groupsToUsersMu.Lock()
+	defer t.groupsToUsersMu.Unlock()
+
+	t.oktaGroups = append(t.oktaGroups, group)
+	t.groupsToUsers[group.Id] = map[string]bool{}
+}
+
 // assignUserToGroup will assign the given user to the group.
 func (t *testOktaClient) assignUserToGroup(_ context.Context, username, groupId string) error {
 	t.groupsToUsersMu.Lock()
@@ -417,6 +430,19 @@ func (t *testOktaClient) addApplicationToMapping(applicationId string) {
 		Id: applicationId,
 	})
 	t.appsToUsers[applicationId] = map[string]bool{}
+}
+
+// addOktaApplicationToMapping will add the given Okta application to the application to user mapping in the test client.
+func (t *testOktaClient) addOktaApplicationToMapping(application okta.App) {
+	t.appsToUsersMu.Lock()
+	defer t.appsToUsersMu.Unlock()
+
+	t.oktaApps = append(t.oktaApps, application)
+
+	// Only add in the mapping if this is an actual *okta.Application object, otherwise skip.
+	if oktaApp, ok := application.(*okta.Application); ok {
+		t.appsToUsers[oktaApp.Id] = map[string]bool{}
+	}
 }
 
 // assignUserToApplication will assign the given user to the application.
