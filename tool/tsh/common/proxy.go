@@ -660,7 +660,7 @@ Use the following credentials to connect to the {{.database}} proxy:
   cert_file={{.cert}}
   key_file={{.key}}
 
-Your database user is "{{.databaseUser}}".{{if .databaseName}} The target database name is "{{.databaseName}}"".{{end}}
+Your database user is "{{.databaseUser}}".{{if .databaseName}} The target database name is "{{.databaseName}}".{{end}}
 
 `))
 
