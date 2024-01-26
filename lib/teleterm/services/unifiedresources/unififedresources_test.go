@@ -20,7 +20,6 @@ package unifiedresources
 
 import (
 	"context"
-	"github.com/gravitational/teleport/lib/utils/aws"
 	"testing"
 
 	"github.com/google/uuid"
@@ -31,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestUnifiedResourcesList(t *testing.T) {
