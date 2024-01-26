@@ -220,7 +220,6 @@ RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
 
 # Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
 COPY --from=git2 /opt/git /
-COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Install Go.
 ARG GOLANG_VERSION
