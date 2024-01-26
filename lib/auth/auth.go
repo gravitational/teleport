@@ -2862,13 +2862,6 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	}
 	status := user.GetStatus()
 	if status.IsLocked {
-		if status.RecoveryAttemptLockExpires.After(a.clock.Now().UTC()) {
-			log.Debugf("%v exceeds %v failed account recovery attempts, locked until %v",
-				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
-
-			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
-			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
-		}
 		if status.LockExpires.After(a.clock.Now().UTC()) {
 			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
@@ -4375,15 +4368,15 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := utils.CryptoRandomHex(SessionTokenBytes)
+	token, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerToken, err := utils.CryptoRandomHex(SessionTokenBytes)
+	bearerToken, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerTokenTTL := min(sessionTTL, BearerTokenTTL)
+	bearerTokenTTL := min(sessionTTL, defaults.BearerTokenTTL)
 
 	startTime := a.clock.Now()
 	if !req.LoginTime.IsZero() {
@@ -6441,18 +6434,9 @@ func (k *authKeepAliver) Close() error {
 }
 
 const (
-	// BearerTokenTTL specifies standard bearer token to exist before
-	// it has to be renewed by the client
-	BearerTokenTTL = 10 * time.Minute
-
 	// TokenLenBytes is len in bytes of the invite token
+	// TODO(marco): remove const block when e/ code is no longer using it.
 	TokenLenBytes = 16
-
-	// RecoveryTokenLenBytes is len in bytes of a user token for recovery.
-	RecoveryTokenLenBytes = 32
-
-	// SessionTokenBytes is the number of bytes of a web or application session.
-	SessionTokenBytes = 32
 )
 
 // githubClient is internal structure that stores Github OAuth 2client and its config

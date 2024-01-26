@@ -218,19 +218,6 @@ func (d *WindowsDesktopV3) CloneResource() ResourceWithLabels {
 	return d.Copy()
 }
 
-// DeduplicateDesktops deduplicates desktops by name.
-func DeduplicateDesktops(desktops []WindowsDesktop) (result []WindowsDesktop) {
-	seen := make(map[string]struct{})
-	for _, desktop := range desktops {
-		if _, ok := seen[desktop.GetName()]; ok {
-			continue
-		}
-		seen[desktop.GetName()] = struct{}{}
-		result = append(result, desktop)
-	}
-	return result
-}
-
 // Match checks if a given desktop request matches this filter.
 func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
 	if f.HostID != "" && req.GetHostID() != f.HostID {
