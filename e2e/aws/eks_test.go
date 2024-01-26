@@ -123,7 +123,6 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 	clusters, err := authC.GetKubernetesClusters(context.Background())
 	require.NoError(t, err)
 
-	require.NoError(t, err)
 	// kubeClient is a Kubernetes client for the user created above
 	// that will be used to verify that the user can access the cluster and
 	// the permissions are correct.
