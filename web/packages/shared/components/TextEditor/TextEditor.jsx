@@ -124,7 +124,7 @@ class TextEditor extends React.Component {
                 title="Copy to clipboard"
                 onClick={() => copyToClipboard(this.editor.session.getValue())}
               >
-                <Copy size="18" />
+                <Copy size="medium" />
               </EditorButton>
             )}
             {this.props.downloadButton && (
@@ -137,7 +137,7 @@ class TextEditor extends React.Component {
                   )
                 }
               >
-                <Download size="18" />
+                <Download size="medium" />
               </EditorButton>
             )}
           </ButtonSection>
@@ -156,14 +156,14 @@ function getMode(docType) {
 }
 
 const EditorButton = styled(ButtonSecondary)`
-  padding: 12px;
+  padding: ${({theme}) => theme.space[2]}px;
   background-color: transparent;
 `;
 
 const ButtonSection = styled(Flex)`
   position: absolute;
-  right: 24px;
-  top: 24px;
+  right: ${({theme}) => theme.space[4]}px;
+  top: ${({theme}) => theme.space[4]}px;
 `;
 
 export default TextEditor;
