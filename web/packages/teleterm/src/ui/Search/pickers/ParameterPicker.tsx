@@ -52,7 +52,7 @@ export function ParameterPicker(props: ParameterPickerProps) {
   const inputSuggestionAttempt = makeSuccessAttempt(
     inputValue &&
       !props.action.parameter.allowOnlySuggestions && [
-        { key: inputValue, display: inputValue },
+        { value: inputValue, displayText: inputValue },
       ]
   );
   const $suggestionsError =
@@ -70,9 +70,10 @@ export function ParameterPicker(props: ParameterPickerProps) {
   const attempt = mapAttempt(suggestionsAttempt, suggestions =>
     suggestions.filter(
       v =>
-        v.display
+        v.displayText
           .toLocaleLowerCase()
-          .includes(inputValue.toLocaleLowerCase()) && v.display !== inputValue
+          .includes(inputValue.toLocaleLowerCase()) &&
+        v.displayText !== inputValue
     )
   );
 
@@ -102,10 +103,10 @@ export function ParameterPicker(props: ParameterPickerProps) {
         onBack={onBack}
         addWindowEventListener={addWindowEventListener}
         render={item => ({
-          key: item.key,
+          key: item.value,
           Component: (
             <Text typography="body1" fontSize={1}>
-              <Highlight text={item.display} keywords={[inputValue]} />
+              <Highlight text={item.displayText} keywords={[inputValue]} />
             </Text>
           ),
         })}

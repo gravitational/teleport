@@ -51,7 +51,15 @@ export interface ParametrizedAction {
   perform(parameter: Parameter): void;
 }
 
-export type Parameter = { key: string; display: string };
+export interface Parameter {
+  /** Value of the parameter. It is used as a list key, so it should be unique. */
+  value: string;
+  /**
+   * Text that should be displayed in the UI.
+   * The input value provided by the user will be matched against this field.
+   */
+  displayText: string;
+}
 
 export type SearchAction = SimpleAction | ParametrizedAction;
 
@@ -70,7 +78,10 @@ export function mapToAction(
             const sshLogins = ctx.clustersService.findClusterByResource(
               result.resource.uri
             )?.loggedInUser?.sshLoginsList;
-            return sshLogins?.map(login => ({ key: login, display: login }));
+            return sshLogins?.map(login => ({
+              value: login,
+              displayText: login,
+            }));
           },
           placeholder: 'Provide login',
         },
@@ -78,7 +89,7 @@ export function mapToAction(
           const { uri, hostname } = result.resource;
           return connectToServer(
             ctx,
-            { uri, hostname, login: login.key },
+            { uri, hostname, login: login.value },
             {
               origin: 'search_bar',
             }
@@ -110,8 +121,8 @@ export function mapToAction(
           parameter: {
             getSuggestions: async () =>
               result.resource.awsRolesList.map(a => ({
-                key: a.arn,
-                display: a.display,
+                value: a.arn,
+                displayText: a.display,
               })),
             allowOnlySuggestions: true,
             placeholder: 'Select IAM Role',
@@ -123,7 +134,7 @@ export function mapToAction(
               {
                 origin: 'search_bar',
               },
-              { arnForAwsApp: parameter.key }
+              { arnForAwsApp: parameter.value }
             ),
         };
       }
@@ -151,7 +162,10 @@ export function mapToAction(
               const dbUsers = await ctx.resourcesService.getDbUsers(
                 result.resource.uri
               );
-              return dbUsers.map(dbUser => ({ key: dbUser, display: dbUser }));
+              return dbUsers.map(dbUser => ({
+                value: dbUser,
+                displayText: dbUser,
+              }));
             }),
           placeholder: 'Provide db username',
         },
@@ -163,7 +177,7 @@ export function mapToAction(
               uri,
               name,
               protocol,
-              dbUser: dbUser.key,
+              dbUser: dbUser.value,
             },
             {
               origin: 'search_bar',
