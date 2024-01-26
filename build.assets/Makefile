@@ -131,7 +131,7 @@ build-binaries-fips: buildbox-centos7-fips webassets
 .PHONY:buildbox
 buildbox:
 	$(call PULL_ON_CI,$(BUILDBOX))
-	docker buildx build \
+	docker build build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -168,7 +168,7 @@ buildbox-fips: buildbox-centos7-fips
 buildbox-centos7:
 	$(REQUIRE_HOST_ARCH)
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH))
-	docker buildx build \
+	docker build build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
@@ -190,7 +190,7 @@ buildbox-centos7:
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips: buildbox-centos7
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH))
-	docker buildx build \
+	docker build build \
 		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) -f Dockerfile-centos7-fips .
@@ -203,7 +203,7 @@ buildbox-centos7-fips: buildbox-centos7
 .PHONY:buildbox-arm
 buildbox-arm:
 	$(call PULL_ON_CI,$(BUILDBOX_ARM))
-	docker buildx build \
+	docker build build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -225,7 +225,7 @@ endif
 .PHONY:buildbox-node
 buildbox-node:
 	$(call PULL_ON_CI,$(BUILDBOX_NODE))
-	docker buildx build \
+	docker build build \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -595,7 +595,7 @@ print-buildbox-version:
 #
 .PHONY:build-centos7-assets
 build-centos7-assets:
-	docker buildx build \
+	docker build build \
 		--build-arg BUILDARCH=$(HOST_ARCH) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
