@@ -27,6 +27,7 @@ import { ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import { Copy, Download } from 'design/Icon';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
+
 import { downloadObject } from 'shared/utils/download';
 
 import StyledTextEditor from './StyledTextEditor';
@@ -120,7 +121,6 @@ class TextEditor extends React.Component {
           <ButtonSection>
             {this.props.copyButton && (
               <EditorButton
-                test-id
                 title="Copy to clipboard"
                 onClick={() => copyToClipboard(this.editor.session.getValue())}
               >
