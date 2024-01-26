@@ -53,7 +53,7 @@ export class AwsLaunchButton extends React.Component<Props> {
           onClick={this.onOpen}
         >
           Launch
-          <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
+          <ChevronDown ml={1} mr={-2} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           menuListCss={() => ({
@@ -139,7 +139,6 @@ type Props = {
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.text.slightlyMuted};
   font-size: 12px;
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
