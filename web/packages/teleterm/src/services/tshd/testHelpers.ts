@@ -67,6 +67,7 @@ export const makeApp = (props: Partial<tsh.App> = {}): App => ({
   samlApp: false,
   uri: '/clusters/bar/apps/foo',
   addrWithProtocol: 'tcp://local-app.example.com:3000',
+  awsRolesList: [],
   ...props,
 });
 
