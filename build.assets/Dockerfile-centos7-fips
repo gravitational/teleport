@@ -23,7 +23,7 @@ RUN echo "Ensure environment variables are set" && \
     [ -n "$OPENSSL_FIPS" ]
 
 # Validate that Go binaries have BoringCrypto enabled
-COPY --chown=ci fips-files/boringtest.go /tmp/boringtest.go
+COPY --chown=ci fips-files/boringtest.nogo /tmp/boringtest.go
 
 RUN echo "Ensure Go is using BoringCrypto" && \
     go run /tmp/boringtest.go
