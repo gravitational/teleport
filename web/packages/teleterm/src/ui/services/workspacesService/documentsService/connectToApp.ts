@@ -62,7 +62,7 @@ export async function connectToApp(
     window.open(
       getWebAppLaunchUrl({ app: target, rootCluster, cluster }),
       '_blank',
-      'noreferrer'
+      'noreferrer,noopener'
     );
     return;
   }
