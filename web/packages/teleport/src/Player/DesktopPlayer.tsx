@@ -205,7 +205,9 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
   );
 
   useEffect(() => {
-    return playerClient.shutdown;
+    return () => {
+      playerClient.shutdown();
+    };
   }, [playerClient]);
 
   return {
