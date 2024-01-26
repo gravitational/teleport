@@ -124,7 +124,7 @@ class TextEditor extends React.Component {
                 title="Copy to clipboard"
                 onClick={() => copyToClipboard(this.editor.session.getValue())}
               >
-                <Copy />
+                <Copy size="18" />
               </EditorButton>
             )}
             {this.props.downloadButton && (
@@ -137,7 +137,7 @@ class TextEditor extends React.Component {
                   )
                 }
               >
-                <Download />
+                <Download size="18" />
               </EditorButton>
             )}
           </ButtonSection>
