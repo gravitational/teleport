@@ -3010,10 +3010,6 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		return nil, trace.AccessDenied("unable to create MFA challenges")
 	}
 
-	if challenges.TOTP == nil && challenges.WebauthnChallenge == nil {
-		return nil, ErrNoMFADevices
-	}
-
 	return challenges, nil
 }
 

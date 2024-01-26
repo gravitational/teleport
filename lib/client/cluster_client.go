@@ -359,8 +359,9 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	} else if authnChal.TOTP == nil && authnChal.WebauthnChallenge == nil {
-		// TODO(Joerger): DELETE IN 16.0.0 since CreateAuthenticateChallenge should return
-		// this error directly instead of an empty challenge.
+		// TODO(Joerger): CreateAuthenticateChallenge should return
+		// this error directly instead of an empty challenge, without
+		// regressing https://github.com/gravitational/teleport/issues/36482.
 		return nil, nil, auth.ErrNoMFADevices
 	}
 
