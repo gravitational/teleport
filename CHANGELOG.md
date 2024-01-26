@@ -25,13 +25,13 @@ playback to start before the entire session is downloaded and unpacked.
 Additionally, `tsh play` now supports a `--speed` flag for adjusting the
 playback speed.
 
-#### Teleport Operator can now be deployed against a remote Teleport cluster
+#### Standalone Teleport Operator
 
 Prior to Teleport 15, the Teleport Kubernetes Operator had to run as a sidecar
 of the Teleport auth. It was not possible to use the operator in Teleport Cloud
 or against a Teleport cluster not deployed with the `teleport-cluster` Helm chart.
 
-In Teleport 15, the Teleport Operator can reconcile resource in any Teleport
+In Teleport 15, the Teleport Operator can reconcile resources in any Teleport
 cluster. Teleport Cloud users can now use the operator to manage their resources.
 
 When deployed with the `teleport-cluster` chart, the operator now runs in a
@@ -52,7 +52,7 @@ Teleport 16 for consistency.
 
 To migrate an existing `TeleportRole` to a `TeleportRoleV7`, you must:
 - upgrade Teleport and the operator to v15
-- annotate the Custom Resource with `teleport.dev/keep: "true"`
+- annotate the exiting Custom Resource with `teleport.dev/keep: "true"`
 - delete the Custom Resource (it won't delete the resource thanks to the annotation)
 - create a new `TeleportRoleV7` with the same name
 
