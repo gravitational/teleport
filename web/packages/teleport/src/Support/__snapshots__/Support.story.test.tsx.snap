@@ -269,9 +269,8 @@ exports[`support Cloud 1`] = `
         </a>
         <a
           class="c12"
-          href="https://goteleport.com/docs/cloud/downloads/"
+          href="/web/downloads"
           rel="noreferrer"
-          target="_blank"
         >
           Download Page
         </a>

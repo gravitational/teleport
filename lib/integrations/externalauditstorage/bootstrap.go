@@ -186,8 +186,7 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 					Status: s3types.ExpirationStatusEnabled,
 					ID:     aws.String("ExpireNonCurrentVersionsAndDeleteMarkers"),
 					NoncurrentVersionExpiration: &s3types.NoncurrentVersionExpiration{
-						NewerNoncurrentVersions: aws.Int32(0),
-						NoncurrentDays:          aws.Int32(1),
+						NoncurrentDays: aws.Int32(1),
 					},
 					AbortIncompleteMultipartUpload: &s3types.AbortIncompleteMultipartUpload{
 						DaysAfterInitiation: aws.Int32(7),

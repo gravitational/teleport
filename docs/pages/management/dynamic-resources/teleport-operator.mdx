@@ -26,12 +26,16 @@ could cause instability and non-deterministic behaviour.
 </Admonition>
 
 Currently supported Teleport resources are:
-- users
+- users (`TeleportUser`)
 - roles
-- OIDC connectors
-- SAML connectors
-- GitHub connectors
-- Login Rules
+  - `TeleportRole` creates role v5
+  - `TeleportRoleV6` creates role v6
+  - `TeleportRoleV7` creates role v7
+- OIDC connectors (`TeleportOIDCConnector`)
+- SAML connectors (`TeleportSAMLConnector`)
+- GitHub connectors (`TeleportGithubConnector`)
+- provision tokens (`TeleportProvisionToken`)
+- Login Rules (`TeleportLoginRules`)
 
 ### Setting up the operator
 
