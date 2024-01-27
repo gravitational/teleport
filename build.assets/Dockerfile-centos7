@@ -71,37 +71,6 @@ RUN git clone --depth=1 https://github.com/git/git.git -b v2.42.0 && \
     make -j"$(nproc)" all && \
     DESTDIR=/opt/git make install"
 
-## NINJA-BUILD ###################################################################
-
-## ninja-build is required for building boringssl. The version included in CentOS 7 AMR64
-## is too old, so we need to build it from source.
-FROM --platform=$BUILDPLATFORM base AS ninja-build
-
-# Install additional required dependencies.
-RUN  yum install -y expat-devel \
-     gettext \
-     libcurl-devel \
-     openssl-devel \
-     pcre-devel \
-     xmlto \
-     zlib-devel \
-     && yum clean all
-
-# mno-outline-atomics flag is needed to make the build works on ARM64 docker.
-RUN git clone --depth=1 https://github.com/Kitware/CMake.git -b v3.28.1 && \
-    cd CMake && \
-    [ "$(git rev-parse HEAD)" = '1eed682d7cca9bb2c2b0709a6c3202a3b08613b2' ] && \
-    scl enable ${DEVTOOLSET} "if [ "${BUILDARCH}" = "arm64" ]; then export CFLAGS=-mno-outline-atomics; fi &&  ./bootstrap --parallel="$(nproc)" && make -j"$(nproc)" && make install"
-
-ENV PATH="/opt/cmake/bin:$PATH"
-
-RUN git clone --depth=1 https://github.com/ninja-build/ninja.git -b v1.11.1 && \
-        cd ninja && \
-        [ "$(git rev-parse HEAD)" = 'a524bf3f6bacd1b4ad85d719eed2737d8562f27a' ] && \
-        scl enable ${DEVTOOLSET} "cmake -Bbuild-cmake && \
-    cmake --build build-cmake -j"$(nproc)" && \
-    cmake --build build-cmake --target  install"
-
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
@@ -231,8 +200,6 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 RUN yum install -y \
     elfutils-libelf-devel \
     net-tools \
-    # required by boringssl
-    ninja-build \
     # required by Teleport PAM support
     pam-devel \
     perl-IPC-Cmd \
@@ -253,7 +220,6 @@ RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
 
 # Override the old git in /usr/local installed by yum. We need git 2+ on GitHub Actions.
 COPY --from=git2 /opt/git /
-COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -327,11 +293,14 @@ RUN cd /usr/local/lib64 && \
 COPY pkgconfig/centos7/ /
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 
+# Install libpcsclite.
 COPY --from=libpcsclite /usr/local/include/ /usr/local/include/
 COPY --from=libpcsclite /usr/local/lib/pkgconfig/ /usr/local/lib64/pkgconfig/
 COPY --from=libpcsclite \
     /usr/local/lib/libpcsclite.a \
     /usr/local/lib/
+# Set LIBRARY_PATH so that libpcsclite can be found by the linker.
+ENV LIBRARY_PATH=/usr/local/lib:${LIBRARY_PATH}
 
 # Copy libbpf into the final image.
 ARG LIBBPF_VERSION
@@ -339,10 +308,18 @@ COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy the pre-built CentOS 7 assets with clang. Needed to build BoringSSL and BPF tools.
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
+# Bring in our custom ninja build, needed for BorinSSL.
+COPY --from=teleport-buildbox-centos7-assets /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Libclang is needed by boring-rs to generate bindings. libclang is kept in /opt/llvm/lib
 # and without this environment variable, boring-rs will not be able to find it.
 ENV LIBCLANG_PATH=/opt/llvm/lib/
+
+# C++14 compatible headers are required to build boring-rs.
+# Teleport's boring fork includes a patch that reads this variable
+# and injects it into the environment as CPLUS_INCLUDE_PATH before
+# boring is built.
+ENV BORING_BSSL_FIPS_CPLUS_INCLUDE_PATH=/opt/llvm/include/c++/v1/
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
