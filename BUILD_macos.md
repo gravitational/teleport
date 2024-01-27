@@ -81,8 +81,7 @@ PRs with corrections and updates are welcome!
   * `brew install node yarn`
   * Currently, [`yarn`](https://classic.yarnpkg.com/en/docs/install) (< 2.0.0) is required
 
-* Teleport uses wasm-pack, so if that's not present, we need to install it. Find the wasm install docs [here](https://rustwasm.github.io/wasm-pack/installer/).
-
+* Teleport uses wasm-pack, so if that's not present, we need to install it. Find the install docs [here](https://rustwasm.github.io/wasm-pack/installer/).
 
 ##### Local Tests Dependencies
 
