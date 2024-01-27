@@ -169,6 +169,7 @@ buildbox-fips: buildbox-centos7-fips
 buildbox-centos7:
 	$(REQUIRE_HOST_ARCH)
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH))
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH))
 	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
