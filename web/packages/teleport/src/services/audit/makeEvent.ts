@@ -261,6 +261,14 @@ export const formatters: Formatters = {
         rest['server_hostname'] || rest['addr.local']
       }] failed [${exitError}]`,
   },
+  [eventCodes.SCP_DISALLOWED]: {
+    type: 'scp',
+    desc: 'SCP Disallowed',
+    format: ({ user, ...rest }) =>
+      `User [${user}] SCP file transfer on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }] blocked`,
+  },
   [eventCodes.SFTP_OPEN]: {
     type: 'sftp',
     desc: 'SFTP Open',
@@ -548,6 +556,30 @@ export const formatters: Formatters = {
       `User [${user}] failed to create symbolic link [${path}] on node [${
         rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
+  },
+  [eventCodes.SFTP_LINK]: {
+    type: 'sftp',
+    desc: 'SFTP Link',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] created hard link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_LINK_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Link Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to create hard link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_DISALLOWED]: {
+    type: 'sftp',
+    desc: 'SFTP Disallowed',
+    format: ({ user, ...rest }) =>
+      `User [${user}] was blocked from creating an SFTP session on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
   },
   [eventCodes.SESSION_JOIN]: {
     type: 'session.join',
