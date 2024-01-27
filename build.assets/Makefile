@@ -38,6 +38,9 @@ include grpcbox.mk # Requires images.mk
 
 DOCSBOX=ghcr.io/gravitational/docs
 
+# Use pinned version of CentOS7 assets to ensure reproducible builds.
+BUILDBOX_CENTOS7_ASSETS_IMAGE := $(BUILDBOX_CENTOS7_ASSETS)@sha256:$(BUILDBOX_CENTOS7_ASSETS_SHA_$(RUNTIME_ARCH))
+
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
@@ -172,7 +175,7 @@ buildbox-centos7:
 	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
-		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
+		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS_IMAGE) \
 		--build-arg BUILDARCH=$(HOST_ARCH) \
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
