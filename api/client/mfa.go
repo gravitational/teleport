@@ -31,7 +31,7 @@ import (
 func (c *Client) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	// Don't attempt the MFA ceremony if we can't prompt for a response.
 	if c.c.MFAPromptConstructor == nil {
-		return nil, trace.BadParameter("missing MFAPromptConstructor field, client cannot perform MFA ceremony")
+		return nil, trace.Wrap(&mfa.ErrMFANotSupported, "missing MFAPromptConstructor field, client cannot perform MFA ceremony")
 	}
 
 	return mfa.PerformMFACeremony(ctx, c, challengeRequest, promptOpts...)
@@ -40,7 +40,7 @@ func (c *Client) PerformMFACeremony(ctx context.Context, challengeRequest *proto
 // PromptMFA prompts the user for MFA. Implements [mfa.MFACeremonyClient].
 func (c *Client) PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	if c.c.MFAPromptConstructor == nil {
-		return nil, trace.BadParameter("missing MFAPromptConstructor field, client cannot prompt for MFA")
+		return nil, trace.Wrap(&mfa.ErrMFANotSupported, "missing MFAPromptConstructor field, client cannot prompt for MFA")
 	}
 
 	return c.c.MFAPromptConstructor(promptOpts...).Run(ctx, chal)

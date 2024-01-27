@@ -55,6 +55,14 @@ func WithMFAUnaryInterceptor(mfaCeremony mfa.MFACeremony) grpc.UnaryClientInterc
 		// ex: MFA is required for admin-level API request: "CreateUser"
 		mfaResp, ceremonyErr := mfa.PerformAdminActionMFACeremony(ctx, mfaCeremony, false /*allowReuse*/)
 		if ceremonyErr != nil {
+			// If the client does not support MFA ceremonies, return the original error.
+			if errors.Is(ceremonyErr, &mfa.ErrMFANotSupported) {
+				return trail.FromGRPC(err)
+			} else if errors.Is(ceremonyErr, &mfa.ErrMFANotRequired) {
+				// This error should never occur since the auth server uses the same mechanism
+				// to check for an MFA requirement as it does to authorize said requirement.
+				return trace.Wrap(trail.FromGRPC(err), "server is reporting that MFA is not required when it is (this is a bug)")
+			}
 			return trace.NewAggregate(trail.FromGRPC(err), ceremonyErr)
 		}
 

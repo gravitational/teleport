@@ -53,10 +53,10 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 	chal, err := clt.CreateAuthenticateChallenge(ctx, challengeRequest)
 	if err != nil {
 		// CreateAuthenticateChallenge returns a bad parameter error when the the client
-		// user is not a Teleport user. For example, the AdminRole. Treat this as a false
-		// MFA required check if a check was requested.
+		// user is not a Teleport user - for example, the AdminRole. Treat this as an MFA
+		// not supported error so the client knows when it can be ignored.
 		if trace.IsBadParameter(err) {
-			return nil, &ErrMFANotRequired
+			return nil, &ErrMFANotSupported
 		}
 		return nil, trace.Wrap(err)
 	}
