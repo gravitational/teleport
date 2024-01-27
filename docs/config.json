@@ -130,6 +130,11 @@
               "forScopes": ["enterprise"]
             },
             {
+              "title": "AWS KMS",
+              "slug": "/choose-an-edition/teleport-enterprise/aws-kms/",
+              "forScopes": ["enterprise"]
+            },
+            {
               "title": "Google Cloud KMS",
               "slug": "/choose-an-edition/teleport-enterprise/gcp-kms/",
               "forScopes": ["enterprise"]
