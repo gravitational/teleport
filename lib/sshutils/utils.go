@@ -21,9 +21,27 @@ package sshutils
 import (
 	"net"
 	"strconv"
+	"strings"
+
+	"github.com/gravitational/trace"
 )
 
 // JoinHostPort is a wrapper for net.JoinHostPort that takes a uint32 port..
 func JoinHostPort(host string, port uint32) string {
 	return net.JoinHostPort(host, strconv.Itoa(int(port)))
+}
+
+func SplitHostPort(addr string) (string, uint32, error) {
+	if !strings.Contains(addr, ":") {
+		addr += ":0"
+	}
+	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", 0, trace.Wrap(err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0, trace.Wrap(err)
+	}
+	return host, uint32(port), nil
 }

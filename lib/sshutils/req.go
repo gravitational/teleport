@@ -52,21 +52,13 @@ type PTYReqParams struct {
 }
 
 type ForwardedTCPIPRequest struct {
-	WindowSize    uint32
-	MaxPacketSize uint32
-	Addr          string
-	Port          uint32
-	OrigAddr      string
-	OrigPort      uint32
+	Addr     string
+	Port     uint32
+	OrigAddr string
+	OrigPort uint32
 }
 
 func (req *ForwardedTCPIPRequest) CheckAndSetDefaults() error {
-	if req.WindowSize == 0 {
-		req.WindowSize = 1 // TODO find good default
-	}
-	if req.MaxPacketSize == 0 {
-		req.MaxPacketSize = 1 // TODO find good default
-	}
 	if req.Addr == "" {
 		return trace.BadParameter("missing field Addr")
 	}

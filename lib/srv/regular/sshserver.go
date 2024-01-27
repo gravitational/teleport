@@ -32,7 +32,6 @@ import (
 	"os"
 	"os/user"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1241,23 +1240,35 @@ func (l *remoteForwardingListener) Addr() net.Addr {
 }
 
 func (s *Server) getTCPIPForwardListener(sctx *srv.ServerContext, addr string) (net.Listener, error) {
-	conn, err := s.getTCPIPForwardConn(sctx)
+	controlConn, err := s.getTCPIPForwardConn(sctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, _, err = conn.WriteWithFDs([]byte(addr), nil)
+	localConn, remoteConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer remoteConn.Close()
+	remoteFD, err := remoteConn.File()
+	if err != nil {
+		localConn.Close()
+		return nil, trace.Wrap(err)
+	}
+	defer remoteFD.Close()
+	_, _, err = controlConn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// The forwarding process may have chosen its own port, so we need to get the
 	// new listen addr.
-	var addrBuf []byte
-	if _, _, err = conn.ReadWithFDs(addrBuf, nil); err != nil {
+	var addrBuf [256]byte
+	n, _, err := localConn.ReadWithFDs(addrBuf[:], nil)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &remoteForwardingListener{
-		addr: string(addrBuf),
-		conn: conn,
+		addr: string(addrBuf[:n]),
+		conn: localConn,
 	}, nil
 }
 
@@ -1266,25 +1277,25 @@ func (s *Server) getTCPIPForwardConn(sctx *srv.ServerContext) (*uds.Conn, error)
 		return conn, nil
 	}
 
-	dialerConn, listenerConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer dialerConn.Close()
+	defer remoteConn.Close()
 
-	dialerFD, err := dialerConn.File()
+	remoteFD, err := remoteConn.File()
 	if err != nil {
-		listenerConn.Close()
+		localConn.Close()
 		return nil, trace.Wrap(err)
 	}
-	defer dialerFD.Close()
+	defer remoteFD.Close()
 
 	// Create command to re-exec Teleport which will handle forwarding. The
 	// reason it's not done directly is because the PAM stack needs to be called
 	// from the child process.
-	cmd, err := srv.ConfigureCommand(sctx, dialerFD)
+	cmd, err := srv.ConfigureCommand(sctx, remoteFD)
 	if err != nil {
-		dialerConn.Close()
+		remoteConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -1293,7 +1304,7 @@ func (s *Server) getTCPIPForwardConn(sctx *srv.ServerContext) (*uds.Conn, error)
 
 	// Start the child process that will be used to listen for connections.
 	if err := cmd.Start(); err != nil {
-		dialerConn.Close()
+		remoteConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -1311,7 +1322,7 @@ func (s *Server) getTCPIPForwardConn(sctx *srv.ServerContext) (*uds.Conn, error)
 	closer := utils.CloseFunc(func() error {
 		// set flag indicating that the exit of the child is expected (changes logging behavior).
 		explicitlyClosed.Store(true)
-		dialerConn.Close()
+		remoteConn.Close()
 
 		// we expect closing the dialer to cause the child process to exit, but its
 		// best to verify.
@@ -1326,7 +1337,7 @@ func (s *Server) getTCPIPForwardConn(sctx *srv.ServerContext) (*uds.Conn, error)
 	})
 
 	// try to register with the parent context.
-	if other, ok := sctx.Parent().TrySetTCPIPForwardConn(listenerConn); !ok {
+	if other, ok := sctx.Parent().TrySetTCPIPForwardConn(localConn); !ok {
 		// another forwarder was concurrently created. this isn't actually a problem, multiple forwarders
 		// being registered is harmless, but it does result in slightly higher resource utilization, so its
 		// preferable to use the existing forwarder and close ours in the background.
@@ -1335,7 +1346,7 @@ func (s *Server) getTCPIPForwardConn(sctx *srv.ServerContext) (*uds.Conn, error)
 	}
 
 	sctx.Parent().AddCloser(closer)
-	return listenerConn, nil
+	return localConn, nil
 }
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
@@ -1616,8 +1627,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	scx.IsTestStub = s.isTestStub
 	scx.AddCloser(channel)
 	scx.ExecType = teleport.ChanDirectTCPIP
-	scx.SrcAddr = net.JoinHostPort(req.Orig, strconv.Itoa(int(req.OrigPort)))
-	scx.DstAddr = net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
+	scx.SrcAddr = sshutils.JoinHostPort(req.Orig, req.OrigPort)
+	scx.DstAddr = sshutils.JoinHostPort(req.Host, req.Port)
 	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
 
@@ -2294,7 +2305,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		return trace.Wrap(err)
 	}
 	scx.IsTestStub = s.isTestStub
-	scx.ChannelType = teleport.TCPIPForwardRequest
+	scx.ExecType = teleport.TCPIPForwardRequest
 
 	listener, err := s.getTCPIPForwardListener(scx, sshutils.JoinHostPort(req.Addr, req.Port))
 	if err != nil {
@@ -2305,6 +2316,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	scx.SrcAddr = listener.Addr().String()
 	scx.DstAddr = ccx.NetConn.RemoteAddr().String()
 
+	// TODO move this to before we get the listener, it's OK if we don't know the exact port yet
 	if err := s.canPortForward(scx); err != nil {
 		scx.Close()
 		return trace.Wrap(err)
@@ -2326,9 +2338,9 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 			return trace.Wrap(err)
 		}
 
-		buf := make([]byte, 0, 4)
-		binary.BigEndian.PutUint32(buf, uint32(port))
-		if err := r.Reply(true, buf); err != nil {
+		var buf [4]byte
+		binary.BigEndian.PutUint32(buf[:], uint32(port))
+		if err := r.Reply(true, buf[:]); err != nil {
 			scx.Close()
 			return trace.Wrap(err)
 		}
@@ -2352,10 +2364,10 @@ func (s *Server) handleRemoteListener(ctx context.Context, scx *srv.ServerContex
 	}
 
 	req := sshutils.ForwardedTCPIPRequest{
-		Addr:     dstHost,
-		Port:     dstPort,
-		OrigAddr: srcHost,
-		OrigPort: srcPort,
+		Addr:     srcHost,
+		Port:     srcPort,
+		OrigAddr: dstHost,
+		OrigPort: dstPort,
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
 		s.Logger.WithError(err).Warn("failed to check and set defaults on forwarded tcpip request")
