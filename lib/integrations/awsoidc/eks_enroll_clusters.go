@@ -49,6 +49,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -536,6 +537,9 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 		vals["highAvailability"] = map[string]any{"replicaCount": 2,
 			"podDisruptionBudget": map[string]any{"enabled": true, "minAvailable": 1},
 		}
+	}
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		vals["enterprise"] = true
 	}
 
 	eksTags := make(map[string]*string, len(cfg.eksCluster.Tags))

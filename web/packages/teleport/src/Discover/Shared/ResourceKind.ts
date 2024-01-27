@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClusterResource } from 'teleport/services/userPreferences/types';
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
 import type { JoinRole } from 'teleport/services/joinToken';
 
@@ -50,23 +50,21 @@ export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
   }
 }
 
-export function resourceKindToPreferredResource(
-  kind: ResourceKind
-): ClusterResource {
+export function resourceKindToPreferredResource(kind: ResourceKind): Resource {
   switch (kind) {
     case ResourceKind.Application:
-      return ClusterResource.RESOURCE_WEB_APPLICATIONS;
+      return Resource.WEB_APPLICATIONS;
     case ResourceKind.Database:
-      return ClusterResource.RESOURCE_DATABASES;
+      return Resource.DATABASES;
     case ResourceKind.Desktop:
-      return ClusterResource.RESOURCE_WINDOWS_DESKTOPS;
+      return Resource.WINDOWS_DESKTOPS;
     case ResourceKind.Kubernetes:
-      return ClusterResource.RESOURCE_KUBERNETES;
+      return Resource.KUBERNETES;
     case ResourceKind.Server:
-      return ClusterResource.RESOURCE_SERVER_SSH;
+      return Resource.SERVER_SSH;
     case ResourceKind.Discovery:
-      return ClusterResource.RESOURCE_UNSPECIFIED;
+      return Resource.UNSPECIFIED;
     case ResourceKind.ConnectMyComputer:
-      return ClusterResource.RESOURCE_SERVER_SSH;
+      return Resource.SERVER_SSH;
   }
 }

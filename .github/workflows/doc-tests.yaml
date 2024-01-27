@@ -109,7 +109,7 @@ jobs:
           repository: "gravitational/teleport"
 
       - name: Run the linter
-        uses: errata-ai/vale-action@c99f2dfd2aeaedb3d4bb16f385841830b9164d31 # reviewdog
+        uses: errata-ai/vale-action@3f7188c866bcb3259339a09f517d7c4a8838303c # reviewdog
         with:
           version: 2.30.0
           separator: ","
