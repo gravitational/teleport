@@ -4,16 +4,38 @@
 
 ### New features
 
-#### FIPS now supported on ARM64
+#### Enahnced Device Trust support
 
-Teleport 15 now provides FIPS-compliant Linux builds on ARM64. Users will now
-be able to run Teleport in FedRAMP/FIPS mode on ARM64.
+Teleport Device Trust now supports TPM joining on Linux devices.
 
-#### Hardened AMIs now produced for ARM64
+Additionally, `tsh proxy app` can now solve device challenges, allowing users to
+enforce the use of a trusted device to access applications.
 
-Teleport 15 now provides hardened AWS AMIs on ARM64.
+#### Transparent session resumption for `tsh`
 
-#### Streaming session playback
+In Teleport 15, `tsh` will automatically resume SSH sessions. If a session is
+disconnected due to a proxy restart or networking issue, `tsh` will
+transparently reconnect the user and restore the session state.
+
+#### Support for AWS KMS
+
+Teleport 15 supports the use of AWS Key Management Service (KMS) to store and
+handle the CA private key material used to sign all Teleport-issued certificates.
+When enabled, private key material never leaves AWS KMS.
+
+To migrate existing clusters to AWS KMS, you must perform a CA rotation.
+
+{/* TODO: link to docs */}
+
+#### MFA for adminstrative actions
+
+When Teleport is configured to reuire webauthn (`second_factor: webauth`),
+administrative actions performed via `tctl` or the web UI will require an
+additional MFA tap.
+
+Examples of administrative actions include:
+
+#### Session playback improvements
 
 Prior to Teleport 15, `tsh play` and the web UI would download the entire
 session recording before starting playback. As a result, playback of large
@@ -23,7 +45,15 @@ In Teleport 15, session recordings are streamed from the auth server, allowing
 playback to start before the entire session is downloaded and unpacked.
 
 Additionally, `tsh play` now supports a `--speed` flag for adjusting the
-playback speed.
+playback speed, and desktop session playback now supports seeking to arbitrary
+positions in the recording.
+
+#### Teleport Connect improvements
+
+Teleport Connect will now prompt for an MFA tap prior to accessing Kubernetes
+clusters when per-session MFA is enabled.
+
+Additionally, Teleport Connect includes support for TCP and web applications.
 
 #### Standalone Teleport Operator
 
@@ -56,6 +86,15 @@ a `TeleportRoleV7`, you must:
 - annotate the exiting `TeleportRole` CR with `teleport.dev/keep: "true"`
 - delete the `TeleportRole` CR (it won't delete the role in Teleport thanks to the annotation)
 - create a new `TeleportRoleV7` CR with the same name
+
+#### FIPS now supported on ARM64
+
+Teleport 15 now provides FIPS-compliant Linux builds on ARM64. Users will now
+be able to run Teleport in FedRAMP/FIPS mode on ARM64.
+
+#### Hardened AMIs now produced for ARM64
+
+Teleport 15 now provides hardened AWS AMIs on ARM64.
 
 ### Breaking changes and deprecations
 
@@ -106,8 +145,8 @@ or use PAM.
 
 #### Remove restricted sessions for SSH
 
-The restricted session feature for SSH has been deprecated since Teleport 14 and 
-has been removed in Teleport 15. We recommend implementing network restrictions 
+The restricted session feature for SSH has been deprecated since Teleport 14 and
+has been removed in Teleport 15. We recommend implementing network restrictions
 outside of Teleport (iptables, security groups, etc).
 
 #### Packages no longer published to legacy Debian and RPM repos
@@ -220,7 +259,7 @@ used with the legacy AMIs has been removed.
 Due to the new separate operator deployment, the operator is deployed by a subchart.
 This causes the following breaking changes:
 - `installCRDs` has been replaced by `operator.installCRDs`
-- `teleportVersionOverride` does not set the operator version anymore, you must 
+- `teleportVersionOverride` does not set the operator version anymore, you must
   use `operator.teleportVersionOverride` to override the operator version.
 
 Note: version overrides are dangerous and not recommended. Each chart version
@@ -235,7 +274,7 @@ The chart configures this for you since v12, unless you disabled `rbac` creation
 
 #### Increased password length
 
-The minimum password length has been increased to 12 characters.
+The minimum password length for local users has been increased to 12 characters.
 
 #### Increased account lockout interval
 
