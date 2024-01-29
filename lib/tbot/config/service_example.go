@@ -19,9 +19,7 @@
 package config
 
 import (
-	"context"
 	"fmt"
-	"time"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -34,17 +32,6 @@ const ExampleServiceType = "example"
 // service integrates with the tbot service manager.
 type ExampleService struct {
 	Message string `yaml:"message"`
-}
-
-func (s *ExampleService) Run(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(time.Second * 5):
-			fmt.Println("Example Service prints message:", s.Message)
-		}
-	}
 }
 
 func (s *ExampleService) Type() string {
@@ -67,4 +54,11 @@ func (s *ExampleService) UnmarshalYAML(node *yaml.Node) error {
 
 func (s *ExampleService) String() string {
 	return fmt.Sprintf("%s:%s", ExampleServiceType, s.Message)
+}
+
+func (s *ExampleService) CheckAndSetDefaults() error {
+	if s.Message == "" {
+		return trace.BadParameter("message: should not be empty")
+	}
+	return nil
 }
