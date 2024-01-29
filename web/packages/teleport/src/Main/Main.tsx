@@ -177,6 +177,9 @@ export function Main(props: MainProps) {
   const requiresOnboarding =
     onboard && !onboard.hasResource && !onboard.notified;
   const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;
+  const hasSidebar =
+    feature?.category === NavigationCategory.Management &&
+    !feature?.hideNavigation;
 
   return (
     <FeaturesContextProvider value={features}>
@@ -197,7 +200,7 @@ export function Main(props: MainProps) {
           <Navigation />
           <HorizontalSplit
             dockedView={showAssist && viewMode === ViewMode.Docked}
-            hasSidebar={feature?.category === NavigationCategory.Management}
+            hasSidebar={hasSidebar}
           >
             <ContentMinWidth>
               <BannerList
