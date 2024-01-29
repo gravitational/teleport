@@ -615,11 +615,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ExternalAuditStorageDisable{
 			ExternalAuditStorageDisable: e,
 		}
-<<<<<<< HEAD
 	case *SPIFFESVIDIssued:
 		out.Event = &OneOf_SPIFFESVIDIssued{
 			SPIFFESVIDIssued: e,
-=======
+		}
 	case *CreateMFAAuthChallenge:
 		out.Event = &OneOf_CreateMFAAuthChallenge{
 			CreateMFAAuthChallenge: e,
@@ -627,7 +626,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *ValidateMFAAuthResponse:
 		out.Event = &OneOf_ValidateMFAAuthResponse{
 			ValidateMFAAuthResponse: e,
->>>>>>> origin/master
 		}
 
 	default:
