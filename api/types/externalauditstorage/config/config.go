@@ -16,9 +16,9 @@ limitations under the License.
 
 package config
 
-// IntegrationConfExternalAuditStorage contains the arguments of the
-// `teleport integration configure externalauditstorage` command
-type IntegrationConfExternalAuditStorage struct {
+// ExternalAuditStorageConfiguration contains the arguments to configure the
+// External Audit Storage.
+type ExternalAuditStorageConfiguration struct {
 	// Bootstrap is whether to bootstrap infrastructure (default: false).
 	Bootstrap bool
 	// Region is the AWS Region used.
