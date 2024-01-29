@@ -927,24 +927,6 @@ export interface CreateConnectMyComputerNodeTokenResponse {
     token: string;
 }
 /**
- * @generated from protobuf message teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest
- */
-export interface DeleteConnectMyComputerTokenRequest {
-    /**
-     * @generated from protobuf field: string root_cluster_uri = 1;
-     */
-    rootClusterUri: string;
-    /**
-     * @generated from protobuf field: string token = 2;
-     */
-    token: string;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse
- */
-export interface DeleteConnectMyComputerTokenResponse {
-}
-/**
  * @generated from protobuf message teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
  */
 export interface WaitForConnectMyComputerNodeJoinRequest {
@@ -4522,86 +4504,6 @@ class CreateConnectMyComputerNodeTokenResponse$Type extends MessageType<CreateCo
  */
 export const CreateConnectMyComputerNodeTokenResponse = new CreateConnectMyComputerNodeTokenResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class DeleteConnectMyComputerTokenRequest$Type extends MessageType<DeleteConnectMyComputerTokenRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest", [
-            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<DeleteConnectMyComputerTokenRequest>): DeleteConnectMyComputerTokenRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.rootClusterUri = "";
-        message.token = "";
-        if (value !== undefined)
-            reflectionMergePartial<DeleteConnectMyComputerTokenRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DeleteConnectMyComputerTokenRequest): DeleteConnectMyComputerTokenRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string root_cluster_uri */ 1:
-                    message.rootClusterUri = reader.string();
-                    break;
-                case /* string token */ 2:
-                    message.token = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: DeleteConnectMyComputerTokenRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string root_cluster_uri = 1; */
-        if (message.rootClusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
-        /* string token = 2; */
-        if (message.token !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.token);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest
- */
-export const DeleteConnectMyComputerTokenRequest = new DeleteConnectMyComputerTokenRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class DeleteConnectMyComputerTokenResponse$Type extends MessageType<DeleteConnectMyComputerTokenResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse", []);
-    }
-    create(value?: PartialMessage<DeleteConnectMyComputerTokenResponse>): DeleteConnectMyComputerTokenResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<DeleteConnectMyComputerTokenResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DeleteConnectMyComputerTokenResponse): DeleteConnectMyComputerTokenResponse {
-        return target ?? this.create();
-    }
-    internalBinaryWrite(message: DeleteConnectMyComputerTokenResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse
- */
-export const DeleteConnectMyComputerTokenResponse = new DeleteConnectMyComputerTokenResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class WaitForConnectMyComputerNodeJoinRequest$Type extends MessageType<WaitForConnectMyComputerNodeJoinRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest", [
@@ -5444,7 +5346,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "UpdateHeadlessAuthenticationState", options: {}, I: UpdateHeadlessAuthenticationStateRequest, O: UpdateHeadlessAuthenticationStateResponse },
     { name: "CreateConnectMyComputerRole", options: {}, I: CreateConnectMyComputerRoleRequest, O: CreateConnectMyComputerRoleResponse },
     { name: "CreateConnectMyComputerNodeToken", options: {}, I: CreateConnectMyComputerNodeTokenRequest, O: CreateConnectMyComputerNodeTokenResponse },
-    { name: "DeleteConnectMyComputerToken", options: {}, I: DeleteConnectMyComputerTokenRequest, O: DeleteConnectMyComputerTokenResponse },
     { name: "WaitForConnectMyComputerNodeJoin", options: {}, I: WaitForConnectMyComputerNodeJoinRequest, O: WaitForConnectMyComputerNodeJoinResponse },
     { name: "DeleteConnectMyComputerNode", options: {}, I: DeleteConnectMyComputerNodeRequest, O: DeleteConnectMyComputerNodeResponse },
     { name: "GetConnectMyComputerNodeName", options: {}, I: GetConnectMyComputerNodeNameRequest, O: GetConnectMyComputerNodeNameResponse },
