@@ -1506,19 +1506,19 @@ export type RawEvents = {
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: RawEvent<
     typeof eventCodes.CREATE_MFA_AUTH_CHALLENGE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: RawEvent<
     typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: RawEvent<
     typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
 };
