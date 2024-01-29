@@ -26,7 +26,7 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   name: '1234abcd-1234-abcd-1234-abcd1234abcd',
   hostname: 'foo',
   addr: '127.0.0.1:3022',
-  labelsList: [],
+  labels: [],
   subKind: 'teleport',
   ...props,
 });
@@ -44,25 +44,26 @@ export const makeDatabase = (
   desc: '',
   hostname: '',
   addr: '',
-  labelsList: [],
+  labels: [],
   ...props,
 });
 
 export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   name: 'foo',
-  labelsList: [],
+  labels: [],
   uri: '/clusters/bar/kubes/foo',
   ...props,
 });
 
 export const makeApp = (props: Partial<tsh.App> = {}): App => ({
   name: 'foo',
-  labelsList: [],
+  labels: [],
   endpointUri: 'tcp://localhost:3000',
   friendlyName: '',
   desc: '',
   awsConsole: false,
   publicAddr: 'local-app.example.com:3000',
+  fqdn: 'local-app.example.com:3000',
   samlApp: false,
   uri: '/clusters/bar/apps/foo',
   addrWithProtocol: 'tcp://local-app.example.com:3000',
@@ -103,7 +104,7 @@ export const makeLeafCluster = (
 export const makeLoggedInUser = (
   props: Partial<tsh.LoggedInUser> = {}
 ): tsh.LoggedInUser => ({
-  activeRequestsList: [],
+  activeRequests: [],
   assumedRequests: {},
   name: 'alice',
   acl: {
@@ -112,7 +113,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     activeSessions: {
@@ -120,7 +121,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     authConnectors: {
@@ -128,7 +129,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     roles: {
@@ -136,7 +137,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     users: {
@@ -144,7 +145,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     trustedClusters: {
@@ -152,7 +153,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     events: {
@@ -160,7 +161,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     tokens: {
@@ -168,7 +169,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     servers: {
@@ -176,7 +177,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     apps: {
@@ -184,7 +185,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     dbs: {
@@ -192,7 +193,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     kubeservers: {
@@ -200,7 +201,7 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
     accessRequests: {
@@ -208,15 +209,15 @@ export const makeLoggedInUser = (
       read: true,
       edit: true,
       create: true,
-      pb_delete: true,
+      delete: true,
       use: true,
     },
   },
-  sshLoginsList: [],
-  rolesList: [],
-  requestableRolesList: [],
-  suggestedReviewersList: [],
-  userType: tsh.UserType.USER_TYPE_LOCAL,
+  sshLogins: [],
+  roles: [],
+  requestableRoles: [],
+  suggestedReviewers: [],
+  userType: tsh.UserType.LOCAL,
   ...props,
 });
 
@@ -232,8 +233,8 @@ export const makeDatabaseGateway = (
   protocol: 'postgres',
   gatewayCliCommand: {
     path: '/foo/psql',
-    argsList: ['psql', 'localhost:1337'],
-    envList: [],
+    args: ['psql', 'localhost:1337'],
+    env: [],
     preview: 'psql localhost:1337',
   },
   targetSubresourceName: 'bar',
@@ -252,8 +253,8 @@ export const makeKubeGateway = (
   protocol: '',
   gatewayCliCommand: {
     path: '/bin/kubectl',
-    argsList: ['version'],
-    envList: ['KUBECONFIG=/path/to/kubeconfig'],
+    args: ['version'],
+    env: ['KUBECONFIG=/path/to/kubeconfig'],
     preview: 'KUBECONFIG=/path/to/kubeconfig /bin/kubectl version',
   },
   targetSubresourceName: '',
@@ -272,8 +273,8 @@ export const makeAppGateway = (
   gatewayCliCommand: {
     path: '',
     preview: 'curl http://localhost:1337',
-    envList: [],
-    argsList: [],
+    env: [],
+    args: [],
   },
   targetUser: '',
   protocol: 'HTTP',

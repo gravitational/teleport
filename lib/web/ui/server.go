@@ -85,10 +85,7 @@ func (s sortedLabels) Less(i, j int) bool {
 	labelA := strings.ToLower(s[i].Name)
 	labelB := strings.ToLower(s[j].Name)
 
-	// types.CloudLabelPrefixes are label names that we want to always be at the end of
-	// the sorted labels list to reduce visual clutter. This will generally be automatically
-	// discovered cloud provider labels such as azure/aks-managed-createOperationID=123123123123
-	for _, sortName := range types.CloudLabelPrefixes {
+	for _, sortName := range types.BackSortedLabelPrefixes {
 		name := strings.ToLower(sortName)
 		if strings.Contains(labelA, name) && !strings.Contains(labelB, name) {
 			return false // labelA should be at the end
@@ -162,6 +159,7 @@ func MakeServers(clusterName string, servers []types.Server, accessChecker servi
 type EKSCluster struct {
 	Name       string  `json:"name"`
 	Region     string  `json:"region"`
+	Arn        string  `json:"arn"`
 	Labels     []Label `json:"labels"`
 	JoinLabels []Label `json:"joinLabels"`
 	Status     string  `json:"status"`
@@ -204,6 +202,7 @@ func MakeEKSClusters(clusters []awsoidc.EKSCluster) []EKSCluster {
 		uiEKSClusters = append(uiEKSClusters, EKSCluster{
 			Name:       cluster.Name,
 			Region:     cluster.Region,
+			Arn:        cluster.Arn,
 			Labels:     makeLabels(cluster.Labels),
 			JoinLabels: makeLabels(cluster.JoinLabels),
 			Status:     cluster.Status,

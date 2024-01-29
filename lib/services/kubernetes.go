@@ -292,6 +292,7 @@ func labelsFromAWSKubeClusterTags(tags map[string]*string, parsedARN arn.ARN) ma
 	labels[types.CloudLabel] = types.CloudAWS
 	labels[types.DiscoveryLabelRegion] = parsedARN.Region
 	labels[types.DiscoveryLabelAccountID] = parsedARN.AccountID
+	labels[types.DiscoveryLabelAWSArn] = parsedARN.String()
 	return labels
 }
 

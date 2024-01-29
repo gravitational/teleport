@@ -23,12 +23,11 @@ ifneq ("$(wildcard /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := with-BPF-support
-CLANG ?= $(shell which clang || which clang-12)
-LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-12)
+CLANG ?= $(shell which clang || which clang-14)
+LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-14)
 KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/g; s/aarch64/arm64/g')
 INCLUDES :=
 ER_BPF_BUILDDIR := lib/bpf/bytecode
-RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some

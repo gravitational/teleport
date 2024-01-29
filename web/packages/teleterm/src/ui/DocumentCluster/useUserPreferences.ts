@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 
 import {
   useAsync,
@@ -32,10 +32,10 @@ import {
 
 import {
   DefaultTab,
-  ViewMode,
-  UnifiedResourcePreferences,
   LabelsViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -62,16 +62,16 @@ export function useUserPreferences(clusterUri: ClusterUri): {
         routing.ensureRootClusterUri(clusterUri)
       )
     ) || {
-      defaultTab: DefaultTab.DEFAULT_TAB_ALL,
-      viewMode: ViewMode.VIEW_MODE_CARD,
-      labelsViewMode: LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+      defaultTab: DefaultTab.ALL,
+      viewMode: ViewMode.CARD,
+      labelsViewMode: LabelsViewMode.COLLAPSED,
     }
   );
   const [clusterPreferences, setClusterPreferences] = useState<
     UserPreferences['clusterPreferences']
   >({
     // we pass an empty array, so pinning is enabled by default
-    pinnedResources: { resourceIdsList: [] },
+    pinnedResources: { resourceIds: [] },
   });
 
   const [initialFetchAttempt, runInitialFetchAttempt] = useAsync(
@@ -95,13 +95,16 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     useState<Attempt<void>>(makeEmptyAttempt());
 
   const [, runUpdateAttempt] = useAsync(
-    async (newPreferences: UserPreferences) =>
-      retryWithRelogin(appContext, clusterUri, () =>
-        appContext.tshd.updateUserPreferences({
-          clusterUri,
-          userPreferences: newPreferences,
-        })
-      )
+    useCallback(
+      async (newPreferences: UserPreferences) =>
+        retryWithRelogin(appContext, clusterUri, () =>
+          appContext.tshd.updateUserPreferences({
+            clusterUri,
+            userPreferences: newPreferences,
+          })
+        ),
+      [appContext, clusterUri]
+    )
   );
 
   const updateUnifiedResourcePreferencesStateAndWorkspace = useCallback(
@@ -190,15 +193,21 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   );
 
   return {
-    userPreferencesAttempt:
-      supersededInitialFetchAttempt.status !== ''
-        ? supersededInitialFetchAttempt
-        : mapAttempt(initialFetchAttempt, () => undefined),
+    userPreferencesAttempt: useMemo(
+      () =>
+        supersededInitialFetchAttempt.status !== ''
+          ? supersededInitialFetchAttempt
+          : mapAttempt(initialFetchAttempt, () => undefined),
+      [initialFetchAttempt, supersededInitialFetchAttempt]
+    ),
     updateUserPreferences,
-    userPreferences: {
-      unifiedResourcePreferences,
-      clusterPreferences,
-    },
+    userPreferences: useMemo(
+      () => ({
+        unifiedResourcePreferences,
+        clusterPreferences,
+      }),
+      [clusterPreferences, unifiedResourcePreferences]
+    ),
   };
 }
 
@@ -212,17 +221,16 @@ function mergeWithDefaultUnifiedResourcePreferences(
   return {
     defaultTab: unifiedResourcePreferences
       ? unifiedResourcePreferences.defaultTab
-      : DefaultTab.DEFAULT_TAB_ALL,
+      : DefaultTab.ALL,
     viewMode:
       unifiedResourcePreferences &&
-      unifiedResourcePreferences.viewMode !== ViewMode.VIEW_MODE_UNSPECIFIED
+      unifiedResourcePreferences.viewMode !== ViewMode.UNSPECIFIED
         ? unifiedResourcePreferences.viewMode
-        : ViewMode.VIEW_MODE_CARD,
+        : ViewMode.CARD,
     labelsViewMode:
       unifiedResourcePreferences &&
-      unifiedResourcePreferences.labelsViewMode !==
-        LabelsViewMode.LABELS_VIEW_MODE_UNSPECIFIED
+      unifiedResourcePreferences.labelsViewMode !== LabelsViewMode.UNSPECIFIED
         ? unifiedResourcePreferences.labelsViewMode
-        : LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+        : LabelsViewMode.COLLAPSED,
   };
 }

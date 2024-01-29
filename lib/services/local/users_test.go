@@ -41,8 +41,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -209,67 +209,6 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		require.NoError(t, err)
 		_, err = identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
 		require.True(t, trace.IsNotFound(err))
-	})
-}
-
-func TestRecoveryAttemptsCRUD(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-	identity := newIdentityService(t, clock)
-
-	// Predefine times for equality check.
-	time1 := clock.Now()
-	time2 := time1.Add(2 * time.Minute)
-	time3 := time1.Add(4 * time.Minute)
-
-	t.Run("create, get, and delete recovery attempts", func(t *testing.T) {
-		username := "someuser"
-
-		// Test creation of recovery attempt.
-		err := identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
-		require.NoError(t, err)
-		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time1, Expires: time3})
-		require.NoError(t, err)
-		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time2, Expires: time3})
-		require.NoError(t, err)
-
-		// Test retrieving attempts sorted by oldest to latest.
-		attempts, err := identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Len(t, attempts, 3)
-		require.WithinDuration(t, time1, attempts[0].Time, time.Second)
-		require.WithinDuration(t, time2, attempts[1].Time, time.Second)
-		require.WithinDuration(t, time3, attempts[2].Time, time.Second)
-
-		// Test delete all recovery attempts.
-		err = identity.DeleteUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Empty(t, attempts)
-	})
-
-	t.Run("deleting user deletes recovery attempts", func(t *testing.T) {
-		username := "someuser2"
-
-		// Create a user, to test deletion of recovery attempts with user.
-		userResource := &types.UserV2{}
-		userResource.SetName(username)
-		_, err := identity.CreateUser(ctx, userResource)
-		require.NoError(t, err)
-
-		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
-		require.NoError(t, err)
-		attempts, err := identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Len(t, attempts, 1)
-
-		err = identity.DeleteUser(ctx, username)
-		require.NoError(t, err)
-		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Empty(t, attempts)
 	})
 }
 
@@ -619,16 +558,16 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	const user2 = "alpaca"
 	// Prepare a few different objects so we can assert that both "user" and
 	// "session" key components are used correctly.
-	user1Reg := &wanpb.SessionData{
+	user1Reg := &wantypes.SessionData{
 		Challenge: []byte("challenge1-reg"),
 		UserId:    []byte("llamaid"),
 	}
-	user1Login := &wanpb.SessionData{
+	user1Login := &wantypes.SessionData{
 		Challenge:        []byte("challenge1-login"),
 		UserId:           []byte("llamaid"),
 		AllowCredentials: [][]byte{[]byte("cred1"), []byte("cred2")},
 	}
-	user2Login := &wanpb.SessionData{
+	user2Login := &wantypes.SessionData{
 		Challenge: []byte("challenge2"),
 		UserId:    []byte("alpacaid"),
 	}
@@ -638,7 +577,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	const loginSession = "login"
 	params := []struct {
 		user, session string
-		sd            *wanpb.SessionData
+		sd            *wantypes.SessionData
 	}{
 		{user: user1, session: registerSession, sd: user1Reg},
 		{user: user1, session: loginSession, sd: user1Login},
@@ -662,7 +601,7 @@ func TestIdentityService_WebauthnSessionDataCRUD(t *testing.T) {
 	}
 
 	// Verify upsert/update.
-	user1Reg = &wanpb.SessionData{
+	user1Reg = &wantypes.SessionData{
 		Challenge: []byte("challenge1reg--another"),
 		UserId:    []byte("llamaid"),
 	}
@@ -690,23 +629,23 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
-	user1Login1 := &wanpb.SessionData{
+	user1Login1 := &wantypes.SessionData{
 		Challenge:        []byte("challenge1"),
 		UserId:           []byte("user1-web-id"),
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user1Login2 := &wanpb.SessionData{
+	user1Login2 := &wantypes.SessionData{
 		Challenge:        []byte("challenge2"),
 		UserId:           []byte("user1-web-id"),
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user1Registration := &wanpb.SessionData{
+	user1Registration := &wantypes.SessionData{
 		Challenge:        []byte("challenge3"),
 		UserId:           []byte("user1-web-id"),
 		ResidentKey:      true,
 		UserVerification: string(protocol.VerificationRequired),
 	}
-	user2Login := &wanpb.SessionData{
+	user2Login := &wantypes.SessionData{
 		Challenge:        []byte("challenge4"),
 		UserId:           []byte("user2-web-id"),
 		ResidentKey:      true,
@@ -719,7 +658,7 @@ func TestIdentityService_GlobalWebauthnSessionDataCRUD(t *testing.T) {
 	const scopeRegister = "register"
 	params := []struct {
 		scope, id string
-		sd        *wanpb.SessionData
+		sd        *wantypes.SessionData
 	}{
 		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user1Login1.Challenge), sd: user1Login1},
 		{scope: scopeLogin, id: base64.RawURLEncoding.EncodeToString(user1Login2.Challenge), sd: user1Login2},
@@ -773,6 +712,7 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 		local.GlobalSessionDataMaxEntries = sdMax
 		local.SessionDataLimiter.Clock = sdClock
 		local.SessionDataLimiter.ResetPeriod = sdReset
+		local.SessionDataLimiter.Reset()
 	}()
 	fakeClock := clockwork.NewFakeClock()
 	period := 1 * time.Minute // arbitrary, applied to fakeClock
@@ -780,13 +720,15 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	local.SessionDataLimiter.Clock = fakeClock
 	local.SessionDataLimiter.ResetPeriod = period
 
-	const scopeLogin = "login"
-	const scopeOther = "other"
+	// Add some randomness to the scopes to avoid high -count runs tripping on
+	// each other.
+	scopeLogin := "login" + uuid.NewString()
+	scopeOther := "other" + uuid.NewString()
 	const id1 = "challenge1"
 	const id2 = "challenge2"
 	const id3 = "challenge3"
 	const id4 = "challenge4"
-	sd := &wanpb.SessionData{
+	sd := &wantypes.SessionData{
 		Challenge:        []byte("supersecretchallenge"), // typically matches the key
 		UserVerification: "required",
 	}

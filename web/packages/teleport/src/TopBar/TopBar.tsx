@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { lazy, Suspense, useState } from 'react';
+import React from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Link } from 'react-router-dom';
 import { Flex, Image, Text, TopNav } from 'design';
@@ -24,8 +24,9 @@ import { Flex, Image, Text, TopNav } from 'design';
 import { matchPath, useHistory } from 'react-router';
 
 import { BrainIcon } from 'design/SVGIcon';
+import { Theme } from 'design/theme/themes/types';
 
-import { ArrowLeft, Server, SlidersVertical } from 'design/Icon';
+import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import useTeleport from 'teleport/useTeleport';
@@ -34,35 +35,25 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
-
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
-import { useUser } from 'teleport/User/UserContext';
-import { ViewMode } from 'teleport/Assist/types';
 
 import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
 import logoLight from './logoLight.svg';
 import logoDark from './logoDark.svg';
 
-const Assist = lazy(() => import('teleport/Assist'));
-
-export function TopBar({ CustomLogo }: TopBarProps) {
+export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
   const ctx = useTeleport();
-  const { preferences } = useUser();
-  const viewMode = preferences?.assist?.viewMode;
   const { clusterId } = useStickyClusterId();
   const history = useHistory();
   const features = useFeatures();
-  const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
   const topBarLinks = features.filter(
     feature =>
       feature.category === NavigationCategory.Resources && feature.topMenuItem
   );
-
-  const [showAssist, setShowAssist] = useState(false);
-
-  const { hasDockedElement } = useLayout();
+  const { hasDockedElement, currentWidth } = useLayout();
+  const theme: Theme = useTheme();
 
   // find active feature
   const feature = features
@@ -87,12 +78,15 @@ export function TopBar({ CustomLogo }: TopBarProps) {
     history?.location?.pathname === cfg.getUnifiedResourcesRoute(clusterId);
   const managementTabSelected =
     feature?.category === NavigationCategory.Management;
+  const downloadTabSelected =
+    history?.location?.pathname === cfg.routes.downloadCenter;
+  const iconSize =
+    currentWidth >= theme.breakpoints.medium
+      ? navigationIconSizeMedium
+      : navigationIconSizeSmall;
 
   return (
-    <TopBarContainer
-      navigationHidden={feature?.hideNavigation}
-      dockedView={showAssist && viewMode === ViewMode.Docked}
-    >
+    <TopBarContainer navigationHidden={feature?.hideNavigation}>
       {!feature?.hideNavigation && (
         <>
           <TeleportLogo CustomLogo={CustomLogo} />
@@ -107,57 +101,34 @@ export function TopBar({ CustomLogo }: TopBarProps) {
               }
             `}
           >
-            <NavigationButton
-              selected={resourceTabSelected}
-              to={cfg.getUnifiedResourcesRoute(clusterId)}
-              title="Resources"
-            >
-              <Server
-                color={resourceTabSelected ? 'text.main' : 'text.muted'}
+            {cfg.isDashboard ? (
+              <MainNavItem
+                name="Downloads"
+                to={cfg.routes.downloadCenter}
+                isSelected={downloadTabSelected}
+                size={iconSize}
+                Icon={Download}
               />
-              <Text
-                ml={3}
-                fontSize={18}
-                fontWeight={500}
-                css={`
-                  display: none;
-                  @media screen and (min-width: ${p =>
-                      p.theme.breakpoints.medium}px) {
-                    display: block;
-                  }
-                `}
-                color={resourceTabSelected ? 'text.main' : 'text.muted'}
-              >
-                Resources
-              </Text>
-            </NavigationButton>
-            <NavigationButton
-              selected={managementTabSelected}
+            ) : (
+              <MainNavItem
+                name="Resources"
+                to={cfg.getUnifiedResourcesRoute(clusterId)}
+                isSelected={resourceTabSelected}
+                size={iconSize}
+                Icon={Server}
+              />
+            )}
+            <MainNavItem
+              name="Access Management"
               to={getFirstRouteForCategory(
                 features,
                 NavigationCategory.Management
               )}
-              title="Access Management"
-            >
-              <SlidersVertical
-                color={managementTabSelected ? 'text.main' : 'text.muted'}
-              />
-              <Text
-                ml={3}
-                fontSize={18}
-                fontWeight={500}
-                css={`
-                  display: none;
-                  @media screen and (min-width: ${p =>
-                      p.theme.breakpoints.medium}px) {
-                    display: block;
-                  }
-                `}
-                color={managementTabSelected ? 'text.main' : 'text.muted'}
-              >
-                Access Management
-              </Text>
-            </NavigationButton>
+              size={iconSize}
+              isSelected={managementTabSelected}
+              Icon={SlidersVertical}
+            />
+
             {topBarLinks.map(({ topMenuItem, navigationItem }) => {
               const selected = history.location.pathname.includes(
                 navigationItem.getLink(clusterId)
@@ -176,6 +147,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
                 >
                   <topMenuItem.icon
                     color={selected ? 'text.main' : 'text.muted'}
+                    size={iconSize}
                   />
                 </NavigationButton>
               );
@@ -183,33 +155,27 @@ export function TopBar({ CustomLogo }: TopBarProps) {
           </Flex>
         </>
       )}
-      {feature?.hideFromNavigation && (
+      {feature?.hideNavigation && (
         <ButtonIconContainer onClick={handleBack}>
           <ArrowLeft size="medium" />
         </ButtonIconContainer>
       )}
       <Flex height="100%" alignItems="center">
-        {!hasDockedElement && assistEnabled && (
-          <ButtonIconContainer onClick={() => setShowAssist(true)}>
-            <BrainIcon />
+        {!hasDockedElement && assistProps?.assistEnabled && (
+          <ButtonIconContainer onClick={() => assistProps?.setShowAssist(true)}>
+            <BrainIcon size={iconSize} />
           </ButtonIconContainer>
         )}
-        <Notifications />
+        <Notifications iconSize={iconSize} />
         <UserMenuNav username={ctx.storeUser.state.username} />
-        {showAssist && (
-          <Suspense fallback={null}>
-            <Assist onClose={() => setShowAssist(false)} />
-          </Suspense>
-        )}
       </Flex>
     </TopBarContainer>
   );
 }
 
-const assistDockedWidth = `width: calc(100% - 520px);`;
 export const TopBarContainer = styled(TopNav)`
   position: absolute;
-  ${props => (props.dockedView ? assistDockedWidth : 'width: 100%;')}
+  width: 100%;
   display: flex;
   justify-content: space-between;
   background: ${p => p.theme.colors.levels.surface};
@@ -241,18 +207,19 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
       tipContent="Teleport Resources Home"
       css={`
         height: 100%;
+        margin-right: 0px;
+        @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+          margin-right: 76px;
+        }
+        @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+          margin-right: 67px;
+        }
       `}
     >
       <Link
         css={`
           cursor: pointer;
-          height: 100%;
           display: flex;
-          width: 190px;
-          @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
-            width: 256px;
-          }
-
           transition: background-color 0.1s linear;
           &:hover {
             background-color: ${p =>
@@ -271,11 +238,13 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
             alt="teleport logo"
             css={`
               padding-left: ${props => props.theme.space[3]}px;
+              padding-right: ${props => props.theme.space[3]}px;
               height: 18px;
               @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.medium}px) {
+                  p.theme.breakpoints.small}px) {
                 height: 28px;
                 padding-left: ${props => props.theme.space[4]}px;
+                padding-right: ${props => props.theme.space[4]}px;
               }
               @media screen and (min-width: ${p =>
                   p.theme.breakpoints.large}px) {
@@ -289,6 +258,8 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
   );
 };
 
+export const navigationIconSizeSmall = 20;
+export const navigationIconSizeMedium = 24;
 const NavigationButton = ({
   to,
   selected,
@@ -299,11 +270,11 @@ const NavigationButton = ({
   to: string;
   selected: boolean;
   children: React.ReactNode;
-  title: string;
+  title?: string;
 }) => {
   const theme = useTheme();
   const selectedBorder = `2px solid ${theme.colors.brand}`;
-  const selectedBackground = theme.colors.interactive.tonal.primary[0];
+  const selectedBackground = theme.colors.interactive.tonal.neutral[0];
 
   return (
     <HoverTooltip
@@ -317,6 +288,7 @@ const NavigationButton = ({
       <Link
         to={to}
         css={`
+          box-sizing: border-box;
           text-decoration: none;
           color: rgba(0, 0, 0, 0.54);
           height: 100%;
@@ -350,13 +322,62 @@ const NavigationButton = ({
   );
 };
 
+const MainNavItem = ({
+  isSelected,
+  to,
+  size,
+  name,
+  Icon,
+}: {
+  isSelected: boolean;
+  to: string;
+  size: number;
+  name: string;
+  Icon: (props: { color: string; size: number }) => JSX.Element;
+}) => {
+  const { currentWidth } = useLayout();
+  const theme: Theme = useTheme();
+  const mediumAndUp = currentWidth >= theme.breakpoints.medium;
+  const largeAndUp = currentWidth >= theme.breakpoints.large;
+  return (
+    <NavigationButton
+      selected={isSelected}
+      to={to}
+      title={!mediumAndUp ? name : ''}
+    >
+      <Icon color={isSelected ? 'text.main' : 'text.muted'} size={size} />
+      <Text
+        ml={3}
+        fontSize={largeAndUp ? 4 : 3}
+        fontWeight={500}
+        color={isSelected ? 'text.main' : 'text.muted'}
+        css={`
+          display: none;
+          @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+            display: block;
+          }
+        `}
+      >
+        {name}
+      </Text>
+    </NavigationButton>
+  );
+};
+
 export type NavigationItem = {
   title: string;
   path: string;
   Icon: JSX.Element;
 };
 
+export type AssistProps = {
+  showAssist: boolean;
+  setShowAssist: (show: boolean) => void;
+  assistEnabled: boolean;
+};
+
 export type TopBarProps = {
   CustomLogo?: () => React.ReactElement;
   showPoweredByLogo?: boolean;
+  assistProps?: AssistProps;
 };

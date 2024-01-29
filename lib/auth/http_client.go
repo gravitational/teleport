@@ -338,22 +338,6 @@ func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	return &re, nil
 }
 
-// RotateExternalCertAuthority rotates external certificate authority,
-// this method is used to update only public keys and certificates of the
-// the certificate authorities of trusted clusters.
-func (c *HTTPClient) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
-	if err := services.ValidateCertAuthority(ca); err != nil {
-		return trace.Wrap(err)
-	}
-	data, err := services.MarshalCertAuthority(ca)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = c.PostJSON(ctx, c.Endpoint("authorities", string(ca.GetType()), "rotate", "external"),
-		&rotateExternalCertAuthorityRawReq{CA: data})
-	return trace.Wrap(err)
-}
-
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via CreateToken/UpsertToken.
 func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {

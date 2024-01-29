@@ -125,13 +125,6 @@ func tagPipelines() []pipeline {
 		pipelineName: "build-oci",
 		trigger:      triggerTag,
 		buildType:    buildType{fips: false},
-		dependsOn: []string{
-			"build-linux-amd64",
-			"build-linux-amd64-fips",
-			"build-linux-arm64",
-			"build-linux-arm64-fips",
-			"build-linux-arm",
-		},
 		workflows: []ghaWorkflow{
 			{
 				name:              "release-teleport-oci.yaml",

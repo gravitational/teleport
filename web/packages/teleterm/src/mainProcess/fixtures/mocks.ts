@@ -131,6 +131,8 @@ export class MockMainProcessClient implements MainProcessClient {
   async tryRemoveConnectMyComputerAgentBinary() {}
 
   signalUserInterfaceReadiness() {}
+
+  refreshClusterList() {}
 }
 
 export const makeRuntimeSettings = (

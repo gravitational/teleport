@@ -1180,16 +1180,22 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	var stream *streamproto.SessionStream
+	// Close the stream when we exit to ensure no goroutines are leaked and
+	// to ensure the client gets a close message in case of an error.
+	defer func() {
+		if stream != nil {
+			stream.Close()
+		}
+	}()
 	if err := func() error {
-		stream, err := streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
+		stream, err = streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		client := &websocketClientStreams{stream}
 		party := newParty(*ctx, stream.Mode, client)
-		defer party.CloseConnection()
 
 		err = session.join(party, true /* emitSessionJoinEvent */)
 		if err != nil {
@@ -1308,10 +1314,7 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 	}
 	defer wsSource.Close()
 
-	err = wsProxy(wsSource, wsTarget)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	wsProxy(f.log, wsSource, wsTarget)
 
 	return nil, nil
 }
@@ -1336,57 +1339,63 @@ func (f *Forwarder) getSessionHostID(ctx context.Context, authCtx *authContext, 
 
 // wsProxy proxies a websocket connection between two clusters transparently to allow for
 // remote joins.
-func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
-	closeM := make(chan struct{})
-	errS := make(chan error)
-	errT := make(chan error)
+func wsProxy(log logrus.FieldLogger, wsSource *websocket.Conn, wsTarget *websocket.Conn) {
+	errS := make(chan error, 1)
+	errT := make(chan error, 1)
+	wg := &sync.WaitGroup{}
 
-	go func() {
+	forwardConn := func(dst, src *websocket.Conn, errc chan<- error) {
+		defer dst.Close()
+		defer src.Close()
 		for {
-			ty, data, err := wsSource.ReadMessage()
+			msgType, msg, err := src.ReadMessage()
 			if err != nil {
-				wsSource.Close()
-				errS <- trace.Wrap(err)
-				return
+				m := websocket.FormatCloseMessage(websocket.CloseNormalClosure, err.Error())
+				var e *websocket.CloseError
+				if errors.As(err, &e) {
+					if e.Code != websocket.CloseNoStatusReceived {
+						m = websocket.FormatCloseMessage(e.Code, e.Text)
+					}
+				}
+				errc <- err
+				dst.WriteMessage(websocket.CloseMessage, m)
+				break
 			}
 
-			wsTarget.WriteMessage(ty, data)
-
-			if ty == websocket.CloseMessage {
-				closeM <- struct{}{}
-				return
+			err = dst.WriteMessage(msgType, msg)
+			if err != nil {
+				errc <- err
+				break
 			}
 		}
+	}
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		forwardConn(wsSource, wsTarget, errS)
 	}()
-
 	go func() {
-		for {
-			ty, data, err := wsTarget.ReadMessage()
-			if err != nil {
-				wsTarget.Close()
-				errT <- trace.Wrap(err)
-				return
-			}
-
-			wsSource.WriteMessage(ty, data)
-
-			if ty == websocket.CloseMessage {
-				closeM <- struct{}{}
-				return
-			}
-		}
+		defer wg.Done()
+		forwardConn(wsTarget, wsSource, errT)
 	}()
 
 	var err error
+	var from, to string
 	select {
 	case err = <-errS:
-		wsTarget.WriteMessage(websocket.CloseMessage, []byte{})
+		from = "client"
+		to = "upstream"
 	case err = <-errT:
-		wsSource.WriteMessage(websocket.CloseMessage, []byte{})
-	case <-closeM:
+		from = "upstream"
+		to = "client"
 	}
 
-	return trace.Wrap(err)
+	var websocketErr *websocket.CloseError
+	if errors.As(err, &websocketErr) && websocketErr.Code == websocket.CloseAbnormalClosure {
+		log.WithError(err).Debugf("websocket proxy: Error when copying from %s to %s", from, to)
+	}
+	wg.Wait()
 }
 
 // acquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.

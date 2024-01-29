@@ -18,16 +18,14 @@
 
 import { FileTransferListeners } from 'shared/components/FileTransfer';
 
-import {
-  FileTransferDirection,
-  FileTransferRequest,
-  TshClient,
-} from 'teleterm/services/tshd/types';
+import { FileTransferDirection } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
+import { FileTransferRequest, TshdClient } from 'teleterm/services/tshd/types';
 import { UsageService } from 'teleterm/ui/services/usage';
 
 export class FileTransferService {
   constructor(
-    private tshClient: TshClient,
+    private tshClient: TshdClient,
     private usageService: UsageService
   ) {}
 
@@ -52,17 +50,12 @@ export class FileTransferService {
       { once: true }
     );
     const listeners = this.tshClient.transferFile(options, abortSignal);
-    if (
-      options.direction ===
-      FileTransferDirection.FILE_TRANSFER_DIRECTION_DOWNLOAD
-    ) {
+    if (options.direction === FileTransferDirection.DOWNLOAD) {
       this.usageService.captureFileTransferRun(options.serverUri, {
         isUpload: false,
       });
     }
-    if (
-      options.direction === FileTransferDirection.FILE_TRANSFER_DIRECTION_UPLOAD
-    ) {
+    if (options.direction === FileTransferDirection.UPLOAD) {
       this.usageService.captureFileTransferRun(options.serverUri, {
         isUpload: true,
       });

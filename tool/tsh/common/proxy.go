@@ -70,10 +70,11 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
 		target := net.JoinHostPort(targetHost, targetPort)
 
-		conn, _, err := clt.ProxyClient.DialHost(cf.Context, target, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
+		conn, _, err := clt.DialHostWithResumption(cf.Context, target, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		defer conn.Close()
 
 		stdio := utils.CombineReadWriteCloser(io.NopCloser(os.Stdin), utils.NopWriteCloser(os.Stdout))
@@ -235,12 +236,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]any{
-			"database":   dbInfo.ServiceName,
-			"address":    listener.Addr().String(),
-			"ca":         profile.CACertPathForCluster(rootCluster),
-			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
-			"key":        profile.KeyPath(),
-			"randomPort": randomPort,
+			"database":     dbInfo.ServiceName,
+			"address":      listener.Addr().String(),
+			"ca":           profile.CACertPathForCluster(rootCluster),
+			"cert":         profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
+			"key":          profile.KeyPath(),
+			"randomPort":   randomPort,
+			"databaseUser": dbInfo.Username,
+			"databaseName": dbInfo.Database,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -659,6 +662,9 @@ Use the following credentials to connect to the {{.database}} proxy:
   ca_file={{.ca}}
   cert_file={{.cert}}
   key_file={{.key}}
+
+Your database user is "{{.databaseUser}}".{{if .databaseName}} The target database name is "{{.databaseName}}".{{end}}
+
 `))
 
 var templateFunctions = map[string]any{

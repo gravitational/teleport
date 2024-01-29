@@ -788,6 +788,8 @@ const (
 	DiscoveryLabelWorkgroup = "workgroup"
 	// DiscoveryLabelStatus is the label key containing the database status, e.g. "available"
 	DiscoveryLabelStatus = "status"
+	// DiscoveryLabelAWSArn is an internal label that contains AWS Arn of the resource.
+	DiscoveryLabelAWSArn = TeleportInternalLabelPrefix + "aws-arn"
 
 	// DiscoveryLabelAzureSubscriptionID is the label key for Azure subscription ID.
 	DiscoveryLabelAzureSubscriptionID = "subscription-id"
@@ -824,9 +826,11 @@ const (
 	DiscoveryLabelLDAPPrefix = "ldap/"
 )
 
-// CloudLabelPrefixes are prefixes used by cloud labels, generally added when
-// using automatic discovery
-var CloudLabelPrefixes = []string{CloudAWS, CloudAzure, CloudGCP, DiscoveryLabelLDAPPrefix}
+// BackSortedLabelPrefixes are label names that we want to always be at the end of
+// the sorted labels list to reduce visual clutter. This will generally be automatically
+// discovered cloud provider labels such as azure/aks-managed-createOperationID=123123123123
+// or internal labels
+var BackSortedLabelPrefixes = []string{CloudAWS, CloudAzure, CloudGCP, DiscoveryLabelLDAPPrefix, TeleportNamespace}
 
 const (
 	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels. Those labels

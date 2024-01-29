@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { debounce } from 'shared/utils/highbar';
+
 import {
   MainProcessClient,
   ElectronGlobals,
@@ -38,7 +40,7 @@ import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
 import { ConfigService } from 'teleterm/services/config';
-import { TshClient } from 'teleterm/services/tshd/types';
+import { TshdClient } from 'teleterm/services/tshd/types';
 import { IAppContext } from 'teleterm/ui/types';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
@@ -60,7 +62,7 @@ export default class AppContext implements IAppContext {
   connectionTracker: ConnectionTrackerService;
   fileTransferService: FileTransferService;
   resourcesService: ResourcesService;
-  tshd: TshClient;
+  tshd: TshdClient;
   /**
    * setupTshdEventContextBridgeService adds a context-bridge-compatible version of a gRPC service
    * that's going to be called every time a client makes a particular RPC to the tshd events
@@ -166,6 +168,7 @@ export default class AppContext implements IAppContext {
     );
 
     this.subscribeToDeepLinkLaunch();
+    this.notifyMainProcessAboutClusterListChanges();
     this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
   }
@@ -185,5 +188,24 @@ export default class AppContext implements IAppContext {
         });
       };
     }
+  }
+
+  private notifyMainProcessAboutClusterListChanges() {
+    // Debounce the notifications sent to the main process so that we don't unnecessarily send more
+    // than one notification per frame. The main process doesn't need to be notified absolutely
+    // immediately after a change in the cluster list.
+    //
+    // The clusters map in ClustersService gets updated a bunch of times during the start of the
+    // app. After each update, the renderer tells the main process to refresh the list. The main
+    // process sends a request to list root clusters and cancels any pending ones. Debouncing here
+    // helps to minimize those cancellations.
+    const refreshClusterList = debounce(
+      this.mainProcessClient.refreshClusterList,
+      16
+    );
+    this.clustersService.subscribeWithSelector(
+      state => state.clusters,
+      refreshClusterList
+    );
   }
 }
