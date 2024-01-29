@@ -106,9 +106,15 @@ export function TextSelectCopyMulti({
                     right: 0px;
                   `}
                 >
+                  <StyledButtonSecondary onClick={() => onCopyClick(index)}>
+                    <Icon className="icon-container">
+                      <Copy data-testid="btn-copy" color="light" size={16} />
+                      <Check data-testid="btn-check" color="light" size={16} />
+                    </Icon>
+                  </StyledButtonSecondary>
                   {saveContent.save && (
                     <StyledButtonSecondary
-                      mr={2}
+                      ml={2}
                       onClick={() => saveContentAsFile(line.text)}
                     >
                       <Download
@@ -118,12 +124,6 @@ export function TextSelectCopyMulti({
                       />
                     </StyledButtonSecondary>
                   )}
-                  <StyledButtonSecondary onClick={() => onCopyClick(index)}>
-                    <Icon className="icon-container">
-                      <Copy data-testid="btn-copy" color="light" size={16} />
-                      <Check data-testid="btn-check" color="light" size={16} />
-                    </Icon>
-                  </StyledButtonSecondary>
                 </Box>
               </Flex>
             </Box>
