@@ -20,7 +20,7 @@ import React, { useState, useRef } from 'react';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import { ButtonBorder, MenuItem, Flex } from 'design';
-import { ChevronDown } from 'design/Icon';
+import * as icons from 'design/Icon';
 import Menu from 'design/Menu';
 
 import {
@@ -266,7 +266,11 @@ function AppButton(props: {
           size="small"
           onClick={() => setIsOpen(true)}
         >
-          <ChevronDown size="small" color="text.slightlyMuted" />
+          {/*
+            Using MoreVert instead of ChevronDown to make this button visually distinct from the
+            button that launches an AWS app.
+          */}
+          <icons.MoreVert size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           anchorEl={ref.current}
