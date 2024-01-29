@@ -28,9 +28,10 @@ import (
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // TestConfigureExternalAuditStorage tests that ConfigureExternalAuditStorage
