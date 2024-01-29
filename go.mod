@@ -75,6 +75,7 @@ require (
 	github.com/distribution/reference v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-elasticsearch/v8 v8.11.1
+	github.com/elimity-com/scim v0.0.0-20230426070224-941a5eac92f3
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
 	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
 	github.com/fsouza/fake-gcs-server v1.47.7
@@ -151,6 +152,7 @@ require (
 	github.com/russellhaering/goxmldsig v1.4.0
 	github.com/sashabaranov/go-openai v1.17.10
 	github.com/schollz/progressbar/v3 v3.14.1
+	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/segmentio/parquet-go v0.0.0-20230622230624-510764ae9e80
 	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sigstore/cosign/v2 v2.2.2
@@ -280,6 +282,8 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/daviddengcn/go-colortext v1.0.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/di-wu/parser v0.2.2 // indirect
+	github.com/di-wu/xsd-datetime v1.0.0 // indirect
 	github.com/digitorus/timestamp v0.0.0-20230902153158-687734543647 // indirect
 	github.com/dlclark/regexp2 v1.9.0 // indirect
 	github.com/dmarkham/enumer v1.5.9 // indirect
