@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
@@ -34,7 +34,6 @@ import {
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { isAccessDeniedError } from 'teleterm/services/tshd/errors';
 import { useResourcesContext } from 'teleterm/ui/DocumentCluster/resourcesContext';
-import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { DocumentConnectMyComputer } from 'teleterm/ui/services/workspacesService';
 
 import { useAgentProperties } from '../useAgentProperties';
@@ -202,7 +201,6 @@ function AccessError(props: { access: ConnectMyComputerAccessNoAccess }) {
 }
 
 function AgentSetup() {
-  const logger = useLogger('AgentSetup');
   const ctx = useAppContext();
   const { mainProcessClient, notificationsService } = ctx;
   const { rootClusterUri } = useWorkspaceContext();
