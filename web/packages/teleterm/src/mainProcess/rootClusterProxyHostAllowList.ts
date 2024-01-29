@@ -72,6 +72,10 @@ export function manageRootClusterProxyHostAllowList({
 
     allowList.clear();
     for (const rootCluster of rootClusters) {
+      if (!rootCluster.proxyHost) {
+        continue;
+      }
+
       let browserProxyHost: string;
       try {
         browserProxyHost = proxyHostToBrowserProxyHost(rootCluster.proxyHost);
@@ -80,7 +84,7 @@ export function manageRootClusterProxyHostAllowList({
           'Ran into an error when converting proxy host to browser proxy host',
           error
         );
-        return;
+        continue;
       }
 
       allowList.add(browserProxyHost);
