@@ -87,6 +87,18 @@ tests:
           path: spec.replicas
           value: 1
 
+  - it: should have multiple replicas by default when an ingress is terminating TLS
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+      ingress:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
   - it: should set affinity when set in values
     template: proxy/deployment.yaml
     set:
