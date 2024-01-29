@@ -136,7 +136,7 @@ export function NoAccess() {
 
 export function AccessUnknown() {
   const cluster = makeRootCluster();
-  cluster.loggedInUser.userType = UserType.USER_TYPE_UNSPECIFIED;
+  cluster.loggedInUser.userType = UserType.UNSPECIFIED;
   const appContext = new MockAppContext({});
 
   return (

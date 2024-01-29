@@ -20,10 +20,10 @@ import React, { useRef, useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
+import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
-
-import { HeadlessAuthenticationState } from 'teleterm/services/tshd/types';
 
 import { HeadlessPrompt } from './HeadlessPrompt';
 
@@ -55,7 +55,7 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
 
   async function handleHeadlessApprove(): Promise<void> {
     const [, error] = await updateHeadlessState(
-      HeadlessAuthenticationState.HEADLESS_AUTHENTICATION_STATE_APPROVED
+      HeadlessAuthenticationState.APPROVED
     );
     if (!error) {
       props.onSuccess();
@@ -64,7 +64,7 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
 
   async function handleHeadlessReject(): Promise<void> {
     const [, error] = await updateHeadlessState(
-      HeadlessAuthenticationState.HEADLESS_AUTHENTICATION_STATE_DENIED
+      HeadlessAuthenticationState.DENIED
     );
     if (!error) {
       props.onSuccess();
