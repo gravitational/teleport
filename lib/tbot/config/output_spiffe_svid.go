@@ -19,6 +19,7 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -28,7 +29,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
@@ -56,6 +59,11 @@ func (o *SPIFFESVIDOutput) Render(ctx context.Context, p provider, ident *identi
 		"SPIFFESVIDOutput/Render",
 	)
 	defer span.End()
+
+	spiffeCAs, err := p.GetCertAuthorities(ctx, types.SPIFFECA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	privateKey, err := native.GenerateRSAPrivateKey()
 	if err != nil {
@@ -99,16 +107,27 @@ func (o *SPIFFESVIDOutput) Render(ctx context.Context, p provider, ident *identi
 	}
 	svid := res.Svids[0]
 
-	// TODO: Fetch svid CA for trust bundle
-
 	if err := o.Destination.Write(ctx, svidKeyPEMPath, privPEM); err != nil {
 		return trace.Wrap(err, "writing svid key")
 	}
 	if err := o.Destination.Write(ctx, svidPEMPath, svid.Certificate); err != nil {
 		return trace.Wrap(err, "writing svid certificate")
 	}
-	// TODO: Marshal trust bundle
-	if err := o.Destination.Write(ctx, svidTrustBundlePEMPath, svid.Certificate); err != nil {
+
+	trustBundleBytes := &bytes.Buffer{}
+	for _, ca := range spiffeCAs {
+		for _, cert := range services.GetTLSCerts(ca) {
+			if err := pem.Encode(trustBundleBytes, &pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: cert,
+			}); err != nil {
+				return trace.Wrap(err, "encoding trust bundle")
+			}
+		}
+	}
+	if err := o.Destination.Write(
+		ctx, svidTrustBundlePEMPath, trustBundleBytes.Bytes(),
+	); err != nil {
 		return trace.Wrap(err, "writing svid trust bundle")
 	}
 
