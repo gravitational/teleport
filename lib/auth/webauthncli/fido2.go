@@ -710,11 +710,16 @@ type openedDevice struct {
 }
 
 type openedDevices struct {
-	mu      sync.Mutex // guards devices changes and cancelAll
+	// mu guards device changes and cancelAll().
+	// Note that the size of the devices slice doesn't change after it's assigned,
+	// only the `canceled` device field changes.
+	mu      sync.Mutex
 	devices []*openedDevice
 }
 
 func (l *openedDevices) len() int {
+	// Safe to read without locking, the size of the slice doesn't change after
+	// assigned.
 	return len(l.devices)
 }
 
