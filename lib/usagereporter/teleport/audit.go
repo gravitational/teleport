@@ -241,6 +241,15 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			DeviceType:        e.MFADevice.DeviceType,
 			MfaChallengeScope: e.ChallengeScope,
 		}
+	case *apievents.SPIFFESVIDIssued:
+		return &SPIFFESVIDIssuedEvent{
+			UserName:     e.User,
+			UserKind:     prehogUserKindFromEventKind(e.UserKind),
+			SpiffeId:     e.SPIFFEID,
+			IpSansCount:  int32(len(e.IPSANs)),
+			DnsSansCount: int32(len(e.DNSSANs)),
+			SvidType:     e.SVIDType,
+		}
 	}
 
 	return nil

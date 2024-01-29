@@ -475,6 +475,25 @@ func (u *UserCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.Sub
 	}
 }
 
+// SPIFFESVIDIssuedEvent is an event emitted when a SPIFFE SVID has been
+// issued.
+type SPIFFESVIDIssuedEvent prehogv1a.SPIFFESVIDIssuedEvent
+
+func (u *SPIFFESVIDIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SpiffeSvidIssued{
+			SpiffeSvidIssued: &prehogv1a.SPIFFESVIDIssuedEvent{
+				UserName:     a.AnonymizeString(u.UserName),
+				UserKind:     u.UserKind,
+				SpiffeId:     a.AnonymizeString(u.SpiffeId),
+				IpSansCount:  u.IpSansCount,
+				DnsSansCount: u.DnsSansCount,
+				SvidType:     u.SvidType,
+			},
+		},
+	}
+}
+
 // KubeRequestEvent is an event emitted when a Kubernetes API request is
 // handled.
 type KubeRequestEvent prehogv1a.KubeRequestEvent
