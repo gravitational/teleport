@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -128,6 +130,14 @@ type Config struct {
 
 	// DefaultOwners is the list of default owners for imported access lists.
 	DefaultOwners []string
+
+	// AccessListSyncAppFilters is the list of app filters for use by the access list sync.
+	AccessListSyncAppFilters []string
+	accessListSyncAppFilters []*regexp.Regexp
+
+	// AccessListSyncGroupFilters is the list of group filters for use by the access list sync.
+	AccessListSyncGroupFilters []string
+	accessListSyncGroupFilters []*regexp.Regexp
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -193,6 +203,22 @@ func (c *Config) CheckAndSetDefaults() error {
 		}
 		if len(c.DefaultOwners) == 0 {
 			return trace.BadParameter("default owners is missing")
+		}
+
+		for _, filter := range c.AccessListSyncAppFilters {
+			compiledFilter, err := utils.CompileExpression(filter)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			c.accessListSyncAppFilters = append(c.accessListSyncAppFilters, compiledFilter)
+		}
+
+		for _, filter := range c.AccessListSyncGroupFilters {
+			compiledFilter, err := utils.CompileExpression(filter)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			c.accessListSyncGroupFilters = append(c.accessListSyncGroupFilters, compiledFilter)
 		}
 	}
 
@@ -579,6 +605,8 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 			Owners:       config.DefaultOwners,
 			AppsGetter:   s.getApps,
 			GroupsGetter: s.getGroups,
+			AppFilters:   config.accessListSyncAppFilters,
+			GroupFilters: config.accessListSyncGroupFilters,
 
 			SynchronizerSuccess: &s.synchronizerSuccess,
 			SynchronizingMu:     &s.synchronizingMu,

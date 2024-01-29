@@ -39,6 +39,8 @@ type oktaSettings struct {
 	ssoConnectorID        string
 	accessListSyncEnabled bool
 	defaultOwners         []string
+	appFilters            []string
+	groupFilters          []string
 }
 
 // InitOkta will initialize and start the Okta service.
@@ -61,6 +63,8 @@ func InitOkta(process *service.TeleportProcess) error {
 				userSyncEnabled:       false,
 				accessListSyncEnabled: process.Config.Okta.SyncSettings.SyncAccessLists,
 				defaultOwners:         process.Config.Okta.SyncSettings.DefaultOwners,
+				appFilters:            process.Config.Okta.SyncSettings.AppFilters,
+				groupFilters:          process.Config.Okta.SyncSettings.GroupFilters,
 			},
 			process.GetID())
 	})
@@ -90,6 +94,8 @@ func InitOktaPlugin(ctx context.Context, process *service.TeleportProcess, plugi
 				ssoConnectorID:        settings.SyncSettings.SsoConnectorId,
 				accessListSyncEnabled: settings.SyncSettings.SyncAccessLists,
 				defaultOwners:         settings.SyncSettings.DefaultOwners,
+				appFilters:            settings.SyncSettings.AppFilters,
+				groupFilters:          settings.SyncSettings.GroupFilters,
 			},
 			pluginLogComponent(pluginName), components...)
 	})
@@ -171,27 +177,29 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	}
 
 	oktaService, err := okta.New(ctx, okta.Config{
-		Log:                   log,
-		Clock:                 process.Clock,
-		TLSConfig:             tlsConfig,
-		Authorizer:            authorizer,
-		ClusterName:           clusterName,
-		Hostname:              process.Config.Hostname,
-		HostID:                process.Config.HostUUID,
-		RotationGetter:        process.GetRotation,
-		Emitter:               asyncEmitter,
-		AccessPoint:           accessPoint,
-		Access:                conn.Client,
-		AccessLists:           conn.Client.AccessListClient(),
-		OnHeartbeat:           process.OnHeartbeat(teleport.Okta),
-		OktaAPIEndpoint:       settings.apiEndPoint,
-		OktaAPIToken:          settings.apiToken,
-		PluginStatusSink:      settings.pluginStatusSink,
-		TimeBetweenSyncs:      settings.syncPeriod,
-		UserSyncEnabled:       settings.userSyncEnabled,
-		SSOConnectorID:        settings.ssoConnectorID,
-		AccessListSyncEnabled: settings.accessListSyncEnabled,
-		DefaultOwners:         settings.defaultOwners,
+		Log:                        log,
+		Clock:                      process.Clock,
+		TLSConfig:                  tlsConfig,
+		Authorizer:                 authorizer,
+		ClusterName:                clusterName,
+		Hostname:                   process.Config.Hostname,
+		HostID:                     process.Config.HostUUID,
+		RotationGetter:             process.GetRotation,
+		Emitter:                    asyncEmitter,
+		AccessPoint:                accessPoint,
+		Access:                     conn.Client,
+		AccessLists:                conn.Client.AccessListClient(),
+		OnHeartbeat:                process.OnHeartbeat(teleport.Okta),
+		OktaAPIEndpoint:            settings.apiEndPoint,
+		OktaAPIToken:               settings.apiToken,
+		PluginStatusSink:           settings.pluginStatusSink,
+		TimeBetweenSyncs:           settings.syncPeriod,
+		UserSyncEnabled:            settings.userSyncEnabled,
+		SSOConnectorID:             settings.ssoConnectorID,
+		AccessListSyncEnabled:      settings.accessListSyncEnabled,
+		DefaultOwners:              settings.defaultOwners,
+		AccessListSyncAppFilters:   settings.appFilters,
+		AccessListSyncGroupFilters: settings.groupFilters,
 	})
 	if err != nil {
 		return trace.Wrap(err)

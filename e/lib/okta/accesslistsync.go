@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -64,6 +65,14 @@ type accessListSyncConfig struct {
 
 	// GroupsGetter is the function to get groups to import.
 	GroupsGetter func() map[string]types.UserGroup
+
+	// AppFilters are regexes to filter the access list sync. Only app names that match one of these filters
+	// will be added.
+	AppFilters []*regexp.Regexp
+
+	// GroupFilters are regexes to filter the access list sync. Only groups names that match one of these
+	// filters will be added.
+	GroupFilters []*regexp.Regexp
 
 	// SynchronizerSuccess is expected to be true if the Okta synchronizer has completed at least
 	// once successfully.
@@ -156,6 +165,10 @@ type accessListSync struct {
 	appsGetter   func() map[string]types.Application
 	groupsGetter func() map[string]types.UserGroup
 
+	// filters for groups and apps
+	appFilters   []*regexp.Regexp
+	groupFilters []*regexp.Regexp
+
 	// accessListReconciler will sync imported access lists to the backend.
 	accessListReconciler *services.Reconciler[*accesslist.AccessList]
 
@@ -222,6 +235,8 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 		syncInterval:               cfg.SyncInterval,
 		appsGetter:                 cfg.AppsGetter,
 		groupsGetter:               cfg.GroupsGetter,
+		appFilters:                 cfg.AppFilters,
+		groupFilters:               cfg.GroupFilters,
 		importAccessLists:          map[string]*accesslist.AccessList{},
 		newImportAccessLists:       map[string]*accesslist.AccessList{},
 		importRoles:                map[string]types.Role{},
@@ -549,17 +564,41 @@ var errNoAssignments = errors.New("no assignments")
 func (a *accessListSync) importApps(ctx context.Context, apps map[string]types.Application, userMapping map[string]string, importCh chan *importResourceMetadata) {
 	appIDProcessed := map[string]struct{}{}
 	for _, app := range apps {
-		// TODO(mdwn): Support app filtering.
+		log := a.log.WithFields(logrus.Fields{
+			"app_name": app.GetName(),
+		})
+
 		appID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
 		if !ok {
-			a.log.WithField("app_name", app.GetName()).Debug("application has no internal app ID label")
+			log.Debug("application has no internal app ID label")
 			continue
 		}
 
-		log := a.log.WithFields(logrus.Fields{
-			"app_id":   appID,
-			"app_name": app.GetName(),
+		log = log.WithFields(logrus.Fields{
+			"app_id": appID,
 		})
+
+		// the Okta app name will be used to match against filters.
+		oktaAppName, ok := app.GetLabel(types.OktaAppNameLabel)
+		if !ok {
+			log.Debug("application has no internal Okta app name label")
+		}
+
+		if len(a.appFilters) > 0 {
+			matchFound := false
+			for _, filter := range a.appFilters {
+				if filter.MatchString(oktaAppName) {
+					matchFound = true
+					break
+				}
+			}
+
+			if !matchFound {
+				log.Debug("application doesn't match filter, skipping")
+				continue
+			}
+		}
+
 		if _, ok := appIDProcessed[appID]; ok {
 			log.Debug("application ID was already processed")
 			continue
@@ -620,18 +659,40 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID string,
 func (a *accessListSync) importGroups(ctx context.Context, groups map[string]types.UserGroup, userMapping map[string]string, importCh chan *importResourceMetadata) {
 	groupIDProcessed := map[string]struct{}{}
 	for _, group := range groups {
-		// TODO(mdwn): Support group filtering.
+		log := a.log.WithField("group_name", group.GetName())
+
 		groupID, ok := group.GetLabel(eteleport.OktaGroupIDLabel)
 		if !ok {
 			a.log.WithField("group_name", group.GetName()).Debug("group has no internal group ID label")
 			continue
 		}
 
-		log := a.log.WithField("group_id", groupID)
+		log = log.WithField("group_id", groupID)
 
 		if _, ok := groupIDProcessed[groupID]; ok {
 			log.Debug("group ID was already processed")
 			continue
+		}
+
+		// the Okta group name will be used to match against filters.
+		oktaGroupName, ok := group.GetLabel(types.OktaGroupNameLabel)
+		if !ok {
+			log.Debug("application has no internal Okta group name label")
+		}
+
+		if len(a.groupFilters) > 0 {
+			matchFound := false
+			for _, filter := range a.groupFilters {
+				if filter.MatchString(oktaGroupName) {
+					matchFound = true
+					break
+				}
+			}
+
+			if !matchFound {
+				log.Debug("group doesn't match filter, skipping")
+				continue
+			}
 		}
 
 		irMetadata, err := a.groupToImportResources(ctx, groupID, group, userMapping)

@@ -3,6 +3,7 @@ package okta
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -228,6 +229,67 @@ func TestAccessListSync(t *testing.T) {
 		verifyServiceMatchesBackend(t, c.ap, c.svc)
 	})
 
+	t.Run("Okta apps have assignments, groups have assignments, apps and group filters added.", func(t *testing.T) {
+		c := initAccessListSync(t)
+
+		c.svc.groupFilters = []*regexp.Regexp{
+			regexp.MustCompile("^dev.*$"),
+		}
+		c.svc.appFilters = []*regexp.Regexp{
+			regexp.MustCompile("^dev.*$"),
+		}
+
+		c.client.addUserID("user1", "1")
+		c.client.addUserID("user2", "2")
+		c.client.addAppAssignments("admin-app1", "1")
+		c.client.addAppAssignments("dev-app2", "1", "2")
+		c.client.addAppAssignments("dev-app3", "1", "2")
+		c.client.addGroupAssignments("admin-group1", "1", "2")
+		c.client.addGroupAssignments("dev-group2", "1", "2")
+		c.client.addGroupAssignments("dev-group3", "1", "2")
+
+		c.addApp(newAccessListSyncAppLabelAppName(t, "admin-app1"))
+		c.addApp(newAccessListSyncAppLabelAppName(t, "dev-app2"))
+		c.addApp(newAccessListSyncAppLabelAppName(t, "dev-app3"))
+		c.addGroup(newAccessListSyncGroupLabelGroupName(t, "admin-group1"))
+		c.addGroup(newAccessListSyncGroupLabelGroupName(t, "dev-group2"))
+		c.addGroup(newAccessListSyncGroupLabelGroupName(t, "dev-group3"))
+
+		c.advanceAndWaitForSync()
+
+		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessList{
+			"dev-app2":   newAccessList(t, "dev-app2", "dev-app2", []string{"dev-app2-reviewer"}, []string{"dev-app2"}, owners),
+			"dev-app3":   newAccessList(t, "dev-app3", "dev-app3", []string{"dev-app3-reviewer"}, []string{"dev-app3"}, owners),
+			"dev-group2": newAccessList(t, "dev-group2", "dev-group2", []string{"dev-group2-reviewer"}, []string{"dev-group2"}, owners),
+			"dev-group3": newAccessList(t, "dev-group3", "dev-group3", []string{"dev-group3-reviewer"}, []string{"dev-group3"}, owners),
+		}, c.svc.getImportAccessLists(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.getImportAccessLists(), c.svc.getNewImportAccessLists(), cmpOpts...))
+		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessListMember{
+			"dev-app2/user1":   newAccessListMember(t, "dev-app2", "user1", c.clock.Now()),
+			"dev-app2/user2":   newAccessListMember(t, "dev-app2", "user2", c.clock.Now()),
+			"dev-app3/user1":   newAccessListMember(t, "dev-app3", "user1", c.clock.Now()),
+			"dev-app3/user2":   newAccessListMember(t, "dev-app3", "user2", c.clock.Now()),
+			"dev-group2/user1": newAccessListMember(t, "dev-group2", "user1", c.clock.Now()),
+			"dev-group2/user2": newAccessListMember(t, "dev-group2", "user2", c.clock.Now()),
+			"dev-group3/user1": newAccessListMember(t, "dev-group3", "user1", c.clock.Now()),
+			"dev-group3/user2": newAccessListMember(t, "dev-group3", "user2", c.clock.Now()),
+		}, c.svc.getImportAccessListMembers(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.getImportAccessListMembers(), c.svc.getNewImportAccessListMembers(), cmpOpts...))
+		require.Empty(t, cmp.Diff(map[string]types.Role{
+			"dev-app2":            newRole(t, "dev-app2", types.Labels{eteleport.OktaAppIDLabel: []string{"dev-app2"}}, nil),
+			"dev-app2-reviewer":   newReviewerRole(t, "dev-app2"),
+			"dev-app3":            newRole(t, "dev-app3", types.Labels{eteleport.OktaAppIDLabel: []string{"dev-app3"}}, nil),
+			"dev-app3-reviewer":   newReviewerRole(t, "dev-app3"),
+			"dev-group2":          newRole(t, "dev-group2", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"dev-group2"}}),
+			"dev-group2-reviewer": newReviewerRole(t, "dev-group2"),
+			"dev-group3":          newRole(t, "dev-group3", nil, types.Labels{eteleport.OktaGroupIDLabel: []string{"dev-group3"}}),
+			"dev-group3-reviewer": newReviewerRole(t, "dev-group3"),
+		}, c.svc.getImportRoles(), cmpOpts...))
+		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
+
+		verifyServiceMatchesBackend(t, c.ap, c.svc)
+	})
+
 	t.Run("previously existing apps and groups erased or updated, owners preserved", func(t *testing.T) {
 		c := initAccessListSync(t)
 
@@ -333,6 +395,18 @@ func newAccessListSyncApp(t *testing.T, name string) types.Application {
 	})
 }
 
+func newAccessListSyncAppLabelAppName(t *testing.T, name string) types.Application {
+	t.Helper()
+
+	return newAccessListSyncAppWithLabels(t, name, map[string]string{
+		types.OriginLabel:             types.OriginOkta,
+		types.OktaAppNameLabel:        name,
+		types.OktaAppDescriptionLabel: "applink-name1",
+		eteleport.OktaOrgURLLabel:     testOrgURL,
+		eteleport.OktaAppIDLabel:      name,
+	})
+}
+
 func newAccessListSyncGroupWithLabels(t *testing.T, name string, labels map[string]string) types.UserGroup {
 	t.Helper()
 
@@ -350,6 +424,18 @@ func newAccessListSyncGroup(t *testing.T, name string) types.UserGroup {
 	return newAccessListSyncGroupWithLabels(t, name, map[string]string{
 		types.OriginLabel:               types.OriginOkta,
 		types.OktaGroupNameLabel:        "group label",
+		types.OktaGroupDescriptionLabel: "group description",
+		eteleport.OktaOrgURLLabel:       testOrgURL,
+		eteleport.OktaGroupIDLabel:      name,
+	})
+}
+
+func newAccessListSyncGroupLabelGroupName(t *testing.T, name string) types.UserGroup {
+	t.Helper()
+
+	return newAccessListSyncGroupWithLabels(t, name, map[string]string{
+		types.OriginLabel:               types.OriginOkta,
+		types.OktaGroupNameLabel:        name,
 		types.OktaGroupDescriptionLabel: "group description",
 		eteleport.OktaOrgURLLabel:       testOrgURL,
 		eteleport.OktaGroupIDLabel:      name,
