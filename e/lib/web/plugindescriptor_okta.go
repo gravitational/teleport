@@ -170,7 +170,8 @@ func createSSOConnector(ctx context.Context, sessCtx *web.SessionContext, endpoi
 		Endpoint:   endpoint,
 		Token:      apiToken,
 		Log:        log,
-		StatusSink: nil})
+		StatusSink: nil,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -198,7 +199,6 @@ func createSSOConnector(ctx context.Context, sessCtx *web.SessionContext, endpoi
 		PublicURL:            publicURL,
 		Log:                  log,
 	})
-
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
 			log.Warnf("Did not create connector %q. Connector already exists.",

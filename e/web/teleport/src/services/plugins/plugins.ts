@@ -2,6 +2,8 @@ import api from 'teleport/services/api';
 
 import { CtaEvent } from 'teleport/services/userEvent';
 
+import auth from 'teleport/services/auth/auth';
+
 import cfg from 'e-teleport/config';
 
 import type { Plugin, PluginKind } from 'teleport/services/integrations';
@@ -15,8 +17,13 @@ export const pluginsService = {
     return api.get(cfg.getPluginUrl()).then(makePlugins);
   },
 
-  createPlugin(formData: FormData): Promise<Plugin> {
-    return api.postFormData(cfg.getPluginUrl(), formData).then(makePlugin);
+  async createPlugin(formData: FormData): Promise<Plugin> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(
+      false
+    );
+    return api
+      .postFormData(cfg.getPluginUrl(), formData, webauthnResponse)
+      .then(makePlugin);
   },
 
   async deletePlugin(name: string): Promise<void> {

@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -84,7 +85,13 @@ func CreateSSOConnector(ctx context.Context, args ConnectorArgs) (*SSOConnectorI
 		return nil, trace.Wrap(err)
 	}
 
-	_, err := args.SAMLConnectorService.GetSAMLConnector(ctx, args.ConnectorName, false)
+	// Remove the MFA resp from the context before getting the connector.
+	// Otherwise, it will be consumed before the Create which actually
+	// requires the MFA.
+	// TODO(Joerger): Explicitly provide MFA response only where it is
+	// needed instead of removing it like this.
+	getConnectorCtx := mfa.ContextWithMFAResponse(ctx, nil)
+	_, err := args.SAMLConnectorService.GetSAMLConnector(getConnectorCtx, args.ConnectorName, false)
 	if err == nil {
 		return nil, trace.AlreadyExists("SAML SSO connector %q already exists", args.ConnectorName)
 	}
