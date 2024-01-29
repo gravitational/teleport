@@ -400,7 +400,7 @@ function AgentSetup() {
     // TODO(ravicious): We should run the steps only when every attempt has its status set to '' and
     // abort any action on unmount. However, there's a couple of things preventing us from doing so:
     //
-    // * downloadAgentAttempt is kept in the context, so it's not reset between renders like other
+    // * downloadAgentAttempt is kept in the context, so it's not reset between remounts like other
     // attempts from this component. Instead of re-using the attempt from the context, the step with
     // downloading an agent should be a separate attempt that merely calls downloadAgent from the
     // context.
