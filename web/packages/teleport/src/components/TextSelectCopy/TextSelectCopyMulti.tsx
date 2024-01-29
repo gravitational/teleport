@@ -68,7 +68,7 @@ export function TextSelectCopyMulti({
       bg="bgTerminal"
       pl={3}
       pt={2}
-      pr={7}
+      pr={saveContent.save ? 11 : 7}
       borderRadius={2}
       maxHeight={maxHeight}
       minHeight="50px"
