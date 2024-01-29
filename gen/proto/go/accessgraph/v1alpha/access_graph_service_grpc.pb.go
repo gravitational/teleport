@@ -33,11 +33,12 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AccessGraphService_Query_FullMethodName        = "/accessgraph.v1alpha.AccessGraphService/Query"
-	AccessGraphService_GetFile_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/GetFile"
-	AccessGraphService_EventsStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
-	AccessGraphService_Register_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/Register"
-	AccessGraphService_ReplaceCAs_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
+	AccessGraphService_Query_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_GetFile_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/GetFile"
+	AccessGraphService_EventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
+	AccessGraphService_Register_FullMethodName        = "/accessgraph.v1alpha.AccessGraphService/Register"
+	AccessGraphService_ReplaceCAs_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
+	AccessGraphService_AWSEventsStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -70,6 +71,11 @@ type AccessGraphServiceClient interface {
 	// 2.a. If rotation succeeds, authenticate via the new authority B and call ReplaceCAs([B]) -- delete the previous CA
 	// 2.b. If rotation is rolled back, authenticate via the old authority A and call ReplaceCAs([A]) -- delete the candidate CA
 	ReplaceCAs(ctx context.Context, in *ReplaceCAsRequest, opts ...grpc.CallOption) (*ReplaceCAsResponse, error)
+	// AWSEventsStream is a stream of commands to the AWS importer.
+	// Teleport Discovery Service creates a stream to the access graph service
+	// and pushes all AWS resources and following events to it.
+	// This stream is used to sync the access graph with the AWS database state.
+	AWSEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_AWSEventsStreamClient, error)
 }
 
 type accessGraphServiceClient struct {
@@ -150,6 +156,40 @@ func (c *accessGraphServiceClient) ReplaceCAs(ctx context.Context, in *ReplaceCA
 	return out, nil
 }
 
+func (c *accessGraphServiceClient) AWSEventsStream(ctx context.Context, opts ...grpc.CallOption) (AccessGraphService_AWSEventsStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[1], AccessGraphService_AWSEventsStream_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &accessGraphServiceAWSEventsStreamClient{stream}
+	return x, nil
+}
+
+type AccessGraphService_AWSEventsStreamClient interface {
+	Send(*AWSEventsStreamRequest) error
+	CloseAndRecv() (*AWSEventsStreamResponse, error)
+	grpc.ClientStream
+}
+
+type accessGraphServiceAWSEventsStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *accessGraphServiceAWSEventsStreamClient) Send(m *AWSEventsStreamRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *accessGraphServiceAWSEventsStreamClient) CloseAndRecv() (*AWSEventsStreamResponse, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(AWSEventsStreamResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
 // for forward compatibility
@@ -180,6 +220,11 @@ type AccessGraphServiceServer interface {
 	// 2.a. If rotation succeeds, authenticate via the new authority B and call ReplaceCAs([B]) -- delete the previous CA
 	// 2.b. If rotation is rolled back, authenticate via the old authority A and call ReplaceCAs([A]) -- delete the candidate CA
 	ReplaceCAs(context.Context, *ReplaceCAsRequest) (*ReplaceCAsResponse, error)
+	// AWSEventsStream is a stream of commands to the AWS importer.
+	// Teleport Discovery Service creates a stream to the access graph service
+	// and pushes all AWS resources and following events to it.
+	// This stream is used to sync the access graph with the AWS database state.
+	AWSEventsStream(AccessGraphService_AWSEventsStreamServer) error
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -201,6 +246,9 @@ func (UnimplementedAccessGraphServiceServer) Register(context.Context, *Register
 }
 func (UnimplementedAccessGraphServiceServer) ReplaceCAs(context.Context, *ReplaceCAsRequest) (*ReplaceCAsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReplaceCAs not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) AWSEventsStream(AccessGraphService_AWSEventsStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method AWSEventsStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 
@@ -313,6 +361,32 @@ func _AccessGraphService_ReplaceCAs_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessGraphService_AWSEventsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).AWSEventsStream(&accessGraphServiceAWSEventsStreamServer{stream})
+}
+
+type AccessGraphService_AWSEventsStreamServer interface {
+	SendAndClose(*AWSEventsStreamResponse) error
+	Recv() (*AWSEventsStreamRequest, error)
+	grpc.ServerStream
+}
+
+type accessGraphServiceAWSEventsStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *accessGraphServiceAWSEventsStreamServer) SendAndClose(m *AWSEventsStreamResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *accessGraphServiceAWSEventsStreamServer) Recv() (*AWSEventsStreamRequest, error) {
+	m := new(AWSEventsStreamRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -341,6 +415,11 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "EventsStream",
 			Handler:       _AccessGraphService_EventsStream_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "AWSEventsStream",
+			Handler:       _AccessGraphService_AWSEventsStream_Handler,
 			ClientStreams: true,
 		},
 	},
