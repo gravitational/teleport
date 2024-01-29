@@ -18,7 +18,7 @@
 
 import { App, Cluster } from 'teleterm/services/tshd/types';
 
-/** Returns a URL that can be used to open the app in the browser. */
+/** Returns a URL that can be used to open the web app in the browser. */
 export function getWebAppLaunchUrl({
   app,
   cluster,
@@ -34,6 +34,28 @@ export function getWebAppLaunchUrl({
 
   const { fqdn, publicAddr } = app;
   return `https://${rootCluster.proxyHost}/web/launch/${fqdn}/${cluster.name}/${publicAddr}`;
+}
+
+/** Returns a URL that can be used to open the AWS app in the browser. */
+export function getAwsAppLaunchUrl({
+  app,
+  cluster,
+  rootCluster,
+  arn,
+}: {
+  app: App;
+  rootCluster: Cluster;
+  cluster: Cluster;
+  arn: string;
+}): string {
+  if (!app.awsConsole) {
+    return '';
+  }
+
+  const { fqdn, publicAddr } = app;
+  return `https://${rootCluster.proxyHost}/web/launch/${fqdn}/${
+    cluster.name
+  }/${publicAddr}/${encodeURIComponent(arn)}`;
 }
 
 export function isWebApp(app: App): boolean {
