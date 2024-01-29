@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestUnifiedResourcesList(t *testing.T) {
@@ -137,15 +138,17 @@ func TestUnifiedResourcesList(t *testing.T) {
 	require.Equal(t, UnifiedResource{App: &clusters.App{
 		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(app.GetApp().GetName()),
 		// FQDN looks weird because we cannot mock cluster.status.ProxyHost in tests.
-		FQDN: "testApp.",
-		App:  app.GetApp(),
+		FQDN:     "testApp.",
+		AWSRoles: aws.Roles{},
+		App:      app.GetApp(),
 	}}, response.Resources[3])
 
 	require.Equal(t, UnifiedResource{App: &clusters.App{
 		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(app.GetApp().GetName()),
 		// FQDN looks weird because we cannot mock cluster.status.ProxyHost in tests.
-		FQDN: "testApp.",
-		App:  app.GetApp(),
+		FQDN:     "testApp.",
+		AWSRoles: aws.Roles{},
+		App:      app.GetApp(),
 	}}, response.Resources[4])
 
 	require.Equal(t, UnifiedResource{SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
