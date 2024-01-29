@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -791,6 +792,13 @@ func (op *outputProvider) GenerateHostCert(ctx context.Context, key []byte, host
 // GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 func (op *outputProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return op.impersonatedClient.GetCertAuthority(ctx, id, loadKeys)
+}
+
+// SignX509SVIDs uses the impersonatedClient to call SignX509SVIDs.
+func (op *outputProvider) SignX509SVIDs(
+	ctx context.Context, in *machineidv1pb.SignX509SVIDsRequest,
+) (*machineidv1pb.SignX509SVIDsResponse, error) {
+	return op.client.WorkloadIdentityServiceClient().SignX509SVIDs(ctx, in)
 }
 
 // chooseOneDatabase chooses one matched database by name, or tries to choose

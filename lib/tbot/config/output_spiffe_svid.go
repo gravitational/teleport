@@ -20,11 +20,15 @@ package config
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
@@ -53,8 +57,60 @@ func (o *SPIFFESVIDOutput) Render(ctx context.Context, p provider, ident *identi
 	)
 	defer span.End()
 
-	// dest := o.GetDestination()
-	// TODO: Write cert, key and trust bundle to destination
+	privateKey, err := native.GenerateRSAPrivateKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pubPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubBytes,
+	})
+	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	privPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: privBytes,
+	})
+
+	res, err := p.SignX509SVIDs(ctx, &machineidv1pb.SignX509SVIDsRequest{
+		Svids: []*machineidv1pb.SVIDRequest{
+			{
+				PublicKey:    pubPEM,
+				SpiffeIdPath: "/svc/foo",
+				DnsSans:      []string{"foo.example.com"},
+				IpSans: []string{
+					"10.0.0.1",
+				},
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(res.Svids) != 1 {
+		return trace.BadParameter("expected 1 svids returned, got %d", len(res.Svids))
+	}
+	svid := res.Svids[0]
+
+	// TODO: Fetch svid CA for trust bundle
+
+	if err := o.Destination.Write(ctx, svidKeyPEMPath, privPEM); err != nil {
+		return trace.Wrap(err, "writing svid key")
+	}
+	if err := o.Destination.Write(ctx, svidPEMPath, svid.Certificate); err != nil {
+		return trace.Wrap(err, "writing svid certificate")
+	}
+	// TODO: Marshal trust bundle
+	if err := o.Destination.Write(ctx, svidTrustBundlePEMPath, svid.Certificate); err != nil {
+		return trace.Wrap(err, "writing svid trust bundle")
+	}
 
 	return nil
 }
