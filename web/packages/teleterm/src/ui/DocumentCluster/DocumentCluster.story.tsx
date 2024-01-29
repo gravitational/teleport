@@ -32,6 +32,7 @@ import {
   makeServer,
   makeDatabase,
   makeKube,
+  makeApp,
   rootClusterUri,
   leafClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
@@ -220,6 +221,28 @@ export const OnlineLoadedResources = () => {
           },
           { kind: 'database', resource: makeDatabase() },
           { kind: 'kube', resource: makeKube() },
+          { kind: 'app', resource: { ...makeApp(), name: 'TCP app' } },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'HTTP app',
+              endpointUri: 'http://localhost:8080',
+            },
+          },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'AWS console',
+              endpointUri: 'cloud://localhost:8080',
+              awsConsole: true,
+              awsRoles: [
+                { arn: 'foo', display: 'foo', name: 'foo' },
+                { arn: 'bar', display: 'bar', name: 'bar' },
+              ],
+            },
+          },
         ],
         totalCount: 4,
         nextKey: '',
