@@ -458,6 +458,12 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case SPIFFESVIDOutputType:
+			v := &SPIFFESVIDOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		default:
 			return trace.BadParameter("unrecognized output type (%s)", header.Type)
 		}
