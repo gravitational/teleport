@@ -104,8 +104,6 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 	var expires time.Time
 	var tokenName string
-	var labels map[string]string
-
 	switch req.JoinMethod {
 	case types.JoinMethodIAM:
 		// to prevent generation of redundant IAM tokens
@@ -163,11 +161,6 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 				Method: t.GetJoinMethod(),
 			}, nil
 		}
-	case types.JoinMethodGitHub:
-		tokenName = generateGitHubTokenName(req)
-		labels = map[string]string{
-			webUIFlowLabelKey: webUIFlowBotGitHubActionsSSH,
-		}
 	default:
 		tokenName, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
@@ -193,10 +186,6 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if labels != nil {
-		provisionToken.SetLabels(labels)
 	}
 
 	err = clt.CreateToken(r.Context(), provisionToken)
@@ -590,14 +579,6 @@ func generateAzureTokenName(rules []*types.ProvisionTokenSpecV2Azure_Rule) (stri
 	}
 
 	return fmt.Sprintf("teleport-ui-azure-%d", h.Sum32()), nil
-}
-
-// generateGitHubTokenName generates a name for the token in the format
-// [bot-name]-[unix-timestamp]. GitHub join tokens will be created via the Machine ID flow.
-// Even if two GitHub join tokens have the same rules, we create different tokens, so
-// users can more easily identify the tokens that enable each bot.
-func generateGitHubTokenName(token types.ProvisionTokenSpecV2) string {
-	return fmt.Sprintf("%s-%d", token.BotName, time.Now().Unix())
 }
 
 // sortRules sorts a slice of rules based on their AWS Account ID and ARN

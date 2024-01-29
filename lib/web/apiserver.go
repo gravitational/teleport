@@ -934,6 +934,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Create Machine ID bots
 	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
+	// Create bot join tokens
+	h.POST("/webapi/sites/:site/machine-id/token", h.WithClusterAuth(h.createBotJoinToken))
 }
 
 // GetProxyClient returns authenticated auth server client
