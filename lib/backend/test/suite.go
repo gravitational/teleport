@@ -559,6 +559,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	// handled externally and may take longer than the default of 10 seconds.
 	if d, err := time.ParseDuration(os.Getenv("TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT")); err == nil {
 		ttlDeleteTimeout = d
+		t.Logf("TTL delete timeout overridden by envvar: %s", d)
 	}
 
 	uut, clock, err := newBackend()
