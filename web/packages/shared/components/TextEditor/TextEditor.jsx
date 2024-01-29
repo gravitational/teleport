@@ -164,6 +164,7 @@ const ButtonSection = styled(Flex)`
   position: absolute;
   right: 0;
   top: 0;
+  z-index: 10;
 `;
 
 export default TextEditor;
