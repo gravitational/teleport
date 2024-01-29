@@ -167,7 +167,7 @@ function setupAppContext(): {
           list: true,
           read: true,
           edit: true,
-          pb_delete: true,
+          delete: true,
           use: true,
         },
       },

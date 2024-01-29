@@ -65,7 +65,7 @@ export function mapToAction(
         parameter: {
           getSuggestions: async () =>
             ctx.clustersService.findClusterByResource(result.resource.uri)
-              ?.loggedInUser?.sshLoginsList,
+              ?.loggedInUser?.sshLogins,
           placeholder: 'Provide login',
         },
         perform: login => {

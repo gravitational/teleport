@@ -114,7 +114,7 @@ function HttpApp() {
 function Server() {
   const appContext = new MockAppContext();
   const testCluster = makeRootCluster();
-  testCluster.loggedInUser.sshLoginsList = ['ec2-user'];
+  testCluster.loggedInUser.sshLogins = ['ec2-user'];
   appContext.workspacesService.setState(d => {
     d.rootClusterUri = testCluster.uri;
   });
