@@ -118,6 +118,6 @@ func TestGetBotBy(t *testing.T) {
 	assert.Equal(t, botName, bot.Metadata.Name)
 
 	// query an unexisting bot
-	response, err = pack.clt.Get(ctx, fmt.Sprintf("%s/%s", endpoint, "invalid-bot"), nil)
+	_, err = pack.clt.Get(ctx, fmt.Sprintf("%s/%s", endpoint, "invalid-bot"), nil)
 	require.Error(t, err)
 }
