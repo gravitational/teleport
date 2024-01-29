@@ -279,7 +279,7 @@ func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types
 		return nil, trace.Wrap(err)
 	}
 
-	stateToken, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	stateToken, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
