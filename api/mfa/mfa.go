@@ -125,9 +125,6 @@ type mfaResponseContextKey struct{}
 
 // ContextWithMFAResponse embeds the MFA response in the context.
 func ContextWithMFAResponse(ctx context.Context, mfaResp *proto.MFAAuthenticateResponse) context.Context {
-	if mfaResp == nil {
-		return ctx
-	}
 	return context.WithValue(ctx, mfaResponseContextKey{}, mfaResp)
 }
 
