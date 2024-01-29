@@ -18,6 +18,9 @@ export class UserLoginEvent extends jspb.Message {
     getDeviceId(): string;
     setDeviceId(value: string): UserLoginEvent;
 
+    getRequiredPrivateKeyPolicy(): string;
+    setRequiredPrivateKeyPolicy(value: string): UserLoginEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserLoginEvent.AsObject;
@@ -34,6 +37,40 @@ export namespace UserLoginEvent {
         userName: string,
         connectorType: string,
         deviceId: string,
+        requiredPrivateKeyPolicy: string,
+    }
+}
+
+export class MFAAuthenticationEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): MFAAuthenticationEvent;
+
+    getDeviceId(): string;
+    setDeviceId(value: string): MFAAuthenticationEvent;
+
+    getDeviceType(): string;
+    setDeviceType(value: string): MFAAuthenticationEvent;
+
+    getMfaChallengeScope(): string;
+    setMfaChallengeScope(value: string): MFAAuthenticationEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): MFAAuthenticationEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: MFAAuthenticationEvent): MFAAuthenticationEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: MFAAuthenticationEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): MFAAuthenticationEvent;
+    static deserializeBinaryFromReader(message: MFAAuthenticationEvent, reader: jspb.BinaryReader): MFAAuthenticationEvent;
+}
+
+export namespace MFAAuthenticationEvent {
+    export type AsObject = {
+        userName: string,
+        deviceId: string,
+        deviceType: string,
+        mfaChallengeScope: string,
     }
 }
 
@@ -280,6 +317,9 @@ export class UserCertificateIssuedEvent extends jspb.Message {
     getUsageDesktop(): boolean;
     setUsageDesktop(value: boolean): UserCertificateIssuedEvent;
 
+    getPrivateKeyPolicy(): string;
+    setPrivateKeyPolicy(value: string): UserCertificateIssuedEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserCertificateIssuedEvent.AsObject;
@@ -300,6 +340,48 @@ export namespace UserCertificateIssuedEvent {
         usageApp: boolean,
         usageKubernetes: boolean,
         usageDesktop: boolean,
+        privateKeyPolicy: string,
+    }
+}
+
+export class SPIFFESVIDIssuedEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): SPIFFESVIDIssuedEvent;
+
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): SPIFFESVIDIssuedEvent;
+
+    getSpiffeId(): string;
+    setSpiffeId(value: string): SPIFFESVIDIssuedEvent;
+
+    getIpSansCount(): number;
+    setIpSansCount(value: number): SPIFFESVIDIssuedEvent;
+
+    getDnsSansCount(): number;
+    setDnsSansCount(value: number): SPIFFESVIDIssuedEvent;
+
+    getSvidType(): string;
+    setSvidType(value: string): SPIFFESVIDIssuedEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SPIFFESVIDIssuedEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: SPIFFESVIDIssuedEvent): SPIFFESVIDIssuedEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SPIFFESVIDIssuedEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SPIFFESVIDIssuedEvent;
+    static deserializeBinaryFromReader(message: SPIFFESVIDIssuedEvent, reader: jspb.BinaryReader): SPIFFESVIDIssuedEvent;
+}
+
+export namespace SPIFFESVIDIssuedEvent {
+    export type AsObject = {
+        userName: string,
+        userKind: UserKind,
+        spiffeId: string,
+        ipSansCount: number,
+        dnsSansCount: number,
+        svidType: string,
     }
 }
 
@@ -1990,6 +2072,111 @@ export namespace AccessListGrantsToUserEvent {
     }
 }
 
+export class AccessListReviewCreateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListReviewCreateEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListReviewCreateEvent;
+
+    getDaysPastNextAuditDate(): number;
+    setDaysPastNextAuditDate(value: number): AccessListReviewCreateEvent;
+
+    getMembershipRequirementsChanged(): boolean;
+    setMembershipRequirementsChanged(value: boolean): AccessListReviewCreateEvent;
+
+    getReviewFrequencyChanged(): boolean;
+    setReviewFrequencyChanged(value: boolean): AccessListReviewCreateEvent;
+
+    getReviewDayOfMonthChanged(): boolean;
+    setReviewDayOfMonthChanged(value: boolean): AccessListReviewCreateEvent;
+
+    getNumberOfRemovedMembers(): number;
+    setNumberOfRemovedMembers(value: number): AccessListReviewCreateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListReviewCreateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListReviewCreateEvent): AccessListReviewCreateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListReviewCreateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListReviewCreateEvent;
+    static deserializeBinaryFromReader(message: AccessListReviewCreateEvent, reader: jspb.BinaryReader): AccessListReviewCreateEvent;
+}
+
+export namespace AccessListReviewCreateEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+        daysPastNextAuditDate: number,
+        membershipRequirementsChanged: boolean,
+        reviewFrequencyChanged: boolean,
+        reviewDayOfMonthChanged: boolean,
+        numberOfRemovedMembers: number,
+    }
+}
+
+export class AccessListReviewDeleteEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AccessListReviewDeleteEvent;
+
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): AccessListMetadata | undefined;
+    setMetadata(value?: AccessListMetadata): AccessListReviewDeleteEvent;
+
+    getAccessListReviewId(): string;
+    setAccessListReviewId(value: string): AccessListReviewDeleteEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListReviewDeleteEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListReviewDeleteEvent): AccessListReviewDeleteEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListReviewDeleteEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListReviewDeleteEvent;
+    static deserializeBinaryFromReader(message: AccessListReviewDeleteEvent, reader: jspb.BinaryReader): AccessListReviewDeleteEvent;
+}
+
+export namespace AccessListReviewDeleteEvent {
+    export type AsObject = {
+        userName: string,
+        metadata?: AccessListMetadata.AsObject,
+        accessListReviewId: string,
+    }
+}
+
+export class AccessListReviewComplianceEvent extends jspb.Message { 
+    getTotalAccessLists(): number;
+    setTotalAccessLists(value: number): AccessListReviewComplianceEvent;
+
+    getAccessListsNeedReview(): number;
+    setAccessListsNeedReview(value: number): AccessListReviewComplianceEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AccessListReviewComplianceEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AccessListReviewComplianceEvent): AccessListReviewComplianceEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AccessListReviewComplianceEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AccessListReviewComplianceEvent;
+    static deserializeBinaryFromReader(message: AccessListReviewComplianceEvent, reader: jspb.BinaryReader): AccessListReviewComplianceEvent;
+}
+
+export namespace AccessListReviewComplianceEvent {
+    export type AsObject = {
+        totalAccessLists: number,
+        accessListsNeedReview: number,
+    }
+}
+
 export class IntegrationEnrollMetadata extends jspb.Message { 
     getId(): string;
     setId(value: string): IntegrationEnrollMetadata;
@@ -2255,6 +2442,139 @@ export namespace DesktopClipboardEvent {
     export type AsObject = {
         desktop: string,
         userName: string,
+    }
+}
+
+export class TAGExecuteQueryEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): TAGExecuteQueryEvent;
+
+    getTotalNodes(): number;
+    setTotalNodes(value: number): TAGExecuteQueryEvent;
+
+    getTotalEdges(): number;
+    setTotalEdges(value: number): TAGExecuteQueryEvent;
+
+    getIsSuccess(): boolean;
+    setIsSuccess(value: boolean): TAGExecuteQueryEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): TAGExecuteQueryEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: TAGExecuteQueryEvent): TAGExecuteQueryEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: TAGExecuteQueryEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): TAGExecuteQueryEvent;
+    static deserializeBinaryFromReader(message: TAGExecuteQueryEvent, reader: jspb.BinaryReader): TAGExecuteQueryEvent;
+}
+
+export namespace TAGExecuteQueryEvent {
+    export type AsObject = {
+        userName: string,
+        totalNodes: number,
+        totalEdges: number,
+        isSuccess: boolean,
+    }
+}
+
+export class ExternalAuditStorageAuthenticateEvent extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ExternalAuditStorageAuthenticateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: ExternalAuditStorageAuthenticateEvent): ExternalAuditStorageAuthenticateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ExternalAuditStorageAuthenticateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ExternalAuditStorageAuthenticateEvent;
+    static deserializeBinaryFromReader(message: ExternalAuditStorageAuthenticateEvent, reader: jspb.BinaryReader): ExternalAuditStorageAuthenticateEvent;
+}
+
+export namespace ExternalAuditStorageAuthenticateEvent {
+    export type AsObject = {
+    }
+}
+
+export class SecurityReportGetResultEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): SecurityReportGetResultEvent;
+
+    getName(): string;
+    setName(value: string): SecurityReportGetResultEvent;
+
+    getDays(): number;
+    setDays(value: number): SecurityReportGetResultEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SecurityReportGetResultEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: SecurityReportGetResultEvent): SecurityReportGetResultEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SecurityReportGetResultEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SecurityReportGetResultEvent;
+    static deserializeBinaryFromReader(message: SecurityReportGetResultEvent, reader: jspb.BinaryReader): SecurityReportGetResultEvent;
+}
+
+export namespace SecurityReportGetResultEvent {
+    export type AsObject = {
+        userName: string,
+        name: string,
+        days: number,
+    }
+}
+
+export class AuditQueryRunEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AuditQueryRunEvent;
+
+    getDays(): number;
+    setDays(value: number): AuditQueryRunEvent;
+
+    getIsSuccess(): boolean;
+    setIsSuccess(value: boolean): AuditQueryRunEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AuditQueryRunEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AuditQueryRunEvent): AuditQueryRunEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AuditQueryRunEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AuditQueryRunEvent;
+    static deserializeBinaryFromReader(message: AuditQueryRunEvent, reader: jspb.BinaryReader): AuditQueryRunEvent;
+}
+
+export namespace AuditQueryRunEvent {
+    export type AsObject = {
+        userName: string,
+        days: number,
+        isSuccess: boolean,
+    }
+}
+
+export class DiscoveryFetchEvent extends jspb.Message { 
+    getCloudProvider(): string;
+    setCloudProvider(value: string): DiscoveryFetchEvent;
+
+    getResourceType(): string;
+    setResourceType(value: string): DiscoveryFetchEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DiscoveryFetchEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DiscoveryFetchEvent): DiscoveryFetchEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DiscoveryFetchEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DiscoveryFetchEvent;
+    static deserializeBinaryFromReader(message: DiscoveryFetchEvent, reader: jspb.BinaryReader): DiscoveryFetchEvent;
+}
+
+export namespace DiscoveryFetchEvent {
+    export type AsObject = {
+        cloudProvider: string,
+        resourceType: string,
     }
 }
 
@@ -2665,6 +2985,66 @@ export class SubmitEventRequest extends jspb.Message {
     setDesktopClipboardTransfer(value?: DesktopClipboardEvent): SubmitEventRequest;
 
 
+    hasTagExecuteQuery(): boolean;
+    clearTagExecuteQuery(): void;
+    getTagExecuteQuery(): TAGExecuteQueryEvent | undefined;
+    setTagExecuteQuery(value?: TAGExecuteQueryEvent): SubmitEventRequest;
+
+
+    hasExternalAuditStorageAuthenticate(): boolean;
+    clearExternalAuditStorageAuthenticate(): void;
+    getExternalAuditStorageAuthenticate(): ExternalAuditStorageAuthenticateEvent | undefined;
+    setExternalAuditStorageAuthenticate(value?: ExternalAuditStorageAuthenticateEvent): SubmitEventRequest;
+
+
+    hasSecurityReportGetResult(): boolean;
+    clearSecurityReportGetResult(): void;
+    getSecurityReportGetResult(): SecurityReportGetResultEvent | undefined;
+    setSecurityReportGetResult(value?: SecurityReportGetResultEvent): SubmitEventRequest;
+
+
+    hasAuditQueryRun(): boolean;
+    clearAuditQueryRun(): void;
+    getAuditQueryRun(): AuditQueryRunEvent | undefined;
+    setAuditQueryRun(value?: AuditQueryRunEvent): SubmitEventRequest;
+
+
+    hasDiscoveryFetchEvent(): boolean;
+    clearDiscoveryFetchEvent(): void;
+    getDiscoveryFetchEvent(): DiscoveryFetchEvent | undefined;
+    setDiscoveryFetchEvent(value?: DiscoveryFetchEvent): SubmitEventRequest;
+
+
+    hasAccessListReviewCreate(): boolean;
+    clearAccessListReviewCreate(): void;
+    getAccessListReviewCreate(): AccessListReviewCreateEvent | undefined;
+    setAccessListReviewCreate(value?: AccessListReviewCreateEvent): SubmitEventRequest;
+
+
+    hasAccessListReviewDelete(): boolean;
+    clearAccessListReviewDelete(): void;
+    getAccessListReviewDelete(): AccessListReviewDeleteEvent | undefined;
+    setAccessListReviewDelete(value?: AccessListReviewDeleteEvent): SubmitEventRequest;
+
+
+    hasAccessListReviewCompliance(): boolean;
+    clearAccessListReviewCompliance(): void;
+    getAccessListReviewCompliance(): AccessListReviewComplianceEvent | undefined;
+    setAccessListReviewCompliance(value?: AccessListReviewComplianceEvent): SubmitEventRequest;
+
+
+    hasMfaAuthenticationEvent(): boolean;
+    clearMfaAuthenticationEvent(): void;
+    getMfaAuthenticationEvent(): MFAAuthenticationEvent | undefined;
+    setMfaAuthenticationEvent(value?: MFAAuthenticationEvent): SubmitEventRequest;
+
+
+    hasSpiffeSvidIssued(): boolean;
+    clearSpiffeSvidIssued(): void;
+    getSpiffeSvidIssued(): SPIFFESVIDIssuedEvent | undefined;
+    setSpiffeSvidIssued(value?: SPIFFESVIDIssuedEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2747,6 +3127,16 @@ export namespace SubmitEventRequest {
         uiDiscoverCreateNode?: UIDiscoverCreateNodeEvent.AsObject,
         desktopDirectoryShare?: DesktopDirectoryShareEvent.AsObject,
         desktopClipboardTransfer?: DesktopClipboardEvent.AsObject,
+        tagExecuteQuery?: TAGExecuteQueryEvent.AsObject,
+        externalAuditStorageAuthenticate?: ExternalAuditStorageAuthenticateEvent.AsObject,
+        securityReportGetResult?: SecurityReportGetResultEvent.AsObject,
+        auditQueryRun?: AuditQueryRunEvent.AsObject,
+        discoveryFetchEvent?: DiscoveryFetchEvent.AsObject,
+        accessListReviewCreate?: AccessListReviewCreateEvent.AsObject,
+        accessListReviewDelete?: AccessListReviewDeleteEvent.AsObject,
+        accessListReviewCompliance?: AccessListReviewComplianceEvent.AsObject,
+        mfaAuthenticationEvent?: MFAAuthenticationEvent.AsObject,
+        spiffeSvidIssued?: SPIFFESVIDIssuedEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2883,6 +3273,26 @@ export namespace SubmitEventRequest {
     DESKTOP_DIRECTORY_SHARE = 68,
 
     DESKTOP_CLIPBOARD_TRANSFER = 69,
+
+    TAG_EXECUTE_QUERY = 70,
+
+    EXTERNAL_AUDIT_STORAGE_AUTHENTICATE = 71,
+
+    SECURITY_REPORT_GET_RESULT = 72,
+
+    AUDIT_QUERY_RUN = 73,
+
+    DISCOVERY_FETCH_EVENT = 74,
+
+    ACCESS_LIST_REVIEW_CREATE = 75,
+
+    ACCESS_LIST_REVIEW_DELETE = 76,
+
+    ACCESS_LIST_REVIEW_COMPLIANCE = 77,
+
+    MFA_AUTHENTICATION_EVENT = 78,
+
+    SPIFFE_SVID_ISSUED = 79,
 
     }
 
@@ -3056,6 +3466,10 @@ export enum CTA {
     CTA_TRUSTED_DEVICES = 5,
     CTA_UPGRADE_BANNER = 6,
     CTA_BILLING_SUMMARY = 7,
+    CTA_ACCESS_LIST = 8,
+    CTA_ACCESS_MONITORING = 9,
+    CTA_EXTERNAL_AUDIT_STORAGE = 10,
+    CTA_OKTA_USER_SYNC = 11,
 }
 
 export enum IntegrationEnrollKind {
@@ -3077,6 +3491,11 @@ export enum IntegrationEnrollKind {
     INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB = 15,
     INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS = 16,
     INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_AWS = 18,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_GCP = 19,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE = 20,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT = 21,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 22,
 }
 
 export enum EditorChangeStatus {
