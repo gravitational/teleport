@@ -16,6 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ResourceLabel } from '../agents';
+
+export type Bot = {
+  name: string;
+  roles: string[];
+  traits: string[];
+};
+
+export type FetchBotsRequest = {
+  signal?: AbortSignal;
+};
+
+export type CreateBotRequest = {
+  botName: string;
+  labels: ResourceLabel[];
+  roles: string[];
+  login: string;
+};
+
 export type ApiBotMetadata = {
   description: string;
   labels: Map<string, string>;

@@ -19,9 +19,9 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { makeListBot } from 'teleport/services/bot/consts';
+import { makeBot, makeListBot } from 'teleport/services/bot/consts';
 
-import { BotList, BotResponse } from './types';
+import { BotList, BotResponse, FlatBot, CreateBotRequest } from './types';
 
 export function fetchBots(signal: AbortSignal): Promise<BotList> {
   return api
@@ -33,6 +33,24 @@ export function fetchBots(signal: AbortSignal): Promise<BotList> {
     .catch(res => {
       throw res;
     });
+}
+
+export function createBot(config: CreateBotRequest): Promise<void> {
+  return api.post(cfg.getBotsUrl(cfg.proxyCluster), config);
+};
+
+export async function getBot(name: string): Promise<FlatBot | null> {
+  try {
+    return await api
+      .get(cfg.getBotsUrl(cfg.proxyCluster, name))
+      .then(makeBot);
+  } catch (err) {
+    // capture the not found error response and return null instead of throwing
+    if (err?.response?.status === 404) {
+      return null;
+    }
+    throw err;
+  }
 }
 
 export function deleteBot(name: string) {
