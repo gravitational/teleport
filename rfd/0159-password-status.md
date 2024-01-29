@@ -20,7 +20,12 @@ We want to improve the UX of our flows related to changing passwords and managem
 
 ## Why
 
-We are [promoting passwordless authentication](https://github.com/gravitational/teleport/issues/19671) and would like to make it a default in our cloud environments. We need to decrease the UX friction and fill the missing gaps.
+We are promoting passwordless authentication and would like to make it a default in our cloud environments. We need to decrease the UX friction and fill the missing gaps.
+
+Related issues:
+
+- [Design for defaulting to "Passwordless" authentication + updating view to clarify options](https://github.com/gravitational/cloud/issues/5757)
+- [Remove local password authentication from teleport](https://github.com/gravitational/teleport/issues/19671)
 
 ## Details
 
