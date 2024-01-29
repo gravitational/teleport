@@ -20,6 +20,7 @@ package clusters
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"time"
 
@@ -127,6 +128,8 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 		request types.AccessRequest
 	)
 
+	fmt.Println("----- create access list!")
+
 	resourceIDs := make([]types.ResourceID, 0, len(req.ResourceIds))
 	for _, resource := range req.ResourceIds {
 		resourceIDs = append(resourceIDs, types.ResourceID{
@@ -149,6 +152,10 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 
 	request.SetRequestReason(req.Reason)
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
+
+	if req.GetAssumeStartTime() != nil {
+		request.SetAssumeStartTime(req.AssumeStartTime.AsTime())
+	}
 
 	var reqOut types.AccessRequest
 	err = AddMetadataToRetryableError(ctx, func() error {
@@ -191,13 +198,16 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		}
 		defer authClient.Close()
 
+		assumeStartTime := req.AssumeStartTime.AsTime()
+
 		reviewSubmission := types.AccessReviewSubmission{
 			RequestID: req.AccessRequestId,
 			Review: types.AccessReview{
-				Roles:         req.Roles,
-				ProposedState: reviewState,
-				Reason:        req.Reason,
-				Created:       time.Now(),
+				Roles:           req.Roles,
+				ProposedState:   reviewState,
+				Reason:          req.Reason,
+				Created:         time.Now(),
+				AssumeStartTime: &assumeStartTime,
 			},
 		}
 

@@ -657,6 +657,8 @@ func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter types.Ac
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	fmt.Println("------- client client ---->>>>> ", reqs[0].GetAssumeStartTime())
 	return reqs, nil
 }
 

@@ -5,6 +5,7 @@
 /* eslint-disable */
 
 import * as jspb from "google-protobuf";
+import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/timestamp_pb";
 import * as teleport_accesslist_v1_accesslist_pb from "../../../../teleport/accesslist/v1/accesslist_pb";
 import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../teleport/lib/teleterm/v1/access_request_pb";
 import * as teleport_lib_teleterm_v1_app_pb from "../../../../teleport/lib/teleterm/v1/app_pb";
@@ -239,6 +240,12 @@ export class CreateAccessRequestRequest extends jspb.Message {
     addResourceIds(value?: teleport_lib_teleterm_v1_access_request_pb.ResourceID, index?: number): teleport_lib_teleterm_v1_access_request_pb.ResourceID;
 
 
+    hasAssumeStartTime(): boolean;
+    clearAssumeStartTime(): void;
+    getAssumeStartTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
+    setAssumeStartTime(value?: google_protobuf_timestamp_pb.Timestamp): CreateAccessRequestRequest;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateAccessRequestRequest.AsObject;
     static toObject(includeInstance: boolean, msg: CreateAccessRequestRequest): CreateAccessRequestRequest.AsObject;
@@ -256,6 +263,7 @@ export namespace CreateAccessRequestRequest {
         rolesList: Array<string>,
         suggestedReviewersList: Array<string>,
         resourceIdsList: Array<teleport_lib_teleterm_v1_access_request_pb.ResourceID.AsObject>,
+        assumeStartTime?: google_protobuf_timestamp_pb.Timestamp.AsObject,
     }
 }
 
@@ -391,6 +399,12 @@ export class ReviewAccessRequestRequest extends jspb.Message {
     setAccessRequestId(value: string): ReviewAccessRequestRequest;
 
 
+    hasAssumeStartTime(): boolean;
+    clearAssumeStartTime(): void;
+    getAssumeStartTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
+    setAssumeStartTime(value?: google_protobuf_timestamp_pb.Timestamp): ReviewAccessRequestRequest;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ReviewAccessRequestRequest.AsObject;
     static toObject(includeInstance: boolean, msg: ReviewAccessRequestRequest): ReviewAccessRequestRequest.AsObject;
@@ -408,6 +422,7 @@ export namespace ReviewAccessRequestRequest {
         reason: string,
         rolesList: Array<string>,
         accessRequestId: string,
+        assumeStartTime?: google_protobuf_timestamp_pb.Timestamp.AsObject,
     }
 }
 

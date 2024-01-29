@@ -21,6 +21,7 @@
 'use strict';
 var grpc = require('@grpc/grpc-js');
 var teleport_lib_teleterm_v1_service_pb = require('../../../../teleport/lib/teleterm/v1/service_pb.js');
+var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js');
 var teleport_accesslist_v1_accesslist_pb = require('../../../../teleport/accesslist/v1/accesslist_pb.js');
 var teleport_lib_teleterm_v1_access_request_pb = require('../../../../teleport/lib/teleterm/v1/access_request_pb.js');
 var teleport_lib_teleterm_v1_app_pb = require('../../../../teleport/lib/teleterm/v1/app_pb.js');

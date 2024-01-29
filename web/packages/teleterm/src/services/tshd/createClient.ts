@@ -29,6 +29,7 @@ import {
   AccessRequest,
   ResourceID,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
+import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 
 import Logger from 'teleterm/logger';
 import * as uri from 'teleterm/ui/uri';
@@ -278,10 +279,16 @@ export function createTshdClient(
     },
 
     async createAccessRequest(params: types.CreateAccessRequestParams) {
+      let assumeStartTime;
+      if (params.assumeStartTime) {
+        assumeStartTime = new Timestamp();
+        assumeStartTime.fromDate(params.assumeStartTime);
+      }
       const req = new api.CreateAccessRequestRequest()
         .setRootClusterUri(params.rootClusterUri)
         .setSuggestedReviewersList(params.suggestedReviewers)
         .setRolesList(params.roles)
+        .setAssumeStartTime(assumeStartTime)
         .setResourceIdsList(
           params.resourceIds.map(({ id, clusterName, kind }) => {
             const resourceId = new ResourceID();

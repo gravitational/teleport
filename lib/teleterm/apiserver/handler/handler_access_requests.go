@@ -156,6 +156,10 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 	reviews := []*api.AccessRequestReview{}
 	requestReviews := req.GetReviews()
 	for _, rev := range requestReviews {
+		var assumeStartTime *timestamppb.Timestamp
+		if rev.AssumeStartTime != nil && !rev.AssumeStartTime.IsZero() {
+			assumeStartTime = timestamppb.New(*rev.AssumeStartTime)
+		}
 		reviews = append(reviews, &api.AccessRequestReview{
 			Author:                  rev.Author,
 			Roles:                   rev.Roles,
@@ -163,6 +167,7 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 			Reason:                  rev.Reason,
 			Created:                 timestamppb.New(rev.Created),
 			PromotedAccessListTitle: rev.GetAccessListTitle(),
+			AssumeStartTime:         assumeStartTime,
 		})
 	}
 
@@ -199,6 +204,8 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		}
 	}
 
+	fmt.Println("------ here i am: ", req.GetAssumeStartTime())
+
 	return &api.AccessRequest{
 		Id:                      req.GetName(),
 		State:                   req.GetState().String(),
@@ -214,6 +221,8 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		ResourceIds:             requestedResourceIDs,
 		Resources:               resources,
 		PromotedAccessListTitle: req.GetPromotedAccessListTitle(),
+		AssumeStartTime:         timestamppb.New(*req.GetAssumeStartTime()),
+		Tt:                      "this-one-time",
 	}
 }
 

@@ -2314,6 +2314,7 @@ type accessChecker interface {
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	fmt.Println("-------- Get Access Requests")
 	if err := a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
 		// Users are allowed to read + list their own access requests and
 		// requests they are allowed to review, unless access was *explicitly*
@@ -2325,13 +2326,21 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 	} else {
 		// nil err means the user has explicit read + list permissions and can
 		// get all requests.
-		return a.authServer.GetAccessRequests(ctx, filter)
+		f, err := a.authServer.GetAccessRequests(ctx, filter)
+		if len(f) > 0 {
+			fmt.Println("---------- reviewa : ", f[0])
+		}
+		return f, err
 	}
 
 	// users can always view their own access requests unless the read or list
 	// verbs are explicitly denied
 	if filter.User != "" && a.currentUserAction(filter.User) == nil {
-		return a.authServer.GetAccessRequests(ctx, filter)
+		f, err := a.authServer.GetAccessRequests(ctx, filter)
+		if len(f) > 0 {
+			fmt.Println("---------- reviewaaaaa : ", f[0])
+		}
+		return f, err
 	}
 
 	// user does not have read/list permissions and is not specifically requesting only
@@ -2358,7 +2367,11 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 			return nil, nil
 		}
 		filter.User = a.context.User.GetName()
-		return a.authServer.GetAccessRequests(ctx, filter)
+		f, err := a.authServer.GetAccessRequests(ctx, filter)
+		if len(f) > 0 {
+			fmt.Println("---------- reviewaaaaa  >>>> : ", f[0].GetAssumeStartTime())
+		}
+		return f, err
 	}
 
 	reqs, err := a.authServer.GetAccessRequests(ctx, filter)
@@ -2383,10 +2396,16 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 			continue
 		}
 	}
+
+	if len(filtered) > 0 {
+		fmt.Println("---------- review: ", filtered[0])
+	}
+
 	return filtered, nil
 }
 
 func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	fmt.Println("------->>>>>>> create access request: ", req.GetAssumeStartTime())
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
 		// An exception is made to allow users to create *pending* access requests
 		// for themselves unless the create verb was explicitly denied.

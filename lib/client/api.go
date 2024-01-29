@@ -1442,7 +1442,10 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.Ac
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.GetAccessRequests(ctx, filter)
+	f, err := proxyClient.GetAccessRequests(ctx, filter)
+	fmt.Println("------------ ======== ", f[0].GetAssumeStartTime())
+
+	return f, err
 }
 
 // GetRole loads a role resource by name.
