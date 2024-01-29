@@ -33,8 +33,6 @@ import { DeleteConnectMyComputerNodeResponse } from "./service_pb";
 import { DeleteConnectMyComputerNodeRequest } from "./service_pb";
 import { WaitForConnectMyComputerNodeJoinResponse } from "./service_pb";
 import { WaitForConnectMyComputerNodeJoinRequest } from "./service_pb";
-import { DeleteConnectMyComputerTokenResponse } from "./service_pb";
-import { DeleteConnectMyComputerTokenRequest } from "./service_pb";
 import { CreateConnectMyComputerNodeTokenResponse } from "./service_pb";
 import { CreateConnectMyComputerNodeTokenRequest } from "./service_pb";
 import { CreateConnectMyComputerRoleResponse } from "./service_pb";
@@ -338,12 +336,6 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: CreateConnectMyComputerNodeToken(teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest) returns (teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse);
      */
     createConnectMyComputerNodeToken: grpc.handleUnaryCall<CreateConnectMyComputerNodeTokenRequest, CreateConnectMyComputerNodeTokenResponse>;
-    /**
-     * DeleteConnectMyComputerToken deletes a join token
-     *
-     * @generated from protobuf rpc: DeleteConnectMyComputerToken(teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest) returns (teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse);
-     */
-    deleteConnectMyComputerToken: grpc.handleUnaryCall<DeleteConnectMyComputerTokenRequest, DeleteConnectMyComputerTokenResponse>;
     /**
      * WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
      * that the Connect My Computer node for the particular cluster has joined the cluster (the
@@ -738,16 +730,6 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => CreateConnectMyComputerNodeTokenRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(CreateConnectMyComputerNodeTokenResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(CreateConnectMyComputerNodeTokenRequest.toBinary(value))
-    },
-    deleteConnectMyComputerToken: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerToken",
-        originalName: "DeleteConnectMyComputerToken",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => DeleteConnectMyComputerTokenResponse.fromBinary(bytes),
-        requestDeserialize: bytes => DeleteConnectMyComputerTokenRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(DeleteConnectMyComputerTokenResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(DeleteConnectMyComputerTokenRequest.toBinary(value))
     },
     waitForConnectMyComputerNodeJoin: {
         path: "/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin",
