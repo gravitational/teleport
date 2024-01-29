@@ -57,6 +57,15 @@ a `TeleportRoleV7`, you must:
 - delete the `TeleportRole` CR (it won't delete the role in Teleport thanks to the annotation)
 - create a new `TeleportRoleV7` CR with the same name
 
+#### SSH connection resumption
+
+Teleport v15 introduces automatic SSH connection resumption if the network path
+between the client and the Teleport node is interrupted due to connectivity issues,
+and transparent connection migration if the control plane is gracefully upgraded.
+
+The feature is active by default when a v15 client (`tsh`, OpenSSH or PuTTY
+configured by `tsh config`, or Teleport Connect) connects to a v15 Teleport node.
+
 ### Breaking changes and deprecations
 
 #### RDP engine requires RemoteFX
