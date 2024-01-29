@@ -62,17 +62,13 @@ Ultimately, we would like to have information about password status for as many 
 1. To explicitly tell the user that they have a password configured — for example, on the account settings page.
 2. To support any other future feature that might require knowing this information.
 
-To do this, we will extend the [`LocalAuthSecrets`](https://github.com/gravitational/teleport/blob/8c6f6eee44fa39098e4a854e6184082a1bfeeaf9/api/proto/teleport/legacy/types/types.proto#L3302) message by adding a `PasswordState` field:
+To do this, we will extend the [`UserSpecV2`](https://github.com/gravitational/teleport/blob/6103a2b1eff2a6bece80ab138ebe68b4ba041a91/api/proto/teleport/legacy/types/types.proto#L3185) message by adding a `PasswordState` field:
 
 ```proto
-message LocalAuthSecrets {
-  bytes PasswordHash = 1 [(gogoproto.jsontag) = "password_hash,omitempty"];
-  string TOTPKey = 2 [(gogoproto.jsontag) = "totp_key,omitempty"];
-  repeated MFADevice MFA = 5 [(gogoproto.jsontag) = "mfa,omitempty"];
-  WebauthnLocalAuth Webauthn = 6 [(gogoproto.jsontag) = "webauthn,omitempty"];
+message UserSpecV2 {
+  // ...existing fields...
 
-  // New field
-  PasswordState PasswordState = 7 [(gogoproto.jsontag) = "password_state,omitempty"];
+  PasswordState PasswordState = 11 [(gogoproto.jsontag) = "password_state,omitempty"];
 }
 
 enum PasswordState {
@@ -85,11 +81,11 @@ enum PasswordState {
 }
 ```
 
-This field will be stored under its own resource key, since there is no top-level local auth secrets object in the database; the password hash, MFA and WebAuthn keys are stored separately. Also, the hash is a plain string, not a structured object, so we can't extend it with another field. The resource key will have the following form: `/web/users/<username>/pwd_state`. The resource will be removed along with other user data upon user deletion, since it is located within the username scope.
+The flag will be stored under the `/web/users/<username>/params` key, along with the rest of `UserSpecV2` fields.
 
 `PASSWORD_STATE_UNSPECIFIED` is deliberately set to 0, since this is the default value when there's no information about the password state in the database.
 
-The state changes to `PASSWORD_STATE_UNSET` whenever another user (or cluster onboarding flow) creates a password reset token for a given user, or removes the password (see [Removing a Password](#removing-a-password)). These are scenarios when the system becomes confident that the user has no password. As a consequence, users created after this change is made will never have their password in an unspecified state.
+The state changes to `PASSWORD_STATE_UNSET` whenever another user (or cluster onboarding flow) creates a password reset token for a given user. These are scenarios when the system becomes confident that the user has no password. As a consequence, users created after this change is made will never have their password in an unspecified state.
 
 The state changes to `PASSWORD_STATE_SET` whenever user sets/resets their password or successfully signs in using a password. The last scenario, in particular, will allow us to gradually fill in information about existing users that have passwords.
 
@@ -98,13 +94,9 @@ The state changes to `PASSWORD_STATE_SET` whenever user sets/resets their passwo
 
 ### Returning Password State to the Account Settings UI
 
-The old account settings page had separate paths for managing passwords and MFA devices, so there is no "global" endpoint that would return information about all authentication methods. There is only an endpoint that returns a list of MFA devices.
+The old account settings page had separate paths for managing passwords and MFA devices, so there is no endpoint that would return information about all authentication methods specifically for this page. There is only an endpoint that returns a list of MFA devices.
 
-We therefore need to expose a special `/webapi/user/passwordstatus` endpoint that will return the `PasswordStatus` flag value — and only this.
-
-## Removing a Password
-
-The point of the changes described so far is to enable the user to escape a state of their account where it's not possible to enter a state with a password configured. However, it is still true that after the user _sets_ the password, again, it's not explicitly possible (without another user's help) to enter the state where no password is set (short of, perhaps, using a strong password and then discarding it). As a follow-up feature, we should consider providing a way to remove a password. This scenario should work the same way as removing any other authentication method: first, verify user's identity, either by a passwordless key, MFA, or the password itself, then overwrite the password with a randomly generated one, and finally, set the state flag to `PASSWORD_STATE_UNSET`.
+Since we already return `authType` in `/v1/webapi/sites/<site>/context`, it makes sense to extend the returned data structure with the `PasswordStatus` flag, thus making it appear in the `UserContext` structure on the frontend.
 
 ## Alternatives Considered
 
