@@ -54,8 +54,10 @@ jobs:
 
           # This is required by the Ubuntu appx for some reason
           $AppxPackagePath="VCLibs14.appx"
-          Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile "$AppxPackagePath"
-          if($(Get-FileHash -Path "$AppxPackagePath").Hash -ne "9BFDE6CFCC530EF073AB4BC9C4817575F63BE1251DD75AAA58CB89299697A569") {
+          # TODO: self host/cache this artifact
+          # the aka.ms link from the docs is a redirect service that is prone to unexpectedly serving content with a different checksum, use the redirect target instead
+          Invoke-WebRequest -Uri https://download.microsoft.com/download/4/7/c/47c6134b-d61f-4024-83bd-b9c9ea951c25/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile "$AppxPackagePath"
+          if($(Get-FileHash -Path "$AppxPackagePath").Hash -ne "B56A9101F706F9D95F815F5B7FA6EFBAC972E86573D378B96A07CFF5540C5961") {
             throw "The VCLibs app package downloaded did not match the expected checksum"
           }
           Add-AppxPackage -Path "$AppxPackagePath"
