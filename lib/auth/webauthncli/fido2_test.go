@@ -81,10 +81,6 @@ func init() {
 		}
 		*dataCBOR = res
 	}
-
-	// Make sure all goroutines cleanly complete before returning from Login or
-	// Register methods.
-	*wancli.WaitForDeviceGoroutinesOnTests = true
 }
 
 // Capture common authenticator options.

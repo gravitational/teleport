@@ -18,7 +18,6 @@
 package webauthncli
 
 var (
-	FIDODeviceLocations            = &fidoDeviceLocations
-	FIDONewDevice                  = &fidoNewDevice
-	WaitForDeviceGoroutinesOnTests = &waitForDeviceGoroutinesOnTests
+	FIDODeviceLocations = &fidoDeviceLocations
+	FIDONewDevice       = &fidoNewDevice
 )
