@@ -15,6 +15,7 @@ If your Teleport cluster is deployed using the `teleport-cluster` Helm chart, yo
   Deployment, Secret, Role, RoleBinding and CustomResourceDefinition resources.
 - [Helm](https://helm.sh/docs/intro/quickstart/)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
+- a Teleport cluster running at least version 15.
 
 Validate Kubernetes connectivity by running the following command:
 
@@ -101,10 +102,15 @@ $ tctl bots add operator --token operator-bot --roles operator
 
 ### Step 4/4 - Deploy the operator in the Kubernetes cluster
 
-At this point you can configure and run the operator:
+At this point, you can configure and run the operator:
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
+1. Recover the version of your Teleport cluster
+   ```code
+   export TELEPORT_VERSION="$(tsh version | awk '/Proxy[[:space:]]version/ {print $3}')"
+   echo "$TELEPORT_VERSION"
+   ```
 1. Create the Kubernetes namespace that will contain both the operator Pods and the CustomResources to configure Teleport:
    ```code
    $ kubectl create namespace teleport-iac
@@ -115,7 +121,7 @@ At this point you can configure and run the operator:
    ```
 1. Deploy the operator with Helm:
    ```code
-   $ helm install teleport-operator teleport/teleport-operator -n teleport-iac --set teleportAddress=teleport.example.com:443 --set "teleportClusterName=$CLUSTER_NAME" --set token=operator-bot 
+   $ helm install teleport-operator teleport/teleport-operator -n teleport-iac --version "$TELEPORT_VERSION" --set teleportAddress=teleport.example.com:443 --set "teleportClusterName=$CLUSTER_NAME" --set token=operator-bot 
    ```
 1. Validate that operator is running properly (the operator might take a few seconds to start):
    ```code
