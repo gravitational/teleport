@@ -65,7 +65,7 @@ export function mapToAction(
         parameter: {
           getSuggestions: async () =>
             ctx.clustersService.findClusterByResource(result.resource.uri)
-              ?.loggedInUser?.sshLoginsList,
+              ?.loggedInUser?.sshLogins,
           placeholder: 'Provide login',
         },
         perform: login => {
@@ -101,9 +101,14 @@ export function mapToAction(
         type: 'simple-action',
         searchResult: result,
         perform: () =>
-          connectToApp(ctx, result.resource, {
-            origin: 'search_bar',
-          }),
+          connectToApp(
+            ctx,
+            result.resource,
+            {
+              origin: 'search_bar',
+            },
+            { launchInBrowserIfWebApp: true }
+          ),
       };
     }
     case 'database': {

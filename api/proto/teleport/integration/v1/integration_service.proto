@@ -95,7 +95,9 @@ message DeleteAllIntegrationsRequest {}
 message GenerateAWSOIDCTokenRequest {
   // Issuer is the entity that is signing the JWT.
   // This value must contain the AWS OIDC Integration configured provider (Teleport Proxy's Public URL)
-  string issuer = 1;
+  //
+  // Deprecated: Ignored because value is calculated server side.
+  string issuer = 1 [deprecated = true];
 }
 
 // GenerateAWSOIDCTokenResponse contains a signed AWS OIDC Integration token.

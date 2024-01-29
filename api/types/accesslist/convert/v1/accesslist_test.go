@@ -242,3 +242,27 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	require.NoError(t, err)
 	return accessList
 }
+
+func TestNextAuditDateZeroTime(t *testing.T) {
+	// When a proto message without expiration is converted to an AL
+	// we expect next audit date to be mapped to golang's zero time. Then
+	// AccessList.CheckAndSetDefaults will set a time in the future based on
+	// the recurrence rules.
+	accessList := ToProto(newAccessList(t, "access-list"))
+	accessList.Spec.Audit.NextAuditDate = nil
+	converted, err := FromProto(accessList)
+
+	require.NoError(t, err)
+	require.NotZero(
+		t,
+		converted.Spec.Audit.NextAuditDate.Unix(),
+		"next audit date should not be epoch",
+	)
+
+	converted.Spec.Audit.NextAuditDate = time.Time{}
+	// When an Access List without next audit date is converted to protobuf
+	// it should be nil.
+	convertedTwice := ToProto(converted)
+
+	require.Nil(t, convertedTwice.Spec.Audit.NextAuditDate)
+}

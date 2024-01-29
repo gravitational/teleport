@@ -26,13 +26,14 @@ import {
   SettingsIcon,
 } from 'design/SVGIcon';
 
+import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
+
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { Tooltip } from 'teleport/Assist/shared/Tooltip';
-import { ViewMode } from 'teleport/Assist/types';
 import { HeaderIcon } from 'teleport/Assist/shared';
 
 interface HeaderProps {
-  viewMode: ViewMode;
+  viewMode: AssistViewMode;
   sidebarVisible: boolean;
   onClose: () => void;
   onToggleSidebar: () => void;

@@ -227,7 +227,7 @@ export function Status(props: { closeDocument?: () => void }) {
               <LabelsContainer gap={1} className={state}>
                 {/* Explicitly check for existence of agentNode because Transition doesn't seem to
                 unmount immediately when `in` becomes falsy. */}
-                {agentNode?.labelsList && renderLabels(agentNode.labelsList)}
+                {agentNode?.labels && renderLabels(agentNode.labels)}
               </LabelsContainer>
             )}
           </Transition>

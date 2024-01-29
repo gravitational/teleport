@@ -722,7 +722,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 
 	// no tunnel, check for protocol-specific cases
 	switch arg.dbInfo.Protocol {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		// certs are needed for non-tunnel postgres cancel requests.
 		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err != nil {
