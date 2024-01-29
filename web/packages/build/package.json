@@ -51,7 +51,6 @@
     "@typescript-eslint/eslint-plugin": "^6.13.1",
     "@typescript-eslint/parser": "^6.13.1",
     "@vitejs/plugin-react-swc": "^3.5.0",
-    "babel-loader": "^8.2.5",
     "core-js": "^3",
     "cross-env": "5.0.5",
     "cross-spawn": "6.0.5",
