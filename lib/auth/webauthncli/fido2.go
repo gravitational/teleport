@@ -69,11 +69,6 @@ var (
 	errPasswordlessU2F         = errors.New("U2F devices cannot do passwordless")
 )
 
-// Makes runOnFIDO2Devices wait for all device goroutines to complete before
-// returning.
-// Useful for making tests consistent, but not recommended for production use.
-var waitForDeviceGoroutinesOnTests = false
-
 // FIDODevice abstracts *libfido2.Device for testing.
 type FIDODevice interface {
 	// Info mirrors libfido2.Device.Info.
@@ -606,20 +601,14 @@ func runOnFIDO2Devices(
 		devices.cancelAll(nil /* except */)
 
 		// Give the devices some time to tidy up, but don't wait forever.
-		var maxWait <-chan time.Time
-		if waitForDeviceGoroutinesOnTests {
-			maxWait = make(<-chan time.Time)
-		} else {
-			timer := time.NewTimer(fido2DeviceMaxWait)
-			defer timer.Stop()
-			maxWait = timer.C
-		}
+		maxWait := time.NewTimer(fido2DeviceMaxWait)
+		defer maxWait.Stop()
 
 		for receiveCount < devices.len() {
 			select {
 			case <-devicesC:
 				receiveCount++
-			case <-maxWait:
+			case <-maxWait.C:
 				log.Debugf("FIDO2: Abandoning device goroutines after %s", fido2DeviceMaxWait)
 				return
 			}
