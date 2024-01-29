@@ -20,8 +20,8 @@ In short, private key material will never leave AWS KMS.
 
 If launching a new Teleport cluster this will all be handled during initial
 startup with no specific interventions required after configuration.
-For existing Teleport clusters that already have private key material on disk,
-a CA rotation must be performed.
+For existing Teleport clusters that already have already generated software
+private keys, a CA rotation must be performed.
 Read on to [migrating an existing cluster](#migrating-an-existing-cluster) to
 learn more.
 
@@ -42,8 +42,6 @@ higher.
 
 Your Teleport Auth Service will need permissions to create, sign with, list,
 and destroy KMS keys in your AWS account.
-
-### Create an AWS IAM policy
 
 Start by creating the following AWS IAM policy in your account.
 
@@ -99,21 +97,31 @@ You can create the policy from the AWS console, or via the AWS CLI.
 
 ```code
 $ aws iam create-policy --policy-name TeleportKMS --policy-document file://policy.json
+{
+    "Policy": {
+        "PolicyName": "TeleportKMS",
+        "PolicyId": "XXXXXXXXXXXXXXXXXXXXX",
+        "Arn": "arn:aws:iam::123456789012:policy/TeleportKMS",
+        "Path": "/",
+        "DefaultVersionId": "v1",
+        "AttachmentCount": 0,
+        "PermissionsBoundaryUsageCount": 0,
+        "IsAttachable": true,
+        "CreateDate": "2024-01-29T23:05:06+00:00",
+        "UpdateDate": "2024-01-29T23:05:06+00:00"
+    }
+}
 ```
 
-### Attach the AWS IAM policy
+Attach the policy to an IAM role that your Auth Service instances will
+authenticate to your AWS account as.
+You can attach the policy from the AWS console, or via the AWS CLI.
 
-Your Teleport Auth Service will need access to an IAM identity with this policy attached.
-You can provide credentials via IAM Roles for Tasks, IAM Roles for EC2,
-credential files, or environment variables.
-See [Specifying Credentials](https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials)
-for details.
+```code
+$ aws iam attach-role-policy --role-name <IAM role> --policy-arn <policy ARN>
+```
 
-If your Teleport Auth Service is running on an EC2 instance and already has an
-attached "IAM role for Amazon EC2", attach the above policy to the existing role.
-If the instance does not already have an attached role, create an IAM role with
-the above policy and attach it to your EC2 instance running the Teleport Auth
-Service.
+(!docs/pages/includes/aws-credentials.mdx service="the Teleport Auth Service"!)
 
 ## Step 2/5. Configure your Auth Service to use KMS keys
 
