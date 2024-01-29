@@ -231,6 +231,12 @@ The operator now joins using a Kubernetes ServiceAccount token. To validate the
 token, the Teleport Auth Service must have access to the `TokenReview` API.
 The chart configures this for you since v12, unless you disabled `rbac` creation.
 
+The chart now sets a termination grace period of 210 seconds on proxy pods. This
+significantly slows down proxy rollouts but reduces disruption for ongoing SSH
+sessions. If you are setting the `--wait`, `--atomic` Helm flags or are creating
+Helm releases via Terraform, you must increase Helm's timeout. A rule of thumb
+would be 5 minutes per proxy replica.
+
 ### Other changes
 
 #### Increased password length
