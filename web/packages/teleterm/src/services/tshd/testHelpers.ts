@@ -20,8 +20,11 @@ import * as tsh from './types';
 
 import type { App } from 'teleterm/ui/services/clusters';
 
+export const rootClusterUri = '/clusters/teleport-local';
+export const leafClusterUri = `${rootClusterUri}/leaves/leaf`;
+
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
-  uri: '/clusters/teleport-local/servers/1234abcd-1234-abcd-1234-abcd1234abcd',
+  uri: `${rootClusterUri}/servers/1234abcd-1234-abcd-1234-abcd1234abcd`,
   tunnel: false,
   name: '1234abcd-1234-abcd-1234-abcd1234abcd',
   hostname: 'foo',
@@ -31,8 +34,9 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   ...props,
 });
 
-export const databaseUri = '/clusters/teleport-local/dbs/foo';
-export const kubeUri = '/clusters/teleport-local/kubes/foo';
+export const databaseUri = `${rootClusterUri}/dbs/foo`;
+export const kubeUri = `${rootClusterUri}/kubes/foo`;
+export const appUri = `${rootClusterUri}/apps/foo`;
 
 export const makeDatabase = (
   props: Partial<tsh.Database> = {}
@@ -51,7 +55,7 @@ export const makeDatabase = (
 export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   name: 'foo',
   labels: [],
-  uri: '/clusters/bar/kubes/foo',
+  uri: `${rootClusterUri}/kubes/foo`,
   ...props,
 });
 
@@ -65,8 +69,9 @@ export const makeApp = (props: Partial<tsh.App> = {}): App => ({
   publicAddr: 'local-app.example.com:3000',
   fqdn: 'local-app.example.com:3000',
   samlApp: false,
-  uri: '/clusters/bar/apps/foo',
+  uri: appUri,
   addrWithProtocol: 'tcp://local-app.example.com:3000',
+  awsRoles: [],
   ...props,
 });
 
@@ -76,7 +81,7 @@ export const makeLabelsList = (labels: Record<string, string>): tsh.Label[] =>
 export const makeRootCluster = (
   props: Partial<tsh.Cluster> = {}
 ): tsh.Cluster => ({
-  uri: '/clusters/teleport-local',
+  uri: rootClusterUri,
   name: 'teleport-local',
   connected: true,
   leaf: false,
@@ -90,7 +95,7 @@ export const makeRootCluster = (
 export const makeLeafCluster = (
   props: Partial<tsh.Cluster> = {}
 ): tsh.Cluster => ({
-  uri: '/clusters/teleport-local/leaves/leaf',
+  uri: leafClusterUri,
   name: 'teleport-local-leaf',
   connected: true,
   leaf: true,
@@ -266,7 +271,7 @@ export const makeAppGateway = (
 ): tsh.Gateway => ({
   uri: '/gateways/bar',
   targetName: 'sales-production',
-  targetUri: '/clusters/bar/apps/foo',
+  targetUri: appUri,
   localAddress: 'localhost',
   localPort: '1337',
   targetSubresourceName: 'bar',
