@@ -23,12 +23,11 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509/pkix"
-	"log"
-	"os"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var (
@@ -137,151 +137,15 @@ func TestKeyStore(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
-	var softHSMConfig Config
-	if !skipSoftHSM {
-		softHSMConfig = SetupSoftHSMTest(t)
-		softHSMConfig.PKCS11.HostUUID = "server1"
-	}
+	message := []byte("Lorem ipsum dolor sit amet...")
+	messageHash := sha256.Sum256(message)
 
-	hostUUID := uuid.NewString()
+	pack := newTestPack(ctx, t)
 
-	gcpKMSConfig := GCPKMSConfig{
-		HostUUID:        hostUUID,
-		ProtectionLevel: "HSM",
-	}
-	if keyRing := os.Getenv("TEST_GCP_KMS_KEYRING"); keyRing != "" {
-		t.Logf("Running test with real GCP KMS keyring %s", keyRing)
-		gcpKMSConfig.KeyRing = keyRing
-	} else {
-		t.Log("Running test with fake GCP KMS service")
-		_, dialer := newTestGCPKMSService(t)
-		testClient := newTestGCPKMSClient(t, dialer)
-		gcpKMSConfig.kmsClientOverride = testClient
-		gcpKMSConfig.KeyRing = "test-keyring"
-	}
-
-	yubiSlotNumber := 0
-	backends := []struct {
-		desc       string
-		config     Config
-		isSoftware bool
-		shouldSkip func() bool
-		// unusedRawKey should return passable raw key identifier for this
-		// backend that would not actually exist in the backend.
-		unusedRawKey func(t *testing.T) []byte
-	}{
-		{
-			desc: "software",
-			config: Config{
-				Software: SoftwareConfig{
-					RSAKeyPairSource: native.GenerateKeyPair,
-				},
-			},
-			isSoftware: true,
-			shouldSkip: func() bool { return false },
-			unusedRawKey: func(t *testing.T) []byte {
-				rawKey, _, err := native.GenerateKeyPair()
-				require.NoError(t, err)
-				return rawKey
-			},
-		},
-		{
-			desc:   "softhsm",
-			config: softHSMConfig,
-			shouldSkip: func() bool {
-				if skipSoftHSM {
-					log.Println("Skipping softhsm test because SOFTHSM2_PATH is not set.")
-					return true
-				}
-				return false
-			},
-			unusedRawKey: func(t *testing.T) []byte {
-				rawKey, err := keyID{
-					HostID: softHSMConfig.PKCS11.HostUUID,
-					KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
-				}.marshal()
-				require.NoError(t, err)
-				return rawKey
-			},
-		},
-		{
-			desc: "yubihsm",
-			config: Config{
-				PKCS11: PKCS11Config{
-					Path:       os.Getenv("YUBIHSM_PKCS11_PATH"),
-					SlotNumber: &yubiSlotNumber,
-					Pin:        "0001password",
-					HostUUID:   hostUUID,
-				},
-			},
-			shouldSkip: func() bool {
-				if os.Getenv("YUBIHSM_PKCS11_CONF") == "" || os.Getenv("YUBIHSM_PKCS11_PATH") == "" {
-					log.Println("Skipping yubihsm test because YUBIHSM_PKCS11_CONF or YUBIHSM_PKCS11_PATH is not set.")
-					return true
-				}
-				return false
-			},
-			unusedRawKey: func(t *testing.T) []byte {
-				rawKey, err := keyID{
-					HostID: hostUUID,
-					KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
-				}.marshal()
-				require.NoError(t, err)
-				return rawKey
-			},
-		},
-		{
-			desc: "cloudhsm",
-			config: Config{
-				PKCS11: PKCS11Config{
-					Path:       "/opt/cloudhsm/lib/libcloudhsm_pkcs11.so",
-					TokenLabel: "cavium",
-					Pin:        os.Getenv("CLOUDHSM_PIN"),
-					HostUUID:   hostUUID,
-				},
-			},
-			shouldSkip: func() bool {
-				if os.Getenv("CLOUDHSM_PIN") == "" {
-					log.Println("Skipping cloudhsm test because CLOUDHSM_PIN is not set.")
-					return true
-				}
-				return false
-			},
-			unusedRawKey: func(t *testing.T) []byte {
-				rawKey, err := keyID{
-					HostID: hostUUID,
-					KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
-				}.marshal()
-				require.NoError(t, err)
-				return rawKey
-			},
-		},
-		{
-			desc: "gcp kms",
-			config: Config{
-				GCPKMS: gcpKMSConfig,
-			},
-			shouldSkip: func() bool {
-				return false
-			},
-			unusedRawKey: func(t *testing.T) []byte {
-				return gcpKMSKeyID{
-					keyVersionName: gcpKMSConfig.KeyRing + "/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
-				}.marshal()
-			},
-		},
-	}
-
-	for _, tc := range backends {
-		tc := tc
-		t.Run(tc.desc, func(t *testing.T) {
-			if tc.shouldSkip() {
-				t.SkipNow()
-			}
-
+	for _, backendDesc := range pack.backends {
+		t.Run(backendDesc.name, func(t *testing.T) {
 			// create the keystore manager
-			keyStore, err := NewManager(ctx, tc.config)
+			keyStore, err := NewManager(ctx, backendDesc.config)
 			require.NoError(t, err)
 
 			// create a key
@@ -299,13 +163,11 @@ func TestKeyStore(t *testing.T) {
 			require.NotNil(t, signer)
 
 			// try signing something
-			message := []byte("Lorem ipsum dolor sit amet...")
-			hashed := sha256.Sum256(message)
-			signature, err := signer.Sign(rand.Reader, hashed[:], crypto.SHA256)
+			signature, err := signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
 			require.NoError(t, err)
 			require.NotEmpty(t, signature)
 			// make sure we can verify the signature with a "known good" rsa implementation
-			err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, hashed[:], signature)
+			err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, messageHash[:], signature)
 			require.NoError(t, err)
 
 			// make sure we can get the ssh public key
@@ -389,7 +251,7 @@ func TestKeyStore(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if !tc.isSoftware {
+			if backendDesc.expectedKeyType != types.PrivateKeyType_RAW {
 				// hsm keyStore should not get any signer from raw keys
 				_, err = keyStore.GetSSHSigner(ctx, ca)
 				require.True(t, trace.IsNotFound(err))
@@ -417,19 +279,16 @@ func TestKeyStore(t *testing.T) {
 		})
 	}
 
-	for _, tc := range backends {
-		t.Run(tc.desc+"_DeleteUnusedKeys", func(t *testing.T) {
-			if tc.shouldSkip() {
-				t.SkipNow()
-			}
-			if tc.isSoftware {
+	for _, backendDesc := range pack.backends {
+		t.Run(backendDesc.name+"_DeleteUnusedKeys", func(t *testing.T) {
+			if backendDesc.expectedKeyType == types.PrivateKeyType_RAW {
 				// deleting keys is a no-op for software, we won't get the error
 				// we're expecting
 				t.SkipNow()
 			}
 
 			// create the keystore manager
-			keyStore, err := NewManager(ctx, tc.config)
+			keyStore, err := NewManager(ctx, backendDesc.config)
 			require.NoError(t, err)
 
 			// create some keys to test DeleteUnusedKeys
@@ -460,7 +319,7 @@ func TestKeyStore(t *testing.T) {
 			// Make sure key deletion is aborted when one of the active keys
 			// cannot be found. This makes sure that we don't accidentally
 			// delete current active keys in case the ListKeys operation fails.
-			fakeActiveKey := tc.unusedRawKey(t)
+			fakeActiveKey := backendDesc.unusedRawKey
 			err = keyStore.DeleteUnusedKeys(ctx, [][]byte{fakeActiveKey})
 			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
@@ -468,5 +327,125 @@ func TestKeyStore(t *testing.T) {
 			err = keyStore.deleteKey(ctx, rawKeys[0])
 			require.NoError(t, err)
 		})
+	}
+}
+
+type testPack struct {
+	backends []*backendDesc
+	clock    clockwork.FakeClock
+}
+
+type backendDesc struct {
+	name                string
+	config              Config
+	backend             backend
+	expectedKeyType     types.PrivateKeyType
+	unusedRawKey        []byte
+	deletionDoesNothing bool
+}
+
+func newTestPack(ctx context.Context, t *testing.T) *testPack {
+	clock := clockwork.NewFakeClock()
+	var backends []*backendDesc
+
+	hostUUID := uuid.NewString()
+	logger := utils.NewLoggerForTests()
+
+	unusedPKCS11Key, err := keyID{
+		HostID: hostUUID,
+		KeyID:  "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+	}.marshal()
+	require.NoError(t, err)
+
+	softwareConfig := Config{Software: SoftwareConfig{
+		RSAKeyPairSource: native.GenerateKeyPair,
+	}}
+	softwareBackend := newSoftwareKeyStore(&softwareConfig.Software, logger)
+	backends = append(backends, &backendDesc{
+		name:                "software",
+		config:              softwareConfig,
+		backend:             softwareBackend,
+		unusedRawKey:        testRawPrivateKey,
+		deletionDoesNothing: true,
+	})
+
+	if config, ok := softHSMTestConfig(t); ok {
+		config.PKCS11.HostUUID = hostUUID
+		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		require.NoError(t, err)
+		backends = append(backends, &backendDesc{
+			name:            "softhsm",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_PKCS11,
+			unusedRawKey:    unusedPKCS11Key,
+		})
+	}
+
+	if config, ok := yubiHSMTestConfig(t); ok {
+		config.PKCS11.HostUUID = hostUUID
+		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		require.NoError(t, err)
+		backends = append(backends, &backendDesc{
+			name:            "yubihsm",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_PKCS11,
+			unusedRawKey:    unusedPKCS11Key,
+		})
+	}
+
+	if config, ok := cloudHSMTestConfig(t); ok {
+		config.PKCS11.HostUUID = hostUUID
+		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		require.NoError(t, err)
+		backends = append(backends, &backendDesc{
+			name:            "yubihsm",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_PKCS11,
+			unusedRawKey:    unusedPKCS11Key,
+		})
+	}
+
+	if config, ok := gcpKMSTestConfig(t); ok {
+		config.GCPKMS.HostUUID = hostUUID
+		backend, err := newGCPKMSKeyStore(ctx, &config.GCPKMS, logger)
+		require.NoError(t, err)
+		backends = append(backends, &backendDesc{
+			name:            "gcp_kms",
+			config:          config,
+			backend:         backend,
+			expectedKeyType: types.PrivateKeyType_GCP_KMS,
+			unusedRawKey: gcpKMSKeyID{
+				keyVersionName: config.GCPKMS.KeyRing + "/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
+			}.marshal(),
+		})
+	}
+	_, gcpKMSDialer := newTestGCPKMSService(t)
+	testGCPKMSClient := newTestGCPKMSClient(t, gcpKMSDialer)
+	fakeGCPKMSConfig := Config{
+		GCPKMS: GCPKMSConfig{
+			HostUUID:          hostUUID,
+			ProtectionLevel:   "HSM",
+			KeyRing:           "test-keyring",
+			kmsClientOverride: testGCPKMSClient,
+		},
+	}
+	fakeGCPKMSBackend, err := newGCPKMSKeyStore(ctx, &fakeGCPKMSConfig.GCPKMS, logger)
+	require.NoError(t, err)
+	backends = append(backends, &backendDesc{
+		name:            "fake_gcp_kms",
+		config:          fakeGCPKMSConfig,
+		backend:         fakeGCPKMSBackend,
+		expectedKeyType: types.PrivateKeyType_GCP_KMS,
+		unusedRawKey: gcpKMSKeyID{
+			keyVersionName: "test-keyring/cryptoKeys/FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" + keyVersionSuffix,
+		}.marshal(),
+	})
+
+	return &testPack{
+		backends: backends,
+		clock:    clock,
 	}
 }
