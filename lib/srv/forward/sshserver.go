@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -1361,7 +1362,18 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 
 	// if SFTP was requested, check that
 	if subsystem.subsytemName == teleport.SFTPSubsystem {
-		if err := serverContext.CheckSFTPAllowed(s.sessionRegistry); err != nil {
+		err := serverContext.CheckSFTPAllowed(s.sessionRegistry)
+		if err != nil {
+			s.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
+				Metadata: apievents.Metadata{
+					Code: events.SFTPDisallowedCode,
+					Type: events.SFTPEvent,
+					Time: time.Now(),
+				},
+				UserMetadata:   serverContext.Identity.GetUserMetadata(),
+				ServerMetadata: serverContext.GetServerMetadata(),
+				Error:          err.Error(),
+			})
 			return trace.Wrap(err)
 		}
 	}
