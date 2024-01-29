@@ -56,10 +56,6 @@ export function ParameterPicker(props: ParameterPickerProps) {
         { value: inputValue, displayText: inputValue },
       ]
   );
-  const $suggestionsMessage = getSuggestionsMessage({
-    suggestionsAttempt,
-    parameter: props.action.parameter,
-  });
 
   useEffect(() => {
     getSuggestions();
@@ -68,15 +64,22 @@ export function ParameterPicker(props: ParameterPickerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const attempt = mapAttempt(suggestionsAttempt, suggestions =>
-    suggestions.filter(
-      v =>
-        v.displayText
-          .toLocaleLowerCase()
-          .includes(inputValue.toLocaleLowerCase()) &&
-        v.displayText !== inputValue
-    )
+  const matchingSuggestionsAttempt = mapAttempt(
+    suggestionsAttempt,
+    suggestions =>
+      suggestions.filter(
+        v =>
+          v.displayText
+            .toLocaleLowerCase()
+            .includes(inputValue.toLocaleLowerCase()) &&
+          v.displayText !== inputValue
+      )
   );
+
+  const $suggestionsMessage = getSuggestionsMessage({
+    matchingSuggestionsAttempt,
+    parameter: props.action.parameter,
+  });
 
   const onPick = useCallback(
     (item: Parameter) => {
@@ -98,7 +101,7 @@ export function ParameterPicker(props: ParameterPickerProps) {
     <PickerContainer>
       {props.input}
       <ResultList<Parameter>
-        attempts={[inputSuggestionAttempt, attempt]}
+        attempts={[inputSuggestionAttempt, matchingSuggestionsAttempt]}
         ExtraTopComponent={$suggestionsMessage}
         onPick={onPick}
         onBack={onBack}
@@ -143,19 +146,21 @@ export const NoSuggestionsAvailable = ({ message }: { message: string }) => (
 );
 
 function getSuggestionsMessage({
-  suggestionsAttempt,
+  matchingSuggestionsAttempt,
   parameter,
 }: {
-  suggestionsAttempt: Attempt<Parameter[]>;
+  matchingSuggestionsAttempt: Attempt<Parameter[]>;
   parameter?: ParametrizedAction['parameter'];
 }) {
-  if (suggestionsAttempt.status === 'error') {
-    return <SuggestionsError statusText={suggestionsAttempt.statusText} />;
+  if (matchingSuggestionsAttempt.status === 'error') {
+    return (
+      <SuggestionsError statusText={matchingSuggestionsAttempt.statusText} />
+    );
   }
   if (
     parameter.allowOnlySuggestions &&
-    suggestionsAttempt.status === 'success' &&
-    suggestionsAttempt.data.length === 0
+    matchingSuggestionsAttempt.status === 'success' &&
+    matchingSuggestionsAttempt.data.length === 0
   ) {
     return (
       <NoSuggestionsAvailable
