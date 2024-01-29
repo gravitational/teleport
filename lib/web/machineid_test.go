@@ -87,7 +87,7 @@ func TestCreateBot(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func TestGetBotBy(t *testing.T) {
+func TestGetBotByName(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
