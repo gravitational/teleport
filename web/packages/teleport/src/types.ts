@@ -154,6 +154,7 @@ export interface FeatureFlags {
   accessRequests: boolean;
   newAccessRequest: boolean;
   downloadCenter: boolean;
+  supportLink: boolean;
   discover: boolean;
   plugins: boolean;
   integrations: boolean;
