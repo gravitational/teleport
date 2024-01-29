@@ -57,7 +57,7 @@ class Indicator extends React.Component {
       return null;
     }
 
-    return <StyledSpinner {...this.props} />;
+    return <StyledSpinner {...this.props} data-testid="indicator" />;
   }
 }
 
