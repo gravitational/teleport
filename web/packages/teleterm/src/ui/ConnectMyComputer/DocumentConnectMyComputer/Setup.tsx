@@ -397,9 +397,18 @@ function AgentSetup() {
   };
 
   useEffect(() => {
-    if (steps.every(step => step.attempt.status === '')) {
-      runSteps();
-    }
+    // TODO(ravicious): We should run the steps only when every attempt has its status set to '' and
+    // abort any action on unmount. However, there's a couple of things preventing us from doing so:
+    //
+    // * downloadAgentAttempt is kept in the context, so it's not reset between renders like other
+    // attempts from this component. Instead of re-using the attempt from the context, the step with
+    // downloading an agent should be a separate attempt that merely calls downloadAgent from the
+    // context.
+    // * None of the steps support an abort signal at the moment.
+    //
+    // See the discussion on GitHub for more details:
+    // https://github.com/gravitational/teleport/pull/37330#discussion_r1467646824
+    runSteps();
   }, []);
 
   const retryRunSteps = async () => {
