@@ -610,7 +610,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 			// RunTransaction does not officially document what error is returned if MaxAttempts is exceeded,
 			// but as currently implemented it should simply bubble up the Aborted error from the most recent
 			// failed commit attempt.
-			return nil, trace.CompareFailed("too many attempts during CompareAndSwap for key %q", replaceWith.Key)
+			return nil, trace.Errorf("too many attempts during CompareAndSwap for key %q", replaceWith.Key)
 		}
 
 		return nil, trace.Wrap(ConvertGRPCError(err))
@@ -675,7 +675,7 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string)
 			// RunTransaction does not officially document what error is returned if MaxAttempts is exceeded,
 			// but as currently implemented it should simply bubble up the Aborted error from the most recent
 			// failed commit attempt.
-			return trace.CompareFailed("too many attempts during ConditionalDelete for key %q", key)
+			return trace.Errorf("too many attempts during ConditionalDelete for key %q", key)
 		}
 
 		return trace.Wrap(ConvertGRPCError(err))
@@ -742,7 +742,7 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*ba
 			// RunTransaction does not officially document what error is returned if MaxAttempts is exceeded,
 			// but as currently implemented it should simply bubble up the Aborted error from the most recent
 			// failed commit attempt.
-			return nil, trace.CompareFailed("too many attempts during ConditionalUpdate for key %q", item.Key)
+			return nil, trace.Errorf("too many attempts during ConditionalUpdate for key %q", item.Key)
 		}
 
 		return nil, trace.Wrap(ConvertGRPCError(err))
