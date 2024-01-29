@@ -112,7 +112,14 @@ jobs:
         uses: errata-ai/vale-action@3f7188c866bcb3259339a09f517d7c4a8838303c # reviewdog
         with:
           version: 2.30.0
+          # Take the comma-separated list of files returned by the "Check for
+          # relevant changes" job.
           separator: ","
           files: ${{ needs.changes.outputs.changed_files }}
+          # Report all results in a file modified in the PR, even if it wasn't
+          # touched by the diff. This way, we can gradually implement a style
+          # guide across the docs: docs authors do a little bit of extra work,
+          # but aren't responsible for entire docs site.
+          filter_mode: file
           fail_on_error: true
 
