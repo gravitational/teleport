@@ -42,7 +42,7 @@ import {
   TypeToSearchItem,
   AdvancedSearchEnabledItem,
 } from './ActionPicker';
-import { SuggestionsError } from './ParameterPicker';
+import { SuggestionsError, NoSuggestionsAvailable } from './ParameterPicker';
 import { ResultList } from './ResultList';
 
 import type * as uri from 'teleterm/ui/uri';
@@ -527,6 +527,7 @@ const AuxiliaryItems = () => {
               '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
             }
           />
+          <NoSuggestionsAvailable message="No roles found." />
           <TypeToSearchItem
             hasNoRemainingFilterActions={false}
             advancedSearch={advancedSearch}
