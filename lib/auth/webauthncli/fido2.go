@@ -985,6 +985,8 @@ func (e *nonInteractiveError) Is(err error) bool {
 func waitForTouch(dev FIDODevice) (touched bool, err error) {
 	touch, err := dev.TouchBegin()
 	if err != nil {
+		// Error logged here as it's mostly ignored by callers.
+		log.Debugf("FIDO2: Device touch begin error: %v", err)
 		return false, trace.Wrap(err)
 	}
 	defer touch.Stop()
@@ -993,6 +995,7 @@ func waitForTouch(dev FIDODevice) (touched bool, err error) {
 	for {
 		touched, err := touch.Status(fido2TouchMaxWait)
 		if err != nil {
+			// Error logged here as it's mostly ignored by callers.
 			log.Debugf("FIDO2: Device touch status error: %v", err)
 			return false, err
 		}
