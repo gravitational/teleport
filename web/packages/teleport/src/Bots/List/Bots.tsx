@@ -23,6 +23,8 @@ import { Alert, Box, ButtonPrimary, Indicator } from 'design';
 
 import { useAttemptNext } from 'shared/hooks';
 
+import { HoverTooltip } from 'shared/components/ToolTip';
+
 import {
   FeatureBox,
   FeatureHeader,
@@ -33,7 +35,6 @@ import { deleteBot, fetchBots } from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
-import { HoverTooltip } from 'shared/components/ToolTip';
 
 export function Bots() {
   const ctx = useTeleport();
