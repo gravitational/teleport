@@ -1398,6 +1398,7 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
 
+
 ## Proxy Peering
 
 [Proxy Peering docs](https://goteleport.com/docs/architecture/proxy-peering/)
@@ -1412,23 +1413,25 @@ TODO(lxea): replace links with actual docs once merged
 ## SSH Connection Resumption
 
 Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade. 
-|   | Standard node | Non-resuming node | Peered node |
-|---|---|---|---|
-| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| Teleport Connect | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| Web UI (not resuming) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| OpenSSH (standard `tsh config`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| OpenSSH (adding `--no-resume`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+|   | Standard node | Non-resuming node | Peered node | Agentless node |
+|---|---|---|---|---|
+| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| Teleport Connect | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| Web UI (not resuming) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (standard `tsh config`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (changing `ProxyCommand` to `tsh proxy ssh --no-resume`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
 
 Verify that SSH works, and that resumable SSH is not interrupted across a control plane restart (of either the root or the leaf cluster).
 
 |   | Tunnel node | Direct dial node |
 |---|---|---|
-| `tsh ssh` (local cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| `tsh ssh --no-resume` (local cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| `tsh ssh` (root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| `tsh ssh --no-resume` (root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (without `ProxyCommand`) | n/a | <ul><li> [ ] </ul></li> |
+| OpenSSH's `ssh-keyscan` | n/a | <ul><li> [ ] </ul></li> |
 
 ## EC2 Discovery
 
