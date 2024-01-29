@@ -72,10 +72,14 @@ export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
     auth2faType: cfg.getAuth2faType(),
     required: true,
   });
+
   const canAddPasskeys =
     cfg.isPasswordlessEnabled() &&
     mfaOptions.some(option => option.value === 'webauthn');
-  const canAddMFA = mfaOptions.some(option => option.value === 'otp');
+
+  const canAddMFA = mfaOptions.some(
+    option => option.value === 'otp' || option.value === 'webauthn'
+  );
 
   return (
     <Account
@@ -174,9 +178,9 @@ export function Account({
             header={
               <Header
                 title="Passkeys"
-                description="Passkeys are a password replacement that validates
-                your identity using touch, facial recognition, a device
-                password, or a PIN."
+                description="Enable secure passwordless sign-in using
+                fingerprint or facial recognition, a one-time code, or
+                a device password."
                 icon={<Icon.Key />}
                 showIndicator={fetchDevicesAttempt.status === 'processing'}
                 actions={
@@ -213,9 +217,9 @@ export function Account({
             header={
               <Header
                 title="Multi-factor Authentication"
-                description="Multi-factor authentication adds an additional layer
-                of security to your account by requiring more than just a
-                password to sign in."
+                description="Provide secondary authentication when signing in
+                with a password. Unlike passkeys, multi-factor methods do not
+                enable passwordless sign-in."
                 icon={<Icon.ShieldCheck />}
                 showIndicator={fetchDevicesAttempt.status === 'processing'}
                 actions={
