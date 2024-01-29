@@ -135,3 +135,24 @@ func (h *Handler) createBotJoinToken(w http.ResponseWriter, r *http.Request, p h
 		Method: provisionToken.GetJoinMethod(),
 	}, nil
 }
+
+// getBot retrieves a bot by name
+func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	botName := p.ByName("name")
+	if botName == "" {
+		return nil, trace.BadParameter("empty name")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	bot, err := clt.BotServiceClient().GetBot(r.Context(), &machineidv1.GetBotRequest{
+		BotName: botName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "error querying bot")
+	}
+
+	return bot, nil
+}
