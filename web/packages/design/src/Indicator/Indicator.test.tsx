@@ -25,11 +25,9 @@ import Indicator from './Indicator';
 
 describe('design/Indicator', () => {
   it('renders', async () => {
-    const { container } = render(
-      <Indicator data-testid="spinner" delay={'none'} />
-    );
+    const { container } = render(<Indicator delay={'none'} />);
     expect(container).toBeEmptyDOMElement();
 
-    await expect(screen.findByTestId('spinner')).resolves.toBeInTheDocument();
+    await expect(screen.findByTestId('indicator')).resolves.toBeInTheDocument();
   });
 });

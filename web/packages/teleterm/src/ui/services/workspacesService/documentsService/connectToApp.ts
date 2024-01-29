@@ -20,14 +20,27 @@ import { routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 
 import { App } from 'teleterm/services/tshd/types';
+import {
+  getWebAppLaunchUrl,
+  isWebApp,
+  getAwsAppLaunchUrl,
+} from 'teleterm/services/tshd/app';
 
 import { DocumentOrigin } from './types';
 
 export async function connectToApp(
   ctx: IAppContext,
   target: App,
-  telemetry: { origin: DocumentOrigin }
+  telemetry: { origin: DocumentOrigin },
+  options?: {
+    launchInBrowserIfWebApp?: boolean;
+    arnForAwsApp?: string;
+  }
 ): Promise<void> {
+  const rootClusterUri = routing.ensureRootClusterUri(target.uri);
+  const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
+  const cluster = ctx.clustersService.findClusterByResource(target.uri);
+
   //TODO(gzdunek): Add regular dialogs for connecting to unsupported apps (non HTTP/TCP)
   // that will explain that the user can connect via tsh/Web UI to them.
   // These dialogs should provide instructions, just like those in the Web UI for database access.
@@ -37,7 +50,17 @@ export async function connectToApp(
   }
 
   if (target.awsConsole) {
-    alert('AWS apps are supported in Web UI and tsh.');
+    launchAppInBrowser(
+      ctx,
+      target,
+      getAwsAppLaunchUrl({
+        app: target,
+        rootCluster,
+        cluster,
+        arn: options.arnForAwsApp,
+      }),
+      telemetry
+    );
     return;
   }
 
@@ -46,7 +69,20 @@ export async function connectToApp(
     return;
   }
 
-  const rootClusterUri = routing.ensureRootClusterUri(target.uri);
+  if (isWebApp(target) && options?.launchInBrowserIfWebApp) {
+    launchAppInBrowser(
+      ctx,
+      target,
+      getWebAppLaunchUrl({
+        app: target,
+        rootCluster,
+        cluster,
+      }),
+      telemetry
+    );
+    return;
+  }
+
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
   const doc = documentsService.createGatewayDocument({
@@ -67,4 +103,30 @@ export async function connectToApp(
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }
+}
+
+/**
+ * When the app is opened outside Connect,
+ * the usage event has to be captured manually.
+ */
+export function captureAppLaunchInBrowser(
+  ctx: IAppContext,
+  target: Pick<App, 'uri'>,
+  telemetry: { origin: DocumentOrigin }
+) {
+  ctx.usageService.captureProtocolUse(target.uri, 'app', telemetry.origin);
+}
+
+function launchAppInBrowser(
+  ctx: IAppContext,
+  target: Pick<App, 'uri'>,
+  launchUrl: string,
+  telemetry: { origin: DocumentOrigin }
+) {
+  captureAppLaunchInBrowser(ctx, target, telemetry);
+
+  // Generally, links should be opened with <a> elements.
+  // Unfortunately, in some cases it is not possible,
+  // for example, in the search bar.
+  window.open(launchUrl, '_blank', 'noreferrer,noopener');
 }
