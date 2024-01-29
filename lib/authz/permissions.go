@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -206,12 +207,6 @@ type Context struct {
 	// disableDeviceRoleMode disables role-based device verification.
 	// Inherited from the authorizer that creates the context.
 	disableDeviceRoleMode bool
-
-	// AdminActionVerified is whether this auth request is verified for admin actions. This
-	// either means that the request was MFA verified through the context or Hardware Key support,
-	// or the identity does not require admin MFA (built in roles, bot impersonated user, etc).
-	// TODO(Joerger): Deprecated in favor of AdminActionAuthState, remove once e is no longer dependent.
-	AdminActionAuthorized bool
 
 	// AdminActionAuthState is the state of admin action authorization for this auth context.
 	AdminActionAuthState AdminActionAuthState
@@ -432,6 +427,16 @@ func (a *authorizer) checkAdminActionVerification(ctx context.Context, authConte
 }
 
 func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, authContext *Context) (bool, error) {
+	// Provide a way to turn off admin MFA requirements in case expected functionality
+	// is disrupted by this requirement, such as for integrations essential to a user
+	// which do not yet make use of a machine ID / AdminRole impersonated identity.
+	//
+	// TODO(Joerger): once we have fully transitioned to requiring machine ID for
+	// integrations and ironed out any bugs with admin MFA, this env var should be removed.
+	if os.Getenv("TELEPORT_UNSTABLE_DISABLE_MFA_ADMIN_ACTIONS") == "yes" {
+		return false, nil
+	}
+
 	// Builtin roles do not require MFA to perform admin actions.
 	switch authContext.Identity.(type) {
 	case BuiltinRole, RemoteBuiltinRole:
@@ -593,7 +598,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 
 	// The user is prefixed with "remote-" and suffixed with cluster name with
 	// the hope that it does not match a real local user.
-	user, err := types.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
+	user, err := types.NewUser(services.UsernameForRemoteCluster(u.Username, u.ClusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1405,10 +1410,6 @@ func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
 func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
-	// TODO(Joerger): AdminActionAuthorized is deprecated in favor of AdminActionAuthState, remove once e is no longer dependent.
-	if authCtx.AdminActionAuthorized {
-		return nil
-	}
 	switch authCtx.AdminActionAuthState {
 	case AdminActionAuthMFAVerified, AdminActionAuthNotRequired:
 		return nil

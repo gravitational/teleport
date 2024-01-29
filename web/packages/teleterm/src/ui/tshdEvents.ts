@@ -61,7 +61,10 @@ export function createTshdEventsContextBridgeService(
           promptMfaRequest: request as tshdEvents.PromptMfaRequest,
           onSuccess: totpCode => resolve({ hasCanceledModal: false, totpCode }),
           onCancel: () =>
-            resolve({ hasCanceledModal: true, totpCode: undefined }),
+            resolve({
+              hasCanceledModal: true,
+              totpCode: undefined,
+            }),
         });
 
         // If Webauthn is available, tshd starts two goroutines – one that sends this request and

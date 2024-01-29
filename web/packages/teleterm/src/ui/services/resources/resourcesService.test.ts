@@ -45,7 +45,7 @@ describe('getServerByHostname', () => {
     {
       name: 'returns a server when the hostname matches a single server',
       getServersMockedValue: {
-        agentsList: [server],
+        agents: [server],
         totalCount: 1,
         startKey: 'foo',
       },
@@ -54,7 +54,7 @@ describe('getServerByHostname', () => {
     {
       name: 'throws an error when the hostname matches multiple servers',
       getServersMockedValue: {
-        agentsList: [server, server],
+        agents: [server, server],
         totalCount: 2,
         startKey: 'foo',
       },
@@ -63,7 +63,7 @@ describe('getServerByHostname', () => {
     {
       name: 'returns nothing if the hostname does not match any servers',
       getServersMockedValue: {
-        agentsList: [],
+        agents: [],
         totalCount: 0,
         startKey: 'foo',
       },
@@ -107,22 +107,22 @@ describe('searchResources', () => {
 
     const tshClient: Partial<tsh.TshdClient> = {
       getServers: jest.fn().mockResolvedValueOnce({
-        agentsList: [server],
+        agents: [server],
         totalCount: 1,
         startKey: '',
       }),
       getDatabases: jest.fn().mockResolvedValueOnce({
-        agentsList: [db],
+        agents: [db],
         totalCount: 1,
         startKey: '',
       }),
       getKubes: jest.fn().mockResolvedValueOnce({
-        agentsList: [kube],
+        agents: [kube],
         totalCount: 1,
         startKey: '',
       }),
       getApps: jest.fn().mockResolvedValueOnce({
-        agentsList: [app],
+        agents: [app],
         totalCount: 1,
         startKey: '',
       }),
@@ -161,7 +161,7 @@ describe('searchResources', () => {
     const server = makeServer();
     const tshClient: Partial<tsh.TshdClient> = {
       getServers: jest.fn().mockResolvedValueOnce({
-        agentsList: [server],
+        agents: [server],
         totalCount: 1,
         startKey: '',
       }),

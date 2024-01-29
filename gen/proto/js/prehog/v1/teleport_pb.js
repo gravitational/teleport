@@ -569,7 +569,8 @@ proto.prehog.v1.UserActivityRecord.toObject = function(includeInstance, msg) {
     kubeRequests: jspb.Message.getFieldWithDefault(msg, 10, 0),
     sftpEvents: jspb.Message.getFieldWithDefault(msg, 11, 0),
     sshPortV2Sessions: jspb.Message.getFieldWithDefault(msg, 12, 0),
-    kubePortSessions: jspb.Message.getFieldWithDefault(msg, 13, 0)
+    kubePortSessions: jspb.Message.getFieldWithDefault(msg, 13, 0),
+    spiffeSvidsIssued: jspb.Message.getFieldWithDefault(msg, 15, 0)
   };
 
   if (includeInstance) {
@@ -661,6 +662,10 @@ proto.prehog.v1.UserActivityRecord.deserializeBinaryFromReader = function(msg, r
     case 13:
       var value = /** @type {number} */ (reader.readUint64());
       msg.setKubePortSessions(value);
+      break;
+    case 15:
+      var value = /** @type {number} */ (reader.readUint64());
+      msg.setSpiffeSvidsIssued(value);
       break;
     default:
       reader.skipField();
@@ -786,6 +791,13 @@ proto.prehog.v1.UserActivityRecord.serializeBinaryToWriter = function(message, w
   if (f !== 0) {
     writer.writeUint64(
       13,
+      f
+    );
+  }
+  f = message.getSpiffeSvidsIssued();
+  if (f !== 0) {
+    writer.writeUint64(
+      15,
       f
     );
   }
@@ -1065,6 +1077,24 @@ proto.prehog.v1.UserActivityRecord.prototype.getKubePortSessions = function() {
  */
 proto.prehog.v1.UserActivityRecord.prototype.setKubePortSessions = function(value) {
   return jspb.Message.setProto3IntField(this, 13, value);
+};
+
+
+/**
+ * optional uint64 spiffe_svids_issued = 15;
+ * @return {number}
+ */
+proto.prehog.v1.UserActivityRecord.prototype.getSpiffeSvidsIssued = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 15, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.prehog.v1.UserActivityRecord} returns this
+ */
+proto.prehog.v1.UserActivityRecord.prototype.setSpiffeSvidsIssued = function(value) {
+  return jspb.Message.setProto3IntField(this, 15, value);
 };
 
 

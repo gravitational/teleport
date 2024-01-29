@@ -27,8 +27,9 @@ import {
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
 } from 'shared/components/UnifiedResources';
-import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
+
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { storageService } from 'teleport/services/storageService';
@@ -123,8 +124,7 @@ function ClusterResources({
       dir: 'ASC',
     },
     pinnedOnly:
-      preferences?.unifiedResourcePreferences?.defaultTab ===
-      DefaultTab.DEFAULT_TAB_PINNED,
+      preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED,
   });
 
   const getCurrentClusterPinnedResources = useCallback(
