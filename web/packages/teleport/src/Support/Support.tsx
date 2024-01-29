@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { PropsWithChildren } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Box, Card, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
