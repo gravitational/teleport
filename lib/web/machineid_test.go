@@ -129,13 +129,13 @@ func TestCreateBotJoinToken(t *testing.T) {
 	// use a different integration name so it doesn't error for being duplicated
 	invalidJoinMethodReq.IntegrationName = "invalid-join-method-test"
 	invalidJoinMethodReq.JoinMethod = "invalid-join-method"
-	resp, err = pack.clt.PostJSON(ctx, endpoint, invalidJoinMethodReq)
+	_, err = pack.clt.PostJSON(ctx, endpoint, invalidJoinMethodReq)
 	require.Error(t, err)
 
 	// no integration name
 	invalidIntegrationNameReq := validReq
 	invalidIntegrationNameReq.IntegrationName = ""
-	resp, err = pack.clt.PostJSON(ctx, endpoint, invalidIntegrationNameReq)
+	_, err = pack.clt.PostJSON(ctx, endpoint, invalidIntegrationNameReq)
 	require.Error(t, err)
 }
 
