@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestUnifiedResourcesList(t *testing.T) {
@@ -118,30 +119,43 @@ func TestUnifiedResourcesList(t *testing.T) {
 
 	response, err := List(ctx, cluster, mockedClient, &proto.ListUnifiedResourcesRequest{})
 	require.NoError(t, err)
+
 	require.Equal(t, UnifiedResource{Server: &clusters.Server{
 		URI:    uri.NewClusterURI(cluster.ProfileName).AppendServer(node.GetName()),
 		Server: node,
 	}}, response.Resources[0])
+
 	require.Equal(t, UnifiedResource{Database: &clusters.Database{
 		URI:      uri.NewClusterURI(cluster.ProfileName).AppendDB(database.GetName()),
 		Database: database.GetDatabase(),
 	}}, response.Resources[1])
+
 	require.Equal(t, UnifiedResource{Kube: &clusters.Kube{
 		URI:               uri.NewClusterURI(cluster.ProfileName).AppendKube(kube.GetCluster().GetName()),
 		KubernetesCluster: kube.GetCluster(),
 	}}, response.Resources[2])
+
 	require.Equal(t, UnifiedResource{App: &clusters.App{
 		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(app.GetApp().GetName()),
-		App: app.GetApp(),
+		// FQDN looks weird because we cannot mock cluster.status.ProxyHost in tests.
+		FQDN:     "testApp.",
+		AWSRoles: aws.Roles{},
+		App:      app.GetApp(),
 	}}, response.Resources[3])
+
 	require.Equal(t, UnifiedResource{App: &clusters.App{
 		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(app.GetApp().GetName()),
-		App: app.GetApp(),
+		// FQDN looks weird because we cannot mock cluster.status.ProxyHost in tests.
+		FQDN:     "testApp.",
+		AWSRoles: aws.Roles{},
+		App:      app.GetApp(),
 	}}, response.Resources[4])
+
 	require.Equal(t, UnifiedResource{SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
 		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(idpProvider.GetName()),
 		Provider: idpProvider,
 	}}, response.Resources[5])
+
 	require.Equal(t, mockedNextKey, response.NextKey)
 }
 

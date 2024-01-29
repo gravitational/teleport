@@ -281,6 +281,14 @@ export const formatters: Formatters = {
         rest['server_hostname'] || rest['addr.local']
       }] failed [${exitError}]`,
   },
+  [eventCodes.SCP_DISALLOWED]: {
+    type: 'scp',
+    desc: 'SCP Disallowed',
+    format: ({ user, ...rest }) =>
+      `User [${user}] SCP file transfer on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }] blocked`,
+  },
   [eventCodes.SFTP_OPEN]: {
     type: 'sftp',
     desc: 'SFTP Open',
@@ -569,6 +577,30 @@ export const formatters: Formatters = {
         rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
+  [eventCodes.SFTP_LINK]: {
+    type: 'sftp',
+    desc: 'SFTP Link',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] created hard link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_LINK_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Link Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to create hard link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_DISALLOWED]: {
+    type: 'sftp',
+    desc: 'SFTP Disallowed',
+    format: ({ user, ...rest }) =>
+      `User [${user}] was blocked from creating an SFTP session on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
   [eventCodes.SESSION_JOIN]: {
     type: 'session.join',
     desc: 'User Joined',
@@ -745,20 +777,18 @@ export const formatters: Formatters = {
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: {
     type: 'mfa_auth_challenge.create',
     desc: 'MFA Authentication Attempt',
-    format: ({ updated_by }) =>
-      `User [${updated_by}] requested an MFA authentication challenge`,
+    format: ({ user }) =>
+      `User [${user}] requested an MFA authentication challenge`,
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: {
     type: 'mfa_auth_challenge.validate',
     desc: 'MFA Authentication Success',
-    format: ({ updated_by }) =>
-      `User [${updated_by}] completed MFA authentication`,
+    format: ({ user }) => `User [${user}] completed MFA authentication`,
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: {
     type: 'mfa_auth_challenge.validate',
     desc: 'MFA Authentication Failure',
-    format: ({ updated_by }) =>
-      `User [${updated_by}] failed MFA authentication`,
+    format: ({ user }) => `User [${user}] failed MFA authentication`,
   },
   [eventCodes.ROLE_CREATED]: {
     type: 'role.created',

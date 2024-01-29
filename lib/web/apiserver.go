@@ -929,6 +929,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Channel can contain "/", hence the use of a catch-all parameter
 	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades))
 
+	// GET Machine ID bot by name
+	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
 	// Create Machine ID bots
 	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
 }
@@ -1604,9 +1606,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
 		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		h.log.WithError(err).Error("Cannot read target version")
 	}
 
 	webCfg := webclient.WebConfig{

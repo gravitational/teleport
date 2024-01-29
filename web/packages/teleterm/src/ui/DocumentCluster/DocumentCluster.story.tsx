@@ -32,6 +32,9 @@ import {
   makeServer,
   makeDatabase,
   makeKube,
+  makeApp,
+  rootClusterUri,
+  leafClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
 
 import { ResourcesService } from 'teleterm/ui/services/resources';
@@ -49,12 +52,12 @@ export default {
 };
 
 const rootClusterDoc = makeDocumentCluster({
-  clusterUri: '/clusters/localhost',
+  clusterUri: rootClusterUri,
   uri: '/docs/123',
 });
 
 const leafClusterDoc = makeDocumentCluster({
-  clusterUri: '/clusters/localhost/leaves/foo',
+  clusterUri: leafClusterUri,
   uri: '/docs/456',
 });
 
@@ -65,13 +68,13 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
     makeRootCluster({
       uri: rootClusterDoc.clusterUri,
       loggedInUser: makeLoggedInUser({
-        userType: tsh.UserType.USER_TYPE_LOCAL,
+        userType: tsh.UserType.LOCAL,
         acl: {
           tokens: {
             create: true,
             list: true,
             edit: true,
-            pb_delete: true,
+            delete: true,
             read: true,
             use: true,
           },
@@ -101,13 +104,13 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
       makeRootCluster({
         uri: rootClusterDoc.clusterUri,
         loggedInUser: makeLoggedInUser({
-          userType: tsh.UserType.USER_TYPE_SSO,
+          userType: tsh.UserType.SSO,
           acl: {
             tokens: {
               create: true,
               list: true,
               edit: true,
-              pb_delete: true,
+              delete: true,
               read: true,
               use: true,
             },
@@ -141,7 +144,7 @@ export const OnlineEmptyResourcesAndCannotAddResources = () => {
             create: false,
             list: true,
             edit: true,
-            pb_delete: true,
+            delete: true,
             read: true,
             use: true,
           },
@@ -211,13 +214,35 @@ export const OnlineLoadedResources = () => {
           {
             kind: 'server',
             resource: makeServer({
-              uri: '/clusters/foo/servers/1234',
+              uri: `${rootClusterUri}/servers/1234`,
               hostname: 'bar',
               tunnel: true,
             }),
           },
           { kind: 'database', resource: makeDatabase() },
           { kind: 'kube', resource: makeKube() },
+          { kind: 'app', resource: { ...makeApp(), name: 'TCP app' } },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'HTTP app',
+              endpointUri: 'http://localhost:8080',
+            },
+          },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'AWS console',
+              endpointUri: 'https://localhost:8080',
+              awsConsole: true,
+              awsRoles: [
+                { arn: 'foo', display: 'foo', name: 'foo' },
+                { arn: 'bar', display: 'bar', name: 'bar' },
+              ],
+            },
+          },
         ],
         totalCount: 4,
         nextKey: '',

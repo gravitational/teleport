@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AwsRole } from 'shared/services/apps';
+
 import { ResourceLabel } from 'teleport/services/agents';
 
 export interface App {
@@ -42,11 +44,6 @@ export interface App {
   // samlAppSsoUrl is the URL that triggers IdP-initiated SSO for SAML Application;
   samlAppSsoUrl?: string;
 }
-
-export type AwsRole = {
-  arn: string;
-  display: string;
-};
 
 export type UserGroupAndDescription = {
   name: string;

@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -54,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -662,14 +662,7 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	issuer, err := oidc.IssuerForCluster(ctx, s.authClient)
-	if err != nil {
-		return nil, trace.BadParameter("failed to get issuer %v", err)
-	}
-
-	token, err := s.authClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: issuer,
-	})
+	token, err := s.authClient.GenerateAWSOIDCToken(ctx)
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
@@ -1369,7 +1362,18 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 
 	// if SFTP was requested, check that
 	if subsystem.subsytemName == teleport.SFTPSubsystem {
-		if err := serverContext.CheckSFTPAllowed(s.sessionRegistry); err != nil {
+		err := serverContext.CheckSFTPAllowed(s.sessionRegistry)
+		if err != nil {
+			s.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
+				Metadata: apievents.Metadata{
+					Code: events.SFTPDisallowedCode,
+					Type: events.SFTPEvent,
+					Time: time.Now(),
+				},
+				UserMetadata:   serverContext.Identity.GetUserMetadata(),
+				ServerMetadata: serverContext.GetServerMetadata(),
+				Error:          err.Error(),
+			})
 			return trace.Wrap(err)
 		}
 	}

@@ -152,6 +152,7 @@ export const eventCodes = {
   SCP_DOWNLOAD: 'T3004I',
   SCP_UPLOAD_FAILURE: 'T3005E',
   SCP_UPLOAD: 'T3005I',
+  SCP_DISALLOWED: 'T3010E',
   SFTP_OPEN_FAILURE: 'TS001E',
   SFTP_OPEN: 'TS001I',
   SFTP_CLOSE_FAILURE: 'TS002E',
@@ -188,6 +189,9 @@ export const eventCodes = {
   SFTP_READLINK: 'TS017I',
   SFTP_SYMLINK_FAILURE: 'TS018E',
   SFTP_SYMLINK: 'TS018I',
+  SFTP_LINK: 'TS019I',
+  SFTP_LINK_FAILURE: 'TS019E',
+  SFTP_DISALLOWED: 'TS020E',
   SESSION_COMMAND: 'T4000I',
   SESSION_DATA: 'T2006I',
   SESSION_DISK: 'T4001I',
@@ -405,6 +409,12 @@ export type RawEvents = {
       exitError: string;
     }
   >;
+  [eventCodes.SCP_DISALLOWED]: RawEvent<
+    typeof eventCodes.SCP_DISALLOWED,
+    {
+      user: string;
+    }
+  >;
   [eventCodes.SFTP_OPEN]: RawEventSFTP<typeof eventCodes.SFTP_OPEN>;
   [eventCodes.SFTP_OPEN_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_OPEN_FAILURE
@@ -477,6 +487,11 @@ export type RawEvents = {
   [eventCodes.SFTP_SYMLINK_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_SYMLINK_FAILURE
   >;
+  [eventCodes.SFTP_LINK]: RawEventSFTP<typeof eventCodes.SFTP_LINK>;
+  [eventCodes.SFTP_LINK_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_LINK_FAILURE
+  >;
+  [eventCodes.SFTP_DISALLOWED]: RawEventSFTP<typeof eventCodes.SFTP_DISALLOWED>;
   [eventCodes.SESSION_COMMAND]: RawEventCommand<
     typeof eventCodes.SESSION_COMMAND
   >;
@@ -1491,19 +1506,19 @@ export type RawEvents = {
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: RawEvent<
     typeof eventCodes.CREATE_MFA_AUTH_CHALLENGE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: RawEvent<
     typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: RawEvent<
     typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
 };

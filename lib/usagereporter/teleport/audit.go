@@ -234,6 +234,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			Days:      e.Days,
 			IsSuccess: e.Status.Success,
 		}
+	case *apievents.ValidateMFAAuthResponse:
+		return &MFAAuthenticationEvent{
+			UserName:          e.User,
+			DeviceId:          e.MFADevice.DeviceID,
+			DeviceType:        e.MFADevice.DeviceType,
+			MfaChallengeScope: e.ChallengeScope,
+		}
 	}
 
 	return nil

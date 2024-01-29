@@ -13,22 +13,7 @@ ENV GOEXPERIMENT=boringcrypto \
 
 # Enable OpenSSL FIPS mode by default
 # https://www.openssl.org/docs/man3.0/man7/fips_module.html
-RUN cat >/usr/local/ssl/openssl.cnf <<EOF
-config_diagnostics = 1
-openssl_conf = openssl_init
-
-.include /usr/local/ssl/fipsmodule.cnf
-
-[openssl_init]
-providers = provider_sect
-
-[provider_sect]
-fips = fips_sect
-base = base_sect
-
-[base_sect]
-activate = 1
-EOF
+COPY fips-files/openssh.cnf /usr/local/ssl/openssl.cnf
 
 USER ci
 
@@ -38,20 +23,7 @@ RUN echo "Ensure environment variables are set" && \
     [ -n "$OPENSSL_FIPS" ]
 
 # Validate that Go binaries have BoringCrypto enabled
-RUN cat >/tmp/boringtest.go <<EOF
-package main
-
-import (
-	"crypto/boring"
-	"os"
-)
-
-func main() {
-	if !boring.Enabled() {
-		os.Exit(1)
-	}
-}
-EOF
+COPY --chown=ci fips-files/boringtest.nogo /tmp/boringtest.go
 
 RUN echo "Ensure Go is using BoringCrypto" && \
     go run /tmp/boringtest.go

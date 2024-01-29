@@ -359,9 +359,17 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	log.Debugf("MFA requirement from CreateAuthenticateChallenge, MFARequired=%s", authnChal.GetMFARequired())
 	if authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
 		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
+	}
+
+	if authnChal.TOTP == nil && authnChal.WebauthnChallenge == nil {
+		// TODO(Joerger): CreateAuthenticateChallenge should return
+		// this error directly instead of an empty challenge, without
+		// regressing https://github.com/gravitational/teleport/issues/36482.
+		return nil, nil, auth.ErrNoMFADevices
 	}
 
 	// Prompt user for solution (eg, security key touch).
