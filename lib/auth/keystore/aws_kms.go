@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -121,6 +122,12 @@ func newAWSKMSKeystore(ctx context.Context, cfg *AWSKMSConfig, logger logrus.Fie
 		clock:      cfg.clock,
 		logger:     logger,
 	}, nil
+}
+
+// keyTypeDescription returns a human-readable description of the types of keys
+// this backend uses.
+func (a *awsKMSKeystore) keyTypeDescription() string {
+	return fmt.Sprintf("AWS KMS keys in account %s and region %s", a.awsAccount, a.awsRegion)
 }
 
 // generateRSA creates a new RSA private key and returns its identifier and

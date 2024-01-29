@@ -19,13 +19,14 @@
 import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
+import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
+
 import { Conversation } from 'teleport/Assist/Conversation';
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { MessageBox } from 'teleport/Assist/MessageBox';
-import { ViewMode } from 'teleport/Assist/types';
 
 interface ConversationListProps {
-  viewMode: ViewMode;
+  viewMode: AssistViewMode;
 }
 
 const Container = styled.div.attrs({ 'data-scrollbar': 'default' })`

@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SubmitConnectEventRequest } from 'gen-proto-ts/prehog/v1alpha/connect_pb';
+
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+
 import { ClusterOrResourceUri, ClusterUri, routing } from 'teleterm/ui/uri';
-import {
-  Cluster,
-  ReportUsageEventRequest,
-  TshdClient,
-} from 'teleterm/services/tshd/types';
+import { Cluster, TshdClient } from 'teleterm/services/tshd/types';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { ConfigService } from 'teleterm/services/config';
 import Logger from 'teleterm/logger';
@@ -30,7 +30,7 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
 
 type PrehogEventReq = Omit<
-  ReportUsageEventRequest['prehogReq'],
+  SubmitConnectEventRequest,
   'distinctId' | 'timestamp'
 >;
 
@@ -59,14 +59,17 @@ export class UsageService {
     }
     const { arch, platform, osVersion, appVersion } = this.runtimeSettings;
     this.reportEvent(clusterProperties.authClusterId, {
-      clusterLogin: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        connectorType,
-        arch,
-        os: platform,
-        osVersion,
-        appVersion,
+      event: {
+        oneofKind: 'clusterLogin',
+        clusterLogin: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+          connectorType,
+          arch,
+          os: platform,
+          osVersion,
+          appVersion,
+        },
       },
     });
   }
@@ -84,11 +87,14 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      protocolUse: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        protocol,
-        origin,
+      event: {
+        oneofKind: 'protocolUse',
+        protocolUse: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+          protocol,
+          origin,
+        },
       },
     });
   }
@@ -105,10 +111,13 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      accessRequestCreate: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        kind,
+      event: {
+        oneofKind: 'accessRequestCreate',
+        accessRequestCreate: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+          kind,
+        },
       },
     });
   }
@@ -122,9 +131,12 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      accessRequestReview: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
+      event: {
+        oneofKind: 'accessRequestReview',
+        accessRequestReview: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+        },
       },
     });
   }
@@ -138,9 +150,12 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      accessRequestAssumeRole: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
+      event: {
+        oneofKind: 'accessRequestAssumeRole',
+        accessRequestAssumeRole: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+        },
       },
     });
   }
@@ -157,18 +172,24 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      fileTransferRun: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        isUpload,
+      event: {
+        oneofKind: 'fileTransferRun',
+        fileTransferRun: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+          isUpload,
+        },
       },
     });
   }
 
   captureUserJobRoleUpdate(jobRole: string): void {
     this.reportNonAnonymizedEvent({
-      userJobRoleUpdate: {
-        jobRole,
+      event: {
+        oneofKind: 'userJobRoleUpdate',
+        userJobRoleUpdate: {
+          jobRole,
+        },
       },
     });
   }
@@ -185,12 +206,16 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      connectMyComputerSetup: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
-        success: properties.success,
-        failedStep:
-          (properties.success === false && properties.failedStep) || undefined,
+      event: {
+        oneofKind: 'connectMyComputerSetup',
+        connectMyComputerSetup: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+          success: properties.success,
+          failedStep:
+            (properties.success === false && properties.failedStep) ||
+            undefined,
+        },
       },
     });
   }
@@ -204,9 +229,12 @@ export class UsageService {
       return;
     }
     this.reportEvent(clusterProperties.authClusterId, {
-      connectMyComputerAgentStart: {
-        clusterName: clusterProperties.clusterName,
-        userName: clusterProperties.userName,
+      event: {
+        oneofKind: 'connectMyComputerAgentStart',
+        connectMyComputerAgentStart: {
+          clusterName: clusterProperties.clusterName,
+          userName: clusterProperties.userName,
+        },
       },
     });
   }
@@ -232,7 +260,7 @@ export class UsageService {
         authClusterId,
         prehogReq: {
           distinctId: this.runtimeSettings.installationId,
-          timestamp: new Date(),
+          timestamp: Timestamp.now(),
           ...prehogEventReq,
         },
       });

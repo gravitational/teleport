@@ -54,6 +54,12 @@ func newSoftwareKeyStore(config *SoftwareConfig, logger logrus.FieldLogger) *sof
 	}
 }
 
+// keyTypeDescription returns a human-readable description of the types of keys
+// this backend uses.
+func (s *softwareKeyStore) keyTypeDescription() string {
+	return "raw software keys"
+}
+
 // generateRSA creates a new RSA private key and returns its identifier and a
 // crypto.Signer. The returned identifier for softwareKeyStore is a pem-encoded
 // private key, and can be passed to getSigner later to get the same
