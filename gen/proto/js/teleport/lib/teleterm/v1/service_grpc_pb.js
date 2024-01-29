@@ -182,28 +182,6 @@ function deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeRespons
   return teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
-function serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
 function serialize_teleport_lib_teleterm_v1_EmptyResponse(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.EmptyResponse)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.EmptyResponse');
@@ -1164,18 +1142,6 @@ createConnectMyComputerNodeToken: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenResponse,
-  },
-  // DeleteConnectMyComputerToken deletes a join token
-deleteConnectMyComputerToken: {
-    path: '/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerToken',
-    requestStream: false,
-    responseStream: false,
-    requestType: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest,
-    responseType: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse,
-    requestSerialize: serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest,
-    requestDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest,
-    responseSerialize: serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse,
-    responseDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse,
   },
   // WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
 // that the Connect My Computer node for the particular cluster has joined the cluster (the

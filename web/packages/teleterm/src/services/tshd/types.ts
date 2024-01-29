@@ -263,10 +263,6 @@ export type TshClient = {
   createConnectMyComputerNodeToken: (
     clusterUri: uri.RootClusterUri
   ) => Promise<CreateConnectMyComputerNodeTokenResponse>;
-  deleteConnectMyComputerToken: (
-    clusterUri: uri.RootClusterUri,
-    token: string
-  ) => Promise<void>;
   waitForConnectMyComputerNodeJoin: (
     rootClusterUri: uri.RootClusterUri,
     abortSignal: TshAbortSignal
