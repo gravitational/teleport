@@ -16,9 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
-import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
-import * as prehogApi from 'gen-proto-js/prehog/v1alpha/connect_pb';
+import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/usage_events_pb';
+import * as prehogApi from 'gen-proto-ts/prehog/v1alpha/connect_pb';
+
+import {
+  connectEventOneOfIsAccessRequestAssumeRole,
+  connectEventOneOfIsAccessRequestCreate,
+  connectEventOneOfIsAccessRequestReview,
+  connectEventOneOfIsClusterLogin,
+  connectEventOneOfIsConnectMyComputerAgentStart,
+  connectEventOneOfIsConnectMyComputerSetup,
+  connectEventOneOfIsFileTransferRun,
+  connectEventOneOfIsProtocolUse,
+} from 'teleterm/helpers';
 
 import * as types from './types';
 
@@ -26,103 +36,162 @@ import * as types from './types';
  * Maps a plain JS object into a gRPC request object.
  */
 export function mapUsageEvent(event: types.ReportUsageEventRequest) {
-  return new api.ReportUsageEventRequest()
-    .setAuthClusterId(event.authClusterId)
-    .setPrehogReq(mapPrehogBody(event.prehogReq));
+  return api.ReportUsageEventRequest.create({
+    authClusterId: event.authClusterId,
+    prehogReq: mapPrehogBody(event.prehogReq),
+  });
 }
 
 function mapPrehogBody(
   plainReq: types.ReportUsageEventRequest['prehogReq']
 ): prehogApi.SubmitConnectEventRequest {
-  const req = new prehogApi.SubmitConnectEventRequest()
-    .setTimestamp(Timestamp.fromDate(plainReq.timestamp))
-    .setDistinctId(plainReq.distinctId);
+  if (!plainReq) {
+    throw new Error(`Unrecognized event: ${JSON.stringify(plainReq)}`);
+  }
+
+  const req = prehogApi.SubmitConnectEventRequest.create({
+    timestamp: plainReq.timestamp,
+    distinctId: plainReq.distinctId,
+  });
 
   // Non-anonymized events.
-  if (plainReq.userJobRoleUpdate) {
-    const event = plainReq.userJobRoleUpdate;
-    const reqEvent = new prehogApi.ConnectUserJobRoleUpdateEvent().setJobRole(
-      event.jobRole
-    );
+  if (plainReq.event.oneofKind === 'userJobRoleUpdate') {
+    const event = plainReq.event.userJobRoleUpdate;
+    const reqEvent = prehogApi.ConnectUserJobRoleUpdateEvent.create({
+      jobRole: event.jobRole,
+    });
 
-    return req.setUserJobRoleUpdate(reqEvent);
+    req.event = {
+      oneofKind: 'userJobRoleUpdate',
+      userJobRoleUpdate: reqEvent,
+    };
+
+    return req;
   }
 
   // Anonymized events.
-  if (plainReq.clusterLogin) {
-    const event = plainReq.clusterLogin;
-    const reqEvent = new prehogApi.ConnectClusterLoginEvent()
-      .setClusterName(event.clusterName)
-      .setUserName(event.userName)
-      .setConnectorType(event.connectorType)
-      .setOs(event.os)
-      .setArch(event.arch)
-      .setOsVersion(event.osVersion)
-      .setAppVersion(event.appVersion);
+  if (connectEventOneOfIsClusterLogin(plainReq.event)) {
+    const event = plainReq.event.clusterLogin;
+    const reqEvent = prehogApi.ConnectClusterLoginEvent.create({
+      clusterName: event.clusterName,
+      userName: event.userName,
+      connectorType: event.connectorType,
+      os: event.os,
+      arch: event.arch,
+      osVersion: event.osVersion,
+      appVersion: event.appVersion,
+    });
 
-    return req.setClusterLogin(reqEvent);
+    req.event = {
+      oneofKind: 'clusterLogin',
+      clusterLogin: reqEvent,
+    };
+
+    return req;
   }
-  if (plainReq.protocolUse) {
-    const event = plainReq.protocolUse;
-    const reqEvent = new prehogApi.ConnectProtocolUseEvent()
-      .setClusterName(event.clusterName)
-      .setUserName(event.userName)
-      .setProtocol(event.protocol)
-      .setOrigin(event.origin);
+  if (connectEventOneOfIsProtocolUse(plainReq.event)) {
+    const event = plainReq.event.protocolUse;
+    const reqEvent = prehogApi.ConnectProtocolUseEvent.create({
+      clusterName: event.clusterName,
+      userName: event.userName,
+      protocol: event.protocol,
+      origin: event.origin,
+    });
 
-    return req.setProtocolUse(reqEvent);
+    req.event = {
+      oneofKind: 'protocolUse',
+      protocolUse: reqEvent,
+    };
+
+    return req;
   }
-  if (plainReq.accessRequestCreate) {
-    const event = plainReq.accessRequestCreate;
-    const reqEvent = new prehogApi.ConnectAccessRequestCreateEvent()
-      .setClusterName(event.clusterName)
-      .setUserName(event.userName)
-      .setKind(event.kind);
+  if (connectEventOneOfIsAccessRequestCreate(plainReq.event)) {
+    const event = plainReq.event.accessRequestCreate;
+    const reqEvent = prehogApi.ConnectAccessRequestCreateEvent.create({
+      clusterName: event.clusterName,
+      userName: event.userName,
+      kind: event.kind,
+    });
 
-    return req.setAccessRequestCreate(reqEvent);
+    req.event = {
+      oneofKind: 'accessRequestCreate',
+      accessRequestCreate: reqEvent,
+    };
+
+    return req;
   }
-  if (plainReq.accessRequestReview) {
-    const event = plainReq.accessRequestReview;
-    const reqEvent = new prehogApi.ConnectAccessRequestReviewEvent()
-      .setClusterName(event.clusterName)
-      .setUserName(event.userName);
+  if (connectEventOneOfIsAccessRequestReview(plainReq.event)) {
+    const event = plainReq.event.accessRequestReview;
+    const reqEvent = prehogApi.ConnectAccessRequestReviewEvent.create({
+      clusterName: event.clusterName,
+      userName: event.userName,
+    });
 
-    return req.setAccessRequestReview(reqEvent);
+    req.event = {
+      oneofKind: 'accessRequestReview',
+      accessRequestReview: reqEvent,
+    };
+
+    return req;
   }
-  if (plainReq.accessRequestAssumeRole) {
-    const event = plainReq.accessRequestAssumeRole;
-    const reqEvent = new prehogApi.ConnectAccessRequestAssumeRoleEvent()
-      .setClusterName(event.clusterName)
-      .setUserName(event.userName);
+  if (connectEventOneOfIsAccessRequestAssumeRole(plainReq.event)) {
+    const event = plainReq.event.accessRequestAssumeRole;
+    const reqEvent = prehogApi.ConnectAccessRequestAssumeRoleEvent.create({
+      clusterName: event.clusterName,
+      userName: event.userName,
+    });
 
-    return req.setAccessRequestAssumeRole(reqEvent);
+    req.event = {
+      oneofKind: 'accessRequestAssumeRole',
+      accessRequestAssumeRole: reqEvent,
+    };
+
+    return req;
   }
-  if (plainReq.fileTransferRun) {
-    const event = plainReq.fileTransferRun;
-    const reqEvent = new prehogApi.ConnectFileTransferRunEvent()
-      .setClusterName(event.clusterName)
-      .setUserName(event.userName)
-      .setIsUpload(event.isUpload);
+  if (connectEventOneOfIsFileTransferRun(plainReq.event)) {
+    const event = plainReq.event.fileTransferRun;
+    const reqEvent = prehogApi.ConnectFileTransferRunEvent.create({
+      clusterName: event.clusterName,
+      userName: event.userName,
+      isUpload: event.isUpload,
+    });
 
-    return req.setFileTransferRun(reqEvent);
+    req.event = {
+      oneofKind: 'fileTransferRun',
+      fileTransferRun: reqEvent,
+    };
+
+    return req;
   }
-  if (plainReq.connectMyComputerSetup) {
-    const event = plainReq.connectMyComputerSetup;
-    const reqEvent = new prehogApi.ConnectConnectMyComputerSetup()
-      .setClusterName(event.clusterName)
-      .setUserName(event.userName)
-      .setSuccess(event.success)
-      .setFailedStep(event.failedStep);
+  if (connectEventOneOfIsConnectMyComputerSetup(plainReq.event)) {
+    const event = plainReq.event.connectMyComputerSetup;
+    const reqEvent = prehogApi.ConnectConnectMyComputerSetup.create({
+      clusterName: event.clusterName,
+      userName: event.userName,
+      success: event.success,
+      failedStep: event.failedStep,
+    });
 
-    return req.setConnectMyComputerSetup(reqEvent);
+    req.event = {
+      oneofKind: 'connectMyComputerSetup',
+      connectMyComputerSetup: reqEvent,
+    };
+
+    return req;
   }
-  if (plainReq.connectMyComputerAgentStart) {
-    const event = plainReq.connectMyComputerAgentStart;
-    const reqEvent = new prehogApi.ConnectConnectMyComputerAgentStart()
-      .setClusterName(event.clusterName)
-      .setUserName(event.userName);
+  if (connectEventOneOfIsConnectMyComputerAgentStart(plainReq.event)) {
+    const event = plainReq.event.connectMyComputerAgentStart;
+    const reqEvent = prehogApi.ConnectConnectMyComputerAgentStart.create({
+      clusterName: event.clusterName,
+      userName: event.userName,
+    });
 
-    return req.setConnectMyComputerAgentStart(reqEvent);
+    req.event = {
+      oneofKind: 'connectMyComputerAgentStart',
+      connectMyComputerAgentStart: reqEvent,
+    };
+
+    return req;
   }
 
   throw new Error(`Unrecognized event: ${JSON.stringify(plainReq)}`);

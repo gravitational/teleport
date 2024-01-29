@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/scim"
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -40,6 +41,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -79,6 +81,9 @@ type Client struct {
 
 // Make sure Client implements all the necessary methods.
 var _ ClientI = &Client{}
+
+// Static asserton that the scim client actually implements the SCIM interface.
+var _ services.SCIM = (*scim.Client)(nil)
 
 // NewClient creates a new API client with a connection to a Teleport server.
 //
@@ -438,6 +443,10 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 
 func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
+}
+
+func (c *Client) SCIMClient() services.SCIM {
+	return c.APIClient.SCIMClient()
 }
 
 // SecReportsClient returns a client for security reports.
@@ -869,7 +878,7 @@ type ClientI interface {
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context) (string, error)
 
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error
@@ -918,6 +927,12 @@ type ClientI interface {
 	// still get an Okta client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	OktaClient() services.Okta
+
+	// SCIMClient returns a client for the SCIM provisioning service. Clients
+	// connecting to OSS clusters will still get a client when calling this method,
+	// but the back-end service will fail all requests with "Not Implemented" as per the
+	// default GRPC behavior.
+	SCIMClient() services.SCIM
 
 	// AccessListClient returns an access list client.
 	// Clients connecting to older Teleport versions still get an access list client
@@ -981,4 +996,7 @@ type ClientI interface {
 	// which is what we want when handling things like ambiguous host errors and resource-based access requests,
 	// but may result in confusing behavior if it is used outside of those contexts.
 	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
+
+	// PromptMFA prompts the user for MFA.
+	PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
 }

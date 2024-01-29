@@ -200,8 +200,6 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 RUN yum install -y \
     elfutils-libelf-devel \
     net-tools \
-    # required by boringssl
-    ninja-build \
     # required by Teleport PAM support
     pam-devel \
     perl-IPC-Cmd \
@@ -295,11 +293,14 @@ RUN cd /usr/local/lib64 && \
 COPY pkgconfig/centos7/ /
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 
+# Install libpcsclite.
 COPY --from=libpcsclite /usr/local/include/ /usr/local/include/
 COPY --from=libpcsclite /usr/local/lib/pkgconfig/ /usr/local/lib64/pkgconfig/
 COPY --from=libpcsclite \
     /usr/local/lib/libpcsclite.a \
     /usr/local/lib/
+# Set LIBRARY_PATH so that libpcsclite can be found by the linker.
+ENV LIBRARY_PATH=/usr/local/lib:${LIBRARY_PATH}
 
 # Copy libbpf into the final image.
 ARG LIBBPF_VERSION
@@ -307,10 +308,18 @@ COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy the pre-built CentOS 7 assets with clang. Needed to build BoringSSL and BPF tools.
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
+# Bring in our custom ninja build, needed for BorinSSL.
+COPY --from=teleport-buildbox-centos7-assets /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Libclang is needed by boring-rs to generate bindings. libclang is kept in /opt/llvm/lib
 # and without this environment variable, boring-rs will not be able to find it.
 ENV LIBCLANG_PATH=/opt/llvm/lib/
+
+# C++14 compatible headers are required to build boring-rs.
+# Teleport's boring fork includes a patch that reads this variable
+# and injects it into the environment as CPLUS_INCLUDE_PATH before
+# boring is built.
+ENV BORING_BSSL_FIPS_CPLUS_INCLUDE_PATH=/opt/llvm/include/c++/v1/
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

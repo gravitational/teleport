@@ -18,12 +18,13 @@
 
 import { Platform, UserAgent } from 'design/platform';
 
+import {
+  OnboardUserPreferences,
+  Resource,
+} from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
-import {
-  ClusterResource,
-  OnboardUserPreferences,
-} from 'teleport/services/userPreferences/types';
 import { OnboardDiscover } from 'teleport/services/user';
 
 import { ResourceKind } from '../Shared';
@@ -228,12 +229,12 @@ describe('preferred resources', () => {
 
   const testCases: {
     name: string;
-    preferred: ClusterResource[];
+    preferred: Resource[];
     expected: ResourceSpec[];
   }[] = [
     {
       name: 'preferred server/ssh',
-      preferred: [ClusterResource.RESOURCE_SERVER_SSH],
+      preferred: [Resource.SERVER_SSH],
       expected: [
         // preferred first
         f_Server,
@@ -255,7 +256,7 @@ describe('preferred resources', () => {
     },
     {
       name: 'preferred databases',
-      preferred: [ClusterResource.RESOURCE_DATABASES],
+      preferred: [Resource.DATABASES],
       expected: [
         // preferred first
         a_Database,
@@ -277,7 +278,7 @@ describe('preferred resources', () => {
     },
     {
       name: 'preferred windows',
-      preferred: [ClusterResource.RESOURCE_WINDOWS_DESKTOPS],
+      preferred: [Resource.WINDOWS_DESKTOPS],
       expected: [
         // preferred first
         i_Desktop,
@@ -299,7 +300,7 @@ describe('preferred resources', () => {
     },
     {
       name: 'preferred applications',
-      preferred: [ClusterResource.RESOURCE_WEB_APPLICATIONS],
+      preferred: [Resource.WEB_APPLICATIONS],
       expected: [
         // preferred first
         c_Application,
@@ -321,7 +322,7 @@ describe('preferred resources', () => {
     },
     {
       name: 'preferred kubernetes',
-      preferred: [ClusterResource.RESOURCE_KUBERNETES],
+      preferred: [Resource.KUBERNETES],
       expected: [
         // preferred first; guided before unguided
         j_Kubernetes,
@@ -369,7 +370,7 @@ describe('marketing params', () => {
     {
       name: 'marketing params instead of preferred resources',
       preferred: {
-        preferredResources: [ClusterResource.RESOURCE_WEB_APPLICATIONS],
+        preferredResources: [Resource.WEB_APPLICATIONS],
         marketingParams: {
           campaign: 'kubernetes',
           source: '',

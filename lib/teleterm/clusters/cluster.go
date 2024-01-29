@@ -274,9 +274,16 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 	}
 }
 
-// GetProxyHost returns proxy address (host:port) of the cluster
+// GetProxyHost returns proxy address (hostname:port) of the root cluster, even when called on a
+// Cluster that represents a leaf cluster.
 func (c *Cluster) GetProxyHost() string {
 	return c.status.ProxyURL.Host
+}
+
+// GetProxyHostname returns just the hostname part of the proxy address of the root cluster (without
+// the port number), even when called on a Cluster that represents a leaf cluster.
+func (c *Cluster) GetProxyHostname() string {
+	return c.status.ProxyURL.Hostname()
 }
 
 // LoggedInUser is the currently logged-in user
