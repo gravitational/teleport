@@ -32,6 +32,8 @@ import {
   makeServer,
   makeDatabase,
   makeKube,
+  rootClusterUri,
+  leafClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
 
 import { ResourcesService } from 'teleterm/ui/services/resources';
@@ -49,12 +51,12 @@ export default {
 };
 
 const rootClusterDoc = makeDocumentCluster({
-  clusterUri: '/clusters/localhost',
+  clusterUri: rootClusterUri,
   uri: '/docs/123',
 });
 
 const leafClusterDoc = makeDocumentCluster({
-  clusterUri: '/clusters/localhost/leaves/foo',
+  clusterUri: leafClusterUri,
   uri: '/docs/456',
 });
 
@@ -211,7 +213,7 @@ export const OnlineLoadedResources = () => {
           {
             kind: 'server',
             resource: makeServer({
-              uri: '/clusters/foo/servers/1234',
+              uri: `${rootClusterUri}/servers/1234`,
               hostname: 'bar',
               tunnel: true,
             }),
