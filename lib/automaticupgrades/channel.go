@@ -179,9 +179,10 @@ func (c *Channel) GetCritical(ctx context.Context) (bool, error) {
 }
 
 // NewDefaultChannel creates a default automatic upgrade channel
-// It looks up the environment variable, and if not found uses the default
-// base URL. This default channel can be used in the proxy (to back its own version server)
-// or in other Teleport process such as integration services deploying and
+// It looks up the TELEPORT_AUTOMATIC_UPGRADES_CHANNEL environment variable for
+// backward compatibility, and if not found uses the default base URL.
+// This default channel can be used in the proxy (to back its own version server)
+// or in other Teleport processes such as integration services deploying and
 // updating teleport agents.
 func NewDefaultChannel() (*Channel, error) {
 	forwardURL := GetChannel()
