@@ -18,7 +18,6 @@
 
 import React from 'react';
 import { render, screen, waitFor } from 'design/utils/testing';
-import { AttemptStatus } from 'shared/hooks/useAsync';
 
 import { act } from '@testing-library/react';
 
