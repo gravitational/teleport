@@ -253,8 +253,8 @@ export class FeatureAddBots implements TeleportFeature {
     component: () => <AddBots />,
   };
 
-  hasAccess() {
-    return true; // TODO RBAC
+  hasAccess(flags: FeatureFlags) {
+    return flags.addBots; // TODO RBAC
   }
 
   getRoute() {

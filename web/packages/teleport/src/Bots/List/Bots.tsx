@@ -32,8 +32,13 @@ import { BotList } from 'teleport/Bots/List/BotList';
 import { deleteBot, fetchBots } from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
 import cfg from 'teleport/config';
+import useTeleport from 'teleport/useTeleport';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 export function Bots() {
+  const ctx = useTeleport();
+  const addBotPermissions = ctx.getFeatureFlags().addBots;
+
   const [bots, setBots] = useState<FlatBot[]>();
   const [selectedBot, setSelectedBot] = useState<FlatBot>();
   const { attempt: deleteAttempt, run: deleteRun } = useAttemptNext();
@@ -68,14 +73,26 @@ export function Bots() {
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Bots</FeatureHeaderTitle>
-        <ButtonPrimary
-          ml="auto"
-          width="240px"
-          as={Link}
-          to={cfg.getBotsNewRoute()}
-        >
-          Enroll New Bot
-        </ButtonPrimary>
+        <Box ml="auto">
+          <HoverTooltip
+            tipContent={
+              addBotPermissions
+                ? ''
+                : `Insufficient permissions. Reach out to your Teleport administrator
+    to request bot creation permissions.`
+            }
+          >
+            <ButtonPrimary
+              ml="auto"
+              width="240px"
+              as={Link}
+              to={cfg.getBotsNewRoute()}
+              disabled={!addBotPermissions}
+            >
+              Enroll New Bot
+            </ButtonPrimary>
+          </HoverTooltip>
+        </Box>
       </FeatureHeader>
       {fetchAttempt.status == 'processing' && (
         <Box textAlign="center" m={10}>
