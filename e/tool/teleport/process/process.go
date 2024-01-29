@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/auth"
+	_ "github.com/gravitational/teleport/e/lib/backend/crdb"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/db/oracle"
 	"github.com/gravitational/teleport/e/lib/licensefile"
