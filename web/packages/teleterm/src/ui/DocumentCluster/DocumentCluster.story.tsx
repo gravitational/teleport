@@ -235,7 +235,7 @@ export const OnlineLoadedResources = () => {
             resource: {
               ...makeApp(),
               name: 'AWS console',
-              endpointUri: 'cloud://localhost:8080',
+              endpointUri: 'https://localhost:8080',
               awsConsole: true,
               awsRoles: [
                 { arn: 'foo', display: 'foo', name: 'foo' },

@@ -129,7 +129,7 @@ function AwsConsole() {
     <MockAppContextProvider appContext={appContext}>
       <ConnectAppActionButton
         app={makeApp({
-          endpointUri: 'cloud://localhost:3000',
+          endpointUri: 'https://localhost:3000',
           awsConsole: true,
           awsRoles: [
             { arn: 'foo', display: 'foo', name: 'foo' },
