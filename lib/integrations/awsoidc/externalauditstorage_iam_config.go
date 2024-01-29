@@ -30,9 +30,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types/externalauditstorage/config"
 	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // ConfigureExternalAuditStorageClient is an interface for the AWS client methods
@@ -67,7 +67,7 @@ func (d *DefaultConfigureExternalAuditStorageClient) GetCallerIdentity(ctx conte
 func ConfigureExternalAuditStorage(
 	ctx context.Context,
 	clt ConfigureExternalAuditStorageClient,
-	params *config.ExternalAuditStorageConfiguration,
+	params *servicecfg.ExternalAuditStorageConfiguration,
 ) error {
 	fmt.Println("\nConfiguring necessary IAM permissions for External Audit Storage")
 
