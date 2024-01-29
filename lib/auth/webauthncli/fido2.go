@@ -127,9 +127,9 @@ var (
 	fidoNewDevice       = func(path string) (FIDODevice, error) {
 		dev, err := libfido2.NewDevice(path)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
-		return &fido2DeviceAdapter{dev}, err
+		return &fido2DeviceAdapter{dev}, nil
 	}
 )
 
@@ -993,10 +993,10 @@ func waitForTouch(dev FIDODevice) (touched bool, err error) {
 		if err != nil {
 			// Error logged here as it's mostly ignored by callers.
 			log.Debugf("FIDO2: Device touch status error: %v", err)
-			return false, err
+			return false, trace.Wrap(err)
 		}
 		if touched {
-			return true, err
+			return true, nil
 		}
 	}
 }
