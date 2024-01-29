@@ -41,7 +41,7 @@ import {
 } from 'teleterm/helpers';
 
 import { createFileTransferStream } from './createFileTransferStream';
-import middleware, { withLogging } from './middleware';
+import { loggingInterceptor } from './interceptors';
 import * as types from './types';
 import {
   ReportUsageEventRequest,
@@ -56,9 +56,9 @@ export function createTshdClient(
   credentials: grpc.ChannelCredentials
 ): types.TshdClient {
   const logger = new Logger('tshd');
-  const tshd = middleware(new TerminalServiceClient(addr, credentials), [
-    withLogging(logger),
-  ]);
+  const tshd = new TerminalServiceClient(addr, credentials, {
+    interceptors: [loggingInterceptor(logger)],
+  });
 
   // Create a client instance that could be shared with the  renderer (UI) via Electron contextBridge
   const client = {
