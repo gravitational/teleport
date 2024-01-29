@@ -1131,6 +1131,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Device Trust commands.
 	deviceCmd := newDeviceCommand(app)
 
+	vnet := app.Command("vnet", "Start Teleport VNet")
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1485,6 +1487,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onKubectlCommand(&cf, args, args[idx:])
 	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
+	case vnet.FullCommand():
+		err = onVNet(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
