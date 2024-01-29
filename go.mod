@@ -222,6 +222,11 @@ require (
 )
 
 require (
+	github.com/elimity-com/scim v0.0.0-20230426070224-941a5eac92f3
+	github.com/scim2/filter-parser/v2 v2.2.0
+)
+
+require (
 	cloud.google.com/go v0.111.0 // indirect
 	cloud.google.com/go/longrunning v0.5.4 // indirect
 	cloud.google.com/go/pubsub v1.33.0 // indirect
@@ -293,7 +298,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.4.0 // indirect
-	github.com/elimity-com/scim v0.0.0-20230426070224-941a5eac92f3 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.8.0 // indirect
@@ -446,7 +450,6 @@ require (
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sasha-s/go-deadlock v0.0.0-20180226215254-237a9547c8a5 // indirect
 	github.com/sassoftware/relic v7.2.1+incompatible // indirect
-	github.com/scim2/filter-parser/v2 v2.2.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.8.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/segmentio/encoding v0.3.5 // indirect
