@@ -2272,6 +2272,19 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 	return sess, trace.Wrap(err)
 }
 
+// ListAppSessions returns a page of application web sessions.
+func (c *Cache) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAppSessions")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.appSessions)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAppSessions(ctx, pageSize, pageToken, user)
+}
+
 // GetSnowflakeSession gets Snowflake web session.
 func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSession")
