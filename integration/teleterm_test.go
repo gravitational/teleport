@@ -894,22 +894,3 @@ func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Contex
 	c.sendPendingHeadlessAuthenticationCount.Add(1)
 	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
 }
-
-func waitForResourceToBeDeleted(t *testing.T, watcher types.Watcher, kind, name string) {
-	timeout := time.After(time.Second * 15)
-	for {
-		select {
-		case <-timeout:
-			t.Fatalf("Timeout waiting for event.")
-		case event := <-watcher.Events():
-			if event.Type != types.OpDelete {
-				continue
-			}
-			if event.Resource.GetKind() == kind && event.Resource.GetMetadata().Name == name {
-				return
-			}
-		case <-watcher.Done():
-			t.Fatalf("Watcher error %s.", watcher.Error())
-		}
-	}
-}
