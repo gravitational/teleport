@@ -848,7 +848,7 @@ func devInfo(path string, dev FIDODevice) (*libfido2.DeviceInfo, error) {
 		}
 
 		lastErr = err
-		log.Debugf("FIDO2: Device %v: Info failed, retrying after interval: %v", path, err)
+		log.Debugf("FIDO2: Device %v: Info failed, retrying after %s: %v", path, fido2RetryInterval, err)
 		time.Sleep(fido2RetryInterval)
 	}
 
