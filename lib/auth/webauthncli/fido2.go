@@ -641,7 +641,8 @@ func startDevices(
 	locs []*libfido2.DeviceLocation,
 	filter deviceFilterFunc,
 	deviceCallback deviceCallbackFunc,
-	prompt runPrompt) (devices *openedDevices, devicesC <-chan error, err error) {
+	prompt runPrompt,
+) (devices *openedDevices, devicesC <-chan error, err error) {
 	fidoDevs := make([]FIDODevice, 0, len(locs))
 	openDevs := make([]*openedDevice, 0, len(locs))
 
