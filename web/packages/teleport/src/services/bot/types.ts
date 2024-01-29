@@ -18,16 +18,6 @@
 
 import { ResourceLabel } from '../agents';
 
-export type Bot = {
-  name: string;
-  roles: string[];
-  traits: string[];
-};
-
-export type FetchBotsRequest = {
-  signal?: AbortSignal;
-};
-
 export type CreateBotRequest = {
   botName: string;
   labels: ResourceLabel[];
