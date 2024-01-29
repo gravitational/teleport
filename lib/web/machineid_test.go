@@ -19,12 +19,16 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"slices"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -81,4 +85,39 @@ func TestCreateBot(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
+}
+
+func TestGetBotByName(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+	)
+
+	// create a bot nammed `test-bot-1`
+	botName := "test-bot-1"
+	_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
+		BotName: botName,
+		Roles:   []string{""},
+	})
+	require.NoError(t, err)
+
+	response, err := pack.clt.Get(ctx, fmt.Sprintf("%s/%s", endpoint, botName), nil)
+	require.NoError(t, err)
+
+	var bot machineidv1.Bot
+	require.NoError(t, json.Unmarshal(response.Bytes(), &bot), "invalid response received")
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
+	assert.Equal(t, botName, bot.Metadata.Name)
+
+	// query an unexisting bot
+	_, err = pack.clt.Get(ctx, fmt.Sprintf("%s/%s", endpoint, "invalid-bot"), nil)
+	require.Error(t, err)
 }
