@@ -233,12 +233,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]any{
-			"database":   dbInfo.ServiceName,
-			"address":    listener.Addr().String(),
-			"ca":         profile.CACertPathForCluster(rootCluster),
-			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
-			"key":        profile.KeyPath(),
-			"randomPort": randomPort,
+			"database":     dbInfo.ServiceName,
+			"address":      listener.Addr().String(),
+			"ca":           profile.CACertPathForCluster(rootCluster),
+			"cert":         profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
+			"key":          profile.KeyPath(),
+			"randomPort":   randomPort,
+			"databaseUser": dbInfo.Username,
+			"databaseName": dbInfo.Database,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -657,6 +659,9 @@ Use the following credentials to connect to the {{.database}} proxy:
   ca_file={{.ca}}
   cert_file={{.cert}}
   key_file={{.key}}
+
+Your database user is "{{.databaseUser}}".{{if .databaseName}} The target database name is "{{.databaseName}}".{{end}}
+
 `))
 
 var templateFunctions = map[string]any{

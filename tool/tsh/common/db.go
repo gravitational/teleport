@@ -885,18 +885,6 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		return nil
 	}
 
-	// If database has admin user defined, we're most likely using automatic
-	// user provisioning so default to Teleport username unless database
-	// username was provided explicitly.
-	if needDBUser && db.GetAdminUser().Name != "" {
-		log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
-		d.Username = tc.Username
-		needDBUser = false
-	}
-	if !needDBUser && !needDBName {
-		return nil
-	}
-
 	var proxy *client.ProxyClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		proxy, err = tc.ConnectToProxy(cf.Context)
@@ -1142,6 +1130,8 @@ func getDefaultDBUser(db types.Database, checker services.AccessChecker) (string
 		// ref: https://redis.io/commands/auth
 		extraUsers = append(extraUsers, defaults.DefaultRedisUsername)
 	}
+	// Note that EnumerateDatabaseUsers also calculates the username when
+	// auto-user provisioning is enabled for this database.
 	dbUsers, err := checker.EnumerateDatabaseUsers(db, extraUsers...)
 	if err != nil {
 		return "", trace.Wrap(err)

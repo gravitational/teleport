@@ -413,7 +413,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 
 	// The user is prefixed with "remote-" and suffixed with cluster name with
 	// the hope that it does not match a real local user.
-	user, err := types.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
+	user, err := types.NewUser(services.UsernameForRemoteCluster(u.Username, u.ClusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1434,6 +1434,16 @@ func IsLocalUser(authContext Context) bool {
 	return ok
 }
 
+// IsLocalOrRemoteUser checks if the identity is either a local or remote user.
+func IsLocalOrRemoteUser(authContext Context) bool {
+	switch authContext.Identity.(type) {
+	case LocalUser, RemoteUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // IsCurrentUser checks if the identity is a local user matching the given username
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
@@ -1451,4 +1461,10 @@ func ConnectionMetadata(ctx context.Context) apievents.ConnectionMetadata {
 	return apievents.ConnectionMetadata{
 		RemoteAddr: remoteAddr.String(),
 	}
+}
+
+// IsRemoteUser checks if the identity is a remote user.
+func IsRemoteUser(authContext Context) bool {
+	_, ok := authContext.Identity.(RemoteUser)
+	return ok
 }
