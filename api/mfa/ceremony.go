@@ -53,10 +53,10 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 	chal, err := clt.CreateAuthenticateChallenge(ctx, challengeRequest)
 	if err != nil {
 		// CreateAuthenticateChallenge returns a bad parameter error when the the client
-		// user is not a Teleport user. For example, the AdminRole. Treat this as a false
-		// MFA required check if a check was requested.
+		// user is not a Teleport user - for example, the AdminRole. Treat this as an MFA
+		// not supported error so the client knows when it can be ignored.
 		if trace.IsBadParameter(err) {
-			return nil, &ErrMFANotRequired
+			return nil, &ErrMFANotSupported
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -70,9 +70,11 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 	return clt.PromptMFA(ctx, chal, promptOpts...)
 }
 
+type MFACeremony func(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error)
+
 // PerformAdminActionMFACeremony retrieves an MFA challenge from the server for an admin
 // action, prompts the user to answer the challenge, and returns the resulting MFA response.
-func PerformAdminActionMFACeremony(ctx context.Context, clt MFACeremonyClient, allowReuse bool) (*proto.MFAAuthenticateResponse, error) {
+func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony MFACeremony, allowReuse bool) (*proto.MFAAuthenticateResponse, error) {
 	allowReuseExt := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
 	if allowReuse {
 		allowReuseExt = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
@@ -91,5 +93,5 @@ func PerformAdminActionMFACeremony(ctx context.Context, clt MFACeremonyClient, a
 		},
 	}
 
-	return PerformMFACeremony(ctx, clt, challengeRequest, WithPromptReasonAdminAction())
+	return mfaCeremony(ctx, challengeRequest, WithPromptReasonAdminAction())
 }
