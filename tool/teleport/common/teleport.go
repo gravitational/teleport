@@ -1059,7 +1059,7 @@ func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabase
 	return nil
 }
 
-func onIntegrationConfExternalAuditCmd(params extauditconfig.IntegrationConfExternalAuditStorage) error {
+func onIntegrationConfExternalAuditCmd(params extauditconfig.ExternalAuditStorageConfiguration) error {
 	ctx := context.Background()
 	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
 	if err != nil {

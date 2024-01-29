@@ -42,7 +42,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 
 	for _, tc := range []struct {
 		desc                 string
-		params               *config.IntegrationConfExternalAuditStorage
+		params               *config.ExternalAuditStorageConfiguration
 		stsAccount           string
 		existingRolePolicies map[string]map[string]string
 		expectedRolePolicies map[string]map[string]string
@@ -51,7 +51,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		{
 			// A passing case with the account from sts:GetCallerIdentity
 			desc: "passing",
-			params: &config.IntegrationConfExternalAuditStorage{
+			params: &config.ExternalAuditStorageConfiguration{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "test-role",
@@ -131,7 +131,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		},
 		{
 			desc: "alternate partition and region",
-			params: &config.IntegrationConfExternalAuditStorage{
+			params: &config.ExternalAuditStorageConfiguration{
 				Partition:            "aws-cn",
 				Region:               "cn-north-1",
 				Role:                 "test-role",
@@ -211,7 +211,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		},
 		{
 			desc: "bad uri",
-			params: &config.IntegrationConfExternalAuditStorage{
+			params: &config.ExternalAuditStorageConfiguration{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "test-role",
@@ -233,7 +233,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		},
 		{
 			desc: "role not found",
-			params: &config.IntegrationConfExternalAuditStorage{
+			params: &config.ExternalAuditStorageConfiguration{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "bad-role",
