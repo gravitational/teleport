@@ -11,11 +11,14 @@ Teleport Device Trust now supports TPM joining on Linux devices.
 Additionally, `tsh proxy app` can now solve device challenges, allowing users to
 enforce the use of a trusted device to access applications.
 
-#### Transparent session resumption for `tsh`
+#### SSH connection resumption
 
-In Teleport 15, `tsh` will automatically resume SSH sessions. If a session is
-disconnected due to a proxy restart or networking issue, `tsh` will
-transparently reconnect the user and restore the session state.
+Teleport v15 introduces automatic SSH connection resumption if the network path
+between the client and the Teleport node is interrupted due to connectivity issues,
+and transparent connection migration if the control plane is gracefully upgraded.
+
+The feature is active by default when a v15 client (`tsh`, OpenSSH or PuTTY
+configured by `tsh config`, or Teleport Connect) connects to a v15 Teleport node.
 
 #### Support for AWS KMS
 
