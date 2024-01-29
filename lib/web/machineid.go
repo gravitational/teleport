@@ -29,9 +29,9 @@ import (
 )
 
 const (
-	// webUIFlowBotGitHubActions is the key of the webUIFlowLabelKey
+	// webUIFlowBotGitHubActionsSSH is the key of the webUIFlowLabelKey
 	// added to a resource created via the Bot GitHub Actions web UI flow.
-	webUIFlowBotGitHubActions = "github-actions"
+	webUIFlowBotGitHubActionsSSH = "github-actions-ssh"
 )
 
 type CreateBotRequest struct {
@@ -62,7 +62,7 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 			Metadata: &headerv1.Metadata{
 				Name: req.BotName,
 				Labels: map[string]string{
-					webUIFlowLabelKey: webUIFlowBotGitHubActions,
+					webUIFlowLabelKey: webUIFlowBotGitHubActionsSSH,
 				},
 			},
 			Spec: &machineidv1.BotSpec{

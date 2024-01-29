@@ -166,7 +166,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	case types.JoinMethodGitHub:
 		tokenName = generateGitHubTokenName(req)
 		labels = map[string]string{
-			webUIFlowLabelKey: webUIFlowBotGitHubActions,
+			webUIFlowLabelKey: webUIFlowBotGitHubActionsSSH,
 		}
 	default:
 		tokenName, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
