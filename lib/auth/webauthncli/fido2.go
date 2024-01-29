@@ -55,7 +55,7 @@ const (
 
 	// Timeout for touch.Status operations.
 	// Keep it less frequent than 5Hz / 0.2s.
-	fido2TouchMaxWait = 200 * time.Second
+	fido2TouchMaxWait = 200 * time.Millisecond
 )
 
 // User-friendly device filter errors.
