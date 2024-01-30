@@ -884,25 +884,9 @@ func TestCheckIPPinning(t *testing.T) {
 	}
 }
 
-func TestAuthorizeWithVerbs(t *testing.T) {
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	accessService := local.NewAccessService(backend)
-
-	role, err := types.NewRole("test", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindUser},
-					Verbs:     []string{types.ActionRead},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	_, err = accessService.CreateRole(context.Background(), role)
-	require.NoError(t, err)
-
+// Test the Authorize helper function and ensure it converts authorizer errors.
+func TestAuthorize_ConvertAuthorizerError(t *testing.T) {
+	connectionProblemErr := trace.ConnectionProblem(errors.New("error connecting"), "connection error")
 	tests := []struct {
 		name         string
 		delegate     Authorizer
@@ -918,38 +902,21 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 			errAssertion: require.NoError,
 		},
 		{
-			name: "regular auth with verbs",
-			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
-				accessChecker, err := services.NewAccessChecker(&services.AccessInfo{
-					Roles: []string{"test"},
-				}, "test-cluster", accessService)
-				require.NoError(t, err)
-				return &Context{
-					Checker: accessChecker,
-				}, nil
-			}),
-			kind:         types.KindUser,
-			verbs:        []string{types.VerbRead},
-			errAssertion: require.NoError,
-		},
-		{
 			name: "connection problem",
 			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
-				return nil, trace.ConnectionProblem(errors.New("err msg"), "err msg")
+				return nil, connectionProblemErr
 			}),
 			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.True(t, trace.IsConnectionProblem(err))
-				require.Equal(t, "failed to connect to the database", err.Error())
+				require.ErrorIs(t, err, trace.ConnectionProblem(connectionProblemErr, "failed to connect to the database"))
 			},
 		},
 		{
 			name: "not found",
 			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
-				return nil, trace.NotFound("err msg")
+				return nil, trace.NotFound("user not found")
 			}),
 			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.True(t, trace.IsNotFound(err))
-				require.Equal(t, "access denied\n\taccess denied\n\t\terr msg", trace.UserMessage(err))
+				require.ErrorIs(t, err, trace.Wrap(trace.NotFound("user not found"), "access denied"))
 			},
 		},
 		{
@@ -970,14 +937,23 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 				require.ErrorIs(t, err, keys.NewPrivateKeyPolicyError("error"))
 			},
 		},
+		{
+			name: "unknown error",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return nil, errors.New("unknown error")
+			}),
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("access denied"))
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 			log := logrus.New()
-			_, err = AuthorizeWithVerbs(ctx, log, test.delegate, true, test.kind, test.verbs...)
-			test.errAssertion(t, ConvertAuthorizerError(ctx, log, err))
+			_, err := Authorize(ctx, test.delegate, log)
+			test.errAssertion(t, err)
 		})
 	}
 }
