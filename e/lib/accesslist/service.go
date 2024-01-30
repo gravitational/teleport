@@ -459,12 +459,21 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	verbs := []string{types.VerbCreate}
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	verbs := []string{types.VerbCreate}
 	if oldAccessList != nil {
 		verbs = []string{types.VerbUpdate}
-		_, err := authz.AuthorizeResourceWithVerbs(ctx, s.log, s.authorizer, true, oldAccessList, verbs...)
-		if err != nil {
+
+		// TODO(Joerger): Use `authzCtx.AuthorizeResourceWithVerbs` after adding it to the authz package.
+		ruleCtx := &services.Context{
+			User:     authzCtx.User,
+			Resource: oldAccessList,
+		}
+		if _, err := authz.AuthorizeContextWithVerbs(ctx, s.log, authzCtx, true, ruleCtx, oldAccessList.GetKind(), verbs...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -473,26 +482,30 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 		newAccessList.SetRevision(oldAccessList.GetRevision())
 	}
 
-	authCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.log, s.authorizer, true, newAccessList, verbs...)
-	if err != nil {
+	// TODO(Joerger): Use `authzCtx.AuthorizeResourceWithVerbs` after adding it to the authz package.
+	ruleCtx := &services.Context{
+		User:     authzCtx.User,
+		Resource: newAccessList,
+	}
+	if _, err := authz.AuthorizeContextWithVerbs(ctx, s.log, authzCtx, true, ruleCtx, newAccessList.GetKind(), verbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !oktaModificationAllowed(*authCtx, oldAccessList, newAccessList) {
+	if !oktaModificationAllowed(*authzCtx, oldAccessList, newAccessList) {
 		return nil, trace.AccessDenied(oktaErrorMsg)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	username, err := getUsername(authCtx)
+	username, err := getUsername(authzCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	updated := oldAccessList != nil
-	resp, upsertErr := s.upsertAccessList(ctx, authCtx, newAccessList)
+	resp, upsertErr := s.upsertAccessList(ctx, authzCtx, newAccessList)
 
 	s.emitUpsertAccessListEvent(ctx, username, updated, accessListName, upsertErr)
 

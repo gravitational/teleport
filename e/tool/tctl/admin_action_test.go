@@ -65,7 +65,7 @@ func TestAdminActionMFA(t *testing.T) {
 
 	t.Run("DeviceTrust", s.testDeviceTrust)
 	t.Run("LoginRules", s.testLoginRules)
-	t.Run("AcessLists", s.testAccessLists)
+	t.Run("AccessLists", s.testAccessLists)
 }
 
 func (s *adminActionTestSuite) testDeviceTrust(t *testing.T) {
