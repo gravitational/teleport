@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Prompt } from 'react-router';
+import { Prompt, useHistory } from 'react-router';
 import { Transition } from 'react-transition-group';
 import styled from 'styled-components';
 import {
@@ -11,6 +11,7 @@ import {
   Text,
   ButtonBorder,
   Button,
+  ButtonIcon,
 } from 'design';
 import { kinds } from 'design/Button/Button';
 import { StyledPanel } from 'design/DataTable/StyledTable';
@@ -21,6 +22,7 @@ import {
   CircleArrowRight,
   Magnifier,
   ListAddCheck,
+  ArrowLeft,
 } from 'design/Icon';
 import Select from 'shared/components/Select';
 import Link from 'design/Link';
@@ -33,6 +35,7 @@ import {
   FilterKind,
   UnifiedResources,
 } from 'shared/components/UnifiedResources';
+import { HoverTooltip } from 'shared/components/ToolTip';
 import { TextIcon } from 'teleport/Discover/Shared';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
@@ -155,6 +158,7 @@ export function NewRequest(props: State) {
     ctx,
   } = props;
   const { setEnforceMinWidth } = useContentMinWidthContext();
+  const history = useHistory();
   const { preferences, updatePreferences } = useUser();
   const [clusterDropdownError, setClusterDropdownError] = useState('');
 
@@ -257,7 +261,17 @@ export function NewRequest(props: State) {
     <FeatureBox>
       <FeatureHeader>
         <Flex width="100%" alignItems="center" justifyContent="space-between">
-          <FeatureHeaderTitle>New Request</FeatureHeaderTitle>
+          <Flex alignItems="center">
+            <HoverTooltip tipContent="Back to Access Requests">
+              <ButtonIcon
+                onClick={() => history.push(cfg.getAccessRequestRoute())}
+                mr={2}
+              >
+                <ArrowLeft size="medium" />
+              </ButtonIcon>
+            </HoverTooltip>
+            <FeatureHeaderTitle>New Request</FeatureHeaderTitle>
+          </Flex>
 
           {limited && (
             <Box>

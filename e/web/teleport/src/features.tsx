@@ -84,6 +84,12 @@ class FeatureAccessRequests implements TeleportFeature {
   route: TeleportFeatureRoute; // intentionally undefined
   category = NavigationCategory.Resources;
   navigationItem: TeleportFeatureNavigationItem = {
+    isSelected: (clusterId: string, pathname: string) => {
+      return (
+        pathname === cfg.getAccessRequestRoute() ||
+        pathname === cfg.getNewAccessRequestRoute(clusterId)
+      );
+    },
     title: NavTitle.AccessRequests,
     icon: ListAddCheck,
     getLink() {
