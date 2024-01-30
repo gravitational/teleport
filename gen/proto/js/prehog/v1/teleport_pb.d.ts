@@ -103,6 +103,12 @@ export class UserActivityRecord extends jspb.Message {
     getSpiffeSvidsIssued(): number;
     setSpiffeSvidsIssued(value: number): UserActivityRecord;
 
+    getBotJoins(): number;
+    setBotJoins(value: number): UserActivityRecord;
+
+    getCertificatesIssued(): number;
+    setCertificatesIssued(value: number): UserActivityRecord;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserActivityRecord.AsObject;
@@ -131,6 +137,8 @@ export namespace UserActivityRecord {
         sshPortV2Sessions: number,
         kubePortSessions: number,
         spiffeSvidsIssued: number,
+        botJoins: number,
+        certificatesIssued: number,
     }
 }
 
