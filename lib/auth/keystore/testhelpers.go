@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,11 +92,14 @@ func awsKMSTestConfig(t *testing.T) (Config, bool) {
 	if awsKMSAccount == "" || awsKMSRegion == "" {
 		return Config{}, false
 	}
+	cloudClients, err := cloud.NewClients()
+	require.NoError(t, err)
 	return Config{
 		AWSKMS: AWSKMSConfig{
-			Cluster:    "test-cluster",
-			AWSAccount: awsKMSAccount,
-			AWSRegion:  awsKMSRegion,
+			Cluster:      "test-cluster",
+			AWSAccount:   awsKMSAccount,
+			AWSRegion:    awsKMSRegion,
+			CloudClients: cloudClients,
 		},
 	}, true
 }
