@@ -1,4 +1,4 @@
-.version: &version "13.4.15-dev-tross.1"
+.version: &version "13.4.15-dev-tross.2"
 
 name: teleport-cluster
 apiVersion: v2
