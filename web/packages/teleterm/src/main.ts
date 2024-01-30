@@ -40,6 +40,12 @@ import { parseDeepLink } from 'teleterm/deepLinks';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 
+if (!app.isPackaged) {
+  // Sets app name and data directories to Electron.
+  // Allows running packaged and non-packaged Connect at the same time.
+  app.setName('Electron');
+}
+
 // Set the app as a default protocol client only if it wasn't started through `electron .`.
 if (!process.defaultApp) {
   app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
