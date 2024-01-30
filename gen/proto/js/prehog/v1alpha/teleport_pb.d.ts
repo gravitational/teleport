@@ -1426,6 +1426,9 @@ export class BotJoinEvent extends jspb.Message {
     getJoinTokenName(): string;
     setJoinTokenName(value: string): BotJoinEvent;
 
+    getUserName(): string;
+    setUserName(value: string): BotJoinEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): BotJoinEvent.AsObject;
@@ -1442,6 +1445,7 @@ export namespace BotJoinEvent {
         botName: string,
         joinMethod: string,
         joinTokenName: string,
+        userName: string,
     }
 }
 
