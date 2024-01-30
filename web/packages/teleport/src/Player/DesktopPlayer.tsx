@@ -157,7 +157,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     const url = cfg.api.desktopPlaybackWsAddr
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
-      .replace(':sid', sid)
+      .replace(':sid', sid);
     return new PlayerClient({ url, setTime, setPlayerStatus, setStatusText });
   }, [clusterId, sid, setTime, setPlayerStatus]);
 
