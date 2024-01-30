@@ -156,7 +156,7 @@ export const CopyAndDownload = () => {
         ]}
         bash={false}
         saveContent={{ save: true, filename: 'testfile.txt' }}
-        maxHeight="150px"
+        maxHeight="200px"
       />
     </>
   );

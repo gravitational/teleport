@@ -3,48 +3,43 @@
 exports[`render multi bash texts 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 8px;
+  padding-right: 40px;
   padding-top: 8px;
   min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
 
 .c2 {
   box-sizing: border-box;
-  max-height: none;
+  margin-right: 4px;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   padding-bottom: 8px;
   padding-top: 8px;
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
 }
 
 .c8 {
   box-sizing: border-box;
-  margin-right: 4px;
+  padding-right: 8px;
 }
 
-.c10 {
-  box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 24px;
-}
-
-.c16 {
+.c14 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
 }
 
-.c12 {
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -70,53 +65,53 @@ exports[`render multi bash texts 1`] = `
   padding: 0px 24px;
 }
 
-.c12:hover,
-.c12:focus {
+.c10:hover,
+.c10:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c12:active {
+.c10:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c12:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c15 {
+.c13 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c7 {
+.c6 {
   display: flex;
 }
 
-.c14 {
+.c12 {
   display: flex;
 }
 
-.c14 .icon-check {
+.c12 .icon-check {
   display: none;
 }
 
-.c14 .icon-copy {
+.c12 .icon-copy {
   display: inline-flex;
 }
 
-.c14.copied .icon-check {
+.c12.copied .icon-check {
   display: inline-flex;
 }
 
-.c14.copied .icon-copy {
+.c12.copied .icon-copy {
   display: none;
 }
 
-.c13 {
+.c11 {
   height: 28px;
   width: 28px;
   border-radius: 20px;
@@ -126,8 +121,8 @@ exports[`render multi bash texts 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c13:hover,
-.c13:focus {
+.c11:hover,
+.c11:focus {
   background: rgba(255,255,255,0.13);
 }
 
@@ -136,46 +131,43 @@ exports[`render multi bash texts 1`] = `
   word-break: break-all;
   font-size: 12px;
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
+  overflow: scroll;
   line-height: 20px;
   color: #FFFFFF;
 }
 
-.c4 {
-  overflow-y: scroll;
-}
-
 .c1 {
   position: relative;
+  overflow: scroll;
 }
 
-.c9 {
+.c7 {
   margin: 0;
 }
 
-.c11 {
+.c9 {
   position: absolute;
-  right: 0;
-  border-radius: 20px;
+  right: 0px;
 }
 
 <div>
   <div
-    class="c0 c1 props => props.className"
+    class="c0 c1"
   >
     <div
-      class="c2 c3 c4"
+      class="c2 c3"
     >
       <div
-        class="c5"
+        class="c4"
       >
         <div
-          class="c6 c7"
+          class="c5 c6"
         >
           <div
-            class="c6 c7"
+            class="c5 c6"
           >
             <div
-              class="c8"
+              class="c2"
             >
               $
             </div>
@@ -183,24 +175,24 @@ exports[`render multi bash texts 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c9"
+                class="c7"
               >
                 sudo tctl -c cfg-all users add --roles=access,editor george_washington
               </pre>
             </div>
           </div>
           <div
-            class="c10 c11"
+            class="c8 c9"
           >
             <button
-              class="c12 c13"
+              class="c10 c11"
               kind="secondary"
             >
               <div
-                class="c14 icon-container"
+                class="c12 icon-container"
               >
                 <span
-                  class="c15 icon icon-copy"
+                  class="c13 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -221,7 +213,7 @@ exports[`render multi bash texts 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c15 icon icon-check"
+                  class="c13 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -244,16 +236,16 @@ exports[`render multi bash texts 1`] = `
         </div>
       </div>
       <div
-        class="c5"
+        class="c4"
       >
         <div
-          class="c6 c7"
+          class="c5 c6"
         >
           <div
-            class="c6 c7"
+            class="c5 c6"
           >
             <div
-              class="c8"
+              class="c2"
             >
               $
             </div>
@@ -261,24 +253,24 @@ exports[`render multi bash texts 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c9"
+                class="c7"
               >
                 sudo DEBUG=1 teleport start -c cfg-all -d
               </pre>
             </div>
           </div>
           <div
-            class="c10 c11"
+            class="c8 c9"
           >
             <button
-              class="c12 c13"
+              class="c10 c11"
               kind="secondary"
             >
               <div
-                class="c14 icon-container"
+                class="c12 icon-container"
               >
                 <span
-                  class="c15 icon icon-copy"
+                  class="c13 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -299,7 +291,7 @@ exports[`render multi bash texts 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c15 icon icon-check"
+                  class="c13 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -322,16 +314,16 @@ exports[`render multi bash texts 1`] = `
         </div>
       </div>
       <div
-        class="c16"
+        class="c14"
       >
         <div
-          class="c6 c7"
+          class="c5 c6"
         >
           <div
-            class="c6 c7"
+            class="c5 c6"
           >
             <div
-              class="c8"
+              class="c2"
             >
               $
             </div>
@@ -339,24 +331,24 @@ exports[`render multi bash texts 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c9"
+                class="c7"
               >
                 yarn start-teleport-e --target=https://localhost:3080/web
               </pre>
             </div>
           </div>
           <div
-            class="c10 c11"
+            class="c8 c9"
           >
             <button
-              class="c12 c13"
+              class="c10 c11"
               kind="secondary"
             >
               <div
-                class="c14 icon-container"
+                class="c12 icon-container"
               >
                 <span
-                  class="c15 icon icon-copy"
+                  class="c13 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -377,7 +369,7 @@ exports[`render multi bash texts 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c15 icon icon-check"
+                  class="c13 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -407,448 +399,24 @@ exports[`render multi bash texts 1`] = `
 exports[`render multi bash texts with comment 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 8px;
+  padding-right: 40px;
   padding-top: 8px;
   min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
 
 .c2 {
-  box-sizing: border-box;
-  max-height: none;
-}
-
-.c5 {
-  box-sizing: border-box;
-  padding-bottom: 8px;
-  padding-top: 8px;
-}
-
-.c7 {
-  box-sizing: border-box;
-}
-
-.c9 {
   box-sizing: border-box;
   margin-right: 4px;
 }
 
-.c11 {
-  box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 24px;
-}
-
-.c17 {
-  box-sizing: border-box;
-  padding-bottom: 0px;
-  padding-top: 8px;
-}
-
-.c13 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-}
-
-.c13:hover,
-.c13:focus {
-  background: rgba(255,255,255,0.13);
-}
-
-.c13:active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c13:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c16 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
-}
-
-.c8 {
-  display: flex;
-}
-
-.c15 {
-  display: flex;
-}
-
-.c15 .icon-check {
-  display: none;
-}
-
-.c15 .icon-copy {
-  display: inline-flex;
-}
-
-.c15.copied .icon-check {
-  display: inline-flex;
-}
-
-.c15.copied .icon-copy {
-  display: none;
-}
-
-.c6 {
-  color: rgb(117 113 94 / 80%);
-}
-
-.c14 {
-  height: 28px;
-  width: 28px;
-  border-radius: 20px;
-  min-height: auto;
-  padding: 0;
-  margin-top: -4px;
-  background: rgba(255,255,255,0.07);
-}
-
-.c14:hover,
-.c14:focus {
-  background: rgba(255,255,255,0.13);
-}
-
-.c3 {
-  white-space: pre;
-  word-break: break-all;
-  font-size: 12px;
-  font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
-  line-height: 20px;
-  color: #FFFFFF;
-}
-
 .c4 {
-  overflow-y: scroll;
-}
-
-.c1 {
-  position: relative;
-}
-
-.c10 {
-  margin: 0;
-}
-
-.c12 {
-  position: absolute;
-  right: 0;
-  border-radius: 20px;
-}
-
-<div>
-  <div
-    class="c0 c1 props => props.className"
-  >
-    <div
-      class="c2 c3 c4"
-    >
-      <div
-        class="c5"
-      >
-        <div
-          class="c6"
-        >
-          Download Teleport's PGP public key
-        </div>
-        <div
-          class="c7 c8"
-        >
-          <div
-            class="c7 c8"
-          >
-            <div
-              class="c9"
-            >
-              $
-            </div>
-            <div
-              class="text-to-copy"
-            >
-              <pre
-                class="c10"
-              >
-                sudo curl https://apt.releases.teleport.dev/gpg \\
--o /usr/share/keyrings/teleport-archive-keyring.asc
-              </pre>
-            </div>
-          </div>
-          <div
-            class="c11 c12"
-          >
-            <button
-              class="c13 c14"
-              kind="secondary"
-            >
-              <div
-                class="c15 icon-container"
-              >
-                <span
-                  class="c16 icon icon-copy"
-                  color="light"
-                  data-testid="btn-copy"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    width="16"
-                  >
-                    <path
-                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-                <span
-                  class="c16 icon icon-check"
-                  color="light"
-                  data-testid="btn-check"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    width="16"
-                  >
-                    <path
-                      clip-rule="evenodd"
-                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-      <div
-        class="c5"
-      >
-        <div
-          class="c7 c8"
-        >
-          <div
-            class="c7 c8"
-          >
-            <div
-              class="c9"
-            >
-              $
-            </div>
-            <div
-              class="text-to-copy"
-            >
-              <pre
-                class="c10"
-              >
-                sudo DEBUG=1 teleport start -c cfg-all -d
-              </pre>
-            </div>
-          </div>
-          <div
-            class="c11 c12"
-          >
-            <button
-              class="c13 c14"
-              kind="secondary"
-            >
-              <div
-                class="c15 icon-container"
-              >
-                <span
-                  class="c16 icon icon-copy"
-                  color="light"
-                  data-testid="btn-copy"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    width="16"
-                  >
-                    <path
-                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-                <span
-                  class="c16 icon icon-check"
-                  color="light"
-                  data-testid="btn-check"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    width="16"
-                  >
-                    <path
-                      clip-rule="evenodd"
-                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-      <div
-        class="c17"
-      >
-        <div
-          class="c6"
-        >
-          Add the Teleport APT repository for v10. You'll need to update this
-file for each major release of Teleport.
-Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
-and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
-
-        </div>
-        <div
-          class="c7 c8"
-        >
-          <div
-            class="c7 c8"
-          >
-            <div
-              class="c9"
-            >
-              $
-            </div>
-            <div
-              class="text-to-copy"
-            >
-              <pre
-                class="c10"
-              >
-                echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \\
-https://apt.releases.teleport.dev/stable/v10" \\
-| sudo tee /etc/apt/sources.list.d/teleport.list &gt; /dev/null
-              </pre>
-            </div>
-          </div>
-          <div
-            class="c11 c12"
-          >
-            <button
-              class="c13 c14"
-              kind="secondary"
-            >
-              <div
-                class="c15 icon-container"
-              >
-                <span
-                  class="c16 icon icon-copy"
-                  color="light"
-                  data-testid="btn-copy"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    width="16"
-                  >
-                    <path
-                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
-                    />
-                    <path
-                      clip-rule="evenodd"
-                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-                <span
-                  class="c16 icon icon-check"
-                  color="light"
-                  data-testid="btn-check"
-                >
-                  <svg
-                    fill="currentColor"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    width="16"
-                  >
-                    <path
-                      clip-rule="evenodd"
-                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
-                      fill-rule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-`;
-
-exports[`render non bash single text 1`] = `
-.c0 {
   box-sizing: border-box;
   padding-bottom: 8px;
-  padding-left: 16px;
-  padding-right: 8px;
-  padding-top: 8px;
-  min-height: 50px;
-  background-color: #010B1C;
-  border-radius: 4px;
-}
-
-.c2 {
-  box-sizing: border-box;
-  max-height: none;
-}
-
-.c5 {
-  box-sizing: border-box;
-  padding-bottom: 0px;
   padding-top: 8px;
 }
 
@@ -858,8 +426,13 @@ exports[`render non bash single text 1`] = `
 
 .c9 {
   box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 24px;
+  padding-right: 8px;
+}
+
+.c15 {
+  box-sizing: border-box;
+  padding-bottom: 0px;
+  padding-top: 8px;
 }
 
 .c11 {
@@ -934,6 +507,10 @@ exports[`render non bash single text 1`] = `
   display: none;
 }
 
+.c5 {
+  color: rgb(117 113 94 / 80%);
+}
+
 .c12 {
   height: 28px;
   width: 28px;
@@ -954,16 +531,14 @@ exports[`render non bash single text 1`] = `
   word-break: break-all;
   font-size: 12px;
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
+  overflow: scroll;
   line-height: 20px;
   color: #FFFFFF;
 }
 
-.c4 {
-  overflow-y: scroll;
-}
-
 .c1 {
   position: relative;
+  overflow: scroll;
 }
 
 .c8 {
@@ -972,19 +547,102 @@ exports[`render non bash single text 1`] = `
 
 .c10 {
   position: absolute;
-  right: 0;
-  border-radius: 20px;
+  right: 0px;
 }
 
 <div>
   <div
-    class="c0 c1 props => props.className"
+    class="c0 c1"
   >
     <div
-      class="c2 c3 c4"
+      class="c2 c3"
     >
       <div
-        class="c5"
+        class="c4"
+      >
+        <div
+          class="c5"
+        >
+          Download Teleport's PGP public key
+        </div>
+        <div
+          class="c6 c7"
+        >
+          <div
+            class="c6 c7"
+          >
+            <div
+              class="c2"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c8"
+              >
+                sudo curl https://apt.releases.teleport.dev/gpg \\
+-o /usr/share/keyrings/teleport-archive-keyring.asc
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c9 c10"
+          >
+            <button
+              class="c11 c12"
+              kind="secondary"
+            >
+              <div
+                class="c13 icon-container"
+              >
+                <span
+                  class="c14 icon icon-copy"
+                  color="light"
+                  data-testid="btn-copy"
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
+                <span
+                  class="c14 icon icon-check"
+                  color="light"
+                  data-testid="btn-check"
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c4"
       >
         <div
           class="c6 c7"
@@ -993,12 +651,106 @@ exports[`render non bash single text 1`] = `
             class="c6 c7"
           >
             <div
+              class="c2"
+            >
+              $
+            </div>
+            <div
               class="text-to-copy"
             >
               <pre
                 class="c8"
               >
-                some -c text to be copied and it is super long to test scrolling
+                sudo DEBUG=1 teleport start -c cfg-all -d
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c9 c10"
+          >
+            <button
+              class="c11 c12"
+              kind="secondary"
+            >
+              <div
+                class="c13 icon-container"
+              >
+                <span
+                  class="c14 icon icon-copy"
+                  color="light"
+                  data-testid="btn-copy"
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
+                <span
+                  class="c14 icon icon-check"
+                  color="light"
+                  data-testid="btn-check"
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div
+        class="c15"
+      >
+        <div
+          class="c5"
+        >
+          Add the Teleport APT repository for v10. You'll need to update this
+file for each major release of Teleport.
+Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
+and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
+
+        </div>
+        <div
+          class="c6 c7"
+        >
+          <div
+            class="c6 c7"
+          >
+            <div
+              class="c2"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c8"
+              >
+                echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \\
+https://apt.releases.teleport.dev/stable/v10" \\
+| sudo tee /etc/apt/sources.list.d/teleport.list &gt; /dev/null
               </pre>
             </div>
           </div>
@@ -1061,45 +813,40 @@ exports[`render non bash single text 1`] = `
 </div>
 `;
 
-exports[`render single bash text 1`] = `
+exports[`render non bash single text 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 8px;
+  padding-right: 40px;
   padding-top: 8px;
   min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
 
 .c2 {
   box-sizing: border-box;
-  max-height: none;
+  margin-right: 4px;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
 }
 
 .c8 {
   box-sizing: border-box;
-  margin-right: 4px;
+  padding-right: 8px;
 }
 
 .c10 {
-  box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 24px;
-}
-
-.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1125,53 +872,53 @@ exports[`render single bash text 1`] = `
   padding: 0px 24px;
 }
 
-.c12:hover,
-.c12:focus {
+.c10:hover,
+.c10:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c12:active {
+.c10:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c12:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c15 {
+.c13 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c7 {
+.c6 {
   display: flex;
 }
 
-.c14 {
+.c12 {
   display: flex;
 }
 
-.c14 .icon-check {
+.c12 .icon-check {
   display: none;
 }
 
-.c14 .icon-copy {
+.c12 .icon-copy {
   display: inline-flex;
 }
 
-.c14.copied .icon-check {
+.c12.copied .icon-check {
   display: inline-flex;
 }
 
-.c14.copied .icon-copy {
+.c12.copied .icon-copy {
   display: none;
 }
 
-.c13 {
+.c11 {
   height: 28px;
   width: 28px;
   border-radius: 20px;
@@ -1181,8 +928,8 @@ exports[`render single bash text 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c13:hover,
-.c13:focus {
+.c11:hover,
+.c11:focus {
   background: rgba(255,255,255,0.13);
 }
 
@@ -1191,71 +938,63 @@ exports[`render single bash text 1`] = `
   word-break: break-all;
   font-size: 12px;
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
+  overflow: scroll;
   line-height: 20px;
   color: #FFFFFF;
 }
 
-.c4 {
-  overflow-y: scroll;
-}
-
 .c1 {
   position: relative;
+  overflow: scroll;
 }
 
-.c9 {
+.c7 {
   margin: 0;
 }
 
-.c11 {
+.c9 {
   position: absolute;
-  right: 0;
-  border-radius: 20px;
+  right: 0px;
 }
 
 <div>
   <div
-    class="c0 c1 props => props.className"
+    class="c0 c1"
   >
     <div
-      class="c2 c3 c4"
+      class="c2 c3"
     >
       <div
-        class="c5"
+        class="c4"
       >
         <div
-          class="c6 c7"
+          class="c5 c6"
         >
           <div
-            class="c6 c7"
+            class="c5 c6"
           >
-            <div
-              class="c8"
-            >
-              $
-            </div>
             <div
               class="text-to-copy"
             >
               <pre
-                class="c9"
+                class="c7"
               >
-                sudo tctl -c cfg-all users add --roles=access,editor george_washington
+                some -c text to be copied and it is super long to test scrolling
               </pre>
             </div>
           </div>
           <div
-            class="c10 c11"
+            class="c8 c9"
           >
             <button
-              class="c12 c13"
+              class="c10 c11"
               kind="secondary"
             >
               <div
-                class="c14 icon-container"
+                class="c12 icon-container"
               >
                 <span
-                  class="c15 icon icon-copy"
+                  class="c13 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -1276,7 +1015,241 @@ exports[`render single bash text 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c15 icon icon-check"
+                  class="c13 icon icon-check"
+                  color="light"
+                  data-testid="btn-check"
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M21.5303 6.21967C21.8232 6.51256 21.8232 6.98744 21.5303 7.28033L9.53033 19.2803C9.23744 19.5732 8.76256 19.5732 8.46967 19.2803L3.21967 14.0303C2.92678 13.7374 2.92678 13.2626 3.21967 12.9697C3.51256 12.6768 3.98744 12.6768 4.28033 12.9697L9 17.6893L20.4697 6.21967C20.7626 5.92678 21.2374 5.92678 21.5303 6.21967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render single bash text 1`] = `
+.c0 {
+  box-sizing: border-box;
+  padding-bottom: 0px;
+  padding-left: 16px;
+  padding-right: 40px;
+  padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
+  background-color: #010B1C;
+  border-radius: 4px;
+}
+
+.c2 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  padding-bottom: 0px;
+  padding-top: 8px;
+}
+
+.c5 {
+  box-sizing: border-box;
+}
+
+.c8 {
+  box-sizing: border-box;
+  padding-right: 8px;
+}
+
+.c10 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c10:hover,
+.c10:focus {
+  background: rgba(255,255,255,0.13);
+}
+
+.c10:active {
+  background: rgba(255,255,255,0.18);
+}
+
+.c10:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
+.c6 {
+  display: flex;
+}
+
+.c12 {
+  display: flex;
+}
+
+.c12 .icon-check {
+  display: none;
+}
+
+.c12 .icon-copy {
+  display: inline-flex;
+}
+
+.c12.copied .icon-check {
+  display: inline-flex;
+}
+
+.c12.copied .icon-copy {
+  display: none;
+}
+
+.c11 {
+  height: 28px;
+  width: 28px;
+  border-radius: 20px;
+  min-height: auto;
+  padding: 0;
+  margin-top: -4px;
+  background: rgba(255,255,255,0.07);
+}
+
+.c11:hover,
+.c11:focus {
+  background: rgba(255,255,255,0.13);
+}
+
+.c3 {
+  white-space: pre;
+  word-break: break-all;
+  font-size: 12px;
+  font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
+  overflow: scroll;
+  line-height: 20px;
+  color: #FFFFFF;
+}
+
+.c1 {
+  position: relative;
+  overflow: scroll;
+}
+
+.c7 {
+  margin: 0;
+}
+
+.c9 {
+  position: absolute;
+  right: 0px;
+}
+
+<div>
+  <div
+    class="c0 c1"
+  >
+    <div
+      class="c2 c3"
+    >
+      <div
+        class="c4"
+      >
+        <div
+          class="c5 c6"
+        >
+          <div
+            class="c5 c6"
+          >
+            <div
+              class="c2"
+            >
+              $
+            </div>
+            <div
+              class="text-to-copy"
+            >
+              <pre
+                class="c7"
+              >
+                sudo tctl -c cfg-all users add --roles=access,editor george_washington
+              </pre>
+            </div>
+          </div>
+          <div
+            class="c8 c9"
+          >
+            <button
+              class="c10 c11"
+              kind="secondary"
+            >
+              <div
+                class="c12 icon-container"
+              >
+                <span
+                  class="c13 icon icon-copy"
+                  color="light"
+                  data-testid="btn-copy"
+                >
+                  <svg
+                    fill="currentColor"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    width="16"
+                  >
+                    <path
+                      d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z"
+                    />
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
+                <span
+                  class="c13 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
@@ -1306,42 +1279,37 @@ exports[`render single bash text 1`] = `
 exports[`render single bash text with comment 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 8px;
+  padding-right: 40px;
   padding-top: 8px;
   min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
 
 .c2 {
   box-sizing: border-box;
-  max-height: none;
+  margin-right: 4px;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
 }
 
-.c7 {
+.c6 {
   box-sizing: border-box;
 }
 
 .c9 {
   box-sizing: border-box;
-  margin-right: 4px;
+  padding-right: 8px;
 }
 
 .c11 {
-  box-sizing: border-box;
-  padding-left: 16px;
-  padding-right: 24px;
-}
-
-.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1367,57 +1335,57 @@ exports[`render single bash text with comment 1`] = `
   padding: 0px 24px;
 }
 
-.c13:hover,
-.c13:focus {
+.c11:hover,
+.c11:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c13:active {
+.c11:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c13:disabled {
+.c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c16 {
+.c14 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #FFFFFF;
 }
 
-.c8 {
+.c7 {
   display: flex;
 }
 
-.c15 {
+.c13 {
   display: flex;
 }
 
-.c15 .icon-check {
+.c13 .icon-check {
   display: none;
 }
 
-.c15 .icon-copy {
+.c13 .icon-copy {
   display: inline-flex;
 }
 
-.c15.copied .icon-check {
+.c13.copied .icon-check {
   display: inline-flex;
 }
 
-.c15.copied .icon-copy {
+.c13.copied .icon-copy {
   display: none;
 }
 
-.c6 {
+.c5 {
   color: rgb(117 113 94 / 80%);
 }
 
-.c14 {
+.c12 {
   height: 28px;
   width: 28px;
   border-radius: 20px;
@@ -1427,8 +1395,8 @@ exports[`render single bash text with comment 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-.c14:hover,
-.c14:focus {
+.c12:hover,
+.c12:focus {
   background: rgba(255,255,255,0.13);
 }
 
@@ -1437,51 +1405,48 @@ exports[`render single bash text with comment 1`] = `
   word-break: break-all;
   font-size: 12px;
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
+  overflow: scroll;
   line-height: 20px;
   color: #FFFFFF;
 }
 
-.c4 {
-  overflow-y: scroll;
-}
-
 .c1 {
   position: relative;
+  overflow: scroll;
 }
 
-.c10 {
+.c8 {
   margin: 0;
 }
 
-.c12 {
+.c10 {
   position: absolute;
-  right: 0;
-  border-radius: 20px;
+  right: 0px;
 }
 
 <div>
   <div
-    class="c0 c1 props => props.className"
+    class="c0 c1"
   >
     <div
-      class="c2 c3 c4"
+      class="c2 c3"
     >
       <div
-        class="c5"
+        class="c4"
       >
         <div
-          class="c6"
+          class="c5"
         >
           Add the Teleport API repository for v10. You'll need to update this.
         </div>
         <div
-          class="c7 c8"
+          class="c6 c7"
         >
           <div
-            class="c7 c8"
+            class="c6 c7"
           >
             <div
-              class="c9"
+              class="c2"
             >
               $
             </div>
@@ -1489,24 +1454,24 @@ exports[`render single bash text with comment 1`] = `
               class="text-to-copy"
             >
               <pre
-                class="c10"
+                class="c8"
               >
                 sudo tctl -c cfg-all users add --roles=access,editor george_washington
               </pre>
             </div>
           </div>
           <div
-            class="c11 c12"
+            class="c9 c10"
           >
             <button
-              class="c13 c14"
+              class="c11 c12"
               kind="secondary"
             >
               <div
-                class="c15 icon-container"
+                class="c13 icon-container"
               >
                 <span
-                  class="c16 icon icon-copy"
+                  class="c14 icon icon-copy"
                   color="light"
                   data-testid="btn-copy"
                 >
@@ -1527,7 +1492,7 @@ exports[`render single bash text with comment 1`] = `
                   </svg>
                 </span>
                 <span
-                  class="c16 icon icon-check"
+                  class="c14 icon icon-check"
                   color="light"
                   data-testid="btn-check"
                 >
