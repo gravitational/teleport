@@ -73,7 +73,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				Time: time.Now(),
 			},
 			UserMetadata:   serverCtx.Identity.GetUserMetadata(),
-			ServerMetadata: serverCtx.GetServerMetadata(),
+			ServerMetadata: serverCtx.GetServer().TargetMetadata(),
 			Error:          srv.ErrNodeFileCopyingNotPermitted.Error(),
 		})
 		return srv.ErrNodeFileCopyingNotPermitted

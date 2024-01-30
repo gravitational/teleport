@@ -265,7 +265,7 @@ func (e *localExec) transformSecureCopy() error {
 				Time: time.Now(),
 			},
 			UserMetadata:   e.Ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.Ctx.GetServerMetadata(),
+			ServerMetadata: e.Ctx.GetServer().TargetMetadata(),
 			Error:          err.Error(),
 		})
 		return trace.Wrap(err)
@@ -370,7 +370,7 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 				Time: time.Now(),
 			},
 			UserMetadata:   e.ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.ctx.GetServerMetadata(),
+			ServerMetadata: e.ctx.GetServer().TargetMetadata(),
 			Error:          err.Error(),
 		})
 		return nil, trace.Wrap(err)

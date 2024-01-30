@@ -2221,7 +2221,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 					Time: time.Now(),
 				},
 				UserMetadata:   ctx.Identity.GetUserMetadata(),
-				ServerMetadata: ctx.GetServerMetadata(),
+				ServerMetadata: ctx.GetServer().TargetMetadata(),
 				Error:          err.Error(),
 			})
 			return nil, trace.Wrap(err)

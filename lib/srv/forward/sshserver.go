@@ -1405,7 +1405,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 					Time: time.Now(),
 				},
 				UserMetadata:   serverContext.Identity.GetUserMetadata(),
-				ServerMetadata: serverContext.GetServerMetadata(),
+				ServerMetadata: serverContext.GetServer().TargetMetadata(),
 				Error:          err.Error(),
 			})
 			return trace.Wrap(err)
