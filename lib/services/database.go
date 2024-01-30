@@ -784,7 +784,7 @@ func labelsFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, meta *types.AWS, e
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsCluster.Engine)
 	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
-	labels[types.DiscoveryLabelEndpointType] = string(endpointType)
+	labels[types.DiscoveryLabelEndpointType] = endpointType
 	labels[types.DiscoveryLabelStatus] = aws.StringValue(rdsCluster.Status)
 	if memberInstance != nil && memberInstance.DBSubnetGroup != nil {
 		labels[types.DiscoveryLabelVPCID] = aws.StringValue(memberInstance.DBSubnetGroup.VpcId)
@@ -1643,7 +1643,7 @@ func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointTy
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsCluster.Engine)
 	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
-	labels[types.DiscoveryLabelEndpointType] = string(endpointType)
+	labels[types.DiscoveryLabelEndpointType] = endpointType
 	if len(memberInstances) > 0 && memberInstances[0].DBSubnetGroup != nil {
 		labels[types.DiscoveryLabelVPCID] = aws.StringValue(memberInstances[0].DBSubnetGroup.VpcId)
 	}

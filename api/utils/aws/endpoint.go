@@ -96,8 +96,8 @@ type RDSEndpointDetails struct {
 	// EndpointType specifies the type of the endpoint, if available.
 	//
 	// Note that the endpoint type of RDS Proxies are determined by their
-	// targets, so the endpoint type will be empty here as it cannot be decided
-	// by the endpoint URL itself.
+	// targets, so the endpoint type will be empty for RDS Proxies here as it
+	// cannot be decided by the endpoint URL itself.
 	EndpointType string
 }
 
