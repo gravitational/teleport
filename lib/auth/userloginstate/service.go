@@ -98,7 +98,7 @@ func (s *Service) GetUserLoginStates(ctx context.Context, _ *userloginstatev1.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindUserLoginState, types.VerbRead, types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindUserLoginState, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -124,7 +124,7 @@ func (s *Service) GetUserLoginState(ctx context.Context, req *userloginstatev1.G
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindUserLoginState, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindUserLoginState, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -143,7 +143,7 @@ func (s *Service) UpsertUserLoginState(ctx context.Context, req *userloginstatev
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindUserLoginState, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindUserLoginState, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -167,7 +167,7 @@ func (s *Service) DeleteUserLoginState(ctx context.Context, req *userloginstatev
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindUserLoginState, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindUserLoginState, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -186,7 +186,7 @@ func (s *Service) DeleteAllUserLoginStates(ctx context.Context, _ *userloginstat
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindUserLoginState, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindUserLoginState, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
