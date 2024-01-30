@@ -37,11 +37,10 @@ export interface TeleportFeatureNavigationItem {
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
   /*
-   * addAdditionalSelectedRoutes is used when a navigation item should be displayed as "selected"
-   * with additional routes that are different from it's path. For example, the top bar should
-   * show "Access Requests" selected when on the Review Requests page and the New Request page
+   * isSelected is an option function provided to allow more control over whether this feature is
+   * in the "selected" state in the navigation
    */
-  addAdditionalSelectedRoutes?: (clusterId: string) => string[];
+  isSelected?: (clusterId: string, pathname: string) => boolean;
 }
 
 export enum NavTitle {
