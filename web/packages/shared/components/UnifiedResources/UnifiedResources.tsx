@@ -18,6 +18,7 @@
 
 import React, {
   useEffect,
+  useLayoutEffect,
   useState,
   useCallback,
   Children,
@@ -369,9 +370,19 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   const expandAllLabels =
     unifiedResourcePreferences.labelsViewMode === LabelsViewMode.EXPANDED;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const resizeObserver = new ResizeObserver(entries => {
       const container = entries[0];
+
+      // In Connect, when a tab becomes active, its outermost DOM element switches from `display:
+      // none` to `display: flex`. This callback is then fired with the width reported as zero.
+      //
+      // As such, when checking whether to force the card view or not, we should consider only
+      // values other than zero.
+      if (container.contentRect.width === 0) {
+        return;
+      }
+
       if (container.contentRect.width <= FORCE_CARD_VIEW_BREAKPOINT) {
         setForceCardView(true);
       } else {
