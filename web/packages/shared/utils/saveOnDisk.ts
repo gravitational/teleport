@@ -17,12 +17,12 @@
  */
 
 /**
- * downloadContentAsFile downloads content as file.
+ * saveOnDisk saves content to local disk.
  * @param content content to download.
  * @param filename preset file name.
  * @param fileType file type.
  */
-export function downloadContentAsFile(
+export function saveOnDisk(
   content: string,
   filename: string,
   fileType: string

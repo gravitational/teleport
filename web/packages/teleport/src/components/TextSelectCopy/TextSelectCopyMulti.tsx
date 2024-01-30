@@ -22,7 +22,7 @@ import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 import { ButtonSecondary, Box, Flex } from 'design';
 import { Copy, Check, Download } from 'design/Icon';
-import { downloadContentAsFile } from 'shared/utils/downloadContentAsFile';
+import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
 const ONE_SECOND_IN_MS = 1000;
 
@@ -127,7 +127,7 @@ export function TextSelectCopyMulti({
                     <StyledButtonSecondary
                       ml={2}
                       onClick={() =>
-                        downloadContentAsFile(
+                        saveOnDisk(
                           line.text,
                           saveContent.filename,
                           'plain/text'
