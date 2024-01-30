@@ -26,7 +26,7 @@ describe('launching an app in the browser for', () => {
     jest.clearAllMocks();
   });
 
-  it('web app (if requested)', async () => {
+  test('web app (if requested)', async () => {
     jest.spyOn(window, 'open').mockImplementation();
     const appContext = new MockAppContext();
     setTestCluster(appContext);
@@ -49,7 +49,7 @@ describe('launching an app in the browser for', () => {
     );
   });
 
-  it('saml app', async () => {
+  test('saml app', async () => {
     jest.spyOn(window, 'open').mockImplementation();
     const appContext = new MockAppContext();
     setTestCluster(appContext);
@@ -64,7 +64,7 @@ describe('launching an app in the browser for', () => {
     );
   });
 
-  it('aws app', async () => {
+  test('aws app', async () => {
     jest.spyOn(window, 'open').mockImplementation();
     const appContext = new MockAppContext();
     setTestCluster(appContext);
