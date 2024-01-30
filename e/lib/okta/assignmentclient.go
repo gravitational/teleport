@@ -16,7 +16,7 @@ import (
 // should be discarded at the end of an assignment loop or singular assignment run.
 type assignmentClient struct {
 	log        *logrus.Entry
-	oktaClient oktaClient
+	oktaClient OktaClient
 
 	// Mapping of usernames to user IDs.
 	usersMu sync.Mutex
@@ -32,7 +32,7 @@ type assignmentClient struct {
 }
 
 // newAssignmentClient will return a new assignment client.
-func newAssignmentClient(log *logrus.Entry, oktaClient oktaClient) *assignmentClient {
+func newAssignmentClient(log *logrus.Entry, oktaClient OktaClient) *assignmentClient {
 	return &assignmentClient{
 		log:        log,
 		oktaClient: oktaClient,

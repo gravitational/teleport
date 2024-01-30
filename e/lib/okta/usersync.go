@@ -85,7 +85,7 @@ type userConverter func(*okta.User) (types.User, error)
 
 // fetchOktaUsers fetches users from the upstream okta service and creates
 // candidate Teleport user equivalents for them.
-func fetchOktaUsers(ctx context.Context, oktaClient oktaClient, convertUser userConverter, log logrus.FieldLogger) (map[string]types.User, error) {
+func fetchOktaUsers(ctx context.Context, oktaClient OktaClient, convertUser userConverter, log logrus.FieldLogger) (map[string]types.User, error) {
 	result := map[string]types.User{}
 	err := oktaClient.iterateUsers(ctx, func(ou *okta.User) error {
 		log.Debugf("Processing Okta user %s...", ou.Id)

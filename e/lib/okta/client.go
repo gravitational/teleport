@@ -22,7 +22,8 @@ const (
 	oktaUserProfileLogin = "login"
 )
 
-var _ oktaClient = (*wrappedClient)(nil)
+// Static assertion that the wrappedClient type implements OktaClient
+var _ OktaClient = (*wrappedClient)(nil)
 
 // wrappedClient is a wrapper around an Okta SDK client that provides
 // higher-level operations and for interacting with an Okta server
@@ -32,6 +33,17 @@ type wrappedClient struct {
 	client           *okta.Client
 	oktaOrgURL       string
 	pluginStatusSink common.StatusSink
+}
+
+// getCurrentUser fetches the Okta profile of the user represented by the API token.
+func (w *wrappedClient) getCurrentUser(ctx context.Context) (*okta.User, error) {
+	// Fetch the current Okta user, as per
+	//   https://developer.okta.com/docs/reference/api/users/#get-current-user
+	me, _, err := w.client.User.GetUser(ctx, "me")
+	if err != nil {
+		return nil, trace.Wrap(w.oktaErrToTrace(ctx, err), "error getting current user")
+	}
+	return me, nil
 }
 
 // iterateUsers iterates over all users in the Okta system, invoking the
@@ -309,6 +321,15 @@ func (w *wrappedClient) createApplication(ctx context.Context, application okta.
 	return app, nil
 }
 
+// getApplication fetches the data for a single application, by ID
+func (w *wrappedClient) getApplication(ctx context.Context, appID string, appType okta.App) (okta.App, error) {
+	app, _, err := w.client.Application.GetApplication(ctx, appID, appType, nil)
+	if err != nil {
+		return nil, w.oktaErrToTrace(ctx, err)
+	}
+	return app, nil
+}
+
 func (w *wrappedClient) orgName(ctx context.Context) (string, error) {
 	settings, _, err := w.client.OrgSetting.GetOrgSettings(ctx)
 	if err != nil {
@@ -393,4 +414,14 @@ func (w *wrappedClient) oktaErrToTrace(ctx context.Context, err error) error {
 		// If we don't have a more specific error to provide, just wrap the error and return it.
 		return trace.WithField(trace.BadParameter(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)
 	}
+}
+
+// TestCredentials validates the credentials used by the supplied client by
+// querying the current user profile.
+func TestCredentials(ctx context.Context, client OktaClient) error {
+	_, err := client.getCurrentUser(ctx)
+	if err != nil {
+		return trace.Wrap(err, "testing Okta credentials")
+	}
+	return nil
 }

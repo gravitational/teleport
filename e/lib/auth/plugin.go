@@ -106,6 +106,10 @@ type Plugin struct {
 	authServer *auth.GRPCServer
 	// plugins is the plugins backend service.
 	plugins services.Plugins
+
+	// pluginCreds is the backend Plugin Static Credentials service
+	pluginCreds services.PluginStaticCredentials
+
 	// mtx protects the cloudClient field.
 	mtx sync.Mutex
 	// cloudClient is a client of the Cloud API server
@@ -136,6 +140,16 @@ func (p *Plugin) GetCloudClient() cloudapi.TenantsServiceClient {
 // RegisterProxyWebHandlers registers to proxy web handler
 func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	return nil
+}
+
+// PluginsService returns the plugins (i.e. integrations) service
+func (p *Plugin) PluginsService() services.Plugins {
+	return p.plugins
+}
+
+// PluginsService returns the plugins (i.e. integrations) service
+func (p *Plugin) PluginStaticCredentialsService() services.PluginStaticCredentials {
+	return p.pluginCreds
 }
 
 // RegisterAuthServices registers Auth Services (GRPC)
@@ -533,14 +547,14 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
 
 	authorizers := plugins.NewAuthorizerSetFromConfig(p.HostedPlugins.OAuthProviders)
 	p.plugins = local.NewPluginsService(server.GetBackend())
-	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(server.GetBackend())
+	p.pluginCreds, err = local.NewPluginStaticCredentialsService(server.GetBackend())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:                     p.authServer.Authorizer,
 		PluginService:                  p.plugins,
-		PluginStaticCredentialsService: pluginStaticCredentialsService,
+		PluginStaticCredentialsService: p.pluginCreds,
 		PluginAuthorizers:              authorizers,
 	})
 	if err != nil {

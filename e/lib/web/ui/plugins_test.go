@@ -89,3 +89,26 @@ func TestPluginSerialization(t *testing.T) {
 		})
 	}
 }
+
+func TestOktaPluginSpecJSON(t *testing.T) {
+	src := Plugin{
+		Name:       "Okta",
+		Type:       types.PluginTypeOkta,
+		Details:    "Everything starts with Identity",
+		StatusCode: types.PluginStatusCode_RUNNING,
+		Spec: &OktaPluginSpec{
+			TeleportSSOConnector: "okta-integration",
+			OktaAppID:            "0oae1fwmde3GL1HC55d7",
+			OktaAppName:          "Teleport platform.teleport.sh",
+			SCIMBearerToken:      "some-great-big-random-string",
+		},
+	}
+
+	bytes, err := json.Marshal(&src)
+	require.NoError(t, err)
+
+	var dst Plugin
+	require.NoError(t, json.Unmarshal(bytes, &dst))
+
+	require.Equal(t, src, dst)
+}

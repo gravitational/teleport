@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
 // SAMLConnectorService defines an interface for querying and creating
@@ -29,7 +30,7 @@ type SAMLConnectorService interface {
 // of the SSO connector.
 type ConnectorArgs struct {
 	// OktaClient is our connection to the upstream Okta organization.
-	OktaClient oktaClient
+	OktaClient OktaClient
 
 	// SAMLConnectorService handles querying and creating SAML SSO connectors in
 	// the Teleport cluster
@@ -47,6 +48,10 @@ type ConnectorArgs struct {
 
 	// Log receives any logging output
 	Log logrus.FieldLogger
+
+	// SigningKeypair is an optional keypair to use for the SAML connector. A sensible,
+	// secure default will be generated if none is supplied.
+	SigningKeypair *types.AsymmetricKeyPair
 }
 
 func (a *ConnectorArgs) Check() error {
@@ -71,16 +76,17 @@ func (a *ConnectorArgs) Check() error {
 	return nil
 }
 
-// SSOConnectorInfo holds data about the created SSO connector and underlying
+// SAMLConnectorInfo holds data about the created SSO connector and underlying
 // Okta SAML app. Returned from CreateSSOConnector().
-type SSOConnectorInfo struct {
+type SAMLConnectorInfo struct {
+	Connector   types.SAMLConnector
 	OktaAppID   string
 	OktaAppName string
 }
 
-// CreateSSOConnector automates the creation of an Okta SAML app and
+// CreateSAMLConnector automates the creation of an Okta SAML app and
 // corresponding SAML SSO connector in Teleport.
-func CreateSSOConnector(ctx context.Context, args ConnectorArgs) (*SSOConnectorInfo, error) {
+func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnectorInfo, error) {
 	if err := args.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -144,6 +150,7 @@ func CreateSSOConnector(ctx context.Context, args ConnectorArgs) (*SSOConnectorI
 		return nil, trace.Wrap(err, "fetching SAML app entity metadata")
 	}
 
+	args.Log.Debug("Generating connector display name from Okta Organization")
 	connectorDisplayName, err := generateConnectorName(ctx, args.OktaClient)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating connector name")
@@ -153,11 +160,12 @@ func CreateSSOConnector(ctx context.Context, args ConnectorArgs) (*SSOConnectorI
 	// in the Okta Everyone group the "requester" role so that they can at least log
 	// into the Teleport cluster, but the only thing they can do is request
 	// access from an admin.
-
+	args.Log.Debug("Constructing SAML connector resource")
 	connector, err := types.NewSAMLConnector(args.ConnectorName, types.SAMLConnectorSpecV2{
 		AssertionConsumerService: args.PublicURL.JoinPath("/v1/webapi/saml/acs", args.ConnectorName).String(),
 		Display:                  connectorDisplayName,
 		EntityDescriptor:         string(metadata),
+		SigningKeyPair:           args.SigningKeypair,
 		AttributesToRoles: []types.AttributeMapping{
 			{
 				Name:  "groups",
@@ -170,14 +178,64 @@ func CreateSSOConnector(ctx context.Context, args ConnectorArgs) (*SSOConnectorI
 		return nil, trace.Wrap(err)
 	}
 
-	args.Log.Infof("Creating new SAML SSO connector %s for Okta org %s",
-		connector.GetName(),
-		args.PublicURL)
+	meta := connector.GetMetadata()
+	meta.Labels = map[string]string{
+		types.OriginLabel:         types.OriginOkta,
+		eteleport.OktaOrgURLLabel: args.OktaClient.orgURL(),
+		eteleport.OktaAppIDLabel:  app.Id,
+	}
+	connector.SetMetadata(meta)
+
+	args.Log.Infof("Creating new SAML connector %q", connector.GetName())
 	if _, err := args.SAMLConnectorService.CreateSAMLConnector(ctx, connector); err != nil {
 		return nil, trace.Wrap(err, "creating Okta SAML connector")
 	}
 
-	return &SSOConnectorInfo{OktaAppID: app.Id, OktaAppName: app.Name}, nil
+	info := &SAMLConnectorInfo{
+		Connector:   connector,
+		OktaAppID:   app.Id,
+		OktaAppName: app.Name,
+	}
+
+	return info, nil
+}
+
+// ValidateSAMLConnector examines SAML Auth connector to see if it is configured
+// for use with the Okta integration and extracts the appropriate metadata.
+func ValidateSAMLConnector(ctx context.Context, connector types.SAMLConnector, oktaClient OktaClient) (*SAMLConnectorInfo, error) {
+	labels := connector.GetMetadata().Labels
+
+	connectorAppID, present := labels[eteleport.OktaAppIDLabel]
+	if !present {
+		return nil, trace.BadParameter("missing Okta App ID")
+	}
+
+	connectorOrg := labels[eteleport.OktaOrgURLLabel]
+	if connectorOrg != oktaClient.orgURL() {
+		return nil, trace.BadParameter("SAML connector bound to different Okta organization: %q", connectorOrg)
+	}
+
+	if connector.Origin() != types.OriginOkta {
+		return nil, trace.BadParameter("invalid origin label: %q", connector.Origin())
+	}
+
+	app, err := oktaClient.getApplication(ctx, connectorAppID, &okta.SamlApplication{})
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching Okta App ID %s", connectorAppID)
+	}
+
+	samlApp, ok := app.(*okta.SamlApplication)
+	if !ok {
+		return nil, trace.BadParameter("invalid Okta App type: %T", app)
+	}
+
+	info := &SAMLConnectorInfo{
+		Connector:   connector,
+		OktaAppID:   connectorAppID,
+		OktaAppName: samlApp.Label,
+	}
+
+	return info, nil
 }
 
 // box creates a "boxed" (i.e. heap-allocated) copy of any value. Helpful when
@@ -190,7 +248,7 @@ func box[T any](v T) *T {
 
 // createOktaSAMLApp creates the Okta-side of the SAML SSO connector: a SAML app
 // that will let used log in via Okta SSO.
-func createOktaSAMLApp(ctx context.Context, oktaClient oktaClient, clusterName string, publicURL *url.URL, connectorName string, log logrus.FieldLogger) (*okta.SamlApplication, error) {
+func createOktaSAMLApp(ctx context.Context, oktaClient OktaClient, clusterName string, publicURL *url.URL, connectorName string, log logrus.FieldLogger) (*okta.SamlApplication, error) {
 	teleportEndpoint := publicURL.JoinPath("v1/webapi/saml/acs", connectorName).String()
 
 	oktaAppRequest := &okta.SamlApplication{
@@ -264,7 +322,7 @@ func createOktaSAMLApp(ctx context.Context, oktaClient oktaClient, clusterName s
 	return actualApp, nil
 }
 
-func generateConnectorName(ctx context.Context, oktaClient oktaClient) (string, error) {
+func generateConnectorName(ctx context.Context, oktaClient OktaClient) (string, error) {
 	orgName, err := oktaClient.orgName(ctx)
 	switch {
 	case err == nil:
@@ -284,7 +342,7 @@ func generateConnectorName(ctx context.Context, oktaClient oktaClient) (string, 
 	}
 }
 
-func findOktaBuiltinGroup(ctx context.Context, oktaClient oktaClient, name string) (*okta.Group, error) {
+func findOktaBuiltinGroup(ctx context.Context, oktaClient OktaClient, name string) (*okta.Group, error) {
 	result := (*okta.Group)(nil)
 	err := oktaClient.iterateGroups(ctx, func(g *okta.Group) error {
 		if g.Type == "BUILT_IN" && g.Profile.Name == name {

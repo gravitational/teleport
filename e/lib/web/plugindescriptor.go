@@ -37,10 +37,15 @@ import (
 // be getting ahead of ourselves, as we don't yet know what will need to be
 // factored out.
 type pluginDescriptor interface {
+	// HandleValidateConfigRequest handles a request to validate (possibly
+	// partial) plugin configuration prior to actually enrolling the plugin
+	// itself.
+	HandleValidateConfigRequest(context.Context, *web.SessionContext, url.Values, *Plugin) error
+
 	// HandleInstallRequest handles the http request that asks Teleport to
 	// install a plugin into itself. For integrations with complex
 	// installation requirements, it can kick off the appropriate redirect
-	// chain. For simpler pluigins (e.g. with static auth credentials),
+	// chain. For simpler plugins (e.g. with static auth credentials),
 	// implementations can just do the work and return `OK`.
 	HandleInstallRequest(context.Context, *web.SessionContext, http.ResponseWriter, *http.Request, *Plugin) (*ui.Plugin, error)
 
@@ -60,22 +65,28 @@ func (fn pluginInstallerFn) HandleInstallRequest(ctx context.Context, sessCtx *w
 	return fn(ctx, sessCtx, w, r, p)
 }
 
+// HandleTestConfigRequest implements PluginDescriptor for pluginInstallerFn, always
+// returning "Not Implemented".
+func (fn pluginInstallerFn) HandleValidateConfigRequest(ctx context.Context, sessCtx *web.SessionContext, form url.Values, p *Plugin) error {
+	return trace.NotImplemented("HandleTestConfigRequest")
+}
+
 // TranslateCallbackCookie implements PluginDescriptor for pluginInstallerFn, always
 // returning "Not Implemented".
 func (fn pluginInstallerFn) TranslateCallbackCookie(*types.PluginSpecV1, *pluginOnboardingCookie) error {
 	return trace.NotImplemented("TranslateCallbackCookie")
 }
 
-// pluginDescriptors is the top-level mapping between plugin types and the
+// defaultPluginDescriptors is the top-level mapping between plugin types and the
 // descriptor that provides their customized behavior. For now, this map
 // should be considered static, immutable data once the package is
 // initialized, but there is nothing stopping us from wrapping it in mutexes
 // and making it dynamic data in the future.
-var pluginDescriptors map[types.PluginType]pluginDescriptor = map[types.PluginType]pluginDescriptor{
+var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.PluginType]pluginDescriptor{
 	types.PluginTypeDiscord:    pluginInstallerFn(installDiscordPlugin),
 	types.PluginTypeJamf:       pluginInstallerFn(installJamfPlugin),
 	types.PluginTypeJira:       pluginInstallerFn(installJiraPlugin),
-	types.PluginTypeOkta:       pluginInstallerFn(installOktaPlugin),
+	types.PluginTypeOkta:       oktaPluginDescriptor{},
 	types.PluginTypeOpsgenie:   pluginInstallerFn(installOpsgeniePlugin),
 	types.PluginTypePagerDuty:  pluginInstallerFn(installPagerdutyPlugin),
 	types.PluginTypeMattermost: pluginInstallerFn(installMattermostPlugin),
@@ -535,6 +546,9 @@ func installMattermostPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 // implementation on.
 type slackDescriptor struct{}
 
+// Static assertion that slackDescriptor implements pluginDescriptor
+var _ pluginDescriptor = slackDescriptor{}
+
 func (slackDescriptor) getAuthURL(ctx context.Context, sctx *web.SessionContext, r *http.Request, typ string, state string, p *Plugin) (string, error) {
 	meta, err := p.getPluginTypeMeta(ctx, sctx, typ)
 	if err != nil {
@@ -560,6 +574,12 @@ func (slackDescriptor) getAuthURL(ctx context.Context, sctx *web.SessionContext,
 	}.Encode()
 
 	return uri.String(), nil
+}
+
+// HandleValidateConfigRequest implements pluginDescriptor for the
+// slackDescriptor type. Always returns NotImplemented.
+func (slackDescriptor) HandleValidateConfigRequest(context.Context, *web.SessionContext, url.Values, *Plugin) error {
+	return trace.NotImplemented("HandleValidateConfigRequest")
 }
 
 // HandleInstallRequest kicks off a OAuth2 Code Grant Flow for authorizing

@@ -192,7 +192,7 @@ func getMatches[T any](resources []T, filters []*regexp.Regexp, getNameFn func(T
 }
 
 // getClientAndFilters will create the Okta client and compile the given filters.
-func (p *PluginConfigHelper) getClientAndFilters(ctx context.Context, orgURL, token string, filters []string) (oktaClient, []*regexp.Regexp, error) {
+func (p *PluginConfigHelper) getClientAndFilters(ctx context.Context, orgURL, token string, filters []string) (OktaClient, []*regexp.Regexp, error) {
 	client, err := p.oktaClientCreator(ctx, ClientConfig{
 		Endpoint: orgURL,
 		Token:    token,

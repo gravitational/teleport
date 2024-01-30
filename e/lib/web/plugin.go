@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/e/lib/okta"
@@ -32,7 +34,7 @@ const (
 // Config is a configuration of the web plugin
 type Config struct {
 	// Log is the logger
-	Log logrus.FieldLogger
+	Log *logrus.Entry
 
 	// PluginShimURL is the URL for the Cloud plugin shim,
 	// which is used to forward OAuth callbacks back to individual tenants
@@ -66,6 +68,7 @@ func NewPlugin(cfg Config) (*Plugin, error) {
 	return &Plugin{
 		Config:                 cfg,
 		oktaPluginConfigHelper: oktaPluginConfigHelper,
+		pluginDescriptors:      maps.Clone(defaultPluginDescriptors),
 	}, nil
 }
 
@@ -85,6 +88,8 @@ type Plugin struct {
 
 	// oktaPluginConfigHelper helps with the multistage configuration of Okta plugins.
 	oktaPluginConfigHelper *okta.PluginConfigHelper
+
+	pluginDescriptors map[types.PluginType]pluginDescriptor
 }
 
 // GetName returns plugin name
@@ -215,6 +220,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
 	// get supported plugins
 	h.GET("/enterprise/plugins/types", h.WithAuth(p.getAvailablePluginTypesHandle))
+	// validate (possibly partial) plugin config without trying to create the plugin itself
+	h.POST("/enterprise/plugins/validate", h.WithAuth(p.validatePluginConfig))
 	h.POST("/enterprise/pluginconfig/okta/groups", h.WithAuth(p.getOktaGroups))
 	h.POST("/enterprise/pluginconfig/okta/apps", h.WithAuth(p.getOktaApps))
 

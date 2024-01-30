@@ -53,6 +53,7 @@ type webSuite struct {
 	webServerURL   *url.URL
 	testAuthServer *auth.TestServer
 	webPlugin      *Plugin
+	authPlugin     *eauth.Plugin
 	proxyClient    *auth.Client
 	clock          clockwork.FakeClock
 }
@@ -134,6 +135,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	require.NoError(t, err)
 	err = pluginRegistry.Add(authPlugin)
 	require.NoError(t, err)
+	s.authPlugin = authPlugin
 
 	if options.customPlugin != nil {
 		err = pluginRegistry.Add(options.customPlugin)

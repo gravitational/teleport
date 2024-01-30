@@ -151,6 +151,23 @@ func (p *Plugin) getAvailablePluginTypesHandle(w http.ResponseWriter, r *http.Re
 	return availableTypes, nil
 }
 
+// validatePluginConfig expects an html form request containing plugin config, and
+// validates that it is consistent, in whatever way is appropriate for the plugin
+// type.
+func (p *Plugin) validatePluginConfig(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	pluginType := r.FormValue("type")
+	pd, ok := p.pluginDescriptors[types.PluginType(pluginType)]
+	if !ok {
+		return nil, trace.BadParameter("unknown plugin type: %q", pluginType)
+	}
+
+	if err := pd.HandleValidateConfigRequest(r.Context(), sessCtx, r.Form, p); err != nil {
+		return nil, err
+	}
+
+	return web.OK(), nil
+}
+
 // createPluginHandle expects html form request and
 //   - For OAuth plugins: It
 //   - Sets a cookie with the plugin information and "state" parameter. This parameter will be used later by pluginCallbackHandle.
@@ -161,7 +178,7 @@ func (p *Plugin) getAvailablePluginTypesHandle(w http.ResponseWriter, r *http.Re
 //   - For non-OAuth plugins: it creates plugin and responds with plugin status.
 func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
 	pluginType := r.FormValue("type")
-	pd, ok := pluginDescriptors[types.PluginType(pluginType)]
+	pd, ok := p.pluginDescriptors[types.PluginType(pluginType)]
 	if !ok {
 		return nil, trace.BadParameter("unknown plugin type: %q", pluginType)
 	}
@@ -222,7 +239,7 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.BadParameter("empty type")
 	}
 
-	pd, ok := pluginDescriptors[types.PluginType(typ)]
+	pd, ok := p.pluginDescriptors[types.PluginType(typ)]
 	if !ok {
 		return nil, trace.BadParameter("unknown plugin type: %q", typ)
 	}

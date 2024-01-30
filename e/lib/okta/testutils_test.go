@@ -252,6 +252,9 @@ type testOktaClient struct {
 	}
 }
 
+// Static assertion that testOktaClient actually implements OktaClient
+var _ OktaClient = (*testOktaClient)(nil)
+
 func newTestClient() *testOktaClient {
 	return &testOktaClient{
 		usernamesToUserIDs: map[string]string{},
@@ -265,9 +268,19 @@ func newTestClient() *testOktaClient {
 }
 
 func creatorFromTestClient(testClient *testOktaClient) oktaClientFn {
-	return func(_ context.Context, _ ClientConfig) (oktaClient, error) {
+	return func(_ context.Context, _ ClientConfig) (OktaClient, error) {
 		return testClient, nil
 	}
+}
+
+// getCurrentUser always returns NotImplemented
+func (t *testOktaClient) getCurrentUser(_ context.Context) (*okta.User, error) {
+	return nil, trace.NotImplemented("getCurrentUser")
+}
+
+// getCurrentUser always returns NotImplemented
+func (t *testOktaClient) getApplication(context.Context, string, okta.App) (okta.App, error) {
+	return nil, trace.NotImplemented("getApplication")
 }
 
 // iterateUsers will iterate over the list of all Okta users.

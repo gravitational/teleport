@@ -45,17 +45,6 @@ func TestCreatePluginHandle(t *testing.T) {
 			expectedResp: "unknown plugin type",
 		},
 		{
-			name:     "Okta plugin",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":       {"okta"},
-				"orgURL":     {"https://www.okta.com"},
-				"apiToken":   {"some-api-token"},
-				"csrf_token": {webPack.csrfToken},
-			},
-			expectedResp: "Okta applications and groups will be synced to Teleport",
-		},
-		{
 			name:     "Opsgenie plugin",
 			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
 			request: url.Values{

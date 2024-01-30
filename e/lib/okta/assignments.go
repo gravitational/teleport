@@ -40,7 +40,7 @@ type assignmentReconciler struct {
 	clock               clockwork.Clock
 	clusterName         string
 	accessPoint         AssignmentReconcilerAccessPoint
-	oktaClient          oktaClient
+	oktaClient          OktaClient
 	watcher             *services.OktaAssignmentWatcher
 	assignmentProcessor *assignmentProcessor
 

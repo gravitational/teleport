@@ -43,7 +43,7 @@ type accessListSyncConfig struct {
 	Clock clockwork.Clock
 
 	// Client is the okta client.
-	Client oktaClient
+	Client OktaClient
 
 	// Owners is the default owners for access lists.
 	Owners []string
@@ -149,7 +149,7 @@ type accessListSync struct {
 	clock clockwork.Clock
 
 	// client is the Okta client so that the importer can query the Okta API.
-	client oktaClient
+	client OktaClient
 
 	// owners is the default owners for access lists.
 	owners []accesslist.Owner

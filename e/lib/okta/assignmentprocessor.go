@@ -64,7 +64,7 @@ type assignmentProcessor struct {
 	accessPoint        assignmentProcessorAccessPoint
 	assignmentGetter   func() types.OktaAssignments
 	rateLimiter        *rate.Limiter
-	oktaClient         oktaClient
+	oktaClient         OktaClient
 	assignmentClientMu sync.RWMutex
 	assignmentClient   *assignmentClient
 	stopCh             chan struct{}
@@ -98,12 +98,12 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 }
 
 // start will start the processor loop, which is used for retrying assignment processing.
-func (a *assignmentProcessor) start(ctx context.Context, oktaClient oktaClient) {
+func (a *assignmentProcessor) start(ctx context.Context, oktaClient OktaClient) {
 	go a.loop(ctx, oktaClient)
 }
 
 // loop runs the main body of the processing loop.
-func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaClient) {
+func (a *assignmentProcessor) loop(ctx context.Context, oktaClient OktaClient) {
 	ticker := a.clock.NewTicker(timeBetweenAssignmentProcessLoops)
 	defer ticker.Stop()
 

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -61,6 +62,32 @@ type Plugin struct {
 	// Spec contains any pluginType-specific information that may be useful to
 	// the UI. May be nil at any time.
 	Spec PluginSpec `json:"spec,omitempty"`
+}
+
+// UnmarshalJSON implements spec-aware JSON decoding for Plugin
+func (p *Plugin) UnmarshalJSON(data []byte) error {
+	type plugin Plugin
+
+	var msg struct {
+		Type types.PluginType `json:"type,omitempty"`
+	}
+
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var out plugin
+	switch msg.Type {
+	case types.PluginTypeOkta:
+		out.Spec = &OktaPluginSpec{}
+	}
+
+	if err := json.Unmarshal(data, &out); err != nil {
+		return trace.Wrap(err)
+	}
+
+	*p = (Plugin)(out)
+	return nil
 }
 
 // NewPlugin constructs a new UI plugin from types.Plugin
