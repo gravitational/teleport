@@ -4584,12 +4584,30 @@ func TestDropDBClientCAEvents(t *testing.T) {
 		expectDrop    bool
 	}{
 		{
-			desc:          "send db client CA events to supported client",
-			clientVersion: dbClientCACutoffVersion.String(),
+			desc:          "send db client CA events to v15 client",
+			clientVersion: "15.0.0",
 		},
 		{
-			desc:          "drop db client CA events to unsupported client",
+			desc:          "send db client CA events to supported v14 client",
+			clientVersion: dbClientCACutoffVersion[14].String(),
+		},
+		{
+			desc:          "drop db client CA events to unsupported v14 client",
 			clientVersion: "14.0.0",
+			expectDrop:    true,
+		},
+		{
+			desc:          "send db client CA events to supported v13 client",
+			clientVersion: dbClientCACutoffVersion[13].String(),
+		},
+		{
+			desc:          "drop db client CA events to unsupported v13 client",
+			clientVersion: "13.0.0",
+			expectDrop:    true,
+		},
+		{
+			desc:          "drop db client CA events to unsupported pre-13 client",
+			clientVersion: "12.0.0",
 			expectDrop:    true,
 		},
 	}
