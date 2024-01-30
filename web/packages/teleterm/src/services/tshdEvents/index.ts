@@ -27,7 +27,7 @@ import {
   ExtractResponseType,
   TshdEventContextBridgeService,
 } from 'teleterm/types';
-import { filterSensitiveProperties } from 'teleterm/services/tshd/middleware';
+import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
 
 export interface ReloginRequest extends api.ReloginRequest {
   rootClusterUri: uri.RootClusterUri;
