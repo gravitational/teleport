@@ -111,7 +111,7 @@ func (a *Service) CreateAssistantConversation(ctx context.Context, req *assist.C
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindAssistant, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbCreate); err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
 	}
 
@@ -130,7 +130,7 @@ func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, req *assi
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindAssistant, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbUpdate); err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
 	}
 
@@ -153,7 +153,7 @@ func (a *Service) GetAssistantConversations(ctx context.Context, req *assist.Get
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindAssistant, types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbList); err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
 	}
 
@@ -172,7 +172,7 @@ func (a *Service) DeleteAssistantConversation(ctx context.Context, req *assist.D
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindAssistant, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbDelete); err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
 	}
 
@@ -190,7 +190,7 @@ func (a *Service) GetAssistantMessages(ctx context.Context, req *assist.GetAssis
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindAssistant, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbRead); err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
 	}
 
@@ -209,7 +209,7 @@ func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.Create
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindAssistant, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbCreate); err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
 	}
 
@@ -272,7 +272,7 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, msg.Kind, types.VerbRead, types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(true, msg.Kind, types.VerbRead, types.VerbList); err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
 	}
 

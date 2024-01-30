@@ -39,7 +39,7 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.Gen
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

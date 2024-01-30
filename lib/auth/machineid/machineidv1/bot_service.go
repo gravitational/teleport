@@ -161,7 +161,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, false, types.KindBot, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -195,7 +195,7 @@ func (bs *BotService) ListBots(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, false, types.KindBot, types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -246,15 +246,15 @@ func (bs *BotService) createBotAuthz(ctx context.Context) (*authz.Context, error
 		return nil, trace.Wrap(err)
 	}
 
-	if authErr := authCtx.CheckAccessToKind(ctx, false, types.KindBot, types.VerbCreate); authErr != nil {
+	if authErr := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate); authErr != nil {
 		// TODO(noah): DELETE IN 16.0.0
-		if err := authCtx.CheckAccessToKind(ctx, false, types.KindUser, types.VerbCreate); err != nil {
+		if err := authCtx.CheckAccessToKind(false, types.KindUser, types.VerbCreate); err != nil {
 			return nil, authErr
 		}
-		if err := authCtx.CheckAccessToKind(ctx, false, types.KindRole, types.VerbCreate); err != nil {
+		if err := authCtx.CheckAccessToKind(false, types.KindRole, types.VerbCreate); err != nil {
 			return nil, authErr
 		}
-		if err = authCtx.CheckAccessToKind(ctx, false, types.KindToken, types.VerbCreate); err != nil {
+		if err = authCtx.CheckAccessToKind(false, types.KindToken, types.VerbCreate); err != nil {
 			return nil, authErr
 		}
 		bs.logger.Warn("CreateBot authz fell back to legacy resource/verbs. Explicitly grant access to the Bot resource. From V16.0.0, this will fail!")
@@ -380,7 +380,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, false, types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -429,7 +429,7 @@ func (bs *BotService) UpdateBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(ctx, false, types.KindBot, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -550,15 +550,15 @@ func (bs *BotService) deleteBotAuthz(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if authErr := authCtx.CheckAccessToKind(ctx, false, types.KindBot, types.VerbDelete); authErr != nil {
+	if authErr := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbDelete); authErr != nil {
 		// TODO(noah): DELETE IN 16.0.0
-		if err := authCtx.CheckAccessToKind(ctx, false, types.KindUser, types.VerbDelete); err != nil {
+		if err := authCtx.CheckAccessToKind(false, types.KindUser, types.VerbDelete); err != nil {
 			return authErr
 		}
-		if err := authCtx.CheckAccessToKind(ctx, false, types.KindRole, types.VerbDelete); err != nil {
+		if err := authCtx.CheckAccessToKind(false, types.KindRole, types.VerbDelete); err != nil {
 			return authErr
 		}
-		if err = authCtx.CheckAccessToKind(ctx, false, types.KindToken, types.VerbDelete); err != nil {
+		if err = authCtx.CheckAccessToKind(false, types.KindToken, types.VerbDelete); err != nil {
 			return authErr
 		}
 		bs.logger.Warn("DeleteBot authz fell back to legacy resource/verbs. Explicitly grant access to the Bot resource. From V16.0.0, this will fail!")
