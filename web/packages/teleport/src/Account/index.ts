@@ -16,5 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Account from './Account';
+import Account from './AccountNew';
 export default Account;
