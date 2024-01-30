@@ -167,12 +167,13 @@ func TestAuthenticate(t *testing.T) {
 		wantAuthErr bool
 	}{
 		{
-			desc:           "local user and cluster with active access request",
-			user:           authz.LocalUser{},
-			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
-			routeToCluster: "local",
-			haveKubeCreds:  true,
-			tunnel:         tun,
+			desc:              "local user and cluster with active access request",
+			user:              authz.LocalUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -220,12 +221,13 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:           "local user and cluster",
-			user:           authz.LocalUser{},
-			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
-			routeToCluster: "local",
-			haveKubeCreds:  true,
-			tunnel:         tun,
+			desc:              "local user and cluster",
+			user:              authz.LocalUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -296,12 +298,13 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:           "local user and cluster, no kubeconfig",
-			user:           authz.LocalUser{},
-			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
-			routeToCluster: "local",
-			haveKubeCreds:  false,
-			tunnel:         tun,
+			desc:              "local user and cluster, no kubeconfig",
+			user:              authz.LocalUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     false,
+			tunnel:            tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -340,12 +343,13 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:           "remote user and local cluster",
-			user:           authz.RemoteUser{},
-			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
-			routeToCluster: "local",
-			haveKubeCreds:  true,
-			tunnel:         tun,
+			desc:              "remote user and local cluster",
+			user:              authz.RemoteUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -384,13 +388,14 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:           "remote user and local cluster with active request id",
-			user:           authz.RemoteUser{},
-			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
-			routeToCluster: "local",
-			haveKubeCreds:  true,
-			tunnel:         tun,
-			activeRequests: activeAccessRequests,
+			desc:              "remote user and local cluster with active request id",
+			user:              authz.RemoteUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
+			activeRequests:    activeAccessRequests,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -490,13 +495,14 @@ func TestAuthenticate(t *testing.T) {
 			wantAuthErr: true,
 		},
 		{
-			desc:           "kube users passed in request",
-			user:           authz.LocalUser{},
-			roleKubeUsers:  []string{"kube-user-a", "kube-user-b"},
-			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
-			routeToCluster: "local",
-			haveKubeCreds:  true,
-			tunnel:         tun,
+			desc:              "kube users passed in request",
+			user:              authz.LocalUser{},
+			roleKubeUsers:     []string{"kube-user-a", "kube-user-b"},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
+			tunnel:            tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -552,11 +558,12 @@ func TestAuthenticate(t *testing.T) {
 			wantAuthErr: true,
 		},
 		{
-			desc:           "local user and cluster, no tunnel",
-			user:           authz.LocalUser{},
-			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
-			routeToCluster: "local",
-			haveKubeCreds:  true,
+			desc:              "local user and cluster, no tunnel",
+			user:              authz.LocalUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "local",
+			haveKubeCreds:     true,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
