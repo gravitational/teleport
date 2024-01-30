@@ -81,4 +81,4 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
 
 # Install wasm-pack for targeting WebAssembly from Rust.
 ARG WASM_PACK_VERSION
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
+RUN cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}
