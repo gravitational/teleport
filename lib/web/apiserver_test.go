@@ -1361,8 +1361,11 @@ func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 		proxy:     s.webServer.Listener.Addr().String(),
 		sessionID: "/../../../foo",
 	})
-	require.Error(t, err)
-	require.Nil(t, term)
+	require.NoError(t, err)
+	var wsError WSError
+	err = term.ws.ReadJSON(&wsError)
+	require.NoError(t, err)
+	require.Equal(t, "/../../../foo is not a valid UUID", wsError.Error)
 }
 
 func TestResolveServerHostPort(t *testing.T) {
