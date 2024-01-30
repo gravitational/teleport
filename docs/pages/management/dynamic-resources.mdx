@@ -93,6 +93,7 @@ a Terraform resource for each Teleport configuration resource. For example:
 
 ```hcl
 resource "teleport_role" "developer" {
+  version = "v7"
   metadata = {
     name = "developer"
   }

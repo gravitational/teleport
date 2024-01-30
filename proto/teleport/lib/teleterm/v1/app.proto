@@ -55,4 +55,16 @@ message App {
   //
   // fqdn is not present for SAML applications.
   string fqdn = 10;
+  // aws_roles is a list of AWS IAM roles for the application representing AWS console.
+  repeated AWSRole aws_roles = 11;
+}
+
+// AwsRole describes AWS IAM role.
+message AWSRole {
+  // Name is the full role name with the entire path.
+  string name = 1;
+  // Display is the role display name.
+  string display = 2;
+  // ARN is the full role ARN.
+  string arn = 3;
 }

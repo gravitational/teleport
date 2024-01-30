@@ -40,6 +40,11 @@ export class App extends jspb.Message {
     getFqdn(): string;
     setFqdn(value: string): App;
 
+    clearAwsRolesList(): void;
+    getAwsRolesList(): Array<AWSRole>;
+    setAwsRolesList(value: Array<AWSRole>): App;
+    addAwsRoles(value?: AWSRole, index?: number): AWSRole;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): App.AsObject;
@@ -63,5 +68,35 @@ export namespace App {
         samlApp: boolean,
         labelsList: Array<teleport_lib_teleterm_v1_label_pb.Label.AsObject>,
         fqdn: string,
+        awsRolesList: Array<AWSRole.AsObject>,
+    }
+}
+
+export class AWSRole extends jspb.Message { 
+    getName(): string;
+    setName(value: string): AWSRole;
+
+    getDisplay(): string;
+    setDisplay(value: string): AWSRole;
+
+    getArn(): string;
+    setArn(value: string): AWSRole;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AWSRole.AsObject;
+    static toObject(includeInstance: boolean, msg: AWSRole): AWSRole.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AWSRole, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AWSRole;
+    static deserializeBinaryFromReader(message: AWSRole, reader: jspb.BinaryReader): AWSRole;
+}
+
+export namespace AWSRole {
+    export type AsObject = {
+        name: string,
+        display: string,
+        arn: string,
     }
 }

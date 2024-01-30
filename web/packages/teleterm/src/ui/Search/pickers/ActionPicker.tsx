@@ -767,7 +767,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
         gap={1}
       >
         <Text typography="body1">
-          {isWebApp(app) ? (
+          {isWebApp(app) || app.awsConsole ? (
             <>Launch {$appName} app in the browser</>
           ) : (
             <>Set up an app connection to {$appName}</>
