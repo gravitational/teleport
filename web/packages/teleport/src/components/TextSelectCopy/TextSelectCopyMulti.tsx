@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
@@ -63,25 +63,39 @@ export function TextSelectCopyMulti({
     ?.toLowerCase()
     .includes('firefox');
 
+  const scrollRef = useRef(null);
+  const [verticalScrollVisible, setVerticalScrollVisible] = useState(false);
+  const [horizontalScrollVisible, setHorizontalScrollVisible] = useState(false);
+  useEffect(() => {
+    setVerticalScrollVisible(
+      scrollRef.current.scrollHeight > scrollRef.current.clientHeight
+    );
+    setHorizontalScrollVisible(
+      scrollRef.current.scrollWidth > scrollRef.current.clientWidth
+    );
+  }, []);
+
   return (
     <Box
       bg="bgTerminal"
       pl={3}
       pt={2}
-      pr={saveContent.save ? 11 : 7}
+      pr={2}
       borderRadius={2}
-      maxHeight={maxHeight}
       minHeight="50px"
       // Firefox does not add space for visible scrollbars
       // like it does for chrome and safari.
       pb={isFirefox ? 3 : 2}
       css={{
         position: 'relative',
-        overflowY: 'scroll',
       }}
       className={props => props.className}
     >
-      <Lines mr={1}>
+      <Lines
+        maxHeight={maxHeight}
+        css={{ overflowY: 'scroll' }}
+        ref={scrollRef}
+      >
         {lines.map((line, index) => {
           const isLastText = index === lines.length - 1;
           return (
@@ -100,11 +114,17 @@ export function TextSelectCopyMulti({
                   </div>
                 </Flex>
                 <Box
-                  pr={3}
-                  css={`
-                    position: absolute;
-                    right: 0px;
-                  `}
+                  pr={verticalScrollVisible && horizontalScrollVisible ? 2 : 4}
+                  css={{
+                    position:
+                      verticalScrollVisible && horizontalScrollVisible
+                        ? 'sticky'
+                        : 'absolute',
+                    right: 0,
+                    borderRadius: '20px',
+                  }}
+                  bg={horizontalScrollVisible && 'bgTerminal'}
+                  pl={3}
                 >
                   <StyledButtonSecondary onClick={() => onCopyClick(index)}>
                     <Icon className="icon-container">
@@ -176,7 +196,6 @@ const Lines = styled(Box)`
   word-break: break-all;
   font-size: 12px;
   font-family: ${({ theme }) => theme.fonts.mono};
-  overflow-x: scroll;
   line-height: 20px;
   color: ${props => props.theme.colors.light};
 `;
