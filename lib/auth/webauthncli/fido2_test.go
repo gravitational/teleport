@@ -140,7 +140,7 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 	return p.pin, nil
 }
 
-func (p pinCancelPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
+func (p *pinCancelPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
 	// 2nd touch never happens
 	return func() error { return nil }, nil
 }
@@ -155,7 +155,7 @@ func TestIsFIDO2Available(t *testing.T) {
 		{
 			name: "env var unset",
 			setenv: func() {
-				os.Unsetenv(fido2Key)
+				_ = os.Unsetenv(fido2Key)
 			},
 			want: true,
 		},
@@ -407,10 +407,9 @@ func TestFIDO2Login(t *testing.T) {
 			},
 		},
 		{
-			name:    "NOK no devices plugged times out",
-			timeout: 10 * time.Millisecond,
-			fido2:   newFakeFIDO2(),
-			setUP:   func() {},
+			name:  "NOK no devices plugged errors",
+			fido2: newFakeFIDO2(),
+			setUP: func() {},
 			createAssertion: func() *wantypes.CredentialAssertion {
 				cp := *baseAssertion
 				cp.Response.AllowedCredentials = []wantypes.CredentialDescriptor{
@@ -418,7 +417,7 @@ func TestFIDO2Login(t *testing.T) {
 				}
 				return &cp
 			},
-			wantErr: context.DeadlineExceeded.Error(),
+			wantErr: "no security keys found",
 		},
 		{
 			name:    "NOK no devices touched times out",
@@ -585,8 +584,8 @@ func TestFIDO2Login(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		runTest := func(t *testing.T, f2 *fakeFIDO2) {
-			f2.setCallbacks()
+		t.Run(test.name, func(t *testing.T) {
+			test.fido2.setCallbacks()
 			test.setUP()
 
 			timeout := test.timeout
@@ -656,17 +655,6 @@ func TestFIDO2Login(t *testing.T) {
 			}
 
 			assert.Equal(t, test.wantUser, actualUser, "actual user mismatch")
-		}
-
-		// Run tests against both "metered" and "non-metered" fake variants, so we
-		// can ensure both behave correctly.
-		// There shouldn't be much of a difference, but tests are fast enough that
-		// it doesn't hurt either.
-		t.Run(test.name+"/metered", func(t *testing.T) {
-			runTest(t, test.fido2)
-		})
-		t.Run(test.name+"/nonMetered", func(t *testing.T) {
-			runTest(t, test.fido2.withNonMeteredLocations())
 		})
 	}
 }
@@ -686,7 +674,7 @@ func TestFIDO2Login_retryUVFailures(t *testing.T) {
 	})
 	pin1.failUV = true // fail UV regardless of PIN
 
-	f2 := newFakeFIDO2(pin1).withNonMeteredLocations()
+	f2 := newFakeFIDO2(pin1)
 	f2.setCallbacks()
 
 	const rpID = "example.com"
@@ -740,7 +728,7 @@ func TestFIDO2Login_singleResidentCredential(t *testing.T) {
 			},
 		})
 
-	f2 := newFakeFIDO2(oneCredential, manyCredentials).withNonMeteredLocations()
+	f2 := newFakeFIDO2(oneCredential, manyCredentials)
 	f2.setCallbacks()
 
 	const rpID = "example.com"
@@ -908,7 +896,7 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 		},
 		{
 			name:        "Passwordless PIN plugged requires two touches",
-			fido2:       newFakeFIDO2(pin1).withNonMeteredLocations(),
+			fido2:       newFakeFIDO2(pin1),
 			assertion:   pwdlessAssertion,
 			prompt:      pin1,
 			wantTouches: 2,
@@ -961,7 +949,7 @@ func TestFIDO2Login_u2fDevice(t *testing.T) {
 	dev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
 	dev.u2fOnly = true
 
-	f2 := newFakeFIDO2(dev).withNonMeteredLocations()
+	f2 := newFakeFIDO2(dev)
 	f2.setCallbacks()
 
 	const rpID = "example.com"
@@ -1037,7 +1025,7 @@ func TestFIDO2Login_bioErrorHandling(t *testing.T) {
 		},
 	})
 
-	f2 := newFakeFIDO2(bio).withNonMeteredLocations()
+	f2 := newFakeFIDO2(bio)
 	f2.setCallbacks()
 
 	// Prepare a passwordless assertion.
@@ -1154,13 +1142,6 @@ func TestFIDO2Login_errors(t *testing.T) {
 		wantErr   string
 	}{
 		{
-			name:      "ok - timeout", // check that good params are good
-			origin:    origin,
-			assertion: okAssertion,
-			prompt:    prompt,
-			wantErr:   context.DeadlineExceeded.Error(),
-		},
-		{
 			name:      "nil origin",
 			assertion: okAssertion,
 			prompt:    prompt,
@@ -1218,7 +1199,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 	u2f := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
 	u2f.u2fOnly = true
 
-	f2 := newFakeFIDO2(notRegistered, noPIN, noRK, u2f).withNonMeteredLocations()
+	f2 := newFakeFIDO2(notRegistered, noPIN, noRK, u2f)
 	f2.setCallbacks()
 
 	const rpID = "goteleport.com"
@@ -1325,7 +1306,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 			name:            "passwordless U2F",
 			createAssertion: func() *wantypes.CredentialAssertion { return &pwdlessAssertion },
 			prompt:          u2f,
-			wantErr:         context.DeadlineExceeded.Error(), // silently filtered, times out
+			wantErr:         "cannot do passwordless",
 		},
 	} {
 		t.Run("login/"+test.name, func(t *testing.T) {
@@ -1367,7 +1348,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 			name:     "excluded credential (U2F)",
 			createCC: func() *wantypes.CredentialCreation { return &excludeCC },
 			prompt:   u2f,
-			wantErr:  context.DeadlineExceeded.Error(), // silently filtered, times out
+			wantErr:  "registered credential",
 		},
 		{
 			name:     "passwordless lacks UV",
@@ -1386,7 +1367,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 			name:     "passwordless U2F",
 			createCC: func() *wantypes.CredentialCreation { return &pwdlessCC },
 			prompt:   u2f,
-			wantErr:  context.DeadlineExceeded.Error(), // silently filtered, times out
+			wantErr:  "cannot do passwordless",
 		},
 	} {
 		t.Run("register/"+test.name, func(t *testing.T) {
@@ -1620,17 +1601,6 @@ func TestFIDO2Register(t *testing.T) {
 			},
 		},
 		{
-			name:    "NOK timeout without devices",
-			timeout: 10 * time.Millisecond,
-			fido2:   newFakeFIDO2(),
-			setUP:   func() {},
-			createCredential: func() *wantypes.CredentialCreation {
-				cp := *baseCC
-				return &cp
-			},
-			wantErr: context.DeadlineExceeded,
-		},
-		{
 			name:  "passwordless pin device",
 			fido2: newFakeFIDO2(pin2),
 			setUP: pin2.setUP,
@@ -1793,13 +1763,6 @@ func TestFIDO2Register_errors(t *testing.T) {
 		wantErr  string
 	}{
 		{
-			name:     "ok - timeout", // check that good params are good
-			origin:   origin,
-			createCC: func() *wantypes.CredentialCreation { return okCC },
-			prompt:   prompt,
-			wantErr:  context.DeadlineExceeded.Error(),
-		},
-		{
 			name:     "nil origin",
 			createCC: func() *wantypes.CredentialCreation { return okCC },
 			prompt:   prompt,
@@ -1859,7 +1822,7 @@ func TestFIDO2Register_u2fExcludedCredentials(t *testing.T) {
 		Options: authOpts,
 	})
 
-	f2 := newFakeFIDO2(u2fDev, otherDev).withNonMeteredLocations()
+	f2 := newFakeFIDO2(u2fDev, otherDev)
 	f2.setCallbacks()
 
 	const origin = "https://example.com"
@@ -1919,8 +1882,6 @@ func resetFIDO2AfterTests(t *testing.T) {
 }
 
 type fakeFIDO2 struct {
-	useNonMeteredLocs bool
-
 	locs    []*libfido2.DeviceLocation
 	devices map[string]*fakeFIDO2Device
 }
@@ -1941,33 +1902,9 @@ func newFakeFIDO2(devs ...*fakeFIDO2Device) *fakeFIDO2 {
 	return f
 }
 
-// withNonMeteredLocations makes fakeFIDO2 return all known devices immediately.
-// Useful to test flows that optimize for plugged devices.
-func (f *fakeFIDO2) withNonMeteredLocations() *fakeFIDO2 {
-	f.useNonMeteredLocs = true
-	return f
-}
-
 func (f *fakeFIDO2) setCallbacks() {
-	if f.useNonMeteredLocs {
-		*wancli.FIDODeviceLocations = f.DeviceLocations
-	} else {
-		*wancli.FIDODeviceLocations = f.newMeteredDeviceLocations()
-	}
+	*wancli.FIDODeviceLocations = f.DeviceLocations
 	*wancli.FIDONewDevice = f.NewDevice
-}
-
-func (f *fakeFIDO2) newMeteredDeviceLocations() func() ([]*libfido2.DeviceLocation, error) {
-	i := 0
-	return func() ([]*libfido2.DeviceLocation, error) {
-		// Delay showing devices for a while to exercise polling.
-		i++
-		const minLoops = 2
-		if i < minLoops {
-			return nil, nil
-		}
-		return f.locs, nil
-	}
 }
 
 func (f *fakeFIDO2) DeviceLocations() ([]*libfido2.DeviceLocation, error) {
@@ -1976,6 +1913,7 @@ func (f *fakeFIDO2) DeviceLocations() ([]*libfido2.DeviceLocation, error) {
 
 func (f *fakeFIDO2) NewDevice(path string) (wancli.FIDODevice, error) {
 	if dev, ok := f.devices[path]; ok {
+		dev.open()
 		return dev, nil
 	}
 	// go-libfido2 doesn't actually error here, but we do for simplicity.
@@ -2013,8 +1951,8 @@ type fakeFIDO2Device struct {
 	pubKey []byte
 
 	// cond guards up and cancel.
-	cond       *sync.Cond
-	up, cancel bool
+	cond               *sync.Cond
+	up, cancel, opened bool
 }
 
 func mustNewFIDO2Device(path, pin string, info *libfido2.DeviceInfo, creds ...*libfido2.Credential) *fakeFIDO2Device {
@@ -2073,15 +2011,26 @@ func (f *fakeFIDO2Device) cert() []byte {
 	return f.key.Cert
 }
 
-func (f *fakeFIDO2Device) Info() (*libfido2.DeviceInfo, error) {
-	if f.u2fOnly {
-		return nil, libfido2.ErrNotFIDO2
+func (f *fakeFIDO2Device) open() {
+	f.cond.L.Lock()
+	// Keep the `f.up` value from before open(), it makes tests simpler.
+	f.cancel = false
+	f.opened = true
+	f.cond.L.Unlock()
+}
+
+func (f *fakeFIDO2Device) verifyOpen() error {
+	f.cond.L.Lock()
+	defer f.cond.L.Unlock()
+	if !f.opened {
+		return errors.New("device closed")
 	}
-	return f.info, nil
+	return nil
 }
 
 func (f *fakeFIDO2Device) setUP() {
 	f.cond.L.Lock()
+	// Set up regardless of opened, makes testing simpler.
 	f.up = true
 	f.cond.L.Unlock()
 	f.cond.Broadcast()
@@ -2089,9 +2038,44 @@ func (f *fakeFIDO2Device) setUP() {
 
 func (f *fakeFIDO2Device) Cancel() error {
 	f.cond.L.Lock()
-	f.cancel = true
+	// Ignore cancels while closed, as this mirrors go-libfido2.
+	if f.opened {
+		f.cancel = true
+	}
 	f.cond.L.Unlock()
 	f.cond.Broadcast()
+	return nil
+}
+
+func (f *fakeFIDO2Device) Close() error {
+	f.cond.L.Lock()
+	f.opened = false
+	f.cond.L.Unlock()
+	f.cond.Broadcast() // Unblock any ongoing goroutines.
+	return nil
+}
+
+func (f *fakeFIDO2Device) Info() (*libfido2.DeviceInfo, error) {
+	if err := f.verifyOpen(); err != nil {
+		return nil, err
+	}
+	if f.u2fOnly {
+		return nil, libfido2.ErrNotFIDO2
+	}
+	return f.info, nil
+}
+
+func (f *fakeFIDO2Device) IsFIDO2() (bool, error) {
+	if err := f.verifyOpen(); err != nil {
+		return false, err
+	}
+	return !f.u2fOnly, nil
+}
+
+func (f *fakeFIDO2Device) SetTimeout(d time.Duration) error {
+	if err := f.verifyOpen(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -2103,6 +2087,10 @@ func (f *fakeFIDO2Device) MakeCredential(
 	pin string,
 	opts *libfido2.MakeCredentialOpts,
 ) (*libfido2.Attestation, error) {
+	if err := f.verifyOpen(); err != nil {
+		return nil, err
+	}
+
 	switch {
 	case len(clientDataHash) == 0:
 		return nil, errors.New("clientDataHash required")
@@ -2169,6 +2157,10 @@ func (f *fakeFIDO2Device) Assertion(
 	pin string,
 	opts *libfido2.AssertionOpts,
 ) ([]*libfido2.Assertion, error) {
+	if err := f.verifyOpen(); err != nil {
+		return nil, err
+	}
+
 	// Give preference to simulated errors.
 	if len(f.assertionErrors) > 0 {
 		err := f.assertionErrors[0]
