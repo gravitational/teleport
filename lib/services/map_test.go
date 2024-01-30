@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -176,6 +175,14 @@ func TestRoleMap(t *testing.T) {
 			},
 		},
 		{
+			name:   "mapping is deduplicated",
+			remote: []string{"role1", "role2"},
+			local:  []string{"foo"},
+			roleMap: types.RoleMap{
+				{Remote: "*", Local: []string{"foo"}},
+			},
+		},
+		{
 			name:   "different expand groups can be referred",
 			remote: []string{"remote-devs"},
 			local:  []string{"remote-devs", "devs"},
@@ -186,14 +193,15 @@ func TestRoleMap(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		comment := fmt.Sprintf("test case '%v'", tc.name)
-		local, err := MapRoles(tc.roleMap, tc.remote)
-		if tc.err != nil {
-			require.NotNilf(t, err, comment)
-			require.IsTypef(t, err, tc.err, comment)
-		} else {
-			require.NoError(t, err, comment)
-			require.Empty(t, cmp.Diff(local, tc.local), comment)
-		}
+		t.Run(fmt.Sprintf("test case '%v'", tc.name), func(t *testing.T) {
+			local, err := MapRoles(tc.roleMap, tc.remote)
+			if tc.err != nil {
+				require.Error(t, err)
+				require.IsType(t, err, tc.err)
+			} else {
+				require.NoError(t, err)
+				require.ElementsMatch(t, tc.local, local)
+			}
+		})
 	}
 }
