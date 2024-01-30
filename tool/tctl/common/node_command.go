@@ -146,7 +146,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 
 	token := c.token
 	if c.token == "" {
-		token, err = utils.CryptoRandomHex(auth.TokenLenBytes)
+		token, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return trace.WrapWithMessage(err, "generating token value")
 		}

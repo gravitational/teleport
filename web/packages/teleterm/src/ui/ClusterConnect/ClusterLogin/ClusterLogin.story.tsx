@@ -50,7 +50,7 @@ function makeProps(): ClusterLoginPresentationProps {
       data: {
         preferredMfa: 'webauthn',
         localAuthEnabled: true,
-        authProvidersList: [],
+        authProviders: [],
         type: '',
         secondFactor: 'optional',
         hasMessageOfTheDay: false,
@@ -172,7 +172,7 @@ export const SsoOnly = () => {
   const props = makeProps();
   props.initAttempt.data.localAuthEnabled = false;
   props.initAttempt.data.authType = 'github';
-  props.initAttempt.data.authProvidersList = [
+  props.initAttempt.data.authProviders = [
     { type: 'github', name: 'github', displayName: 'github' },
     { type: 'saml', name: 'microsoft', displayName: 'microsoft' },
   ];
@@ -205,7 +205,7 @@ export const LocalLoggedInUserWithPasswordless = () => {
 
 export const LocalWithSso = () => {
   const props = makeProps();
-  props.initAttempt.data.authProvidersList = [
+  props.initAttempt.data.authProviders = [
     { type: 'github', name: 'github', displayName: 'github' },
     { type: 'saml', name: 'microsoft', displayName: 'microsoft' },
   ];
@@ -243,7 +243,7 @@ export const PasswordlessWithLocalLoggedInUser = () => {
 export const SsoWithLocalAndPasswordless = () => {
   const props = makeProps();
   props.initAttempt.data.authType = 'github';
-  props.initAttempt.data.authProvidersList = [
+  props.initAttempt.data.authProviders = [
     { type: 'github', name: 'github', displayName: 'github' },
     { type: 'saml', name: 'microsoft', displayName: 'microsoft' },
   ];

@@ -929,6 +929,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Channel can contain "/", hence the use of a catch-all parameter
 	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades))
 
+	// GET Machine ID bot by name
+	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
 	// GET Machine ID bots
 	h.GET("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.listBots))
 	// Create Machine ID bots

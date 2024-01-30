@@ -327,6 +327,7 @@ const cfg = {
 
     botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
+    botPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {

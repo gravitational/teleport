@@ -21,6 +21,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -168,4 +169,19 @@ func GetUnstructuredObjectFromGVK(gvk schema.GroupVersionKind) (*unstructured.Un
 	obj := unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
 	return &obj, nil
+}
+
+// checkAnnotationFlag checks is the Kubernetes resource is annotated with a
+// flag and parses its value. Returns the default value if the flag is missing
+// or the annotation value cannot be parsed.
+func checkAnnotationFlag(object kclient.Object, flagName string, defaultValue bool) bool {
+	annotation, ok := object.GetAnnotations()[flagName]
+	if !ok {
+		return defaultValue
+	}
+	value, err := strconv.ParseBool(annotation)
+	if err != nil {
+		return defaultValue
+	}
+	return value
 }

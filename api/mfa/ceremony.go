@@ -36,8 +36,7 @@ type MFACeremonyClient interface {
 
 // PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
 // and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
-// an MFA challenge response for the user. A nil response will be returned if an MFA required check
-// is provided and MFA is not required.
+// an MFA challenge response for the user.
 func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	if challengeRequest == nil {
 		return nil, trace.BadParameter("missing challenge request")
@@ -53,22 +52,29 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 
 	chal, err := clt.CreateAuthenticateChallenge(ctx, challengeRequest)
 	if err != nil {
+		// CreateAuthenticateChallenge returns a bad parameter error when the the client
+		// user is not a Teleport user - for example, the AdminRole. Treat this as an MFA
+		// not supported error so the client knows when it can be ignored.
+		if trace.IsBadParameter(err) {
+			return nil, &ErrMFANotSupported
+		}
 		return nil, trace.Wrap(err)
 	}
 
 	// If an MFA required check was provided, and the client discovers MFA is not required,
 	// skip the MFA prompt and return an empty response.
 	if chal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-		return nil, nil
+		return nil, &ErrMFANotRequired
 	}
 
 	return clt.PromptMFA(ctx, chal, promptOpts...)
 }
 
+type MFACeremony func(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error)
+
 // PerformAdminActionMFACeremony retrieves an MFA challenge from the server for an admin
 // action, prompts the user to answer the challenge, and returns the resulting MFA response.
-// An empty response will be returned if MFA is not required for the given admin action.
-func PerformAdminActionMFACeremony(ctx context.Context, clt MFACeremonyClient, allowReuse bool) (*proto.MFAAuthenticateResponse, error) {
+func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony MFACeremony, allowReuse bool) (*proto.MFAAuthenticateResponse, error) {
 	allowReuseExt := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
 	if allowReuse {
 		allowReuseExt = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
@@ -87,5 +93,5 @@ func PerformAdminActionMFACeremony(ctx context.Context, clt MFACeremonyClient, a
 		},
 	}
 
-	return PerformMFACeremony(ctx, clt, challengeRequest, WithPromptReasonAdminAction())
+	return mfaCeremony(ctx, challengeRequest, WithPromptReasonAdminAction())
 }

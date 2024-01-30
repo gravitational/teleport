@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -300,6 +302,14 @@ func (c *BotsCommand) addBotLegacy(ctx context.Context, client auth.ClientI) err
 
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
+	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+	if err == nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+		return trace.Wrap(err)
+	}
+
 	// Jankily call the endpoint invalidly. This lets us version check and use
 	// the legacy version of this CLI tool if we are talking to an older
 	// server.
@@ -318,10 +328,9 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
 	}
 	var token types.ProvisionToken
-	var err error
 	if c.tokenID == "" {
 		// If there's no token specified, generate one
-		tokenName, err := utils.CryptoRandomHex(16)
+		tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}

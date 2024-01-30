@@ -43,6 +43,7 @@ const sample: State = {
     isSuccess: true,
     message: '',
   },
+  checkingValidSession: false,
   onLogin: () => null,
   onLoginWithWebauthn: () => null,
   onLoginWithSso: () => null,

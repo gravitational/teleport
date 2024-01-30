@@ -61,7 +61,7 @@ func TestPerformMFACeremony(t *testing.T) {
 				mfaRequired:       proto.MFARequired_MFA_REQUIRED_NO,
 			},
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
-				assert.NoError(t, err)
+				assert.Error(t, err, mfa.ErrMFANotRequired)
 				assert.Nil(t, mr)
 			},
 		}, {
