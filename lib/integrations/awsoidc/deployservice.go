@@ -42,6 +42,12 @@ var (
 	requiredCapacityProviders = []string{launchTypeFargateString}
 
 	// twoAgents is used to define the desired agent count when creating a service.
+	// Deploying two agents in a FARGATE LaunchType Service, will most likely deploy
+	// each one in a different AZ, as long as the Subnets include mustiple AZs.
+	// From AWS Docs:
+	// > Task placement strategies and constraints aren't supported for tasks using the Fargate launch type.
+	// > Fargate will try its best to spread tasks across accessible Availability Zones.
+	// > https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-placement.html#fargate-launch-type
 	twoAgents = int32(2)
 )
 
