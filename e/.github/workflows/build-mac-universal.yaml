@@ -123,7 +123,7 @@ jobs:
 
       - name: Install wasm-pack
         run: |
-          cargo install wasm-pack --version ${WASM_PACK_VERSION}
+          cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}
 
       - name: Setup keychain
         env:
