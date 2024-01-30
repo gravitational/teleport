@@ -3766,6 +3766,12 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	})
 }
 
+// WSError is used to write errors that previously occurred before a
+// websocket got upgraded
+type WSError struct {
+	Error string `json:"error"`
+}
+
 // WithClusterAuthWS wraps a ClusterWebsocketHandler to ensure that a request is authenticated
 // to this proxy via websocket if websocketAuth is true, or via query parameter if false (the same as WithAuth), as
 // well as to grab the remoteSite (which can represent this local cluster or a remote trusted cluster)
@@ -3781,7 +3787,11 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 			}
 
 			defer ws.Close()
-			return fn(w, r, p, sctx, site, ws)
+			_, err = fn(w, r, p, sctx, site, ws)
+			if err := ws.WriteJSON(WSError{Error: err.Error()}); err != nil {
+				h.log.WithError(err).Error("error writing json")
+			}
+			return nil, nil
 		}
 
 		sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
@@ -3802,7 +3812,11 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 		}
 
 		defer ws.Close()
-		return fn(w, r, p, sctx, site, ws)
+		_, err = fn(w, r, p, sctx, site, ws)
+		if err := ws.WriteJSON(WSError{Error: err.Error()}); err != nil {
+			h.log.WithError(err).Error("error writing json")
+		}
+		return nil, nil
 	})
 }
 
