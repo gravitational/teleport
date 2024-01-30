@@ -769,9 +769,9 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
         <Text typography="body1">
           {isWebApp(app) || app.awsConsole || app.samlApp ? (
             app.samlApp ? (
-              <>Log in to {$appName} app in the browser</>
+              <>Log in to {$appName} in the browser</>
             ) : (
-              <>Launch {$appName} app in the browser</>
+              <>Launch {$appName} in the browser</>
             )
           ) : (
             <>Set up an app connection to {$appName}</>
