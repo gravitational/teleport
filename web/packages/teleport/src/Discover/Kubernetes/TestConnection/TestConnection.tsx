@@ -28,6 +28,8 @@ import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand } from 'teleport/lib/util';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
+
 import {
   ActionButtons,
   HeaderSubtitle,
@@ -101,6 +103,7 @@ export function TestConnection({
             <ReAuthenticate
               onMfaResponse={res => testConnection(makeTestConnRequest(), res)}
               onClose={cancelMfaDialog}
+              challengeScope={MfaChallengeScope.USER_SESSION}
             />
           )}
           <Header>Test Connection</Header>

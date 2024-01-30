@@ -19,14 +19,15 @@
 import React from 'react';
 import styled from 'styled-components';
 
+import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
+
 import logoLight from 'teleport/Navigation/logoLight.svg';
 import logoDark from 'teleport/Navigation/logoDark.svg';
-import { ViewMode } from 'teleport/Assist/types';
 import { Description, Title } from 'teleport/Assist/Settings/shared';
 
 interface DisplaySettingsProps {
-  viewMode: ViewMode;
-  onChange: (viewMode: ViewMode) => void;
+  viewMode: AssistViewMode;
+  onChange: (viewMode: AssistViewMode) => void;
 }
 
 const ViewModes = styled.div`
@@ -241,8 +242,8 @@ export function DisplaySettings(props: DisplaySettingsProps) {
 
       <ViewModes>
         <ViewModeContainer
-          active={props.viewMode === ViewMode.Popup}
-          onClick={() => props.onChange(ViewMode.Popup)}
+          active={props.viewMode === AssistViewMode.POPUP}
+          onClick={() => props.onChange(AssistViewMode.POPUP)}
         >
           <ViewModeExample>
             <DimmedBackground />
@@ -256,8 +257,8 @@ export function DisplaySettings(props: DisplaySettingsProps) {
           Popup
         </ViewModeContainer>
         <ViewModeContainer
-          active={props.viewMode === ViewMode.Docked}
-          onClick={() => props.onChange(ViewMode.Docked)}
+          active={props.viewMode === AssistViewMode.DOCKED}
+          onClick={() => props.onChange(AssistViewMode.DOCKED)}
         >
           <ViewModeExample>
             <MockPage />
@@ -269,8 +270,8 @@ export function DisplaySettings(props: DisplaySettingsProps) {
           Docked
         </ViewModeContainer>
         <ViewModeContainer
-          active={props.viewMode === ViewMode.PopupExpanded}
-          onClick={() => props.onChange(ViewMode.PopupExpanded)}
+          active={props.viewMode === AssistViewMode.POPUP_EXPANDED}
+          onClick={() => props.onChange(AssistViewMode.POPUP_EXPANDED)}
         >
           <ViewModeExample>
             <DimmedBackground />
@@ -284,8 +285,12 @@ export function DisplaySettings(props: DisplaySettingsProps) {
           Expanded popup
         </ViewModeContainer>
         <ViewModeContainer
-          active={props.viewMode === ViewMode.PopupExpandedSidebarVisible}
-          onClick={() => props.onChange(ViewMode.PopupExpandedSidebarVisible)}
+          active={
+            props.viewMode === AssistViewMode.POPUP_EXPANDED_SIDEBAR_VISIBLE
+          }
+          onClick={() =>
+            props.onChange(AssistViewMode.POPUP_EXPANDED_SIDEBAR_VISIBLE)
+          }
         >
           <ViewModeExample>
             <DimmedBackground />

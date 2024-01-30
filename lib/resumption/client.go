@@ -204,6 +204,7 @@ func runClientResumableUnlocking(ctx context.Context, resumableConn *Conn, first
 				return
 			}
 
+			resumableConn.mu.Lock()
 			const isNotFirstConn = false
 			detached = goAttachResumableUnlocking(resumableConn, newConn, isNotFirstConn)
 

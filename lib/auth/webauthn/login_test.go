@@ -448,7 +448,6 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 			if diff := cmp.Diff(wantSD, sd); diff != "" {
 				t.Fatalf("SessionData mismatch (-want +got):\n%s", diff)
 			}
-
 			// User interaction would happen here.
 			assertionResp, err := test.key.SignAssertion(test.origin, assertion)
 			require.NoError(t, err)

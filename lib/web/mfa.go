@@ -26,6 +26,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -131,7 +132,9 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 }
 
 type createAuthenticateChallengeRequest struct {
-	IsMFARequired *isMFARequiredRequest `json:"is_mfa_required"`
+	IsMFARequiredRequest *isMFARequiredRequest `json:"is_mfa_required_req"`
+	ChallengeScope       int                   `json:"challenge_scope"`
+	ChallengeAllowReuse  bool                  `json:"challenge_allow_reuse"`
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
@@ -147,19 +150,28 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		return nil, trace.Wrap(err)
 	}
 
-	var isMFARequiredProtoReq *proto.IsMFARequiredRequest
-	if req.IsMFARequired != nil {
-		isMFARequiredProtoReq, err = req.IsMFARequired.checkAndGetProtoRequest()
+	var mfaRequiredCheckProto *proto.IsMFARequiredRequest
+	if req.IsMFARequiredRequest != nil {
+		mfaRequiredCheckProto, err = req.IsMFARequiredRequest.checkAndGetProtoRequest()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	allowReuse := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
+	if req.ChallengeAllowReuse {
+		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
 	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
-		MFARequiredCheck: isMFARequiredProtoReq,
+		MFARequiredCheck: mfaRequiredCheckProto,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope:      mfav1.ChallengeScope(req.ChallengeScope),
+			AllowReuse: allowReuse,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -278,10 +290,7 @@ type isMFARequiredWindowsDesktop struct {
 	Login string `json:"login"`
 }
 
-type isMFARequiredAdminAction struct {
-	// Name is the name of the admin action RPC.
-	Name string `json:"desktop_name"`
-}
+type isMFARequiredAdminAction struct{}
 
 type isMFARequiredRequest struct {
 	// Database contains fields required to check if target database
@@ -380,9 +389,7 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 		numRequests++
 		protoReq = &proto.IsMFARequiredRequest{
 			Target: &proto.IsMFARequiredRequest_AdminAction{
-				AdminAction: &proto.AdminAction{
-					Name: r.AdminAction.Name,
-				},
+				AdminAction: &proto.AdminAction{},
 			},
 		}
 	}

@@ -716,6 +716,12 @@ const (
 	// ExternalAuditStorageDisableEvent is emitted when External Audit Storage is
 	// disabled.
 	ExternalAuditStorageDisableEvent = "external_audit_storage.disable"
+
+	// CreateMFAAuthChallengeEvent is emitted when an MFA auth challenge is created.
+	CreateMFAAuthChallengeEvent = "mfa_auth_challenge.create"
+
+	// ValidateMFAAuthResponseEvent is emitted when an MFA auth challenge is validated.
+	ValidateMFAAuthResponseEvent = "mfa_auth_challenge.validate"
 )
 
 const (

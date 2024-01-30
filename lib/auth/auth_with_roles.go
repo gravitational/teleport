@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -278,7 +279,7 @@ func (a *ServerWithRoles) integrationsService() (*integrationv1.Service, error) 
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:   a.authServer.Cache,
+		Cache:   a.authServer,
 		Backend: a.authServer.Services,
 	})
 	if err != nil {
@@ -387,19 +388,13 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
 	igSvc, err := a.integrationsService()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
-		Issuer: req.Issuer,
-	})
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2098,7 +2093,8 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2824,12 +2820,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
-		dev, _, err := a.authServer.ValidateMFAAuthResponse(
-			ctx, req.GetMFAResponse(), req.Username, false /* passwordless */)
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, req.GetMFAResponse(), req.Username, requiredExt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		verifiedMFADeviceID = dev.Id
+		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
@@ -3151,7 +3147,8 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Allow reused MFA responses to allow creating a reset token after creating a user.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3297,7 +3294,8 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3337,7 +3335,8 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3452,7 +3451,8 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3653,7 +3653,8 @@ func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3671,7 +3672,8 @@ func (a *ServerWithRoles) CreateGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4106,7 +4108,8 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4321,7 +4324,8 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4393,7 +4397,8 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		}
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4455,7 +4460,8 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 		}
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5390,7 +5396,8 @@ func (a *ServerWithRoles) SetNetworkRestrictions(ctx context.Context, nr types.N
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5454,7 +5461,7 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 	// Check if MFA is required for admin actions. We don't currently have
 	// a reason to check the name of the admin action in question.
 	if _, ok := req.Target.(*proto.IsMFARequiredRequest_AdminAction); ok {
-		if a.context.AdminActionAuthorized {
+		if a.context.AdminActionAuthState == authz.AdminActionAuthUnauthorized {
 			return &proto.IsMFARequiredResponse{
 				Required:    true,
 				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
@@ -6462,7 +6469,8 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	if err = authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err = authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6500,7 +6508,8 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6823,13 +6832,14 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		mfaDevice, _, err := a.authServer.ValidateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN}
+		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, requiredExt)
 		if err != nil {
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return trace.Wrap(err)
 		}
 
-		replaceHeadlessAuthn.MfaDevice = mfaDevice
+		replaceHeadlessAuthn.MfaDevice = mfaData.Device
 		eventCode = events.UserHeadlessLoginApprovedCode
 	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
 		eventCode = events.UserHeadlessLoginRejectedCode

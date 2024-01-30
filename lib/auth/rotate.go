@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509/pkix"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,7 +32,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -240,6 +243,7 @@ func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	usableKeysResults := make(map[types.CertAuthType]*keystore.UsableKeysResult)
 	for _, caType := range types.CertAuthTypes {
 		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       caType,
@@ -257,6 +261,13 @@ func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
 				return trace.Wrap(err)
 			}
 		}
+		usableKeysResults[caType], err = a.keyStore.HasUsableActiveKeys(ctx, ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if err := a.syncUsableKeysAlert(ctx, usableKeysResults); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -480,17 +491,18 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 			// invalidating the current Admin identity.
 			newKeys = additionalKeys.Clone()
 		}
-		hasUsableAdditionalKeys, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+		usableKeysResult, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if !hasUsableAdditionalKeys {
-			// This auth server has no usable AdditionalTrustedKeys in this CA.
+		if !usableKeysResult.CAHasPreferredKeyType {
+			// There are no AdditionalTrustedKeys in this CA that match the
+			// configured key type of this auth server.
 			// This is one of 2 cases:
 			// 1. There are no AdditionalTrustedKeys at all.
 			// 2. There are AdditionalTrustedKeys which were added by a
-			//    different HSM-enabled auth server.
-			// In either case, we need to add newly generated local keys.
+			//    different HSM-enabled auth server or one using a different KMS.
+			// In either case, we need to add newly generated keys.
 			newLocalKeys, err := newKeySet(ctx, a.keyStore, ca.GetID())
 			if err != nil {
 				return trace.Wrap(err)
@@ -594,4 +606,85 @@ func completeRotation(clock clockwork.Clock, ca types.CertAuthority) {
 	rotation.Mode = ""
 	rotation.Schedule = types.RotationSchedule{}
 	ca.SetRotation(rotation)
+}
+
+// syncUsableKeysAlert creates a cluster alert if any of the stored CAs do not
+// contain keys matching the type of key (HSM, KMS, software) this auth server
+// is configured to use. The [usableKeysResults] arguments is expected to
+// contain the results of [keystore.(*Manager).HasUsableActiveKeys] for all CA
+// types.
+func (a *Server) syncUsableKeysAlert(ctx context.Context, usableKeysResults map[types.CertAuthType]*keystore.UsableKeysResult) error {
+	// Alert ID contains server ID because multiple auth servers can be
+	// configured differently and may be able to use different key types.
+	// If the auth servers are ephemeral, the alert will expire.
+	alertID := "ca-key-types/" + a.ServerID
+	var casWithoutPreferredKeyType []types.CertAuthType
+	unableToSign := false
+	var preferredKeyType string
+	for caType, usableKeysResult := range usableKeysResults {
+		if !usableKeysResult.CAHasPreferredKeyType {
+			casWithoutPreferredKeyType = append(casWithoutPreferredKeyType, caType)
+		}
+		if !usableKeysResult.CAHasUsableKeys {
+			unableToSign = true
+		}
+		// Should be identical for all results, just take any one.
+		preferredKeyType = usableKeysResult.PreferredKeyType
+	}
+
+	if len(casWithoutPreferredKeyType) == 0 {
+		// Every CA contains keys matching the preferred type, delete the alert
+		// if it exists.
+		if err := a.DeleteClusterAlert(ctx, alertID); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		return nil
+	}
+
+	alertOptions := []types.AlertOption{
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		// This is called by a.runPeriodicOperations via
+		// a.autoRotateCertAuthorities on a random period between 1-2x
+		// defaults.HighResPollingPeriod, the alert will be renewed before it
+		// expires if it's still relevant.
+		types.WithAlertExpires(a.clock.Now().Add(defaults.HighResPollingPeriod * 3)),
+	}
+	msg := fmt.Sprintf(
+		"Auth Service %s is configured to use %s, but the following CAs do not contain any keys of that type: %v. ",
+		a.ServerID,
+		preferredKeyType,
+		casWithoutPreferredKeyType)
+	if unableToSign {
+		alertOptions = append(alertOptions,
+			types.WithAlertSeverity(types.AlertSeverity_HIGH),
+			types.WithAlertLabel(types.AlertPermitAll, "yes"))
+		msg += "The Auth Service is currently unable to sign certificates and degraded service is expected. "
+	} else {
+		if modules.GetModules().Features().Cloud {
+			// Don't create this alert on Cloud. This avoids alerting all
+			// customers if Cloud ends up enabling an HSM/KMS by default in
+			// existing configurations. It's fine to never rotate in this case
+			// and continue using software keys. But if this is an on-prem
+			// cluster where the admin manually configured an HSM or KMS, they
+			// probably want to use it, so hopefully they'll appreciate the
+			// alert reminding them to rotate the CAs.
+			return nil
+		}
+		alertOptions = append(alertOptions,
+			types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+			types.WithAlertLabel(types.AlertVerbPermit,
+				fmt.Sprintf("%s:%s", types.KindCertAuthority, types.VerbUpdate)))
+		msg += "The Auth Service will continue signing certificates with raw software keys. "
+	}
+	msg += "These CAs must be rotated to begin using the configured key type. " +
+		"See https://goteleport.com/docs/management/operations/ca-rotation/"
+
+	alert, err := types.NewClusterAlert("ca-key-types/"+a.ServerID, msg, alertOptions...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

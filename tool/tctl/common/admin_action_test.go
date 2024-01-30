@@ -910,7 +910,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorWebauthn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -994,6 +994,12 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
+		},
+		MFAPromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				// return MFA not required to gracefully skip the MFA prompt.
+				return nil, &mfa.ErrMFANotRequired
+			})
 		},
 	})
 	require.NoError(t, err)

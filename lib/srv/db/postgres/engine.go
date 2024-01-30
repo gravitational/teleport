@@ -225,14 +225,8 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 }
 
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
-	// When using auto-provisioning, force the database username to be same
-	// as Teleport username. If it's not provided explicitly, some database
-	// clients (e.g. psql) get confused and display incorrect username.
-	if sessionCtx.AutoCreateUserMode.IsEnabled() {
-		if sessionCtx.DatabaseUser != sessionCtx.Identity.Username {
-			return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
-				sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
-		}
+	if err := sessionCtx.CheckUsernameForAutoUserProvisioning(); err != nil {
+		return trace.Wrap(err)
 	}
 	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
@@ -419,8 +413,6 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 	// parse and count the messages from the server in a separate goroutine,
 	// operating on a copy of the server message stream. the copy is arranged below.
 	copyReader, copyWriter := io.Pipe()
-	defer copyWriter.Close()
-
 	closeChan := make(chan struct{})
 
 	go func() {
@@ -461,6 +453,12 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 		log.WithError(err).Warn("Server -> Client copy finished with unexpected error.")
 	}
 
+	// We need to close the writer half of the pipe to notify the analysis
+	// goroutine that the connection is done. This will result in the goroutine
+	// receiving an io.ErrClosedPipe error, which will cause it to finish its
+	// execution. After that, wait until the closeChan is closed to ensure the
+	// goroutine is completed, avoiding data races.
+	copyWriter.Close()
 	<-closeChan
 
 	serverErrCh <- trace.Wrap(err)

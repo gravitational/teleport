@@ -23,7 +23,11 @@ import { CloseIcon, DisplayIcon, TerminalIcon } from 'design/SVGIcon';
 
 import Flex from 'design/Flex';
 
-import { AssistUserPreferences, ViewMode } from 'teleport/Assist/types';
+import {
+  AssistUserPreferences,
+  AssistViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
+
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { Tooltip } from 'teleport/Assist/shared/Tooltip';
 import { HeaderIcon } from 'teleport/Assist/shared';
@@ -40,7 +44,7 @@ interface SettingsProps {
   onDebugMenuToggle: (enabled: boolean) => void;
 }
 
-const Container = styled.div<{ viewMode: ViewMode }>`
+const Container = styled.div<{ viewMode: AssistViewMode }>`
   position: fixed;
   top: 0;
   left: 0;
@@ -169,12 +173,12 @@ export function Settings(props: SettingsProps) {
     savingTimeoutRef.current = window.setTimeout(() => setSaving(false), 500);
   }
 
-  function handleChangeViewMode(viewMode: ViewMode) {
+  function handleChangeViewMode(viewMode: AssistViewMode) {
     if (viewMode === preferences.assist.viewMode) {
       return;
     }
 
-    toggleSidebar(viewMode === ViewMode.PopupExpandedSidebarVisible);
+    toggleSidebar(viewMode === AssistViewMode.POPUP_EXPANDED_SIDEBAR_VISIBLE);
     saveSettings({ viewMode });
   }
 

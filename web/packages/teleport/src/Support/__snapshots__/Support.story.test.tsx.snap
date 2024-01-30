@@ -271,7 +271,6 @@ exports[`support Cloud 1`] = `
           class="c12"
           href="/web/downloads"
           rel="noreferrer"
-          target="_blank"
         >
           Download Page
         </a>

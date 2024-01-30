@@ -259,8 +259,11 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 		MFAPrompt:         c.tc.NewMFAPrompt(),
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
 		MFARequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
-		CertsReq:          certsReq,
-		Key:               key,
+		ChallengeExtensions: mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+		CertsReq: certsReq,
+		Key:      key,
 	})
 	return key, trace.Wrap(err)
 }
@@ -295,6 +298,9 @@ type PerformMFACeremonyParams struct {
 	MFAAgainstRoot bool
 	// MFARequiredReq is the request for the MFA verification check.
 	MFARequiredReq *proto.IsMFARequiredRequest
+	// ChallengeExtensions is used to provide additional extensions to apply to the
+	// MFA challenge used in the ceremony. The scope extension must be supplied.
+	ChallengeExtensions mfav1.ChallengeExtensions
 	// CertsReq is the request for new certificates.
 	CertsReq *proto.UserCertsRequest
 
@@ -353,9 +359,17 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	log.Debugf("MFA requirement from CreateAuthenticateChallenge, MFARequired=%s", authnChal.GetMFARequired())
 	if authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
 		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
+	}
+
+	if authnChal.TOTP == nil && authnChal.WebauthnChallenge == nil {
+		// TODO(Joerger): CreateAuthenticateChallenge should return
+		// this error directly instead of an empty challenge, without
+		// regressing https://github.com/gravitational/teleport/issues/36482.
+		return nil, nil, auth.ErrNoMFADevices
 	}
 
 	// Prompt user for solution (eg, security key touch).

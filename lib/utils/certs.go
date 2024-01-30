@@ -228,8 +228,11 @@ func ReadCertificates(certificateChainBytes []byte) ([]*x509.Certificate, error)
 
 	for {
 		certificateBlock, remainingBytes = pem.Decode(remainingBytes)
-		if certificateBlock == nil || certificateBlock.Type != pemBlockCertificate {
+		if certificateBlock == nil {
 			return nil, trace.NotFound("no PEM data found")
+		}
+		if t := certificateBlock.Type; t != pemBlockCertificate {
+			return nil, trace.BadParameter("expecting certificate, but found %v", t)
 		}
 		certificates = append(certificates, certificateBlock.Bytes)
 

@@ -97,7 +97,7 @@ func TestRetryWithMFA(t *testing.T) {
 		assert.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired, "Ping error mismatch")
 	})
 
-	okMFACeremony := func(ctx context.Context, opts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	okMFACeremony := func(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_TOTP{
 				TOTP: &proto.TOTPResponse{
@@ -108,7 +108,7 @@ func TestRetryWithMFA(t *testing.T) {
 	}
 
 	mfaCeremonyErr := trace.BadParameter("client does not support mfa")
-	nokMFACeremony := func(ctx context.Context, opts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	nokMFACeremony := func(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 		return nil, mfaCeremonyErr
 	}
 
@@ -160,7 +160,7 @@ func TestRetryWithMFA(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			mfaResp, _ := okMFACeremony(ctx)
+			mfaResp, _ := okMFACeremony(ctx, nil)
 			ctx := mfa.ContextWithMFAResponse(ctx, mfaResp)
 
 			client := proto.NewAuthServiceClient(conn)

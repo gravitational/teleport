@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { NotificationItem } from 'shared/components/Notification';
 
@@ -35,6 +35,15 @@ import cfg from 'teleport/config';
 import { Sha256Digest } from 'teleport/lib/util';
 
 import { TopBarHeight } from './TopBar';
+import {
+  ClipboardSharingState,
+  DirectorySharingState,
+  Setter,
+  clipboardSharingPossible,
+  defaultClipboardSharingState,
+  defaultDirectorySharingState,
+  isSharingClipboard,
+} from './useDesktopSession';
 
 import type { BitmapFrame } from 'teleport/lib/tdp/client';
 
@@ -51,9 +60,9 @@ export default function useTdpClientCanvas(props: Props) {
     clusterId,
     setTdpConnection,
     setWsConnection,
-    setClipboardSharingEnabled,
+    clipboardSharingState,
+    setClipboardSharingState,
     setDirectorySharingState,
-    clipboardSharingEnabled,
     setWarnings,
   } = props;
   const [tdpClient, setTdpClient] = useState<TdpClient | null>(null);
@@ -150,7 +159,7 @@ export default function useTdpClientCanvas(props: Props) {
   const clientOnClipboardData = async (clipboardData: ClipboardData) => {
     if (
       clipboardData.data &&
-      (await shouldTryClipboardRW(clipboardSharingEnabled))
+      (await sysClipboardGuard(clipboardSharingState, 'write'))
     ) {
       navigator.clipboard.writeText(clipboardData.data);
       let digest = await Sha256Digest(clipboardData.data, encoder.current);
@@ -160,11 +169,8 @@ export default function useTdpClientCanvas(props: Props) {
 
   // Default TdpClientEvent.TDP_ERROR and TdpClientEvent.CLIENT_ERROR handler
   const clientOnTdpError = (error: Error) => {
-    setDirectorySharingState(prevState => ({
-      ...prevState,
-      isSharing: false,
-    }));
-    setClipboardSharingEnabled(false);
+    setDirectorySharingState(defaultDirectorySharingState);
+    setClipboardSharingState(defaultClipboardSharingState);
     setTdpConnection({
       status: 'failed',
       statusText: error.message || error.toString(),
@@ -345,7 +351,7 @@ export default function useTdpClientCanvas(props: Props) {
   const canvasOnContextMenu = () => false;
 
   const sendLocalClipboardToRemote = async (cli: TdpClient) => {
-    if (await shouldTryClipboardRW(clipboardSharingEnabled)) {
+    if (await sysClipboardGuard(clipboardSharingState, 'read')) {
       navigator.clipboard.readText().then(text => {
         Sha256Digest(text, encoder.current).then(digest => {
           if (text && digest !== latestClipboardDigest.current) {
@@ -395,58 +401,43 @@ type Props = {
   username: string;
   desktopName: string;
   clusterId: string;
-  setTdpConnection: Dispatch<SetStateAction<Attempt>>;
-  setWsConnection: Dispatch<SetStateAction<'open' | 'closed'>>;
-  setClipboardSharingEnabled: Dispatch<SetStateAction<boolean>>;
-  setDirectorySharingState: Dispatch<
-    SetStateAction<{
-      canShare: boolean;
-      isSharing: boolean;
-    }>
-  >;
-  clipboardSharingEnabled: boolean;
-  setWarnings: Dispatch<SetStateAction<NotificationItem[]>>;
+  setTdpConnection: Setter<Attempt>;
+  setWsConnection: Setter<'open' | 'closed'>;
+  clipboardSharingState: ClipboardSharingState;
+  setClipboardSharingState: Setter<ClipboardSharingState>;
+  setDirectorySharingState: Setter<DirectorySharingState>;
+  setWarnings: Setter<NotificationItem[]>;
 };
 
 /**
  * To be called before any system clipboard read/write operation.
- *
- * @param clipboardSharingEnabled true if clipboard sharing is enabled by RBAC
  */
-async function shouldTryClipboardRW(
-  clipboardSharingEnabled: boolean
+async function sysClipboardGuard(
+  clipboardSharingState: ClipboardSharingState,
+  checkingFor: 'read' | 'write'
 ): Promise<boolean> {
-  return (
-    clipboardSharingEnabled &&
-    document.hasFocus() && // if document doesn't have focus, clipboard r/w will throw an uncatchable error
-    !(await isBrowserClipboardDenied()) // don't try r/w if either permission is denied
-  );
-}
+  // If we're not allowed to share the clipboard according to the acl
+  // or due to the browser we're using, never try to read or write.
+  if (!clipboardSharingPossible(clipboardSharingState)) {
+    return false;
+  }
 
-/**
- * Returns true if either 'clipboard-read' or `clipboard-write' are 'denied',
- * false otherwise.
- *
- * This is used as a check before reading from or writing to the clipboard,
- * because we only want to do so when *both* read and write permissions are
- * granted (or if either one is 'prompt', which will cause the browser to
- * prompt the user to specify). This is because Chromium browsers default to
- * granting clipboard-write permissions, and only allow the user to toggle
- * clipboard-read. However the prompt makes it seem like the user is granting
- * or denying all clipboard permissions, which can lead to an awkward UX where
- * a user has explicitly denied clipboard permissions at the browser level,
- * but is still getting the remote clipboard contents synced to their local machine.
- *
- * By calling this function before any read or write transaction, we ensure we're
- * complying with the user's explicit intention towards our use of their clipboard.
- */
-async function isBrowserClipboardDenied(): Promise<boolean> {
-  const readPromise = navigator.permissions.query({
-    name: 'clipboard-read' as PermissionName,
-  });
-  const writePromise = navigator.permissions.query({
-    name: 'clipboard-write' as PermissionName,
-  });
-  const [readPerm, writePerm] = await Promise.all([readPromise, writePromise]);
-  return readPerm.state === 'denied' || writePerm.state === 'denied';
+  // If the relevant state is 'prompt', try the operation so that the
+  // user is prompted to allow it.
+  const checkingForRead = checkingFor === 'read';
+  const checkingForWrite = checkingFor === 'write';
+  const relevantStateIsPrompt =
+    (checkingForRead && clipboardSharingState.readState === 'prompt') ||
+    (checkingForWrite && clipboardSharingState.writeState === 'prompt');
+  if (relevantStateIsPrompt) {
+    return true;
+  }
+
+  // Otherwise try only if both read and write permissions are granted
+  // and the document has focus (without focus we get an uncatchable error).
+  //
+  // Note that there's no situation where only one of read or write is granted,
+  // but the other is denied, and we want to try the operation. The feature is
+  // either fully enabled or fully disabled.
+  return isSharingClipboard(clipboardSharingState) && document.hasFocus();
 }
