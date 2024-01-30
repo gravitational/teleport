@@ -462,9 +462,10 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 
 // dbClientCAVersionCutoff is the version starting from which we stop
 // injecting a filter that drops DatabaseClientCA events.
-//
-// TODO(gavin): adjust for release!
-var dbClientCACutoffVersion = semver.Version{Major: 14, Minor: 2, Patch: 0}
+var dbClientCACutoffVersion = map[int64]semver.Version{
+	13: {Major: 13, Minor: 4, Patch: 15},
+	14: {Major: 14, Minor: 3, Patch: 1},
+}
 
 // maybeFilterCertAuthorityWatches will inject a CA filter and return a
 // function that removes the filter from the OpInit event if the client version
@@ -555,7 +556,12 @@ func getClientVersion(ctx context.Context) (*semver.Version, error) {
 // versions that the DatabaseClientCA is backported to.
 func versionHandlesDatabaseClientCAEvents(v semver.Version) bool {
 	v.PreRelease = "" // ignore pre-release tags
-	return !v.LessThan(dbClientCACutoffVersion)
+	// check for support for db_client CA in some pre-15 minor/patch releases.
+	if minSupportedVer, ok := dbClientCACutoffVersion[v.Major]; ok {
+		return !v.LessThan(minSupportedVer)
+	}
+	// otherwise, check for v15+.
+	return v.Major >= 15
 }
 
 func removeOpInitWatchStatusCAFilters(e *types.Event) {
