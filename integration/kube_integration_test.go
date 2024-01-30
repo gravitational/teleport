@@ -681,6 +681,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		T:              main,
 		Username:       username,
 		KubeGroups:     mainKubeGroups,
+		KubeCluster:    clusterAux,
 		Impersonation:  &rest.ImpersonationConfig{UserName: "bob", Groups: []string{kube.TestImpersonationGroup}},
 		RouteToCluster: clusterAux,
 	})
@@ -695,6 +696,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		T:              main,
 		Username:       username,
 		KubeGroups:     mainKubeGroups,
+		KubeCluster:    clusterAux,
 		RouteToCluster: clusterAux,
 	})
 	require.NoError(t, err)

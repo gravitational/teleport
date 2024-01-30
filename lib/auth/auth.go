@@ -2581,16 +2581,13 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	// Only validate/default kubernetes cluster name for the current teleport
-	// cluster. If this cert is targeting a trusted teleport cluster, leave all
-	// the kubernetes cluster validation up to them.
-	if req.routeToCluster == clusterName {
-		req.kubernetesCluster, err = kubeutils.CheckOrSetKubeCluster(a.closeCtx, a, req.kubernetesCluster, clusterName)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			log.Debug("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
+	// Ensure that the Kubernetes cluster name specified in the request exists
+	// when the certificate is intended for a local Kubernetes cluster.
+	// If the certificate is targeting a trusted Teleport cluster, it is the
+	// responsibility of the cluster to ensure its existence.
+	if req.routeToCluster == clusterName && req.kubernetesCluster != "" {
+		if err := kubeutils.CheckKubeCluster(a.closeCtx, a, req.kubernetesCluster); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
