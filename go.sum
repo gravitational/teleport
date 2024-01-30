@@ -820,8 +820,8 @@ github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70 h1:To76nCJtM3DI
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70/go.mod h1:88hFR45MpUd23d2vNWE/dYtesU50jKsbz0I9kH7UaBY=
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90 h1:fPNJE2kaWC0Oy2YKxk1tbnqhKl3aTeXVAfjXzphJmI8=
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90/go.mod h1:6FzirJfdffakAVqmHjwVfFkpru/gNbIazUOK5rIhndc=
-github.com/gravitational/go-libfido2 v1.5.3-0.20230728202351-0b44d4f35e28 h1:SMIYLghy2DvLsIYeyfux5mkliM8CbljqsRfDZk8vNYE=
-github.com/gravitational/go-libfido2 v1.5.3-0.20230728202351-0b44d4f35e28/go.mod h1:92J9LtSBl0UyUWljElJpTbMMNhC6VeY8dshsu40qjjo=
+github.com/gravitational/go-libfido2 v1.5.3-teleport.1 h1:nPfxiTH2Sr3J6zan280fbHOkWE7gRF/lMqvhcXKh2ek=
+github.com/gravitational/go-libfido2 v1.5.3-teleport.1/go.mod h1:92J9LtSBl0UyUWljElJpTbMMNhC6VeY8dshsu40qjjo=
 github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3 h1:3JGTacvAeV5tIC4/9XsdLC2K5K7FWaXxIwpW4t+dGH0=
 github.com/gravitational/go-mssqldb v0.11.1-0.20230331180905-0f76f1751cd3/go.mod h1:LbRWqr72fXehxAGLXO8nDNQAi4gthRz4j7f8L2LS0XM=
 github.com/gravitational/go-mysql v1.5.0-teleport.1 h1:EyFryeiTYyP6KslLVp0Q5QTKwtUG5RioVrTIoP4pOuI=
