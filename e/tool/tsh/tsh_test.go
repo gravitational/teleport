@@ -298,6 +298,11 @@ func TestNodeAccess(t *testing.T) {
 					loginOpt := loginFunc(t, proxyAddr.String(), tc.name)
 					opts := append(tc.opts, loginOpt)
 
+					opts = append(opts, func(c *tshcommon.CLIConf) error {
+						c.DisableSSHResumption = true
+						return nil
+					})
+
 					for hostType, hostName := range sshHostNameCases {
 						t.Run(hostType, func(t *testing.T) {
 							t.Run("SSH", func(t *testing.T) {

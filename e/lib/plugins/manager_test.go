@@ -26,8 +26,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type fakeAuthorizer struct{}
-type staticRefLookup map[string]map[string]string
+type (
+	fakeAuthorizer  struct{}
+	staticRefLookup map[string]map[string]string
+)
 
 func (*fakeAuthorizer) Exchange(ctx context.Context, authorizationCode string, redirectURI string) (*storage.Credentials, error) {
 	panic("unimplemented")
@@ -284,7 +286,7 @@ func TestInstanceFactory(t *testing.T) {
 	})
 	defer jamfEnv.Close()
 
-	var testCases = []struct {
+	testCases := []struct {
 		name                     string
 		pluginType               string
 		plugin                   *types.PluginV1
@@ -300,7 +302,8 @@ func TestInstanceFactory(t *testing.T) {
 				types.PluginSpecV1{
 					Settings: &types.PluginSpecV1_Okta{
 						Okta: &types.PluginOktaSettings{
-							OrgUrl: "https://test.url",
+							OrgUrl:       "https://test.url",
+							SyncSettings: &types.PluginOktaSyncSettings{},
 						},
 					},
 				},
@@ -316,7 +319,8 @@ func TestInstanceFactory(t *testing.T) {
 			),
 			readyEvent:   services.EventWithComponents(services.OktaReady, "okta", fmt.Sprintf("%d", clockwork.NewFakeClock().Now().Unix())),
 			stoppedEvent: services.EventWithComponents(services.OktaStopped, "okta", fmt.Sprintf("%d", clockwork.NewFakeClock().Now().Unix())),
-		}, {
+		},
+		{
 			name:       "oktaInstanceFactoryWithSync",
 			pluginType: types.PluginTypeOkta,
 			plugin: types.NewPluginV1(
@@ -328,6 +332,7 @@ func TestInstanceFactory(t *testing.T) {
 						Okta: &types.PluginOktaSettings{
 							OrgUrl:         "https://test.url",
 							EnableUserSync: true,
+							SyncSettings:   &types.PluginOktaSyncSettings{},
 						},
 					},
 				},

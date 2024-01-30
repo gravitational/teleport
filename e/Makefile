@@ -408,9 +408,19 @@ endif
 # test runs teleport enterprise tests
 #
 .PHONY: test
-test: test-go test-operator
+test: test-go-all test-operator
 
-test-go: SUBJECT ?= ./...
+#
+# test-go-all runs all teleport enterprise go tests
+#
+test-go-all:
+	$(MAKE) SUBJECT=./... test-go
+
+#
+# test-go runs all teleport enterprise go tests under the given
+# subject directory. Use `SUBJECT=./...` to run all tests. If the
+# subject is empty, no tests will be run.
+#
 test-go:
 ifneq ("$(SUBJECT)", "")
 	gotestsum -- $(SUBJECT) -race -shuffle on $(ADDFLAGS)
