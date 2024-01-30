@@ -128,13 +128,6 @@ func pushTriggerForBranch(branches ...string) trigger {
 	return t
 }
 
-func cronTrigger(cronJobNames []string) trigger {
-	return trigger{
-		Cron: triggerRef{Include: cronJobNames},
-		Repo: triggerRef{Include: []string{"gravitational/teleport"}},
-	}
-}
-
 func cloneRepoCommands(cloneDirectory, commit string) []string {
 	return []string{
 		fmt.Sprintf("mkdir -pv %q", cloneDirectory),
