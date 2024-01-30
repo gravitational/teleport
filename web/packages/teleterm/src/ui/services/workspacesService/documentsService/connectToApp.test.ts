@@ -21,12 +21,12 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { makeApp, makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { IAppContext } from 'teleterm/ui/types';
 
-describe('launches URL in the browser for', () => {
+describe('launching an app in the browser for', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('web app if requested', async () => {
+  it('web app (if requested)', async () => {
     jest.spyOn(window, 'open').mockImplementation();
     const appContext = new MockAppContext();
     setTestCluster(appContext);
