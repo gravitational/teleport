@@ -230,6 +230,7 @@ function AppButton(props: {
             arn,
           })
         }
+        onLaunchUrl={props.onLaunchUrl}
       />
     );
   }
@@ -238,7 +239,7 @@ function AppButton(props: {
     return (
       <ButtonBorder
         size="small"
-        onClick={props.connect}
+        onClick={props.onLaunchUrl}
         textTransform="none"
         title="Log in to the app in the browser"
         href={getSamlAppSsoUrl({
