@@ -47,6 +47,7 @@ import {
   getWebAppLaunchUrl,
   isWebApp,
   getAwsAppLaunchUrl,
+  getSamlAppSsoUrl,
 } from 'teleterm/services/tshd/app';
 
 export function ConnectServerActionButton(props: {
@@ -230,6 +231,24 @@ function AppButton(props: {
           })
         }
       />
+    );
+  }
+
+  if (props.app.samlApp) {
+    return (
+      <ButtonBorder
+        size="small"
+        onClick={props.connect}
+        textTransform="none"
+        title="Log in to app in the browser"
+        href={getSamlAppSsoUrl({
+          app: props.app,
+          rootCluster: props.rootCluster,
+        })}
+        target="_blank"
+      >
+        Login
+      </ButtonBorder>
     );
   }
 
