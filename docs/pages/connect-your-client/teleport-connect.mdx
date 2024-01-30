@@ -138,9 +138,12 @@ with that command executed.
 
 ## Connecting to an application
 
-Teleport Connect supports launching HTTP applications in the browser, as well as creating
-authenticated tunnels for HTTP and TCP applications. Access to AWS or SAML applications is currently
-not supported – please use tsh or the Web UI instead.
+Teleport Connect supports launching applications in the browser, as well as creating
+authenticated tunnels for HTTP and TCP applications.
+
+When it comes to [cloud APIs secured with Application Access](../application-access/cloud-apis.mdx),
+Teleport Connect supports launching the AWS console in the browser, but all other CLI applications
+can be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
 
 ### Launching an application in the browser
 
