@@ -41,6 +41,7 @@ export type JoinToken = {
 // - 'Node' is a role for a node in the cluster
 // - 'WindowsDesktop' is a role for a windows desktop service.
 // - 'Discovery' is a role for a discovery service.
+// - 'Bot' is a role for a Machine ID service.
 export type JoinRole =
   | 'App'
   | 'Node'
@@ -66,23 +67,6 @@ export type JoinRule = {
   awsArn?: string;
 };
 
-export type GitHubJoinRule = {
-  allow: GitHubRepoRule[];
-};
-
-export type RefType = 'branch' | 'tag';
-
-export type GitHubRepoRule = {
-  repository: string;
-  repository_owner: string;
-  sub?: string;
-  workflow?: string;
-  environment?: string;
-  actor?: string;
-  ref?: string;
-  ref_type?: RefType;
-};
-
 export type JoinTokenRequest = {
   // roles is a list of join roles, since there can be more than
   // one role associated with a token.
@@ -96,7 +80,4 @@ export type JoinTokenRequest = {
   // means adding the labels to `db_service.resources.labels`.
   suggestedAgentMatcherLabels?: ResourceLabel[];
   method?: JoinMethod;
-  botName?: string;
-  gitHub?: GitHubJoinRule;
-  enterpriseServerHost?: string;
 };

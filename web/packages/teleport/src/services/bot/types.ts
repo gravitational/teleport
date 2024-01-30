@@ -17,6 +17,7 @@
  */
 
 import { ResourceLabel } from '../agents';
+import { JoinMethod } from '../joinToken';
 
 export type CreateBotRequest = {
   botName: string;
@@ -62,4 +63,29 @@ export type FlatBot = Omit<ApiBot, 'metadata' | 'spec'> &
 
 export type BotResponse = {
   items: ApiBot[];
+};
+
+export type CreateBotJoinTokenRequest = {
+  integrationName: string;
+  joinMethod: JoinMethod;
+  gitHub?: ProvisionTokenSpecV2GitHub;
+  webFlowLabel: string;
+};
+
+export type ProvisionTokenSpecV2GitHub = {
+  allow: GitHubRepoRule[];
+  enterpriseServerHost: string;
+};
+
+export type RefType = 'branch' | 'tag';
+
+export type GitHubRepoRule = {
+  sub?: string;
+  repository: string;
+  repositoryOwner: string;
+  workflow?: string;
+  environment?: string;
+  actor?: string;
+  ref?: string;
+  refType?: RefType;
 };

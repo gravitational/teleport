@@ -19,9 +19,19 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { makeBot, makeListBot } from 'teleport/services/bot/consts';
+import {
+  makeBot,
+  makeListBot,
+  toApiGitHubTokenSpec,
+} from 'teleport/services/bot/consts';
 
-import { BotList, BotResponse, FlatBot, CreateBotRequest } from './types';
+import {
+  BotList,
+  BotResponse,
+  FlatBot,
+  CreateBotRequest,
+  CreateBotJoinTokenRequest,
+} from './types';
 
 export function fetchBots(signal: AbortSignal): Promise<BotList> {
   return api
@@ -37,13 +47,11 @@ export function fetchBots(signal: AbortSignal): Promise<BotList> {
 
 export function createBot(config: CreateBotRequest): Promise<void> {
   return api.post(cfg.getBotsUrl(cfg.proxyCluster), config);
-};
+}
 
 export async function getBot(name: string): Promise<FlatBot | null> {
   try {
-    return await api
-      .get(cfg.getBotsUrl(cfg.proxyCluster, name))
-      .then(makeBot);
+    return await api.get(cfg.getBotsUrl(cfg.proxyCluster, name)).then(makeBot);
   } catch (err) {
     // capture the not found error response and return null instead of throwing
     if (err?.response?.status === 404) {
@@ -53,6 +61,15 @@ export async function getBot(name: string): Promise<FlatBot | null> {
   }
 }
 
-export function deleteBot(name: string) {
+export function deleteBot(name: string): Promise<void> {
   return api.delete(cfg.getBotUrlWithName(cfg.proxyCluster, name));
+}
+
+export function createBotToken(req: CreateBotJoinTokenRequest) {
+  return api.post(cfg.getBotTokenUrl(cfg.proxyCluster), {
+    integrationName: req.integrationName,
+    joinMethod: req.joinMethod,
+    webFlowLabel: req.webFlowLabel,
+    gitHub: toApiGitHubTokenSpec(req.gitHub),
+  });
 }

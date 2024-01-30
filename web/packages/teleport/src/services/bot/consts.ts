@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ApiBot, FlatBot } from 'teleport/services/bot/types';
+import {
+  ApiBot,
+  FlatBot,
+  GitHubRepoRule,
+  ProvisionTokenSpecV2GitHub,
+} from 'teleport/services/bot/types';
 
 export function makeBot(json: any): FlatBot {
   json = json || {};
@@ -53,5 +58,49 @@ export function makeListBot(bot: ApiBot): FlatBot {
 
     roles: bot?.spec?.roles,
     traits: bot?.spec?.traits,
+  };
+}
+
+/**
+ *
+ * @param spec a ProvisionTokenSpecV2GitHub
+ * @returns the server's teleport/api/types.ProvisionTokenSpecV2GitHub,
+ * which has similar properties but different casing
+ */
+export function toApiGitHubTokenSpec(spec: ProvisionTokenSpecV2GitHub | null) {
+  if (!spec) {
+    return null;
+  }
+  return {
+    allow: spec.allow.map(toApiGitHubRule),
+    enterprise_server_host: spec.enterpriseServerHost,
+  };
+}
+
+/**
+ *
+ * @param param0 a GitHubRepoRule
+ * @returns the server's teleport/api/types.ProvisionTokenSpecV2GitHub_Rule,
+ * which has similar properties, but different casing
+ */
+export function toApiGitHubRule({
+  sub,
+  repository,
+  repositoryOwner,
+  workflow,
+  environment,
+  actor,
+  ref,
+  refType,
+}: GitHubRepoRule | null) {
+  return {
+    sub: sub,
+    repository: repository,
+    repository_owner: repositoryOwner,
+    workflow: workflow,
+    environment: environment,
+    actor: actor,
+    ref: ref,
+    ref_type: refType,
   };
 }

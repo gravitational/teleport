@@ -22,15 +22,21 @@ import { Option } from 'shared/components/Select';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { ResourceLabel } from 'teleport/services/agents';
-import { createBot as serviceCreateBot } from 'teleport/services/bot';
-import { CreateBotRequest } from 'teleport/services/bot/types';
+import {
+  createBot as serviceCreateBot,
+  createBotToken,
+} from 'teleport/services/bot';
+import {
+  CreateBotRequest,
+  GitHubRepoRule,
+  RefType,
+} from 'teleport/services/bot/types';
 
-import { GitHubRepoRule, RefType } from 'teleport/services/joinToken';
 import useTeleport from 'teleport/useTeleport';
 
 const GITHUB_HOST = 'github.com';
 const GITHUB_ACTIONS_LABEL_KEY = 'teleport.internal/ui-flow';
-const GITHUB_ACTIONS_LABEL_VAL = 'github-actions';
+const GITHUB_ACTIONS_LABEL_VAL = 'github-actions-ssh';
 
 type GitHubFlowContext = {
   attempt: Attempt;
@@ -57,7 +63,7 @@ export function GitHubFlowProvider({
   children,
   bot = initialBotState,
 }: React.PropsWithChildren<{ bot?: CreateBotRequest }>) {
-  const { resourceService, joinTokenService } = useTeleport();
+  const { resourceService } = useTeleport();
   const { attempt, run } = useAttempt();
   const [createBotRequest, setCreateBotRequest] =
     useState<CreateBotRequest>(bot);
@@ -97,33 +103,29 @@ export function GitHubFlowProvider({
             }
           }
 
-          // TODO add new method to bot service to use new join token endpoint
-          // instead of using joinTokenService.fetchJoinToken
-          return joinTokenService
-            .fetchJoinToken({
-              roles: ['Bot'],
-              botName: createBotRequest.botName,
-              method: 'github',
+          return createBotToken({
+            integrationName: createBotRequest.botName,
+            joinMethod: 'github',
+            webFlowLabel: GITHUB_ACTIONS_LABEL_VAL,
+            gitHub: {
               enterpriseServerHost: repoHost,
-              gitHub: {
-                allow: repoRules.map((r): GitHubRepoRule => {
-                  const { owner, repository } = parseRepoAddress(r.repoAddress);
-                  return {
-                    repository: `${owner}/${repository}`,
-                    repository_owner: owner,
-                    actor: r.actor,
-                    environment: r.environment,
-                    ref: r.ref,
-                    ref_type: r.refType.value || null,
-                    workflow: r.workflowName,
-                  };
-                }),
-              },
-            })
-            .then(token => {
-              setTokenName(token.id);
-              return serviceCreateBot(createBotRequest);
-            });
+              allow: repoRules.map((r): GitHubRepoRule => {
+                const { owner, repository } = parseRepoAddress(r.repoAddress);
+                return {
+                  repository: `${owner}/${repository}`,
+                  repositoryOwner: owner,
+                  actor: r.actor,
+                  environment: r.environment,
+                  ref: r.ref,
+                  refType: r.refType.value || null,
+                  workflow: r.workflowName,
+                };
+              }),
+            },
+          }).then(token => {
+            setTokenName(token.id);
+            return serviceCreateBot(createBotRequest);
+          });
         })
     );
   }
