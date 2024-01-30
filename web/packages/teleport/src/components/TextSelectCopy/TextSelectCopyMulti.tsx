@@ -22,6 +22,7 @@ import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 import { ButtonSecondary, Box, Flex } from 'design';
 import { Copy, Check, Download } from 'design/Icon';
+import { downloadContentAsFile } from 'shared/utils/downloadContentAsFile';
 
 const ONE_SECOND_IN_MS = 1000;
 
@@ -47,16 +48,6 @@ export function TextSelectCopyMulti({
     const targetEl =
       refs.current[index].getElementsByClassName('text-to-copy')[0];
     selectElementContent(targetEl as HTMLElement);
-  }
-
-  function saveContentAsFile(content: string): void {
-    const a = document.createElement('a');
-    const blob = new Blob([content], { type: 'plain/text' });
-    a.href = window.URL.createObjectURL(blob);
-    a.download = saveContent.filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   }
 
   const isFirefox = window.navigator?.userAgent
@@ -135,7 +126,13 @@ export function TextSelectCopyMulti({
                   {saveContent.save && (
                     <StyledButtonSecondary
                       ml={2}
-                      onClick={() => saveContentAsFile(line.text)}
+                      onClick={() =>
+                        downloadContentAsFile(
+                          line.text,
+                          saveContent.filename,
+                          'plain/text'
+                        )
+                      }
                     >
                       <Download
                         data-testid="btn-download"
