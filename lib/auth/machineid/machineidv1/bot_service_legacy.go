@@ -40,10 +40,13 @@ import (
 // Deprecated: Switch to [BotService.ListBots].
 func (bs *BotService) GetBotUsersLegacy(ctx context.Context) ([]types.User, error) {
 	bs.logger.Warn("Deprecated GetBotUsers RPC called. Upgrade your client. From V16.0.0, this will fail!")
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindUser, types.VerbList, types.VerbRead,
-	)
+
+	authCtx, err := authz.Authorize(ctx, bs.authorizer, bs.logger)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(ctx, false, types.KindUser, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
