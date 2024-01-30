@@ -7366,84 +7366,6 @@ func withParticipantMode(m types.SessionParticipantMode) terminalOpt {
 	return func(t *TerminalRequest) { t.ParticipantMode = m }
 }
 
-func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOpt) (*websocket.Conn, *session.Session, error) {
-	req := TerminalRequest{
-		Server: s.srvID,
-		Login:  pack.login,
-		Term: session.TerminalParams{
-			W: 100,
-			H: 100,
-		},
-	}
-	for _, opt := range opts {
-		opt(&req)
-	}
-
-	u := url.URL{
-		Host:   s.url().Host,
-		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", currentSiteShortcut),
-	}
-	data, err := json.Marshal(req)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	q := u.Query()
-	q.Set("params", string(data))
-	u.RawQuery = q.Encode()
-
-	dialer := websocket.Dialer{}
-	dialer.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
-
-	header := http.Header{}
-	header.Add("Origin", "http://localhost")
-	for _, cookie := range pack.cookies {
-		header.Add("Cookie", cookie.String())
-	}
-
-	ws, resp, err := dialer.Dial(u.String(), header)
-	if err != nil {
-		var sb strings.Builder
-		sb.WriteString("websocket dial")
-		if resp != nil {
-			fmt.Fprintf(&sb, "; status code %v;", resp.StatusCode)
-			fmt.Fprintf(&sb, "headers: %v; body: ", resp.Header)
-			io.Copy(&sb, resp.Body)
-		}
-		return nil, nil, trace.Wrap(err, sb.String())
-	}
-	makeAuthReqOverWS(t, ws, pack.session.Token)
-
-	ty, raw, err := ws.ReadMessage()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	require.Equal(t, websocket.BinaryMessage, ty)
-	var env Envelope
-
-	err = proto.Unmarshal(raw, &env)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	var sessResp siteSessionGenerateResponse
-
-	err = json.Unmarshal([]byte(env.Payload), &sessResp)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	err = resp.Body.Close()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return ws, &sessResp.Session, nil
-}
-
 func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration) error {
 	timeoutCh := time.After(timeout)
 
@@ -8213,78 +8135,25 @@ func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *Test
 	return &TestWebClient{clt, t}
 }
 
-func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session.ID) (*websocket.Conn, session.Session) {
-	u := url.URL{
-		Host:   r.webURL.Host,
-		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", currentSiteShortcut),
-	}
-
-	requestData := TerminalRequest{
-		Server: r.node.ID(),
-		Login:  pack.login,
-		Term: session.TerminalParams{
-			W: 100,
-			H: 100,
-		},
-	}
-
-	if sessionID != "" {
-		requestData.SessionID = sessionID
-	}
-
-	data, err := json.Marshal(requestData)
-	require.NoError(t, err)
-
-	q := u.Query()
-	q.Set("params", string(data))
-	u.RawQuery = q.Encode()
-
-	dialer := websocket.Dialer{}
-	dialer.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
-
-	header := http.Header{}
-	header.Add("Origin", "http://localhost")
-	for _, cookie := range pack.cookies {
-		header.Add("Cookie", cookie.String())
-	}
-
-	ws, resp, err := dialer.Dial(u.String(), header)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, ws.Close())
-		require.NoError(t, resp.Body.Close())
-	})
-
-	makeAuthReqOverWS(t, ws, pack.session.Token)
-
-	ty, raw, err := ws.ReadMessage()
-	require.NoError(t, err)
-	require.Equal(t, websocket.BinaryMessage, ty)
-	var env Envelope
-	require.NoError(t, proto.Unmarshal(raw, &env))
-
-	var sessResp siteSessionGenerateResponse
-	require.NoError(t, json.Unmarshal([]byte(env.Payload), &sessResp))
-
-	return ws, sessResp.Session
-}
-
-func makeAuthReqOverWS(t *testing.T, ws *websocket.Conn, token string) {
-	t.Helper()
+func makeAuthReqOverWS(ws *websocket.Conn, token string) error {
 	authReq, err := json.Marshal(struct {
 		Token string `json:"token"`
 	}{Token: token})
-	require.NoError(t, err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	err = ws.WriteMessage(websocket.TextMessage, authReq)
-	require.NoError(t, err)
-
+	if err := ws.WriteMessage(websocket.TextMessage, authReq); err != nil {
+		return trace.Wrap(err)
+	}
 	_, authRes, err := ws.ReadMessage()
-	require.NoError(t, err)
-	require.Contains(t, string(authRes), `"status":"ok"`)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !strings.Contains(string(authRes), `"status":"ok"`) {
+		return trace.AccessDenied("unexpected response")
+	}
+	return nil
 }
 
 func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
@@ -8313,7 +8182,8 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID s
 	ws, resp, err := dialer.Dial(u.String(), header)
 	require.NoError(t, err)
 
-	makeAuthReqOverWS(t, ws, pack.session.Token)
+	err = makeAuthReqOverWS(ws, pack.session.Token)
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		require.NoError(t, ws.Close())
