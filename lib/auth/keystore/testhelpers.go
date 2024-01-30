@@ -27,8 +27,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/cloud"
 )
 
 func HSMTestConfig(t *testing.T) Config {
