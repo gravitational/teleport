@@ -102,6 +102,7 @@ func MapRoles(r types.RoleMap, remoteRoles []string) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	seen := make(map[string]struct{})
 	var outRoles []string
 	// when no remote roles are specified, assume that
 	// there is a single empty remote role (that should match wildcards)
@@ -122,9 +123,14 @@ func MapRoles(r types.RoleMap, remoteRoles []string) ([]string, error) {
 				case err == nil:
 					// empty replacement can occur when $2 expand refers
 					// to non-existing capture group in match expression
-					if replacement != "" {
-						outRoles = append(outRoles, replacement)
+					if replacement == "" {
+						continue
 					}
+					if _, ok := seen[replacement]; ok {
+						continue
+					}
+					seen[replacement] = struct{}{}
+					outRoles = append(outRoles, replacement)
 				case trace.IsNotFound(err):
 					continue
 				default:
