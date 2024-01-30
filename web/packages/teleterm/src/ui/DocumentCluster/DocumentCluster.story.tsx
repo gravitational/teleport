@@ -243,6 +243,17 @@ export const OnlineLoadedResources = () => {
               ],
             },
           },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'SAML app',
+              desc: 'SAML Application',
+              publicAddr: '',
+              endpointUri: '',
+              samlApp: true,
+            },
+          },
         ],
         totalCount: 4,
         nextKey: '',
