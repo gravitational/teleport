@@ -19,10 +19,7 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"log"
-	"os/exec"
 	"strings"
 )
 
@@ -108,25 +105,6 @@ var (
 		Path: "/root/.docker",
 	}
 )
-
-var buildboxVersion value
-
-func init() {
-	v, err := exec.Command("make", "-s", "-C", "build.assets", "print-buildbox-version").Output()
-	if err != nil {
-		log.Fatalf("could not get buildbox version: %v", err)
-	}
-	buildboxVersion = value{raw: string(bytes.TrimSpace(v))}
-}
-
-func pushTriggerForBranch(branches ...string) trigger {
-	t := trigger{
-		Event: triggerRef{Include: []string{"push"}},
-		Repo:  triggerRef{Include: []string{"gravitational/teleport"}},
-	}
-	t.Branch.Include = append(t.Branch.Include, branches...)
-	return t
-}
 
 func cloneRepoCommands(cloneDirectory, commit string) []string {
 	return []string{
