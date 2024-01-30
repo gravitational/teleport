@@ -136,8 +136,6 @@ service TerminalService {
   rpc CreateConnectMyComputerRole(CreateConnectMyComputerRoleRequest) returns (CreateConnectMyComputerRoleResponse);
   // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
   rpc CreateConnectMyComputerNodeToken(CreateConnectMyComputerNodeTokenRequest) returns (CreateConnectMyComputerNodeTokenResponse);
-  // DeleteConnectMyComputerToken deletes a join token
-  rpc DeleteConnectMyComputerToken(DeleteConnectMyComputerTokenRequest) returns (DeleteConnectMyComputerTokenResponse);
   // WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
   // that the Connect My Computer node for the particular cluster has joined the cluster (the
   // OpPut event).
@@ -503,12 +501,6 @@ message CreateConnectMyComputerNodeTokenResponse {
   reserved 2;
   reserved "labels";
 }
-
-message DeleteConnectMyComputerTokenRequest {
-  string root_cluster_uri = 1;
-  string token = 2;
-}
-message DeleteConnectMyComputerTokenResponse {}
 
 message WaitForConnectMyComputerNodeJoinRequest {
   string root_cluster_uri = 1;

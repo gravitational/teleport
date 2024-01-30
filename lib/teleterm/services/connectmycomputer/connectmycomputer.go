@@ -310,12 +310,6 @@ func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Prov
 	return tokenName, nil
 }
 
-// DeleteToken deletes a join token
-func (t *TokenProvisioner) DeleteToken(ctx context.Context, provisioner Provisioner, token string) error {
-	err := provisioner.DeleteToken(ctx, token)
-	return trace.Wrap(err)
-}
-
 type TokenProvisionerConfig struct {
 	Clock clockwork.Clock
 }
@@ -331,8 +325,6 @@ func (c *TokenProvisionerConfig) checkAndSetDefaults() {
 type Provisioner interface {
 	// See services.Provisioner.CreateToken.
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
-	// See services.Provisioner.DeleteToken.
-	DeleteToken(ctx context.Context, token string) error
 }
 
 type NodeJoinWait struct {

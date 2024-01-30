@@ -35,15 +35,17 @@ export class ConnectMyComputerService {
     await this.mainProcessClient.downloadAgent();
   }
 
+  async verifyAgent(): Promise<void> {
+    await this.mainProcessClient.verifyAgent();
+  }
+
   createRole(
     rootClusterUri: uri.RootClusterUri
   ): Promise<CreateConnectMyComputerRoleResponse> {
     return this.tshClient.createConnectMyComputerRole(rootClusterUri);
   }
 
-  async createAgentConfigFile(rootCluster: Cluster): Promise<{
-    token: string;
-  }> {
+  async createAgentConfigFile(rootCluster: Cluster): Promise<void> {
     const { token } = await this.tshClient.createConnectMyComputerNodeToken(
       rootCluster.uri
     );
@@ -54,8 +56,6 @@ export class ConnectMyComputerService {
       token: token,
       username: rootCluster.loggedInUser.name,
     });
-
-    return { token };
   }
 
   runAgent(rootClusterUri: uri.RootClusterUri): Promise<void> {
@@ -72,13 +72,6 @@ export class ConnectMyComputerService {
     rootClusterUri: uri.RootClusterUri
   ): Promise<boolean> {
     return this.mainProcessClient.isAgentConfigFileCreated({ rootClusterUri });
-  }
-
-  deleteToken(
-    rootClusterUri: uri.RootClusterUri,
-    token: string
-  ): Promise<void> {
-    return this.tshClient.deleteConnectMyComputerToken(rootClusterUri, token);
   }
 
   removeConnectMyComputerNode(
