@@ -106,6 +106,37 @@ export interface App {
      * @generated from protobuf field: string fqdn = 10;
      */
     fqdn: string;
+    /**
+     * aws_roles is a list of AWS IAM roles for the application representing AWS console.
+     *
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.AWSRole aws_roles = 11;
+     */
+    awsRoles: AWSRole[];
+}
+/**
+ * AwsRole describes AWS IAM role.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.AWSRole
+ */
+export interface AWSRole {
+    /**
+     * Name is the full role name with the entire path.
+     *
+     * @generated from protobuf field: string name = 1;
+     */
+    name: string;
+    /**
+     * Display is the role display name.
+     *
+     * @generated from protobuf field: string display = 2;
+     */
+    display: string;
+    /**
+     * ARN is the full role ARN.
+     *
+     * @generated from protobuf field: string arn = 3;
+     */
+    arn: string;
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class App$Type extends MessageType<App> {
@@ -120,7 +151,8 @@ class App$Type extends MessageType<App> {
             { no: 7, name: "friendly_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 8, name: "saml_app", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 9, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
-            { no: 10, name: "fqdn", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 10, name: "fqdn", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 11, name: "aws_roles", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AWSRole }
         ]);
     }
     create(value?: PartialMessage<App>): App {
@@ -135,6 +167,7 @@ class App$Type extends MessageType<App> {
         message.samlApp = false;
         message.labels = [];
         message.fqdn = "";
+        message.awsRoles = [];
         if (value !== undefined)
             reflectionMergePartial<App>(this, message, value);
         return message;
@@ -173,6 +206,9 @@ class App$Type extends MessageType<App> {
                     break;
                 case /* string fqdn */ 10:
                     message.fqdn = reader.string();
+                    break;
+                case /* repeated teleport.lib.teleterm.v1.AWSRole aws_roles */ 11:
+                    message.awsRoles.push(AWSRole.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -216,6 +252,9 @@ class App$Type extends MessageType<App> {
         /* string fqdn = 10; */
         if (message.fqdn !== "")
             writer.tag(10, WireType.LengthDelimited).string(message.fqdn);
+        /* repeated teleport.lib.teleterm.v1.AWSRole aws_roles = 11; */
+        for (let i = 0; i < message.awsRoles.length; i++)
+            AWSRole.internalBinaryWrite(message.awsRoles[i], writer.tag(11, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -226,3 +265,66 @@ class App$Type extends MessageType<App> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.App
  */
 export const App = new App$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AWSRole$Type extends MessageType<AWSRole> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.AWSRole", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "display", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "arn", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AWSRole>): AWSRole {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        message.display = "";
+        message.arn = "";
+        if (value !== undefined)
+            reflectionMergePartial<AWSRole>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AWSRole): AWSRole {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* string display */ 2:
+                    message.display = reader.string();
+                    break;
+                case /* string arn */ 3:
+                    message.arn = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AWSRole, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* string display = 2; */
+        if (message.display !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.display);
+        /* string arn = 3; */
+        if (message.arn !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.arn);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AWSRole
+ */
+export const AWSRole = new AWSRole$Type();

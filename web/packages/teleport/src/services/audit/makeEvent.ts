@@ -777,20 +777,18 @@ export const formatters: Formatters = {
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: {
     type: 'mfa_auth_challenge.create',
     desc: 'MFA Authentication Attempt',
-    format: ({ updated_by }) =>
-      `User [${updated_by}] requested an MFA authentication challenge`,
+    format: ({ user }) =>
+      `User [${user}] requested an MFA authentication challenge`,
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: {
     type: 'mfa_auth_challenge.validate',
     desc: 'MFA Authentication Success',
-    format: ({ updated_by }) =>
-      `User [${updated_by}] completed MFA authentication`,
+    format: ({ user }) => `User [${user}] completed MFA authentication`,
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: {
     type: 'mfa_auth_challenge.validate',
     desc: 'MFA Authentication Failure',
-    format: ({ updated_by }) =>
-      `User [${updated_by}] failed MFA authentication`,
+    format: ({ user }) => `User [${user}] failed MFA authentication`,
   },
   [eventCodes.ROLE_CREATED]: {
     type: 'role.created',
@@ -1552,6 +1550,16 @@ export const formatters: Formatters = {
     desc: 'Okta assignment failed to clean up',
     format: ({ name, source, user }) =>
       `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
+  },
+  [eventCodes.OKTA_ACCESS_LIST_SYNC]: {
+    type: 'okta.access_list.sync',
+    desc: 'Okta access list synchronization completed',
+    format: () => `Okta access list synchronization successfully completed`,
+  },
+  [eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE]: {
+    type: 'okta.access_list.sync',
+    desc: 'Okta access list synchronization failed',
+    format: () => `Okta access list synchronization failed`,
   },
   [eventCodes.ACCESS_LIST_CREATE]: {
     type: 'access_list.create',

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Link } from 'react-router-dom';
 import { Flex, Image, Text, TopNav } from 'design';
@@ -35,6 +35,7 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
+import { TeleportFeature } from 'teleport/types';
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
@@ -42,6 +43,27 @@ import { Notifications } from './Notifications';
 import { ButtonIconContainer } from './Shared';
 import logoLight from './logoLight.svg';
 import logoDark from './logoDark.svg';
+
+import type * as history from 'history';
+
+function getCategoryForRoute(
+  features: TeleportFeature[],
+  route: history.Location<unknown> | Location
+) {
+  const feature = features
+    .filter(feature => Boolean(feature.route))
+    .find(feature =>
+      matchPath(route.pathname, {
+        path: feature.route.path,
+      })
+    );
+
+  if (!feature) {
+    return;
+  }
+
+  return feature.category;
+}
 
 export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
   const ctx = useTeleport();
@@ -54,6 +76,22 @@ export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
   );
   const { hasDockedElement, currentWidth } = useLayout();
   const theme: Theme = useTheme();
+
+  const [previousManagementRoute, setPreviousManagementRoute] = useState('');
+
+  const handleLocationChange = useCallback(
+    (next: history.Location<unknown> | Location) => {
+      const category = getCategoryForRoute(features, next);
+      if (category && category === NavigationCategory.Management) {
+        setPreviousManagementRoute(next.pathname);
+      }
+    },
+    [features]
+  );
+
+  useEffect(() => {
+    return history.listen(handleLocationChange);
+  }, [history, handleLocationChange]);
 
   // find active feature
   const feature = features
@@ -120,19 +158,24 @@ export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
             )}
             <MainNavItem
               name="Access Management"
-              to={getFirstRouteForCategory(
-                features,
-                NavigationCategory.Management
-              )}
+              to={
+                previousManagementRoute ||
+                getFirstRouteForCategory(
+                  features,
+                  NavigationCategory.Management
+                )
+              }
               size={iconSize}
               isSelected={managementTabSelected}
               Icon={SlidersVertical}
             />
 
             {topBarLinks.map(({ topMenuItem, navigationItem }) => {
-              const selected = history.location.pathname.includes(
-                navigationItem.getLink(clusterId)
-              );
+              const link = navigationItem.getLink(clusterId);
+              const currentPath = history.location.pathname;
+              const selected =
+                navigationItem.isSelected?.(clusterId, currentPath) ||
+                history.location.pathname.includes(link);
               return (
                 <NavigationButton
                   key={topMenuItem.title}
@@ -183,7 +226,7 @@ export const TopBarContainer = styled(TopNav)`
   overflow-x: none;
   flex-shrink: 0;
   z-index: 10;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[0]};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[1]};
 
   height: ${p => p.theme.topBarHeight[0]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
@@ -192,9 +235,6 @@ export const TopBarContainer = styled(TopNav)`
   @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
     height: ${p => p.theme.topBarHeight[2]}px;
   }
-
-  box-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.12),
-    0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 2px 1px -1px rgba(0, 0, 0, 0.2);
 `;
 
 const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
