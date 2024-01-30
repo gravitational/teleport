@@ -1366,6 +1366,15 @@ func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err err
 	return trace.AccessDenied("access denied")
 }
 
+// Authorize authorizes user based on identity supplied via context.
+func Authorize(ctx context.Context, authorizer Authorizer, log logrus.FieldLogger) (*Context, error) {
+	authCtx, err := authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, ConvertAuthorizerError(ctx, log, err)
+	}
+	return authCtx, nil
+}
+
 // TODO(Joerger): replace with Authorize and authCtx.CheckAccessToResource
 // AuthorizeResourceWithVerbs will ensure that the user has access to the given verbs for the given kind.
 func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, resource types.Resource, verbs ...string) (*Context, error) {
