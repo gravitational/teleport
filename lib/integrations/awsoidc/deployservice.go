@@ -43,8 +43,8 @@ var (
 	// requiredCapacityProviders contains the FARGATE type which is required to deploy a Teleport Service.
 	requiredCapacityProviders = []string{launchTypeFargateString}
 
-	// oneAgent is used to define the desired agent count when creating a service.
-	oneAgent = int32(1)
+	// twoAgents is used to define the desired agent count when creating a service.
+	twoAgents = int32(2)
 )
 
 const (
@@ -722,7 +722,7 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req upsertServi
 
 			updateServiceResp, err := clt.UpdateService(ctx, &ecs.UpdateServiceInput{
 				Service:              aws.String(req.ServiceName),
-				DesiredCount:         &oneAgent,
+				DesiredCount:         &twoAgents,
 				TaskDefinition:       &taskARN,
 				Cluster:              aws.String(req.ClusterName),
 				NetworkConfiguration: deployServiceNetworkConfiguration(req.SubnetIDs, req.SecurityGroups),
@@ -739,7 +739,7 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req upsertServi
 
 	createServiceOut, err := clt.CreateService(ctx, &ecs.CreateServiceInput{
 		ServiceName:          aws.String(req.ServiceName),
-		DesiredCount:         &oneAgent,
+		DesiredCount:         &twoAgents,
 		LaunchType:           ecsTypes.LaunchTypeFargate,
 		TaskDefinition:       &taskARN,
 		Cluster:              aws.String(req.ClusterName),
