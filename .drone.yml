@@ -6001,7 +6001,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v12-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport14
     --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v12-amd64-builder"
@@ -8413,7 +8413,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport14
     --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
@@ -10825,7 +10825,7 @@ steps:
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
     --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
-    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport14
     --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-amd64-builder"
@@ -11510,6 +11510,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: c0687ea66a392376b63e5bf32b313b16a6493dbc2d2ed6041960f3f12b83b55e
+hmac: db91b85ef8e0f3886d8a4b1e013df914ce47685b55ac5ccdb830006a9d750dbe
 
 ...
