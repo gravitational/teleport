@@ -45,12 +45,16 @@ videoBanner: UFhT52d5bYg
 Redshift supports two methods of IAM authentication, both of which Teleport
 also supports.
 
-The first method involves accessing Redshift as an existing database user. If
-you are using this traditional IAM authentication, you can skip this step.
+First is IAM authentication as an database user. In this method, the Teleport
+Database Service generates the temporary IAM authentication token for a
+database user that already exists in the Redshift database. If you choose to
+use this method, you can skip this step as no additional IAM roles are
+required.
 
-The second method is to authenticate as an IAM role. In this case, Redshift
-maps the IAM role to a database username and creates this user if it doesn't
-already exist in the database.
+The second method is to authenticate as an IAM role. In this case, the Teleport
+Database Service assumes this IAM role to authenticate with Redshift. Redshift
+then maps the IAM role to a database username and creates this database user if
+it doesn't already exist in the database.
 
 Now create the AWS IAM role to provide user access to the Redshfit database. Go
 to the IAM -> Access Management ->
