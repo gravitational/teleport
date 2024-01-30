@@ -22,10 +22,9 @@ import { ButtonBorder, Text } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { ChevronDown } from 'design/Icon';
 
-import cfg from 'teleport/config';
-import { AwsRole } from 'teleport/services/apps';
+import { AwsRole } from 'shared/services/apps';
 
-export default class AwsLaunchButton extends React.Component<Props> {
+export class AwsLaunchButton extends React.Component<Props> {
   anchorEl = React.createRef();
 
   state = {
@@ -43,7 +42,7 @@ export default class AwsLaunchButton extends React.Component<Props> {
 
   render() {
     const { open } = this.state;
-    const { awsRoles, fqdn, clusterId, publicAddr } = this.props;
+    const { awsRoles, getLaunchUrl, onLaunchUrl } = this.props;
     return (
       <>
         <ButtonBorder
@@ -54,7 +53,7 @@ export default class AwsLaunchButton extends React.Component<Props> {
           onClick={this.onOpen}
         >
           Launch
-          <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
+          <ChevronDown ml={1} mr={-2} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           menuListCss={() => ({
@@ -76,9 +75,8 @@ export default class AwsLaunchButton extends React.Component<Props> {
         >
           <RoleItemList
             awsRoles={awsRoles}
-            fqdn={fqdn}
-            clusterId={clusterId}
-            publicAddr={publicAddr}
+            getLaunchUrl={getLaunchUrl}
+            onLaunchUrl={onLaunchUrl}
             closeMenu={this.onClose}
           />
         </Menu>
@@ -89,19 +87,13 @@ export default class AwsLaunchButton extends React.Component<Props> {
 
 function RoleItemList({
   awsRoles,
-  fqdn,
-  clusterId,
-  publicAddr,
+  getLaunchUrl,
   closeMenu,
+  onLaunchUrl,
 }: Props & { closeMenu: () => void }) {
   const awsRoleItems = awsRoles.map((item, key) => {
     const { display, arn } = item;
-    const launchUrl = cfg.getAppLauncherRoute({
-      fqdn,
-      clusterId,
-      publicAddr,
-      arn,
-    });
+    const launchUrl = getLaunchUrl(arn);
     return (
       <StyledMenuItem
         as="a"
@@ -111,7 +103,10 @@ function RoleItemList({
         href={launchUrl}
         target="_blank"
         title={display}
-        onClick={closeMenu}
+        onClick={() => {
+          closeMenu();
+          onLaunchUrl?.(item.arn);
+        }}
       >
         <Text style={{ maxWidth: '25ch' }}>{display}</Text>
       </StyledMenuItem>
@@ -144,14 +139,12 @@ function RoleItemList({
 
 type Props = {
   awsRoles: AwsRole[];
-  fqdn: string;
-  clusterId: string;
-  publicAddr: string;
+  getLaunchUrl(arn: string): string;
+  onLaunchUrl?(arn: string): void;
 };
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.text.slightlyMuted};
   font-size: 12px;
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;

@@ -42,7 +42,7 @@ import {
   TypeToSearchItem,
   AdvancedSearchEnabledItem,
 } from './ActionPicker';
-import { SuggestionsError } from './ParameterPicker';
+import { SuggestionsError, NoSuggestionsAvailable } from './ParameterPicker';
 import { ResultList } from './ResultList';
 
 import type * as uri from 'teleterm/ui/uri';
@@ -163,6 +163,41 @@ const SearchResultItems = () => {
           service: 'ansible',
           external: '32.192.113.93',
           arch: 'aarch64',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'app',
+      resource: makeApp({
+        uri: `${clusterUri}/apps/web-app`,
+        name: 'web-app',
+        endpointUri: 'http://localhost:3000',
+        addrWithProtocol: 'http://local-app.example.com:3000',
+        desc: '',
+        labels: makeLabelsList({
+          access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'app',
+      resource: makeApp({
+        uri: `${clusterUri}/apps/saml-app`,
+        name: 'saml-app',
+        endpointUri: '',
+        addrWithProtocol: '',
+        samlApp: true,
+        desc: 'SAML Application',
+        labels: makeLabelsList({
+          access: 'cloudwatch-metrics,ec2,s3,cloudtrail',
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
         }),
       }),
     }),
@@ -527,6 +562,7 @@ const AuxiliaryItems = () => {
               '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
             }
           />
+          <NoSuggestionsAvailable message="No roles found." />
           <TypeToSearchItem
             hasNoRemainingFilterActions={false}
             advancedSearch={advancedSearch}
