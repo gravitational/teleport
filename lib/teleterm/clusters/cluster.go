@@ -286,6 +286,11 @@ func (c *Cluster) GetProxyHostname() string {
 	return c.status.ProxyURL.Hostname()
 }
 
+// GetAWSRolesARNs returns a list of allowed AWS role ARNs user can assume.
+func (c *Cluster) GetAWSRolesARNs() []string {
+	return c.status.AWSRolesARNs
+}
+
 // LoggedInUser is the currently logged-in user
 type LoggedInUser struct {
 	// Name is the user name

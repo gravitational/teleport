@@ -27,91 +27,52 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func TestCheckOrSetKubeCluster(t *testing.T) {
+func TestCheckKubeCluster(t *testing.T) {
 	t.Parallel()
-	ctx := context.TODO()
+	ctx := context.Background()
+
+	kubeServers := []types.KubeServer{
+		kubeServer(t, "k8s-1", "server1", "uuuid"),
+		kubeServer(t, "k8s-2", "server1", "uuuid"),
+		kubeServer(t, "k8s-3", "server1", "uuuid"),
+		kubeServer(t, "k8s-4", "server1", "uuuid"),
+	}
 
 	tests := []struct {
 		desc        string
 		services    []types.KubeServer
 		kubeCluster string
-		teleCluster string
-		want        string
 		assertErr   require.ErrorAssertionFunc
 	}{
 		{
-			desc: "valid cluster name",
-			services: []types.KubeServer{
-				kubeServer(t, "k8s-1", "server1", "uuuid"),
-				kubeServer(t, "k8s-2", "server1", "uuuid"),
-				kubeServer(t, "k8s-3", "server2", "uuuid2"),
-				kubeServer(t, "k8s-4", "server2", "uuuid2"),
-			},
+			desc:        "valid cluster name",
+			services:    kubeServers,
 			kubeCluster: "k8s-4",
-			teleCluster: "zzz-tele-cluster",
-			want:        "k8s-4",
 			assertErr:   require.NoError,
 		},
 		{
-			desc: "invalid cluster name",
-			services: []types.KubeServer{
-				kubeServer(t, "k8s-1", "server1", "uuuid"),
-				kubeServer(t, "k8s-2", "server1", "uuuid"),
-				kubeServer(t, "k8s-3", "server2", "uuuid2"),
-				kubeServer(t, "k8s-4", "server2", "uuuid2"),
-			},
+			desc:        "invalid cluster name",
+			services:    kubeServers,
 			kubeCluster: "k8s-5",
-			teleCluster: "zzz-tele-cluster",
 			assertErr:   require.Error,
 		},
 		{
 			desc:        "no registered clusters",
 			services:    []types.KubeServer{},
 			kubeCluster: "k8s-1",
-			teleCluster: "zzz-tele-cluster",
 			assertErr:   require.Error,
 		},
 		{
-			desc:        "no registered clusters and empty cluster provided",
-			services:    []types.KubeServer{},
+			desc:        "empty cluster provided",
+			services:    kubeServers,
 			kubeCluster: "",
-			teleCluster: "zzz-tele-cluster",
 			assertErr:   require.Error,
-		},
-		{
-			desc: "no cluster provided, default to first alphabetically",
-			services: []types.KubeServer{
-				kubeServer(t, "k8s-1", "server1", "uuuid"),
-				kubeServer(t, "k8s-2", "server1", "uuuid"),
-				kubeServer(t, "k8s-3", "server2", "uuuid2"),
-				kubeServer(t, "k8s-4", "server2", "uuuid2"),
-			},
-			kubeCluster: "",
-			teleCluster: "zzz-tele-cluster",
-			want:        "k8s-1",
-			assertErr:   require.NoError,
-		},
-		{
-			desc: "no cluster provided, default to teleport cluster name",
-			services: []types.KubeServer{
-				kubeServer(t, "k8s-1", "server1", "uuuid"),
-				kubeServer(t, "k8s-2", "server1", "uuuid"),
-				kubeServer(t, "k8s-3", "server2", "uuuid2"),
-
-				kubeServer(t, "zzz-tele-cluster", "server2", "uuuid2"),
-				kubeServer(t, "k8s-4", "server2", "uuuid2"),
-			},
-			kubeCluster: "",
-			teleCluster: "zzz-tele-cluster",
-			want:        "zzz-tele-cluster",
-			assertErr:   require.NoError,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			got, err := CheckOrSetKubeCluster(ctx, mockKubeServicesPresence(tt.services), tt.kubeCluster, tt.teleCluster)
+			err := CheckKubeCluster(ctx, mockKubeServicesPresence(tt.services), tt.kubeCluster)
 			tt.assertErr(t, err)
-			require.Equal(t, tt.want, got)
 		})
 	}
 }
