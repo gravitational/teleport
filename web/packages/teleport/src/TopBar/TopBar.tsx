@@ -171,9 +171,11 @@ export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
             />
 
             {topBarLinks.map(({ topMenuItem, navigationItem }) => {
-              const selected = history.location.pathname.includes(
-                navigationItem.getLink(clusterId)
-              );
+              const link = navigationItem.getLink(clusterId);
+              const currentPath = history.location.pathname;
+              const selected =
+                navigationItem.isSelected?.(clusterId, currentPath) ||
+                history.location.pathname.includes(link);
               return (
                 <NavigationButton
                   key={topMenuItem.title}
@@ -224,7 +226,7 @@ export const TopBarContainer = styled(TopNav)`
   overflow-x: none;
   flex-shrink: 0;
   z-index: 10;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[0]};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[1]};
 
   height: ${p => p.theme.topBarHeight[0]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
@@ -233,9 +235,6 @@ export const TopBarContainer = styled(TopNav)`
   @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
     height: ${p => p.theme.topBarHeight[2]}px;
   }
-
-  box-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.12),
-    0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 2px 1px -1px rgba(0, 0, 0, 0.2);
 `;
 
 const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
