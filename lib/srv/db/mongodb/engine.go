@@ -221,12 +221,10 @@ func (e *Engine) processHandshakeResponse(ctx context.Context, respMessage proto
 // authorizeConnection does authorization check for MongoDB connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Session) error {
-	if sessionCtx.AutoCreateUserMode.IsEnabled() {
-		if sessionCtx.DatabaseUser != sessionCtx.Identity.Username {
-			return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
-				sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
-		}
+	if err := sessionCtx.CheckUsernameForAutoUserProvisioning(); err != nil {
+		return trace.Wrap(err)
 	}
+
 	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)

@@ -272,6 +272,8 @@ const (
 	// Note: some requests (like exec into a pod) use other codes (like
 	// ExecCode).
 	KubeRequestCode = "T3009I"
+	// SCPDisallowedCode is the SCP disallowed event code.
+	SCPDisallowedCode = "T3010E"
 
 	// KubernetesClusterCreateCode is the kube.create event code.
 	KubernetesClusterCreateCode = "T3010I"
@@ -319,6 +321,7 @@ const (
 	SFTPSymlinkFailureCode  = "TS018E"
 	SFTPLinkCode            = "TS019I"
 	SFTPLinkFailureCode     = "TS019E"
+	SFTPDisallowedCode      = "TS020E"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"

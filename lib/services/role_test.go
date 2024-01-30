@@ -7694,6 +7694,23 @@ func (u mockCurrentUser) GetName() string {
 	return "mockCurrentUser"
 }
 
+func (u mockCurrentUser) toRemoteUserFromCluster(localClusterName string) types.User {
+	return mockRemoteUser{
+		mockCurrentUser:  u,
+		localClusterName: localClusterName,
+	}
+}
+
+type mockRemoteUser struct {
+	mockCurrentUser
+	localClusterName string
+}
+
+// GetName returns the username from the remote cluster's view.
+func (u mockRemoteUser) GetName() string {
+	return UsernameForRemoteCluster(u.mockCurrentUser.GetName(), u.localClusterName)
+}
+
 func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 	user := mockCurrentUser{
 		roles: []string{"dev", "admin"},
@@ -7715,12 +7732,12 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 			"dev":   devRole,
 			"admin": adminRole,
 		},
-		currentUser: user,
+		currentUser: user.toRemoteUserFromCluster("localCluster"),
 	}
 
-	accessInfo := AccessInfoFromUserState(user)
-	require.Equal(t, "mockCurrentUser", accessInfo.Username)
-	accessChecker, err := NewAccessCheckerForRemoteCluster(context.Background(), accessInfo, "clustername", currentUserRoleGetter)
+	localAccessInfo := AccessInfoFromUserState(user)
+	require.Equal(t, "mockCurrentUser", localAccessInfo.Username)
+	accessChecker, err := NewAccessCheckerForRemoteCluster(context.Background(), localAccessInfo, "remoteCluster", currentUserRoleGetter)
 	require.NoError(t, err)
 
 	// After sort: "admin","default-implicit-role","dev"
@@ -7730,6 +7747,16 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 	require.Contains(t, roles, devRole, "devRole not found in roleSet")
 	require.Contains(t, roles, adminRole, "adminRole not found in roleSet")
 	require.Equal(t, []string{"currentUserTraitLogin"}, roles[2].GetLogins(types.Allow))
+
+	mustHaveUsername(t, accessChecker, "remote-mockCurrentUser-localCluster")
+}
+
+func mustHaveUsername(t *testing.T, access AccessChecker, wantUsername string) {
+	t.Helper()
+
+	accessImpl, ok := access.(*accessChecker)
+	require.True(t, ok)
+	require.Equal(t, wantUsername, accessImpl.info.Username)
 }
 
 func TestRoleSet_GetAccessState(t *testing.T) {
