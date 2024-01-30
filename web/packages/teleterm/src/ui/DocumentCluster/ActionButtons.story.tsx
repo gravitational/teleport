@@ -55,6 +55,10 @@ export function ActionButtons() {
           <Text>AWS console</Text>
           <AwsConsole />
         </Box>
+        <Box>
+          <Text>SAML app</Text>
+          <SamlApp />
+        </Box>
       </Flex>
       <Box>
         <Text>Server</Text>
@@ -135,6 +139,29 @@ function AwsConsole() {
             { arn: 'foo', display: 'foo', name: 'foo' },
             { arn: 'bar', display: 'bar', name: 'bar' },
           ],
+          uri: `${testCluster.uri}/apps/bar`,
+        })}
+      />
+    </MockAppContextProvider>
+  );
+}
+
+function SamlApp() {
+  const appContext = new MockAppContext();
+  const testCluster = makeRootCluster();
+  appContext.workspacesService.setState(d => {
+    d.rootClusterUri = testCluster.uri;
+  });
+  appContext.clustersService.setState(d => {
+    d.clusters.set(testCluster.uri, testCluster);
+  });
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <ConnectAppActionButton
+        app={makeApp({
+          endpointUri: 'https://localhost:3000',
+          samlApp: true,
           uri: `${testCluster.uri}/apps/bar`,
         })}
       />
