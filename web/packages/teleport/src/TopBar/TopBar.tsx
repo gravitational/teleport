@@ -171,15 +171,11 @@ export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
             />
 
             {topBarLinks.map(({ topMenuItem, navigationItem }) => {
-              const additionalSelectedRoutes =
-                navigationItem.addAdditionalSelectedRoutes?.(clusterId) || [];
+              const link = navigationItem.getLink(clusterId);
+              const currentPath = history.location.pathname;
               const selected =
-                history.location.pathname.includes(
-                  navigationItem.getLink(clusterId)
-                ) ||
-                additionalSelectedRoutes.some(additionalNavPath =>
-                  history.location.pathname.includes(additionalNavPath)
-                );
+                navigationItem.isSelected?.(clusterId, currentPath) ||
+                history.location.pathname.includes(link);
               return (
                 <NavigationButton
                   key={topMenuItem.title}
