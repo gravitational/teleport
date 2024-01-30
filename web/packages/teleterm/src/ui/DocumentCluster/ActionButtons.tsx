@@ -240,6 +240,7 @@ function AppButton(props: {
       <ButtonBorder
         size="small"
         onClick={props.onLaunchUrl}
+        as="a"
         textTransform="none"
         title="Log in to the app in the browser"
         href={getSamlAppSsoUrl({
