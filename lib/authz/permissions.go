@@ -1372,6 +1372,7 @@ func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.User
 	return meta
 }
 
+// TODO(Joerger): replace with Authorize and authCtx.CheckAccessToResource
 // AuthorizeResourceWithVerbs will ensure that the user has access to the given verbs for the given kind.
 func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, resource types.Resource, verbs ...string) (*Context, error) {
 	authCtx, err := authorizer.Authorize(ctx)
@@ -1387,6 +1388,7 @@ func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, aut
 	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
 }
 
+// TODO(Joerger): replace with Authorize and authCtx.CheckAccessToKind
 // AuthorizeWithVerbs will ensure that the user has access to the given verbs for the given kind.
 func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, kind string, verbs ...string) (*Context, error) {
 	authCtx, err := authorizer.Authorize(ctx)
@@ -1401,6 +1403,7 @@ func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer 
 	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
 }
 
+// TODO(Joerger): replace with authCtx.CheckAccessToRule
 // AuthorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
 func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
 	errs := make([]error, len(verbs))
@@ -1412,6 +1415,39 @@ func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 		return nil, err
 	}
 	return authCtx, nil
+}
+
+// CheckAccessToKind will ensure that the user has access to the given verbs for the given kind.
+func (c *Context) CheckAccessToKind(ctx context.Context, quiet bool, kind string, verbs ...string) error {
+	ruleCtx := &services.Context{
+		User: c.User,
+	}
+
+	return c.CheckAccessToRule(ctx, quiet, ruleCtx, kind, verbs...)
+}
+
+// CheckAccessToResource will ensure that the user has access to the given verbs for the given resource.
+func (c *Context) CheckAccessToResource(ctx context.Context, quiet bool, resource types.Resource, verbs ...string) error {
+	ruleCtx := &services.Context{
+		User:     c.User,
+		Resource: resource,
+	}
+
+	return c.CheckAccessToRule(ctx, quiet, ruleCtx, resource.GetKind(), verbs...)
+}
+
+// CheckAccessToRule will ensure that the user has access to the given verbs for the given [services.Context] and kind.
+func (c *Context) CheckAccessToRule(ctx context.Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) error {
+	if len(verbs) == 0 {
+		return trace.BadParameter("expected one or more verbs to be provided")
+	}
+
+	errs := make([]error, len(verbs))
+	for i, verb := range verbs {
+		errs[i] = c.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
