@@ -19,6 +19,11 @@
 package sshutils
 
 import (
+	"context"
+	"net"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -68,4 +73,46 @@ func ParseTCPIPForwardReq(data []byte) (*TCPIPForwardReq, error) {
 type CancelTCPIPForwardReq struct {
 	Addr string
 	Port uint32
+}
+
+func StartRemoteListener(ctx context.Context, ccx *ConnectionContext, srcAddr, dstAddr string, listener net.Listener) error {
+	srcHost, srcPort, err := SplitHostPort(srcAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dstHost, dstPort, err := SplitHostPort(dstAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req := ForwardedTCPIPRequest{
+		Addr:     srcHost,
+		Port:     srcPort,
+		OrigAddr: dstHost,
+		OrigPort: dstPort,
+	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	reqBytes := ssh.Marshal(req)
+
+	go func() {
+		for ctx.Err() == nil {
+			conn, err := listener.Accept()
+			if err != nil {
+				log.WithError(err).Warn("failed to accept connection")
+				continue
+			}
+
+			ch, rch, err := ccx.ServerConn.OpenChannel(teleport.ChanForwardedTCPIP, reqBytes)
+			if err != nil {
+				log.WithError(err).Warn("failed to open channel")
+				continue
+			}
+			go ssh.DiscardRequests(rch)
+			go utils.ProxyConn(ctx, conn, ch)
+		}
+	}()
+
+	return nil
 }

@@ -176,6 +176,8 @@ type Server struct {
 	// It **MUST** only be populated when the target is a teleport ssh server
 	// or an agentless server.
 	targetServer types.Server
+
+	remoteForwardingMap utils.SyncMap[string, net.Listener]
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -704,6 +706,7 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 
 // Close will close all underlying connections that the forwarding server holds.
 func (s *Server) Close() error {
+	// TODO add remote forwarding listeners
 	conns := []io.Closer{
 		s.userAgent,
 		s.sconn,

@@ -350,6 +350,7 @@ func (s *Server) close() {
 
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
+	// TODO add remote forwarding listeners
 	s.close()
 	return s.srv.Close()
 }
@@ -2304,23 +2305,26 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	listenAddr := sshutils.JoinHostPort(req.Addr, req.Port)
 	scx.IsTestStub = s.isTestStub
 	scx.ExecType = teleport.TCPIPForwardRequest
+	scx.SrcAddr = listenAddr
+	scx.DstAddr = ccx.NetConn.RemoteAddr().String()
+	scx.SetAllowFileCopying(s.allowFileCopying)
 
-	listener, err := s.getTCPIPForwardListener(scx, sshutils.JoinHostPort(req.Addr, req.Port))
+	if err := s.canPortForward(scx); err != nil {
+		scx.Close()
+		return trace.Wrap(err)
+	}
+
+	listener, err := s.getTCPIPForwardListener(scx, listenAddr)
 	if err != nil {
 		scx.Close()
 		return trace.Wrap(err)
 	}
 	scx.AddCloser(listener)
+	// Set the src addr again since it may have been updated with a new port.
 	scx.SrcAddr = listener.Addr().String()
-	scx.DstAddr = ccx.NetConn.RemoteAddr().String()
-
-	// TODO move this to before we get the listener, it's OK if we don't know the exact port yet
-	if err := s.canPortForward(scx); err != nil {
-		scx.Close()
-		return trace.Wrap(err)
-	}
 
 	// Save context and listener.
 	fwdCtx := remoteForwardingContext{
@@ -2346,50 +2350,22 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		}
 	}
 
-	go s.handleRemoteListener(ctx, scx, listener)
+	if err := s.startRemoteListener(ctx, scx, listener); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sshutils.StartRemoteListener(ctx, ccx, scx.SrcAddr, scx.DstAddr, listener); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
 
-func (s *Server) handleRemoteListener(ctx context.Context, scx *srv.ServerContext, listener net.Listener) {
-	srcHost, srcPort, err := sshutils.SplitHostPort(scx.SrcAddr)
-	if err != nil {
-		s.Logger.WithError(err).Warn("failed to parse src addr")
-		return
+func (s *Server) startRemoteListener(ctx context.Context, scx *srv.ServerContext, listener net.Listener) error {
+	event := scx.GetPortForward()
+	if err := s.EmitAuditEvent(ctx, &event); err != nil {
+		return trace.Wrap(err)
 	}
-	dstHost, dstPort, err := sshutils.SplitHostPort(scx.DstAddr)
-	if err != nil {
-		s.Logger.WithError(err).Warn("failed to parse dst addr")
-		return
-	}
-
-	req := sshutils.ForwardedTCPIPRequest{
-		Addr:     srcHost,
-		Port:     srcPort,
-		OrigAddr: dstHost,
-		OrigPort: dstPort,
-	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		s.Logger.WithError(err).Warn("failed to check and set defaults on forwarded tcpip request")
-		return
-	}
-	reqBytes := ssh.Marshal(req)
-
-	for ctx.Err() == nil {
-		conn, err := listener.Accept()
-		if err != nil {
-			s.Logger.WithError(err).Warn("failed to accept connection")
-			continue
-		}
-
-		ch, rch, err := scx.ConnectionContext.ServerConn.OpenChannel(teleport.ChanForwardedTCPIP, reqBytes)
-		if err != nil {
-			s.Logger.WithError(err).Warn("failed to open channel")
-			continue
-		}
-		go ssh.DiscardRequests(rch)
-		go utils.ProxyConn(ctx, conn, ch)
-	}
+	return trace.Wrap(sshutils.StartRemoteListener(ctx, scx.ConnectionContext, scx.SrcAddr, scx.DstAddr, listener))
 }
 
 func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshutils.ConnectionContext, r *ssh.Request) error {
