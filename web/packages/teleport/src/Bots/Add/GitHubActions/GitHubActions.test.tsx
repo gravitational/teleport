@@ -24,6 +24,8 @@ import { ContextProvider } from 'teleport';
 
 import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
 
+import * as botService from 'teleport/services/bot/bot'
+
 import TeleportContext from 'teleport/teleportContext';
 
 import { GitHubFlowProvider } from './useGitHubFlow';
@@ -68,8 +70,8 @@ describe('gitHub component', () => {
       id: tokenName,
       expiry: new Date('2020-01-01'),
     });
-    jest.spyOn(ctx.botService, 'createBot').mockResolvedValue();
-    jest.spyOn(ctx.botService, 'getBot').mockResolvedValue(null);
+    jest.spyOn(botService, 'createBot').mockResolvedValue();
+    jest.spyOn(botService, 'getBot').mockResolvedValue(null);
 
     render(
       <MemoryRouter>

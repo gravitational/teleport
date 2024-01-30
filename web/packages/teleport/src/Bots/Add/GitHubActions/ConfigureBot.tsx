@@ -31,7 +31,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 
 import Alert from 'design/Alert';
 
-import { botService } from 'teleport/services/bot';
+import { getBot } from 'teleport/services/bot';
 
 import useTeleport from 'teleport/useTeleport';
 
@@ -71,7 +71,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
 
     // check if a bot with that name already exist
     run(async () => {
-      const bot = await botService.getBot(createBotRequest.botName);
+      const bot = await getBot(createBotRequest.botName);
       if (bot === null) {
         nextStep();
         return;

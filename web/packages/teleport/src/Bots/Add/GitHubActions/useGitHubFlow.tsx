@@ -56,7 +56,7 @@ export const initialBotState = {
 export function GitHubFlowProvider({
   children,
   bot = initialBotState,
-}: { bot?: CreateBotRequest } & React.PropsWithChildren) {
+}: React.PropsWithChildren<{ bot?: CreateBotRequest }>) {
   const { resourceService, joinTokenService } = useTeleport();
   const { attempt, run } = useAttempt();
   const [createBotRequest, setCreateBotRequest] =
