@@ -49,7 +49,7 @@ func promoteBuildPipelines() []pipeline {
 		pipelineName: "promote-tbot-oci-distroless-images",
 		workflows: []ghaWorkflow{
 			{
-				name:              "promote-tbot-oci-distroless.yml",
+				name:              "promote-tbot-oci-distroless.yaml",
 				timeout:           150 * time.Minute,
 				ref:               "${DRONE_TAG}",
 				shouldTagWorkflow: true,

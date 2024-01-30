@@ -78,7 +78,7 @@ func tagPipelines() []pipeline {
 		},
 		workflows: []ghaWorkflow{
 			{
-				name:              "release-tbot-oci-distroless.yml",
+				name:              "release-tbot-oci-distroless.yaml",
 				srcRefVar:         "DRONE_TAG",
 				ref:               "${DRONE_TAG}",
 				timeout:           150 * time.Minute,
