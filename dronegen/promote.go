@@ -59,7 +59,7 @@ func promoteBuildPipelines() []pipeline {
 			},
 		},
 	})
-	tbotOCIPipeline.Trigger.Target.Include = append(ociPipeline.Trigger.Target.Include, "promote-distroless")
+	tbotOCIPipeline.Trigger.Target.Include = append(tbotOCIPipeline.Trigger.Target.Include, "promote-tbot-distroless")
 	promotePipelines = append(promotePipelines, tbotOCIPipeline)
 
 	amiPipeline := ghaBuildPipeline(ghaBuildType{

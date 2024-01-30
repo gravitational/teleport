@@ -5587,8 +5587,7 @@ trigger:
   target:
     include:
     - production
-    - promote-distroless
-    - promote-distroless
+    - promote-tbot-distroless
   repo:
     include:
     - gravitational/*
@@ -5631,6 +5630,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 1c04d86707ebef2915298ca8e30b3917cf6b2dfefdab50afee540b39fcc84646
+hmac: 077134c5855da9eb761d6f89adfff95a34754405df34bbd8502ecdcb8fb9e85c
 
 ...
