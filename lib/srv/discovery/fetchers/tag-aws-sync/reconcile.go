@@ -114,7 +114,7 @@ func reconcileUserInlinePolicies(
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
 	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSUserInlinePolicyV1) string {
-		return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.Username, policy.PolicyName)
+		return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.GetUser().GetUserName(), policy.PolicyName)
 	})
 	for _, policy := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -372,7 +372,7 @@ func reconcileRoleInlinePolicies(
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSRoleInlinePolicyV1) string {
-		return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.Role, policy.PolicyName)
+		return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.GetAwsRole().Arn, policy.PolicyName)
 	})
 
 	for _, policy := range toAdd {
@@ -398,7 +398,7 @@ func reconcileRoleAttachedPolicies(
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSRoleAttachedPolicies) string {
-		return fmt.Sprintf("%s;%s", policy.Role.Arn, policy.AccountId)
+		return fmt.Sprintf("%s;%s", policy.GetAwsRole().GetArn(), policy.AccountId)
 	})
 
 	for _, policy := range toAdd {

@@ -416,7 +416,7 @@ func (a *awsFetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgr
 					continue
 				}
 
-				policies = append(policies, awsRolePolicyToProtoUserPolicy(policy, a.AccountID))
+				policies = append(policies, awsRolePolicyToProtoUserPolicy(policy, role, a.AccountID))
 			}
 			return !lastPage
 		})
@@ -426,7 +426,7 @@ func (a *awsFetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgr
 
 func (a *awsFetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) (*accessgraphv1alpha.AWSRoleAttachedPolicies, error) {
 	rsp := &accessgraphv1alpha.AWSRoleAttachedPolicies{
-		Role:      role,
+		AwsRole:   role,
 		AccountId: a.AccountID,
 	}
 
@@ -637,7 +637,7 @@ func (a *awsFetcher) fetchUserInlinePolicies(ctx context.Context, user *accessgr
 					continue
 				}
 
-				policies = append(policies, awsUserPolicyToProtoUserPolicy(policy, a.AccountID))
+				policies = append(policies, awsUserPolicyToProtoUserPolicy(policy, user, a.AccountID))
 			}
 			return !lastPage
 		})
@@ -802,20 +802,20 @@ func strPtrToWrapper(s *string) *wrapperspb.StringValue {
 	return &wrapperspb.StringValue{Value: *s}
 }
 
-func awsUserPolicyToProtoUserPolicy(policy *iam.GetUserPolicyOutput, accountID string) *accessgraphv1alpha.AWSUserInlinePolicyV1 {
+func awsUserPolicyToProtoUserPolicy(policy *iam.GetUserPolicyOutput, user *accessgraphv1alpha.AWSUserV1, accountID string) *accessgraphv1alpha.AWSUserInlinePolicyV1 {
 	return &accessgraphv1alpha.AWSUserInlinePolicyV1{
 		PolicyName:     aws.ToString(policy.PolicyName),
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
-		Username:       aws.ToString(policy.UserName),
+		User:           user,
 		AccountId:      accountID,
 	}
 }
 
-func awsRolePolicyToProtoUserPolicy(policy *iam.GetRolePolicyOutput, accountID string) *accessgraphv1alpha.AWSRoleInlinePolicyV1 {
+func awsRolePolicyToProtoUserPolicy(policy *iam.GetRolePolicyOutput, role *accessgraphv1alpha.AWSRoleV1, accountID string) *accessgraphv1alpha.AWSRoleInlinePolicyV1 {
 	return &accessgraphv1alpha.AWSRoleInlinePolicyV1{
 		PolicyName:     aws.ToString(policy.PolicyName),
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
-		Role:           aws.ToString(policy.RoleName),
+		AwsRole:        role,
 		AccountId:      accountID,
 	}
 }
