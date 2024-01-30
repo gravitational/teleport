@@ -131,7 +131,7 @@ function AwsConsole() {
         app={makeApp({
           endpointUri: 'https://localhost:3000',
           awsConsole: true,
-          awsRolesList: [
+          awsRoles: [
             { arn: 'foo', display: 'foo', name: 'foo' },
             { arn: 'bar', display: 'bar', name: 'bar' },
           ],
@@ -145,7 +145,7 @@ function AwsConsole() {
 function Server() {
   const appContext = new MockAppContext();
   const testCluster = makeRootCluster();
-  testCluster.loggedInUser.sshLoginsList = ['ec2-user'];
+  testCluster.loggedInUser.sshLogins = ['ec2-user'];
   appContext.workspacesService.setState(d => {
     d.rootClusterUri = testCluster.uri;
   });

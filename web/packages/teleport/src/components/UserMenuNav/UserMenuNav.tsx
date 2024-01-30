@@ -23,11 +23,12 @@ import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
 import { Text } from 'design';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+
 import session from 'teleport/services/websession';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { useTeleport } from 'teleport';
 import { useUser } from 'teleport/User/UserContext';
-import { ThemePreference } from 'teleport/services/userPreferences/types';
 import {
   Dropdown,
   DropdownItem,
@@ -124,9 +125,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
 
   const onThemeChange = () => {
     const nextTheme =
-      preferences.theme === ThemePreference.Light
-        ? ThemePreference.Dark
-        : ThemePreference.Light;
+      preferences.theme === Theme.LIGHT ? Theme.DARK : Theme.LIGHT;
 
     updatePreferences({ theme: nextTheme });
     setOpen(false);
@@ -180,14 +179,9 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
           <DropdownItem open={open} $transitionDelay={transitionDelay}>
             <DropdownItemButton onClick={onThemeChange}>
               <DropdownItemIcon>
-                {preferences.theme === ThemePreference.Dark ? (
-                  <Sun />
-                ) : (
-                  <Moon />
-                )}
+                {preferences.theme === Theme.DARK ? <Sun /> : <Moon />}
               </DropdownItemIcon>
-              Switch to{' '}
-              {preferences.theme === ThemePreference.Dark ? 'Light' : 'Dark'}{' '}
+              Switch to {preferences.theme === Theme.DARK ? 'Light' : 'Dark'}{' '}
               Theme
             </DropdownItemButton>
           </DropdownItem>

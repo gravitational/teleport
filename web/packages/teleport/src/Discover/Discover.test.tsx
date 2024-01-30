@@ -22,6 +22,8 @@ import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { Discover } from 'teleport/Discover/Discover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
@@ -40,8 +42,6 @@ import {
   DATABASES_UNGUIDED_DOC,
 } from 'teleport/Discover/SelectResource/databases';
 
-import { ClusterResource } from 'teleport/services/userPreferences/types';
-
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 
@@ -55,7 +55,7 @@ beforeEach(() => {
 
 type createProps = {
   initialEntry?: string;
-  preferredResource?: ClusterResource;
+  preferredResource?: Resource;
 };
 
 const create = ({ initialEntry = '', preferredResource }: createProps) => {
@@ -113,7 +113,7 @@ test('displays all resources by default', () => {
 test('location state applies filter/search', () => {
   create({
     initialEntry: 'desktop',
-    preferredResource: ClusterResource.RESOURCE_WEB_APPLICATIONS,
+    preferredResource: Resource.WEB_APPLICATIONS,
   });
 
   expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(

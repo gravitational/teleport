@@ -26,11 +26,12 @@ import { render, screen, waitFor } from '@testing-library/react';
 
 import '@testing-library/jest-dom';
 
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+
 import cfg from 'teleport/config';
 
 import { UserContextProvider } from 'teleport/User';
 
-import { ThemePreference } from 'teleport/services/userPreferences/types';
 import { useUser } from 'teleport/User/UserContext';
 import { KeysEnum } from 'teleport/services/storageService';
 
@@ -38,9 +39,7 @@ function ThemeName() {
   const { preferences } = useUser();
 
   return (
-    <div>
-      theme: {preferences.theme === ThemePreference.Light ? 'light' : 'dark'}
-    </div>
+    <div>theme: {preferences.theme === Theme.LIGHT ? 'light' : 'dark'}</div>
   );
 }
 
@@ -49,7 +48,7 @@ describe('user context - success state', () => {
     rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
       return res(
         ctx.json({
-          theme: ThemePreference.Light,
+          theme: Theme.LIGHT,
           assist: {},
         })
       );
@@ -76,7 +75,7 @@ describe('user context - success state', () => {
   });
 
   it('should migrate the previous theme setting from local storage', async () => {
-    let updateBody: { theme?: ThemePreference } = {};
+    let updateBody: { theme?: Theme } = {};
 
     server.use(
       rest.put(cfg.api.userPreferencesPath, async (req, res, ctx) => {
@@ -96,7 +95,7 @@ describe('user context - success state', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(updateBody.theme).toEqual(ThemePreference.Dark));
+    await waitFor(() => expect(updateBody.theme).toEqual(Theme.DARK));
 
     const theme = await screen.findByText(/theme: dark/i);
 
