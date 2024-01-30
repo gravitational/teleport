@@ -240,7 +240,7 @@ function AppButton(props: {
         size="small"
         onClick={props.connect}
         textTransform="none"
-        title="Log in to app in the browser"
+        title="Log in to the app in the browser"
         href={getSamlAppSsoUrl({
           app: props.app,
           rootCluster: props.rootCluster,
@@ -266,7 +266,7 @@ function AppButton(props: {
           })}
           onClick={props.onLaunchUrl}
           target="_blank"
-          title="Launch app in the browser"
+          title="Launch the app in the browser"
           css={`
             border-top-right-radius: 0;
             border-bottom-right-radius: 0;
