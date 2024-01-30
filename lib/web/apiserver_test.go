@@ -7348,24 +7348,6 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
-type terminalOpt func(t *TerminalRequest)
-
-func withSessionID(sid session.ID) terminalOpt {
-	return func(t *TerminalRequest) { t.SessionID = sid }
-}
-
-func withServer(target string) terminalOpt {
-	return func(t *TerminalRequest) { t.Server = target }
-}
-
-func withKeepaliveInterval(d time.Duration) terminalOpt {
-	return func(t *TerminalRequest) { t.KeepAliveInterval = d }
-}
-
-func withParticipantMode(m types.SessionParticipantMode) terminalOpt {
-	return func(t *TerminalRequest) { t.ParticipantMode = m }
-}
-
 func waitForOutputWithDuration(r io.Reader, substr string, timeout time.Duration) error {
 	timeoutCh := time.After(timeout)
 
