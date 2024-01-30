@@ -26,6 +26,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -552,6 +553,14 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 // testEvents tests scenarios with event watches
 func testEvents(t *testing.T, newBackend Constructor) {
 	const eventTimeout = 10 * time.Second
+	var ttlDeleteTimeout = eventTimeout
+	// TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT may be set to extend the time waited
+	// for TTL deletion to occur. This is useful for backends where TTL deletion is
+	// handled externally and may take longer than the default of 10 seconds.
+	if d, err := time.ParseDuration(os.Getenv("TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT")); err == nil {
+		ttlDeleteTimeout = d
+		t.Logf("TTL delete timeout overridden by envvar: %s", d)
+	}
 
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
@@ -620,7 +629,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	require.Error(t, err)
 
 	// Make sure a DELETE event is emitted.
-	requireEvent(t, watcher, types.OpDelete, item.Key, eventTimeout)
+	requireEvent(t, watcher, types.OpDelete, item.Key, ttlDeleteTimeout)
 }
 
 // testFetchLimit tests fetch max items size limit.
