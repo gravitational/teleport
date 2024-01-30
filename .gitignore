@@ -4,7 +4,7 @@ gitref.go
 debug
 default.etcd
 /darwin
-
+var/
 # web asset directory
 /lib/web/build
 
