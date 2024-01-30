@@ -189,10 +189,19 @@ buildbox-centos7:
 # Builds a Docker buildbox for CentOS 7 FIPS builds
 # Uses regular CentOS 7 buildbox as base, so limited arguments are needed.
 #
+# Because this target uses the image built by the buildbox-centos7 target, it is
+# expected to be run using a docker buildx driver. If another driver is used, the
+# --build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) will not know
+# about the local image just built and will pull the image from the Docker repository
+# instead, which will be out of date.
+#
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips: buildbox-centos7
-	docker build \
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH))
+	docker buildx build \
 		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
+		--cache-from $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) -f Dockerfile-centos7-fips .
 
 #
@@ -204,7 +213,6 @@ buildbox-centos7-fips: buildbox-centos7
 buildbox-arm:
 	$(call PULL_ON_CI,$(BUILDBOX_ARM))
 	docker buildx build \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
