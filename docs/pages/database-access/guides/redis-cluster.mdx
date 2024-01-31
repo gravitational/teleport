@@ -75,7 +75,7 @@ Export your Teleport cluster's `db_client` CA cert and concatenate it with your 
 Cluster's CA cert (in PEM format):
 ```code
 $ tctl auth export --type=db_client > db-client-ca.crt
-$ cat <Var name="/path/to/your/ca.crt" /> out.cas > pem-bundle.cas
+$ cat <Var name="/path/to/your/ca.crt" /> db-client-ca.crt > pem-bundle.cas
 ```
 
 Using your Redis Cluster's CA, issue `server.crt` for each of your Redis Cluster
