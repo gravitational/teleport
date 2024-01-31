@@ -25,12 +25,8 @@ description: How to configure Teleport database access with self-hosted Cockroac
 - (!docs/pages/includes/tctl.mdx!)
 - A certificate authority to issue CockroachDB certificates for nodes in your 
   CockroachDB cluster.
-  Teleport uses a split CA architecture for database access, and requires that
-  you create your own CA for node-to-node mTLS communication.
-  See [cockroach cert](https://www.cockroachlabs.com/docs/stable/cockroach-cert)
-  for instructions on creating a CA and issuing a client certificate and key
-  for each node. The certificate and key should be named `client.node.crt` and 
-  `client.node.key`.
+
+  (!docs/pages/includes/database-access/split-db-ca-details.mdx db="CockroachDB"!)
 
 ## Step 1/4. Set up the Teleport Database Service
 
