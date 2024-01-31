@@ -86,7 +86,7 @@ provider "teleport" {
 
 ## Provider resource versioning
 
-Since Teleport 15, you MUST set the version on each resource, and version cannot
+Since Teleport 15, you must set the version on each resource, and version cannot
 be changed in-place. Terraform will delete the resource and create a new one if
 a version change is required.
 
@@ -96,7 +96,7 @@ However, version upgrades don't re-apply the resource defaults. This could lead
 to different results if you create a new resource or upgrade an existing one.
 To mitigate this, you should explicitly set the resource version.
 
-<Adminition type="danger">
+<Adminition type="warning">
   Upgrading the Terraform Provider to a new version with `teleport_role`
   resources without a specified version can change the role behavior and access
   rules. You must set the role version before upgrading to ensure the role
