@@ -111,7 +111,7 @@ To mitigate this, you should explicitly set the resource version.
   For example, before upgrading from v12 to v13, edit every unversionned role
   to pin the `v5` version:
 
-  ```terraform
+  ```hcl
   resource "teleport_role" "test" {
     version = "v5"
     metadata = {
