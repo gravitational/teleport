@@ -33,7 +33,7 @@ jobs:
           node --version
 
       - name: Install Yarn dependencies
-        run: yarn --frozen-lockfile
+        run: bash web/packages/build/scripts/yarn-install-frozen-lockfile.sh
 
       - name: Build WASM
         run: yarn build-wasm
