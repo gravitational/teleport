@@ -16,16 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAttempt } from 'shared/hooks';
 import { AuthProvider } from 'shared/services';
 
+import session from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import auth, { UserCredentials } from 'teleport/services/auth';
 
 export default function useLogin() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: false });
+  const [checkingValidSession, setCheckingValidSession] = useState(true);
 
   const authProviders = cfg.getAuthProviders();
   const auth2faType = cfg.getAuth2faType();
@@ -43,6 +45,14 @@ export default function useLogin() {
   function acknowledgeMotd() {
     setShowMotd(false);
   }
+
+  useEffect(() => {
+    if (session.isValid()) {
+      history.replace(cfg.routes.root);
+      return;
+    }
+    setCheckingValidSession(false);
+  }, []);
 
   function onLogin(email, password, token) {
     attemptActions.start();
@@ -74,6 +84,7 @@ export default function useLogin() {
   return {
     attempt,
     onLogin,
+    checkingValidSession,
     onLoginWithSso,
     authProviders,
     auth2faType,

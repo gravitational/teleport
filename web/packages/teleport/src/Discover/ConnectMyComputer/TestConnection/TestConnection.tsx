@@ -47,7 +47,7 @@ import {
 import { sortNodeLogins } from 'teleport/services/nodes';
 import { ApiError } from 'teleport/services/api/parseError';
 
-import { MFAChallengeScope } from 'teleport/services/auth/auth';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import { NodeMeta } from '../../useDiscover';
 
@@ -174,7 +174,7 @@ export function TestConnection(props: AgentStepProps) {
             })
           }
           onClose={cancelMfaDialog}
-          challengeScope={MFAChallengeScope.USER_SESSION}
+          challengeScope={MfaChallengeScope.USER_SESSION}
         />
       )}
       <Header>

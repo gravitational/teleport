@@ -136,7 +136,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.StateToken, err = utils.CryptoRandomHex(TokenLenBytes)
+	req.StateToken, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

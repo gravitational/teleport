@@ -824,12 +824,14 @@ $ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<
 
 ## Moderated session
 
-Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
- - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator.
- - [ ] `Ctrl+C` in the #2 terminal should disconnect the moderator and terminate the session as session has no moderator.
+Create two Teleport users, a moderator and a user. Configure Teleport roles to require that the moderator moderate the user's sessions. Use `TELEPORT_HOME` to `tsh login` as the user in one terminal, and the moderator in another.
 
-Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
-- [ ] `t` in any terminal should terminate the session for all participants.
+Ensure the default `terminationPolicy` of `terminate` has not been changed.
+
+For each of the following cases, create a moderated session with the user using `tsh ssh` and join this session with the moderator using `tsh join --role moderator`:
+ - [ ] Ensure that `Ctrl+C` in the user terminal disconnects the moderator as the session has ended.
+ - [ ] Ensure that `Ctrl+C` in the moderator terminal disconnects the moderator and terminates the user's session as the session no longer has a moderator.
+ - [ ] Ensure that `t` in the moderator terminal terminates the session for all participants.
 
 ## Performance
 
@@ -1304,6 +1306,9 @@ https://goteleport.com/docs/installation/#operating-system-support
 - [ ] `tsh` runs on the minimum supported Windows version
 - [ ] Teleport Connect runs on the minimum supported Windows version
 
+Azure offers virtual machines with the Windows 10 2016 LTSB image. This image runs on Windows 10
+rev. 1607, which is the exact minimum Windows version that we support.
+
 ### macOS
 
 - [ ] `tsh` runs on the minimum supported macOS version
@@ -1405,6 +1410,29 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Windows Desktop
   - [ ] App Access
 
+## SSH Connection Resumption
+
+Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade. 
+|   | Standard node | Non-resuming node | Peered node | Agentless node |
+|---|---|---|---|---|
+| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| Teleport Connect | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| Web UI (not resuming) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (standard `tsh config`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (changing `ProxyCommand` to `tsh proxy ssh --no-resume`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+
+Verify that SSH works, and that resumable SSH is not interrupted across a control plane restart (of either the root or the leaf cluster).
+
+|   | Tunnel node | Direct dial node |
+|---|---|---|
+| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| `tsh ssh --no-resume` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
+| OpenSSH (without `ProxyCommand`) | n/a | <ul><li> [ ] </ul></li> |
+| OpenSSH's `ssh-keyscan` | n/a | <ul><li> [ ] </ul></li> |
+
 ## EC2 Discovery
 
 [EC2 Discovery docs](https://goteleport.com/docs/server-access/guides/ec2-discovery/)
@@ -1504,6 +1532,30 @@ Assist test plan is in the core section instead of WebUI as most functionality i
   - [ ] Assist icon is visible in WebUI's Terminal
   - [ ] A Bash command can be generated in the above window.
   - [ ] When an output is selected in the Terminal "Explain" option is available, and it generates the summary.
+
+## IGS:
+- [ ] Access Monitoring
+  - [ ] Verify that users can run custom audit queries.
+  - [ ] Verify that the Privileged Access Report is generated and periodically refreshed.
+
+- [ ] Access List
+  - [ ] Verify Access List membership/ownership/expiration date.
+    - [ ] Verify permissions granted by Access List membership.
+    - [ ] Verify permissions granted by Access List ownership.
+    - [ ] Verify Access List Review.
+    - [ ] verify Access LIst Promotion.
+    - [ ] Verify that owners can only add/remove members and not change other properties.
+
+- [ ] Verify Okta Sync Service
+  - [ ] Verify OKTA Plugin configuration.
+    - [ ] Verify that the OKTA Plugin can be configured.
+    - [ ] Verify the Single Sign-On (SSO) connector created by the OKTA Plugin.
+  - [ ] Verify OKTA users/apps/groups sync.
+    - [ ] Verify that users/apps/groups are synced from OKTA to Teleport.
+    - [ ] Verify the custom `okta_import_rule` rule configuration.
+    - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
+  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in OKTA.
+  - [ ] Verify access to OKTA apps granted by access_list/access_request.
 
 ## Resources
 

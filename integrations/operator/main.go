@@ -24,7 +24,6 @@ import (
 	"os"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -40,7 +39,7 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
+	scheme   = resources.Scheme
 	setupLog = ctrl.Log.WithName("setup")
 )
 

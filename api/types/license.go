@@ -153,6 +153,11 @@ type License interface {
 	GetAnonymizationKey() string
 	// SetAnonymizationKey sets the anonymization key.
 	SetAnonymizationKey(string)
+
+	// GetSupportsPolicy returns Teleport Policy support flag.
+	GetSupportsPolicy() Bool
+	//SGetSupportsPolicy sets Teleport Policy support flag.
+	SetSupportsPolicy(Bool)
 }
 
 // FeatureSource defines where the list of features enabled
@@ -489,6 +494,16 @@ func (c *LicenseV3) SetAnonymizationKey(anonKey string) {
 	c.Spec.AnonymizationKey = anonKey
 }
 
+// GetSupportsPolicy returns Teleport Policy support flag
+func (c *LicenseV3) GetSupportsPolicy() Bool {
+	return c.Spec.SupportsPolicy
+}
+
+// SetSupportsPolicy sets Teleport Policy support flag
+func (c *LicenseV3) SetSupportsPolicy(value Bool) {
+	c.Spec.SupportsPolicy = value
+}
+
 // String represents a human readable version of license enabled features
 func (c *LicenseV3) String() string {
 	var features []string
@@ -594,4 +609,6 @@ type LicenseSpecV3 struct {
 	// AnonymizationKey is a key that is used to anonymize usage data when it is set.
 	// It should only be set when UsageBasedBilling is true.
 	AnonymizationKey string `json:"anonymization_key,omitempty"`
+	// SupportsPolicy turns Teleport Policy features on or off.
+	SupportsPolicy Bool `json:"policy,omitempty"`
 }

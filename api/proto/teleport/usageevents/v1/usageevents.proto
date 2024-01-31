@@ -141,6 +141,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_EC2_INSTANCE = 38;
 
   DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39;
+
+  DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.

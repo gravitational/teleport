@@ -103,7 +103,7 @@ func (bs *BotService) checkOrCreateBotToken(ctx context.Context, req *proto.Crea
 		return token, nil
 	}
 
-	tokenName, err := utils.CryptoRandomHex(16)
+	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -328,9 +328,9 @@ func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 }
 
 // IsAdminActionMFAEnforced checks if admin action MFA is enforced. Currently, the only
-// prerequisite for admin action MFA enforcement is whether Webauthn is enabled.
+// prerequisite for admin action MFA enforcement is whether Webauthn is enforced.
 func (c *AuthPreferenceV2) IsAdminActionMFAEnforced() bool {
-	return c.IsSecondFactorWebauthnAllowed()
+	return c.Spec.SecondFactor == constants.SecondFactorWebauthn
 }
 
 // GetConnectorName gets the name of the OIDC or SAML connector to use. If

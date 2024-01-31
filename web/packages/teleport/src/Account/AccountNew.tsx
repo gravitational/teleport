@@ -23,12 +23,16 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 import * as Icon from 'design/Icon';
 import { Notification, NotificationItem } from 'shared/components/Notification';
 
+import createMfaOptions from 'shared/utils/createMfaOptions';
+
 import useTeleport from 'teleport/useTeleport';
 import { FeatureBox } from 'teleport/components/Layout';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import { RemoveDialog } from 'teleport/components/MfaDeviceList';
 
-import { MFAChallengeScope } from 'teleport/services/auth/auth';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
+
+import cfg from 'teleport/config';
 
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
@@ -55,9 +59,33 @@ export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
   const ctx = useTeleport();
   const isSso = ctx.storeUser.isSso();
   const manageDevicesState = useManageDevices(ctx);
+
+  // Note: we are using the same logic here as the `AddDevice` component uses to
+  // determine whether to show various options.  This creates a duplication of
+  // logic, but this is a quick bug fix to make sure that we don't show a dialog
+  // that normally would require an OTP token, but is shown in a passwordless
+  // context and thus can't progress.
+  // TODO(bl-nero): When implementing a new device enrollment dialog, refactor
+  // this so that the options used by both components have the same source of
+  // truth.
+  const mfaOptions = createMfaOptions({
+    auth2faType: cfg.getAuth2faType(),
+    required: true,
+  });
+
+  const canAddPasskeys =
+    cfg.isPasswordlessEnabled() &&
+    mfaOptions.some(option => option.value === 'webauthn');
+
+  const canAddMFA = mfaOptions.some(
+    option => option.value === 'otp' || option.value === 'webauthn'
+  );
+
   return (
     <Account
       isSso={isSso}
+      canAddPasskeys={canAddPasskeys}
+      canAddMFA={canAddMFA}
       {...manageDevicesState}
       enterpriseComponent={enterpriseComponent}
     />
@@ -66,6 +94,8 @@ export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
 
 export interface AccountProps extends ManageDevicesState, AccountPageProps {
   isSso: boolean;
+  canAddPasskeys: boolean;
+  canAddMFA: boolean;
 }
 
 export function Account({
@@ -85,8 +115,9 @@ export function Account({
   hideReAuthenticate,
   hideAddDevice,
   hideRemoveDevice,
-  mfaDisabled,
   isSso,
+  canAddMFA,
+  canAddPasskeys,
   enterpriseComponent: EnterpriseComponent,
   restrictNewDeviceUsage,
 }: AccountProps) {
@@ -94,8 +125,9 @@ export function Account({
   const mfaDevices = devices.filter(d => !d.residentKey);
   const disableAddDevice =
     createRestrictedTokenAttempt.status === 'processing' ||
-    fetchDevicesAttempt.status !== 'success' ||
-    mfaDisabled;
+    fetchDevicesAttempt.status !== 'success';
+  const disableAddPasskey = disableAddDevice || !canAddPasskeys;
+  const disableAddMFA = disableAddDevice || !canAddMFA;
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
@@ -146,16 +178,16 @@ export function Account({
             header={
               <Header
                 title="Passkeys"
-                description="Passkeys are a password replacement that validates
-                your identity using touch, facial recognition, a device
-                password, or a PIN."
+                description="Enable secure passwordless sign-in using
+                fingerprint or facial recognition, a one-time code, or
+                a device password."
                 icon={<Icon.Key />}
                 showIndicator={fetchDevicesAttempt.status === 'processing'}
                 actions={
                   <ActionButton
-                    disabled={disableAddDevice}
+                    disabled={disableAddPasskey}
                     title={
-                      mfaDisabled
+                      disableAddPasskey
                         ? 'Passwordless authentication is disabled'
                         : ''
                     }
@@ -185,16 +217,16 @@ export function Account({
             header={
               <Header
                 title="Multi-factor Authentication"
-                description="Multi-factor authentication adds an additional layer
-                of security to your account by requiring more than just a
-                password to sign in."
+                description="Provide secondary authentication when signing in
+                with a password. Unlike passkeys, multi-factor methods do not
+                enable passwordless sign-in."
                 icon={<Icon.ShieldCheck />}
                 showIndicator={fetchDevicesAttempt.status === 'processing'}
                 actions={
                   <ActionButton
-                    disabled={disableAddDevice}
+                    disabled={disableAddMFA}
                     title={
-                      mfaDisabled
+                      disableAddMFA
                         ? 'Multi-factor authentication is disabled'
                         : ''
                     }
@@ -216,7 +248,7 @@ export function Account({
             onAuthenticated={setToken}
             onClose={hideReAuthenticate}
             actionText="registering a new device"
-            challengeScope={MFAChallengeScope.USER_SESSION}
+            challengeScope={MfaChallengeScope.MANAGE_DEVICES}
           />
         )}
         {isAddDeviceVisible && (
