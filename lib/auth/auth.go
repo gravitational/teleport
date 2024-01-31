@@ -3111,23 +3111,19 @@ type newRegisterChallengeRequest struct {
 func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
 	switch req.deviceType {
 	case proto.DeviceType_DEVICE_TYPE_TOTP:
+		if req.token == nil {
+			return nil, trace.BadParameter("all TOTP registrations require a privilege token")
+		}
+
 		otpKey, otpOpts, err := a.newTOTPKey(req.username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		// TODO(codingllama): Once AddMFADeviceSync is no more all requests should
-		//  have a token. If they don't, then the secret is "lost" to the server.
-		var qrCode []byte
-		var challengeID string
-		if token := req.token; token != nil {
-			secrets, err := a.createTOTPUserTokenSecrets(ctx, token, otpKey)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			qrCode = secrets.GetQRCode()
-			challengeID = token.GetName()
+		token := req.token
+		secrets, err := a.createTOTPUserTokenSecrets(ctx, token, otpKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		return &proto.MFARegisterChallenge{
@@ -3139,8 +3135,8 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 					Algorithm:     otpOpts.Algorithm.String(),
 					Digits:        uint32(otpOpts.Digits.Length()),
 					Account:       otpKey.AccountName(),
-					QRCode:        qrCode,
-					ID:            challengeID,
+					QRCode:        secrets.GetQRCode(),
+					ID:            token.GetName(),
 				},
 			},
 		}, nil
