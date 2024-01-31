@@ -45,9 +45,10 @@ use ironrdp_tokio::{Framed, TokioStream};
 use log::debug;
 use rand::{Rng, SeedableRng};
 use std::fmt::{Debug, Display, Formatter};
-use std::io::Error as IoError;
+use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
@@ -59,6 +60,8 @@ use crate::rdpdr::TeleportRdpdrBackend;
 use crate::ssl::TlsStream;
 #[cfg(feature = "fips")]
 use tokio_boring::{HandshakeError, SslStream};
+
+const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The RDP client on the Rust side of things. Each `Client`
 /// corresponds with a Go `Client` specified by `cgo_handle`.
@@ -99,7 +102,15 @@ impl Client {
             .next()
             .ok_or(ClientError::UnknownAddress)?;
 
-        let stream = TokioTcpStream::connect(&server_socket_addr).await?;
+        let stream = match tokio::time::timeout(
+            RDP_CONNECT_TIMEOUT,
+            TokioTcpStream::connect(&server_socket_addr),
+        )
+        .await
+        {
+            Ok(stream) => stream?,
+            Err(_) => return Err(ClientError::Tcp(IoError::from(IoErrorKind::TimedOut))),
+        };
 
         // Create a framed stream for use by connect_begin
         let mut framed = ironrdp_tokio::TokioFramed::new(stream);

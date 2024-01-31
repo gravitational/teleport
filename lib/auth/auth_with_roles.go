@@ -2116,7 +2116,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -3923,6 +3923,7 @@ message OneOf {
     events.BotUpdate BotUpdate = 145;
     events.CreateMFAAuthChallenge CreateMFAAuthChallenge = 146;
     events.ValidateMFAAuthResponse ValidateMFAAuthResponse = 147;
+    events.OktaAccessListSync OktaAccessListSync = 148;
   }
 }
 
@@ -5784,4 +5785,41 @@ message ExternalAuditStorageDetails {
   string policy_name = 10;
   // Region is the AWS region where the infrastructure is hosted.
   string region = 11;
+}
+
+// OktaAccessListSync records an access list sync event.
+message OktaAccessListSync {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // NumAppFilters is the number of application filters used for this sync.
+  int32 num_app_filters = 3;
+
+  // NumGroupFilters is the number of group filters used for this sync.
+  int32 num_group_filters = 4;
+
+  // NumApps is the number of apps that were synchronized from this sync event.
+  int32 num_apps = 5;
+
+  // NumGroups is the number of groups that were synchronized from this sync event.
+  int32 num_groups = 6;
+
+  // NumRoles are the number of roles that were created/updated.
+  int32 numRoles = 7;
+
+  // NumAccessLists are the number of access lists that were created/updated.
+  int32 numAccessLists = 8;
+
+  // NumAccessListMembers are the number of access list members that were created/updated.
+  int32 numAccessListMembers = 9;
 }
