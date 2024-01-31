@@ -1385,24 +1385,20 @@ message GetMFADevicesResponse {
   repeated types.MFADevice Devices = 1;
 }
 
-// UserSingleUseCertsRequest is a request for a single-use user certificate.
-//
 // Deprecated: Use [AuthService.GenerateUserCerts] instead.
 message UserSingleUseCertsRequest {
-  oneof Request {
-    UserCertsRequest Init = 1;
-    MFAAuthenticateResponse MFAResponse = 2;
-  }
+  reserved 1; // UserCertsRequest Init;
+  reserved "Init";
+  reserved 2; // MFAAuthenticateResponse MFAResponse;
+  reserved "MFAResponse";
 }
 
-// UserSingleUseCertsResponse is a response with a single-use user certificate.
-//
 // Deprecated: Use [AuthService.GenerateUserCerts] instead.
 message UserSingleUseCertsResponse {
-  oneof Response {
-    MFAAuthenticateChallenge MFAChallenge = 1;
-    SingleUseUserCert Cert = 2;
-  }
+  reserved 1; // MFAAuthenticateChallenge MFAChallenge;
+  reserved "MFAChallenge";
+  reserved 2; // SingleUseUserCert Cert;
+  reserved "Cert";
 }
 
 // IsMFARequiredRequest is a request to check whether MFA is required to access
@@ -1452,14 +1448,6 @@ message IsMFARequiredResponse {
   // MFARequired informs whether MFA is required to access the corresponding
   // resource.
   MFARequired MFARequired = 2;
-}
-
-// SingleUseUserCert is a single-use user certificate, either SSH or TLS.
-message SingleUseUserCert {
-  oneof Cert {
-    bytes SSH = 1;
-    bytes TLS = 2;
-  }
 }
 
 // Order specifies any ordering of some objects as returned in regards to some aspect
