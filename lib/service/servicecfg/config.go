@@ -274,6 +274,9 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+
+	// SkipPresetRoleAndUserCreation skips creation of the preset teleport roles on startup
+	SkipPresetRoleAndUserCreation bool
 }
 
 type ConfigTesting struct {
