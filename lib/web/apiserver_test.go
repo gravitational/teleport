@@ -1372,7 +1372,7 @@ func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 	})
 	require.NoError(t, err)
 	res := <-result
-	require.NotNil(t, res)
+	require.Error(t, res)
 }
 
 func TestResolveServerHostPort(t *testing.T) {
