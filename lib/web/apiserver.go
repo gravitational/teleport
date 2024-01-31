@@ -3799,8 +3799,17 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 
 			defer ws.Close()
 			_, err = fn(w, r, p, sctx, site, ws)
-			if err := ws.WriteJSON(WSError{Error: err.Error()}); err != nil {
-				h.log.WithError(err).Error("error writing json")
+			errEnvelope := Envelope{
+				Type:    defaults.WebsocketError,
+				Payload: err.Error(),
+			}
+			env, err := errEnvelope.Marshal()
+			if err != nil {
+				h.log.WithError(err).Error("error marshalling proto")
+				return nil, nil
+			}
+			if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
+				h.log.WithError(err).Error("error writing proto")
 			}
 			return nil, nil
 		}
@@ -3824,8 +3833,17 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 
 		defer ws.Close()
 		_, err = fn(w, r, p, sctx, site, ws)
-		if err := ws.WriteJSON(WSError{Error: err.Error()}); err != nil {
-			h.log.WithError(err).Error("error writing json")
+		errEnvelope := Envelope{
+			Type:    defaults.WebsocketError,
+			Payload: err.Error(),
+		}
+		env, err := errEnvelope.Marshal()
+		if err != nil {
+			h.log.WithError(err).Error("error marshalling proto")
+			return nil, nil
+		}
+		if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
+			h.log.WithError(err).Error("error writing proto")
 		}
 		return nil, nil
 	})
