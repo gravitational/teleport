@@ -104,14 +104,14 @@ Teleport Team
 
 ### Deploy Teleport
 
-If you wish to deploy Teleport inside a Docker container see the 
+If you wish to deploy Teleport inside a Docker container see the
 [installation guide](https://goteleport.com/docs/installation/#running-teleport-on-docker).
 
 ### For Local Testing and Development
 
 Follow the instructions in the [docker/README](docker/README.md) file.
 
-To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies) 
+To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies)
 
 ## Building Teleport
 
@@ -152,11 +152,11 @@ Ensure you have installed correct versions of necessary dependencies:
   * If you prefer not to install/use yarn, but have docker available, you can run `make docker-ui` instead.
   * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
   * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required.
-  * [`binaryen`](https://github.com/WebAssembly/binaryen) is required: Check if it's already installed on your 
-  system by running `which wasm-opt`. If not you can install it like `brew install binaryen` (macOS) or `apt-get 
-  install binaryen` (Debian-based linux).
+  * [`binaryen`](https://github.com/WebAssembly/binaryen) is required: Check if it's already installed on your
+  system by running `which wasm-opt`. If not you can install it like `brew install binaryen` (macOS) or `apt-get
+  install binaryen` (Debian-based Linux).
 
-For an example of Dev Environment setup on a Mac, see [these instructions](BUILD_macos.md). 
+For an example of Dev Environment setup on a Mac, see [these instructions](BUILD_macos.md).
 
 #### Perform a build
 
@@ -167,7 +167,7 @@ For an example of Dev Environment setup on a Mac, see [these instructions](BUILD
    without swap will **not** work.
 >* This will build the latest version of Teleport, **regardless** of whether it
    is stable. If you want to build the latest stable release, run `git checkout`
-   and `git submodule update --recursive` to the corresponding tag (for example, 
+   and `git submodule update --recursive` to the corresponding tag (for example,
 >* run `git checkout v8.0.0`) **before** performing a build.
 
 Get the source
@@ -177,7 +177,7 @@ git clone https://github.com/gravitational/teleport.git
 cd teleport
 ```
 
-To perform a build 
+To perform a build
 
 ```shell
 make full
@@ -186,7 +186,7 @@ make full
 To build `tsh` with Apple TouchID support enabled:
 
 > **Important**
-> 
+>
 >`tsh` binaries with Touch ID support are only functional using binaries signed
 with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
 maintainer, ask the team for access.
@@ -379,7 +379,7 @@ Yes -- Teleport is production-ready and designed to protect and facilitate
 access to the most precious and mission critical applications.
 
 Teleport has completed several security audits from nationally and
-internationally recognized technology security companies. 
+internationally recognized technology security companies.
 
 We publicize some of our audit results, security philosophy and related
 information on our [trust page](https://trust.goteleport.com/).
