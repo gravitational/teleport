@@ -33,6 +33,8 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
+import { WebsocketStatus } from 'teleport/types';
+
 import {
   AccessRequestClientMessage,
   ExecutionEnvelopeType,
@@ -128,7 +130,6 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       cfg.getAssistConversationWebSocketUrl(
         getHostName(),
         clusterId,
-        getAccessToken(),
         conversationId
       )
     );
@@ -142,10 +143,12 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     );
 
     activeWebSocket.current.onopen = () => {
-      if (initialMessage) {
-        activeWebSocket.current.send(initialMessage);
-      }
+      executeCommandWebSocket.current.send(
+        JSON.stringify({ token: getAccessToken() })
+      );
     };
+
+    let authenticated = false;
 
     activeWebSocket.current.onclose = () => {
       dispatch({
@@ -154,9 +157,29 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       });
     };
 
-    activeWebSocket.current.onmessage = async event => {
-      const data = JSON.parse(event.data) as ServerMessage;
+    executeCommandWebSocket.current.onmessage = event => {
+      if (!authenticated) {
+        const authResponse = JSON.parse(event.data) as WebsocketStatus;
+        if (authResponse.type != 'create_session_response') {
+          executeCommandWebSocket.current.close();
+          console.log('invalid auth response type: ' + authResponse.message);
+          return;
+        }
 
+        if (authResponse.status == 'error') {
+          executeCommandWebSocket.current.close();
+          console.log(
+            'auth error connecting to websocket: ' + authResponse.message
+          );
+          return;
+        }
+        authenticated = true;
+        if (initialMessage) {
+          activeWebSocket.current.send(initialMessage);
+        }
+      }
+
+      const data = JSON.parse(event.data) as ServerMessage;
       switch (data.type) {
         case ServerMessageType.Assist:
           dispatch({
@@ -448,15 +471,41 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     const url = cfg.getAssistExecuteCommandUrl(
       getHostName(),
       clusterId,
-      getAccessToken(),
       execParams
     );
 
-    const proto = new Protobuf();
     executeCommandWebSocket.current = new WebSocket(url);
-    executeCommandWebSocket.current.binaryType = 'arraybuffer';
 
+    executeCommandWebSocket.current.onopen = () => {
+      executeCommandWebSocket.current.send(
+        JSON.stringify({ token: getAccessToken() })
+      );
+    };
+
+    let authenticated = false;
+
+    const proto = new Protobuf();
     executeCommandWebSocket.current.onmessage = event => {
+      if (!authenticated) {
+        const authResponse = JSON.parse(event.data) as WebsocketStatus;
+        if (authResponse.type != 'create_session_response') {
+          executeCommandWebSocket.current.close();
+          console.log('invalid auth response type: ' + authResponse.message);
+          return;
+        }
+
+        if (authResponse.status == 'error') {
+          executeCommandWebSocket.current.close();
+          console.log(
+            'auth error connecting to websocket: ' + authResponse.message
+          );
+          return;
+        }
+        authenticated = true;
+        return;
+      }
+
+      executeCommandWebSocket.current.binaryType = 'arraybuffer';
       const uintArray = new Uint8Array(event.data);
 
       const msg = proto.decode(uintArray);
@@ -535,6 +584,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     executeCommandWebSocket.current.onclose = () => {
       executeCommandWebSocket.current = null;
+      authenticated = false;
 
       // If the execution failed, we won't get a SESSION_END message, so we
       // need to mark all the results as finished here.
