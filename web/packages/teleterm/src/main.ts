@@ -40,6 +40,12 @@ import { parseDeepLink } from 'teleterm/deepLinks';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 
+if (!app.isPackaged) {
+  // Sets app name and data directories to Electron.
+  // Allows running packaged and non-packaged Connect at the same time.
+  app.setName('Electron');
+}
+
 // Set the app as a default protocol client only if it wasn't started through `electron .`.
 if (!process.defaultApp) {
   app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
@@ -91,6 +97,7 @@ function initializeApp(): void {
     windowsManager,
   });
 
+  //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
   app.on(
     'certificate-error',
     (event, webContents, url, error, certificate, callback) => {
@@ -201,6 +208,10 @@ function initializeApp(): void {
   // https://github.com/electron/electron/blob/v17.2.0/docs/tutorial/security.md#12-verify-webview-options-before-creation
   app.on('web-contents-created', (_, contents) => {
     contents.on('will-navigate', (event, navigationUrl) => {
+      // Allow reloading the renderer app in dev mode.
+      if (settings.dev && new URL(navigationUrl).host === 'localhost:8080') {
+        return;
+      }
       logger.warn(`Navigation to ${navigationUrl} blocked by 'will-navigate'`);
       event.preventDefault();
     });

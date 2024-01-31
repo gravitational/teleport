@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';
@@ -27,8 +27,9 @@ import {
   useUnifiedResourcesFetch,
   UnifiedResourcesPinning,
 } from 'shared/components/UnifiedResources';
-import { DefaultTab } from 'shared/services/unifiedResourcePreferences';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
+
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { storageService } from 'teleport/services/storageService';
@@ -40,7 +41,7 @@ import {
   FeatureHeaderTitle,
   FeatureBox,
 } from 'teleport/components/Layout';
-import { useContentMinWidthContext } from 'teleport/Main';
+import { useNoMinWidth } from 'teleport/Main';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
@@ -97,15 +98,7 @@ function ClusterResources({
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
 
-  const { setEnforceMinWidth } = useContentMinWidthContext();
-
-  useEffect(() => {
-    setEnforceMinWidth(false);
-
-    return () => {
-      setEnforceMinWidth(true);
-    };
-  }, []);
+  useNoMinWidth();
 
   const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
@@ -123,8 +116,7 @@ function ClusterResources({
       dir: 'ASC',
     },
     pinnedOnly:
-      preferences?.unifiedResourcePreferences?.defaultTab ===
-      DefaultTab.DEFAULT_TAB_PINNED,
+      preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED,
   });
 
   const getCurrentClusterPinnedResources = useCallback(

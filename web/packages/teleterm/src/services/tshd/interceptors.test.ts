@@ -20,7 +20,7 @@ import { InterceptingCall, InterceptorOptions } from '@grpc/grpc-js';
 
 import Logger from 'teleterm/logger';
 
-import { withLogging } from './middleware';
+import { loggingInterceptor } from './interceptors';
 
 it('do not log sensitive info like password', () => {
   const infoLogger = jest.fn();
@@ -31,7 +31,7 @@ it('do not log sensitive info like password', () => {
       warn: () => {},
     }),
   });
-  const loggingMiddleware = withLogging(new Logger())(
+  const interceptor = loggingInterceptor(new Logger())(
     { method_definition: { path: 'LogIn' } } as InterceptorOptions,
     () =>
       ({
@@ -39,14 +39,12 @@ it('do not log sensitive info like password', () => {
       } as unknown as InterceptingCall)
   );
 
-  loggingMiddleware.sendMessage({
-    toObject: () => ({
-      passw: {},
-      userData: {
-        login: 'admin',
-        password: 'admin',
-      },
-    }),
+  interceptor.sendMessage({
+    passw: {},
+    userData: {
+      login: 'admin',
+      password: 'admin',
+    },
   });
 
   expect(infoLogger).toHaveBeenCalledWith(

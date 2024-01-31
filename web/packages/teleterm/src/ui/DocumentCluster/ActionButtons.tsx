@@ -18,8 +18,9 @@
 
 import React, { useState, useRef } from 'react';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
+import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import { ButtonBorder, MenuItem, Flex } from 'design';
-import { ChevronDown } from 'design/Icon';
+import * as icons from 'design/Icon';
 import Menu from 'design/Menu';
 
 import {
@@ -36,12 +37,18 @@ import {
   GatewayProtocol,
   Database,
   App,
+  Cluster,
 } from 'teleterm/services/tshd/types';
 
 import { DatabaseUri, routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { isWebApp, getWebAppLaunchUrl } from 'teleterm/services/tshd/app';
+import {
+  getWebAppLaunchUrl,
+  isWebApp,
+  getAwsAppLaunchUrl,
+  getSamlAppSsoUrl,
+} from 'teleterm/services/tshd/app';
 
 export function ConnectServerActionButton(props: {
   server: Server;
@@ -50,7 +57,7 @@ export function ConnectServerActionButton(props: {
 
   function getSshLogins(): string[] {
     const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
-    return cluster?.loggedInUser?.sshLoginsList || [];
+    return cluster?.loggedInUser?.sshLogins || [];
   }
 
   function connect(login: string): void {
@@ -66,6 +73,7 @@ export function ConnectServerActionButton(props: {
 
   return (
     <MenuLogin
+      textTransform="none"
       getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
       onSelect={(e, login) => connect(login)}
       transformOrigin={{
@@ -94,7 +102,7 @@ export function ConnectKubeActionButton(props: {
   }
 
   return (
-    <ButtonBorder size="small" onClick={connect}>
+    <ButtonBorder textTransform="none" size="small" onClick={connect}>
       Connect
     </ButtonBorder>
   );
@@ -117,8 +125,9 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   return (
     <AppButton
       connect={connect}
-      isWebApp={isWebApp(props.app)}
-      launchUrl={getWebAppLaunchUrl({ app: props.app, rootCluster, cluster })}
+      app={props.app}
+      cluster={cluster}
+      rootCluster={rootCluster}
       onLaunchUrl={() => {
         captureAppLaunchInBrowser(appContext, props.app, {
           origin: 'resource_table',
@@ -147,6 +156,7 @@ export function ConnectDatabaseActionButton(props: {
       {...getDatabaseMenuLoginOptions(
         props.database.protocol as GatewayProtocol
       )}
+      textTransform="none"
       width="195px"
       getLoginItems={() => getDatabaseUsers(appContext, props.database.uri)}
       onSelect={(_, user) => {
@@ -199,75 +209,121 @@ async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
 }
 
 function AppButton(props: {
-  isWebApp: boolean;
-  launchUrl: string;
+  app: App;
+  cluster: Cluster;
+  rootCluster: Cluster;
   connect(): void;
   onLaunchUrl(): void;
 }) {
   const ref = useRef<HTMLButtonElement>();
   const [isOpen, setIsOpen] = useState(false);
 
-  if (!props.isWebApp) {
+  if (props.app.awsConsole) {
     return (
-      <ButtonBorder size="small" onClick={props.connect}>
-        Connect
+      <AwsLaunchButton
+        awsRoles={props.app.awsRoles}
+        getLaunchUrl={arn =>
+          getAwsAppLaunchUrl({
+            app: props.app,
+            rootCluster: props.rootCluster,
+            cluster: props.cluster,
+            arn,
+          })
+        }
+        onLaunchUrl={props.onLaunchUrl}
+      />
+    );
+  }
+
+  if (props.app.samlApp) {
+    return (
+      <ButtonBorder
+        size="small"
+        onClick={props.onLaunchUrl}
+        as="a"
+        textTransform="none"
+        title="Log in to the app in the browser"
+        href={getSamlAppSsoUrl({
+          app: props.app,
+          rootCluster: props.rootCluster,
+        })}
+        target="_blank"
+      >
+        Login
       </ButtonBorder>
     );
   }
 
-  return (
-    <Flex>
-      <ButtonBorder
-        size="small"
-        forwardedAs="a"
-        href={props.launchUrl}
-        onClick={props.onLaunchUrl}
-        target="_blank"
-        title="Launch app in the browser"
-        css={`
-          border-top-right-radius: 0;
-          border-bottom-right-radius: 0;
-        `}
-      >
-        Launch
-      </ButtonBorder>
-      <ButtonBorder
-        css={`
-          border-left: none;
-          border-top-left-radius: 0;
-          border-bottom-left-radius: 0;
-        `}
-        setRef={ref}
-        px={1}
-        size="small"
-        onClick={() => setIsOpen(true)}
-      >
-        <ChevronDown size="small" color="text.slightlyMuted" />
-      </ButtonBorder>
-      <Menu
-        anchorEl={ref.current}
-        open={isOpen}
-        onClose={() => setIsOpen(false)}
-        // hack to properly position the menu
-        getContentAnchorEl={null}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-      >
-        <MenuItem
-          onClick={() => {
-            setIsOpen(false);
-            props.connect();
+  if (isWebApp(props.app)) {
+    return (
+      <Flex>
+        <ButtonBorder
+          textTransform="none"
+          size="small"
+          forwardedAs="a"
+          href={getWebAppLaunchUrl({
+            app: props.app,
+            rootCluster: props.rootCluster,
+            cluster: props.cluster,
+          })}
+          onClick={props.onLaunchUrl}
+          target="_blank"
+          title="Launch the app in the browser"
+          css={`
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+          `}
+        >
+          Launch
+        </ButtonBorder>
+        <ButtonBorder
+          css={`
+            border-left: none;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+          `}
+          setRef={ref}
+          px={1}
+          size="small"
+          onClick={() => setIsOpen(true)}
+        >
+          {/*
+            Using MoreVert instead of ChevronDown to make this button visually distinct from the
+            button that launches an AWS app.
+          */}
+          <icons.MoreVert size="small" color="text.slightlyMuted" />
+        </ButtonBorder>
+        <Menu
+          anchorEl={ref.current}
+          open={isOpen}
+          onClose={() => setIsOpen(false)}
+          // hack to properly position the menu
+          getContentAnchorEl={null}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
           }}
         >
-          Set up connection
-        </MenuItem>
-      </Menu>
-    </Flex>
+          <MenuItem
+            onClick={() => {
+              setIsOpen(false);
+              props.connect();
+            }}
+          >
+            Set up connection
+          </MenuItem>
+        </Menu>
+      </Flex>
+    );
+  }
+
+  return (
+    <ButtonBorder size="small" onClick={props.connect} textTransform="none">
+      Connect
+    </ButtonBorder>
   );
 }

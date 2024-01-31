@@ -16,34 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import type { Plugin } from 'vite';
 
-import { StepItem } from './StepItem';
-
-import type { View } from 'teleport/Discover/flow';
-
-interface StepListProps {
-  views: View[];
-  currentStep: number;
-  index?: number;
-}
-
-export function StepList(props: StepListProps) {
-  const items = [];
-
-  let startIndex = props.index || 0;
-  for (const view of props.views) {
-    items.push(
-      <StepItem
-        key={startIndex}
-        view={view}
-        currentStep={props.currentStep}
-        index={startIndex}
-      />
-    );
-
-    startIndex += 1;
-  }
-
-  return <>{items}</>;
+export function cspPlugin(csp: string): Plugin {
+  return {
+    name: 'teleport-connect-html-plugin',
+    transformIndexHtml(html) {
+      return {
+        html,
+        tags: [
+          {
+            tag: 'meta',
+            attrs: {
+              'http-equiv': 'Content-Security-Policy',
+              content: csp,
+            },
+          },
+        ],
+      };
+    },
+  };
 }

@@ -36,13 +36,13 @@ const RESOURCES_PATH = app.isPackaged
   : path.join(__dirname, '../../../../');
 
 const TSH_BIN_ENV_VAR = 'CONNECT_TSH_BIN_PATH';
-// __dirname of this file in dev mode is webapps/packages/teleterm/build/app/dist/main
-// We default to webapps/../teleport/build/tsh.
+// __dirname of this file in dev mode is teleport/web/packages/teleterm/build/app/main
+// We default to teleport/build/tsh.
 // prettier-ignore
 const TSH_BIN_DEFAULT_PATH_FOR_DEV = path.resolve(
   __dirname,
-  '..', '..', '..', '..', '..', '..', '..', '..',
-  'teleport', 'build', 'tsh',
+  '..', '..', '..', '..', '..', '..',
+  'build', 'tsh',
 );
 
 // Refer to the docs of RuntimeSettings type for an explanation behind dev, debug and insecure.

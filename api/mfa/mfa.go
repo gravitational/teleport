@@ -39,9 +39,13 @@ var (
 	ErrAdminActionMFARequired = trace.AccessDeniedError{Message: "admin-level API request requires MFA verification"}
 
 	// ErrMFANotRequired is returned by MFA ceremonies when it is discovered or
-	// inferred that the MFA ceremony is not necessary. This is usually because
-	// the server does require/support MFA for the user.
+	// inferred that an MFA ceremony is not required by the server.
 	ErrMFANotRequired = trace.BadParameterError{Message: "re-authentication with MFA is not required"}
+
+	// ErrMFANotSupported is returned by MFA ceremonies when the client does not
+	// support MFA ceremonies, or the server does not support MFA ceremonies for
+	// the client user.
+	ErrMFANotSupported = trace.BadParameterError{Message: "re-authentication with MFA is not supported for this client"}
 )
 
 // WithCredentials can be called on a GRPC client request to attach
@@ -125,9 +129,6 @@ type mfaResponseContextKey struct{}
 
 // ContextWithMFAResponse embeds the MFA response in the context.
 func ContextWithMFAResponse(ctx context.Context, mfaResp *proto.MFAAuthenticateResponse) context.Context {
-	if mfaResp == nil {
-		return ctx
-	}
 	return context.WithValue(ctx, mfaResponseContextKey{}, mfaResp)
 }
 

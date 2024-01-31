@@ -36,8 +36,6 @@ import type { DeleteConnectMyComputerNodeResponse } from "./service_pb";
 import type { DeleteConnectMyComputerNodeRequest } from "./service_pb";
 import type { WaitForConnectMyComputerNodeJoinResponse } from "./service_pb";
 import type { WaitForConnectMyComputerNodeJoinRequest } from "./service_pb";
-import type { DeleteConnectMyComputerTokenResponse } from "./service_pb";
-import type { DeleteConnectMyComputerTokenRequest } from "./service_pb";
 import type { CreateConnectMyComputerNodeTokenResponse } from "./service_pb";
 import type { CreateConnectMyComputerNodeTokenRequest } from "./service_pb";
 import type { CreateConnectMyComputerRoleResponse } from "./service_pb";
@@ -439,15 +437,6 @@ export interface ITerminalServiceClient {
     createConnectMyComputerNodeToken(input: CreateConnectMyComputerNodeTokenRequest, metadata: grpc.Metadata, callback: (err: grpc.ServiceError | null, value?: CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
     createConnectMyComputerNodeToken(input: CreateConnectMyComputerNodeTokenRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
     createConnectMyComputerNodeToken(input: CreateConnectMyComputerNodeTokenRequest, callback: (err: grpc.ServiceError | null, value?: CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
-    /**
-     * DeleteConnectMyComputerToken deletes a join token
-     *
-     * @generated from protobuf rpc: DeleteConnectMyComputerToken(teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest) returns (teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse);
-     */
-    deleteConnectMyComputerToken(input: DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
-    deleteConnectMyComputerToken(input: DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata, callback: (err: grpc.ServiceError | null, value?: DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
-    deleteConnectMyComputerToken(input: DeleteConnectMyComputerTokenRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
-    deleteConnectMyComputerToken(input: DeleteConnectMyComputerTokenRequest, callback: (err: grpc.ServiceError | null, value?: DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
     /**
      * WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
      * that the Connect My Computer node for the particular cluster has joined the cluster (the
@@ -861,15 +850,6 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
         return this.makeUnaryRequest<CreateConnectMyComputerNodeTokenRequest, CreateConnectMyComputerNodeTokenResponse>(`/${TerminalService.typeName}/${method.name}`, (value: CreateConnectMyComputerNodeTokenRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): CreateConnectMyComputerNodeTokenResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
-     * DeleteConnectMyComputerToken deletes a join token
-     *
-     * @generated from protobuf rpc: DeleteConnectMyComputerToken(teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest) returns (teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse);
-     */
-    deleteConnectMyComputerToken(input: DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: DeleteConnectMyComputerTokenResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: DeleteConnectMyComputerTokenResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: DeleteConnectMyComputerTokenResponse) => void)): grpc.ClientUnaryCall {
-        const method = TerminalService.methods[34];
-        return this.makeUnaryRequest<DeleteConnectMyComputerTokenRequest, DeleteConnectMyComputerTokenResponse>(`/${TerminalService.typeName}/${method.name}`, (value: DeleteConnectMyComputerTokenRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): DeleteConnectMyComputerTokenResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
-    }
-    /**
      * WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
      * that the Connect My Computer node for the particular cluster has joined the cluster (the
      * OpPut event).
@@ -880,7 +860,7 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
      * @generated from protobuf rpc: WaitForConnectMyComputerNodeJoin(teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest) returns (teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse);
      */
     waitForConnectMyComputerNodeJoin(input: WaitForConnectMyComputerNodeJoinRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: WaitForConnectMyComputerNodeJoinResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: WaitForConnectMyComputerNodeJoinResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: WaitForConnectMyComputerNodeJoinResponse) => void)): grpc.ClientUnaryCall {
-        const method = TerminalService.methods[35];
+        const method = TerminalService.methods[34];
         return this.makeUnaryRequest<WaitForConnectMyComputerNodeJoinRequest, WaitForConnectMyComputerNodeJoinResponse>(`/${TerminalService.typeName}/${method.name}`, (value: WaitForConnectMyComputerNodeJoinRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): WaitForConnectMyComputerNodeJoinResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
@@ -889,7 +869,7 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
      * @generated from protobuf rpc: DeleteConnectMyComputerNode(teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest) returns (teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse);
      */
     deleteConnectMyComputerNode(input: DeleteConnectMyComputerNodeRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: DeleteConnectMyComputerNodeResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: DeleteConnectMyComputerNodeResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: DeleteConnectMyComputerNodeResponse) => void)): grpc.ClientUnaryCall {
-        const method = TerminalService.methods[36];
+        const method = TerminalService.methods[35];
         return this.makeUnaryRequest<DeleteConnectMyComputerNodeRequest, DeleteConnectMyComputerNodeResponse>(`/${TerminalService.typeName}/${method.name}`, (value: DeleteConnectMyComputerNodeRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): DeleteConnectMyComputerNodeResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
@@ -898,7 +878,7 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
      * @generated from protobuf rpc: GetConnectMyComputerNodeName(teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest) returns (teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse);
      */
     getConnectMyComputerNodeName(input: GetConnectMyComputerNodeNameRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: GetConnectMyComputerNodeNameResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: GetConnectMyComputerNodeNameResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: GetConnectMyComputerNodeNameResponse) => void)): grpc.ClientUnaryCall {
-        const method = TerminalService.methods[37];
+        const method = TerminalService.methods[36];
         return this.makeUnaryRequest<GetConnectMyComputerNodeNameRequest, GetConnectMyComputerNodeNameResponse>(`/${TerminalService.typeName}/${method.name}`, (value: GetConnectMyComputerNodeNameRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): GetConnectMyComputerNodeNameResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
@@ -907,7 +887,7 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
      * @generated from protobuf rpc: ListUnifiedResources(teleport.lib.teleterm.v1.ListUnifiedResourcesRequest) returns (teleport.lib.teleterm.v1.ListUnifiedResourcesResponse);
      */
     listUnifiedResources(input: ListUnifiedResourcesRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: ListUnifiedResourcesResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: ListUnifiedResourcesResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: ListUnifiedResourcesResponse) => void)): grpc.ClientUnaryCall {
-        const method = TerminalService.methods[38];
+        const method = TerminalService.methods[37];
         return this.makeUnaryRequest<ListUnifiedResourcesRequest, ListUnifiedResourcesResponse>(`/${TerminalService.typeName}/${method.name}`, (value: ListUnifiedResourcesRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): ListUnifiedResourcesResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
@@ -916,7 +896,7 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
      * @generated from protobuf rpc: GetUserPreferences(teleport.lib.teleterm.v1.GetUserPreferencesRequest) returns (teleport.lib.teleterm.v1.GetUserPreferencesResponse);
      */
     getUserPreferences(input: GetUserPreferencesRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: GetUserPreferencesResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: GetUserPreferencesResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: GetUserPreferencesResponse) => void)): grpc.ClientUnaryCall {
-        const method = TerminalService.methods[39];
+        const method = TerminalService.methods[38];
         return this.makeUnaryRequest<GetUserPreferencesRequest, GetUserPreferencesResponse>(`/${TerminalService.typeName}/${method.name}`, (value: GetUserPreferencesRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): GetUserPreferencesResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
     /**
@@ -926,7 +906,7 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
      * @generated from protobuf rpc: UpdateUserPreferences(teleport.lib.teleterm.v1.UpdateUserPreferencesRequest) returns (teleport.lib.teleterm.v1.UpdateUserPreferencesResponse);
      */
     updateUserPreferences(input: UpdateUserPreferencesRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void)): grpc.ClientUnaryCall {
-        const method = TerminalService.methods[40];
+        const method = TerminalService.methods[39];
         return this.makeUnaryRequest<UpdateUserPreferencesRequest, UpdateUserPreferencesResponse>(`/${TerminalService.typeName}/${method.name}`, (value: UpdateUserPreferencesRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): UpdateUserPreferencesResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
 }

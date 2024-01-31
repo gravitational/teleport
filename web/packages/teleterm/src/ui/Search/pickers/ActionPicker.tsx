@@ -50,6 +50,7 @@ import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { isWebApp } from 'teleterm/services/tshd/app';
+import { App } from 'teleterm/ui/services/clusters';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
@@ -730,7 +731,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
     </strong>
   );
 
-  const $resourceFields = (
+  const $resourceFields = (app.addrWithProtocol || app.desc) && (
     <ResourceFields>
       {app.addrWithProtocol && (
         <span
@@ -766,13 +767,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
         flexWrap="wrap"
         gap={1}
       >
-        <Text typography="body1">
-          {isWebApp(app) ? (
-            <>Launch {$appName} app in the browser</>
-          ) : (
-            <>Set up an app connection to {$appName}</>
-          )}
-        </Text>
+        <Text typography="body1">{getAppItemCopy($appName, app)}</Text>
         <Box ml="auto">
           <Text typography="body2" fontSize={0}>
             {props.getOptionalClusterName(app.uri)}
@@ -793,6 +788,16 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
       )}
     </IconAndContent>
   );
+}
+
+function getAppItemCopy($appName: React.JSX.Element, app: App) {
+  if (app.samlApp) {
+    return <>Log in to {$appName} in the browser</>;
+  }
+  if (isWebApp(app) || app.awsConsole) {
+    return <>Launch {$appName} in the browser</>;
+  }
+  return <>Set up an app connection to {$appName}</>;
 }
 
 export function KubeItem(props: SearchResultItem<SearchResultKube>) {
@@ -966,7 +971,7 @@ function Labels(
     scoreMap.set(match.labelName, currentScore + match.score);
   });
 
-  const sortedLabelsList = [...searchResult.resource.labelsList];
+  const sortedLabelsList = [...searchResult.resource.labels];
   sortedLabelsList.sort(
     (a, b) =>
       // Highest score first.

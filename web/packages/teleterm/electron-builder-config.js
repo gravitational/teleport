@@ -71,7 +71,7 @@ module.exports = {
     }
   },
   files: [
-    'build/app/dist',
+    'build/app',
     // node-pty creates some files that differ across architecture builds causing
     // the error "can't reconcile the non-macho files" as they cant be combined
     // with lipo for a universal build. They aren't needed so skip them.

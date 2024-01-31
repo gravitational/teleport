@@ -159,6 +159,8 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	// Remove the MFA resp from the context before getting the user.
 	// Otherwise, it will be consumed before the Update which actually
 	// requires the MFA.
+	// TODO(Joerger): Explicitly provide MFA response only where it is
+	// needed instead of removing it like this.
 	getUserCtx := mfa.ContextWithMFAResponse(r.Context(), nil)
 	user, err := m.GetUser(getUserCtx, req.Name, false)
 	if err != nil {
