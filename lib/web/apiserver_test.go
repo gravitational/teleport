@@ -1354,25 +1354,14 @@ func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 	ctx, cancel := context.WithCancel(s.ctx)
 	t.Cleanup(cancel)
 
-	result := make(chan error)
-
-	_, err := connectToHost(ctx, connectConfig{
+	term, err := connectToHost(ctx, connectConfig{
 		pack:      s.authPack(t, "foo"),
 		host:      s.node.ID(),
 		proxy:     s.webServer.Listener.Addr().String(),
 		sessionID: "/../../../foo",
-		handlers: map[string]WSHandlerFunc{
-			defaults.WebsocketError: func(ctx context.Context, e Envelope) {
-				if e.Payload == "/../../../foo is not a valid UUID" {
-					result <- errors.New(e.Payload)
-				}
-				close(result)
-			},
-		},
 	})
-	require.NoError(t, err)
-	res := <-result
-	require.Error(t, res)
+	require.Error(t, err)
+	require.Nil(t, term)
 }
 
 func TestResolveServerHostPort(t *testing.T) {
@@ -1907,7 +1896,6 @@ func TestTerminal(t *testing.T) {
 				host:  s.node.ID(),
 				proxy: s.webServer.Listener.Addr().String(),
 			})
-
 			require.NoError(t, err)
 			t.Cleanup(func() { require.True(t, utils.IsOKNetworkError(term.Close())) })
 
@@ -8129,38 +8117,18 @@ func (r *testProxy) newClient(t *testing.T, opts ...roundtrip.ClientParam) *Test
 	return &TestWebClient{clt, t}
 }
 
-func makeAuthReqOverWS(ws *websocket.Conn, token string) error {
-	authReq, err := json.Marshal(struct {
-		Token string `json:"token"`
-	}{Token: token})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := ws.WriteMessage(websocket.TextMessage, authReq); err != nil {
-		return trace.Wrap(err)
-	}
-	_, authRes, err := ws.ReadMessage()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !strings.Contains(string(authRes), `"status":"ok"`) {
-		return trace.AccessDenied("unexpected response")
-	}
-	return nil
-}
-
 func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/webapi/sites/%s/desktops/%s/connect/ws", currentSiteShortcut, "desktop1"),
+		Path:   fmt.Sprintf("/webapi/sites/%s/desktops/%s/connect", currentSiteShortcut, "desktop1"),
 	}
 
 	q := u.Query()
 	q.Set("username", "marek")
 	q.Set("width", "100")
 	q.Set("height", "100")
+	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -8175,10 +8143,6 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID s
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	require.NoError(t, err)
-
-	err = makeAuthReqOverWS(ws, pack.session.Token)
-	require.NoError(t, err)
-
 	t.Cleanup(func() {
 		require.NoError(t, ws.Close())
 		require.NoError(t, resp.Body.Close())
@@ -9100,109 +9064,6 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 		},
 		TotalCount: 2,
 	}, nil
-}
-
-func TestWSAuthenticateRequest(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil)
-	wsIODeadline = time.Second
-
-	for _, tc := range []struct {
-		name              string
-		serverExpectError string
-		expectResponse    wsStatus
-		token             string
-		writeTimeout      func()
-		readTimeout       func()
-	}{
-		{
-			name: "valid token",
-			expectResponse: wsStatus{
-				Type:   "create_session_response",
-				Status: "ok",
-			},
-			token: pack.session.Token,
-		},
-		{
-			name:              "invalid token",
-			serverExpectError: "not found",
-			expectResponse: wsStatus{
-				Type:    "create_session_response",
-				Status:  "error",
-				Message: "invalid token",
-			},
-			token: "honk",
-		},
-		{
-			name:              "server read timeout",
-			serverExpectError: "i/o timeout",
-			token:             pack.session.Token,
-			readTimeout: func() {
-				<-time.After(time.Second * 3)
-			},
-		},
-	} {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				sctx, ws, err := proxy.handler.handler.AuthenticateRequestWS(w, r)
-				if err != nil {
-					if !strings.Contains(err.Error(), tc.serverExpectError) {
-						t.Errorf("unexpected error: %v", err)
-						return
-					}
-					return
-				}
-				defer ws.Close()
-				if err == nil && tc.serverExpectError != "" {
-					t.Errorf("expected error, got nil")
-					return
-				}
-
-				clt, err := sctx.GetClient()
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-					return
-				}
-				_, err = clt.GetDomainName(ctx)
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-					return
-				}
-			}))
-
-			header := http.Header{}
-			for _, cookie := range pack.cookies {
-				header.Add("Cookie", cookie.String())
-			}
-
-			u := strings.Replace(server.URL, "http:", "ws:", 1)
-			conn, resp, err := websocket.DefaultDialer.Dial(u, header)
-			require.NoError(t, err)
-			defer conn.Close()
-			defer resp.Body.Close()
-
-			if tc.readTimeout != nil {
-				tc.readTimeout()
-			}
-			err = conn.WriteJSON(wsBearerToken{
-				Token: tc.token,
-			})
-			require.NoError(t, err)
-			if tc.readTimeout != nil {
-				return // Reading will fail as the server will have closed the connection
-			}
-
-			var status wsStatus
-			err = conn.ReadJSON(&status)
-			require.NoError(t, err)
-			require.Equal(t, tc.expectResponse, status)
-		})
-	}
 }
 
 // TestSimultaneousAuthenticateRequest ensures that multiple authenticated

@@ -142,7 +142,6 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		participantMode: cfg.ParticipantMode,
 		tracker:         cfg.Tracker,
 		presenceChecker: cfg.PresenceChecker,
-		websocketConn:   cfg.WebsocketConn,
 	}, nil
 }
 
@@ -192,8 +191,6 @@ type TerminalHandlerConfig struct {
 	PresenceChecker PresenceChecker
 	// Clock allows interaction with time.
 	Clock clockwork.Clock
-	// WebsocketConn is the active websocket connection
-	WebsocketConn *websocket.Conn
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -320,9 +317,6 @@ type TerminalHandler struct {
 
 	// clock used to interact with time.
 	clock clockwork.Clock
-
-	// websocketConn is the active websocket connection
-	websocketConn *websocket.Conn
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -334,9 +328,21 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t.ctx.AddClosers(t)
 	defer t.ctx.RemoveCloser(t)
 
-	ws := t.websocketConn
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     func(r *http.Request) bool { return true },
+	}
 
-	err := ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		errMsg := "Error upgrading to websocket"
+		t.log.WithError(err).Error(errMsg)
+		http.Error(w, errMsg, http.StatusInternalServerError)
+		return
+	}
+
+	err = ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 	if err != nil {
 		t.log.WithError(err).Error("Error setting websocket readline")
 		return
