@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -278,9 +279,6 @@ type InitConfig struct {
 
 	// CloudClients provides clients for various cloud providers.
 	CloudClients cloud.Clients
-
-	// SkipPresetRoleAndUserCreation skips creation of the preset teleport roles and users on startup
-	SkipPresetRoleAndUserCreation bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -506,7 +504,8 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	span.AddEvent("completed migration legacy resources")
 
 	// Create presets - convenience and example resources.
-	if !cfg.SkipPresetRoleAndUserCreation {
+	isDashboard := !modules.GetModules().Features().Cloud && modules.GetModules().Features().RecoveryCodes
+	if !isDashboard {
 		span.AddEvent("creating preset roles")
 		if err := createPresetRoles(ctx, asrv); err != nil {
 			return trace.Wrap(err)
