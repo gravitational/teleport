@@ -16,6 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { StepNavigation } from './StepNavigation';
-export { StepTitle, StepsContainer } from './Shared';
-export { Bullet } from './Bullet';
+import React from 'react';
+
+import { BaseView } from '../flow';
+
+import { StepItem } from './StepItem';
+
+interface StepListProps<T> {
+  views: BaseView<T>[];
+  currentStep: number;
+  index?: number;
+}
+
+export function StepList<T>(props: StepListProps<T>) {
+  const items = [];
+
+  let startIndex = props.index || 0;
+  for (const view of props.views) {
+    items.push(
+      <StepItem<T>
+        key={startIndex}
+        view={view}
+        currentStep={props.currentStep}
+        index={startIndex}
+      />
+    );
+
+    startIndex += 1;
+  }
+
+  return <>{items}</>;
+}

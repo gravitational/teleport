@@ -53,6 +53,7 @@ export function OfflineGateway(props: {
     <Flex
       flexDirection="column"
       mx="auto"
+      mb="auto"
       alignItems="center"
       maxWidth="500px"
       css={`
