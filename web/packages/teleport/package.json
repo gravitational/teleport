@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "yarn build-wasm && vite",
-    "build-wasm": "cargo install --locked wasm-bindgen-cli && wasm-pack build ./src/ironrdp --target web --mode no-install",
+    "build-wasm": "cargo install --locked wasm-bindgen-cli && wasm-pack build ./src/ironrdp --target web --mode no-install -- --locked",
     "build": "yarn build-wasm && vite build",
     "test": "npx jest",
     "tdd": "jest . --watch"
