@@ -110,18 +110,18 @@ in the Redis documentation for more details.
 ## Step 5/6. Create a cluster
 
 Use the following command to create the cluster. Please note `redis-cli --cluster create` accepts only IP addresses.
-```sh
-export REDISCLI_AUTH=STRONG_GENERATED_PASSWORD
-export CERTS_DIR=/path/to/certs/
-export IP1=10.0.0.1 # update with the real node 1 IP
-export IP2=10.0.0.2 # update with the real node 2 IP
-export IP3=10.0.0.3 # update with the real node 3 IP
-export IP4=10.0.0.4 # update with the real node 4 IP
-export IP5=10.0.0.5 # update with the real node 5 IP
-export IP6=10.0.0.6 # update with the real node 6 IP
-redis-cli --user alice --cluster-replicas 1 --tls --cluster-yes \
---cluster create ${IP1}:7001 ${IP2}:7002 ${IP3}:7003 ${IP4}:7004 ${IP5}:7005 ${IP6}:7006 \
---cacert ${CERTS_DIR}/server.cas --key ${CERTS_DIR}/server.key --cert ${CERTS_DIR}/server.crt
+```code
+$ export REDISCLI_AUTH=STRONG_GENERATED_PASSWORD
+$ export CERTS_DIR=/path/to/certs/
+$ export IP1=10.0.0.1 # update with the real node 1 IP
+$ export IP2=10.0.0.2 # update with the real node 2 IP
+$ export IP3=10.0.0.3 # update with the real node 3 IP
+$ export IP4=10.0.0.4 # update with the real node 4 IP
+$ export IP5=10.0.0.5 # update with the real node 5 IP
+$ export IP6=10.0.0.6 # update with the real node 6 IP
+$ redis-cli --user alice --cluster-replicas 1 --tls --cluster-yes \
+  --cluster create ${IP1}:7001 ${IP2}:7002 ${IP3}:7003 ${IP4}:7004 ${IP5}:7005 ${IP6}:7006 \
+  --cacert ${CERTS_DIR}/server.cas --key ${CERTS_DIR}/server.key --cert ${CERTS_DIR}/server.crt
 ```
 
 ## Step 6/6. Connect
