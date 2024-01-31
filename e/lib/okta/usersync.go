@@ -25,15 +25,22 @@ const (
 	// a buffer
 	lockTTL = apidefaults.MaxCertDuration + (10 * time.Minute)
 
-	// oktaLockReasonSuspended indicates that a lock's purpose is to lock out an
+	// LockReasonSuspended indicates that a lock's purpose is to lock out an
 	// Okta user who is suspended by the upstream Okta organization. These locks
-	// remain in force until they are explicitly deleted
-	oktaLockReasonSuspended = "suspended"
+	// only remain in force temporarily until the maximum credential TTL has
+	// expired, unless deleted earlier.
+	LockReasonSuspended = "suspended"
 
-	// oktaLockReasonDeleted indicates that a lock's purpose is to lock out an
+	// LockReasonDeleted indicates that a lock's purpose is to lock out an
 	// Okta user who was deleted by the upstream Okta organization. These locks
 	// only remain in force temporarily, while the user is being deleted.
-	oktaLockReasonDeleted = "deleted"
+	LockReasonDeleted = "deleted"
+
+	// LockReasonDeactivated indicates that a lock's purpose is to lock out an
+	// Okta user who was deactivated  by the upstream Okta organization. These locks
+	// only remain in force temporarily until the maximum credential TTL has
+	// expired, unless deleted earlier
+	LockReasonDeactivated = "deactivated"
 )
 
 // Status values drawn from https://github.com/okta/okta-sdk-java/blob/master/src/swagger/api.yaml
@@ -49,9 +56,24 @@ const (
 	userStatusDeprovisioned   = "DEPROVISIONED"
 )
 
+// LocksService abstracts over the Teleport lock service, providing the subset
+// of lock operations required by the UserReconciler.
+type LocksService interface {
+	// GetLocks lists the locks that target a given set of resources.
+	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+
+	// UpsertLock creates or updates a given lock
+	UpsertLock(ctx context.Context, lock types.Lock) error
+
+	// DeleteLock deletes a given lock
+	DeleteLock(ctx context.Context, name string) error
+}
+
 // ReconcilerAccessPoint provides CRUD methods on the Teleport cluster's
 // user database used by the Okta user reconciler.
 type ReconcilerAccessPoint interface {
+	LocksService
+
 	// CreateUserWithContext creates a user, only if the user entry does not exist
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 
@@ -68,15 +90,6 @@ type ReconcilerAccessPoint interface {
 
 	// DeleteUser deletes the user with the given name
 	DeleteUser(ctx context.Context, user string) error
-
-	// GetLocks lists the locks that target a given set of resources.
-	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
-
-	// UpsertLock creates or updates a given lock
-	UpsertLock(ctx context.Context, lock types.Lock) error
-
-	// DeleteLock deletes a given lock
-	DeleteLock(ctx context.Context, name string) error
 }
 
 // userConverter is a function that can convert an Okta user into a Teleport
@@ -88,16 +101,52 @@ type userConverter func(*okta.User) (types.User, error)
 func fetchOktaUsers(ctx context.Context, oktaClient OktaClient, convertUser userConverter, log logrus.FieldLogger) (map[string]types.User, error) {
 	result := map[string]types.User{}
 	err := oktaClient.iterateUsers(ctx, func(ou *okta.User) error {
-		log.Debugf("Processing Okta user %s...", ou.Id)
+		log := log.WithField("okta_user_id", ou.Id)
+		log.Debug("Processing Okta user...")
+
 		teleportUser, err := convertUser(ou)
 		if err != nil {
-			log.WithError(err).Warnf("Failed converting user %s. Skipping.", ou.Id)
+			log.Warnf("Failed converting user: %s. Skipping.", err)
+			return nil
 		}
 		result[teleportUser.GetName()] = teleportUser
 		return nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "enumerating Okta users")
+	}
+	return result, nil
+}
+
+// appUserConverter is a function that can convert an Okta app user into a
+// Teleport user.
+type appUserConverter func(*okta.AppUser) (types.User, error)
+
+// fetchOktaUsers fetches users from the upstream okta service and creates
+// candidate Teleport user equivalents for them.
+func fetchOktaAppUsers(ctx context.Context, oktaClient OktaClient, appID string, convertUser appUserConverter, log logrus.FieldLogger) (map[string]types.User, error) {
+	result := map[string]types.User{}
+	err := oktaClient.iterateAppUsers(ctx, appID, func(oau *okta.AppUser) error {
+		if oau == nil {
+			log.Warn("AppUser value was nil. Skipping.")
+			return nil
+		}
+		log := log.WithFields(logrus.Fields{
+			"user_name":    oau.ExternalId,
+			"okta_user_id": oau.Id,
+		})
+		log.Debug("Processing Okta AppUser")
+
+		teleportUser, err := convertUser(oau)
+		if err != nil {
+			log.Warnf("Failed converting appuser: %s. Skipping.", err)
+			return nil
+		}
+		result[teleportUser.GetName()] = teleportUser
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "enumerating Okta app users")
 	}
 	return result, nil
 }
@@ -115,13 +164,7 @@ func listTeleportUsers(ctx context.Context, userSvc ReconcilerAccessPoint, userO
 
 	for _, user := range users {
 		// Filter out non-okta-origin users
-		if user.Origin() != types.OriginOkta {
-			continue
-		}
-
-		// Filter out okta users from a different Okta organization, which
-		// belong to a different integration
-		if label, ok := user.GetLabel(eteleport.OktaOrgURLLabel); !ok || label != userOrgURL {
+		if !IsOktaUserInOrg(user, userOrgURL) {
 			continue
 		}
 
@@ -129,6 +172,19 @@ func listTeleportUsers(ctx context.Context, userSvc ReconcilerAccessPoint, userO
 	}
 
 	return result, nil
+}
+
+// IsOktaUserInOrg checks the user labels to assert that the given user was
+// created by Okta and belongs to the target Org.
+func IsOktaUserInOrg(u types.User, orgURL string) bool {
+	if u.Origin() != types.OriginOkta {
+		return false
+	}
+
+	// Filter out okta users from a different Okta organization, which
+	// belong to a different integration
+	label, _ := u.GetLabel(eteleport.OktaOrgURLLabel)
+	return label == orgURL
 }
 
 // userReconcilerConfig holds the caller-supplied information needed to create a
@@ -256,35 +312,22 @@ func (r *userReconciler) updateTeleportUser(ctx context.Context, newUser, oldUse
 		return trace.Wrap(err, "updating user %q", newUser.GetName())
 	}
 
-	oldUserLocked := userHasLockableStatus(oldUser)
-	newUserLocked := userHasLockableStatus(newUser)
+	oldUserLocked := UserHasLockableStatus(oldUser)
+	newUserLocked := UserHasLockableStatus(newUser)
 	transitionToLock := !oldUserLocked && newUserLocked
 	transitionOutOfLock := oldUserLocked && !newUserLocked
 
 	switch {
 	case transitionToLock:
 		// Create an okta lock on the user
-		if _, err := r.lockUser(ctx, newUser, oktaLockReasonSuspended); err != nil {
+		if _, err := r.lockUser(ctx, newUser, LockReasonSuspended); err != nil {
 			return trace.Wrap(err, "locking on user %q", newUser.GetName())
 		}
 
 	case transitionOutOfLock:
-		locks, err := r.getOktaLocksForUser(ctx, newUser, oktaLockReasonSuspended)
-		if err != nil {
-			return trace.Wrap(err, "fetching locks on user %q", newUser.GetName())
+		if err := UnlockUser(ctx, newUser, LockReasonSuspended, r.cfg.userOrgURL, r.cfg.teleportAP); err != nil {
+			return trace.Wrap(err)
 		}
-
-		var lockErrors []error
-		for _, lock := range locks {
-			err := r.cfg.teleportAP.DeleteLock(ctx, lock.GetName())
-			if err != nil && !trace.IsNotFound(err) {
-				lockErrors = append(lockErrors,
-					trace.Wrap(err,
-						"deleting lock %s on user %q", lock.GetName(), newUser.GetName()))
-			}
-		}
-
-		return trace.NewAggregate(lockErrors...)
 	}
 
 	return nil
@@ -299,7 +342,7 @@ func (r *userReconciler) deleteTeleportUser(ctx context.Context, user types.User
 
 	// Create a lock on the user so that any open sessions that they have are
 	// terminated with extreme prejudice
-	if _, err := r.lockUser(ctx, user, oktaLockReasonDeleted); err != nil {
+	if _, err := r.lockUser(ctx, user, LockReasonDeleted); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -309,6 +352,13 @@ func (r *userReconciler) deleteTeleportUser(ctx context.Context, user types.User
 	}
 
 	return nil
+}
+
+// PreserveUserMetadata copies any metadata that needs to be preserved across an
+// update from src to dst.
+func PreserveUserMetadata(dst, src types.User) {
+	dst.SetRevision(src.GetRevision())
+	dst.SetCreatedBy(src.GetCreatedBy())
 }
 
 // reconcileUsers pulls the user list from an upstream okta organization and
@@ -340,8 +390,7 @@ func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleport
 			continue
 		}
 
-		oktaUser.SetRevision(teleportUser.GetRevision())
-		oktaUser.SetCreatedBy(teleportUser.GetCreatedBy())
+		PreserveUserMetadata(oktaUser, teleportUser)
 	}
 
 	// Run the reconciliation
@@ -351,25 +400,69 @@ func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleport
 	return nil
 }
 
-// lockUser creates a Teleport lock targeting the supplied user. This will cause
-// any open sessions held by that user to be immediately terminated.
-func (r *userReconciler) lockUser(ctx context.Context, user types.User, reason string) (types.Lock, error) {
-	expiry := r.cfg.clock.Now().Add(lockTTL)
-	status, _ := user.GetLabel(eteleport.OktaUserStatusLabel)
+// LockParams holds the parameters required for creating an Okta-managed lock on
+// a given user
+type LockParams struct {
+	User     types.User
+	Reason   string
+	OrgURL   string
+	Clock    clockwork.Clock
+	LocksSvc LocksService
+	Log      logrus.FieldLogger
+}
+
+// CheckAndSetDefaults validates the LockParams values, supplying defaults if
+// necessary.
+func (p *LockParams) CheckAndSetDefaults() error {
+	if p.User == nil {
+		return trace.BadParameter("missing user")
+	}
+
+	if p.Reason == "" {
+		return trace.BadParameter("missing lock reason")
+	}
+
+	if p.OrgURL == "" {
+		return trace.BadParameter("missing target URL")
+	}
+
+	if p.LocksSvc == nil {
+		return trace.BadParameter("missing locks service")
+	}
+
+	if p.Log == nil {
+		p.Log = logrus.WithField(trace.Component, eteleport.ComponentOkta)
+	}
+
+	if p.Clock == nil {
+		p.Clock = clockwork.NewRealClock()
+	}
+
+	return nil
+}
+
+// LockUser creates an okta-managed lock on a given user
+func LockUser(ctx context.Context, args LockParams) (types.Lock, error) {
+	if err := args.CheckAndSetDefaults(); err != nil {
+		return nil, err
+	}
+
+	expiry := args.Clock.Now().Add(lockTTL)
+	status, _ := args.User.GetLabel(eteleport.OktaUserStatusLabel)
 	l := &types.LockV2{
 		Metadata: types.Metadata{
 			Name: uuid.NewString(),
 			Labels: map[string]string{
 				types.OriginLabel:             types.OriginOkta,
-				eteleport.OktaOrgURLLabel:     r.cfg.userOrgURL,
-				eteleport.OktaLockReasonLabel: reason,
+				eteleport.OktaOrgURLLabel:     args.OrgURL,
+				eteleport.OktaLockReasonLabel: args.Reason,
 			},
 			Expires: &expiry,
 		},
 		Spec: types.LockSpecV2{
-			Message: fmt.Sprintf("Okta user %q is %s", user.GetName(), status),
+			Message: fmt.Sprintf("Okta user %q is %s", args.User.GetName(), status),
 			Target: types.LockTarget{
-				User: user.GetName(),
+				User: args.User.GetName(),
 			},
 			CreatedBy: types.OriginOkta,
 			Expires:   &expiry,
@@ -377,35 +470,70 @@ func (r *userReconciler) lockUser(ctx context.Context, user types.User, reason s
 	}
 
 	if err := l.CheckAndSetDefaults(); err != nil {
-		r.cfg.log.WithError(err).Error("setting lock defaults")
+		args.Log.WithError(err).Error("setting lock defaults")
 		return nil, trace.Wrap(err, "setting lock defaults")
 	}
 
-	r.cfg.log.WithFields(
-		logrus.Fields{
-			"user_name": user.GetName(),
+	args.Log.
+		WithFields(logrus.Fields{
+			"user_name": args.User.GetName(),
 			"lock_name": l.GetName(),
 		}).
-		Debugf("Locking user %s", user.GetName())
+		Debugf("Locking user %s", args.User.GetName())
 
-	if err := r.cfg.teleportAP.UpsertLock(ctx, l); err != nil {
-		return nil, trace.Wrap(err, "locking user %q", user.GetName())
+	if err := args.LocksSvc.UpsertLock(ctx, l); err != nil {
+		return nil, trace.Wrap(err, "locking user %q", args.User.GetName())
 	}
 
 	return l, nil
 }
 
+// lockUser creates a Teleport lock targeting the supplied user. This will cause
+// any open sessions held by that user to be immediately terminated.
+func (r *userReconciler) lockUser(ctx context.Context, user types.User, reason string) (types.Lock, error) {
+	return LockUser(ctx, LockParams{
+		User:     user,
+		Reason:   reason,
+		OrgURL:   r.cfg.userOrgURL,
+		Clock:    r.cfg.clock,
+		LocksSvc: r.cfg.teleportAP,
+		Log:      r.cfg.log,
+	})
+}
+
+// UnlockUser deletes any Okta-managed locks on the target Teleport user. The
+// deleted locks are filtered by the lock reason, so a request to delete
+// `Suspended` locks will not delete `Deleted` locks.
+func UnlockUser(ctx context.Context, user types.User, reason string, orgURL string, locksSvc LocksService) error {
+	locks, err := getOktaLocksForUser(ctx, user, reason, orgURL, locksSvc)
+	if err != nil {
+		return trace.Wrap(err, "fetching locks on user %q", user.GetName())
+	}
+
+	var lockErrors []error
+	for _, lock := range locks {
+		err := locksSvc.DeleteLock(ctx, lock.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			lockErrors = append(lockErrors,
+				trace.Wrap(err,
+					"deleting lock %s on user %q", lock.GetName(), user.GetName()))
+		}
+	}
+
+	return trace.NewAggregate(lockErrors...)
+}
+
 // getOktaLocksForUser fetches all of the okta-created locks applied to the
 // supplied user.
-func (r *userReconciler) getOktaLocksForUser(ctx context.Context, user types.User, reason string) ([]types.Lock, error) {
-	allLocks, err := r.cfg.teleportAP.GetLocks(ctx, true /* in force only */, types.LockTarget{User: user.GetName()})
+func getOktaLocksForUser(ctx context.Context, user types.User, reason string, orgURL string, locksSvc LocksService) ([]types.Lock, error) {
+	allLocks, err := locksSvc.GetLocks(ctx, true /* in force only */, types.LockTarget{User: user.GetName()})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var oktaLocks []types.Lock
 	for _, lock := range allLocks {
-		if isOktaLock(lock, r.cfg.userOrgURL, reason) {
+		if isOktaLock(lock, orgURL, reason) {
 			oktaLocks = append(oktaLocks, lock)
 		}
 	}
@@ -420,7 +548,9 @@ var lockableStatuses = map[string]struct{}{
 	userStatusLockedOut:     {},
 }
 
-func userHasLockableStatus(user types.User) bool {
+// UserHasLockableStatus test if the supplied user is in an Okta state where
+// their account should be locked
+func UserHasLockableStatus(user types.User) bool {
 	status, _ := user.GetLabel(eteleport.OktaUserStatusLabel)
 	_, isLockable := lockableStatuses[strings.ToUpper(status)]
 	return isLockable

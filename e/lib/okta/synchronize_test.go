@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/okta/okta-sdk-golang/v2/okta"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -16,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestSynchronizeGroups(t *testing.T) {
@@ -476,4 +478,85 @@ func verifyEventResources(t *testing.T, resources []*apievents.OktaResource, off
 	}
 
 	return resources
+}
+
+func TestFetchUsers(t *testing.T) {
+	logrus.SetFormatter(logutils.NewDefaultTextFormatter(true))
+	logrus.SetLevel(logrus.TraceLevel)
+	log := logrus.WithField("test", t.Name())
+
+	ctx := context.Background()
+	testClient := newTestClient()
+	testClient.oktaUsers = []*okta.User{
+		{
+			Id:      "00000001",
+			Profile: &okta.UserProfile{},
+		},
+		{
+			Id:      "00000002",
+			Profile: nil,
+		}, {
+			Id:      "00000003",
+			Profile: &okta.UserProfile{},
+		},
+	}
+
+	converter := func(u *okta.User) (types.User, error) {
+		if u.Profile == nil {
+			return nil, trace.BadParameter("missing user profile")
+		}
+		return types.NewUser(u.Id)
+	}
+
+	users, err := fetchOktaUsers(ctx, testClient, converter, log)
+	require.NoError(t, err)
+
+	require.Len(t, users, 2)
+	require.Contains(t, users, "00000001")
+	require.Contains(t, users, "00000003")
+	require.NotContains(t, users, "00000002")
+}
+
+func TestFetchAppUsers(t *testing.T) {
+	log := logrus.WithField("test", t.Name())
+	ctx := context.Background()
+	testClient := newTestClient()
+	testClient.oktaAppUsers = []*okta.AppUser{
+		{
+			Id:         "00000001",
+			ExternalId: "alpha@example.org",
+			Profile:    map[string]any{},
+			Credentials: &okta.AppUserCredentials{
+				UserName: "alpha@example.org",
+			},
+		},
+		{
+			Id:         "00000002",
+			ExternalId: "missing-credentials@example.org",
+			Profile:    map[string]any{},
+		}, {
+			Id:         "00000003",
+			ExternalId: "beta@example.org",
+			Profile:    map[string]any{},
+			Credentials: &okta.AppUserCredentials{
+				UserName: "beta@example.org",
+			},
+		},
+	}
+
+	converter := func(u *okta.AppUser) (types.User, error) {
+		if u.Credentials == nil {
+			return nil, trace.BadParameter("missing AppUser credentials")
+		}
+		return types.NewUser(u.ExternalId)
+	}
+
+	users, err := fetchOktaAppUsers(ctx, testClient, "blahblahblah", converter, log)
+	require.NoError(t, err)
+
+	require.Len(t, users, 2)
+	require.Contains(t, users, "alpha@example.org")
+	require.Contains(t, users, "beta@example.org")
+
+	require.NotContains(t, users, "missing-credentials@example.org")
 }

@@ -148,6 +148,43 @@ func (w *wrappedClient) iterateApps(ctx context.Context, fn func(okta.App) error
 	return nil
 }
 
+// iterateAppUsers will iterate over the list of all Okta users assigned to
+// a given app. The supplied iterator callback may return stopIteration to
+// signal that it does not want to continue receiving users. All other
+// non-nil return values are considered an error and will be propagated to
+// the caller.
+func (w *wrappedClient) iterateAppUsers(ctx context.Context, appID string, fn func(*okta.AppUser) error) error {
+
+	// We'll use the max page size of 500 here to minimize API calls.
+	// https://developer.okta.com/docs/reference/api/apps/#list-users-assigned-to-application
+	appUsers, resp, err := w.client.Application.ListApplicationUsers(ctx, appID, query.NewQueryParams(
+		query.WithLimit(500),
+	))
+
+	for {
+		if err != nil {
+			return trace.Wrap(w.oktaErrToTrace(ctx, err), "error when getting application user assignments")
+		}
+
+		for _, appUser := range appUsers {
+			if err := fn(appUser); err != nil {
+				if errors.Is(err, errStopIteration) {
+					break
+				}
+				return trace.Wrap(err)
+			}
+		}
+
+		if !resp.HasNextPage() {
+			break
+		}
+
+		resp, err = resp.Next(ctx, &appUsers)
+	}
+
+	return nil
+}
+
 // getGroupAssignments will return the list of users assigned to a group.
 func (w *wrappedClient) getGroupAssignments(ctx context.Context, groupID string) ([]string, error) {
 	var userIDs []string
@@ -178,27 +215,12 @@ func (w *wrappedClient) getGroupAssignments(ctx context.Context, groupID string)
 // getAppAssignments will return the list of users assigned to an app.
 func (w *wrappedClient) getAppAssignments(ctx context.Context, appID string) ([]string, error) {
 	var userIDs []string
-
-	// We'll use the max page size of 500 here to minimize API calls.
-	// https://developer.okta.com/docs/reference/api/apps/#list-users-assigned-to-application
-	appUsers, resp, err := w.client.Application.ListApplicationUsers(ctx, appID, query.NewQueryParams(
-		query.WithLimit(500),
-	))
-
-	for {
-		if err != nil {
-			return nil, trace.Wrap(w.oktaErrToTrace(ctx, err), "error when getting application user assignments")
-		}
-
-		for _, appUser := range appUsers {
-			userIDs = append(userIDs, appUser.Id)
-		}
-
-		if !resp.HasNextPage() {
-			break
-		}
-
-		resp, err = resp.Next(ctx, &appUsers)
+	err := w.iterateAppUsers(ctx, appID, func(appUser *okta.AppUser) error {
+		userIDs = append(userIDs, appUser.Id)
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return userIDs, nil

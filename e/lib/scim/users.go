@@ -2,6 +2,7 @@ package scim
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
 	"github.com/scim2/filter-parser/v2"
@@ -28,9 +29,17 @@ func (uh *userHandler) create(ctx context.Context, shim providerShim, r *scimpb.
 		return nil, trace.Wrap(err, "converting Teleport user")
 	}
 
+	if err := shim.onCreatingUser(ctx, newUser, r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	createdUser, err := uh.users.CreateUser(ctx, newUser)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating Teleport user")
+	}
+
+	if err := shim.onCreatedUser(ctx, createdUser, r); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	result, err := shim.userToResource(ctx, createdUser)
@@ -51,7 +60,26 @@ func (uh *userHandler) update(ctx context.Context, shim providerShim, r *scimpb.
 		return nil, trace.CompareFailed("invalid revision: %q != %q", user.GetRevision(), r.Meta.Version)
 	}
 
-	return shim.updateUser(ctx, user, r)
+	user, err = shim.onUpdatingUser(ctx, user, r)
+	if err != nil {
+		if errors.Is(err, errHandled) {
+			result, err := shim.userToResource(ctx, user)
+			return result, trace.Wrap(err)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := uh.users.UpdateUser(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, err := shim.userToResource(ctx, updated)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return result, err
 }
 
 // get handles an individual resource query from the server

@@ -41,6 +41,7 @@ type oktaSettings struct {
 	defaultOwners         []string
 	appFilters            []string
 	groupFilters          []string
+	oktaAppID             string
 }
 
 // InitOkta will initialize and start the Okta service.
@@ -96,6 +97,7 @@ func InitOktaPlugin(ctx context.Context, process *service.TeleportProcess, plugi
 				defaultOwners:         settings.SyncSettings.DefaultOwners,
 				appFilters:            settings.SyncSettings.AppFilters,
 				groupFilters:          settings.SyncSettings.GroupFilters,
+				oktaAppID:             settings.SyncSettings.AppId,
 			},
 			pluginLogComponent(pluginName), components...)
 	})
@@ -200,6 +202,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		DefaultOwners:              settings.defaultOwners,
 		AccessListSyncAppFilters:   settings.appFilters,
 		AccessListSyncGroupFilters: settings.groupFilters,
+		OktaSAMLAppID:              settings.oktaAppID,
 	})
 	if err != nil {
 		return trace.Wrap(err)

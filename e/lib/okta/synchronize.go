@@ -632,9 +632,19 @@ func (s *Service) syncUsers(ctx context.Context) error {
 		return nil
 	}
 
-	convertUser := makeUserConverter(s.clock, s.ssoConnectorID, s.orgURL)
-
-	oktaUsers, err := fetchOktaUsers(ctx, s.client, convertUser, s.log)
+	var oktaUsers map[string]types.User
+	var err error
+	if s.oktaSAMLAppID != "" {
+		s.log.Debug("APP ID is set. Fetching app users.")
+		convertUser := func(oktaUser *okta.AppUser) (types.User, error) {
+			return ConvertAppUser(oktaUser, s.clock, s.ssoConnectorID, s.orgURL)
+		}
+		oktaUsers, err = fetchOktaAppUsers(ctx, s.client, s.oktaSAMLAppID, convertUser, s.log)
+	} else {
+		s.log.Debug("APP ID is not set. Fetching org users.")
+		convertUser := makeUserConverter(s.clock, s.ssoConnectorID, s.orgURL)
+		oktaUsers, err = fetchOktaUsers(ctx, s.client, convertUser, s.log)
+	}
 	if err != nil {
 		return trace.Wrap(err, "enumerating Okta users")
 	}

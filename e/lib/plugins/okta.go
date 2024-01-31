@@ -23,7 +23,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.BadParameter("static credentials must be present")
 	}
 
-	oktaAPITokenCred, err := selectOktaAPIToken(deps.staticCredentials)
+	oktaAPITokenCred, err := okta.SelectAPIToken(deps.staticCredentials)
 	if err != nil {
 		return nil, trace.Wrap(err, "selecting okta credentials")
 	}
@@ -56,21 +56,4 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		deps.log.Info("Okta plugin has stopped")
 		return nil
 	}, nil
-}
-
-func selectOktaAPIToken(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
-
-	// For now, we'll just choose the first eligible static credential until we
-	// have a need for rotation or other complexity.
-	for _, cred := range staticCredentials {
-		// Older Okta API credentials are not labeled with a purpose, so a cred
-		// is considered eligible if it has no purpose label, or a purpose label
-		// set to okta.CredPurposeOktaAuth.
-		purpose, present := cred.GetLabel(okta.CredPurposeLabel)
-		if !present || purpose == okta.CredPurposeOktaAuth {
-			return cred, nil
-		}
-	}
-
-	return nil, trace.NotFound("Okta API token")
 }

@@ -409,6 +409,7 @@ func TestListUsersHandlesPagedUsers(t *testing.T) {
 	// Given a SCIM service connected to a user database containing some users
 	// belonging to a provide, and some not...
 	uut, fix := newTestService(t)
+	defer fix.AssertExpectations(t)
 
 	// configure the provider shim with a basic implementation
 	fix.shim.
@@ -511,6 +512,7 @@ func TestGetUser(t *testing.T) {
 			// Given a SCIM service connected to a user database containing some
 			// users belonging to a provide, and some not...
 			uut, fix := newTestService(t)
+			defer fix.AssertExpectations(t)
 
 			fix.shim.
 				On("authorizeRequest", anyContext, testAuthHeader).
@@ -571,12 +573,14 @@ func TestCreateUser(t *testing.T) {
 	testCases := []struct {
 		name               string
 		createUserResponse []any
+		expectCreatedEvent bool
 		expectError        require.ErrorAssertionFunc
 		expectValue        require.ValueAssertionFunc
 	}{
 		{
 			name:               "simple",
 			createUserResponse: []any{mockCreateUser},
+			expectCreatedEvent: true,
 			expectError:        require.NoError,
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				created, ok := obj.(*scimpb.Resource)
@@ -595,6 +599,7 @@ func TestCreateUser(t *testing.T) {
 			},
 		}, {
 			name:               "name collision",
+			expectCreatedEvent: false,
 			createUserResponse: []any{nil, trace.AlreadyExists("user already exists")},
 			expectError:        requireAlreadyExists,
 			expectValue:        require.Nil,
@@ -606,6 +611,7 @@ func TestCreateUser(t *testing.T) {
 			// Given a SCIM service connected to a user database containing some users
 			// belonging to a provide, and some not...
 			uut, fix := newTestService(t)
+			defer fix.AssertExpectations(t)
 
 			resource := &scimpb.Resource{
 				Id:         "newUser@example.com",
@@ -629,9 +635,20 @@ func TestCreateUser(t *testing.T) {
 				On("resourceToUser", anyContext, anyResource).
 				Return(resourceToTestUser)
 			fix.shim.
-				On("userToResource", anyContext, anyUser).
-				Maybe().
-				Return(testUserToResource)
+				On("onCreatingUser", anyContext, anyUser, anyResource).
+				Once().
+				Return(nil)
+
+			if tt.expectCreatedEvent {
+				fix.shim.
+					On("onCreatedUser", anyContext, anyUser, anyResource).
+					Once().
+					Return(nil)
+				fix.shim.
+					On("userToResource", anyContext, anyUser).
+					Once().
+					Return(testUserToResource)
+			}
 
 			fix.users.
 				On("CreateUser", anyContext, anyUser).
@@ -686,21 +703,24 @@ func TestUpdateUser(t *testing.T) {
 		Return(nil)
 	fix.shim.
 		On("resourceToUser", anyContext, anyResource).
-		Maybe().
 		Return(resourceToTestUser)
 	fix.shim.
 		On("userToResource", anyContext, anyUser).
-		Maybe().
 		Return(testUserToResource)
 	fix.shim.
-		On("updateUser", anyContext, anyUser, anyResource).
-		Return(func(_ context.Context, _ types.User, newRes *scimpb.Resource) (*scimpb.Resource, error) {
-			return newRes, nil
+		On("onUpdatingUser", anyContext, anyUser, anyResource).
+		Return(func(ctx context.Context, u types.User, r *scimpb.Resource) (types.User, error) {
+			return fix.shim.resourceToUser(ctx, r)
 		})
 
 	fix.users.
 		On("GetUser", anyContext, "User007@example.com", withoutSecrets).
 		Return(oldUser, nil)
+	fix.users.
+		On("UpdateUser", anyContext, anyUser).
+		Return(func(_ context.Context, u types.User) (types.User, error) {
+			return u, nil
+		})
 
 	fix.plugins.
 		On("GetPlugin", anyContext, testPluginName, withSecrets).

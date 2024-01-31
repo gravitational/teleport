@@ -40,7 +40,9 @@ type Service struct {
 
 // defaultShimFactoryMap is the default set of known compatibility shims
 // for the various supported Identity providers
-var defaultShimFactoryMap = map[types.PluginType]shimFactory{}
+var defaultShimFactoryMap = map[types.PluginType]shimFactory{
+	types.PluginTypeOkta: newOktaShim,
+}
 
 // Config is the externally-supplied configuration data for the SCIM service.
 type Config struct {

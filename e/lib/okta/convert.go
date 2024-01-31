@@ -4,6 +4,8 @@ import (
 	"crypto"
 	"fmt"
 	"math/big"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -229,21 +231,141 @@ func (p *oktaUserProfile) AsTraits() trait.Traits {
 	for k, v := range p.Fields {
 		switch value := v.(type) {
 		case string:
-			traits[eteleport.OktaTraitPrefix+k] = []string{value}
+			if trimmed := strings.TrimSpace(value); trimmed != "" {
+				traits[eteleport.OktaTraitPrefix+k] = []string{trimmed}
+			}
 		case []string:
-			traits[eteleport.OktaTraitPrefix+k] = value
+			if trimmed := removeEmpty(value); len(trimmed) > 0 {
+				traits[eteleport.OktaTraitPrefix+k] = trimmed
+			}
 		}
 	}
 	return traits
 }
 
-func parseOktaUserProfile(oktaUser *okta.User) (*oktaUserProfile, error) {
+func removeEmpty(src []string) []string {
+	return slices.DeleteFunc(src, func(s string) bool { return len(strings.TrimSpace(s)) == 0 })
+}
+
+func parseOktaUserProfile(attributes map[string]any) (*oktaUserProfile, error) {
 	var profile oktaUserProfile
-	err := mapstructure.Decode(oktaUser.Profile, &profile)
+	err := mapstructure.Decode(&attributes, &profile)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing okta user profile")
 	}
 	return &profile, nil
+}
+
+type OktaUserArgs struct {
+	Login             string
+	OrgURL            string
+	OktaUserID        string
+	OktaUserStatus    string
+	SAMLConnectorName string
+	Clock             clockwork.Clock
+}
+
+func (args *OktaUserArgs) CheckAndSetDefaults() error {
+	if args.Login == "" {
+		return trace.BadParameter("missing Login")
+	}
+
+	if args.OrgURL == "" {
+		return trace.BadParameter("missing OrgURL")
+	}
+
+	if args.OktaUserID == "" {
+		return trace.BadParameter("missing OktaUserID")
+	}
+
+	if args.OktaUserStatus == "" {
+		return trace.BadParameter("missing OktaUserStatus")
+	}
+
+	if args.SAMLConnectorName == "" {
+		return trace.BadParameter("missing SAMLConnectorName")
+	}
+
+	if args.Clock == nil {
+		args.Clock = clockwork.NewRealClock()
+	}
+
+	return nil
+}
+
+// NewOktaUser creates a Teleport user resource with the appropriate labels and
+// properties to mark the user as belonging to an Okta organization.
+func NewOktaUser(args OktaUserArgs) (types.User, error) {
+	if err := args.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err, "creating okta user")
+	}
+
+	newUser, err := types.NewUser(args.Login)
+	if err != nil {
+		return nil, trace.Wrap(err, "processing okta user %s", args.Login)
+	}
+
+	newUser.SetStaticLabels(map[string]string{
+		types.OriginLabel:             types.OriginOkta,
+		eteleport.OktaOrgURLLabel:     args.OrgURL,
+		eteleport.OktaUserIDLabel:     args.OktaUserID,
+		eteleport.OktaUserStatusLabel: args.OktaUserStatus,
+	})
+	newUser.AddRole(teleport.PresetRequesterRoleName)
+
+	newUser.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{
+			Name: teleport.UserSystem,
+		},
+		Time: args.Clock.Now(),
+		Connector: &types.ConnectorRef{
+			ID:       args.SAMLConnectorName,
+			Type:     constants.SAML,
+			Identity: args.OktaUserID,
+		},
+	})
+
+	return newUser, nil
+}
+
+// ConvertAppUser converts an Okta AppUser profile into a Teleport user.
+func ConvertAppUser(user *okta.AppUser, clock clockwork.Clock, ssoConnectorID string, srcURL string) (types.User, error) {
+	attributes, ok := user.Profile.(map[string]any)
+	if !ok {
+		return nil, trace.BadParameter("invalid type for user profile: %T", user.Profile)
+	}
+	return convertUser(user.Credentials.UserName, user.Id, user.Status, attributes, clock, ssoConnectorID, srcURL)
+}
+
+// convertUser creates a Teleport user from a collection of attributes derived
+// from an Okta User or AppUser profile.
+// If the supplied login is empty, convertUser will use the `login` attribute
+// to derive the Teleport username.
+func convertUser(login string, oktaUserID string, oktaUserStatus string, attributes map[string]any, clock clockwork.Clock, ssoConnectorID string, srcURL string) (types.User, error) {
+	profile, err := parseOktaUserProfile(attributes)
+	if err != nil {
+		return nil, trace.Wrap(err, "decoding Okta user profile")
+	}
+
+	if login == "" {
+		login = profile.Login
+	}
+
+	newUser, err := NewOktaUser(OktaUserArgs{
+		Login:             login,
+		OrgURL:            srcURL,
+		OktaUserID:        oktaUserID,
+		OktaUserStatus:    oktaUserStatus,
+		SAMLConnectorName: ssoConnectorID,
+		Clock:             clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "processing okta user %s", login)
+	}
+
+	newUser.SetTraits(profile.AsTraits())
+
+	return newUser, nil
 }
 
 func makeUserConverter(clock clockwork.Clock, ssoConnectorID string, srcURL string) userConverter {
@@ -252,39 +374,12 @@ func makeUserConverter(clock clockwork.Clock, ssoConnectorID string, srcURL stri
 			return nil, trace.BadParameter("oktaUser must not be nil")
 		}
 
-		profile, err := parseOktaUserProfile(oktaUser)
-		if err != nil {
-			return nil, trace.Wrap(err, "decoding Okta user profile")
+		if oktaUser.Profile == nil {
+			return nil, trace.BadParameter("missing okta user profile")
 		}
 
-		newUser, err := types.NewUser(profile.Login)
-		if err != nil {
-			return nil, trace.Wrap(err, "processing okta user %s", profile.Login)
-		}
-
-		newUser.SetStaticLabels(map[string]string{
-			types.OriginLabel:             types.OriginOkta,
-			eteleport.OktaOrgURLLabel:     srcURL,
-			eteleport.OktaUserIDLabel:     oktaUser.Id,
-			eteleport.OktaUserStatusLabel: oktaUser.Status,
-		})
-		newUser.AddRole(teleport.PresetRequesterRoleName)
-
-		traits := profile.AsTraits()
-		newUser.SetTraits(traits)
-
-		newUser.SetCreatedBy(types.CreatedBy{
-			User: types.UserRef{
-				Name: teleport.UserSystem,
-			},
-			Time: clock.Now(),
-			Connector: &types.ConnectorRef{
-				ID:       ssoConnectorID,
-				Type:     constants.SAML,
-				Identity: oktaUser.Id,
-			},
-		})
-
-		return newUser, nil
+		return convertUser("", oktaUser.Id, oktaUser.Status,
+			map[string]any(*oktaUser.Profile), clock,
+			ssoConnectorID, srcURL)
 	}
 }

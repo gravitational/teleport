@@ -627,12 +627,12 @@ func TestReconcileUsers(t *testing.T) {
 
 func validateDeletionLock(t *testing.T, argIndex int, target string, clock clockwork.Clock) func(mock.Arguments) {
 	expiry := clock.Now().Add(lockTTL)
-	return validateLockArg(t, argIndex, target, expiry, oktaLockReasonDeleted)
+	return validateLockArg(t, argIndex, target, expiry, LockReasonDeleted)
 }
 
 func validateSuspensionLock(t *testing.T, argIndex int, target string, clock clockwork.Clock) func(mock.Arguments) {
 	expiry := clock.Now().Add(lockTTL)
-	return validateLockArg(t, argIndex, target, expiry, oktaLockReasonSuspended)
+	return validateLockArg(t, argIndex, target, expiry, LockReasonSuspended)
 }
 
 func validateLockArg(t *testing.T, argIndex int, target string, expiry time.Time, reason string) func(mock.Arguments) {
@@ -695,7 +695,7 @@ func mkTestLockFor(user types.User) types.Lock {
 			Labels: map[string]string{
 				types.OriginLabel:             types.OriginOkta,
 				eteleport.OktaOrgURLLabel:     testOrgURL,
-				eteleport.OktaLockReasonLabel: oktaLockReasonSuspended,
+				eteleport.OktaLockReasonLabel: LockReasonSuspended,
 			},
 		},
 		Spec: types.LockSpecV2{

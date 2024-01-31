@@ -220,10 +220,11 @@ func newLockWatcher(t *testing.T, ap *testAccessPoint) *services.LockWatcher {
 
 // testOktaClient is a testing Okta client that is backed by fixed values.
 type testOktaClient struct {
-	oktaUsers  []*okta.User
-	oktaGroups []*okta.Group
-	oktaApps   []okta.App
-	oktaOrgURL string
+	oktaUsers    []*okta.User
+	oktaAppUsers []*okta.AppUser
+	oktaGroups   []*okta.Group
+	oktaApps     []okta.App
+	oktaOrgURL   string
 
 	usernamesToUserIDsMu sync.Mutex
 	usernamesToUserIDs   map[string]string
@@ -287,6 +288,19 @@ func (t *testOktaClient) getApplication(context.Context, string, okta.App) (okta
 func (t *testOktaClient) iterateUsers(_ context.Context, fn func(*okta.User) error) error {
 	for _, oktaUser := range t.oktaUsers {
 		if err := fn(oktaUser); err != nil {
+			if errors.Is(err, errStopIteration) {
+				break
+			}
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// iterateAppUsers will iterate over the list of all Okta users in a given app.
+func (t *testOktaClient) iterateAppUsers(_ context.Context, _ string, fn func(*okta.AppUser) error) error {
+	for _, oktaAppUser := range t.oktaAppUsers {
+		if err := fn(oktaAppUser); err != nil {
 			if errors.Is(err, errStopIteration) {
 				break
 			}

@@ -59,7 +59,8 @@ func createOktaPlugin(t *testing.T, name string) (types.Plugin, types.PluginStat
 		types.PluginSpecV1{
 			Settings: &types.PluginSpecV1_Okta{
 				Okta: &types.PluginOktaSettings{
-					OrgUrl: "https://www.okta.com",
+					OrgUrl:       "https://www.okta.com",
+					SyncSettings: &types.PluginOktaSyncSettings{},
 				},
 			},
 		},

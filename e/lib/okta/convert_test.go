@@ -479,6 +479,73 @@ func TestUserConversion(t *testing.T) {
 	require.NotContains(t, traits, "okta/login")
 
 	// Expect that the creation date has been set
-	cretator := teleportUser.GetCreatedBy()
-	require.Equal(t, ctime, cretator.Time)
+	creator := teleportUser.GetCreatedBy()
+	require.Equal(t, ctime, creator.Time.UTC())
+}
+
+func TestAppUserConversion(t *testing.T) {
+	const (
+		loginName        = "scooby@the-mystery-machine.com"
+		oktaUserID       = "SCOOBY"
+		oktaOrgURL       = "https://example.okta.com"
+		okaSAMLConnector = "saml-connector"
+	)
+
+	oktaAppUser := &okta.AppUser{
+		Id:         oktaUserID,
+		ExternalId: "eid+" + loginName,
+		Scope:      "USER",
+		Status:     "PROVISIONED",
+		SyncState:  "SYNCHRONIZED",
+		Credentials: &okta.AppUserCredentials{
+			UserName: "uid+" + loginName,
+		},
+		Profile: map[string]any{
+			"firstName": "Scoobert",
+			"lastName":  "Doo",
+			"nickName":  "Scooby",
+			"login":     loginName,
+
+			// not sure Okta profile elements can be anything other than strings,
+			// but let's throw in a list of strings just to ensure we can handle
+			// it
+			"email": []string{loginName, "SnackFan0154@hotmail.com"},
+		},
+	}
+
+	ctime := time.Date(1986, time.August, 6, 23, 58, 0, 0, time.UTC)
+	mockClock := clockwork.NewFakeClockAt(ctime)
+	convert := func(oau *okta.AppUser) (types.User, error) {
+		return ConvertAppUser(oau, mockClock, okaSAMLConnector, oktaOrgURL)
+	}
+
+	// Expect the conversion to succeed
+	teleportUser, err := convert(oktaAppUser)
+	require.NoError(t, err)
+	require.Equal(t, "uid+"+loginName, teleportUser.GetName())
+
+	// Expect that the user is marked as an Okta-sourced user
+	labels := teleportUser.GetMetadata().Labels
+	require.Equal(t, types.OriginOkta, labels[types.OriginLabel])
+	require.Equal(t, oktaOrgURL, labels[eteleport.OktaOrgURLLabel])
+	require.Equal(t, oktaUserID, labels[eteleport.OktaUserIDLabel])
+
+	// Expect that the user has been given the requester role by default
+	require.Equal(t, []string{teleport.PresetRequesterRoleName},
+		teleportUser.GetRoles())
+
+	// Expect that the okta user profile has been converted to traits
+	traits := teleportUser.GetTraits()
+	require.Equal(t, []string{"Scoobert"}, traits["okta/firstName"])
+	require.Equal(t, []string{"Doo"}, traits["okta/lastName"])
+	require.Equal(t, []string{"Scooby"}, traits["okta/nickName"])
+	require.ElementsMatch(t, []string{loginName, "SnackFan0154@hotmail.com"},
+		traits["okta/email"])
+
+	// Expect that the well-known profile elements have been filtered out...
+	require.NotContains(t, traits, "okta/login")
+
+	// Expect that the creation date has been set
+	creator := teleportUser.GetCreatedBy()
+	require.Equal(t, ctime, creator.Time.UTC())
 }

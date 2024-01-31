@@ -330,9 +330,10 @@ func TestInstanceFactory(t *testing.T) {
 				types.PluginSpecV1{
 					Settings: &types.PluginSpecV1_Okta{
 						Okta: &types.PluginOktaSettings{
-							OrgUrl:         "https://test.url",
-							EnableUserSync: true,
-							SyncSettings:   &types.PluginOktaSyncSettings{},
+							OrgUrl: "https://test.url",
+							SyncSettings: &types.PluginOktaSyncSettings{
+								SyncUsers: true,
+							},
 						},
 					},
 				},

@@ -38,8 +38,9 @@ import (
 const (
 	// 4 requests per second is the absolute maximum okta will allow due to End User Rate Limits.
 	// https://developer.okta.com/docs/reference/rl-additional-limits/#end-user-rate-limits
-	oktaAPICallsPerSecond     = 4
-	oktaRequestTimeoutSeconds = 300 // Okta request timeout is 5 minutes.
+	APICallsPerSecond     = 4
+	RequestTimeoutSeconds = 300 // Okta request timeout is 5 minutes.
+
 	// Default to running synchronizations every half hour.
 	oktaDefaultTimeBetweenSyncs = 30 * time.Minute
 	oktaTransportIdleTimeout    = 30 * time.Second
@@ -138,6 +139,11 @@ type Config struct {
 	// AccessListSyncGroupFilters is the list of group filters for use by the access list sync.
 	AccessListSyncGroupFilters []string
 	accessListSyncGroupFilters []*regexp.Regexp
+
+	// OktaSAMLAppID is the Okta-assigned ID for the SAML app that the service
+	// uses as a gateway for syncing users. If empty, the service will revert to
+	// the legacy method of polling the whole Okta organization.
+	OktaSAMLAppID string
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -241,6 +247,13 @@ type OktaClient interface {
 	// to continue receiving users. All other non-nil return values are
 	// considered an error and will be propagated to the caller.
 	iterateUsers(context.Context, func(*okta.User) error) error
+
+	// iterateAppUsers will iterate over the list of all Okta users assigned to
+	// a given app. The supplied iterator callback may return stopIteration to
+	// signal that it does not want to continue receiving users. All other
+	// non-nil return values are considered an error and will be propagated to
+	// the caller.
+	iterateAppUsers(context.Context, string, func(*okta.AppUser) error) error
 
 	// iterateGroups will iterate over the list of all Okta groups. The supplied
 	// iterator callback may return errStopIteration to signal that it does not want
@@ -415,6 +428,11 @@ type Service struct {
 	// this value is `nil`, it means that access list sync is disabled via
 	// config.
 	accessListSync *accessListSync
+
+	// oktaSAMLAppID is the Okta-assigned ID for the SAML app that the service
+	// uses as a gateway for syncing users. If empty, the service will revert to
+	// the legacy method of polling the whole Okta organization.
+	oktaSAMLAppID string
 }
 
 // rateLimitingHTTPTransport will only perform HTTP requests after waiting the
@@ -478,7 +496,7 @@ func (cfg *ClientConfig) Check() error {
 					IdleConnTimeout: oktaTransportIdleTimeout,
 				},
 				rateLimiter: rate.NewLimiter(
-					rate.Every(time.Second/time.Duration(oktaAPICallsPerSecond)), 1),
+					rate.Every(time.Second/time.Duration(APICallsPerSecond)), 1),
 			},
 			Timeout: oktaConnectionTimeout,
 		}
@@ -500,7 +518,7 @@ func NewClient(ctx context.Context, cfg ClientConfig) (OktaClient, error) {
 
 		// This will retry until the request timeout has passed, doing a backoff
 		// of up to 30 seconds.
-		okta.WithRequestTimeout(oktaRequestTimeoutSeconds),
+		okta.WithRequestTimeout(RequestTimeoutSeconds),
 		okta.WithRateLimitMaxRetries(math.MaxInt32),
 	)
 	if err != nil {
@@ -596,6 +614,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		pluginStatusSink:     config.PluginStatusSink,
 		userReconciler:       reconciler,
 		ssoConnectorID:       config.SSOConnectorID,
+		oktaSAMLAppID:        config.OktaSAMLAppID,
 	}
 	s.tlsConfig = app.CopyAndConfigureTLS(config.Log, s.accessPoint, config.TLSConfig)
 
@@ -865,4 +884,34 @@ func reportPluginStatus(ctx context.Context, log *logrus.Entry, pluginStatusSink
 	if err != nil {
 		log.Errorf("Error emitting plugin status: %v", err)
 	}
+}
+
+// SelectSCIMToken searches the supplied list of credentials for a SCIM bearer
+// token. Returns a NotFound error if no such credential exists.
+func SelectSCIMToken(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
+	for _, cred := range staticCredentials {
+		purpose, present := cred.GetLabel(CredPurposeLabel)
+		if present && purpose == CredPurposeSCIMToken {
+			return cred, nil
+		}
+	}
+	return nil, trace.NotFound("Okta API token")
+}
+
+// SelectAPIToken searches the supplied list of credentials for a credential
+// containing an Okta API token.  Returns a NotFound error if no such credential
+// exists.
+func SelectAPIToken(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
+	// For now, we'll just choose the first eligible static credential until we
+	// have a need for rotation or other complexity.
+	for _, cred := range staticCredentials {
+		// Older Okta API credentials are not labeled with a purpose, so a cred
+		// is considered eligible if it has no purpose label, or a purpose label
+		// set to okta.CredPurposeOktaAuth.
+		purpose, present := cred.GetLabel(CredPurposeLabel)
+		if !present || purpose == CredPurposeOktaAuth {
+			return cred, nil
+		}
+	}
+	return nil, trace.NotFound("Okta API token")
 }

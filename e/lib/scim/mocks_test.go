@@ -62,6 +62,10 @@ func (m *mockUserService) CreateUser(ctx context.Context, user types.User) (type
 
 func (m *mockUserService) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
 	result := m.Called(ctx, user)
+	fn, isDelegate := result.Get(0).(func(context.Context, types.User) (types.User, error))
+	if isDelegate {
+		return fn(ctx, user)
+	}
 	return getResultAs[types.User](result, 0), result.Error(1)
 }
 
@@ -151,16 +155,26 @@ func (m *mockProviderShim) resourceToUser(ctx context.Context, r *scimpb.Resourc
 	return getResultAs[types.User](result, 0), result.Error(1)
 }
 
-func (m *mockProviderShim) updateUser(ctx context.Context, u types.User, r *scimpb.Resource) (*scimpb.Resource, error) {
-	result := m.Called(ctx, u, r)
-	fn, isDelegate := result.Get(0).(func(context.Context, types.User, *scimpb.Resource) (*scimpb.Resource, error))
-	if isDelegate {
-		return fn(ctx, u, r)
-	}
-	return getResultAs[*scimpb.Resource](result, 0), result.Error(1)
-}
-
 func (m *mockProviderShim) authorizeRequest(ctx context.Context, hdr string) error {
 	result := m.Called(ctx, hdr)
 	return result.Error(0)
+}
+
+func (m *mockProviderShim) onCreatingUser(ctx context.Context, u types.User, r *scimpb.Resource) error {
+	result := m.Called(ctx, u, r)
+	return result.Error(0)
+}
+
+func (m *mockProviderShim) onCreatedUser(ctx context.Context, u types.User, r *scimpb.Resource) error {
+	result := m.Called(ctx, u, r)
+	return result.Error(0)
+}
+
+func (m *mockProviderShim) onUpdatingUser(ctx context.Context, u types.User, r *scimpb.Resource) (types.User, error) {
+	result := m.Called(ctx, u, r)
+	fn, isDelegate := result.Get(0).(func(context.Context, types.User, *scimpb.Resource) (types.User, error))
+	if isDelegate {
+		return fn(ctx, u, r)
+	}
+	return getResultAs[types.User](result, 0), result.Error(0)
 }
