@@ -201,7 +201,7 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
     ttyWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/connect?params=:params&traceparent=:traceparent',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
