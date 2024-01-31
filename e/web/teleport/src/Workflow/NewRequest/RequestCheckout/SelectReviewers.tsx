@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { components } from 'react-select';
 import ReactSelectCreatable from 'react-select/creatable';
 import styled from 'styled-components';
-import { ButtonBorder, Box, Text, Flex } from 'design';
+import { ButtonBorder, Box, Text, Flex, ButtonIcon } from 'design';
 import * as Icon from 'design/Icon';
 import { Option } from 'shared/components/Select';
 
@@ -15,7 +15,8 @@ export function SelectReviewers({
   const reactSelectRef = useRef(null);
   const [editReviewers, setEditReviewers] = useState(false);
   const [suggestedReviewers, setSuggestedReviewers] = useState<CreateOption[]>(
-    () => reviewers.map(r => ({ value: r, label: r, isDisabled: false }))
+    // Initially, all suggested reviewers are selected for the requestor.
+    () => reviewers.map(r => ({ value: r, label: r, isDisabled: true }))
   );
 
   React.useEffect(() => {
@@ -88,7 +89,7 @@ export function SelectReviewers({
     );
   };
 
-  function handleOnChange(values) {
+  function handleOnChange(values: CreateOption[]) {
     const updateSelectedReviewers = values.map(r => ({
       value: r.value,
       label: r.label,
@@ -130,6 +131,7 @@ export function SelectReviewers({
           controlShouldRenderValue={false}
           hideSelectedOptions={false}
           placeholder="Type or select a name"
+          value={selectedReviewers}
           options={reviewerOptions}
           onChange={handleOnChange}
           formatGroupLabel={formatGroupLabel}
@@ -142,6 +144,7 @@ export function SelectReviewers({
         reviewers={selectedReviewers}
         editReviewers={editReviewers}
         toggleEditReviewers={toggleEditReviewers}
+        updateReviewers={handleOnChange}
       />
     </Box>
   );
@@ -151,10 +154,12 @@ function Reviewers({
   reviewers,
   editReviewers,
   toggleEditReviewers,
+  updateReviewers,
 }: {
   reviewers: CreateOption[];
   editReviewers: boolean;
   toggleEditReviewers(): void;
+  updateReviewers(o: CreateOption[]): void;
 }) {
   const $reviewers = reviewers.map((reviewer, index) => {
     return (
@@ -164,7 +169,6 @@ function Reviewers({
         borderRadius={1}
         px={3}
         py={2}
-        mb={2}
         alignItems="center"
         justifyContent="space-between"
         key={index}
@@ -180,16 +184,33 @@ function Reviewers({
         >
           {reviewer.value}
         </Text>
+        <ButtonIcon
+          size={0}
+          title="Remove reviewer"
+          onClick={() =>
+            updateReviewers(reviewers.filter(r => r.value != reviewer.value))
+          }
+        >
+          <Icon.Cross size={16} />
+        </ButtonIcon>
       </Flex>
     );
   });
+
+  let btnTxt = 'Add';
+  if (reviewers.length > 0) {
+    btnTxt = 'Edit';
+  }
+  if (editReviewers) {
+    btnTxt = 'Done';
+  }
 
   return (
     <>
       <Flex
         borderBottom={1}
-        mb={3}
-        pb={3}
+        mb={2}
+        pb={2}
         width="260px"
         justifyContent="space-between"
         alignItems="center"
@@ -211,10 +232,10 @@ function Reviewers({
           size="small"
           width="50px"
         >
-          {editReviewers ? 'Done' : 'Add'}
+          {btnTxt}
         </ButtonBorder>
       </Flex>
-      {$reviewers}
+      <Box data-testid="reviewers">{$reviewers}</Box>
     </>
   );
 }

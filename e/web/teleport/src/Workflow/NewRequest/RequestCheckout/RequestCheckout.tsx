@@ -132,7 +132,15 @@ export function RequestCheckout({
     fetchResourceRequestRolesAttempt.status === 'processing';
 
   const [selectedReviewers, setSelectedReviewers] = useState<CreateOption[]>(
-    []
+    // Initially select suggested reviewers for the requestor.
+    // If a user did not select/define any reviewers, the backend
+    // will also automatically add all suggested reviewers.
+    () =>
+      reviewers.map(r => ({
+        value: r,
+        label: r,
+        isSelected: true,
+      }))
   );
 
   function updateReason(reason: string) {
