@@ -3773,7 +3773,7 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 			}
 			env, err := errEnvelope.Marshal()
 			if err != nil {
-				h.log.WithError(err).Error("error marshalling proto")
+				h.log.WithError(err).Error("error marshaling proto")
 				return nil, nil
 			}
 			if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
@@ -3807,7 +3807,7 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 		}
 		env, err := errEnvelope.Marshal()
 		if err != nil {
-			h.log.WithError(err).Error("error marshalling proto")
+			h.log.WithError(err).Error("error marshaling proto")
 			return nil, nil
 		}
 		if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
