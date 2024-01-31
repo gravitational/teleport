@@ -73,9 +73,9 @@ func SetCookie(w http.ResponseWriter, user, sid string) error {
 }
 
 // ClearCookie wipes the session cookie to invalidate the user session.
-func ClearCookie(w http.ResponseWriter) {
+func ClearCookie(w http.ResponseWriter, cookieName string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     CookieName,
+		Name:     cookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
@@ -84,6 +84,10 @@ func ClearCookie(w http.ResponseWriter) {
 }
 
 const (
-	// CookieName is the name of the session cookie.
+	// CookieName is the name of the Web UI session cookie.
 	CookieName = "__Host-session"
+
+	// SAMLSessionCookieName is the name of the SAML IdP session cookie.
+	// This cookie is set by SAML IdP after a successful SAML authentication.
+	SAMLSessionCookieName = "__Host-saml_session"
 )

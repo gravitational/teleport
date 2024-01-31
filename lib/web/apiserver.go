@@ -2166,7 +2166,10 @@ func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *Sessi
 	if err := sctx.Invalidate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	websession.ClearCookie(w)
+	// Clear Web UI session cookie
+	websession.ClearCookie(w, websession.CookieName)
+	// Clear SAML IdP session cookie
+	websession.ClearCookie(w, websession.SAMLSessionCookieName)
 
 	return nil
 }
@@ -4061,7 +4064,8 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	}
 	sctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
-		websession.ClearCookie(w)
+		websession.ClearCookie(w, websession.CookieName)
+		websession.ClearCookie(w, websession.SAMLSessionCookieName)
 		return nil, trace.AccessDenied("need auth")
 	}
 	if checkBearerToken {

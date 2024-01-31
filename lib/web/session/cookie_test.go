@@ -43,7 +43,7 @@ func TestCookies(t *testing.T) {
 	require.Empty(t, recorder.Header().Get("Set-Cookie"))
 
 	require.NoError(t, SetCookie(recorder, user, sessionID))
-	ClearCookie(recorder)
+	ClearCookie(recorder, CookieName)
 	setCookies := recorder.Header().Values("Set-Cookie")
 	require.Len(t, setCookies, 2)
 
