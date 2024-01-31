@@ -146,6 +146,7 @@
     "Orapki",
     "PFDEBUG",
     "PFSELFTEST",
+    "pgbouncer",
     "PGCLIENTENCODING",
     "PGPASSWORD",
     "POSIX",
