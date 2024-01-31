@@ -2794,7 +2794,9 @@ func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
 
 // ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 // complete the challenge with.
-var ErrNoMFADevices = trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
+var ErrNoMFADevices = &trace.AccessDeniedError{
+	Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+}
 
 func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest, mfaDev *types.MFADevice) (*authpb.SingleUseUserCert, error) {
 	// Get the client IP.
