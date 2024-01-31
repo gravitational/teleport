@@ -2911,7 +2911,11 @@ export enum DiscoverResource {
     /**
      * @generated from protobuf enum value: DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39;
      */
-    DOC_WINDOWS_DESKTOP_NON_AD = 39
+    DOC_WINDOWS_DESKTOP_NON_AD = 39,
+    /**
+     * @generated from protobuf enum value: DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
+     */
+    KUBERNETES_EKS = 40
 }
 /**
  * DiscoverStatus represents a Discover Step outcome.
