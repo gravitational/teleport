@@ -3424,10 +3424,6 @@ type newMFADeviceFields struct {
 	// tokenID is the ID of a reset/invite/recovery/privilege token.
 	// It is generally used to recover the TOTP secret stored in the token.
 	tokenID string
-	// totpSecret is a secret shared by client and server to generate totp codes.
-	// Field can be empty to get secret by "tokenID".
-	// DELETE IN 16. Only used by the streaming AddMFADevice RPC. (codingllama)
-	totpSecret string
 
 	// webIdentityOverride is an optional RegistrationIdentity override to be used
 	// for device registration. A common override is decorating the regular
@@ -3500,19 +3496,15 @@ func (a *Server) registerTOTPDevice(ctx context.Context, regResp *proto.MFARegis
 		return nil, trace.BadParameter("second factor TOTP not allowed by cluster")
 	}
 
-	var secret string
-	switch {
-	case req.tokenID != "":
-		secrets, err := a.GetUserTokenSecrets(ctx, req.tokenID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		secret = secrets.GetOTPKey()
-	case req.totpSecret != "":
-		secret = req.totpSecret
-	default:
+	if req.tokenID == "" {
 		return nil, trace.BadParameter("missing TOTP secret")
 	}
+
+	secrets, err := a.GetUserTokenSecrets(ctx, req.tokenID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	secret := secrets.GetOTPKey()
 
 	dev, err := services.NewTOTPDevice(req.newDeviceName, secret, a.clock.Now())
 	if err != nil {
