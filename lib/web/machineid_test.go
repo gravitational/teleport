@@ -87,6 +87,58 @@ func TestCreateBot(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 }
 
+func TestCreateBotJoinToken(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"token",
+	)
+
+	// add github join token
+	integrationName := "my-app-deploy"
+	validReq := CreateBotJoinTokenRequest{
+		IntegrationName: integrationName,
+		JoinMethod:      types.JoinMethodGitHub,
+		GitHub: &types.ProvisionTokenSpecV2GitHub{
+			Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+				{
+					Repository: "gravitational/teleport",
+					Actor:      "actor",
+				},
+			},
+		},
+		WebFlowLabel: webUIFlowBotGitHubActionsSSH,
+	}
+	resp, err := pack.clt.PostJSON(ctx, endpoint, validReq)
+	require.NoError(t, err)
+
+	var result nodeJoinToken
+	json.Unmarshal(resp.Bytes(), &result)
+	require.Equal(t, integrationName, result.ID)
+	require.Equal(t, types.JoinMethod("github"), result.Method)
+
+	// invalid join method
+	invalidJoinMethodReq := validReq
+	// use a different integration name so it doesn't error for being duplicated
+	invalidJoinMethodReq.IntegrationName = "invalid-join-method-test"
+	invalidJoinMethodReq.JoinMethod = "invalid-join-method"
+	_, err = pack.clt.PostJSON(ctx, endpoint, invalidJoinMethodReq)
+	require.Error(t, err)
+
+	// no integration name
+	invalidIntegrationNameReq := validReq
+	invalidIntegrationNameReq.IntegrationName = ""
+	_, err = pack.clt.PostJSON(ctx, endpoint, invalidIntegrationNameReq)
+	require.Error(t, err)
+}
+
 func TestGetBotByName(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
