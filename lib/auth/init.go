@@ -278,6 +278,9 @@ type InitConfig struct {
 
 	// CloudClients provides clients for various cloud providers.
 	CloudClients cloud.Clients
+
+	// SkipPresetRoleAndUserCreation skips creation of the preset teleport roles and users on startup
+	SkipPresetRoleAndUserCreation bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -502,18 +505,22 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	}
 	span.AddEvent("completed migration legacy resources")
 
-	span.AddEvent("creating preset roles")
 	// Create presets - convenience and example resources.
-	if err := createPresetRoles(ctx, asrv); err != nil {
-		return trace.Wrap(err)
-	}
-	span.AddEvent("completed creating preset roles")
+	if !cfg.SkipPresetRoleAndUserCreation {
+		span.AddEvent("creating preset roles")
+		if err := createPresetRoles(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset roles")
 
-	span.AddEvent("creating preset users")
-	if err := createPresetUsers(ctx, asrv); err != nil {
-		return trace.Wrap(err)
+		span.AddEvent("creating preset users")
+		if err := createPresetUsers(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset users")
+	} else {
+		span.AddEvent("skipping preset role and user creation")
 	}
-	span.AddEvent("completed creating preset users")
 
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")

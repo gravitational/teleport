@@ -100,6 +100,8 @@ type CommandLineFlags struct {
 	ConfigString string
 	// --roles flag
 	Roles string
+	// --skip-preset-role-and-user-creation flag
+	SkipPresetRoleAndUserCreation bool
 	// -d flag
 	Debug bool
 

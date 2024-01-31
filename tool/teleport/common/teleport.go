@@ -127,6 +127,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		fmt.Sprintf("Comma-separated list of roles to start with [%s]", strings.Join(defaults.StartRoles, ","))).
 		Short('r').
 		StringVar(&ccf.Roles)
+	start.Flag("skip-preset-role-and-user-creation", "Disable creation of default roles and users in Teleport").BoolVar(&ccf.SkipPresetRoleAndUserCreation)
 	start.Flag("pid-file",
 		"Full path to the PID file. By default no PID file will be created").StringVar(&ccf.PIDFile)
 	start.Flag("advertise-ip",
