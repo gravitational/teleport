@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { Account, AccountProps } from './AccountNew';
+import { Account, AccountProps } from './Account';
 
 export default {
   title: 'Teleport/Account (new)',
