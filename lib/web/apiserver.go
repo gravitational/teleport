@@ -108,6 +108,13 @@ const (
 	// assistantLimiterCapacity is the total capacity of the token bucket for the assistant rate limiter.
 	// The bucket starts full, prefilled for a week.
 	assistantLimiterCapacity = assistantTokensPerHour * 24 * 7
+	// webUIFlowLabelKey is a label that may be added to resources
+	// created via the web UI, indicating which flow the resource was created on.
+	// This label is used for enhancing UX in the web app, by showing icons related,
+	// to the workflow it was added, or providing unique features to those resources.
+	// Example values:
+	// - github-actions-ssh: indicates that the resource was added via the Bot GitHub Actions SSH flow
+	webUIFlowLabelKey = "teleport.internal/ui-flow"
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -933,6 +940,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
 	// Create Machine ID bots
 	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
+	// Create bot join tokens
+	h.POST("/webapi/sites/:site/machine-id/token", h.WithClusterAuth(h.createBotJoinToken))
 }
 
 // GetProxyClient returns authenticated auth server client
