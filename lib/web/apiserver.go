@@ -109,7 +109,11 @@ const (
 	// The bucket starts full, prefilled for a week.
 	assistantLimiterCapacity = assistantTokensPerHour * 24 * 7
 	// webUIFlowLabelKey is a label that may be added to resources
-	// created via the web UI
+	// created via the web UI, indicating which flow the resource was created on.
+	// This label is used for enhancing UX in the web app, by showing icons related,
+	// to the workflow it was added, or providing unique features to those resources.
+	// Example values:
+	// - github-actions-ssh: indicates that the resource was added via the Bot GitHub Actions SSH flow
 	webUIFlowLabelKey = "teleport.internal/ui-flow"
 )
 
