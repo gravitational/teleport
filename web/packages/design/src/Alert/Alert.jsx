@@ -21,7 +21,6 @@ import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
 import { space, color, width } from 'design/system';
-import { fade } from 'design/theme/utils/colorManipulator';
 
 const kind = props => {
   const { kind, theme } = props;
@@ -46,14 +45,6 @@ const kind = props => {
         background: theme.colors.success.main,
         color: theme.colors.text.primaryInverse,
       };
-    case 'outline-info':
-      return {
-        background: fade(theme.colors.link, 0.1),
-        border: `${theme.radii[1]}px solid ${theme.colors.link}`,
-        borderRadius: `${theme.radii[3]}px`,
-        boxShadow: 'none',
-        justifyContent: 'normal',
-      };
     default:
       return {
         background: theme.colors.error.main,
@@ -66,7 +57,7 @@ const Alert = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: ${p => p.theme.radii[1]}px;
+  border-radius: 2px;
   box-sizing: border-box;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
   margin: 0 0 24px 0;
@@ -85,13 +76,7 @@ const Alert = styled.div`
 `;
 
 Alert.propTypes = {
-  kind: PropTypes.oneOf([
-    'danger',
-    'info',
-    'warning',
-    'success',
-    'outline-info',
-  ]),
+  kind: PropTypes.oneOf(['danger', 'info', 'warning', 'success']),
   ...color.propTypes,
   ...space.propTypes,
   ...width.propTypes,
@@ -108,4 +93,3 @@ export const Danger = props => <Alert kind="danger" {...props} />;
 export const Info = props => <Alert kind="info" {...props} />;
 export const Warning = props => <Alert kind="warning" {...props} />;
 export const Success = props => <Alert kind="success" {...props} />;
-export const OutlineInfo = props => <Alert kind="outline-info" {...props} />;
