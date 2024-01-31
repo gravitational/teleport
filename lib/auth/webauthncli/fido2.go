@@ -54,8 +54,12 @@ const (
 	fido2DeviceTimeout = 30 * time.Second
 
 	// Operation retry interval.
-	// Keep it less frequent than 2Hz / 0.5s.
+	// Keep it less frequent than 5Hz / 0.2s.
 	fido2RetryInterval = 500 * time.Millisecond
+
+	// Timeout for touch.Status operations.
+	// Keep it less frequent than 5Hz / 0.2s.
+	fido2TouchMaxWait = 200 * time.Millisecond
 )
 
 // User-friendly device filter errors.
@@ -68,6 +72,12 @@ var (
 	errNoUV                    = errors.New("device lacks PIN or user verification capabilities necessary to support passwordless")
 	errPasswordlessU2F         = errors.New("U2F devices cannot do passwordless")
 )
+
+// TouchRequest abstracts *libfido2.TouchRequest for testing.
+type TouchRequest interface {
+	Status(timeout time.Duration) (touched bool, err error)
+	Stop() error
+}
 
 // FIDODevice abstracts *libfido2.Device for testing.
 type FIDODevice interface {
@@ -102,13 +112,28 @@ type FIDODevice interface {
 		credentialIDs [][]byte,
 		pin string,
 		opts *libfido2.AssertionOpts) ([]*libfido2.Assertion, error)
+
+	// TouchBegin mirrors libfido2.Device.TouchBegin.
+	TouchBegin() (TouchRequest, error)
+}
+
+type fido2DeviceAdapter struct {
+	*libfido2.Device
+}
+
+func (a *fido2DeviceAdapter) TouchBegin() (TouchRequest, error) {
+	return a.Device.TouchBegin()
 }
 
 // fidoDeviceLocations and fidoNewDevice are used to allow testing.
 var (
 	fidoDeviceLocations = libfido2.DeviceLocations
 	fidoNewDevice       = func(path string) (FIDODevice, error) {
-		return libfido2.NewDevice(path)
+		dev, err := libfido2.NewDevice(path)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &fido2DeviceAdapter{dev}, nil
 	}
 )
 
@@ -761,7 +786,7 @@ func handleDevice(
 	}()
 
 	if err := dev.SetTimeout(fido2DeviceTimeout); err != nil {
-		return trace.Wrap(&nonInteractiveError{err})
+		return trace.Wrap(&nonInteractiveError{err: err})
 	}
 
 	// Gather device information.
@@ -787,7 +812,7 @@ func handleDevice(
 		log.Debugf("FIDO2: Device %v filtered, err=%v", path, err)
 
 		// If the device is chosen then treat the error as interactive.
-		if waitErr := waitForTouch(dev); errors.Is(waitErr, libfido2.ErrNoCredentials) {
+		if touched, _ := waitForTouch(dev); touched {
 			cancelAll(dev)
 
 			// Escalate error to ErrUsingNonRegisteredDevice, if appropriate, so we
@@ -927,9 +952,10 @@ func withPINHandler(cb deviceCallbackFunc) pinAwareCallbackFunc {
 		// mechanism. Let's run a different operation to ask for a touch.
 		requiresPIN = true
 
-		err = waitForTouch(dev)
-		if errors.Is(err, libfido2.ErrNoCredentials) {
+		if touched, _ := waitForTouch(dev); touched {
 			err = nil // OK, selected successfully
+		} else {
+			err = &nonInteractiveError{err: err}
 		}
 		return
 	}
@@ -956,14 +982,27 @@ func (e *nonInteractiveError) Is(err error) bool {
 	return ok
 }
 
-func waitForTouch(dev FIDODevice) error {
-	// TODO(codingllama): What we really want here is fido_dev_get_touch_begin.
-	const rpID = "7f364cc0-958c-4177-b3ea-b2d8d7f15d4a" // arbitrary, unlikely to collide with a real RP
-	const cdh = "00000000000000000000000000000000"      // "random", size 32
-	_, err := dev.Assertion(rpID, []byte(cdh), nil /* credentials */, "", &libfido2.AssertionOpts{
-		UP: libfido2.True,
-	})
-	return err
+func waitForTouch(dev FIDODevice) (touched bool, err error) {
+	touch, err := dev.TouchBegin()
+	if err != nil {
+		// Error logged here as it's mostly ignored by callers.
+		log.Debugf("FIDO2: Device touch begin error: %v", err)
+		return false, trace.Wrap(err)
+	}
+	defer touch.Stop()
+
+	// Block until we get a touch or a cancel.
+	for {
+		touched, err := touch.Status(fido2TouchMaxWait)
+		if err != nil {
+			// Error logged here as it's mostly ignored by callers.
+			log.Debugf("FIDO2: Device touch status error: %v", err)
+			return false, trace.Wrap(err)
+		}
+		if touched {
+			return true, nil
+		}
+	}
 }
 
 // deviceInfo contains an aggregate of a device's information and capabilities.
