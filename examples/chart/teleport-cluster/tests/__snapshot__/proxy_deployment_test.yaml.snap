@@ -129,7 +129,7 @@ should set nodeSelector when set in values:
       environment: security
       role: bastion
     serviceAccountName: RELEASE-NAME-proxy
-    terminationGracePeriodSeconds: 60
+    terminationGracePeriodSeconds: 210
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -245,7 +245,7 @@ should set resources when set in values:
       image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
       name: wait-auth-update
     serviceAccountName: RELEASE-NAME-proxy
-    terminationGracePeriodSeconds: 60
+    terminationGracePeriodSeconds: 210
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -353,7 +353,7 @@ should set securityContext for initContainers when set in values:
         runAsNonRoot: true
         runAsUser: 99
     serviceAccountName: RELEASE-NAME-proxy
-    terminationGracePeriodSeconds: 60
+    terminationGracePeriodSeconds: 210
     volumes:
     - name: proxy-serviceaccount-token
       projected:
@@ -461,7 +461,7 @@ should set securityContext when set in values:
         runAsNonRoot: true
         runAsUser: 99
     serviceAccountName: RELEASE-NAME-proxy
-    terminationGracePeriodSeconds: 60
+    terminationGracePeriodSeconds: 210
     volumes:
     - name: proxy-serviceaccount-token
       projected:

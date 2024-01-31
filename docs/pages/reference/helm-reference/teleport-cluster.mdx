@@ -238,6 +238,23 @@ proxy:
           cert_file: /my-custom-mount/cert.pem
 ```
 
+### `proxy.terminationGracePeriodSeconds`
+
+`proxy.terminationGracePeriodSeconds` overrides the default
+terminationGracePeriod (60 seconds). This significantly slows down proxy
+rollouts as proxies will wait for up to 3 minutes for the connections to be
+drained. However, this reduces the disruption for SSH connections in case of
+rollout. Since Teleport 15, the clients try to reopen SSH connections in the
+background. If we wait 3 minutes (plus 30sec of pre-stop hook), all v15 SSH
+clients will be steered to other proxies before teleport exits, causing no
+disruption.
+
+If slow rollouts are an issue, you can reduce this value to 60s:
+```yaml
+proxy:
+ terminationGracePeriodSeconds: 60
+```
+
 ## `authentication`
 
 ### `authentication.type`
@@ -1909,3 +1926,15 @@ Kubernetes timeouts for the liveness and readiness probes.
   ```yaml
   probeTimeoutSeconds: 5
   ```
+
+## `terminationGracePeriodSeconds`
+
+`terminationGracePeriodSeconds` configures the
+Kubernetes [termination grace period](https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#hook-handler-execution)
+for pods deployed by the chart.
+
+This value is [overridden for proxy pods](#proxyterminationgraceperiodseconds)
+to reduce disruption during proxy rollouts.
+
+This value must be greater than 30 seconds, as pods are waiting 30 seconds in a
+preStop hook.
