@@ -25,6 +25,9 @@ import init, {
 
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { WebsocketStatus } from 'teleport/types';
+
+import { getAccessToken } from 'teleport/services/api';
 
 import Codec, {
   MessageType,
@@ -119,13 +122,34 @@ export default class Client extends EventEmitterWebAuthnSender {
 
     this.socket.onopen = () => {
       this.logger.info('websocket is open');
+      this.socket.send(JSON.stringify({ token: getAccessToken() }));
       this.emit(TdpClientEvent.WS_OPEN);
       if (spec) {
         this.sendClientScreenSpec(spec);
       }
     };
 
+    let authenticated = false;
+
     this.socket.onmessage = async (ev: MessageEvent) => {
+      if (!authenticated) {
+        const authResponse = JSON.parse(ev.data) as WebsocketStatus;
+        if (authResponse.type != 'create_session_response') {
+          this.socket.close();
+          console.log('invalid auth response type: ' + authResponse.message);
+          return;
+        }
+
+        if (authResponse.status == 'error') {
+          this.socket.close();
+          console.log(
+            'auth error connecting to websocket: ' + authResponse.message
+          );
+          return;
+        }
+        authenticated = true;
+        return;
+      }
       await this.processMessage(ev.data as ArrayBuffer);
     };
 
@@ -135,7 +159,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.socket.onerror = null;
     this.socket.onclose = () => {
       this.logger.info('websocket is closed');
-
+      authenticated = false;
       // Clean up all of our socket's listeners and the socket itself.
       this.socket.onopen = null;
       this.socket.onmessage = null;

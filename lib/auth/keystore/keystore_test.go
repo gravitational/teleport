@@ -504,6 +504,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	})
 
 	if config, ok := awsKMSTestConfig(t); ok {
+		config.AWSKMS.clock = clock
 		backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, logger)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{

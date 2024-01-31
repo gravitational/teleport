@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,21 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Box } from './../';
-
-import Alert from './index';
-
-export default {
-  title: 'Design/Alerts',
-};
-
-export const Alerts = () => (
-  <Box maxWidth="600px">
-    <Alert kind="danger">Some error message</Alert>
-    <Alert kind="warning">Some warning message</Alert>
-    <Alert kind="info">Some informational message</Alert>
-    <Alert kind="success">This is success</Alert>
-  </Box>
-);
+/**
+ * saveOnDisk saves content to local disk.
+ * @param content content to download.
+ * @param filename preset file name.
+ * @param fileType file type.
+ */
+export function saveOnDisk(
+  content: string,
+  filename: string,
+  fileType: string
+): void {
+  const a = document.createElement('a');
+  const blob = new Blob([content], { type: fileType });
+  a.href = window.URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
