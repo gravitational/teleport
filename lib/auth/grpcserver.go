@@ -698,10 +698,7 @@ func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, actx *grpcC
 		return nil, trace.Wrap(err)
 	}
 
-	return &authpb.Certs{
-		SSH: singleUseCert.GetSSH(),
-		TLS: singleUseCert.GetTLS(),
-	}, nil
+	return singleUseCert, nil
 }
 
 func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *authpb.HostCertsRequest) (*authpb.Certs, error) {
@@ -2798,7 +2795,7 @@ var ErrNoMFADevices = &trace.AccessDeniedError{
 	Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest, mfaDev *types.MFADevice) (*authpb.SingleUseUserCert, error) {
+func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest, mfaDev *types.MFADevice) (*authpb.Certs, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -2822,12 +2819,15 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp := new(authpb.SingleUseUserCert)
+
+	// Defensively forward only the expected certificate, according to the
+	// requested usage.
+	resp := &authpb.Certs{}
 	switch req.Usage {
 	case authpb.UserCertsRequest_SSH:
-		resp.Cert = &authpb.SingleUseUserCert_SSH{SSH: certs.SSH}
+		resp.SSH = certs.SSH
 	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop:
-		resp.Cert = &authpb.SingleUseUserCert_TLS{TLS: certs.TLS}
+		resp.TLS = certs.TLS
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
 	}

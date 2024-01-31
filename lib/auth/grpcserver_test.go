@@ -1130,8 +1130,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					sshCertBytes := c.GetSSH()
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					sshCertBytes := c.SSH
 					require.NotEmpty(t, sshCertBytes)
 
 					cert, err := sshutils.ParseCertificate(sshCertBytes)
@@ -1162,8 +1162,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetSSH()
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.SSH
 					require.NotEmpty(t, crt)
 
 					cert, err := sshutils.ParseCertificate(crt)
@@ -1193,8 +1193,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetTLS()
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1231,8 +1231,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetTLS()
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1270,8 +1270,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetTLS()
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1307,8 +1307,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetTLS()
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1345,8 +1345,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetTLS()
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1428,9 +1428,9 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				verifyCert: func(t *testing.T, c *proto.Certs) {
 					// SSH certificate.
-					sshRaw := c.GetSSH()
+					sshRaw := c.SSH
 					require.NotEmpty(t, sshRaw, "Got empty single-use SSH certificate")
 
 					sshCert, err := sshutils.ParseCertificate(sshRaw)
@@ -1476,9 +1476,9 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
 				},
 				verifyErr: require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+				verifyCert: func(t *testing.T, c *proto.Certs) {
 					// TLS certificate.
-					tlsRaw := c.GetTLS()
+					tlsRaw := c.TLS
 					require.NotEmpty(t, tlsRaw, "Got empty single-use TLS certificate")
 
 					block, _ := pem.Decode(tlsRaw)
@@ -1535,8 +1535,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetTLS()
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1574,8 +1574,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetTLS()
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
 					require.NotEmpty(t, crt)
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
@@ -1611,8 +1611,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					sshCertBytes := c.GetSSH()
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					sshCertBytes := c.SSH
 					require.NotEmpty(t, sshCertBytes)
 
 					cert, err := sshutils.ParseCertificate(sshCertBytes)
@@ -1659,7 +1659,7 @@ type generateUserSingleUseCertsTestOpts struct {
 	authnHandler       func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
 	mfaRequiredHandler func(*testing.T, proto.MFARequired)
 	verifyErr          require.ErrorAssertionFunc
-	verifyCert         func(*testing.T, *proto.SingleUseUserCert)
+	verifyCert         func(*testing.T, *proto.Certs)
 }
 
 func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
@@ -1682,18 +1682,7 @@ func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *Clien
 		return
 	}
 
-	singleUseCert := &proto.SingleUseUserCert{}
-	switch {
-	case len(certs.SSH) > 0:
-		singleUseCert.Cert = &proto.SingleUseUserCert_SSH{
-			SSH: certs.SSH,
-		}
-	case len(certs.TLS) > 0:
-		singleUseCert.Cert = &proto.SingleUseUserCert_TLS{
-			TLS: certs.TLS,
-		}
-	}
-	opts.verifyCert(t, singleUseCert)
+	opts.verifyCert(t, certs)
 }
 
 var requireMFATypes = []types.RequireMFAType{
