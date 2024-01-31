@@ -61,26 +61,6 @@ export const EnrollDiscord = () =>
 export const EnrollOpsgenie = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('opsgenie'));
 
-export const EnrollOktaIsTeam = () => {
-  cfg.isTeam = true;
-  cfg.isEnterprise = true;
-  const ctx = createTeleportContextE();
-  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
-};
-
-export const EnrollOktaEnterprise = () => {
-  cfg.isTeam = false;
-  cfg.isEnterprise = true;
-  const ctx = createTeleportContextE();
-  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
-};
-
-export const EnrollOktaWithIgs = () => {
-  cfg.isIgsEnabled = true;
-  const ctx = createTeleportContextE();
-  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('okta'), ctx);
-};
-
 export const EnrollServiceNow = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('servicenow'));
 
@@ -99,7 +79,7 @@ export const EnrollFailed = () =>
     `event_id=c6b794e1-afcf-4e16-ac5b-48fe4ba6e54b&error=some-error&error_description=some%20error%20 description`
   );
 
-function renderPluginEnroll(
+export function renderPluginEnroll(
   search: string,
   pathname = cfg.getIntegrationEnrollRoute('slack'),
   ctx?: TeleportEContext

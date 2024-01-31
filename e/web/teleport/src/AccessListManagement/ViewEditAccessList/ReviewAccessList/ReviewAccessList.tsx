@@ -14,7 +14,7 @@ import {
 import { Cross } from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';
 import { FeatureBox } from 'teleport/components/Layout';
-import { StepNavigation } from 'teleport/components/StepNavigation';
+import { Navigation } from 'teleport/components/Wizard/Navigation';
 
 import {
   accessManagementService,
@@ -42,7 +42,7 @@ import { EditedRecurrence, ReviewStep } from './Shared';
 import FinishedReview from './FinishedReview';
 import { getMembersDeleted } from './utils';
 
-export const reviewSteps = [
+export const views = [
   {
     step: ReviewStep.EditMembershipRequires,
     title: 'Membership Requirements',
@@ -71,7 +71,7 @@ export function ReviewAccessList({
 }) {
   const history = useHistory();
   const [nextAuditDate, setNextAuditDate] = useState<Date | null>();
-  const [reviewStep, setReviewStep] = useState<ReviewStep>(reviewSteps[0].step);
+  const [reviewStep, setReviewStep] = useState<ReviewStep>(views[0].step);
   const { attempt, run } = useAttempt('');
 
   const [reviewNotes, setReviewNotes] = useState('');
@@ -148,7 +148,7 @@ export function ReviewAccessList({
             </Text>
           </Flex>
           <Box mt={1} mb={3}>
-            <StepNavigation currentStep={reviewStep} steps={reviewSteps} />
+            <Navigation currentStep={reviewStep} views={views} />
           </Box>
           {reviewStep === ReviewStep.EditMembershipRequires && (
             <Box mb={4} width="500px">
@@ -220,7 +220,7 @@ export function ReviewAccessList({
               mr={3}
               disabled={attempt.status === 'processing'}
             >
-              {reviewSteps[reviewStep].buttonTitle}
+              {views[reviewStep].buttonTitle}
             </ButtonPrimary>
             {reviewStep > 0 && (
               <ButtonSecondary

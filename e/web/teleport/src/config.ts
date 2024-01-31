@@ -93,6 +93,7 @@ const cfg = {
 
     pluginTypesPath: '/v1/enterprise/plugins/types',
     pluginPath: '/v1/enterprise/plugin/:name?',
+    pluginValidatePath: '/v1/enterprise/plugins/validate',
 
     samlIdpPath: '/v1/enterprise/samlidp',
     // samlIdPMetadataValuesPath is served by SAML IdP.
@@ -219,6 +220,10 @@ const cfg = {
 
   getPluginUrl(name?: string) {
     return generatePath(cfg.api.pluginPath, { name });
+  },
+
+  getPluginValidateUrl() {
+    return generatePath(cfg.api.pluginValidatePath);
   },
 
   getAccessMonitoringReportRoute(name: string, days: number) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, JSX, FunctionComponent } from 'react';
 import styled from 'styled-components';
 import { Link as ReactRouterLink } from 'react-router-dom';
 
@@ -23,8 +23,30 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { CtaEvent, IntegrationEnrollKind } from 'teleport/services/userEvent';
 import { PluginKind } from 'teleport/services/integrations';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { BaseView } from 'teleport/components/Wizard/flow';
 
 import cfg from 'e-teleport/config';
+
+import { SetUpScim } from './MultiStep/Okta/SetUpScim';
+import { PluginEnrollSuccess } from './MultiStep/PluginEnrollSuccess';
+import { CreateOkta } from './MultiStep/Okta/CreateOkta';
+
+export type View = BaseView<{
+  title: string;
+  /**
+   * If the component is not defined,
+   * then the component who is processing
+   * this view, will have to provide it's own component.
+   *
+   * Eg: before multi-step support, all plugins had only
+   * one step using `SubmittablePluginForm.tsx`.
+   * Some plugins will have multi-step (eg. okta)
+   * where the first step stays the same as before
+   * (`SubmittablePluginForm.tsx`), but have more
+   * steps afterwwards.
+   */
+  component: FunctionComponent;
+}>;
 
 type Permission = {
   title: string;
@@ -64,8 +86,13 @@ export type PluginBase = {
    * Describes whether the plugin can be self hosted.
    */
   selfHostable: boolean;
-
   disableForTeam?: boolean;
+  /**
+   * views represents all the views for each step
+   * in a multi step plugin enrollment eg: okta.
+   * If empty, the plugin has only one step.
+   */
+  views?(): View[];
 };
 
 /**
@@ -209,65 +236,82 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     cloudHostable: true,
     selfHostable: false,
     fullName: 'Okta Integration',
+    views: () => {
+      if (cfg.oss.isIgsEnabled) {
+        return [
+          { title: 'Connect Okta', component: CreateOkta },
+          { title: 'Set Up SCIM', component: SetUpScim },
+          { title: 'Finished', component: PluginEnrollSuccess, hide: true },
+        ];
+      }
+      return [];
+    },
     Description: () => {
       let cta = 'Identity Governance & Security';
       if (cfg.oss.isTeam) {
         cta = 'Teleport Enterprise';
       }
       return (
-        <Box>
-          <p>
-            The Teleport Okta integration synchronizes Okta and Teleport users,
-            apps and permissions.
-          </p>
-          <ul>
-            <li>
-              <strong>SSO integration</strong>: Installing the Okta integration
-              creates an Okta applicaton with a SAML SSO connector called{' '}
-              <em>okta-integration</em> that grants your Okta users access to
-              the Teleport cluster with the
-              <em>requester</em> role.
-            </li>
+        <Box mb={3}>
+          <Text>
+            The Okta integration can sync users, applications, and groups with
+            your Teleport instance and set up an SSO integration.
+          </Text>
+          <Text mt={3} fontSize={4}>
+            Included with Teleport:
+          </Text>
+          <StyledUl>
             <li>
               <strong>App Synchronization</strong>: Routinely synchronizes Okta
-              applications and groups with Teleport.
+              apps and groups with Teleport
             </li>
             <li>
-              <strong>User Access</strong>: Longer lived permissions that grant
-              users access to the Okta applications and groups based on their
-              Teleport access permissions.
+              <strong>User Access</strong>: Grants access to Okta apps and
+              groups based on Teleport permissions
             </li>
             <li>
-              <strong>Access Requests</strong>: Short lived permissions to
-              request temporary access to Okta applications and user groups
-              based on their Teleport access permissions.
+              <strong>Access Requests</strong>: Enables users to request
+              temporary access to Okta apps and groups
             </li>
-          </ul>
-          <Box mb={4}>
-            <Text bold fontSize={2}>
-              User Synchronization
-            </Text>
-            <Text>
-              Routinely synchronizes Okta users with Teleport. The Okta user
-              profile data is exposed to Teleport via user traits.
-            </Text>
-            {!cfg.oss.isIgsEnabled && (
-              <ButtonLockedFeature
-                event={CtaEvent.CTA_OKTA_USER_SYNC}
-                width={cfg.oss.isTeam ? '390px' : '460px'}
-                mt={3}
-              >
-                Unlock User Synchronization with {cta}
-              </ButtonLockedFeature>
-            )}
-          </Box>
+            <li>
+              <strong>SSO integration</strong>: A SAML SSO connector that grants
+              Okta users the default role of <em>requester</em>
+            </li>
+          </StyledUl>
+          <Text mt={3} fontSize={4}>
+            Included with Teleport Identity:
+          </Text>
+          <StyledUl>
+            <li>
+              <strong>User Synchronization</strong>: Routinely synchronizes
+              users with Teleport so the Teleport user list always includes your
+              full Okta user list
+            </li>
+            <li>
+              <strong>User Group Synchronization</strong>: Syncs Okta user
+              groups with Teleport Access Lists for simple permissions
+              management and auditing capabilities
+            </li>
+          </StyledUl>
+          {!cfg.oss.isIgsEnabled && (
+            <ButtonLockedFeature
+              event={CtaEvent.CTA_OKTA_USER_SYNC}
+              width={cfg.oss.isTeam ? '390px' : '460px'}
+              mt={2}
+              mb={3}
+            >
+              Unlock User Synchronization with {cta}
+            </ButtonLockedFeature>
+          )}
         </Box>
       );
     },
     Setup: () => (
-      <Text>
-        <p>Generate an API key so you can set up the Okta plugin:</p>
-        <ol>
+      <Box>
+        <Text mt={1}>
+          Generate an API key so you can set up the Okta plugin:
+        </Text>
+        <ol css={{ margin: 0 }}>
           <li>
             Create an admin role for the Teleport Okta Service by following the{' '}
             <Link
@@ -333,45 +377,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             screen.
           </li>
         </ol>
-      </Text>
+      </Box>
     ),
-    permissions: [
-      {
-        category: 'Applications',
-        permissions: [
-          {
-            title: 'Manage Applications',
-            description: 'Installing SAML SSO connector',
-          },
-          {
-            title: "Edit application's user assignments",
-            description: 'Synchronizing application access',
-          },
-        ],
-      },
-      {
-        category: 'Users',
-        permissions: [
-          {
-            title: 'View Users and their details',
-            description: 'Synchronizing Teleport users with Okta users',
-          },
-        ],
-      },
-      {
-        category: 'Groups',
-        permissions: [
-          {
-            title: 'View Groups',
-            description: 'Synchronizing application access',
-          },
-          {
-            title: "Edit groups' application assignments",
-            description: 'Synchronizing application access',
-          },
-        ],
-      },
-    ],
     FormMixin: () => {
       const [url, setUrl] = useState('');
       const [token, setToken] = useState('');
@@ -379,14 +386,13 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         <>
           <FieldInput
             width="500px"
-            label="Organization URL"
+            label="Okta Domain"
             name="orgURL" // must be the same name as expected by the backend as form value
-            rule={requiredField('Organization URL Required')}
+            rule={requiredField('Okta domain Required')}
             value={url}
             onChange={e => setUrl(e.target.value)}
-            autoFocus
             placeholder="examplecompanyname.okta.com"
-            toolTipContent="Okta organization URL are used for API communication"
+            toolTipContent="Okta domain is used for API communication"
             mb={3}
           />
           <FieldInput
@@ -1437,3 +1443,8 @@ export function pluginTypeToIntegrationEnrollKind(p: PluginKind) {
       return IntegrationEnrollKind.Unspecified;
   }
 }
+
+const StyledUl = styled.ul`
+  margin: 0;
+  padding-left: ${p => p.theme.space[4]}px;
+`;

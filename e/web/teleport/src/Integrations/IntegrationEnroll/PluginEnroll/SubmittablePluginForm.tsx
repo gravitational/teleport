@@ -8,6 +8,7 @@ import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getXCSRFToken } from 'teleport/services/api';
 import { Plugin } from 'teleport/services/integrations';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import cfg from 'e-teleport/config';
 import { pluginsService, getCTAForPlugin } from 'e-teleport/services/plugins';
@@ -21,14 +22,27 @@ export function SubmittablePluginForm({
   plugin,
   eventId,
   setStaticPluginResponse,
+  setFormData,
+  CustomTitle,
 }: {
   plugin: CloudHostablePlugin;
   eventId: string;
-  setStaticPluginResponse(createdPlugin: Plugin): void;
+  /**
+   * Function to call after getting a successful response after plugin
+   * installation api call.
+   */
+  setStaticPluginResponse?(createdPlugin: Plugin): void;
+  /**
+   * Only required if we need to persist FormData for later use.
+   * eg: okta plugin installation can have more than this step
+   * if IGS is enabled.
+   */
+  setFormData?(formData: FormData): FormData;
+  CustomTitle?: JSX.Element;
 }) {
   const { attempt, setAttempt } = useAttempt(''); // only for non-oauth submissions.
 
-  function onSubmit(validator: Validator, e: FormEvent<HTMLFormElement>) {
+  async function onSubmit(validator: Validator, e: FormEvent<HTMLFormElement>) {
     if (!validator.validate()) {
       e.preventDefault();
       return;
@@ -38,25 +52,36 @@ export function SubmittablePluginForm({
       // Prevent browser from reloading the page from the form submission event.
       e.preventDefault();
 
+      // Success states will not be set because it's not required
+      // to trigger a re-render (by setting the attempt to "success").
+      // After setting plugin response, the outer component
+      // will take user to a different state outside of this component.
       setAttempt({ status: 'processing' });
 
-      // Read the form data.
-      const formData = new FormData(e.currentTarget as HTMLFormElement);
+      let formData = new FormData(e.currentTarget as HTMLFormElement);
 
-      // Send off the conventional fetch request.
-      pluginsService
-        .createPlugin(formData)
-        // No need to trigger a re-render by setting the attempt to "success".
-        // After setting of a plugin response, it will re-render to the
-        // success state.
-        .then(setStaticPluginResponse)
-        .catch((err: Error) => {
-          setAttempt({ status: 'failed', statusText: err.message });
+      try {
+        // Currently, only okta plugin support validating.
+        if (plugin.type === 'okta') {
+          await pluginsService.validatePlugin(formData);
+        }
+
+        if (setFormData) {
+          formData = setFormData(formData);
+        }
+
+        // Send off the conventional fetch request to finish plugin
+        // installation.
+        await pluginsService.createPlugin(formData).then(resp => {
+          setStaticPluginResponse(resp);
         });
-      return;
+      } catch (e) {
+        const msg = getErrMessage(e);
+        setAttempt({ status: 'failed', statusText: msg });
+      }
     }
 
-    // Else let the default form submission event occur.
+    // Else let the default form submission event occur (eg: slack)
   }
 
   const pluginRequiresEnterprise = plugin.disableForTeam && cfg.oss.isTeam;
@@ -71,12 +96,13 @@ export function SubmittablePluginForm({
   }
 
   return (
-    <Box mt={3} style={{ position: 'relative' }}>
-      <Text my={1} fontSize={4} bold>
-        {plugin.fullName}
-      </Text>
-      {attempt.status === 'failed' && (
-        <Alert kind="danger" children={attempt.statusText} mb={3} mt={3} />
+    <Box mt={CustomTitle ? 0 : 3} style={{ position: 'relative' }}>
+      {CustomTitle ? (
+        <>{CustomTitle}</>
+      ) : (
+        <Text my={1} fontSize={4} bold>
+          {plugin.fullName}
+        </Text>
       )}
       {plugin.Description && <plugin.Description />}
       <Box style={wrapperStyle}>
@@ -125,6 +151,9 @@ export function SubmittablePluginForm({
           <Text mb={2} fontSize={4} bold>
             Configure and connect
           </Text>
+          {attempt.status === 'failed' && (
+            <Alert kind="danger" children={attempt.statusText} mb={3} mt={3} />
+          )}
           <Validation>
             {/* A "normal" HTTP form is used here instead of an AJAX request,
         since the user needs to be redirected to the OAuth provider after submitting. */}

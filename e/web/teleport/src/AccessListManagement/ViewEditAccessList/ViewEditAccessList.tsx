@@ -14,13 +14,13 @@ import {
   ButtonBorder,
 } from 'design';
 import { ArrowBack, ListMagnifyingGlass, ArrowForward } from 'design/Icon';
-import { fade } from 'design/theme/utils/colorManipulator';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { Access } from 'teleport/services/user';
+import { OutlineInfo } from 'design/Alert/Alert';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
@@ -217,7 +217,7 @@ export function ViewEditAccessList() {
     MainContent = (
       <>
         {accessList.requiresReview && (perms.isOwner || perms.adminWhoCanEdit) && (
-          <ReviewBanner>
+          <OutlineInfo css={{ justifyContent: 'space-between' }}>
             <Flex alignItems="center">
               <ReviewBannerIcon size={18} />
               This Access List needs review by{' '}
@@ -230,7 +230,7 @@ export function ViewEditAccessList() {
               Start Review
               <ArrowForward size={18} ml={2} />
             </ButtonBorder>
-          </ReviewBanner>
+          </OutlineInfo>
         )}
         <Box mb={6}>
           <Specs
@@ -326,18 +326,6 @@ function getPerms({
     adminWhoCanDelete: accessListAccess?.remove,
   };
 }
-
-const ReviewBanner = styled(Flex)`
-  width: 100%;
-  border-radius: ${p => p.theme.radii[2]}px;
-  border: 2px solid ${p => p.theme.colors.link};
-  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
-  margin-bottom: ${p => p.theme.space[4]}px;
-  background-color: ${p => fade(p.theme.colors.link, 0.1)};
-  align-items: center;
-  justify-content: space-between;
-  font-weight: bold;
-`;
 
 const ReviewBannerIcon = styled(ListMagnifyingGlass)`
   background-color: ${p => p.theme.colors.link};

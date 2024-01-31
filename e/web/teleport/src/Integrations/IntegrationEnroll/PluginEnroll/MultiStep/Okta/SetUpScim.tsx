@@ -1,0 +1,161 @@
+import React from 'react';
+import { Box, ButtonPrimary, Flex, Link, Text } from 'design';
+import { OutlineInfo } from 'design/Alert/Alert';
+import { Info } from 'design/Icon';
+import styled from 'styled-components';
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { PluginOktaSpec } from 'teleport/services/integrations';
+import { Mark } from 'teleport/Discover/Shared';
+import cfg from 'teleport/config';
+
+import { Header } from '../Shared';
+import { usePlugin } from '../usePlugin';
+
+export function SetUpScim() {
+  const { nextStep, formData, installedPlugin } = usePlugin<PluginOktaSpec>();
+
+  function onFinish() {
+    nextStep();
+  }
+
+  // TODO(lisa): this is hard coded for now and is equal to backend
+  // hard coded value. Next iteration we will allow user to name
+  // the SSO connector.
+  const ssoConnectorName = 'okta';
+
+  // Construct okta app "admin" URL.
+  // Admin URL's have `-admin` before the domain's `okta.com`.
+  let orgUrl = formData
+    .get('orgURL')
+    .toString()
+    .replace(/.okta.com$/, '');
+  if (!orgUrl.startsWith('http')) {
+    orgUrl = `https://${orgUrl}`;
+  }
+  const appUrl = `${orgUrl}-admin.okta.com/admin/app/${installedPlugin.spec.oktaAppName}/instance/${installedPlugin.spec.oktaAppId}/#tab-general`;
+
+  return (
+    <Box width="800px">
+      <Box mb={3}>
+        <Header header="Set Up SCIM" />
+        <Text>
+          Okta SCIM (System for Cross-domain Identity Management) integration
+          configures Okta to push user and permission changes in Okta to
+          Teleport in real time. To get it working, follow the directions below:
+        </Text>
+      </Box>
+      <Flex mb={1} mt={4} flexDirection="column" gap={4} width="100%">
+        <StyledBox>
+          <Text bold>Step 1: Enable SCIM</Text>
+          <Text>
+            In the Okta Admin Console, go to <Mark>Applications</Mark> and click
+            on Teleport created application, or use this{' '}
+            <Link href={appUrl} target="_blank">
+              link
+            </Link>
+          </Text>
+          <Text mt={2}>
+            Click <Mark>Edit</Mark> under <Mark>App Settings</Mark> and check
+            the <Mark>Enable SCIM provisioning</Mark> checkbox and click{' '}
+            <Mark>Save</Mark>
+          </Text>
+        </StyledBox>
+        <StyledBox>
+          <Text bold>Step 2: Setup SCIM Connection</Text>
+          <Text>
+            Click on the <Mark>Provisioning</Mark> tab and click{' '}
+            <Mark>Edit</Mark>
+          </Text>
+          <Box mt={2}>
+            <Text mb={2}>
+              Copy and paste this <Mark>SCIM connector base URL</Mark>:
+            </Text>
+            <TextSelectCopyMulti
+              bash={false}
+              lines={[
+                {
+                  text: `${cfg.baseUrl}/v1/webapi/scim/${ssoConnectorName}`,
+                },
+              ]}
+            />
+          </Box>
+          <Box mt={2}>
+            <Text mb={2}>
+              Copy and paste this <Mark>Unique identifier field for users</Mark>
+              :
+            </Text>
+            <TextSelectCopyMulti
+              bash={false}
+              lines={[
+                {
+                  text: `email`,
+                },
+              ]}
+            />
+          </Box>
+          <Text mt={3}>
+            Under <Mark>Supported provisioning actions</Mark> check the
+            following checkboxes:
+            <ul>
+              <li>Import New Users and Profile Updates</li>
+              <li>Push New Users</li>
+              <li>Push Profile Updates</li>
+            </ul>
+          </Text>
+          <Text>
+            Afterwards, select <Mark>HTTP Header</Mark> from the{' '}
+            <Mark>Authentication Mode</Mark> dropdown.
+          </Text>
+          <Box>
+            <Text mb={2} mt={2}>
+              Copy and paste this Authorization <Mark>Bearer Token</Mark>:
+            </Text>
+            <TextSelectCopyMulti
+              bash={false}
+              lines={[
+                {
+                  text: `${installedPlugin.spec.scimBearerToken}`,
+                },
+              ]}
+            />
+          </Box>
+
+          <Text mt={3}>
+            Click <Mark>Save</Mark>
+          </Text>
+        </StyledBox>
+        <OutlineInfo css={{ justifyContent: 'normal' }}>
+          <Box>
+            <ReviewBannerIcon size={18} />
+          </Box>
+          <Box>
+            <Text bold>
+              Please set up SCIM before proceeding—you will not be able to view
+              the <Mark>Bearer Token</Mark> again!
+            </Text>
+          </Box>
+        </OutlineInfo>
+      </Flex>
+      <Flex>
+        <ButtonPrimary onClick={() => onFinish()}>Finish</ButtonPrimary>
+      </Flex>
+    </Box>
+  );
+}
+
+const ReviewBannerIcon = styled(Info)`
+  background-color: ${p => p.theme.colors.link};
+  border-radius: 100px;
+  height: 32px;
+  width: 32px;
+  color: ${p => p.theme.colors.text.primaryInverse};
+  margin-right: ${p => p.theme.space[2]}px;
+`;
+
+export const StyledBox = styled(Box).attrs({
+  p: 4,
+  borderRadius: 3,
+  maxWidth: '800px',
+})`
+  background-color: ${props => props.theme.colors.spotBackground[0]};
+`;

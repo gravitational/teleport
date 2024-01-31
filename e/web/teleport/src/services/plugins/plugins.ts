@@ -26,6 +26,10 @@ export const pluginsService = {
       .then(makePlugin);
   },
 
+  validatePlugin(formData: FormData) {
+    return api.postFormData(cfg.getPluginValidateUrl(), formData);
+  },
+
   async deletePlugin(name: string): Promise<void> {
     await api.delete(cfg.getPluginUrl(name));
   },
@@ -38,12 +42,12 @@ export function makePlugins(json: any): Plugin[] {
 
 function makePlugin(json: any): Plugin {
   json = json || {};
-  const { name, details, statusCode, type } = json;
+  const { name, details, statusCode, type, spec } = json;
   return {
     resourceType: 'plugin',
     name,
     details,
-    spec: {},
+    spec,
     kind: type,
     statusCode,
   };
