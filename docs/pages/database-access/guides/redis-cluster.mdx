@@ -108,6 +108,12 @@ in the Redis documentation for more details.
 (!docs/pages/includes/database-access/custom-db-ca.mdx db="Redis Cluster" protocol="redis" scheme="rediss://" port="6379" query="?mode=cluster"!)
 ## Step 5/6. Create a cluster
 
+To create the cluster after mutual TLS is enabled, you will need to use a 
+certificate that the Redis nodes trust for client authentication. 
+You can use a certificate that you already issued for one of the nodes, i.e. 
+`server.crt` or you can issue a new client certificate using your Redis Cluster 
+CA.
+
 Use the following command to create the cluster. Please note `redis-cli --cluster create` accepts only IP addresses.
 ```code
 $ export REDISCLI_AUTH=STRONG_GENERATED_PASSWORD
@@ -120,7 +126,7 @@ $ export IP5=10.0.0.5 # update with the real node 5 IP
 $ export IP6=10.0.0.6 # update with the real node 6 IP
 $ redis-cli --user alice --cluster-replicas 1 --tls --cluster-yes \
   --cluster create ${IP1}:7001 ${IP2}:7002 ${IP3}:7003 ${IP4}:7004 ${IP5}:7005 ${IP6}:7006 \
-  --cacert ${CERTS_DIR}/server.cas --key ${CERTS_DIR}/server.key --cert ${CERTS_DIR}/server.crt
+  --cacert ${CERTS_DIR}/ca.crt --key ${CERTS_DIR}/server.key --cert ${CERTS_DIR}/server.crt
 ```
 
 ## Step 6/6. Connect
