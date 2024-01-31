@@ -1,0 +1,350 @@
+package web
+
+import (
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+
+	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
+	"github.com/gravitational/teleport/e/lib/scim"
+	"github.com/gravitational/teleport/lib/httplib"
+)
+
+const (
+	minSCIMItemIndex     = 1
+	defaultSCIMItemCount = 100
+	maxSCIMItemCount     = 200
+
+	queryFieldFilter = "filter"
+	maxSCIMBodyBytes = 1 * 1024 * 1024
+)
+
+func (p *Plugin) registerSCIMHandlers() {
+	p.Log.Info("Registering SCIM endpoints")
+
+	p.h.GET("/webapi/scim/:integration/:resourceType",
+		p.h.WithUnauthenticatedHighLimiter(
+			p.wrapSCIMRequest(p.scimGetResourceList)))
+
+	p.h.GET("/webapi/scim/:integration/:resourceType/:resourceID",
+		p.h.WithUnauthenticatedHighLimiter(
+			p.wrapSCIMRequest(p.scimGetResource)))
+
+	p.h.POST("/webapi/scim/:integration/:resourceType",
+		p.h.WithUnauthenticatedHighLimiter(
+			p.wrapSCIMRequest(p.scimCreateResource)))
+
+	p.h.PUT("/webapi/scim/:integration/:resourceType/:resourceID",
+		p.h.WithUnauthenticatedHighLimiter(
+			p.wrapSCIMRequest(p.scimUpdateResource)))
+
+	p.h.PATCH("/webapi/scim/:integration/:resourceType/:resourceID",
+		p.h.WithUnauthenticatedHighLimiter(
+			p.wrapSCIMRequest(p.scimPatchResource)))
+}
+
+func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, httprouter.Params) error) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+		var err error
+		if !p.h.ClusterFeatures.IdentityGovernance {
+			err = trace.AccessDenied("SCIM support requires Teleport Identity")
+		} else {
+			err = fn(w, r, params)
+		}
+
+		if err == nil {
+			return nil, nil
+		}
+
+		var statusCode int
+		switch {
+		case trace.IsNotFound(err):
+			statusCode = http.StatusNotFound
+
+		case trace.IsAccessDenied(err):
+			statusCode = http.StatusUnauthorized
+
+		case trace.IsBadParameter(err):
+			statusCode = http.StatusBadRequest
+
+		case trace.IsLimitExceeded(err):
+			statusCode = http.StatusRequestEntityTooLarge
+
+		case trace.IsNotImplemented(err):
+			statusCode = http.StatusNotImplemented
+
+		default:
+			statusCode = http.StatusInternalServerError
+		}
+
+		detail := err.Error()
+
+		body, err := scim.FormatErrorResponse(statusCode, detail)
+		if err != nil {
+			p.Log.Error("failed formatting SCIM error response")
+		}
+		writeSCIMResponse(w, statusCode, body)
+
+		return nil, nil
+	}
+}
+
+func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+	integration := params.ByName("integration")
+	resourceType := params.ByName("resourceType")
+	log := p.Log.WithFields(logrus.Fields{
+		trace.Component: "scim",
+		"integration":   integration,
+		"resourceType":  resourceType,
+	})
+
+	filter := r.URL.Query().Get(queryFieldFilter)
+	if filter != "" {
+		// validate the filter syntax is correct and supported. No point in
+		// sending the whole request over to auth only for it to be rejected
+		// straight away.
+		if _, err := scim.ParseFilter(filter); err != nil {
+			return trace.BadParameter("unsupported filter syntax")
+		}
+	}
+
+	page, err := getSCIMPage(r)
+	if err != nil {
+		return trace.BadParameter("invalid page request")
+	}
+
+	log.Info("Listing resources")
+
+	scimClient := p.h.GetProxyClient().SCIMClient()
+	resources, err := scimClient.ListSCIMResources(r.Context(), &scimpb.ListSCIMResourcesRequest{
+		Target: &scimpb.RequestTarget{
+			Authorization: r.Header.Get("Authorization"),
+			PluginId:      integration,
+			ResourceType:  resourceType,
+		},
+		Page:   page,
+		Filter: filter,
+	})
+
+	if err != nil {
+		log.Errorf("Failed listing resources %s", err.Error())
+		return trace.Wrap(err)
+	}
+
+	body, err := scim.MarshalResourceList(resources)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	writeSCIMResponse(w, http.StatusOK, body)
+
+	return nil
+}
+
+func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+	integration := params.ByName("integration")
+	resourceType := params.ByName("resourceType")
+	resourceID, err := url.QueryUnescape(params.ByName("resourceID"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log := p.Log.WithFields(logrus.Fields{
+		trace.Component: "scim",
+		"integration":   integration,
+		"resourceType":  resourceType,
+		"resourceID":    resourceID,
+	})
+
+	scimClient := p.h.GetProxyClient().SCIMClient()
+	resource, err := scimClient.GetSCIMResource(r.Context(), &scimpb.GetSCIMResourceRequest{
+		Target: &scimpb.RequestTarget{
+			Authorization: r.Header.Get("Authorization"),
+			PluginId:      integration,
+			ResourceType:  resourceType,
+			ResourceId:    resourceID,
+		},
+	})
+	if err != nil {
+		log.Errorf("Failed fetching resource: %s", err.Error())
+		return trace.Wrap(err)
+	}
+
+	body, err := scim.MarshalResource(resource)
+	if err != err {
+		return trace.Wrap(err)
+	}
+
+	writeSCIMResponse(w, http.StatusOK, body)
+	return nil
+}
+
+func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+	integration := params.ByName("integration")
+	resourceType := params.ByName("resourceType")
+	log := p.Log.WithFields(logrus.Fields{
+		trace.Component: "scim",
+		"integration":   integration,
+		"resourceType":  resourceType,
+	})
+
+	if r.ContentLength > maxSCIMBodyBytes {
+		return trace.LimitExceeded("content length")
+	}
+
+	res, err := scim.UnmarshalResource(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Info("Creating new resource")
+
+	scimClient := p.h.GetProxyClient().SCIMClient()
+	updated, err := scimClient.CreateSCIMResource(r.Context(), &scimpb.CreateSCIMResourceRequest{
+		Target: &scimpb.RequestTarget{
+			Authorization: r.Header.Get("Authorization"),
+			PluginId:      integration,
+			ResourceType:  resourceType,
+		},
+		Resource: res,
+	})
+	if err != nil {
+		log.Errorf("Failed creating new resource: %s", err)
+		return trace.Wrap(err)
+	}
+
+	body, err := scim.MarshalResource(updated)
+	if err != err {
+		return trace.Wrap(err)
+	}
+
+	writeSCIMResponse(w, http.StatusOK, body)
+	return nil
+}
+
+func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+	integration := params.ByName("integration")
+	resourceType := params.ByName("resourceType")
+	resourceID, err := url.QueryUnescape(params.ByName("resourceID"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log := p.Log.WithFields(logrus.Fields{
+		trace.Component: "scim",
+		"integration":   integration,
+		"resourceType":  resourceType,
+		"resourceID":    resourceID,
+	})
+
+	if r.ContentLength > maxSCIMBodyBytes {
+		return trace.LimitExceeded("content length")
+	}
+
+	res, err := scim.UnmarshalResource(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Info("Updating resource")
+
+	scimClient := p.h.GetProxyClient().SCIMClient()
+	updated, err := scimClient.UpdateSCIMResource(r.Context(), &scimpb.UpdateSCIMResourceRequest{
+		Target: &scimpb.RequestTarget{
+			Authorization: r.Header.Get("Authorization"),
+			PluginId:      integration,
+			ResourceType:  resourceType,
+			ResourceId:    resourceID,
+		},
+		Resource: res,
+	})
+
+	if err != nil {
+		log.Errorf("Failed updating resource: %s", err)
+		return trace.Wrap(err)
+	}
+
+	body, err := scim.MarshalResource(updated)
+	if err != err {
+		return trace.Wrap(err)
+	}
+
+	writeSCIMResponse(w, http.StatusOK, body)
+	return nil
+}
+
+// scimPatchResource handles a PATCH request on a SCIM resource. We do not
+// currently support PATCH requests as our target SCIM clients do not use it
+// (e.g. Okta SAML App), so this method merely logs the request for
+// troubleshooting purposes and returns NotImplemented.
+func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+	integration := params.ByName("integration")
+	resourceType := params.ByName("resourceType")
+	resourceID, err := url.QueryUnescape(params.ByName("resourceID"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	p.Log.
+		WithFields(logrus.Fields{
+			trace.Component: "scim",
+			"integration":   integration,
+			"resourceType":  resourceType,
+			"resourceID":    resourceID,
+		}).
+		Info("Unexpected PATCH request")
+
+	return trace.NotImplemented(http.MethodPatch)
+}
+
+func writeSCIMResponse(w http.ResponseWriter, statusCode int, body []byte) {
+	if len(body) > 0 {
+		w.Header().Set(scim.ContentTypeHeader, scim.ContentType)
+		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	}
+	w.WriteHeader(statusCode)
+	w.Write(body)
+}
+
+func getSCIMPage(r *http.Request) (*scimpb.Page, error) {
+	startIndex, err := getQueryIntOrDefault(r, "startIndex", minSCIMItemIndex)
+	if err != nil {
+		return nil, trace.Wrap(err, "startIndex")
+	}
+	startIndex = max(startIndex, minSCIMItemIndex)
+
+	count, err := getQueryIntOrDefault(r, "count", defaultSCIMItemCount)
+	if err != nil {
+		return nil, trace.Wrap(err, "count")
+	}
+	// According to spec, all values < 0 must be treated as 0
+	count = max(count, 0)
+
+	// We don't want someone asking us for a billion items, so
+	// we put an upper bound on the number of records we're prepared to
+	// return in one page
+	count = min(count, maxSCIMItemCount)
+
+	return &scimpb.Page{
+		StartIndex: uint64(startIndex),
+		Count:      uint64(count),
+	}, nil
+}
+
+func getQueryIntOrDefault(r *http.Request, key string, def int) (int, error) {
+	text := r.URL.Query().Get(key)
+	if text == "" {
+		return def, nil
+	}
+
+	if n, err := strconv.Atoi(text); err == nil {
+		return n, nil
+	}
+
+	return 0, trace.BadParameter("not a number: %q", text)
+}

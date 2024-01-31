@@ -302,6 +302,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth())
 	h.POST(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth())
 
+	p.registerSCIMHandlers()
+
 	return nil
 }
 
