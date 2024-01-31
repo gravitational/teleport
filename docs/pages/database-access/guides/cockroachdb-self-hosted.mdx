@@ -20,9 +20,12 @@ description: How to configure Teleport database access with self-hosted Cockroac
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - CockroachDB cluster.
+
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
   Service.
+
 - (!docs/pages/includes/tctl.mdx!)
+
 - A certificate authority to issue CockroachDB certificates for nodes in your 
   CockroachDB cluster.
 
@@ -91,7 +94,7 @@ can authenticate themselves as clients to other nodes in the CockroachDB
 cluster. This is because CockroachDB uses mTLS for node-to-node communication.
 
 <Tabs>
-<TabItem label="Using existing CockroachDB CA certs">
+<TabItem label="Nodes serving your CockroachDB CA certs">
 In this configuration, your CockroachDB CA will be used to issue the server cert
 `node.crt` for each CockroachDB node. 
 
@@ -120,7 +123,7 @@ $ tctl auth export --type=db_client >> <Var name="/path/to/cockroachdb/certs/dir
 
 (!docs/pages/includes/database-access/custom-db-ca.mdx db="CockroachDB" protocol="cockroachdb" port="26257"!)
 </TabItem>
-<TabItem label="Using Teleport CA certs">
+<TabItem label="Nodes serving your Teleport CA certs">
 In this configuration, Teleport's CA will be used to issue the server cert, 
 `node.crt`, and your own custom CA will be used to issue the client certificate,
 `client.node.crt`, for each CockroachDB node.
