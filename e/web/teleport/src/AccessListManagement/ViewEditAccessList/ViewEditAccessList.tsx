@@ -322,7 +322,7 @@ function getPerms({
   return {
     isOwner,
     adminWhoCanRead: accessListAccess?.read && accessListAccess?.list,
-    adminWhoCanEdit: accessListAccess?.create && accessListAccess?.edit,
+    adminWhoCanEdit: accessListAccess?.edit,
     adminWhoCanDelete: accessListAccess?.remove,
   };
 }
