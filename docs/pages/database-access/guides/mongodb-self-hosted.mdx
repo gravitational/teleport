@@ -115,12 +115,10 @@ accordingly to grant the user appropriate database permissions.
 
 ### Set up mutual TLS
 
-(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
-
-Create the secrets:
-
 <Tabs>
   <TabItem label="Standalone">
+  (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
+
   When connecting to standalone MongoDB, sign the certificate for the hostname over
   which Teleport will be connecting to it.
 
