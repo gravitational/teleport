@@ -96,7 +96,7 @@ However, version upgrades don't re-apply the resource defaults. This could lead
 to different results if you create a new resource or upgrade an existing one.
 To mitigate this, you should explicitly set the resource version.
 
-<Adminition type="warning">
+<Admonition type="warning">
   Upgrading the Terraform Provider to a new version with `teleport_role`
   resources without a specified version can change the role behavior and access
   rules. You must set the role version before upgrading to ensure the role
@@ -108,7 +108,7 @@ To mitigate this, you should explicitly set the resource version.
   * v13 default role version is `v6`
   * v14 default role version is `v7`
 
-  For example, before upgrading from v12 to v13, edit every unversionned role
+  For example, before upgrading from v12 to v13, edit every unversioned role
   to pin the `v5` version:
 
   ```hcl
@@ -120,7 +120,7 @@ To mitigate this, you should explicitly set the resource version.
     // ...
   }
   ```
-</Adminition>
+</Admonition>
 
 
 ## teleport_access_list
