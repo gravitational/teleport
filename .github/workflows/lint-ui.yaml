@@ -7,11 +7,23 @@ on:
       - 'web/**'
       - 'gen/proto/js/**'
       - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
   merge_group:
     paths:
       - 'web/**'
       - 'gen/proto/js/**'
       - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
 
 jobs:
   lint:
