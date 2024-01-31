@@ -16,11 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export {
-  Main as default,
-  useContentMinWidthContext,
-  useNoMinWidth,
-  HorizontalSplit,
-  StyledIndicator,
-} from './Main';
-export { MainContainer } from './MainContainer';
+/**
+ * saveOnDisk saves content to local disk.
+ * @param content content to download.
+ * @param filename preset file name.
+ * @param fileType file type.
+ */
+export function saveOnDisk(
+  content: string,
+  filename: string,
+  fileType: string
+): void {
+  const a = document.createElement('a');
+  const blob = new Blob([content], { type: fileType });
+  a.href = window.URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}

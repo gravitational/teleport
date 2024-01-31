@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';
@@ -41,7 +41,7 @@ import {
   FeatureHeaderTitle,
   FeatureBox,
 } from 'teleport/components/Layout';
-import { useContentMinWidthContext } from 'teleport/Main';
+import { useNoMinWidth } from 'teleport/Main';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
@@ -98,15 +98,7 @@ function ClusterResources({
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
 
-  const { setEnforceMinWidth } = useContentMinWidthContext();
-
-  useEffect(() => {
-    setEnforceMinWidth(false);
-
-    return () => {
-      setEnforceMinWidth(true);
-    };
-  }, []);
+  useNoMinWidth();
 
   const pinningNotSupported = storageService.arePinnedResourcesDisabled();
   const {
