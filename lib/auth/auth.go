@@ -1866,10 +1866,6 @@ func (r *certRequest) check() error {
 
 type certRequestOption func(*certRequest)
 
-func certRequestMFAVerified(mfaID string) certRequestOption {
-	return func(r *certRequest) { r.mfaVerified = mfaID }
-}
-
 func certRequestPreviousIdentityExpires(previousIdentityExpires time.Time) certRequestOption {
 	return func(r *certRequest) { r.previousIdentityExpires = previousIdentityExpires }
 }
