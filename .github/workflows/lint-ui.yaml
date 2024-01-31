@@ -6,10 +6,18 @@ on:
     paths:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
   merge_group:
     paths:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
 
 jobs:
   lint:
