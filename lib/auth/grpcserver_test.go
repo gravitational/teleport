@@ -25,7 +25,6 @@ import (
 	"encoding/base32"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -934,13 +933,13 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		{
 			// Tracked here because, if this changes, then the scenario should be the
 			// same as the one above.
-			name:              "GenerateUserSingleUseCerts does not allow App usage",
+			name:              "single user cert does not allow App usage",
 			clusterDeviceMode: constants.DeviceTrustModeRequired,
 			client:            clientWithoutDevice,
 			req:               appReq,
 			skipLoginCerts:    true,
 			assertErr: func(t *testing.T, err error) {
-				assert.ErrorContains(t, err, "app access", "GenerateUserSingleUseCerts expected to fail for usage=App")
+				assert.ErrorContains(t, err, "app access", "single-use certs expected to fail for usage=App")
 			},
 		},
 		{
@@ -1109,10 +1108,9 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc          string
-		newClient     func() (*Client, error) // optional, makes a new client for the test.
-		opts          generateUserSingleUseCertsTestOpts
-		skipUnaryTest bool // skip testing against GenerateUSerCerts
+		desc      string
+		newClient func() (*Client, error) // optional, makes a new client for the test.
+		opts      generateUserSingleUseCertsTestOpts
 	}{
 		{
 			desc: "ssh using webauthn",
@@ -1498,30 +1496,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
-			desc: "fail - mfa not required when RBAC prevents access",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_SSH,
-					NodeName:  "node-a",
-					SSHLogin:  "llama", // not an allowed login which prevents access
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, required)
-				},
-				authnHandler: func(t *testing.T, req *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					// Return no challenge response.
-					return &proto.MFAAuthenticateResponse{}
-				},
-				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.ErrorIs(t, err, io.EOF, i...)
-				},
-			},
-			skipUnaryTest: true,
-		},
-		{
 			desc: "mfa unspecified when no SSHLogin provided",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -1675,16 +1649,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				require.NoError(t, err, "newClient failed")
 			}
 
-			t.Run("stream", func(t *testing.T) {
-				testGenerateUserSingleUseCertsStream(ctx, t, testClient, tt.opts)
-			})
-			if tt.skipUnaryTest {
-				return
-			}
-
-			t.Run("unary", func(t *testing.T) {
-				testGenerateUserSingleUseCertsUnary(ctx, t, testClient, tt.opts)
-			})
+			testGenerateUserSingleUseCerts(ctx, t, testClient, tt.opts)
 		})
 	}
 }
@@ -1697,63 +1662,7 @@ type generateUserSingleUseCertsTestOpts struct {
 	verifyCert         func(*testing.T, *proto.SingleUseUserCert)
 }
 
-func testGenerateUserSingleUseCertsStream(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
-	runStream := func() (*proto.SingleUseUserCert, error) {
-		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
-		stream, err := cl.GenerateUserSingleUseCerts(ctx)
-		require.NoError(t, err, "GenerateUserSingleUseCerts stream creation failed")
-
-		// Init.
-		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
-		if err := stream.Send(&proto.UserSingleUseCertsRequest{
-			Request: &proto.UserSingleUseCertsRequest_Init{
-				Init: opts.initReq,
-			},
-		}); err != nil {
-			return nil, err
-		}
-
-		// Challenge response.
-		authChallenge, err := stream.Recv()
-		if err != nil {
-			return nil, err
-		}
-		authnChal := authChallenge.GetMFAChallenge()
-		opts.mfaRequiredHandler(t, authnChal.MFARequired)
-		authnSolved := opts.authnHandler(t, authnChal)
-
-		//nolint:staticcheck // SA1019. Kept for backwards compatibility.
-		switch err := stream.Send(&proto.UserSingleUseCertsRequest{
-			Request: &proto.UserSingleUseCertsRequest_MFAResponse{
-				MFAResponse: authnSolved,
-			},
-		}); {
-		case err != nil && authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO:
-			require.ErrorIs(t, err, io.EOF, "Want the server to close the stream when MFA is not required")
-		case err != nil:
-			return nil, err
-		}
-
-		// Certs.
-		certs, err := stream.Recv()
-		if err != nil {
-			return nil, err
-		}
-
-		assert.NoError(t, stream.CloseSend(), "CloseSend")
-		return certs.GetCert(), err
-	}
-
-	certs, err := runStream()
-	opts.verifyErr(t, err)
-	if err != nil {
-		return
-	}
-
-	opts.verifyCert(t, certs)
-}
-
-func testGenerateUserSingleUseCertsUnary(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
+func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *Client, opts generateUserSingleUseCertsTestOpts) {
 	authnChal, err := cl.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
