@@ -231,6 +231,20 @@ The operator now joins using a Kubernetes ServiceAccount token. To validate the
 token, the Teleport Auth Service must have access to the `TokenReview` API.
 The chart configures this for you since v12, unless you disabled `rbac` creation.
 
+#### Resource version is now mandatory and immutable in the Terraform provider
+
+Starting with Teleport 15, each Terraform resource must have its version specified.
+Before version 15, Terraform was picking the latest version avaiable on resource creation.
+This caused inconsistrencies as new resoucres creates with the same manifest as
+old resources were not exibiting the same behavior.
+
+Resource version is now immutable. Changing a resource version will cause
+Terraform to delete and re-create the resource. This ensures the correct
+defaults are set.
+
+Existing resources will continue to work as Terraform already imported their
+version. However, new resources will require an explicit version.
+
 ### Other changes
 
 #### Increased password length
