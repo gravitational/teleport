@@ -97,8 +97,6 @@ tls-ca-cert-file /usr/local/etc/redis/certs/pem-bundle.cas
 tls-protocols "TLSv1.2 TLSv1.3"
 ```
 
-(!docs/pages/includes/database-access/custom-db-ca.mdx db="Redis Cluster" protocol="redis" scheme="rediss://" port="6379" query="?mode=cluster"!)
-
 Once mutual TLS has been enabled, you will no longer be able to connect to
 the cluster without providing a valid client certificate. You can use the
 `tls-auth-clients optional` setting to allow connections
@@ -107,6 +105,7 @@ from clients that do not present a certificate.
 See [TLS Support](https://redis.io/topics/encryption)
 in the Redis documentation for more details.
 
+(!docs/pages/includes/database-access/custom-db-ca.mdx db="Redis Cluster" protocol="redis" scheme="rediss://" port="6379" query="?mode=cluster"!)
 ## Step 5/6. Create a cluster
 
 Use the following command to create the cluster. Please note `redis-cli --cluster create` accepts only IP addresses.
