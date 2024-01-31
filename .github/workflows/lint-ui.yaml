@@ -33,7 +33,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install Yarn dependencies
-        run: yarn --frozen-lockfile
+        run: bash web/packages/build/scripts/yarn-install-frozen-lockfile.sh
 
       - name: Run Type Check
         run: yarn type-check
