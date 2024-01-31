@@ -20,6 +20,8 @@ package local
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -1351,6 +1353,55 @@ func TestChangingOwnershipModeIsAnError(t *testing.T) {
 				"Expected BadParameter, got %s", err.Error())
 		})
 	}
+}
+
+func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	const numAccessLists = 10
+	const numAccessListMembersPerAccessList = 250
+	totalMembers := numAccessLists * numAccessListMembersPerAccessList
+
+	// Create several access lists.
+	expectedMembers := make([]*accesslist.AccessListMember, totalMembers)
+	for i := 0; i < numAccessLists; i++ {
+		alName := strconv.Itoa(i)
+		_, err := service.UpsertAccessList(ctx, newAccessList(t, alName, clock))
+		require.NoError(t, err)
+
+		for j := 0; j < numAccessListMembersPerAccessList; j++ {
+			member := newAccessListMember(t, alName, fmt.Sprintf("%03d", j))
+			expectedMembers[i*numAccessListMembersPerAccessList+j] = member
+			_, err := service.UpsertAccessListMember(ctx, member)
+			require.NoError(t, err)
+		}
+	}
+
+	allMembers := make([]*accesslist.AccessListMember, 0, totalMembers)
+	var nextToken string
+	for {
+		var members []*accesslist.AccessListMember
+		var err error
+		members, nextToken, err = service.ListAllAccessListMembers(ctx, 0, nextToken)
+		require.NoError(t, err)
+
+		allMembers = append(allMembers, members...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	require.Empty(t, cmp.Diff(expectedMembers, allMembers, cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision")))
 }
 
 func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {

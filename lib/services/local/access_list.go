@@ -65,6 +65,7 @@ type AccessListService struct {
 	service       *generic.Service[*accesslist.AccessList]
 	memberService *generic.Service[*accesslist.AccessListMember]
 	reviewService *generic.Service[*accesslist.Review]
+	backend       backend.Backend
 }
 
 // compile-time assertion that the AccessListService implements the AccessLists
@@ -115,6 +116,7 @@ func NewAccessListService(backend backend.Backend, clock clockwork.Clock) (*Acce
 		service:       service,
 		memberService: memberService,
 		reviewService: reviewService,
+		backend:       backend,
 	}, nil
 }
 
@@ -271,10 +273,50 @@ func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessLis
 }
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
-func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	// Locks are not used here as these operations are more likely to be used by the cache.
 	// Lists all access list members for all access lists.
-	return a.memberService.ListResources(ctx, pageSize, nextToken)
+	rangeStart := backend.Key(accessListMemberPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(accessListMemberPrefix))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > int(accessListMemberMaxPageSize) {
+		pageSize = int(accessListMemberMaxPageSize)
+	}
+
+	limit := pageSize + 1
+
+	// no filter provided get the range directly
+	result, err := a.backend.GetRange(ctx, rangeStart, rangeEnd, limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]*accesslist.AccessListMember, 0, len(result.Items))
+	for _, item := range result.Items {
+		resource, err := services.UnmarshalAccessListMember(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		out = append(out, resource)
+	}
+
+	var nextKey string
+	if len(out) > pageSize {
+		// For listing all access list members for all access lists, we want to list members regardless of which
+		// access list they belong to. As a result, we'll use custom pagination logic here to include the appropriate
+		// prefix across pages.
+		lastItemKey := result.Items[len(out)-1].Key
+		prefixOffset := 2 + len(accessListMemberPrefix)
+		if len(lastItemKey) < prefixOffset {
+			return nil, "", trace.BadParameter("unable to calculate next page for listing all access list members")
+		}
+		nextKey = string(lastItemKey[prefixOffset:])
+		// Truncate the last item that was used to determine next row existence.
+		out = out[:pageSize]
+	}
+
+	return out, nextKey, nil
 }
 
 // GetAccessListMember returns the specified access list member resource.
