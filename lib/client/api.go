@@ -5045,16 +5045,9 @@ func (fp ForwardedPorts) String() (retval []string) {
 	return retval
 }
 
-// ParseLocalPortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
+// ParsePortForwardSpec parses parameter to -L flag, i.e. strings like "[ip]:80:remote.host:3000"
 // The opposite of this function (spec generation) is ForwardedPorts.String()
-func ParseLocalPortForwardSpec(spec []string) (ForwardedPorts, error) {
-	ports, err := ParsePortForwardSpec(spec, "127.0.0.1")
-	return ports, trace.Wrap(err)
-}
-
-// ParsePortForwardSpec parses parameter to -L or -R flag, i.e. strings like "[ip]:80:remote.host:3000"
-// The opposite of this function (spec generation) is ForwardedPorts.String()
-func ParsePortForwardSpec(spec []string, defaultSrcHost string) (ports ForwardedPorts, err error) {
+func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
 	}
@@ -5067,7 +5060,7 @@ func ParsePortForwardSpec(spec []string, defaultSrcHost string) (ports Forwarded
 			return nil, trace.BadParameter(errTemplate, str)
 		}
 		if len(parts) == 3 {
-			parts = append([]string{defaultSrcHost}, parts...)
+			parts = append([]string{"127.0.0.1"}, parts...)
 		}
 		p := &ports[i]
 		p.SrcIP = parts[0]

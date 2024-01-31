@@ -2353,10 +2353,6 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	if err := s.startRemoteListener(ctx, scx, listener); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := sshutils.StartRemoteListener(ctx, ccx, scx.SrcAddr, scx.DstAddr, listener); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 

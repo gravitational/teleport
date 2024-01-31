@@ -3632,7 +3632,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		}
 	}
 
-	fPorts, err := client.ParseLocalPortForwardSpec(cf.LocalForwardPorts)
+	fPorts, err := client.ParsePortForwardSpec(cf.LocalForwardPorts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3642,7 +3642,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
-	rPorts, err := client.ParsePortForwardSpec(cf.RemoteForwardPorts, hostLogin)
+	rPorts, err := client.ParsePortForwardSpec(cf.RemoteForwardPorts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
