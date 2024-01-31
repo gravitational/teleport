@@ -159,21 +159,7 @@ Create the secrets:
   Database Client CA and allow access via Teleport, while still allowing MongoDB 
   replication over TLS using your CA's certs for peer verification.
   
-  Next, modify your Teleport Database Service to trust your MongoDB Replica 
-  Set CA:
-  ```yaml
-    databases:
-    - name: "example-mongo"
-      protocol: "mongodb"
-      uri: "mongo.example.com:27017"
-      static_labels:
-        "env": "dev"
-      tls:
-        ca_cert_file: "/path/to/your/ca.crt"
-  ```
-  
-  Now the Teleport Database Service will trust certificates presented by your
-  MongoDB Replica Set.
+    (!docs/pages/includes/database-access/custom-db-ca.mdx db="MongoDB Replica Set" protocol="mongodb" port="27017"!)
   </TabItem>
 </Tabs>
 
