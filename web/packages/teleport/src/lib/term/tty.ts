@@ -19,7 +19,9 @@
 import Logger from 'shared/libs/logger';
 
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { getAccessToken } from 'teleport/services/api';
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
+import { WebsocketStatus } from 'teleport/types';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
 import { Protobuf, MessageTypeEnum } from './protobuf';
@@ -39,6 +41,7 @@ class Tty extends EventEmitterWebAuthnSender {
   _addressResolver = null;
   _proto = new Protobuf();
   _pendingUploads = {};
+  _authenticated = false;
 
   constructor(addressResolver, props = {}) {
     super();
@@ -52,6 +55,7 @@ class Tty extends EventEmitterWebAuthnSender {
     this._onOpenConnection = this._onOpenConnection.bind(this);
     this._onCloseConnection = this._onCloseConnection.bind(this);
     this._onMessage = this._onMessage.bind(this);
+    this._onAuthMessage = this._onAuthMessage.bind(this);
   }
 
   disconnect(closeCode = WebsocketCloseCode.NORMAL) {
@@ -166,6 +170,7 @@ class Tty extends EventEmitterWebAuthnSender {
   _onOpenConnection() {
     this.emit('open');
     logger.info('websocket is open');
+    this.socket.send(JSON.stringify({ token: getAccessToken() }));
   }
 
   _onCloseConnection(e) {
@@ -174,10 +179,32 @@ class Tty extends EventEmitterWebAuthnSender {
     this.socket.onclose = null;
     this.socket = null;
     this.emit(TermEvent.CONN_CLOSE, e);
+    this._authenticated = false;
     logger.info('websocket is closed');
   }
 
+  _onAuthMessage(ev) {
+    const authResponse = JSON.parse(ev.data) as WebsocketStatus;
+    if (authResponse.type != 'create_session_response') {
+      this.socket.close();
+      console.log('invalid auth response type: ' + authResponse.message);
+      return;
+    }
+    if (authResponse.status == 'error') {
+      this.socket.close();
+      console.log(
+        'auth error connecting to websocket: ' + authResponse.message
+      );
+      return;
+    }
+    this._authenticated = true;
+  }
+
   _onMessage(ev) {
+    if (!this._authenticated) {
+      this._onAuthMessage(ev);
+      return;
+    }
     try {
       const uintArray = new Uint8Array(ev.data);
       const msg = this._proto.decode(uintArray);

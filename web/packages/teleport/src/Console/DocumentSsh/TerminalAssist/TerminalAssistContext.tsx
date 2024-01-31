@@ -61,7 +61,6 @@ export function TerminalAssistContextProvider(
   const socketUrl = cfg.getAssistActionWebSocketUrl(
     getHostName(),
     clusterId,
-    getAccessToken(),
     'ssh-cmdgen'
   );
 
@@ -74,8 +73,23 @@ export function TerminalAssistContextProvider(
   useEffect(() => {
     socketRef.current = new WebSocket(socketUrl);
 
+    socketRef.current.onopen = () => {
+      socketRef.current.send(JSON.stringify({ token: getAccessToken() }));
+    };
+
     socketRef.current.onmessage = e => {
-      const data = JSON.parse(e.data) as ServerMessage;
+      const resData = JSON.parse(e.data);
+
+      if (resData.type === 'create_session_response') {
+        if (resData.status == 'error') {
+          socketRef.current.close();
+          console.log('auth error connecting to websocket: ' + resData.message);
+          return;
+        }
+        return;
+      }
+
+      const data = resData as ServerMessage;
       const payload = JSON.parse(data.payload) as {
         action: string;
         input: string;
@@ -117,19 +131,30 @@ export function TerminalAssistContextProvider(
     const socketUrl = cfg.getAssistActionWebSocketUrl(
       getHostName(),
       clusterId,
-      getAccessToken(),
       'ssh-explain'
     );
 
     const ws = new WebSocket(socketUrl);
 
     ws.onopen = () => {
-      ws.send(encodedOutput);
+      socketRef.current.send(JSON.stringify({ token: getAccessToken() }));
     };
 
     ws.onmessage = event => {
       const message = event.data;
-      const msg = JSON.parse(message) as ServerMessage;
+      const resMsg = JSON.parse(message);
+
+      if (resMsg.type === 'create_session_response') {
+        if (resMsg.status == 'error') {
+          socketRef.current.close();
+          console.log('auth error connecting to websocket: ' + resMsg.message);
+          return;
+        }
+        ws.send(encodedOutput);
+        return;
+      }
+
+      const msg = resMsg as ServerMessage;
 
       const explanation: ExplanationMessage = {
         author: Author.Teleport,
