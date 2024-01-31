@@ -18,14 +18,22 @@ package web
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+)
+
+const (
+	// webUIFlowBotGitHubActionsSSH is the value of the webUIFlowLabelKey
+	// added to a resource created via the Bot GitHub Actions web UI flow.
+	webUIFlowBotGitHubActionsSSH = "github-actions-ssh"
 )
 
 type CreateBotRequest struct {
@@ -55,6 +63,9 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 		Bot: &machineidv1.Bot{
 			Metadata: &headerv1.Metadata{
 				Name: req.BotName,
+				Labels: map[string]string{
+					webUIFlowLabelKey: webUIFlowBotGitHubActionsSSH,
+				},
 			},
 			Spec: &machineidv1.BotSpec{
 				Roles:  req.Roles,
@@ -67,6 +78,62 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	return OK(), nil
+}
+
+// CreateBotJoinTokenRequest represents a client request to
+// create a bot join token
+type CreateBotJoinTokenRequest struct {
+	// IntegrationName is the name attributed to the bot integration, which
+	// is used to name the resources created during the UI flow.
+	IntegrationName string `json:"integrationName"`
+	// JoinMethod is the joining method required in order to use this token.
+	JoinMethod types.JoinMethod `json:"joinMethod"`
+	// GitHub allows the configuration of options specific to the "github" join method.
+	GitHub *types.ProvisionTokenSpecV2GitHub `json:"gitHub"`
+	// WebFlowLabel is the value of the label attributed to bots created via the web UI
+	WebFlowLabel string `json:"webFlowLabel"`
+}
+
+// createBotJoinToken creates a bot join token
+func (h *Handler) createBotJoinToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	var req *CreateBotJoinTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := types.ValidateJoinMethod(req.JoinMethod); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	spec := types.ProvisionTokenSpecV2{
+		Roles:      []types.SystemRole{types.RoleBot},
+		JoinMethod: req.JoinMethod,
+		GitHub:     req.GitHub,
+		BotName:    req.IntegrationName,
+	}
+	provisionToken, err := types.NewProvisionTokenFromSpec(req.IntegrationName, time.Time{}, spec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	provisionToken.SetLabels(map[string]string{
+		webUIFlowLabelKey: req.WebFlowLabel,
+	})
+
+	err = clt.CreateToken(r.Context(), provisionToken)
+	if err != nil {
+		return nil, trace.Wrap(err, "error creating join token")
+	}
+
+	return &nodeJoinToken{
+		ID:     provisionToken.GetName(),
+		Expiry: provisionToken.Expiry(),
+		Method: provisionToken.GetJoinMethod(),
+	}, nil
 }
 
 // getBot retrieves a bot by name

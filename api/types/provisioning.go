@@ -109,6 +109,8 @@ type ProvisionToken interface {
 	GetRoles() SystemRoles
 	// SetRoles sets teleport roles
 	SetRoles(SystemRoles)
+	// SetLabels sets the tokens labels
+	SetLabels(map[string]string)
 	// GetAllowRules returns the list of allow rules
 	GetAllowRules() []*TokenRule
 	// SetAllowRules sets the allow rules
@@ -349,6 +351,10 @@ func (p *ProvisionTokenV2) GetRoles() SystemRoles {
 // SetRoles sets teleport roles
 func (p *ProvisionTokenV2) SetRoles(r SystemRoles) {
 	p.Spec.Roles = r
+}
+
+func (p *ProvisionTokenV2) SetLabels(l map[string]string) {
+	p.Metadata.Labels = l
 }
 
 // GetAllowRules returns the list of allow rules
