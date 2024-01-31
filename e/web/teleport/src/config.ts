@@ -95,6 +95,8 @@ const cfg = {
     pluginPath: '/v1/enterprise/plugin/:name?',
 
     samlIdpPath: '/v1/enterprise/samlidp',
+    // samlIdPMetadataValuesPath is served by SAML IdP.
+    samlIdPMetadataValuesPath: '/enterprise/saml-idp/metadata-values',
 
     // TODO(sshah): limit, startKey and search is supported by this API but currently
     // only limit and startKey based pagination is implemented in the UI.

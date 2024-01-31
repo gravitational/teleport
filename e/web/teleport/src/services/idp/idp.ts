@@ -5,6 +5,7 @@ import cfg from 'e-teleport/config';
 import {
   CreateSamlIdpServiceProviderRequest,
   CreateSamlIdpServiceProviderResponse,
+  SAMLIdPMetadataResponse,
 } from './types';
 
 export class IdpService {
@@ -12,5 +13,8 @@ export class IdpService {
     req: CreateSamlIdpServiceProviderRequest
   ): Promise<CreateSamlIdpServiceProviderResponse> {
     return api.post(cfg.api.samlIdpPath, req);
+  }
+  getIdPMetadataValues(): Promise<SAMLIdPMetadataResponse> {
+    return api.get(cfg.api.samlIdPMetadataValuesPath);
   }
 }

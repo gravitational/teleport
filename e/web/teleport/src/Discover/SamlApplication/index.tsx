@@ -16,7 +16,7 @@ export const SamlApplicationResource: ResourceViewConfig = {
       title = 'Add SAML Application (Grafana)';
       configureResourceViews = [
         {
-          title: "Download Teleport's IdP Metadata",
+          title: "Configure Grafana with Teleport's IdP Metadata",
           component: DownloadMetadataGrafana,
           eventName: DiscoverEvent.Started,
         },
@@ -30,12 +30,12 @@ export const SamlApplicationResource: ResourceViewConfig = {
       title = 'Add SAML Application';
       configureResourceViews = [
         {
-          title: "Download Teleport's IdP Metadata",
+          title: "Configure Service Provider with Teleport's IdP Metadata",
           component: DownloadMetadata,
           eventName: DiscoverEvent.Started,
         },
         {
-          title: 'Add Service Provider',
+          title: 'Add Service Provider to Teleport',
           component: AddServiceProvider,
           eventName: DiscoverEvent.DeployService,
         },

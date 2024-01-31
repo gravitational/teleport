@@ -2,6 +2,9 @@ package saml
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"strings"
 
@@ -42,6 +45,7 @@ func (s *Service) initRouter() (*httprouter.Router, error) {
 	router := httprouter.New()
 
 	router.GET("/metadata", s.withAuthCtx(s.handleMetadata))
+	router.GET("/metadata-values", s.withAuthCtx(s.handleMetadataValues))
 	router.GET("/sso", s.withAuthCtx(s.handleSSO))
 	router.POST("/sso", s.withAuthCtx(s.handleSSO))
 
@@ -108,7 +112,8 @@ func (s *Service) authorize(ctx context.Context) (*tlsca.Identity, error) {
 	return &identity, nil
 }
 
-// handleMetadata handles metadata requests.
+// handleMetadata handles metadata requests. The response is handled by IdP, which serves
+// metadata file.
 func (s *Service) handleMetadata(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	idp, err := s.createIdP(r.Context())
 	if err != nil {
@@ -116,6 +121,61 @@ func (s *Service) handleMetadata(w http.ResponseWriter, r *http.Request, p httpr
 		s.writeError(w, http.StatusInternalServerError)
 	}
 	idp.ServeMetadata(w, r) // The saml.IdentityProvider does the response handling here.
+}
+
+type idpMetadataValues struct {
+	EntityID string `json:"entityID"`
+	SSOURL   string `json:"ssoURL"`
+	X509PEM  string `json:"x509PEM"`
+}
+
+// handleMetadataValues returns IdP entity ID, SSO URL and PEM encoded certificate values.
+// While handleMetadata serves a whole metadata file, handleMetadataValues is used to display metadata
+// values in the Teleport Web UI.
+func (s *Service) handleMetadataValues(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	idp, err := s.createIdP(r.Context())
+	if err != nil {
+		s.log.Errorf("Error creating IdP: %v", err)
+		s.writeError(w, http.StatusInternalServerError)
+	}
+	ed := idp.Metadata()
+
+	var metadata idpMetadataValues
+	metadata.EntityID = ed.EntityID
+	for _, desc := range ed.IDPSSODescriptors {
+		for _, ssoService := range desc.SingleSignOnServices {
+			if ssoService.Binding == "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" {
+				metadata.SSOURL = ssoService.Location
+			}
+
+		}
+	}
+
+	for _, desc := range ed.IDPSSODescriptors {
+		for _, keys := range desc.KeyDescriptors {
+			if keys.Use == "signing" {
+				b64EncodedCert := keys.KeyInfo.X509Data.X509Certificates[0].Data
+				rawCert, err := base64.StdEncoding.DecodeString(b64EncodedCert)
+				if err != nil {
+					s.log.Errorf("Error decoding IdP certificate: %v", err)
+					s.writeError(w, http.StatusInternalServerError)
+				}
+				certPEM := pem.EncodeToMemory(&pem.Block{
+					Type:  "CERTIFICATE",
+					Bytes: rawCert,
+				})
+				metadata.X509PEM = string(certPEM)
+			}
+		}
+	}
+
+	resp, err := json.Marshal(metadata)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp)
 }
 
 // handleSSO handles SSO requests.

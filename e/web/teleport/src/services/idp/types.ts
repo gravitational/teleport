@@ -18,3 +18,9 @@ export type CreateSamlIdpServiceProviderResponse = {
   name: string;
   content: string;
 };
+
+export type SAMLIdPMetadataResponse = {
+  entityID: string;
+  ssoURL: string;
+  x509PEM: string;
+};

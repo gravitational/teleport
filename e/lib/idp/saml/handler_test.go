@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"net/http"
@@ -110,6 +111,39 @@ func TestMetadata(t *testing.T) {
 	ed := saml.EntityDescriptor{}
 	require.NoError(t, xml.Unmarshal(w.Body.Bytes(), &ed))
 	require.Equal(t, fmt.Sprintf("https://test.url%s", path.Join(IdPRoute, "metadata")), ed.EntityID)
+}
+
+func TestMetadataValues(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	svcs := samlTestService(ctx, t, clock)
+
+	user := setupUser(t, svcs, clock.Now().Add(time.Hour))
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "metadata-values"), nil)
+	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
+
+	svcs.samlIdP.ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var metadata idpMetadataValues
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &metadata))
+	require.Equal(t, fmt.Sprintf("https://test.url%s", path.Join(IdPRoute, "metadata")), metadata.EntityID)
+	require.Equal(t, fmt.Sprintf("https://test.url%s", path.Join(IdPRoute, "sso")), metadata.SSOURL)
+
+	// test that certificate from metadata matches CA cert that is used to
+	// sign SAML assertion.
+	clusterName, err := svcs.clusterService.GetClusterName()
+	require.NoError(t, err)
+	ca, err := svcs.client.samlIdPService.client.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SAMLIDPCA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	require.NoError(t, err)
+	rawCert, _, err := svcs.client.samlIdPService.keyStore.GetTLSCertAndSigner(ctx, ca)
+	require.NoError(t, err)
+	require.Equal(t, string(rawCert), metadata.X509PEM)
 }
 
 func TestSSOGET(t *testing.T) {
