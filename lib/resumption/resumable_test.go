@@ -22,6 +22,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/nettest"
 	"golang.org/x/sync/errgroup"
@@ -133,21 +134,7 @@ func testConnResume(t *testing.T, syncPipe bool) {
 	r2 := newResumableConn(nil, nil)
 	defer r2.Close()
 
-	makePipe := func() (net.Conn, net.Conn) {
-		var p1, p2 net.Conn
-		if syncPipe {
-			p1, p2 = net.Pipe()
-		} else {
-			var err error
-			p1, p2, err = uds.NewSocketpair(uds.SocketTypeStream)
-			require.NoError(err)
-		}
-		t.Cleanup(func() { _ = p1.Close() })
-		t.Cleanup(func() { _ = p2.Close() })
-		return p1, p2
-	}
-
-	p1, p2 := makePipe()
+	p1, p2 := makePipe(t, syncPipe)
 
 	const isFirstConn = true
 	r1.mu.Lock()
@@ -173,7 +160,7 @@ func testConnResume(t *testing.T, syncPipe bool) {
 	_, err = r2.Write(randB)
 	require.NoError(err)
 
-	p1, p2 = makePipe()
+	p1, p2 = makePipe(t, syncPipe)
 
 	const isNotFirstConn = false
 	r1.mu.Lock()
@@ -184,4 +171,51 @@ func testConnResume(t *testing.T, syncPipe bool) {
 	_, err = io.ReadFull(r1, recvB)
 	require.NoError(err)
 	require.Equal(randB, recvB)
+}
+
+func TestConnDesync(t *testing.T) {
+	require := require.New(t)
+
+	const isSyncPipe = true
+	p1, p2 := makePipe(t, isSyncPipe)
+
+	r1 := newResumableConn(nil, nil)
+	defer r1.Close()
+	r2 := newResumableConn(nil, nil)
+	defer r2.Close()
+	r2.receiveBuffer.start = 1
+	r2.receiveBuffer.end = 1
+
+	err2C := make(chan error, 1)
+	r2.mu.Lock()
+	go func() {
+		const isNotFirstConn = false
+		err2C <- runResumeV1Unlocking(r2, p2, isNotFirstConn)
+	}()
+
+	r1.mu.Lock()
+	const isNotFirstConn = false
+	err1 := runResumeV1Unlocking(r1, p1, isNotFirstConn)
+	err2 := <-err2C
+
+	require.Error(err1)
+	require.Error(err2)
+	require.ErrorAs(err1, new(*trace.BadParameterError))
+	require.ErrorContains(err1, "got incompatible resume position")
+
+	require.ErrorIs(err2, net.ErrClosed)
+}
+
+func makePipe(t *testing.T, syncPipe bool) (net.Conn, net.Conn) {
+	var p1, p2 net.Conn
+	if syncPipe {
+		p1, p2 = net.Pipe()
+	} else {
+		var err error
+		p1, p2, err = uds.NewSocketpair(uds.SocketTypeStream)
+		require.NoError(t, err)
+	}
+	t.Cleanup(func() { _ = p1.Close() })
+	t.Cleanup(func() { _ = p2.Close() })
+	return p1, p2
 }
