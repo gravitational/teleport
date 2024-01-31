@@ -1354,17 +1354,25 @@ func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 	ctx, cancel := context.WithCancel(s.ctx)
 	t.Cleanup(cancel)
 
-	term, err := connectToHost(ctx, connectConfig{
+	result := make(chan error)
+
+	_, err := connectToHost(ctx, connectConfig{
 		pack:      s.authPack(t, "foo"),
 		host:      s.node.ID(),
 		proxy:     s.webServer.Listener.Addr().String(),
 		sessionID: "/../../../foo",
+		handlers: map[string]WSHandlerFunc{
+			defaults.WebsocketError: func(ctx context.Context, e Envelope) {
+				if e.Payload == "/../../../foo is not a valid UUID" {
+					result <- errors.New(e.Payload)
+				}
+				close(result)
+			},
+		},
 	})
 	require.NoError(t, err)
-	var wsError WSError
-	err = term.ws.ReadJSON(&wsError)
-	require.NoError(t, err)
-	require.Equal(t, "/../../../foo is not a valid UUID", wsError.Error)
+	res := <-result
+	require.NotNil(t, res)
 }
 
 func TestResolveServerHostPort(t *testing.T) {
@@ -1899,6 +1907,7 @@ func TestTerminal(t *testing.T) {
 				host:  s.node.ID(),
 				proxy: s.webServer.Listener.Addr().String(),
 			})
+
 			require.NoError(t, err)
 			t.Cleanup(func() { require.True(t, utils.IsOKNetworkError(term.Close())) })
 
