@@ -3777,12 +3777,6 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	})
 }
 
-// WSError is used to write errors that previously occurred before a
-// websocket got upgraded
-type WSError struct {
-	Error string `json:"error"`
-}
-
 // WithClusterAuthWS wraps a ClusterWebsocketHandler to ensure that a request is authenticated
 // to this proxy via websocket if websocketAuth is true, or via query parameter if false (the same as WithAuth), as
 // well as to grab the remoteSite (which can represent this local cluster or a remote trusted cluster)
@@ -3798,18 +3792,21 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 			}
 
 			defer ws.Close()
-			_, err = fn(w, r, p, sctx, site, ws)
-			errEnvelope := Envelope{
-				Type:    defaults.WebsocketError,
-				Payload: err.Error(),
-			}
-			env, err := errEnvelope.Marshal()
-			if err != nil {
-				h.log.WithError(err).Error("error marshaling proto")
-				return nil, nil
-			}
-			if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
-				h.log.WithError(err).Error("error writing proto")
+
+			if _, err := fn(w, r, p, sctx, site, ws); err != nil {
+				errEnvelope := Envelope{
+					Type:    defaults.WebsocketError,
+					Payload: err.Error(),
+				}
+				env, err := errEnvelope.Marshal()
+				if err != nil {
+					h.log.WithError(err).Error("error marshaling proto")
+					return nil, nil
+				}
+				if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
+					h.log.WithError(err).Error("error writing proto")
+					return nil, nil
+				}
 			}
 			return nil, nil
 		}
@@ -3832,18 +3829,20 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 		}
 
 		defer ws.Close()
-		_, err = fn(w, r, p, sctx, site, ws)
-		errEnvelope := Envelope{
-			Type:    defaults.WebsocketError,
-			Payload: err.Error(),
-		}
-		env, err := errEnvelope.Marshal()
-		if err != nil {
-			h.log.WithError(err).Error("error marshaling proto")
-			return nil, nil
-		}
-		if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
-			h.log.WithError(err).Error("error writing proto")
+		if _, err := fn(w, r, p, sctx, site, ws); err != nil {
+			errEnvelope := Envelope{
+				Type:    defaults.WebsocketError,
+				Payload: err.Error(),
+			}
+			env, err := errEnvelope.Marshal()
+			if err != nil {
+				h.log.WithError(err).Error("error marshaling proto")
+				return nil, nil
+			}
+			if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
+				h.log.WithError(err).Error("error writing proto")
+				return nil, nil
+			}
 		}
 		return nil, nil
 	})
