@@ -76,9 +76,6 @@ var (
 
 		// TestAdminActionMFA takes longer than 6 seconds to run.
 		"TestAdminActionMFA",
-
-		// TestTerminal takes 11 seconds to run.
-		"TestTerminal",
 	}
 )
 
