@@ -235,7 +235,7 @@ The chart configures this for you since v12, unless you disabled `rbac` creation
 
 Starting with Teleport 15, each Terraform resource must have its version specified.
 Before version 15, Terraform was picking the latest version available on resource creation.
-This caused inconsistrencies as new resources created with the same manifest as
+This caused inconsistencies as new resources created with the same manifest as
 old resources were not exhibiting the same behavior.
 
 Resource version is now immutable. Changing a resource version will cause
