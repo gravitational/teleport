@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	// webUIFlowBotGitHubActionsSSH is the key of the webUIFlowLabelKey
+	// webUIFlowBotGitHubActionsSSH is the value of the webUIFlowLabelKey
 	// added to a resource created via the Bot GitHub Actions web UI flow.
 	webUIFlowBotGitHubActionsSSH = "github-actions-ssh"
 )
