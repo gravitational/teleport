@@ -62,6 +62,7 @@ func migrateVarComponent(page string) string {
 return    re.ReplaceAllString(page, "$1")
 }
 
+// TODO: Need to finish migrating this function to Go
 func migrateSnippetTemplateBinding(snippetPage string) string {
     defaultValues :=defaultSnippetTemplateBindingRegex.MatchAllString(snippetPage)
 
@@ -72,7 +73,9 @@ if len(defaultValues) == 0{
   // TODO: Create a map from the default values
   const defaultValuesMap = JSON.parse(defaultValues[0].trim().replaceAll(`'`, "").replaceAll(/(\S+)=/g, `"$1":`).replaceAll(/`\s+`/g, `", "`).slice(1,-1));
 
-  let newPage = snippetPage.replace(defaultSnippetTemplateBindingRegex, '');
+  newPage := defaultSnippetTemplateBindingRegex.ReplaceAllString(snippetPage, "")
+
+  // TODO: Replace variables with their default values
   newPage = newPage.replace(templateBindingRegex, (_match, variableName) => {
     return `{ ${variableName} || "${defaultValuesMap[variableName]}" }`
   })
@@ -80,23 +83,21 @@ if len(defaultValues) == 0{
   return newPage;
 }
 
-function migrateVariables(page) {
-  const matches = page.matchAll(variablesRegex);
+// TODO: Finish migrating this function to Go
+func migrateVariables(page string) string {
+    matches :=variablesRegex.MatchAllString(page);
   
-  const variablesMap = {};
-  for (const match of matches) {
-    const variable = match[1];
-    const variableParent = variable.substr(0, variable.indexOf('.'));
-    variablesMap[variableParent] = true;
-  }
+    variablesMap := make(map[string]struct{})
+    for _, variable := range matches {
+	variableParent := variable[0:strings.Index(variable,".")]
+        variablesMap[variableParent] = struct{}{}
+    }
 
-  const uniqueVariables = Object.keys(variablesMap);
-
-  if (uniqueVariables.length === 0) {
+  if len(variablesMap) == 0 {
     return page;
   }
 
-  let newPage = page;
+  newPage := page;
 
   const importStatement = `import { ${uniqueVariables.join(', ')} } from "/snippets/variables.mdx";\n\n`
   const frontmatterEndIndex = findFrontmatterEndIndex(page);
