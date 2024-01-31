@@ -1,0 +1,137 @@
+package scim
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+	"github.com/scim2/filter-parser/v2"
+	"github.com/sirupsen/logrus"
+
+	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
+	"github.com/gravitational/teleport/api/types"
+)
+
+const (
+	usernameAttribute = "userName"
+)
+
+type userHandler struct {
+	users UsersService
+	log   logrus.FieldLogger
+}
+
+var _ resourceHandler = (*userHandler)(nil)
+
+func (uh *userHandler) create(ctx context.Context, shim providerShim, r *scimpb.Resource) (*scimpb.Resource, error) {
+	newUser, err := shim.resourceToUser(ctx, r)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting Teleport user")
+	}
+
+	createdUser, err := uh.users.CreateUser(ctx, newUser)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating Teleport user")
+	}
+
+	result, err := shim.userToResource(ctx, createdUser)
+	if err != nil {
+		return nil, trace.Wrap(err, "formatting created user")
+	}
+
+	return result, nil
+}
+
+func (uh *userHandler) update(ctx context.Context, shim providerShim, r *scimpb.Resource) (*scimpb.Resource, error) {
+	user, err := uh.users.GetUser(ctx, r.Id, false)
+	if err != nil {
+		return nil, trace.NotFound(r.Id)
+	}
+
+	if user.GetRevision() != r.Meta.Version {
+		return nil, trace.CompareFailed("invalid revision: %q != %q", user.GetRevision(), r.Meta.Version)
+	}
+
+	return shim.updateUser(ctx, user, r)
+}
+
+// get handles an individual resource query from the server
+func (uh *userHandler) get(ctx context.Context, shim providerShim, resourceID string) (*scimpb.Resource, error) {
+	user, err := uh.users.GetUser(ctx, resourceID, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// if this user does not belong to this IDP plugin, then they don't exist as
+	// far as this request is concerned.
+	if !shim.userPredicate(ctx, user) {
+		return nil, trace.NotFound(resourceID)
+	}
+
+	userResource, err := shim.userToResource(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting user %s to SCIM resource", user.GetName())
+	}
+
+	return userResource, nil
+}
+
+// list handles a bulk listing query from the client
+func (uh *userHandler) list(ctx context.Context, shim providerShim, filter filter.Expression, requestedPage *scimpb.Page) (*scimpb.ResourceList, error) {
+	const pageSize = 100
+	index := 0
+	totalCount := 0
+	outputResources := []*scimpb.Resource{}
+	nextToken := ""
+
+	for {
+		var srcPage []types.User
+		var err error
+		srcPage, nextToken, err = uh.users.ListUsers(ctx, pageSize, nextToken, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, user := range srcPage {
+			if !shim.userPredicate(ctx, user) {
+				continue
+			}
+
+			filterAttribs := map[string]string{usernameAttribute: user.GetName()}
+			if err := evaluateFilter(filter, filterAttribs); err != nil {
+				continue
+			}
+
+			index++
+			if index < int(requestedPage.StartIndex) {
+				continue
+			}
+
+			if len(outputResources) < int(requestedPage.Count) {
+				userResource, err := shim.userToResource(ctx, user)
+				if err != nil {
+					uh.log.
+						WithError(err).
+						Errorf("converting user %s to SCIM resource", user.GetName())
+					continue
+				}
+
+				outputResources = append(outputResources, userResource)
+			}
+
+			totalCount++
+		}
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	output := &scimpb.ResourceList{
+		TotalResults: int32(totalCount),
+		StartIndex:   int32(requestedPage.StartIndex),
+		ItemsPerPage: int32(requestedPage.Count),
+		Resources:    outputResources,
+	}
+
+	return output, nil
+}
