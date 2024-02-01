@@ -688,8 +688,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	c.CheckSetPIVSlot()
 
 	if hk, err := c.GetHardwareKey(); err == nil {
-		if err := keys.PIVSlot(hk.PIVSlot).Validate(); err != nil {
-			return trace.Wrap(err)
+		if hk.PIVSlot != "" {
+			if err := keys.PIVSlot(hk.PIVSlot).Validate(); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
