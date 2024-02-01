@@ -509,7 +509,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		span.AddEvent("creating preset roles")
 		if err := createPresetRoles(ctx, asrv); err != nil {
 			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
+			span.RecordError(trace.Unwrap(err))
 			span.End()
 			return trace.Wrap(err)
 		}
