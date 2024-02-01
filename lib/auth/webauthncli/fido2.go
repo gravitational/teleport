@@ -56,13 +56,12 @@ const (
 
 // User-friendly device filter errors.
 var (
-	errHasExcludedCredential   = errors.New("device already holds a registered credential")
-	errNoPasswordless          = errors.New("device not registered for passwordless")
-	errNoPlatform              = errors.New("device cannot fulfill platform attachment requirement")
-	errNoRK                    = errors.New("device lacks resident key capabilities")
-	errNoRegisteredCredentials = errors.New("device lacks registered credentials")
-	errNoUV                    = errors.New("device lacks PIN or user verification capabilities necessary to support passwordless")
-	errPasswordlessU2F         = errors.New("U2F devices cannot do passwordless")
+	errHasExcludedCredential = errors.New("device already holds a registered credential")
+	errNoPasswordless        = errors.New("device not registered for passwordless")
+	errNoPlatform            = errors.New("device cannot fulfill platform attachment requirement")
+	errNoRK                  = errors.New("device lacks resident key capabilities")
+	errNoUV                  = errors.New("device lacks PIN or user verification capabilities necessary to support passwordless")
+	errPasswordlessU2F       = errors.New("U2F devices cannot do passwordless")
 )
 
 // FIDODevice abstracts *libfido2.Device for testing.
@@ -163,7 +162,6 @@ func fido2Login(
 	var assertionResp *libfido2.Assertion
 	var usedAppID bool
 
-	pathToRPID := &sync.Map{} // map[string]string
 	filter := func(dev FIDODevice, info *deviceInfo) error {
 		switch {
 		case !info.fido2 && (uv || passwordless):
@@ -175,26 +173,17 @@ func fido2Login(
 			// just in case.
 			// If left unchecked this causes libfido2.ErrUnsupportedOption.
 			return errNoUV
-		case passwordless: // Nothing else to check
+		default:
 			return nil
 		}
-
-		// Does the device have a suitable credential?
-		const pin = ""
-		actualRPID, err := discoverRPID(dev, info, pin, rpID, appID, allowedCreds)
-		if err != nil {
-			return errNoRegisteredCredentials
-		}
-		pathToRPID.Store(info.path, actualRPID)
-
-		return nil
 	}
 
 	user := opts.User
 	deviceCallback := func(dev FIDODevice, info *deviceInfo, pin string) error {
 		actualRPID := rpID
-		if val, ok := pathToRPID.Load(info.path); ok {
-			actualRPID = val.(string)
+		if usesAppID(dev, info, ccdHash[:], allowedCreds, rpID, appID) {
+			log.Debugf("FIDO2: Device %v registered for AppID (%q) instead of RPID", info.path, appID)
+			actualRPID = appID
 		}
 
 		opts := &libfido2.AssertionOpts{
@@ -214,6 +203,9 @@ func fido2Login(
 			log.Debugf("FIDO2: Device %v: retrying assertion without UV", info.path)
 			opts.UV = libfido2.Default
 			assertions, err = dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+		}
+		if errors.Is(err, libfido2.ErrNoCredentials) {
+			err = ErrUsingNonRegisteredDevice // "Upgrade" error message.
 		}
 		if err != nil {
 			return trace.Wrap(err)
@@ -272,33 +264,22 @@ func fido2Login(
 	}, actualUser, nil
 }
 
-func discoverRPID(dev FIDODevice, info *deviceInfo, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
-	// The actual hash is not necessary here.
-	const cdh = "00000000000000000000000000000000"
+func usesAppID(dev FIDODevice, info *deviceInfo, ccdHash []byte, allowedCreds [][]byte, rpID, appID string) bool {
+	if appID == "" {
+		return false
+	}
 
-	// TODO(codingllama): We could cut an assertion here by checking just for
-	//  appID, if it's not empty, and assuming it's rpID otherwise.
-	//  This moves certain "no credentials" handling from the "filter" step to the
-	//  "callback" step, which has a few knock-on effects in the code.
 	opts := &libfido2.AssertionOpts{
 		UP: libfido2.False,
 	}
-	for _, id := range []string{rpID, appID} {
-		if id == "" {
-			continue
-		}
-		switch _, err := dev.Assertion(id, []byte(cdh), allowedCreds, pin, opts); {
-		// Yubikey4 returns ErrUserPresenceRequired if the credential exists,
-		// despite the UP=false opts above.
-		case err == nil, errors.Is(err, libfido2.ErrUserPresenceRequired):
-			return id, nil
-		case errors.Is(err, libfido2.ErrNoCredentials):
-			// Device not registered for RPID=id, keep trying.
-		default:
-			log.WithError(err).Debugf("FIDO2: Device %v: attempt RPID = %v", info.path, id)
-		}
+
+	isRegistered := func(id string) bool {
+		const pin = "" // Not necessary here.
+		_, err := dev.Assertion(id, ccdHash, allowedCreds, pin, opts)
+		return err == nil || (!info.fido2 && errors.Is(err, libfido2.ErrUserPresenceRequired))
 	}
-	return "", libfido2.ErrNoCredentials
+
+	return isRegistered(appID) && !isRegistered(rpID)
 }
 
 func pickAssertion(
@@ -785,13 +766,6 @@ func handleDevice(
 		// If the device is chosen then treat the error as interactive.
 		if waitErr := waitForTouch(dev); errors.Is(waitErr, libfido2.ErrNoCredentials) {
 			cancelAll(dev)
-
-			// Escalate error to ErrUsingNonRegisteredDevice, if appropriate, so we
-			// send a better message to the user.
-			if errors.Is(err, errNoRegisteredCredentials) {
-				err = ErrUsingNonRegisteredDevice
-			}
-
 		} else {
 			err = &nonInteractiveError{err: err}
 		}
