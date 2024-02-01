@@ -25,6 +25,7 @@ import TeleportContext from 'teleport/teleportContext';
 import { allAccessAcl } from 'teleport/mocks/contexts';
 
 import { Access, Acl } from 'teleport/services/user';
+import * as botService from 'teleport/services/bot';
 
 import { GitHubFlowProvider } from './useGitHubFlow';
 import { ConfigureBot } from './ConfigureBot';
@@ -97,8 +98,7 @@ describe('configureBot Component', () => {
   });
 
   it('shows an error if the bot name already exists', async () => {
-    const ctx = setup({ access: { ...allAccessAcl } });
-    jest.spyOn(ctx.botService, 'getBot').mockResolvedValue({
+    jest.spyOn(botService, 'getBot').mockResolvedValue({
       traits: [],
       kind: 'GitHub Actions',
       name: 'bot-name',
