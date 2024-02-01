@@ -23,8 +23,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // Client aggregates the parts of Teleport API client interface
@@ -38,5 +38,5 @@ type Client interface {
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
-	AccessListClient() services.AccessLists
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 }

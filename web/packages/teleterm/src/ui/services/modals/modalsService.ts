@@ -22,6 +22,8 @@ import * as types from 'teleterm/services/tshd/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
+import { PromptMfaRequest } from 'teleterm/services/tshdEvents';
+
 import { ImmutableStore } from '../immutableStore';
 
 import type * as uri from 'teleterm/ui/uri';
@@ -141,7 +143,7 @@ export interface DialogClusterConnect {
 
 export interface ClusterConnectReasonGatewayCertExpired {
   kind: 'reason.gateway-cert-expired';
-  targetUri: string;
+  targetUri: uri.GatewayTargetUri;
   // The original RPC message passes gatewayUri but we might not always be able to resolve it to a
   // gateway, hence the use of undefined.
   gateway: types.Gateway | undefined;
@@ -193,6 +195,13 @@ export interface DialogHeadlessAuthentication {
   onCancel(): void;
 }
 
+export interface DialogReAuthenticate {
+  kind: 'reauthenticate';
+  promptMfaRequest: PromptMfaRequest;
+  onSuccess(totpCode: string): void;
+  onCancel(): void;
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
@@ -201,4 +210,5 @@ export type Dialog =
   | DialogUserJobRole
   | DialogResourceSearchErrors
   | DialogHeadlessAuthentication
+  | DialogReAuthenticate
   | DialogNone;

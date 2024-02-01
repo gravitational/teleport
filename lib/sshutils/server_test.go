@@ -58,7 +58,7 @@ func TestStartStop(t *testing.T) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
 		[]ssh.Signer{signer},
-		AuthMethods{Password: pass("abc123")},
+		AuthMethods{Password: pass("abcdef123456")},
 	)
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
@@ -73,7 +73,7 @@ func TestStartStop(t *testing.T) {
 	})
 
 	clientConfig := &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+		Auth:            []ssh.AuthMethod{ssh.Password("abcdef123456")},
 		HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 	}
 	clt, err := ssh.Dial("tcp", srv.Addr(), clientConfig)
@@ -112,14 +112,14 @@ func TestShutdown(t *testing.T) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
 		[]ssh.Signer{signer},
-		AuthMethods{Password: pass("abc123")},
+		AuthMethods{Password: pass("abcdef123456")},
 		SetShutdownPollPeriod(10*time.Millisecond),
 	)
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
 
 	clientConfig := &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+		Auth:            []ssh.AuthMethod{ssh.Password("abcdef123456")},
 		HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 	}
 	clt, err := ssh.Dial("tcp", srv.Addr(), clientConfig)
@@ -164,7 +164,7 @@ func TestConfigureCiphers(t *testing.T) {
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 		fn,
 		[]ssh.Signer{signer},
-		AuthMethods{Password: pass("abc123")},
+		AuthMethods{Password: pass("abcdef123456")},
 		SetCiphers([]string{"aes128-ctr"}),
 	)
 	require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestConfigureCiphers(t *testing.T) {
 		Config: ssh.Config{
 			Ciphers: []string{"aes256-ctr"},
 		},
-		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+		Auth:            []ssh.AuthMethod{ssh.Password("abcdef123456")},
 		HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 	}
 	_, err = ssh.Dial("tcp", srv.Addr(), &cc)
@@ -186,7 +186,7 @@ func TestConfigureCiphers(t *testing.T) {
 		Config: ssh.Config{
 			Ciphers: []string{"aes128-ctr"},
 		},
-		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+		Auth:            []ssh.AuthMethod{ssh.Password("abcdef123456")},
 		HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 	}
 	clt, err := ssh.Dial("tcp", srv.Addr(), &cc)
@@ -246,7 +246,7 @@ func TestHostSignerFIPS(t *testing.T) {
 			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 			fn,
 			[]ssh.Signer{tt.inSigner},
-			AuthMethods{Password: pass("abc123")},
+			AuthMethods{Password: pass("abcdef123456")},
 			SetCiphers([]string{"aes128-ctr"}),
 			SetFIPS(tt.inFIPS),
 		)

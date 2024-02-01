@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -161,6 +162,36 @@ func (s *ServerInfoV1) GetNewLabels() map[string]string {
 // SetNewLabels sets the labels to apply to matched Nodes.
 func (s *ServerInfoV1) SetNewLabels(labels map[string]string) {
 	s.Spec.NewLabels = labels
+	s.fixLabels()
+}
+
+// fixLabels sets the namespace of this ServerInfo's labels to match the
+// matching scheme indicated by the name.
+func (s *ServerInfoV1) fixLabels() {
+	// Determine which prefix the labels need, if any.
+	namePrefix, _, found := strings.Cut(s.GetName(), "-")
+	if !found {
+		return
+	}
+	var labelPrefix string
+	switch namePrefix {
+	case "aws":
+		labelPrefix = "aws/"
+	case "si":
+		labelPrefix = TeleportDynamicLabelPrefix
+	default:
+		return
+	}
+
+	// Replace the prefix on existing labels.
+	for k, v := range s.Spec.NewLabels {
+		prefix, name, _ := strings.Cut(k, "/")
+		if name == "" {
+			name = prefix
+		}
+		delete(s.Spec.NewLabels, k)
+		s.Spec.NewLabels[labelPrefix+name] = v
+	}
 }
 
 func (s *ServerInfoV1) setStaticFields() {
@@ -173,6 +204,7 @@ func (s *ServerInfoV1) setStaticFields() {
 // default values.
 func (s *ServerInfoV1) CheckAndSetDefaults() error {
 	s.setStaticFields()
+	s.fixLabels()
 	return trace.Wrap(s.Metadata.CheckAndSetDefaults())
 }
 

@@ -217,8 +217,10 @@ func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features, urlPath st
 	h.Set("Content-Security-Policy", cspString)
 }
 
+// DELETE IN 17.0: Kept for legacy app access.
 var appLaunchCSPStringCache *cspCache = newCSPCache()
 
+// DELETE IN 17.0: Kept for legacy app access.
 func getAppLaunchContentSecurityPolicyString(applicationURL string) string {
 	if cspString, ok := appLaunchCSPStringCache.get(applicationURL); ok {
 		return cspString
@@ -236,6 +238,8 @@ func getAppLaunchContentSecurityPolicyString(applicationURL string) string {
 	return cspString
 }
 
+// DELETE IN 17.0: Kept for legacy app access.
+//
 // SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
 func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
 	cspString := getAppLaunchContentSecurityPolicyString(applicationURL)

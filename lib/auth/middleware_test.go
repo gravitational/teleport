@@ -649,6 +649,7 @@ func (h *fakeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	clientSrcAddr, err := authz.ClientSrcAddrFromContext(r.Context())
 	require.NoError(h.t, err)
 	require.Equal(h.t, h.userIP, clientSrcAddr.String())
+	require.Equal(h.t, h.userIP, r.RemoteAddr)
 	// Ensure that the Teleport-Impersonate-User header is not set on the request
 	// after the middleware has run.
 	require.Empty(h.t, r.Header.Get(TeleportImpersonateUserHeader))

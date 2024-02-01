@@ -175,7 +175,7 @@ func (a *Server) validateGenerationLabel(ctx context.Context, username string, c
 // care if the current identity is Nop.  This function does not validate the
 // current identity at all; the caller is expected to validate that the client
 // is allowed to issue the (possibly renewable) certificates.
-func (a *Server) generateInitialBotCerts(ctx context.Context, username, loginIP string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
+func (a *Server) generateInitialBotCerts(ctx context.Context, botName, username, loginIP string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
 	var err error
 
 	// Extract the user and role set for whom the certificate will be generated.
@@ -229,6 +229,7 @@ func (a *Server) generateInitialBotCerts(ctx context.Context, username, loginIP 
 		includeHostCA: true,
 		generation:    generation,
 		loginIP:       loginIP,
+		botName:       botName,
 	}
 
 	if err := a.validateGenerationLabel(ctx, userState.GetName(), &certReq, 0); err != nil {

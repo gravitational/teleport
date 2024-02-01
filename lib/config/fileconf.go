@@ -872,6 +872,9 @@ type CAKeyParams struct {
 	// GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
 	// all CA private key crypto operations.
 	GoogleCloudKMS *GoogleCloudKMS `yaml:"gcp_kms,omitempty"`
+	// AWSKMS configures AWS Key Management Service to to be used for
+	// all CA private key crypto operations.
+	AWSKMS *AWSKMS `yaml:"aws_kms,omitempty"`
 }
 
 // PKCS11 configures a PKCS#11 HSM to be used for private key generation and
@@ -906,6 +909,15 @@ type GoogleCloudKMS struct {
 	// For more information, see https://cloud.google.com/kms/docs/algorithms#protection_levels
 	// Supported options are "HSM" and "SOFTWARE".
 	ProtectionLevel string `yaml:"protection_level"`
+}
+
+// AWSKMS configures AWS Key Management Service to to be used for all CA private
+// key crypto operations.
+type AWSKMS struct {
+	// Account is the AWS account to use.
+	Account string `yaml:"account"`
+	// Region is the AWS region to use.
+	Region string `yaml:"region"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -1510,19 +1522,6 @@ type RestrictedSession struct {
 	// EventsBufferSize is the size in bytes of the channel to report events
 	// from the kernel to us.
 	EventsBufferSize *int `yaml:"events_buffer_size,omitempty"`
-}
-
-// Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*servicecfg.RestrictedSessionConfig, error) {
-	enabled, err := apiutils.ParseBool(r.Enabled)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &servicecfg.RestrictedSessionConfig{
-		Enabled:          enabled,
-		EventsBufferSize: r.EventsBufferSize,
-	}, nil
 }
 
 // X11 is a configuration for X11 forwarding
@@ -2351,8 +2350,69 @@ type Okta struct {
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string `yaml:"api_token_path,omitempty"`
 
-	// SyncPeriod is the duration between synchronization calls.
+	// SyncPeriod is the duration between synchronization calls for synchronizing Okta applications and groups..
+	// Deprecated. Please use sync.app_group_sync_period instead.
 	SyncPeriod time.Duration `yaml:"sync_period,omitempty"`
+
+	// Import is the import settings for the Okta service.
+	Sync OktaSync `yaml:"sync,omitempty"`
+}
+
+// OktaSync represents the import subsection of the okta_service section in the config file.
+type OktaSync struct {
+	// AppGroupSyncPeriod is the duration between synchronization calls for synchronizing Okta applications and groups.
+	AppGroupSyncPeriod time.Duration `yaml:"app_group_sync_period,omitempty"`
+
+	// SyncAccessLists will enable or disable the Okta importing of access lists. Defaults to false.
+	SyncAccessListsFlag string `yaml:"sync_access_lists,omitempty"`
+
+	// DefaultOwners are the default owners for all imported access lists.
+	DefaultOwners []string `yaml:"default_owners,omitempty"`
+
+	// GroupFilters are filters for which Okta groups to synchronize as access lists.
+	// These are globs/regexes.
+	GroupFilters []string `yaml:"group_filters,omitempty"`
+
+	// AppFilters are filters for which Okta applications to synchronize as access lists.
+	// These are globs/regexes.
+	AppFilters []string `yaml:"app_filters,omitempty"`
+}
+
+func (o *OktaSync) SyncAccessLists() bool {
+	if o.SyncAccessListsFlag == "" {
+		return false
+	}
+	enabled, _ := apiutils.ParseBool(o.SyncAccessListsFlag)
+	return enabled
+}
+
+func (o *OktaSync) Parse() (*servicecfg.OktaSyncSettings, error) {
+	enabled := o.SyncAccessLists()
+	if enabled && len(o.DefaultOwners) == 0 {
+		return nil, trace.BadParameter("default owners must be set when access list import is enabled")
+	}
+
+	for _, filter := range o.GroupFilters {
+		_, err := utils.CompileExpression(filter)
+		if err != nil {
+			return nil, trace.Wrap(err, "error parsing group filter: %s", filter)
+		}
+	}
+
+	for _, filter := range o.AppFilters {
+		_, err := utils.CompileExpression(filter)
+		if err != nil {
+			return nil, trace.Wrap(err, "error parsing app filter: %s", filter)
+		}
+	}
+
+	return &servicecfg.OktaSyncSettings{
+		AppGroupSyncPeriod: o.AppGroupSyncPeriod,
+		SyncAccessLists:    o.SyncAccessLists(),
+		DefaultOwners:      o.DefaultOwners,
+		GroupFilters:       o.GroupFilters,
+		AppFilters:         o.AppFilters,
+	}, nil
 }
 
 // JamfService is the yaml representation of jamf_service.

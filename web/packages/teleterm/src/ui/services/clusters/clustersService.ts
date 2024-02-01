@@ -55,7 +55,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   state: types.ClustersServiceState = createClusterServiceState();
 
   constructor(
-    public client: tsh.TshClient,
+    public client: tsh.TshdClient,
     private mainProcessClient: MainProcessClient,
     private notificationsService: NotificationsService,
     private usageService: UsageService
@@ -177,6 +177,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         clusters.map(c => [c.uri, this.removeInternalLoginsFromCluster(c)])
       );
     });
+
     clusters
       .filter(c => c.connected)
       .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
@@ -388,6 +389,9 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
   }
 
+  // DELETE IN 15.0.0 (gzdunek),
+  // since we will no longer have to support old kube connections.
+  // See call in `trackedConnectionOperationsFactory.ts` for more details.
   async removeKubeGateway(kubeUri: uri.KubeUri) {
     const gateway = this.findGatewayByConnectionParams(kubeUri, '');
     if (gateway) {
@@ -441,7 +445,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   }
 
   findGatewayByConnectionParams(
-    targetUri: uri.DatabaseUri | uri.KubeUri,
+    targetUri: uri.GatewayTargetUri,
     targetUser: string
   ) {
     let found: Gateway;
@@ -517,7 +521,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     // TODO: this information should eventually be gathered by getCluster
     const assumedRequests = cluster.loggedInUser
       ? await this.fetchClusterAssumedRequests(
-          cluster.loggedInUser.activeRequestsList,
+          cluster.loggedInUser.activeRequests,
           clusterUri
         )
       : undefined;
@@ -552,7 +556,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       requestsMap[request.id] = {
         id: request.id,
         expires: new Date(request.expires.seconds * 1000),
-        roles: request.rolesList,
+        roles: request.roles,
       };
       return requestsMap;
     }, {});
@@ -566,7 +570,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       ...cluster,
       loggedInUser: cluster.loggedInUser && {
         ...cluster.loggedInUser,
-        sshLoginsList: cluster.loggedInUser.sshLoginsList.filter(
+        sshLogins: cluster.loggedInUser.sshLogins.filter(
           login => !login.startsWith('-')
         ),
       },
@@ -580,7 +584,7 @@ export function makeServer(source: tsh.Server) {
     id: source.name,
     clusterId: source.name,
     hostname: source.hostname,
-    labels: source.labelsList,
+    labels: source.labels,
     addr: source.addr,
     tunnel: source.tunnel,
     sshLogins: [],
@@ -597,7 +601,7 @@ export function makeDatabase(source: tsh.Database) {
       source.protocol as DbProtocol
     ).title,
     protocol: source.protocol,
-    labels: source.labelsList,
+    labels: source.labels,
   };
 }
 
@@ -605,6 +609,35 @@ export function makeKube(source: tsh.Kube) {
   return {
     uri: source.uri,
     name: source.name,
-    labels: source.labelsList,
+    labels: source.labels,
   };
+}
+
+export interface App extends tsh.App {
+  /**
+   * `addrWithProtocol` is an app protocol + a public address.
+   * If the public address is empty, it falls back to the endpoint URI.
+   *
+   * Always empty for SAML applications.
+   */
+  addrWithProtocol: string;
+}
+
+export function makeApp(source: tsh.App): App {
+  const { publicAddr, endpointUri } = source;
+
+  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
+  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
+  let addrWithProtocol = endpointUri;
+  if (publicAddr) {
+    if (isCloud) {
+      addrWithProtocol = `cloud://${publicAddr}`;
+    } else if (isTcp) {
+      addrWithProtocol = `tcp://${publicAddr}`;
+    } else {
+      addrWithProtocol = `https://${publicAddr}`;
+    }
+  }
+
+  return { ...source, addrWithProtocol };
 }

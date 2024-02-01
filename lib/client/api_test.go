@@ -793,6 +793,15 @@ func TestVirtualPathNames(t *testing.T) {
 			},
 		},
 		{
+			name:   "database client ca",
+			kind:   VirtualPathCA,
+			params: VirtualPathCAParams(types.DatabaseClientCA),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_CA_DB_CLIENT",
+				"TSH_VIRTUAL_PATH_CA",
+			},
+		},
+		{
 			name:   "host ca",
 			kind:   VirtualPathCA,
 			params: VirtualPathCAParams(types.HostCA),

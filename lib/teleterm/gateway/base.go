@@ -47,6 +47,10 @@ func New(cfg Config) (Gateway, error) {
 		gateway, err := makeKubeGateway(cfg)
 		return gateway, trace.Wrap(err)
 
+	case cfg.TargetURI.IsApp():
+		gateway, err := makeAppGateway(cfg)
+		return gateway, trace.Wrap(err)
+
 	default:
 		return nil, trace.NotImplemented("gateway not supported for %v", cfg.TargetURI)
 	}

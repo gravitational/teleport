@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -1067,6 +1068,21 @@ spec:
   type: user
 sub_kind: user
 version: v2`
+	databaseClientCAYAML = `
+kind: cert_authority
+metadata:
+  id: 1696989861240620000
+  name: me.localhost
+spec:
+  active_keys:
+    tls:
+      - cert: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURqVENDQW5XZ0F3SUJBZ0lSQU5XcUtsOWR3WGYrVTBWUmhxNGEyaTB3RFFZSktvWklodmNOQVFFTEJRQXcKWURFVk1CTUdBMVVFQ2hNTWJXVXViRzlqWVd4b2IzTjBNUlV3RXdZRFZRUURFd3h0WlM1c2IyTmhiR2h2YzNReApNREF1QmdOVkJBVVRKekk0TkRBd09URXhNams0TlRBek1qYzRPVEV3TURJNE5qUXlPREV6TmpRMk9UQTVNamt3Ck9UQWVGdzB5TXpFd01URXdNakEwTWpGYUZ3MHpNekV3TURnd01qQTBNakZhTUdBeEZUQVRCZ05WQkFvVERHMWwKTG14dlkyRnNhRzl6ZERFVk1CTUdBMVVFQXhNTWJXVXViRzlqWVd4b2IzTjBNVEF3TGdZRFZRUUZFeWN5T0RRdwpNRGt4TVRJNU9EVXdNekkzT0RreE1EQXlPRFkwTWpneE16WTBOamt3T1RJNU1Ea3dnZ0VpTUEwR0NTcUdTSWIzCkRRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRGlDNU5GVDhmUy9hSzdSSVVRVnFjVmFxaFBzMFNuU0prTmd3azEKUHZkeFV1OWZZMlNwek5NaUUzSGZlb0Y4S1h2YUU0aHJzMEFGOVRmYlpJTnM1RjNHNTNzOUg3Q2JXWHpOWVRtZApCN0gyWEVxVGp3N0xGL2pzYzkwcTN4ZnZqMkk0Z29tOUdYK3dGMXdaRldjZXVJRkJTdXdCRkV6a1Yzc1o5NEVqClBsWUIxK2lnNlJoWGhvUjdhRlJUNDFvZmtMUUovMDdBVmR4blUranp5VkVFSVk3SjUwUWU3bFc2Nk9wL3BncmwKR1FBSnkwbnowUVpVYVJjVmZrODVHK3NwMnhjcUJ6clJHbXNybmw1TmhMdGJqcUJIUkZ2cU5XS1pLa1V2M0NjUApiTytWT1krV1FmV0UzRThhekxUQ2ppcnJXYWVXeTNLR0RTZGF5YktOK0FKbVpqU3hBZ01CQUFHalFqQkFNQTRHCkExVWREd0VCL3dRRUF3SUJwakFQQmdOVkhSTUJBZjhFQlRBREFRSC9NQjBHQTFVZERnUVdCQlFhVmMzdXlYWnoKdDBWLzFnNzE3MzMrRjFhaHNqQU5CZ2txaGtpRzl3MEJBUXNGQUFPQ0FRRUF6NTVkVnVFdmVLdnJtYThzL0dWSQo2Q0t5akNNYXNjWmhwV1JIT3QxRjQ1T0pjcXg1RDBQeVhSenZXS2NTYzlZTkN0M1BzSi8yNGp3VDlLaElqK2NiClQ5Z0h5WXNkb3pWY2NzMXNZTkFjK3VFSmRSOEsydHJqa1JJN0Q5VmZvTEJJVFlHUkJGTWpSOEE1bENlUzVnTkgKRG42V09rSlpRUi9UQS9IbFFlUmttMW5teUp3VVVQOVA0aUVWVlVSS0lMRVVNTS9EdERXdTZuNnM2K0pVVXNDNwp5QmI2T3JQeVRGbkV4TFljN2RhYUM1bm5UVDZHY2xUSm4wYkJ2UmtXdUFVa1FtWXJyYkpBMnhEVjFBL0JOcmp3Ci9aU2ErU1ZlVWJxSW05ZEVESE4zQUhXcmJzbWwyVjI3YUtrMHVUK0JmeUJBZ3NSdGpMN0U2YUdJanlNcStlOW4KYmc9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+        key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBNGd1VFJVL0gwdjJpdTBTRkVGYW5GV3FvVDdORXAwaVpEWU1KTlQ3M2NWTHZYMk5rCnFjelRJaE54MzNxQmZDbDcyaE9JYTdOQUJmVTMyMlNEYk9SZHh1ZDdQUit3bTFsOHpXRTVuUWV4OWx4S2s0OE8KeXhmNDdIUGRLdDhYNzQ5aU9JS0p2Umwvc0JkY0dSVm5IcmlCUVVyc0FSUk01RmQ3R2ZlQkl6NVdBZGZvb09rWQpWNGFFZTJoVVUrTmFINUMwQ2Y5T3dGWGNaMVBvODhsUkJDR095ZWRFSHU1VnV1anFmNllLNVJrQUNjdEo4OUVHClZHa1hGWDVQT1J2cktkc1hLZ2M2MFJwcks1NWVUWVM3VzQ2Z1IwUmI2alZpbVNwRkw5d25EMnp2bFRtUGxrSDEKaE54UEdzeTB3bzRxNjFtbmxzdHloZzBuV3NteWpmZ0NabVkwc1FJREFRQUJBb0lCQUQ5R01EWkJxOVRDek0rUQowWktPUHZ6K3V4aDhQT1o2cXVVZVhmQjZyTGNiR1FoaGdTY0t2N3NWS0ZYL0s4bStydjJQWkN1SnBJMUdaQmxVCm5IbFp2MnBURjZzM2VLOHpzSHlwRDRDR1MrbURVaGpWL2JVYUE4TGtkKzl0UFgwQWJPVVduVW5Dbm55RFBYT0UKQ3phTlBSa3l5TGRRb0dsMmwyM2dXMVNyT1ZZUVBEUjZncWVJZVFYa3pHYUFUQ2twZWYrOVk4US9pTkZUR05oZAppamtXSUZOdEYzQjdIODUwdnR0VFFRckE3QXQ3ZnN2bmo2YVVDUkQ3MmFYZGJmeHIwK0VQbUR6WGNhejM3U20yClg3ZkJrakRFa0pCa0gwVnBnZHdvMDh3cmtzbnBieUNpbE95alp4Z3lhUWw2NGFKcGVUN1FHbEMxcm1kUEFmTU4KSEdweFBwVUNnWUVBK21vbllBVW1oSVpTR0R6VjI0NFc0QVRnVFdGb2gxb24wKzlZZ2xxR1RUZFFBM2dXYy9ReQowSmJ6QXpOVFZnODNibWhvU3NtbUMwZ1BoSytBb3BCZXc5ZlVxMmhIOVptUzVjZE1CaTJ6cFdvZHQrWXMvNys1Ckk3d3d2bGgvY3llelQvU0ZyazVCVVB0azZFR1pLZk1KdGZlNDcvb05uUzRmc3lmYlAyWDVUWHNDZ1lFQTV4WkcKSmhiYkwwWFljL0plc0JucXBuRFZHNXhkbkh6aGx0aVB3QzdGbHRDRUpuNFdhTUNpSUtsL0o3VGUzbndqMHk0YQpSVzFTWGN6anc5dHZxY0V3aE9CQUZBUHlsd0FWWjUyOTRzdWZzMnk4SHBFcFhhMjlIRXNReW50TE9JRFZyYkVsClJCV1pEb0xhbllVRTNtWml5WnZ0ZU9TT0hTajVhUnIzRTg1UmtNTUNnWUFweUVLUG8reGNXbWtpUUN4U3VPK2EKSzFZZHN5NFV2M2M3eG9qWEh6R2ZlcVl3SGY1cEZJclNBUTNGTC9Bc3dOYzM1ZFhZL0xKbTJYdzFZRzh2TUxXUApLZGtEVEtBTkc3WEYveTN4TGZqMmxiRWx1Uk16RFJOZ0lndGtCeklremEvK25FY2Q0VkxHcDF1YjRTNGtNTGdqCkU1VlkvVGorUys3Z0hydFhaYlZtTndLQmdET3A2eTBBMXlnT2VZSVNvZERGT296VGxSR0ROL3FRZ083MG84N1gKcGgwOXFRM2lDcWlJeUxaOHJvejJCdzIrdTFPdmJ2Z3VwTWVMMHpBcWt5QmtyTEJJWW9zWEJ0bHpqMVdIRXJqdAp4VnFiNk1MOHVUN1VaUDg2V1JxcnpmbG45RjNNeVFRYndBaGFnUDNPaTNRZGQrQ1RGOWg3WUxwc09yYWc3TFJrCjRCOTVBb0dCQU9maHNVSzVSZm1RU1ZzN08wMmMrdWFVelB2dnEwaXNqNW45dWlOaFQxdjFDUGY4YStZdkkyTisKcWV5bHkwRjN3L2sxbElaUzFjWlMwRDVWMUd6bmVHTUgreWYwVFAvNmlUcElHTC94N1pTNGJEZjE3dEc5dklDdgoya1JBTno5WHpzVzFETm9CRkJmZXg5NDFmT0RzdHlvdThvYmF3dDdJWThTdU1GMHV3aDlBCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+  additional_trusted_keys: {}
+  cluster_name: me.localhost
+  type: db_client
+sub_kind: db_client
+version: v2`
 	databaseCAYAML = `kind: cert_authority
 metadata:
   id: 1640648663670001000
@@ -1141,7 +1157,8 @@ func TestInit_bootstrap(t *testing.T) {
 	hostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
 	userCA := resourceFromYAML(t, userCAYAML).(types.CertAuthority)
 	jwtCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
-	dbCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
+	dbServerCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
+	dbClientCA := resourceFromYAML(t, databaseClientCAYAML).(types.CertAuthority)
 	osshCA := resourceFromYAML(t, openSSHCAYAML).(types.CertAuthority)
 	samlCA := resourceFromYAML(t, samlCAYAML).(types.CertAuthority)
 
@@ -1151,8 +1168,10 @@ func TestInit_bootstrap(t *testing.T) {
 	invalidUserCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
 	invalidJWTCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.ActiveKeys.JWT = nil
-	invalidDBCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
-	invalidDBCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
+	invalidDBServerCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
+	invalidDBServerCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
+	invalidDBClientCA := resourceFromYAML(t, databaseClientCAYAML).(types.CertAuthority)
+	invalidDBClientCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
 	invalidOSSHCA := resourceFromYAML(t, openSSHCAYAML).(types.CertAuthority)
 	invalidOSSHCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
 	invalidSAMLCA := resourceFromYAML(t, samlCAYAML).(types.CertAuthority)
@@ -1172,7 +1191,8 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					userCA.Clone(),
 					jwtCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					osshCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1187,7 +1207,8 @@ func TestInit_bootstrap(t *testing.T) {
 					invalidHostCA.Clone(),
 					userCA.Clone(),
 					jwtCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					osshCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1202,7 +1223,8 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					invalidUserCA.Clone(),
 					jwtCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					osshCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1217,7 +1239,8 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					userCA.Clone(),
 					invalidJWTCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					osshCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1232,7 +1255,23 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					userCA.Clone(),
 					jwtCA.Clone(),
-					invalidDBCA.Clone(),
+					invalidDBServerCA.Clone(),
+					osshCA.Clone(),
+					samlCA.Clone(),
+				)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "NOK bootstrap Database Client CA missing keys",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					dbServerCA.Clone(),
+					invalidDBClientCA.Clone(),
 					osshCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1247,7 +1286,8 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					userCA.Clone(),
 					jwtCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					invalidOSSHCA.Clone(),
 					samlCA.Clone(),
 				)
@@ -1262,7 +1302,8 @@ func TestInit_bootstrap(t *testing.T) {
 					hostCA.Clone(),
 					userCA.Clone(),
 					jwtCA.Clone(),
-					dbCA.Clone(),
+					dbServerCA.Clone(),
+					dbClientCA.Clone(),
 					osshCA.Clone(),
 					invalidSAMLCA.Clone(),
 				)
@@ -1704,4 +1745,27 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cert, 1)
 	}
+}
+
+func TestMigrateDatabaseClientCA(t *testing.T) {
+	ctx := context.Background()
+	conf := setupConfig(t)
+
+	hostCA := suite.NewTestCA(types.HostCA, "me.localhost")
+	userCA := suite.NewTestCA(types.UserCA, "me.localhost")
+	dbServerCA := suite.NewTestCA(types.DatabaseCA, "me.localhost")
+
+	conf.Authorities = []types.CertAuthority{hostCA, userCA, dbServerCA}
+	auth, err := Init(ctx, conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = auth.Close()
+		require.NoError(t, err)
+	})
+
+	dbClientCAs, err := auth.GetCertAuthorities(ctx, types.DatabaseClientCA, true)
+	require.NoError(t, err)
+	require.Len(t, dbClientCAs, 1)
+	require.Equal(t, dbServerCA.Spec.ActiveKeys.TLS[0].Cert, dbClientCAs[0].GetActiveKeys().TLS[0].Cert)
+	require.Equal(t, dbServerCA.Spec.ActiveKeys.TLS[0].Key, dbClientCAs[0].GetActiveKeys().TLS[0].Key)
 }

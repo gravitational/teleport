@@ -35,7 +35,7 @@ export const Dropdown = styled.div<OpenProps>`
   box-shadow: ${({ theme }) => theme.boxShadow[1]};
   border-radius: ${p => p.theme.radii[2]}px;
   width: 265px;
-  right: 0;
+  right: 20px;
   top: 43px;
   z-index: 999;
   opacity: ${p => (p.open ? 1 : 0)};

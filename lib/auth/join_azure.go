@@ -31,9 +31,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/coreos/go-oidc"
 	"github.com/digitorus/pkcs7"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"gopkg.in/square/go-jose.v2/jwt"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"

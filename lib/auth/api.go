@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -89,10 +90,6 @@ type accessPoint interface {
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
-
-	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-	// Returns the device used to solve the challenge (if applicable) and the username.
-	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -703,6 +700,8 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+	// GetDatabase returns a database resource with the given name if it exists.
+	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
@@ -755,7 +754,7 @@ type DiscoveryAccessPoint interface {
 	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context) (string, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -974,6 +973,9 @@ type Cache interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 
+	// ListAppSessions returns a page of application web sessions.
+	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
+
 	// GetSnowflakeSession gets a Snowflake web session.
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 
@@ -1073,6 +1075,27 @@ type Cache interface {
 	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// GetAccessLists returns a list of all access lists.
+	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
+	// ListAccessLists returns a paginated list of access lists.
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	// GetAccessList returns the specified access list resource.
+	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+
+	// ListAccessListMembers returns a paginated list of all access list members.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member list.
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// GetAccessListMember returns the specified access list member resource.
+	// May return a DynamicAccessListError if the requested access list has an
+	// implicit member list and the underlying implementation does not have
+	// enough information to compute the dynamic member record.
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+
+	// ListAccessListReviews will list access list reviews for a particular access list.
+	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
@@ -1292,8 +1315,8 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
-	return w.NoCache.GenerateAWSOIDCToken(ctx, req)
+func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+	return w.NoCache.GenerateAWSOIDCToken(ctx)
 }
 
 // Close closes all associated resources

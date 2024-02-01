@@ -103,14 +103,7 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	issuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := clt.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: issuer,
-	})
+	token, err := clt.GenerateAWSOIDCToken(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -193,6 +186,69 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		ServiceARN:          deployServiceResp.ServiceARN,
 		TaskDefinitionARN:   deployServiceResp.TaskDefinitionARN,
 		ServiceDashboardURL: deployServiceResp.ServiceDashboardURL,
+	}, nil
+}
+
+// awsOIDCDeployDatabaseService deploys a Database Service in Amazon ECS.
+func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCDeployDatabaseServiceRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	teleportVersionTag := teleport.Version
+	if automaticUpgrades(h.ClusterFeatures) {
+		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
+		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
+	}
+
+	deployments := make([]awsoidc.DeployDatabaseServiceRequestDeployment, 0, len(req.Deployments))
+	for _, d := range req.Deployments {
+		deployments = append(deployments, awsoidc.DeployDatabaseServiceRequestDeployment{
+			VPCID:            d.VPCID,
+			SubnetIDs:        d.SubnetIDs,
+			SecurityGroupIDs: d.SecurityGroups,
+		})
+	}
+
+	deployServiceResp, err := awsoidc.DeployDatabaseService(ctx, deployServiceClient, awsoidc.DeployDatabaseServiceRequest{
+		Region:              req.Region,
+		TaskRoleARN:         req.TaskRoleARN,
+		ProxyServerHostPort: h.PublicProxyAddr(),
+		TeleportClusterName: h.auth.clusterName,
+		TeleportVersionTag:  teleportVersionTag,
+		IntegrationName:     awsClientReq.IntegrationName,
+		Deployments:         deployments,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCDeployDatabaseServiceResponse{
+		ClusterARN:          deployServiceResp.ClusterARN,
+		ClusterDashboardURL: deployServiceResp.ClusterDashboardURL,
 	}, nil
 }
 
@@ -292,6 +348,141 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
+}
+
+// awsOIDCConfigureEKSIAM returns a script that configures the required IAM permissions to enroll EKS clusters into Teleport.
+func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+
+	awsRegion := queryParams.Get("awsRegion")
+	if err := aws.IsValidRegion(awsRegion); err != nil {
+		return nil, trace.BadParameter("invalid aws region")
+	}
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	// The script must execute the following command:
+	// "teleport integration configure eks-iam"
+	argsList := []string{
+		"integration", "configure", "eks-iam",
+		fmt.Sprintf("--aws-region=%s", awsRegion),
+		fmt.Sprintf("--role=%s", role),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to complete the EKS enrollment.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	_, err = fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
+}
+
+// awsOIDCEnrollEKSClusters enroll EKS clusters by installing teleport-kube-agent Helm chart on them.
+func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCEnrollEKSClustersRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, clt.CreateToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// todo(anton): get auth server version and use it instead of this proxy teleport.version.
+	agentVersion := teleport.Version
+	if h.ClusterFeatures.GetAutomaticUpgrades() {
+		upgradesVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		agentVersion = strings.TrimPrefix(upgradesVersion, "v")
+	}
+
+	resp := awsoidc.EnrollEKSClusters(ctx, log, h.clock, h.cfg.PublicProxyAddr, credsProvider, enrollEKSClient,
+		awsoidc.EnrollEKSClustersRequest{
+			Region:             req.Region,
+			ClusterNames:       req.ClusterNames,
+			EnableAppDiscovery: req.EnableAppDiscovery,
+			EnableAutoUpgrades: h.ClusterFeatures.GetAutomaticUpgrades(),
+			IsCloud:            h.ClusterFeatures.GetCloud(),
+			AgentVersion:       agentVersion,
+		})
+
+	var data []ui.EKSClusterEnrollmentResult
+	for _, result := range resp.Results {
+		data = append(data, ui.EKSClusterEnrollmentResult{
+			ClusterName: result.ClusterName,
+			Error:       trace.UserMessage(result.Error),
+			ResourceId:  result.ResourceId},
+		)
+	}
+
+	return ui.AWSOIDCEnrollEKSClustersResponse{
+		Results: data,
+	}, nil
+}
+
+// awsOIDCListEKSClusters returns a list of EKS clusters using the ListEKSClusters action of the AWS OIDC integration.
+func (h *Handler) awsOIDCListEKSClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCListEKSClustersRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listClient, err := awsoidc.NewListEKSClustersClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListEKSClusters(ctx,
+		listClient,
+		awsoidc.ListEKSClustersRequest{
+			Region:    req.Region,
+			NextToken: req.NextToken,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCListEKSClustersResponse{
+		NextToken: resp.NextToken,
+		Clusters:  ui.MakeEKSClusters(resp.Clusters),
+	}, nil
 }
 
 // awsOIDCListEC2 returns a list of EC2 Instances using the ListEC2 action of the AWS OIDC Integration.
@@ -508,11 +699,16 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	vpcIds := req.VPCIDs
+	if len(vpcIds) == 0 {
+		vpcIds = []string{req.VPCID}
+	}
+
 	resp, err := awsoidc.ListEC2ICE(ctx,
 		listEC2ICEClient,
 		awsoidc.ListEC2ICERequest{
 			Region:    req.Region,
-			VPCID:     req.VPCID,
+			VPCIDs:    vpcIds,
 			NextToken: req.NextToken,
 		},
 	)
@@ -521,8 +717,9 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	return ui.AWSOIDCListEC2ICEResponse{
-		NextToken: resp.NextToken,
-		EC2ICEs:   resp.EC2ICEs,
+		NextToken:     resp.NextToken,
+		DashboardLink: resp.DashboardLink,
+		EC2ICEs:       resp.EC2ICEs,
 	}, nil
 }
 
@@ -545,21 +742,46 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
+	endpoints := make([]awsoidc.EC2ICEEndpoint, 0, len(req.Endpoints))
+
+	for _, endpoint := range req.Endpoints {
+		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
+			SubnetID:         endpoint.SubnetID,
+			SecurityGroupIDs: endpoint.SecurityGroupIDs,
+		})
+	}
+
+	// Backwards compatible: get the endpoint from the deprecated fields.
+	if len(endpoints) == 0 {
+		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
+			SubnetID:         req.SubnetID,
+			SecurityGroupIDs: req.SecurityGroupIDs,
+		})
+	}
+
 	resp, err := awsoidc.CreateEC2ICE(ctx,
 		createEC2ICEClient,
 		awsoidc.CreateEC2ICERequest{
-			Cluster:          h.auth.clusterName,
-			IntegrationName:  awsClientReq.IntegrationName,
-			SubnetID:         req.SubnetID,
-			SecurityGroupIDs: req.SecurityGroupIDs,
+			Cluster:         h.auth.clusterName,
+			IntegrationName: awsClientReq.IntegrationName,
+			Endpoints:       endpoints,
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	respEndpoints := make([]ui.AWSOIDCDeployEC2ICEResponseEndpoint, 0, len(resp.CreatedEndpoints))
+	for _, endpoint := range resp.CreatedEndpoints {
+		respEndpoints = append(respEndpoints, ui.AWSOIDCDeployEC2ICEResponseEndpoint{
+			Name:     endpoint.Name,
+			SubnetID: endpoint.SubnetID,
+		})
+	}
+
 	return ui.AWSOIDCDeployEC2ICEResponse{
-		Name: resp.Name,
+		Name:      resp.Name,
+		Endpoints: respEndpoints,
 	}, nil
 }
 

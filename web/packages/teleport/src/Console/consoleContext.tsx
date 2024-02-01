@@ -33,7 +33,7 @@ import serviceSession, {
   ParticipantMode,
 } from 'teleport/services/session';
 import ServiceNodes from 'teleport/services/nodes';
-import serviceClusters from 'teleport/services/clusters';
+import ClustersService from 'teleport/services/clusters';
 import { StoreUserContext } from 'teleport/stores';
 import usersService from 'teleport/services/user';
 
@@ -51,6 +51,7 @@ export default class ConsoleContext {
   storeDocs = new StoreDocs();
   storeParties = new StoreParties();
   nodesService = new ServiceNodes();
+  clustersService = new ClustersService();
   storeUser = new StoreUserContext();
 
   constructor() {
@@ -177,7 +178,7 @@ export default class ConsoleContext {
   }
 
   fetchClusters() {
-    return serviceClusters.fetchClusters();
+    return this.clustersService.fetchClusters();
   }
 
   logout() {

@@ -32,15 +32,6 @@ func init() {
 // TeleportRoleSpec defines the desired state of TeleportRole
 type TeleportRoleSpec types.RoleSpecV6
 
-// TeleportRoleStatus defines the observed state of TeleportRole
-type TeleportRoleStatus struct {
-	// Conditions represent the latest available observations of an object's state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions"`
-	// +optional
-	TeleportResourceID int64 `json:"teleportResourceID"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -49,8 +40,8 @@ type TeleportRole struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportRoleSpec   `json:"spec,omitempty"`
-	Status TeleportRoleStatus `json:"status,omitempty"`
+	Spec   TeleportRoleSpec `json:"spec,omitempty"`
+	Status resources.Status `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

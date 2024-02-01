@@ -54,7 +54,7 @@ type signerHandler struct {
 // SignerHandlerConfig is the awsSignerHandler configuration.
 type SignerHandlerConfig struct {
 	// Log is a logger for the handler.
-	Log utils.FieldLoggerWithWriter
+	Log logrus.FieldLogger
 	// RoundTripper is an http.RoundTripper instance used for requests.
 	RoundTripper http.RoundTripper
 	// SigningService is used to sign requests before forwarding them.
@@ -99,7 +99,7 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 	handler.fwd, err = reverseproxy.New(
 		reverseproxy.WithRoundTripper(config.RoundTripper),
 		reverseproxy.WithLogger(config.Log),
-		reverseproxy.WithErrorHandler(reverseproxy.ErrorHandlerFunc(handler.formatForwardResponseError)),
+		reverseproxy.WithErrorHandler(handler.formatForwardResponseError),
 	)
 
 	return handler, trace.Wrap(err)

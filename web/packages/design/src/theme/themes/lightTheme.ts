@@ -96,6 +96,11 @@ const colors: ThemeColors = {
         'rgba(81,47,201, 0.18)',
         'rgba(81,47,201, 0.25)',
       ],
+      success: [
+        'rgba(0, 125, 107, 0.1)',
+        'rgba(0, 125, 107, 0.18)',
+        'rgba(0, 125, 107, 0.25)',
+      ],
       neutral: neutralColors,
     },
   },
@@ -157,6 +162,12 @@ const colors: ThemeColors = {
   },
 
   progressBarColor: '#007D6B',
+
+  success: {
+    main: '#007D6B',
+    hover: '#006456',
+    active: '#004B40',
+  },
 
   error: {
     main: '#CC372D',
@@ -433,7 +444,6 @@ const colors: ThemeColors = {
   },
 
   link: '#0073BA',
-  success: '#007D6B',
 
   dataVisualisation: dataVisualisationColors,
 };

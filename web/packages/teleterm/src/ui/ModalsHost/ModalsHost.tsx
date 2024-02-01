@@ -31,6 +31,7 @@ import { assertUnreachable } from '../utils';
 
 import { UsageData } from './modals/UsageData';
 import { UserJobRole } from './modals/UserJobRole';
+import { ReAuthenticate } from './modals/ReAuthenticate';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
@@ -152,6 +153,22 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
           onSuccess={() => {
             handleClose();
             dialog.onSuccess();
+          }}
+        />
+      );
+    }
+
+    case 'reauthenticate': {
+      return (
+        <ReAuthenticate
+          promptMfaRequest={dialog.promptMfaRequest}
+          onSuccess={totpCode => {
+            handleClose();
+            dialog.onSuccess(totpCode);
+          }}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
           }}
         />
       );

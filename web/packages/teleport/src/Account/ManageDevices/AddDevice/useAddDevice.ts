@@ -26,7 +26,7 @@ import cfg from 'teleport/config';
 
 export default function useAddDevice(
   ctx: Ctx,
-  { token, fetchDevices, onClose }: Props
+  { token, restrictDeviceUsage, fetchDevices, onClose }: Props
 ) {
   const [qrCode, setQrCode] = useState('');
   const addDeviceAttempt = useAttempt('');
@@ -84,6 +84,7 @@ export default function useAddDevice(
     qrCode,
     auth2faType: cfg.getAuth2faType(),
     isPasswordlessEnabled: cfg.isPasswordlessEnabled(),
+    restrictDeviceUsage,
   };
 }
 
@@ -91,6 +92,15 @@ export type State = ReturnType<typeof useAddDevice>;
 
 export type Props = {
   token: string;
+  /**
+   * Controls whether the user can customize whether the device should allow
+   * passwordless authentication. `undefined` means that the user gets to
+   * choose; other values mean that the component's call site decides what kind
+   * of device we're adding.
+   *
+   * TODO(bl-nero): Disallow `undefined` when cleaning up the old flow.
+   */
+  restrictDeviceUsage?: DeviceUsage;
   fetchDevices: () => void;
   onClose: () => void;
 };

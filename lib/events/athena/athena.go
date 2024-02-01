@@ -165,7 +165,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		return trace.BadParameter("Database name too long")
 	}
 	if !isAlphanumericOrUnderscore(cfg.Database) {
-		return trace.BadParameter("Database name can contains only alphanumeric or underscore characters")
+		return trace.BadParameter("Database name can only contain alphanumeric or underscore characters")
 	}
 
 	if cfg.TableName == "" {
@@ -177,7 +177,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	// TableName is appended directly to athena query. That's why we put extra care
 	// that no weird chars are passed here.
 	if !isAlphanumericOrUnderscore(cfg.TableName) {
-		return trace.BadParameter("TableName can contains only alphanumeric or underscore characters")
+		return trace.BadParameter("TableName can only contain alphanumeric or underscore characters")
 	}
 
 	if cfg.TopicARN == "" {

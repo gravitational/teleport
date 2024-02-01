@@ -31,7 +31,7 @@ import (
 )
 
 func TestConvertUsageEvent(t *testing.T) {
-	anonymizer, err := utils.NewHMACAnonymizer("cluster-id")
+	anonymizer, err := utils.NewHMACAnonymizer("anon-key-or-cluster-id")
 	require.NoError(t, err)
 
 	expectedAnonymizedUserString := anonymizer.AnonymizeString("myuser")

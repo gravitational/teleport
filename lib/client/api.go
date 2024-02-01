@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -57,6 +58,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -359,6 +361,9 @@ type Config struct {
 
 	// BindAddr is an optional host:port to bind to for SSO redirect flows.
 	BindAddr string
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
+	CallbackAddr string
 
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
@@ -479,6 +484,9 @@ type Config struct {
 
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
+
+	// DisableSSHResumption disables transparent SSH connection resumption.
+	DisableSSHResumption bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -593,7 +601,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	for _, o := range opts {
 		o(&opt)
 	}
-	log.Debugf("Activating relogin on %v.", fnErr)
+	log.Debugf("Activating relogin on error=%q (type=%T)", fnErr, trace.Unwrap(fnErr))
 
 	if keys.IsPrivateKeyPolicyError(fnErr) {
 		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
@@ -664,11 +672,26 @@ func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
 	}
 }
 
+// IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
-	// Assume that failed handshake is a result of expired credentials.
-	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) ||
-		trace.IsBadParameter(err) || trace.IsTrustError(err) ||
-		keys.IsPrivateKeyPolicyError(err) || IsNoCredentialsError(err)
+	// Ignore any failures resulting from RPCs.
+	// These were all materialized as status.Error here before
+	// https://github.com/gravitational/teleport/pull/30578.
+	var remoteErr *interceptors.RemoteError
+	if errors.As(err, &remoteErr) {
+		return false
+	}
+
+	return keys.IsPrivateKeyPolicyError(err) ||
+		// TODO(codingllama): Retrying BadParameter is a terrible idea.
+		//  We should fix this and remove the RemoteError condition above as well.
+		//  Any retriable error should be explicitly marked as such.
+		trace.IsBadParameter(err) ||
+		trace.IsTrustError(err) ||
+		utils.IsCertExpiredError(err) ||
+		// Assume that failed handshake is a result of expired credentials.
+		utils.IsHandshakeFailedError(err) ||
+		IsNoCredentialsError(err)
 }
 
 // GetProfile gets the profile for the specified proxy address, or
@@ -1590,7 +1613,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 // if per session mfa is required, after completing the mfa ceremony. In the event that both
 // fail the error from the connection attempt with the already provisioned certificates will
 // be returned. The client from whichever attempt succeeds first will be returned.
-func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
+func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (_ *NodeClient, err error) {
 	node := nodeName(targetNode{addr: nodeDetails.Addr})
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -1601,7 +1624,15 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 			attribute.String("node", node),
 		),
 	)
-	defer span.End()
+	defer func() {
+		if err != nil {
+			// The error is unwrapped here so that the error reported is any underlying
+			// error and not a trace.TraceErr.
+			span.RecordError(trace.Unwrap(err))
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	// if per-session mfa is required, perform the mfa ceremony to get
 	// new certificates and use them to connect.
@@ -1622,7 +1653,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	directCtx, directCancel := context.WithCancel(ctx)
 	mfaCtx, mfaCancel := context.WithCancel(ctx)
 	go func() {
-		ctx, span := tc.Tracer.Start(
+		connectCtx, span := tc.Tracer.Start(
 			directCtx,
 			"teleportClient/connectToNode",
 			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -1633,15 +1664,18 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		)
 		defer span.End()
 
-		// try connecting to the node with the certs we already have
-		conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+		// Try connecting to the node with the certs we already have. Note that the different context being provided
+		// here is intentional. The underlying stream backing the connection will run for the duration of the session
+		// and cause the current span to have a duration longer than just the initial connection. To avoid this the
+		// parent context is used.
+		conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 		if err != nil {
 			directResultC <- clientRes{err: err}
 			return
 		}
 
 		sshConfig := clt.ProxyClient.SSHConfig(user)
-		clt, err := NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
+		clt, err := NewNodeClient(connectCtx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
 			WithNodeHostname(nodeDetails.hostname), WithSSHLogDir(tc.SSHLogDir))
 		directResultC <- clientRes{clt: clt, err: err}
 	}()
@@ -1772,7 +1806,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 		return nil, trace.Wrap(err)
 	}
 
-	conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+	conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2919,7 +2953,7 @@ func formatConnectToProxyErr(err error) error {
 
 // ConnectToCluster will dial the auth and proxy server and return a ClusterClient when
 // successful.
-func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient, error) {
+func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClient, err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToCluster",
@@ -2929,7 +2963,15 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
 		),
 	)
-	defer span.End()
+	defer func() {
+		if err != nil {
+			// The error is unwrapped here so that the error reported is any underlying
+			// error and not a trace.TraceErr.
+			span.RecordError(trace.Unwrap(err))
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	cfg, err := tc.generateClientConfig(ctx)
 	if err != nil {
@@ -3532,7 +3574,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, root
 		return trace.Wrap(err)
 	}
 
-	if !tc.dtAttemptLoginIgnorePing && (pingResp.Auth.DeviceTrustDisabled || pingResp.Auth.DeviceTrust.Disabled) {
+	if !tc.dtAttemptLoginIgnorePing && pingResp.Auth.DeviceTrust.Disabled {
 		log.Debug("Device Trust: skipping device authentication, device trust disabled")
 		return nil
 	}
@@ -3954,10 +3996,6 @@ func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) e
 	// The current private key was rejected due to an unmet key policy requirement.
 	fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", policy)
 
-	if tc.PIVSlot != "" {
-		return trace.BadParameter("Private key in specified slot %q does not meet the private key policy requirement %q.", tc.PIVSlot, policy)
-	}
-
 	// Set the private key policy to the expected value and re-login.
 	tc.PrivateKeyPolicy = policy
 	return nil
@@ -4186,11 +4224,12 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin:    sshLogin,
-		ConnectorID: connectorID,
-		Protocol:    protocol,
-		BindAddr:    tc.BindAddr,
-		Browser:     tc.Browser,
+		SSHLogin:     sshLogin,
+		ConnectorID:  connectorID,
+		Protocol:     protocol,
+		BindAddr:     tc.BindAddr,
+		CallbackAddr: tc.CallbackAddr,
+		Browser:      tc.Browser,
 	}, nil)
 	return response, trace.Wrap(err)
 }
@@ -4285,24 +4324,28 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	if tc.CheckVersions {
 		if !utils.MeetsVersion(teleport.Version, pr.MinClientVersion) {
 			fmt.Fprintf(tc.Stderr, `
-			WARNING
-			Detected potentially incompatible client and server versions.
-			Minimum client version supported by the server is %v but you are using %v.
-			Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
-			Future versions of tsh will fail when incompatible versions are detected.
-			`, pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is %v but you are using %v.
+Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+				pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
 		}
 
 		// Recent `tsh mfa` changes require at least Teleport v15.
 		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
 		if !utils.MeetsVersion(pr.ServerVersion, minServerVersion) {
 			fmt.Fprintf(tc.Stderr, `
-			WARNING
-			Detected incompatible client and server versions.
-			Minimum server version supported by tsh is %v but your server is using %v.
-			Please use a tsh version that matches your server.
-			You may use the --skip-version-check flag to bypass this check.
-			`, minServerVersion, pr.ServerVersion)
+WARNING
+Detected incompatible client and server versions.
+Minimum server version supported by tsh is %v but your server is using %v.
+Please use a tsh version that matches your server.
+You may use the --skip-version-check flag to bypass this check.
+
+`,
+				minServerVersion, pr.ServerVersion)
 		}
 	}
 
@@ -5215,6 +5258,9 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	chal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 		},
 	})
 	if err != nil {

@@ -116,5 +116,5 @@ func TestReconcileLabels(t *testing.T) {
 	// Wait until the reconciler finishes processing the serverinfo.
 	clock.BlockUntil(1)
 	// Check that labels were received downstream.
-	require.Equal(t, map[string]string{"a": "1", "b": "3", "c": "4"}, upstream.updatedLabels)
+	require.Equal(t, map[string]string{"aws/a": "1", "aws/b": "2", "dynamic/b": "3", "dynamic/c": "4"}, upstream.updatedLabels)
 }

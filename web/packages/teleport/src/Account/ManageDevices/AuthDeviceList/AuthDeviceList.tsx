@@ -29,6 +29,7 @@ import { MfaDevice } from 'teleport/services/mfa';
 
 export interface AuthDeviceListProps {
   header: React.ReactNode;
+  deviceTypeColumnName: string;
   devices: MfaDevice[];
   onRemove?: (device: MfaDevice) => void;
 }
@@ -40,6 +41,7 @@ export interface AuthDeviceListProps {
 export function AuthDeviceList({
   devices,
   header,
+  deviceTypeColumnName,
   onRemove,
 }: AuthDeviceListProps) {
   return (
@@ -51,7 +53,7 @@ export function AuthDeviceList({
             columns={[
               {
                 key: 'description',
-                headerText: 'Passkey Type',
+                headerText: deviceTypeColumnName,
                 isSortable: true,
               },
               { key: 'name', headerText: 'Nickname', isSortable: true },

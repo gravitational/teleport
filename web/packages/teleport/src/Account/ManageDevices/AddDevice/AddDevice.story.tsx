@@ -27,6 +27,14 @@ export default {
 
 export const LoadedWebauthn = () => <AddDevice {...props} />;
 
+export const RestrictedToPasswordless = () => (
+  <AddDevice {...props} restrictDeviceUsage="passwordless" />
+);
+
+export const RestrictedToMFA = () => (
+  <AddDevice {...props} restrictDeviceUsage="mfa" />
+);
+
 export const Failed = () => (
   <AddDevice
     {...props}
@@ -62,6 +70,7 @@ const props: State = {
   onClose: () => null,
   auth2faType: 'on',
   isPasswordlessEnabled: true,
+  restrictDeviceUsage: undefined,
   qrCode:
     'iVBORw0KGgoAAAANSUhEUgAAAcgAAAHIEAAAAAC/Wvl1AAAJV0lEQVR4nOzdsW4jORZA0fbC///LXowV' +
     'TFIWmqAefUtzTrDJeEtltS+YPDx+fn39ASL+99svAPzr85//+fj47df4ycr5ff1bXD9h/2f3vcenTf0L' +

@@ -50,8 +50,6 @@ const service = {
       })
       .then(json => ({
         fqdn: json.fqdn as string,
-        value: json.value as string,
-        subject: json.subject as string,
         cookieValue: json.cookie_value as string,
         subjectCookieValue: json.subject_cookie_value as string,
       }));

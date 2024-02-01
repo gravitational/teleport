@@ -452,6 +452,8 @@ func (d *DynamicIdentityFileCreds) Reload() error {
 
 // TLSConfig returns TLS configuration. Implementing the Credentials interface.
 func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	// Build a "dynamic" tls.Config which can support a changing cert and root
 	// CA pool.
 	cfg := &tls.Config{
@@ -473,7 +475,10 @@ func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 		},
 
 		// VerifyConnection is used instead of the static RootCAs field.
-		RootCAs: nil,
+		// However, there's some client code which relies on the static RootCAs
+		// field. So we set it to a copy of the current root CAs pool to support
+		// those - e.g ALPNDialerConfig.GetClusterCAs
+		RootCAs: d.tlsRootCAs.Clone(),
 		// InsecureSkipVerify is forced true to ensure that only our
 		// VerifyConnection callback is used to verify the server's presented
 		// certificate.
@@ -488,7 +493,7 @@ func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 			opts := x509.VerifyOptions{
 				DNSName:       state.ServerName,
 				Intermediates: x509.NewCertPool(),
-				Roots:         d.tlsRootCAs,
+				Roots:         d.tlsRootCAs.Clone(),
 			}
 			for _, cert := range state.PeerCertificates[1:] {
 				// Whilst we don't currently use intermediate certs at

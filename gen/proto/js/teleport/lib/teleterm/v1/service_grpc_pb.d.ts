@@ -8,6 +8,7 @@ import * as grpc from "grpc";
 import * as teleport_lib_teleterm_v1_service_pb from "../../../../teleport/lib/teleterm/v1/service_pb";
 import * as teleport_accesslist_v1_accesslist_pb from "../../../../teleport/accesslist/v1/accesslist_pb";
 import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../teleport/lib/teleterm/v1/access_request_pb";
+import * as teleport_lib_teleterm_v1_app_pb from "../../../../teleport/lib/teleterm/v1/app_pb";
 import * as teleport_lib_teleterm_v1_auth_settings_pb from "../../../../teleport/lib/teleterm/v1/auth_settings_pb";
 import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/teleterm/v1/cluster_pb";
 import * as teleport_lib_teleterm_v1_database_pb from "../../../../teleport/lib/teleterm/v1/database_pb";
@@ -35,6 +36,7 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     promoteAccessRequest: ITerminalServiceService_IPromoteAccessRequest;
     getSuggestedAccessLists: ITerminalServiceService_IGetSuggestedAccessLists;
     getKubes: ITerminalServiceService_IGetKubes;
+    getApps: ITerminalServiceService_IGetApps;
     addCluster: ITerminalServiceService_IAddCluster;
     removeCluster: ITerminalServiceService_IRemoveCluster;
     listGateways: ITerminalServiceService_IListGateways;
@@ -52,7 +54,6 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     updateHeadlessAuthenticationState: ITerminalServiceService_IUpdateHeadlessAuthenticationState;
     createConnectMyComputerRole: ITerminalServiceService_ICreateConnectMyComputerRole;
     createConnectMyComputerNodeToken: ITerminalServiceService_ICreateConnectMyComputerNodeToken;
-    deleteConnectMyComputerToken: ITerminalServiceService_IDeleteConnectMyComputerToken;
     waitForConnectMyComputerNodeJoin: ITerminalServiceService_IWaitForConnectMyComputerNodeJoin;
     deleteConnectMyComputerNode: ITerminalServiceService_IDeleteConnectMyComputerNode;
     getConnectMyComputerNodeName: ITerminalServiceService_IGetConnectMyComputerNodeName;
@@ -204,6 +205,15 @@ interface ITerminalServiceService_IGetKubes extends grpc.MethodDefinition<telepo
     requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetKubesRequest>;
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetKubesResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetKubesResponse>;
+}
+interface ITerminalServiceService_IGetApps extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetAppsRequest, teleport_lib_teleterm_v1_service_pb.GetAppsResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetApps";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetAppsRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetAppsRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetAppsResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetAppsResponse>;
 }
 interface ITerminalServiceService_IAddCluster extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.AddClusterRequest, teleport_lib_teleterm_v1_cluster_pb.Cluster> {
     path: "/teleport.lib.teleterm.v1.TerminalService/AddCluster";
@@ -358,15 +368,6 @@ interface ITerminalServiceService_ICreateConnectMyComputerNodeToken extends grpc
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse>;
 }
-interface ITerminalServiceService_IDeleteConnectMyComputerToken extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse> {
-    path: "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerToken";
-    requestStream: false;
-    responseStream: false;
-    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest>;
-    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest>;
-    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse>;
-    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse>;
-}
 interface ITerminalServiceService_IWaitForConnectMyComputerNodeJoin extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest, teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse> {
     path: "/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin";
     requestStream: false;
@@ -441,6 +442,7 @@ export interface ITerminalServiceServer {
     promoteAccessRequest: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest, teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse>;
     getSuggestedAccessLists: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest, teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse>;
     getKubes: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetKubesRequest, teleport_lib_teleterm_v1_service_pb.GetKubesResponse>;
+    getApps: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetAppsRequest, teleport_lib_teleterm_v1_service_pb.GetAppsResponse>;
     addCluster: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.AddClusterRequest, teleport_lib_teleterm_v1_cluster_pb.Cluster>;
     removeCluster: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.RemoveClusterRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
     listGateways: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListGatewaysRequest, teleport_lib_teleterm_v1_service_pb.ListGatewaysResponse>;
@@ -458,7 +460,6 @@ export interface ITerminalServiceServer {
     updateHeadlessAuthenticationState: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse>;
     createConnectMyComputerRole: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest, teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse>;
     createConnectMyComputerNodeToken: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse>;
-    deleteConnectMyComputerToken: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse>;
     waitForConnectMyComputerNodeJoin: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest, teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse>;
     deleteConnectMyComputerNode: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeRequest, teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeResponse>;
     getConnectMyComputerNodeName: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameRequest, teleport_lib_teleterm_v1_service_pb.GetConnectMyComputerNodeNameResponse>;
@@ -516,6 +517,9 @@ export interface ITerminalServiceClient {
     getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
+    getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
+    getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
     addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
     addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
     addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
@@ -566,9 +570,6 @@ export interface ITerminalServiceClient {
     createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
     createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
     createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
-    deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
-    deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
-    deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
     waitForConnectMyComputerNodeJoin(request: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse) => void): grpc.ClientUnaryCall;
     waitForConnectMyComputerNodeJoin(request: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse) => void): grpc.ClientUnaryCall;
     waitForConnectMyComputerNodeJoin(request: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse) => void): grpc.ClientUnaryCall;
@@ -639,6 +640,9 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     public getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
     public getKubes(request: teleport_lib_teleterm_v1_service_pb.GetKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetKubesResponse) => void): grpc.ClientUnaryCall;
+    public getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
+    public getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
+    public getApps(request: teleport_lib_teleterm_v1_service_pb.GetAppsRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.GetAppsResponse) => void): grpc.ClientUnaryCall;
     public addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
     public addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
     public addCluster(request: teleport_lib_teleterm_v1_service_pb.AddClusterRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_cluster_pb.Cluster) => void): grpc.ClientUnaryCall;
@@ -688,9 +692,6 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
     public createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
     public createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
-    public deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
-    public deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
-    public deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
     public waitForConnectMyComputerNodeJoin(request: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse) => void): grpc.ClientUnaryCall;
     public waitForConnectMyComputerNodeJoin(request: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse) => void): grpc.ClientUnaryCall;
     public waitForConnectMyComputerNodeJoin(request: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.WaitForConnectMyComputerNodeJoinResponse) => void): grpc.ClientUnaryCall;

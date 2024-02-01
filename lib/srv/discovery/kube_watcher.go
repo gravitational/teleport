@@ -113,14 +113,11 @@ func (s *Server) startKubeWatchers() error {
 func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster) error {
 	s.Log.Debugf("Creating kube_cluster %s.", kubeCluster.GetName())
 	err := s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster)
-	// If the resource already exists, it means that the resource was created
-	// by a previous discovery_service instance that didn't support the discovery
-	// group feature or the discovery group was changed.
-	// In this case, we need to update the resource with the
-	// discovery group label to ensure the user doesn't have to manually delete
-	// the resource.
-	// TODO(tigrato): DELETE on 15.0.0
-	if trace.IsAlreadyExists(err) {
+	// If the kube already exists but has an empty discovery group, update it.
+	if trace.IsAlreadyExists(err) && s.updatesEmptyDiscoveryGroup(
+		func() (types.ResourceWithLabels, error) {
+			return s.AccessPoint.GetKubernetesCluster(ctx, kubeCluster.GetName())
+		}) {
 		return trace.Wrap(s.onKubeUpdate(ctx, kubeCluster, nil))
 	}
 	if err != nil {

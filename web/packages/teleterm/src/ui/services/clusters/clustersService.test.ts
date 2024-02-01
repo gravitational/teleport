@@ -57,9 +57,9 @@ const NotificationsServiceMock = NotificationsService as jest.MockedClass<
 >;
 const UsageServiceMock = UsageService as jest.MockedClass<typeof UsageService>;
 
-function createService(client: Partial<tsh.TshClient>): ClustersService {
+function createService(client: Partial<tsh.TshdClient>): ClustersService {
   return new ClustersService(
-    client as tsh.TshClient,
+    client as tsh.TshdClient,
     {
       removeKubeConfig: jest.fn().mockResolvedValueOnce(undefined),
     } as unknown as MainProcessClient,
@@ -68,7 +68,7 @@ function createService(client: Partial<tsh.TshClient>): ClustersService {
   );
 }
 
-function getClientMocks(): Partial<tsh.TshClient> {
+function getClientMocks(): Partial<tsh.TshdClient> {
   return {
     loginLocal: jest.fn().mockResolvedValueOnce(undefined),
     logout: jest.fn().mockResolvedValueOnce(undefined),

@@ -156,8 +156,12 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		assistAccess = newAccess(userRoles, ctx, types.KindAssistant)
 	}
 
+	// The billing dashboards are available in cloud clusters or for
+	// self-hosted dashboards for usage-based subscriptions.
 	var billingAccess ResourceAccess
-	if features.Cloud {
+	isDashboard := IsDashboard(features)
+	isUsageBasedEnterprise := features.GetProductType() == proto.ProductType_PRODUCT_TYPE_EUB
+	if features.Cloud || (isDashboard && isUsageBasedEnterprise) {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 

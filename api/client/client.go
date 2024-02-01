@@ -38,6 +38,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/scim"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
@@ -478,7 +480,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
-			interceptors.WithMFAUnaryInterceptor(c.performMFACeremony),
+			interceptors.WithMFAUnaryInterceptor(c.PerformMFACeremony),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
@@ -1686,8 +1688,9 @@ func (c *Client) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	return resp, nil
 }
 
-// GenerateDatabaseCert generates client certificate used by a database
-// service to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	resp, err := c.grpc.GenerateDatabaseCert(ctx, req)
 	if err != nil {
@@ -1774,32 +1777,13 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// Deprecated: Use AddMFADeviceSync instead.
-func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
-	stream, err := c.grpc.AddMFADevice(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return stream, nil
-}
-
-// Deprecated: Use DeleteMFADeviceSync instead.
-func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
-	stream, err := c.grpc.DeleteMFADevice(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return stream, nil
-}
-
-// AddMFADeviceSync adds a new MFA device (nonstream).
+// AddMFADeviceSync adds a new MFA device.
 func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
 	res, err := c.grpc.AddMFADeviceSync(ctx, in)
 	return res, trace.Wrap(err)
 }
 
-// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+// DeleteMFADeviceSync deletes a users MFA device.
 func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
 	_, err := c.grpc.DeleteMFADeviceSync(ctx, in)
 	return trace.Wrap(err)
@@ -1811,16 +1795,6 @@ func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesReque
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
-}
-
-// Deprecated: Use GenerateUserCerts instead.
-func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
-	//nolint:staticcheck // SA1019. Kept for backwards compatibility.
-	stream, err := c.grpc.GenerateUserSingleUseCerts(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return stream, nil
 }
 
 func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
@@ -2489,40 +2463,10 @@ func (c *Client) SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC ti
 
 	response, err := c.grpc.GetUnstructuredEvents(ctx, request)
 	if err != nil {
-		err = trace.Wrap(err)
-		// If the server does not support the unstructured events API,
-		// fallback to the legacy API.
-		if trace.IsNotImplemented(err) {
-			return c.searchUnstructuredEventsFallback(ctx, fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
-		}
-		return nil, "", err
-	}
-
-	return response.Items, response.LastKey, nil
-}
-
-// searchUnstructuredEventsFallback is a fallback implementation of the
-// SearchUnstructuredEvents method that is used when the server does not
-// support the unstructured events API.
-// This method converts the events at event handler plugin side, which can cause
-// the plugin to miss some events if the plugin is not updated to the latest
-// version.
-// TODO(tigrato): DELETE IN 15.0.0
-func (c *Client) searchUnstructuredEventsFallback(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error) {
-	eventsRcv, next, err := c.SearchEvents(ctx, fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
-	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	items := make([]*auditlogpb.EventUnstructured, 0, len(eventsRcv))
-	for _, evt := range eventsRcv {
-		item, err := events.ToUnstructured(evt)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		items = append(items, item)
-	}
-	return items, next, nil
+	return response.Items, response.LastKey, nil
 }
 
 // StreamUnstructuredSessionEvents streams audit events from a given session recording in an unstructured format.
@@ -2597,7 +2541,10 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 // method converts the events at event handler plugin side, which can cause
 // the plugin to miss some events if the plugin is not updated to the latest
 // version.
-// TODO(tigrato): DELETE IN 15.0.0
+// NOTE(tigrato): This code was reintroduced in 15.0.0 because the gRPC method was renamed
+// incorrectly in 13.1-14.3 which caused the server to return Unimplemented
+// error to the client and the client to fallback to the legacy API.
+// TODO(tigrato): DELETE IN 16.0.0
 func (c *Client) streamUnstructuredSessionEventsFallback(ctx context.Context, sessionID string, startIndex int64, ch chan *auditlogpb.EventUnstructured, e chan error) {
 	request := &proto.StreamSessionEventsRequest{
 		SessionID:  sessionID,
@@ -4287,10 +4234,8 @@ func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (c *Client) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
-	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
-		Issuer: req.Issuer,
-	})
+func (c *Client) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
+	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -4347,6 +4292,10 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 // the default gRPC behavior).
 func (c *Client) OktaClient() *okta.Client {
 	return okta.NewClient(oktapb.NewOktaServiceClient(c.conn))
+}
+
+func (c *Client) SCIMClient() *scim.Client {
+	return scim.NewClientFromConn(c.conn)
 }
 
 // AccessListClient returns an access list client.
@@ -4424,6 +4373,44 @@ func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority
 	})
 
 	return out, trace.Wrap(err)
+}
+
+// RotateCertAuthority updates or inserts new cert authority
+func (c *Client) RotateCertAuthority(ctx context.Context, rr types.RotateRequest) error {
+	req := &trustpb.RotateCertAuthorityRequest{
+		Type:        string(rr.Type),
+		TargetPhase: rr.TargetPhase,
+		Mode:        rr.Mode,
+	}
+
+	if rr.GracePeriod != nil {
+		req.GracePeriod = durationpb.New(*rr.GracePeriod)
+	}
+
+	if rr.Schedule != nil {
+		req.Schedule = &trustpb.RotationSchedule{
+			UpdateClients: timestamppb.New(rr.Schedule.UpdateClients),
+			UpdateServers: timestamppb.New(rr.Schedule.UpdateServers),
+			Standby:       timestamppb.New(rr.Schedule.Standby),
+		}
+	}
+
+	_, err := c.TrustClient().RotateCertAuthority(ctx, req)
+	return trace.Wrap(err)
+}
+
+// RotateExternalCertAuthority rotates the provided cert authority.
+func (c *Client) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	cav2, ok := ca.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unexpected ca type %T", ca)
+	}
+
+	_, err := c.TrustClient().RotateExternalCertAuthority(ctx, &trustpb.RotateExternalCertAuthorityRequest{
+		CertAuthority: cav2,
+	})
+
+	return trace.Wrap(err)
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.

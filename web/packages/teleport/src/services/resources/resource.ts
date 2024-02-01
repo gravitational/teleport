@@ -20,7 +20,6 @@ import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 
 import { UnifiedResource, ResourcesResponse } from '../agents';
-import { KeysEnum } from '../storageService';
 
 import { makeUnifiedResource } from './makeUnifiedResource';
 
@@ -43,30 +42,11 @@ class ResourceService {
       .then(json => {
         const items = json?.items || [];
 
-        // TODO (avatus) DELETE IN 15.0
-        // if this request succeeds, we don't need a legacy view
-        localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED);
         return {
           agents: items.map(makeUnifiedResource),
           startKey: json?.startKey,
           totalCount: json?.totalCount,
         };
-      })
-      .catch(res => {
-        // TODO (avatus) : a temporary check to catch unimplemented errors for unified resources
-        // This is a quick hacky way to catch the error until we migrate completely to unified resources
-        // DELETE IN 15.0
-        if (
-          (res.response?.status === 404 &&
-            res.message?.includes('unknown method ListUnifiedResources')) ||
-          res.response?.status === 501
-        ) {
-          localStorage.setItem(
-            KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED,
-            'true'
-          );
-        }
-        throw res;
       });
   }
 

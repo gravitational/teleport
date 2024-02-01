@@ -19,6 +19,9 @@ outputs:
     destination:
       type: kubernetes_secret
       name: my-secret
+services:
+  - type: example
+    message: llama
 debug: true
 auth_server: example.teleport.sh:443
 certificate_ttl: 1m0s

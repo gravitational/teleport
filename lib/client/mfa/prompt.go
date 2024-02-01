@@ -80,10 +80,6 @@ func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenti
 	promptTOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil
 
-	if !promptTOTP && !promptWebauthn {
-		return RunOpts{}, trace.BadParameter("mfa challenge is empty")
-	}
-
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
 	case !promptTOTP && !c.WebauthnSupported:
@@ -159,6 +155,10 @@ func HandleMFAPromptGoroutines(ctx context.Context, startGoroutines func(context
 
 		// Return successful response.
 		return resp.Resp, nil
+	}
+
+	if len(errs) == 0 {
+		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
 	return nil, trace.Wrap(trace.NewAggregate(errs...), "failed to authenticate using available MFA devices")

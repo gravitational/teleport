@@ -240,8 +240,10 @@ func TestBot(t *testing.T) {
 	t.Run("bot identity", func(t *testing.T) {
 		// Some rough checks to ensure the bot identity used follows our
 		// expected rules for bot identities.
-		botIdent := b.ident()
-		tlsIdent, err := tlsca.FromSubject(botIdent.X509Cert.Subject, botIdent.X509Cert.NotAfter)
+		botIdent := b.BotIdentity()
+		tlsIdent, err := tlsca.FromSubject(
+			botIdent.X509Cert.Subject, botIdent.X509Cert.NotAfter,
+		)
 		require.NoError(t, err)
 		require.True(t, tlsIdent.Renewable)
 		require.False(t, tlsIdent.DisallowReissue)

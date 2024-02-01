@@ -124,12 +124,20 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 			return "(unknown)"
 		}
 
-		autoUser, roles, err := accessChecker.CheckDatabaseRoles(database)
+		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
+		if err != nil {
+			log.Warnf("Failed to get DatabaseAutoUserMode for database %v: %v.", database.GetName(), err)
+			return ""
+		} else if !autoUser.IsEnabled() {
+			return ""
+		}
+
+		roles, err := accessChecker.CheckDatabaseRoles(database, nil)
 		if err != nil {
 			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", database.GetName(), err)
-		} else if autoUser.IsEnabled() {
-			return fmt.Sprintf("%v", roles)
+			return ""
 		}
+		return fmt.Sprintf("%v", roles)
 	}
 	return ""
 }

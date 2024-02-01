@@ -32,10 +32,15 @@ export interface Context {
 
 export interface TeleportFeatureNavigationItem {
   title: NavTitle;
-  icon: React.ReactNode;
+  icon: (props) => JSX.Element;
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
+  /*
+   * isSelected is an option function provided to allow more control over whether this feature is
+   * in the "selected" state in the navigation
+   */
+  isSelected?: (clusterId: string, pathname: string) => boolean;
 }
 
 export enum NavTitle {
@@ -156,6 +161,7 @@ export interface FeatureFlags {
   accessRequests: boolean;
   newAccessRequest: boolean;
   downloadCenter: boolean;
+  supportLink: boolean;
   discover: boolean;
   plugins: boolean;
   integrations: boolean;

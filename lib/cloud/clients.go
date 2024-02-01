@@ -45,6 +45,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
@@ -130,6 +132,8 @@ type AWSClients interface {
 	GetAWSSSMClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (ssmiface.SSMAPI, error)
 	// GetAWSEKSClient returns AWS EKS client for the specified region.
 	GetAWSEKSClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (eksiface.EKSAPI, error)
+	// GetAWSKMSClient returns AWS KMS client for the specified region.
+	GetAWSKMSClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (kmsiface.KMSAPI, error)
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -576,6 +580,15 @@ func (c *cloudClients) GetAWSEKSClient(ctx context.Context, region string, opts 
 	return eks.New(session), nil
 }
 
+// GetAWSKMSClient returns AWS KMS client for the specified region.
+func (c *cloudClients) GetAWSKMSClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (kmsiface.KMSAPI, error) {
+	session, err := c.GetAWSSession(ctx, region, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return kms.New(session), nil
+}
+
 // GetGCPIAMClient returns GCP IAM client.
 func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	c.mtx.RLock()
@@ -946,6 +959,7 @@ type TestCloudClients struct {
 	SSM                     ssmiface.SSMAPI
 	InstanceMetadata        InstanceMetadata
 	EKS                     eksiface.EKSAPI
+	KMS                     kmsiface.KMSAPI
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
@@ -1092,6 +1106,15 @@ func (c *TestCloudClients) GetAWSEKSClient(ctx context.Context, region string, o
 		return nil, trace.Wrap(err)
 	}
 	return c.EKS, nil
+}
+
+// GetAWSKMSClient returns AWS KMS client for the specified region.
+func (c *TestCloudClients) GetAWSKMSClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (kmsiface.KMSAPI, error) {
+	_, err := c.GetAWSSession(ctx, region, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.KMS, nil
 }
 
 // GetAWSEC2Client returns AWS EC2 client for the specified region.

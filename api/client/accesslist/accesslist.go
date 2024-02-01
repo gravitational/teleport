@@ -159,6 +159,28 @@ func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, p
 	return members, resp.GetNextPageToken(), nil
 }
 
+// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+func (c *Client) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAllAccessListMembers(ctx, &accesslistv1.ListAllAccessListMembersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	members = make([]*accesslist.AccessListMember, len(resp.Members))
+	for i, member := range resp.Members {
+		var err error
+		members[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return members, resp.GetNextPageToken(), nil
+}
+
 // GetAccessListMember returns the specified access list member resource.
 func (c *Client) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.GetAccessListMember(ctx, &accesslistv1.GetAccessListMemberRequest{
@@ -242,6 +264,29 @@ func (c *Client) AccessRequestPromote(ctx context.Context, req *accesslistv1.Acc
 // ListAccessListReviews will list access list reviews for a particular access list.
 func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
 	resp, err := c.grpcClient.ListAccessListReviews(ctx, &accesslistv1.ListAccessListReviewsRequest{
+		AccessList: accessList,
+		PageSize:   int32(pageSize),
+		NextToken:  nextToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	reviews = make([]*accesslist.Review, len(resp.Reviews))
+	for i, review := range resp.Reviews {
+		var err error
+		reviews[i], err = conv.FromReviewProto(review)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return reviews, resp.GetNextToken(), nil
+}
+
+// ListAllAccessListReviews will list access list reviews for all access lists. Only to be used by the cache.
+func (c *Client) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAllAccessListReviews(ctx, &accesslistv1.ListAllAccessListReviewsRequest{
 		PageSize:  int32(pageSize),
 		NextToken: nextToken,
 	})
@@ -282,8 +327,8 @@ func (c *Client) DeleteAccessListReview(ctx context.Context, accessListName, rev
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessListReviews will delete all access list reviews from an access list.
-func (c *Client) DeleteAllAccessListReviews(ctx context.Context, accessListName string) error {
+// DeleteAllAccessListReviews will delete all access list reviews from all access lists.
+func (c *Client) DeleteAllAccessListReviews(ctx context.Context) error {
 	return trace.NotImplemented("DeleteAllAccessListReviews is not supported in the gRPC client")
 }
 

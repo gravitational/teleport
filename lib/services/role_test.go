@@ -4357,10 +4357,27 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		},
 	}
 
+	// roleD has a bad label expression.
+	roleD := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleD", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUser: types.NewBoolOption(true),
+			},
+			Allow: types.RoleConditions{
+				DatabaseLabelsExpression: `a bad expression`,
+				DatabaseRoles:            []string{"reader"},
+			},
+		},
+	}
+
 	tests := []struct {
 		name             string
 		roleSet          RoleSet
 		inDatabaseLabels map[string]string
+		inRequestedRoles []string
+		outModeError     bool
+		outRolesError    bool
 		outCreateUser    bool
 		outRoles         []string
 	}{
@@ -4369,7 +4386,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			roleSet:          RoleSet{roleA},
 			inDatabaseLabels: map[string]string{"app": "metrics"},
 			outCreateUser:    false,
-			outRoles:         []string(nil),
+			outRoles:         []string{},
 		},
 		{
 			name:             "database doesn't match",
@@ -4399,6 +4416,29 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			outCreateUser:    true,
 			outRoles:         []string{"reader"},
 		},
+		{
+			name:             "connect to metrics database, requested writer role",
+			roleSet:          RoleSet{roleA, roleB, roleC},
+			inDatabaseLabels: map[string]string{"app": "metrics"},
+			inRequestedRoles: []string{"writer"},
+			outCreateUser:    true,
+			outRoles:         []string{"writer"},
+		},
+		{
+			name:             "requested role denied",
+			roleSet:          RoleSet{roleA, roleB, roleC},
+			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
+			inRequestedRoles: []string{"writer"},
+			outCreateUser:    true,
+			outRolesError:    true,
+		},
+		{
+			name:             "check fails",
+			roleSet:          RoleSet{roleD},
+			inDatabaseLabels: map[string]string{"app": "metrics"},
+			outModeError:     true,
+			outRolesError:    true,
+		},
 	}
 
 	for _, test := range tests {
@@ -4413,10 +4453,21 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			create, roles, err := accessChecker.CheckDatabaseRoles(database)
-			require.NoError(t, err)
-			require.Equal(t, test.outCreateUser, create.IsEnabled())
-			require.Equal(t, test.outRoles, roles)
+			create, err := accessChecker.DatabaseAutoUserMode(database)
+			if test.outModeError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.outCreateUser, create.IsEnabled())
+			}
+
+			roles, err := accessChecker.CheckDatabaseRoles(database, test.inRequestedRoles)
+			if test.outRolesError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.outRoles, roles)
+			}
 		})
 	}
 }
@@ -7646,6 +7697,23 @@ func (u mockCurrentUser) GetName() string {
 	return "mockCurrentUser"
 }
 
+func (u mockCurrentUser) toRemoteUserFromCluster(localClusterName string) types.User {
+	return mockRemoteUser{
+		mockCurrentUser:  u,
+		localClusterName: localClusterName,
+	}
+}
+
+type mockRemoteUser struct {
+	mockCurrentUser
+	localClusterName string
+}
+
+// GetName returns the username from the remote cluster's view.
+func (u mockRemoteUser) GetName() string {
+	return UsernameForRemoteCluster(u.mockCurrentUser.GetName(), u.localClusterName)
+}
+
 func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 	user := mockCurrentUser{
 		roles: []string{"dev", "admin"},
@@ -7667,12 +7735,12 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 			"dev":   devRole,
 			"admin": adminRole,
 		},
-		currentUser: user,
+		currentUser: user.toRemoteUserFromCluster("localCluster"),
 	}
 
-	accessInfo := AccessInfoFromUserState(user)
-	require.Equal(t, "mockCurrentUser", accessInfo.Username)
-	accessChecker, err := NewAccessCheckerForRemoteCluster(context.Background(), accessInfo, "clustername", currentUserRoleGetter)
+	localAccessInfo := AccessInfoFromUserState(user)
+	require.Equal(t, "mockCurrentUser", localAccessInfo.Username)
+	accessChecker, err := NewAccessCheckerForRemoteCluster(context.Background(), localAccessInfo, "remoteCluster", currentUserRoleGetter)
 	require.NoError(t, err)
 
 	// After sort: "admin","default-implicit-role","dev"
@@ -7682,6 +7750,16 @@ func TestNewAccessCheckerForRemoteCluster(t *testing.T) {
 	require.Contains(t, roles, devRole, "devRole not found in roleSet")
 	require.Contains(t, roles, adminRole, "adminRole not found in roleSet")
 	require.Equal(t, []string{"currentUserTraitLogin"}, roles[2].GetLogins(types.Allow))
+
+	mustHaveUsername(t, accessChecker, "remote-mockCurrentUser-localCluster")
+}
+
+func mustHaveUsername(t *testing.T, access AccessChecker, wantUsername string) {
+	t.Helper()
+
+	accessImpl, ok := access.(*accessChecker)
+	require.True(t, ok)
+	require.Equal(t, wantUsername, accessImpl.info.Username)
 }
 
 func TestRoleSet_GetAccessState(t *testing.T) {

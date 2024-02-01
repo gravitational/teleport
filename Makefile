@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=15.0.0-dev
+VERSION=16.0.0-dev
 
 DOCKER_IMAGE ?= teleport
 
@@ -246,7 +246,7 @@ CC=arm-linux-gnueabihf-gcc
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 endif
 endif # OS == linux
 
@@ -290,7 +290,7 @@ binaries:
 # If you are considering changing this behavior, please consult with dev team first
 .PHONY: $(BUILDDIR)/tctl
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
@@ -321,27 +321,16 @@ ifeq ("$(with_bpf)","yes")
 $(ER_BPF_BUILDDIR):
 	mkdir -p $(ER_BPF_BUILDDIR)
 
-$(RS_BPF_BUILDDIR):
-	mkdir -p $(RS_BPF_BUILDDIR)
-
 # Build BPF code
 $(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
 	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
-# Build BPF code
-$(RS_BPF_BUILDDIR)/%.bpf.o: bpf/restrictedsession/%.bpf.c $(wildcard bpf/*.h) | $(RS_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
-	$(LLVM_STRIP) -g $@ # strip useless DWARF info
-
-.PHONY: bpf-rs-bytecode
-bpf-rs-bytecode: $(RS_BPF_BUILDDIR)/restricted.bpf.o
-
 .PHONY: bpf-er-bytecode
 bpf-er-bytecode: $(ER_BPF_BUILDDIR)/command.bpf.o $(ER_BPF_BUILDDIR)/disk.bpf.o $(ER_BPF_BUILDDIR)/network.bpf.o $(ER_BPF_BUILDDIR)/counter_test.bpf.o
 
 .PHONY: bpf-bytecode
-bpf-bytecode: bpf-er-bytecode bpf-rs-bytecode
+bpf-bytecode: bpf-er-bytecode
 
 # Generate vmlinux.h based on the installed kernel
 .PHONY: update-vmlinux-h
@@ -411,9 +400,6 @@ clean-build:
 ifneq ($(ER_BPF_BUILDDIR),)
 	rm -f $(ER_BPF_BUILDDIR)/*.o
 endif
-ifneq ($(RS_BPF_BUILDDIR),)
-	rm -f $(RS_BPF_BUILDDIR)/*.o
-endif
 	-cargo clean
 	-go clean -cache
 	rm -f *.gz
@@ -426,6 +412,7 @@ endif
 .PHONY: clean-ui
 clean-ui:
 	rm -rf webassets/*
+	rm -rf web/packages/teleterm/build
 	find . -type d -name node_modules -prune -exec rm -rf {} \;
 
 #
@@ -1146,13 +1133,17 @@ version: $(VERSRC)
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
-# make tag - prints a tag to use with git for the current version
-# 	To put a new release on Github:
-# 		- bump VERSION variable
-# 		- run make setver
-# 		- commit changes to git
-# 		- build binaries with 'make release'
-# 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
+# Pushes GITTAG and api/GITTAG to GitHub.
+#
+# Before running `make update-tag`, do:
+#
+# 1. Commit your changes
+# 2. Bump VERSION variable (eg, "vMAJOR.(MINOR+1).0-dev-$USER.1")
+# 3. Run `make update-version`
+# 4. Commit version changes to git
+# 5. Make sure it all builds (`make release` or equivalent)
+#
+# After the above is done, run `make update-tag` and follow your build on Drone.
 .PHONY: update-tag
 update-tag: TAG_REMOTE ?= origin
 update-tag:

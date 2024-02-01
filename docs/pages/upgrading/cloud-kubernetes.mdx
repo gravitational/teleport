@@ -84,7 +84,7 @@ This section assumes that the name of your `teleport-kube-agent` release is
    ```code
    $  helm -n <Var name="teleport" /> upgrade <Var name="teleport-agent" /> teleport/teleport-kube-agent  \
    --values=values.yaml \
-   --version=<Var name="(=teleport.version=)" />
+   --version=<Var name="(=cloud.version=)" />
    ```
 
 1. Validate the updater is running properly by checking if its pod is ready:
@@ -134,6 +134,6 @@ Run the following commands to upgrade Teleport agents running on Kubernetes.
    ```code
    $ helm -n <Var name="teleport" /> upgrade <Var name="teleport-agent" /> teleport/teleport-kube-agent \
    --values=values.yaml \
-   --version=<Var name="(=teleport.version=)" />
+   --version=<Var name="(=cloud.version=)" />
    ```
 

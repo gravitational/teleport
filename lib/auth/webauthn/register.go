@@ -34,7 +34,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -47,8 +46,8 @@ type RegistrationIdentity interface {
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 }
 
@@ -57,7 +56,7 @@ type RegistrationIdentity interface {
 func WithInMemorySessionData(identity RegistrationIdentity) RegistrationIdentity {
 	return &inMemoryIdentity{
 		RegistrationIdentity: identity,
-		sessionData:          make(map[string]*wanpb.SessionData),
+		sessionData:          make(map[string]*wantypes.SessionData),
 	}
 }
 
@@ -68,17 +67,17 @@ type inMemoryIdentity struct {
 	// We don't foresee concurrent use for inMemoryIdentity, but it's easy enough
 	// to play it safe.
 	mu          sync.RWMutex
-	sessionData map[string]*wanpb.SessionData
+	sessionData map[string]*wantypes.SessionData
 }
 
-func (identity *inMemoryIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
+func (identity *inMemoryIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
 	identity.mu.Lock()
 	defer identity.mu.Unlock()
 	identity.sessionData[sessionDataKey(user, sessionID)] = sd
 	return nil
 }
 
-func (identity *inMemoryIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
+func (identity *inMemoryIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
 	identity.mu.RLock()
 	defer identity.mu.RUnlock()
 	sd, ok := identity.sessionData[sessionDataKey(user, sessionID)]
@@ -189,11 +188,11 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 	// TODO(codingllama): Send U2F App ID back in creation requests too. Useful to
 	//  detect duplicate devices.
 
-	sessionDataPB, err := sessionToPB(sessionData)
+	sd, err := wantypes.SessionDataFromProtocol(sessionData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := f.Identity.UpsertWebauthnSessionData(ctx, user, scopeSession, sessionDataPB); err != nil {
+	if err := f.Identity.UpsertWebauthnSessionData(ctx, user, scopeSession, sd); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -280,11 +279,11 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	}
 	u := newWebUser(req.User, wla.UserID, true /* credentialIDOnly */, nil /* devices */)
 
-	sessionDataPB, err := f.Identity.GetWebauthnSessionData(ctx, req.User, scopeSession)
+	sd, err := f.Identity.GetWebauthnSessionData(ctx, req.User, scopeSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessionData := sessionFromPB(sessionDataPB)
+	sessionData := wantypes.SessionDataToProtocol(sd)
 
 	// Activate passwordless switches (resident key, user verification) if we
 	// required verification in the begin step.

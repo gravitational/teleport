@@ -218,7 +218,8 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	// Support reused MFA for bulk tctl create requests and chained invite commands (CreateResetPasswordToken).
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -261,8 +262,9 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 			Name:    created.GetName(),
 			Expires: created.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     created.GetRoles(),
+		Connector:          connectorName,
+		Roles:              created.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.logger.WithError(err).Warn("Failed to emit user create event.")
 	}
@@ -284,11 +286,23 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	// Allow reused MFA responses to allow Updating a user after get (WebUI).
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authzCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err = okta.CheckOrigin(authzCtx, req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// ValidateUser is called a bit later by LegacyUpdateUser. However, it's clearer
+	// to do it here like the other verbs, plus it won't break again when we'll
+	// get rid of the legacy update function.
+	if err := services.ValidateUser(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -329,8 +343,9 @@ func (s *Service) UpdateUser(ctx context.Context, req *userspb.UpdateUserRequest
 			Name:    updated.GetName(),
 			Expires: updated.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     updated.GetRoles(),
+		Connector:          connectorName,
+		Roles:              updated.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.logger.WithError(err).Warn("Failed to emit user update event.")
 	}
@@ -354,7 +369,16 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authzCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUser(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUserRoles(ctx, req.User, s.cache); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -405,8 +429,9 @@ func (s *Service) UpsertUser(ctx context.Context, req *userspb.UpsertUserRequest
 			Name:    upserted.GetName(),
 			Expires: upserted.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     upserted.GetRoles(),
+		Connector:          connectorName,
+		Roles:              upserted.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.logger.WithError(err).Warn("Failed to emit user upsert event.")
 	}
@@ -474,6 +499,7 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: req.Name,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.logger.WithError(err).Warn("Failed to emit user delete event.")
 	}

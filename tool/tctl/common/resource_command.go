@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
@@ -46,6 +47,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -437,6 +439,12 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 		// check for syntax errors in predicates
 		return trace.Wrap(err)
 	}
+	err = services.CheckDynamicLabelsInDenyRules(role)
+	if trace.IsBadParameter(err) {
+		return trace.BadParameter(dynamicLabelWarningMessage(role))
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
 
 	warnAboutKubernetesResources(rc.config.Log, role)
 	roleName := role.GetName()
@@ -467,6 +475,7 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client auth.ClientI, 
 	}
 
 	warnAboutKubernetesResources(rc.config.Log, role)
+	warnAboutDynamicLabelsInDenyRule(rc.config.Log, role)
 
 	if _, err := client.UpdateRole(ctx, role); err != nil {
 		return trace.Wrap(err)
@@ -492,6 +501,24 @@ func warnAboutKubernetesResources(logger utils.Logger, r types.Role) {
 
 	if len(role.Spec.Deny.KubernetesLabels) > 0 && len(role.Spec.Deny.KubernetesResources) > 0 {
 		logger.Warningf("role %q has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake. deny.kubernetes_resources won't be effective.", role.Metadata.Name)
+	}
+}
+
+func dynamicLabelWarningMessage(r types.Role) string {
+	return fmt.Sprintf("existing role %q has labels with the %q prefix in its deny rules. This is not recommended due to the volatitily of %q labels and is not allowed for new roles",
+		r.GetName(), types.TeleportDynamicLabelPrefix, types.TeleportDynamicLabelPrefix)
+}
+
+// warnAboutDynamicLabelsInDenyRule warns about using dynamic/ labels in deny
+// rules. Only applies to existing roles as adding dynamic/ labels to deny
+// rules in a new role is not allowed.
+func warnAboutDynamicLabelsInDenyRule(logger utils.Logger, r types.Role) {
+	if err := services.CheckDynamicLabelsInDenyRules(r); err == nil {
+		return
+	} else if trace.IsBadParameter(err) {
+		logger.Warningf(dynamicLabelWarningMessage(r))
+	} else {
+		logger.WithError(err).Warningf("error checking deny rules labels")
 	}
 }
 
@@ -812,7 +839,11 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client auth.ClientI,
 	}
 
 	err = client.UpsertToken(ctx, token)
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("provision_token %q has been created\n", token.GetName())
+	return nil
 }
 
 func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -822,7 +853,11 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 	}
 
 	err = client.SetInstaller(ctx, inst)
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("installer %q has been set\n", inst.GetName())
+	return nil
 }
 
 func (rc *ResourceCommand) createUIConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -830,8 +865,13 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client auth.Clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	err = client.SetUIConfig(ctx, uic)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("ui_config %q has been set\n", uic.GetName())
+	return nil
 
-	return trace.Wrap(client.SetUIConfig(ctx, uic))
 }
 
 func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -855,7 +895,11 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 	}
 
 	_, err = client.UpsertNode(ctx, server)
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("node %q has been %s\n", name, UpsertVerb(exists, rc.IsForced()))
+	return nil
 }
 
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -957,12 +1001,20 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
 			LoginRule: rule,
 		})
-		return trail.FromGRPC(err)
+		if err != nil {
+			return trail.FromGRPC(err)
+		}
+	} else {
+		_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+			LoginRule: rule,
+		})
+		if err != nil {
+			return trail.FromGRPC(err)
+		}
 	}
-	_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
-		LoginRule: rule,
-	})
-	return trail.FromGRPC(err)
+	verb := UpsertVerb(false /* we don't know if it existed before */, rc.IsForced() /* force update */)
+	fmt.Printf("login_rule %q has been %s\n", rule.GetMetadata().GetName(), verb)
+	return nil
 }
 
 func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -970,6 +1022,19 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if sp.GetEntityDescriptor() != "" {
+		// verify that entity descriptor parses
+		ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+		if err != nil {
+			return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
+		}
+
+		// issue warning about unsupported ACS bindings.
+		if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+			log.Warnf("Entity descriptor for SAML IdP service provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
+		}
 	}
 
 	serviceProviderName := sp.GetName()
@@ -1797,6 +1862,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		warnAboutDynamicLabelsInDenyRule(rc.config.Log, role)
 		return &roleCollection{roles: []types.Role{role}}, nil
 	case types.KindNamespace:
 		if rc.ref.Name == "" {
@@ -2413,6 +2479,16 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &serverInfoCollection{serverInfos: serverInfos}, nil
+	case types.KindAccessList:
+		if rc.ref.Name != "" {
+			resource, err := client.AccessListClient().GetAccessList(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &accessListCollection{accessLists: []*accesslist.AccessList{resource}}, nil
+		}
+		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
+		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

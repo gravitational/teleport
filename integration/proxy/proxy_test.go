@@ -375,6 +375,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 		PinnedIP:            "127.0.0.1",
 		KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 		KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+		KubeCluster:         "root.example.com",
 		CustomTLSServerName: localK8SNI,
 		TargetAddress:       suite.root.Config.Proxy.WebAddr,
 	})
@@ -491,6 +492,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 		PinnedIP:            "127.0.0.1",
 		KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 		KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+		KubeCluster:         "gke_project_europecentral2a_cluster1",
 		CustomTLSServerName: localK8SNI,
 		TargetAddress:       suite.root.Config.Proxy.WebAddr,
 		RouteToCluster:      suite.leaf.Secrets.SiteName,
@@ -642,6 +644,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 					Username:            kubeRoleSpec.Allow.Logins[0],
 					KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 					KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+					KubeCluster:         kubeClusterName,
 					CustomTLSServerName: kubeCluster,
 					TargetAddress:       targetAddr,
 					RouteToCluster:      testCluster.Secrets.SiteName,
@@ -769,6 +772,7 @@ func TestKubeIPPinning(t *testing.T) {
 				PinnedIP:            tc.pinnedIP,
 				KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 				KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+				KubeCluster:         kubeClusterName,
 				CustomTLSServerName: kubeCluster,
 				TargetAddress:       suite.root.Config.Proxy.WebAddr,
 				RouteToCluster:      tc.routeToCluster,
@@ -1215,8 +1219,8 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
-	t.Run("teleterm gateways cert renewal", func(t *testing.T) {
-		testTeletermGatewaysCertRenewal(t, pack)
+	t.Run("teleterm db gateways cert renewal", func(t *testing.T) {
+		testTeletermDbGatewaysCertRenewal(t, pack)
 	})
 }
 
@@ -1270,6 +1274,10 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		require.NoError(t, err)
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("teleterm app gateways cert renewal", func(t *testing.T) {
+		testTeletermAppGateway(t, pack)
 	})
 }
 

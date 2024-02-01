@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
+	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/backend"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -61,6 +62,8 @@ type ReporterConfig struct {
 	// HostID is the host ID of the current Teleport instance, added to reports
 	// for auditing purposes. Required.
 	HostID string
+	// AnonymizationKey is the key used to anonymize data user or resource names. Optional.
+	AnonymizationKey string
 }
 
 // CheckAndSetDefaults checks the [ReporterConfig] for validity, returning nil
@@ -82,6 +85,9 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
+	if cfg.AnonymizationKey == "" {
+		return trace.BadParameter("missing AnonymizationKey")
+	}
 	return nil
 }
 
@@ -93,7 +99,7 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(cfg.ClusterName.GetClusterID())
+	anonymizer, err := utils.NewHMACAnonymizer(cfg.AnonymizationKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,6 +198,18 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 	go r.anonymizeAndSubmit(filtered)
 }
 
+// convertUserKind converts a v1alpha UserKind to a v1 UserKind.
+func convertUserKind(v1AlphaUserKind prehogv1alpha.UserKind) prehogv1.UserKind {
+	switch v1AlphaUserKind {
+	case prehogv1alpha.UserKind_USER_KIND_BOT:
+		return prehogv1.UserKind_USER_KIND_BOT
+	case prehogv1alpha.UserKind_USER_KIND_HUMAN:
+		return prehogv1.UserKind_USER_KIND_HUMAN
+	default:
+		return prehogv1.UserKind_USER_KIND_UNSPECIFIED
+	}
+}
+
 func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
 	for _, e := range events {
 		select {
@@ -219,12 +237,42 @@ func (r *Reporter) run(ctx context.Context) {
 
 	userActivity := make(map[string]*prehogv1.UserActivityRecord)
 
-	userRecord := func(userName string) *prehogv1.UserActivityRecord {
+	userRecord := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind) *prehogv1.UserActivityRecord {
+		v1UserKind := convertUserKind(v1AlphaUserKind)
+
 		record := userActivity[userName]
 		if record == nil {
-			record = &prehogv1.UserActivityRecord{}
+			record = &prehogv1.UserActivityRecord{
+				UserKind: v1UserKind,
+			}
 			userActivity[userName] = record
 		}
+
+		// Attempt to sanely handle any changes to the record's UserKind that
+		// might occur after it's original creation.
+		if record.UserKind != v1UserKind {
+			recordUnspecified := record.UserKind == prehogv1.UserKind_USER_KIND_UNSPECIFIED
+			incomingUnspecified := v1UserKind == prehogv1.UserKind_USER_KIND_UNSPECIFIED
+
+			switch {
+			case incomingUnspecified:
+				// Ignore any incoming unspecified events.
+			case recordUnspecified && !incomingUnspecified:
+				// It's okay to discover the kind of a user later. This may
+				// indicate the first event that established a record came from
+				// an outdated node.
+				record.UserKind = v1UserKind
+			default:
+				// Otherwise, update and log a warning. Flipping between
+				// bot/human is a programming error.
+				r.log.WithFields(logrus.Fields{
+					"from": record.UserKind,
+					"to":   v1UserKind,
+				}).Warn("Record user_kind has changed unexpectedly")
+				record.UserKind = v1UserKind
+			}
+		}
+
 		return record
 	}
 
@@ -291,30 +339,31 @@ Ingest:
 
 		switch te := ae.(type) {
 		case *usagereporter.UserLoginEvent:
-			userRecord(te.UserName).Logins++
+			// Bots never generate tp.user.login events.
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).Logins++
 		case *usagereporter.SessionStartEvent:
 			switch te.SessionType {
 			case string(types.SSHSessionKind):
-				userRecord(te.UserName).SshSessions++
+				userRecord(te.UserName, te.UserKind).SshSessions++
 			case string(types.AppSessionKind):
-				userRecord(te.UserName).AppSessions++
+				userRecord(te.UserName, te.UserKind).AppSessions++
 			case string(types.KubernetesSessionKind):
-				userRecord(te.UserName).KubeSessions++
+				userRecord(te.UserName, te.UserKind).KubeSessions++
 			case string(types.DatabaseSessionKind):
-				userRecord(te.UserName).DbSessions++
+				userRecord(te.UserName, te.UserKind).DbSessions++
 			case string(types.WindowsDesktopSessionKind):
-				userRecord(te.UserName).DesktopSessions++
+				userRecord(te.UserName, te.UserKind).DesktopSessions++
 			case usagereporter.PortSSHSessionType:
-				userRecord(te.UserName).SshPortV2Sessions++
+				userRecord(te.UserName, te.UserKind).SshPortV2Sessions++
 			case usagereporter.PortKubeSessionType:
-				userRecord(te.UserName).KubePortSessions++
+				userRecord(te.UserName, te.UserKind).KubePortSessions++
 			case usagereporter.TCPSessionType:
-				userRecord(te.UserName).AppTcpSessions++
+				userRecord(te.UserName, te.UserKind).AppTcpSessions++
 			}
 		case *usagereporter.KubeRequestEvent:
-			userRecord(te.UserName).KubeRequests++
+			userRecord(te.UserName, te.UserKind).KubeRequests++
 		case *usagereporter.SFTPEvent:
-			userRecord(te.UserName).SftpEvents++
+			userRecord(te.UserName, te.UserKind).SftpEvents++
 		case *usagereporter.ResourceHeartbeatEvent:
 			// ResourceKind is the same int32 in both prehogv1 and prehogv1alpha1.
 			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
@@ -343,17 +392,16 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 		records = append(records, record)
 	}
 
-	for len(records) > 0 {
-		report, err := prepareUserActivityReport(r.clusterName, r.hostID, startTime, records)
-		if err != nil {
-			r.log.WithError(err).WithFields(logrus.Fields{
-				"start_time":   startTime,
-				"lost_records": len(records),
-			}).Error("Failed to prepare user activity report, dropping data.")
-			return
-		}
-		records = records[len(report.Records):]
+	reports, err := prepareUserActivityReports(r.clusterName, r.hostID, startTime, records)
+	if err != nil {
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time":   startTime,
+			"lost_records": len(records),
+		}).Error("Failed to prepare user activity report, dropping data.")
+		return
+	}
 
+	for _, report := range reports {
 		if err := r.svc.upsertUserActivityReport(ctx, report, reportTTL); err != nil {
 			r.log.WithError(err).WithFields(logrus.Fields{
 				"start_time":   startTime,

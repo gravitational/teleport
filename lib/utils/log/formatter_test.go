@@ -142,10 +142,9 @@ func TestOutput(t *testing.T) {
 
 				// Create a slog logger using the custom handler which outputs to a local buffer.
 				var slogOutput bytes.Buffer
-				slogConfig := &SlogTextHandlerConfig{
+				slogConfig := SlogTextHandlerConfig{
 					Level:        test.slogLevel,
 					EnableColors: true,
-					WithCaller:   true,
 					ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 						if a.Key == slog.TimeKey {
 							a.Value = slog.StringValue(formattedNow)
@@ -272,7 +271,7 @@ func TestOutput(t *testing.T) {
 
 				// Create a slog logger using the custom formatter which outputs to a local buffer.
 				var slogOutput bytes.Buffer
-				slogLogger := slog.New(NewSlogJSONHandler(&slogOutput, test.slogLevel)).With(trace.Component, "test")
+				slogLogger := slog.New(NewSlogJSONHandler(&slogOutput, SlogJSONHandlerConfig{Level: test.slogLevel})).With(trace.Component, "test")
 
 				// Add some fields and output the message at the desired log level via logrus.
 				l := entry.WithField("test", 123).WithField("animal", "llama").WithField("error", logErr)
@@ -395,7 +394,7 @@ func BenchmarkFormatter(b *testing.B) {
 		})
 
 		b.Run("text", func(b *testing.B) {
-			logger := slog.New(NewSlogTextHandler(io.Discard, &SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(trace.Component, "test")
+			logger := slog.New(NewSlogTextHandler(io.Discard, SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(trace.Component, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
@@ -418,7 +417,7 @@ func BenchmarkFormatter(b *testing.B) {
 		})
 
 		b.Run("json", func(b *testing.B) {
-			logger := slog.New(NewSlogJSONHandler(io.Discard, slog.LevelDebug)).With(trace.Component, "test")
+			logger := slog.New(NewSlogJSONHandler(io.Discard, SlogJSONHandlerConfig{Level: slog.LevelDebug})).With(trace.Component, "test")
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
@@ -450,9 +449,8 @@ func TestConcurrentOutput(t *testing.T) {
 	})
 
 	t.Run("slog", func(t *testing.T) {
-		logger := slog.New(NewSlogTextHandler(os.Stdout, &SlogTextHandlerConfig{
+		logger := slog.New(NewSlogTextHandler(os.Stdout, SlogTextHandlerConfig{
 			EnableColors: true,
-			WithCaller:   true,
 		})).With(trace.Component, "test")
 
 		var wg sync.WaitGroup
@@ -466,4 +464,171 @@ func TestConcurrentOutput(t *testing.T) {
 		}
 		wg.Wait()
 	})
+}
+
+// allPossibleSubsets returns all combinations of subsets for the
+// provided slice, including the nil/empty set.
+func allPossibleSubsets(in []string) [][]string {
+	// include the empty set in the output
+	subsets := [][]string{nil}
+	length := len(in)
+
+	for subsetBits := 1; subsetBits < (1 << length); subsetBits++ {
+		var subset []string
+
+		for object := 0; object < length; object++ {
+			if (subsetBits>>object)&1 == 1 {
+				subset = append(subset, in[object])
+			}
+		}
+		subsets = append(subsets, subset)
+	}
+	return subsets
+}
+
+// TestExtraFields validates that the output is identical for the
+// logrus formatter and slog handler based on the configured extra
+// fields.
+func TestExtraFields(t *testing.T) {
+	// Capture a fake time that all output will use.
+	now := clockwork.NewFakeClock().Now()
+
+	// Capture the caller information to be injected into all messages.
+	pc, _, _, _ := runtime.Caller(0)
+	fs := runtime.CallersFrames([]uintptr{pc})
+	f, _ := fs.Next()
+	callerTrace := &trace.Trace{
+		Func: f.Function,
+		Path: f.File,
+		Line: f.Line,
+	}
+
+	const message = "testing 123"
+
+	// Test against every possible configured combination of allowed format fields.
+	fields := allPossibleSubsets(defaultFormatFields)
+
+	t.Run("text", func(t *testing.T) {
+		for _, configuredFields := range fields {
+			name := "not configured"
+			if len(configuredFields) > 0 {
+				name = strings.Join(configuredFields, " ")
+			}
+
+			t.Run(name, func(t *testing.T) {
+				logrusFormatter := TextFormatter{
+					ExtraFields: configuredFields,
+				}
+				// Call CheckAndSetDefaults to exercise the extra fields logic. Since
+				// FormatCaller is always overridden within CheckAndSetDefaults, it is
+				// explicitly set afterward so the caller points to our fake call site.
+				require.NoError(t, logrusFormatter.CheckAndSetDefaults())
+				logrusFormatter.FormatCaller = callerTrace.String
+
+				var slogOutput bytes.Buffer
+				var slogHandler slog.Handler = NewSlogTextHandler(&slogOutput, SlogTextHandlerConfig{ConfiguredFields: configuredFields})
+
+				entry := &logrus.Entry{
+					Data:    logrus.Fields{"animal": "llama", "vegetable": "carrot", trace.Component: "test"},
+					Time:    now,
+					Level:   logrus.DebugLevel,
+					Caller:  &f,
+					Message: message,
+				}
+
+				logrusOut, err := logrusFormatter.Format(entry)
+				require.NoError(t, err)
+
+				record := slog.Record{
+					Time:    now,
+					Message: message,
+					Level:   slog.LevelDebug,
+					PC:      pc,
+				}
+
+				record.AddAttrs(slog.String(trace.Component, "test"), slog.String("animal", "llama"), slog.String("vegetable", "carrot"))
+
+				require.NoError(t, slogHandler.Handle(context.Background(), record))
+
+				require.Equal(t, string(logrusOut), slogOutput.String())
+			})
+		}
+	})
+
+	t.Run("json", func(t *testing.T) {
+		for _, configuredFields := range fields {
+			name := "not configured"
+			if len(configuredFields) > 0 {
+				name = strings.Join(configuredFields, " ")
+			}
+
+			t.Run(name, func(t *testing.T) {
+				logrusFormatter := JSONFormatter{
+					ExtraFields: configuredFields,
+				}
+				// Call CheckAndSetDefaults to exercise the extra fields logic. Since
+				// FormatCaller is always overridden within CheckAndSetDefaults, it is
+				// explicitly set afterward so the caller points to our fake call site.
+				require.NoError(t, logrusFormatter.CheckAndSetDefaults())
+				logrusFormatter.FormatCaller = callerTrace.String
+
+				var slogOutput bytes.Buffer
+				var slogHandler slog.Handler = NewSlogJSONHandler(&slogOutput, SlogJSONHandlerConfig{ConfiguredFields: configuredFields})
+
+				entry := &logrus.Entry{
+					Data:    logrus.Fields{"animal": "llama", "vegetable": "carrot", trace.Component: "test"},
+					Time:    now,
+					Level:   logrus.DebugLevel,
+					Caller:  &f,
+					Message: message,
+				}
+
+				logrusOut, err := logrusFormatter.Format(entry)
+				require.NoError(t, err)
+
+				record := slog.Record{
+					Time:    now,
+					Message: message,
+					Level:   slog.LevelDebug,
+					PC:      pc,
+				}
+
+				record.AddAttrs(slog.String(trace.Component, "test"), slog.String("animal", "llama"), slog.String("vegetable", "carrot"))
+
+				require.NoError(t, slogHandler.Handle(context.Background(), record))
+
+				var slogData, logrusData map[string]any
+				require.NoError(t, json.Unmarshal(logrusOut, &logrusData))
+				require.NoError(t, json.Unmarshal(slogOutput.Bytes(), &slogData))
+
+				require.Equal(t, slogData, logrusData)
+			})
+		}
+	})
+}
+
+func TestValidateFields(t *testing.T) {
+	tests := []struct {
+		comment     string
+		extraFields []string
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			comment:     "invalid key (does not exist)",
+			extraFields: []string{levelField, "invalid key"},
+			assertErr:   require.Error,
+		},
+		{
+			comment:     "valid keys",
+			extraFields: defaultFormatFields,
+			assertErr:   require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.comment, func(t *testing.T) {
+			_, err := ValidateFields(tt.extraFields)
+			tt.assertErr(t, err)
+		})
+	}
 }

@@ -208,6 +208,8 @@ type CLIConf struct {
 	DatabaseUser string
 	// DatabaseName specifies database name to embed in the certificate.
 	DatabaseName string
+	// DatabaseRoles specifies database roles to embed in the certificate.
+	DatabaseRoles string
 	// AppName specifies proxied application name.
 	AppName string
 	// Interactive, when set to true, launches remote command with the terminal attached
@@ -230,6 +232,8 @@ type CLIConf struct {
 	BenchExport bool
 	// BenchExportPath saves the latency profile in provided path
 	BenchExportPath string
+	// BenchMaxSessions is the maximum number of sessions to open
+	BenchMaxSessions int
 	// BenchTicks ticks per half distance
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
@@ -255,6 +259,9 @@ type CLIConf struct {
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
 	BindAddr string
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
+	CallbackAddr string
 
 	// AuthConnector is the name of the connector to use.
 	AuthConnector string
@@ -500,6 +507,9 @@ type CLIConf struct {
 	// SSHLogDir is the directory to log the output of multiple SSH commands to.
 	// If not set, no logs will be created.
 	SSHLogDir string
+
+	// DisableSSHResumption disables transparent SSH connection resumption.
+	DisableSSHResumption bool
 }
 
 // Stdout returns the stdout writer.
@@ -596,6 +606,7 @@ const (
 	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
 	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
 	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
+	noResumeEnvVar           = "TELEPORT_NO_RESUME"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -696,6 +707,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
@@ -736,6 +748,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
+	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -812,13 +825,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxySSH.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
-	proxyDB.Flag("db-user", "Database user to log in as.").StringVar(&cf.DatabaseUser)
-	proxyDB.Flag("db-name", "Database name to log in to.").StringVar(&cf.DatabaseName)
+	proxyDB.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
+	proxyDB.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
+	proxyDB.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
@@ -862,8 +877,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
 	dbLogin.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbLogin.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	dbLogin.Flag("db-user", "Database user to configure as default.").StringVar(&cf.DatabaseUser)
-	dbLogin.Flag("db-name", "Database name to configure as default.").StringVar(&cf.DatabaseName)
+	dbLogin.Flag("db-user", "Database user to configure as default.").Short('u').StringVar(&cf.DatabaseUser)
+	dbLogin.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
+	dbLogin.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbLogout.Flag("labels", labelHelp).StringVar(&cf.Labels)
@@ -885,8 +901,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)).Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
 	dbConnect := db.Command("connect", "Connect to a database.")
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
-	dbConnect.Flag("db-user", "Database user to log in as.").StringVar(&cf.DatabaseUser)
-	dbConnect.Flag("db-name", "Database name to log in to.").StringVar(&cf.DatabaseName)
+	dbConnect.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
+	dbConnect.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
+	dbConnect.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 
@@ -914,6 +931,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
+	scp.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes.")
 	ls.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -961,6 +979,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	latencySSH := latency.Command("ssh", "Measure latency to a particular SSH host.")
 	latencySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	latencySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	latencySSH.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
 	// bench
 	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
@@ -977,6 +996,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+	benchSSH.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
 	benchWeb := bench.Command("web", "Run Web benchmark tests").Hidden()
 	benchWebSSH := benchWeb.Command("ssh", "Run SSH benchmark tests").Hidden()
@@ -984,6 +1004,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchWebSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchWebSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchWebSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+
+	benchWebSessions := benchWeb.Command("sessions", "Run session benchmark tests").Hidden()
+	benchWebSessions.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	benchWebSessions.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	benchWebSessions.Flag("max", "The maximum number of sessions to open. If not specified a single session per node will be opened.").IntVar(&cf.BenchMaxSessions)
 
 	var benchKubeOpts benchKubeOptions
 	benchKube := bench.Command("kube", "Run Kube benchmark tests").Hidden()
@@ -1272,6 +1297,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 				Duration: cf.BenchDuration,
 			},
 		)
+	case benchWebSessions.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.WebSessionBenchmark{
+				Command:  cf.RemoteCommand,
+				Max:      cf.BenchMaxSessions,
+				Duration: cf.BenchDuration,
+			},
+		)
 	case benchListKube.FullCommand():
 		err = onBenchmark(
 			&cf,
@@ -1490,7 +1524,7 @@ func initializeTracing(cf *CLIConf) func() {
 	// flush ensures that the spans are all attempted to be written when tsh exits.
 	flush := func(provider *tracing.Provider) func() {
 		return func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(cf.Context), time.Second)
 			defer cancel()
 			err := provider.Shutdown(shutdownCtx)
 			if err != nil && !errors.Is(err, context.DeadlineExceeded) {
@@ -1527,7 +1561,6 @@ func initializeTracing(cf *CLIConf) func() {
 			ExporterURL:  cf.TraceExporter,
 			SamplingRate: samplingRate,
 		})
-
 		if err != nil {
 			log.WithError(err).Debugf("failed to connect to trace exporter %s", cf.TraceExporter)
 			return func() {}
@@ -2766,10 +2799,10 @@ func newDatabaseWithUsers(db types.Database, accessChecker services.AccessChecke
 	}
 
 	if db.SupportsAutoUsers() && db.GetAdminUser().Name != "" {
-		autoUser, roles, err := accessChecker.CheckDatabaseRoles(db)
+		roles, err := accessChecker.CheckDatabaseRoles(db, nil)
 		if err != nil {
 			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", db.GetName(), err)
-		} else if autoUser.IsEnabled() {
+		} else {
 			dbWithUsers.DatabaseRoles = roles
 		}
 	}
@@ -2815,9 +2848,9 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 
 	// Add a note for auto-provisioned user.
 	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
-		autoUser, _, err := accessChecker.CheckDatabaseRoles(database)
+		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
 		if err != nil {
-			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", database.GetName(), err)
+			log.Warnf("Failed to get DatabaseAutoUserMode for database %v: %v.", database.GetName(), err)
 		} else if autoUser.IsEnabled() {
 			defer func() {
 				users = users + " (Auto-provisioned)"
@@ -2906,15 +2939,22 @@ func printDatabasesWithClusters(cf *CLIConf, dbListings []databaseListing, activ
 
 func formatActiveDB(active tlsca.RouteToDatabase, displayName string) string {
 	active.ServiceName = displayName
-	switch {
-	case active.Username != "" && active.Database != "":
-		return fmt.Sprintf("> %v (user: %v, db: %v)", active.ServiceName, active.Username, active.Database)
-	case active.Username != "":
-		return fmt.Sprintf("> %v (user: %v)", active.ServiceName, active.Username)
-	case active.Database != "":
-		return fmt.Sprintf("> %v (db: %v)", active.ServiceName, active.Database)
+
+	var details []string
+	if active.Username != "" {
+		details = append(details, fmt.Sprintf("user: %s", active.Username))
 	}
-	return fmt.Sprintf("> %v", active.ServiceName)
+	if active.Database != "" {
+		details = append(details, fmt.Sprintf("db: %s", active.Database))
+	}
+	if len(active.Roles) > 0 {
+		details = append(details, fmt.Sprintf("roles: %v", active.Roles))
+	}
+
+	if len(details) == 0 {
+		return fmt.Sprintf("> %v", active.ServiceName)
+	}
+	return fmt.Sprintf("> %v (%v)", active.ServiceName, strings.Join(details, ", "))
 }
 
 // onListClusters executes 'tsh clusters' command
@@ -3274,7 +3314,7 @@ func onSSH(cf *CLIConf) error {
 }
 
 // onBenchmark executes benchmark
-func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
+func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3283,6 +3323,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 		MinimumWindow: cf.BenchDuration,
 		Rate:          cf.BenchRate,
 	}
+
 	result, err := cnf.Benchmark(cf.Context, tc, suite)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
@@ -3319,6 +3360,9 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 
 // onJoin executes 'ssh join' command
 func onJoin(cf *CLIConf) error {
+	// TODO(espadolini): figure out if connection resumption should be allowed
+	// on join, and if so, for which participant modes
+	cf.DisableSSHResumption = true
 	if err := validateParticipantMode(types.SessionParticipantMode(cf.JoinMode)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3703,6 +3747,10 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
 	}
 	c.BindAddr = cf.BindAddr
+	if cf.CallbackAddr != "" && cf.BindAddr == "" {
+		return nil, trace.BadParameter("--callback must be used with --bind-addr")
+	}
+	c.CallbackAddr = cf.CallbackAddr
 
 	// Don't execute remote command, used when port forwarding.
 	c.NoRemoteExec = cf.NoRemoteExec
@@ -3759,6 +3807,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.Invited = cf.Invited
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	c.SSHLogDir = cf.SSHLogDir
+	c.DisableSSHResumption = cf.DisableSSHResumption
 	return c, nil
 }
 

@@ -1981,6 +1981,7 @@ type disconnectTestCase struct {
 	concurrentConns   int
 	sessCtlTimeout    time.Duration
 	postFunc          func(context.Context, *testing.T, *helpers.TeleInstance)
+	clientConfigOpts  func(*helpers.ClientConfig)
 
 	// verifyError checks if `err` reflects the error expected by the test scenario.
 	// It returns nil if yes, non-nil otherwise.
@@ -2129,6 +2130,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				MaxSessionTTL:         types.NewDuration(2 * time.Second),
 			},
 			disconnectTimeout: 4 * time.Second,
+			clientConfigOpts:  func(cc *helpers.ClientConfig) { cc.DisableSSHResumption = true },
 		},
 		{
 			name:          "expired cert proxy recording",
@@ -2139,6 +2141,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				MaxSessionTTL:         types.NewDuration(2 * time.Second),
 			},
 			disconnectTimeout: 4 * time.Second,
+			clientConfigOpts:  func(cc *helpers.ClientConfig) { cc.DisableSSHResumption = true },
 		},
 		{
 			name:          "concurrent connection limits exceeded node recording",
@@ -2169,6 +2172,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			},
 			disconnectTimeout: time.Second,
 			sessCtlTimeout:    500 * time.Millisecond,
+			clientConfigOpts:  func(cc *helpers.ClientConfig) { cc.DisableSSHResumption = true },
 			// use postFunc to wait for the semaphore to be acquired and a session
 			// to be started, then shut down the auth server.
 			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
@@ -2253,12 +2257,16 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 
 		openSession := func() {
 			defer cancel()
-			cl, err := teleport.NewClient(helpers.ClientConfig{
+			cc := helpers.ClientConfig{
 				Login:   username,
 				Cluster: helpers.Site,
 				Host:    Host,
 				Port:    helpers.Port(t, teleport.SSH),
-			})
+			}
+			if tc.clientConfigOpts != nil {
+				tc.clientConfigOpts(&cc)
+			}
+			cl, err := teleport.NewClient(cc)
 			require.NoError(t, err)
 			cl.Stdout = person
 			cl.Stdin = person
@@ -5190,7 +5198,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service started. Setting rotation state to %v", types.RotationPhaseUpdateClients)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
@@ -5206,7 +5214,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// update clients
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
@@ -5234,7 +5242,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
@@ -5264,7 +5272,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
 	// complete rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
@@ -5358,7 +5366,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Service started. Setting rotation state to %q.", types.RotationPhaseInit)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
@@ -5371,7 +5379,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Setting rotation state to %q.", types.RotationPhaseUpdateClients)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
@@ -5399,7 +5407,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
@@ -5413,7 +5421,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseRollback)
 
 	// complete rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseRollback,
 		Mode:        types.RotationModeManual,
@@ -5550,7 +5558,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Setting rotation state to %v", types.RotationPhaseInit)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
@@ -5585,7 +5593,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	waitForPhase(types.RotationPhaseInit)
 
 	// update clients
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
@@ -5605,7 +5613,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
@@ -5632,7 +5640,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
 	// complete rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,

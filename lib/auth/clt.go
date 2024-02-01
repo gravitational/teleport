@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/scim"
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -40,6 +41,7 @@ import (
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -79,6 +81,9 @@ type Client struct {
 
 // Make sure Client implements all the necessary methods.
 var _ ClientI = &Client{}
+
+// Static asserton that the scim client actually implements the SCIM interface.
+var _ services.SCIM = (*scim.Client)(nil)
 
 // NewClient creates a new API client with a connection to a Teleport server.
 //
@@ -440,6 +445,10 @@ func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
 }
 
+func (c *Client) SCIMClient() services.SCIM {
+	return c.APIClient.SCIMClient()
+}
+
 // SecReportsClient returns a client for security reports.
 func (c *Client) SecReportsClient() *secreport.Client {
 	return c.APIClient.SecReportsClient()
@@ -495,11 +504,19 @@ func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigs {
 	return c.APIClient.DiscoveryConfigClient()
 }
 
-// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-// Returns the device used to solve the challenge (if applicable) and the
-// username.
-func (c *Client) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	return nil, "", trace.NotImplemented(notImplementedMessage)
+// DeleteStaticTokens deletes static tokens
+func (c *Client) DeleteStaticTokens() error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetStaticTokens returns a list of static register tokens
+func (c *Client) GetStaticTokens() (types.StaticTokens, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// SetStaticTokens sets a list of static register tokens
+func (c *Client) SetStaticTokens(st types.StaticTokens) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // WebService implements features used by Web UI clients
@@ -632,13 +649,6 @@ type IdentityService interface {
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
-	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
-	// certificate for a single session
-	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
-	//
-	// Deprecated: Use GenerateUserCerts instead.
-	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
-
 	// IsMFARequired is a request to check whether MFA is required to
 	// access the Target.
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
@@ -665,10 +675,6 @@ type IdentityService interface {
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
-	// Deprecated: Use AddMFADeviceSync instead.
-	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
-	// Deprecated: Use DeleteMFADeviceSync instead.
-	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
@@ -796,7 +802,7 @@ type ClientI interface {
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 
 	// RotateCertAuthority starts or restarts certificate authority rotation process.
-	RotateCertAuthority(ctx context.Context, req RotateRequest) error
+	RotateCertAuthority(ctx context.Context, req types.RotateRequest) error
 
 	// RotateExternalCertAuthority rotates external certificate authority,
 	// this method is used to update only public keys and certificates of the
@@ -847,8 +853,9 @@ type ClientI interface {
 	// sessions created by the SAML identity provider.
 	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
 
-	// GenerateDatabaseCert generates client certificate used by a database
-	// service to authenticate with the database instance.
+	// GenerateDatabaseCert generates a client certificate used by a database
+	// service to authenticate with the database instance, or a server certificate
+	// for configuring a self-hosted database, depending on the requester_name.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 
 	// GetWebSession queries the existing web session described with req.
@@ -860,7 +867,7 @@ type ClientI interface {
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context) (string, error)
 
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error
@@ -909,6 +916,12 @@ type ClientI interface {
 	// still get an Okta client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	OktaClient() services.Okta
+
+	// SCIMClient returns a client for the SCIM provisioning service. Clients
+	// connecting to OSS clusters will still get a client when calling this method,
+	// but the back-end service will fail all requests with "Not Implemented" as per the
+	// default GRPC behavior.
+	SCIMClient() services.SCIM
 
 	// AccessListClient returns an access list client.
 	// Clients connecting to older Teleport versions still get an access list client
@@ -973,7 +986,8 @@ type ClientI interface {
 	// but may result in confusing behavior if it is used outside of those contexts.
 	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
 
-	// ValidateMFAAuthResponse validates an MFA or passwordless challenge.
-	// Returns the device used to solve the challenge (if applicable) and the username.
-	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error)
+	// PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
+	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
+	// an MFA challenge response for the user.
+	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
 }

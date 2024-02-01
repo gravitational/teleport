@@ -27,14 +27,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -99,12 +97,11 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 		id:           uuid.New().String(),
 		closeC:       make(chan struct{}),
 		inflightCond: sync.NewCond(&sync.Mutex{}),
-		inflight:     1,
 		closeTimeout: sessionChunkCloseTimeout,
 		log:          s.log,
 	}
 
-	sess.log.Debugf("Created app session chunk %s", sess.id)
+	sess.log.Debugf("Creating app session chunk %s", sess.id)
 
 	// Create a session tracker so that other services, such as the
 	// session upload completer, can track the session chunk's lifetime.
@@ -136,17 +133,12 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 		}
 	}
 
-	// Put the session chunk in the cache so that upcoming requests can use it for
-	// 5 minutes or the time until the certificate expires, whichever comes first.
-	ttl := min(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
-	if err = s.cache.set(identity.RouteToApp.SessionID, sess, ttl); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// only emit a session chunk if we didnt get an error making the new session chunk
+	// only emit a session chunk if we didn't get an error making the new session chunk
 	if err := sess.audit.OnSessionChunk(ctx, s.c.HostID, sess.id, identity, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	sess.log.Debugf("Created app session chunk %s", sess.id)
 	return sess, nil
 }
 
@@ -282,10 +274,22 @@ func (s *sessionChunk) close(ctx context.Context) error {
 	return trace.Wrap(s.streamCloser.Close(ctx))
 }
 
-func (s *Server) closeSession(sess *sessionChunk) {
-	if err := sess.close(s.closeContext); err != nil {
-		s.log.WithError(err).Debugf("Error closing session %v", sess.id)
+func (s *Server) onSessionExpired(ctx context.Context, key, expired any) {
+	sess, ok := expired.(*sessionChunk)
+	if !ok {
+		return
 	}
+
+	// Closing the session stream writer may trigger a flush operation which could
+	// be time-consuming. Launch in another goroutine to prevent interfering with
+	// cache operations.
+	s.cacheCloseWg.Add(1)
+	go func() {
+		defer s.cacheCloseWg.Done()
+		if err := sess.close(ctx); err != nil {
+			s.log.WithError(err).Debugf("Error closing session %v", sess.id)
+		}
+	}()
 }
 
 // newSessionRecorder creates a session stream that will be used to record
@@ -354,105 +358,4 @@ func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity, app
 	}()
 
 	return nil
-}
-
-// sessionChunkCache holds a cache of session chunks.
-type sessionChunkCache struct {
-	srv *Server
-
-	mu    sync.Mutex
-	cache *ttlmap.TTLMap
-}
-
-// newSessionChunkCache creates a new session chunk cache.
-func (s *Server) newSessionChunkCache() (*sessionChunkCache, error) {
-	sessionCache := &sessionChunkCache{srv: s}
-
-	// Cache of session chunks. Set an expire function that can be used
-	// to close and upload the stream of events to the Audit Log.
-	var err error
-	sessionCache.cache, err = ttlmap.New(defaults.ClientCacheSize, ttlmap.CallOnExpire(sessionCache.expire), ttlmap.Clock(s.c.Clock))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	go sessionCache.expireSessions()
-
-	return sessionCache, nil
-}
-
-// get will fetch the session chunk from the cache.
-func (s *sessionChunkCache) get(key string) (*sessionChunk, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if f, ok := s.cache.Get(key); ok {
-		if fwd, fok := f.(*sessionChunk); fok {
-			return fwd, nil
-		}
-		return nil, trace.BadParameter("invalid type stored in cache: %T", f)
-	}
-	return nil, trace.NotFound("session not found")
-}
-
-// set will add the session chunk to the cache.
-func (s *sessionChunkCache) set(sessionID string, sess *sessionChunk, ttl time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := s.cache.Set(sessionID, sess, ttl); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// expire will close the stream writer.
-func (s *sessionChunkCache) expire(key string, el interface{}) {
-	// Closing the session stream writer may trigger a flush operation which could
-	// be time-consuming. Launch in another goroutine since this occurs under a
-	// lock and expire can get called during a "get" operation on the ttlmap.
-	go s.closeSession(el)
-	s.srv.log.Debugf("Closing expired stream %v.", key)
-}
-
-func (s *sessionChunkCache) closeSession(el interface{}) {
-	switch sess := el.(type) {
-	case *sessionChunk:
-		s.srv.closeSession(sess)
-	default:
-		s.srv.log.Debugf("Invalid type stored in cache: %T.", el)
-	}
-}
-
-// expireSessions ticks every second trying to close expired sessions.
-func (s *sessionChunkCache) expireSessions() {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.expiredSessions()
-		case <-s.srv.closeContext.Done():
-			return
-		}
-	}
-}
-
-// expiredSession tries to expire sessions in the cache.
-func (s *sessionChunkCache) expiredSessions() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.cache.RemoveExpired(10)
-}
-
-// closeAllSessions will remove and close all sessions in the cache.
-func (s *sessionChunkCache) closeAllSessions() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, session, ok := s.cache.Pop(); ok; _, session, ok = s.cache.Pop() {
-		s.closeSession(session)
-	}
 }

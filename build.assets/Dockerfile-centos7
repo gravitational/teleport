@@ -51,6 +51,10 @@ RUN yum install --nogpgcheck -y \
         ${DEVTOOLSET}-make && \
     yum clean all
 
+# Needed for boring-rs
+ENV CMAKE=cmake3
+RUN ln -s /usr/bin/cmake3 /usr/local/bin/cmake
+
 ## GIT2 ###################################################################
 
 # git2 packages are not available on ARM64, so we need to build it from source.
@@ -102,9 +106,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 # Specific install arguments used to skip docs.
 # Note that FIPS is enabled as part of this build, but it is unused without the
 # necessary configuration (which is included as part of the separate FIPS buildbox).
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.12 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.13 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'c3cc0f1386b0544383a61244a4beeb762b67498f' ] && \
+    [ "$(git rev-parse HEAD)" = '85cf92f55d9e2ac5aacf92bedd33fb890b9f8b4c' ] && \
     ./config enable-fips --release -fPIC --libdir=/usr/local/lib64 && \
     make -j"$(nproc)" && \
     make install_sw install_ssldirs install_fips
@@ -196,8 +200,6 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 RUN yum install -y \
     elfutils-libelf-devel \
     net-tools \
-    # required by boringssl
-    ninja-build \
     # required by Teleport PAM support
     pam-devel \
     perl-IPC-Cmd \
@@ -257,7 +259,7 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
 # Install wasm-pack for targeting WebAssembly from Rust.
 ARG WASM_PACK_VERSION
 # scl enable is required to use the newer C compiler installed above. Without it, the build fails.
-RUN scl enable ${DEVTOOLSET} "cargo install wasm-pack --version ${WASM_PACK_VERSION}"
+RUN scl enable ${DEVTOOLSET} "cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}"
 
 # Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.
@@ -291,11 +293,14 @@ RUN cd /usr/local/lib64 && \
 COPY pkgconfig/centos7/ /
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 
+# Install libpcsclite.
 COPY --from=libpcsclite /usr/local/include/ /usr/local/include/
 COPY --from=libpcsclite /usr/local/lib/pkgconfig/ /usr/local/lib64/pkgconfig/
 COPY --from=libpcsclite \
     /usr/local/lib/libpcsclite.a \
     /usr/local/lib/
+# Set LIBRARY_PATH so that libpcsclite can be found by the linker.
+ENV LIBRARY_PATH=/usr/local/lib:${LIBRARY_PATH}
 
 # Copy libbpf into the final image.
 ARG LIBBPF_VERSION
@@ -303,6 +308,18 @@ COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy the pre-built CentOS 7 assets with clang. Needed to build BoringSSL and BPF tools.
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
+# Bring in our custom ninja build, needed for BorinSSL.
+COPY --from=teleport-buildbox-centos7-assets /usr/local/bin/ninja /usr/local/bin/ninja
+
+# Libclang is needed by boring-rs to generate bindings. libclang is kept in /opt/llvm/lib
+# and without this environment variable, boring-rs will not be able to find it.
+ENV LIBCLANG_PATH=/opt/llvm/lib/
+
+# C++14 compatible headers are required to build boring-rs.
+# Teleport's boring fork includes a patch that reads this variable
+# and injects it into the environment as CPLUS_INCLUDE_PATH before
+# boring is built.
+ENV BORING_BSSL_FIPS_CPLUS_INCLUDE_PATH=/opt/llvm/include/c++/v1/
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

@@ -53,6 +53,7 @@ func Commands() []CLICommand {
 		&SAMLCommand{},
 		&ACLCommand{},
 		&loginrule.Command{},
+		&IdPCommand{},
 	}
 }
 

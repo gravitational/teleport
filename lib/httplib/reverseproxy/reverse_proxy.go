@@ -19,8 +19,6 @@
 package reverseproxy
 
 import (
-	"io"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -63,7 +61,7 @@ type Forwarder struct {
 	passHostHeader bool
 	headerRewriter Rewriter
 	*httputil.ReverseProxy
-	log       utils.FieldLoggerWithWriter
+	log       logrus.FieldLogger
 	transport http.RoundTripper
 }
 
@@ -121,22 +119,9 @@ func WithFlushInterval(interval time.Duration) Option {
 
 // WithLogger sets the logger for the forwarder. It uses the logger.Writer()
 // method to get the io.Writer to use for the stdlib logger.
-func WithLogger(logger utils.FieldLoggerWithWriter) Option {
+func WithLogger(logger logrus.FieldLogger) Option {
 	return func(rp *Forwarder) {
 		rp.log = logger
-		// TODO: this is a hack to get the stdlib logger to work with the
-		// logrus logger.
-		if rp.ReverseProxy.ErrorLog == nil {
-			rp.ReverseProxy.ErrorLog = log.New(logger.WriterLevel(logrus.DebugLevel), "", log.LstdFlags)
-		}
-	}
-}
-
-// WithLogWriter sets the writer for the stdlib logger to use a different
-// io.Writer than the default one created when using WithLogger.
-func WithLogWriter(w *io.PipeWriter) Option {
-	return func(rp *Forwarder) {
-		rp.ReverseProxy.ErrorLog = log.New(w, "", log.LstdFlags)
 	}
 }
 

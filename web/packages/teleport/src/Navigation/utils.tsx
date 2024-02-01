@@ -29,9 +29,9 @@ import type { TeleportFeature } from 'teleport/types';
 export function getIcon(feature: TeleportFeature, size: NavigationItemSize) {
   switch (size) {
     case NavigationItemSize.Large:
-      return <Icon>{feature.navigationItem.icon}</Icon>;
+      return <Icon>{<feature.navigationItem.icon />}</Icon>;
 
     case NavigationItemSize.Small:
-      return <SmallIcon>{feature.navigationItem.icon}</SmallIcon>;
+      return <SmallIcon>{<feature.navigationItem.icon />}</SmallIcon>;
   }
 }

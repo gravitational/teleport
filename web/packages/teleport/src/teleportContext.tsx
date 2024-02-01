@@ -23,7 +23,6 @@ import * as types from './types';
 import AuditService from './services/audit';
 import RecordingsService from './services/recordings';
 import NodeService from './services/nodes';
-import clusterService from './services/clusters';
 import sessionService from './services/session';
 import ResourceService from './services/resources';
 import userService from './services/user';
@@ -36,6 +35,7 @@ import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
 import { storageService } from './services/storageService';
+import ClustersService from './services/clusters/clusters';
 
 class TeleportContext implements types.Context {
   // stores
@@ -47,7 +47,7 @@ class TeleportContext implements types.Context {
   auditService = new AuditService();
   recordingsService = new RecordingsService();
   nodeService = new NodeService();
-  clusterService = clusterService;
+  clusterService = new ClustersService();
   sshService = sessionService;
   resourceService = new ResourceService();
   userService = userService;
@@ -194,6 +194,7 @@ class TeleportContext implements types.Context {
       accessRequests: hasAccessRequestsAccess(),
       newAccessRequest: userContext.getAccessRequestAccess().create,
       downloadCenter: userContext.hasDownloadCenterListAccess(),
+      supportLink: userContext.hasSupportPageLinkAccess(),
       discover: userContext.hasDiscoverAccess(),
       plugins: userContext.getPluginsAccess().list,
       integrations: userContext.getIntegrationsAccess().list,
@@ -234,6 +235,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   newAccessRequest: false,
   accessRequests: false,
   downloadCenter: false,
+  supportLink: false,
   discover: false,
   plugins: false,
   integrations: false,

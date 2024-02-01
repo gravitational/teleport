@@ -156,12 +156,20 @@ func (p *Pack) RootWebAddr() string {
 	return p.rootCluster.Web
 }
 
+func (p *Pack) RootAppName() string {
+	return p.rootAppName
+}
+
 func (p *Pack) RootAppClusterName() string {
 	return p.rootAppClusterName
 }
 
 func (p *Pack) RootAppPublicAddr() string {
 	return p.rootAppPublicAddr
+}
+
+func (p *Pack) LeafAppName() string {
+	return p.leafAppName
 }
 
 func (p *Pack) LeafAppClusterName() string {
@@ -276,6 +284,22 @@ func (p *Pack) MakeTeleportClient(t *testing.T, user string) *client.TeleportCli
 	}, *creds)
 	require.NoError(t, err)
 	return tc
+}
+
+// GenerateAndSetupUserCreds is useful in situations where we need to manually manipulate user
+// certs, for example when we want to force a TeleportClient to operate using expired certs.
+//
+// ttl equals to 0 means that the certs will have the default TTL used by helpers.GenerateUserCreds.
+func (p *Pack) GenerateAndSetupUserCreds(t *testing.T, tc *client.TeleportClient, ttl time.Duration) {
+	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+		Process:  p.rootCluster.Process,
+		Username: tc.Username,
+		TTL:      ttl,
+	})
+	require.NoError(t, err)
+
+	err = helpers.SetupUserCreds(tc, p.rootCluster.Process.Config.Proxy.SSHAddr.Addr, *creds)
+	require.NoError(t, err)
 }
 
 // CreateAppSession creates an application session with the root cluster. The

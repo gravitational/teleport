@@ -290,3 +290,28 @@ func TestGetAppLabels(t *testing.T) {
 		require.Equal(t, tt.expected, result)
 	}
 }
+
+func TestInsecureSkipVerify(t *testing.T) {
+	tests := []struct {
+		annotations map[string]string
+		expected    bool
+	}{
+		{
+			annotations: map[string]string{types.DiscoveryAppInsecureSkipVerify: "true"},
+			expected:    true,
+		},
+		{
+			annotations: map[string]string{types.DiscoveryAppInsecureSkipVerify: "false"},
+			expected:    false,
+		},
+		{
+			annotations: map[string]string{},
+			expected:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		result := getTLSInsecureSkipVerify(tt.annotations)
+		require.Equal(t, tt.expected, result)
+	}
+}

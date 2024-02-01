@@ -13,6 +13,50 @@ be able to run Teleport in FedRAMP/FIPS mode on ARM64.
 
 Teleport 15 now provides hardened AWS AMIs on ARM64.
 
+#### Streaming session playback
+
+Prior to Teleport 15, `tsh play` and the web UI would download the entire
+session recording before starting playback. As a result, playback of large
+recordings could be slow to start, and may fail to play at all in the browser.
+
+In Teleport 15, session recordings are streamed from the auth server, allowing
+playback to start before the entire session is downloaded and unpacked.
+
+Additionally, `tsh play` now supports a `--speed` flag for adjusting the
+playback speed.
+
+#### Standalone Teleport Operator
+
+Prior to Teleport 15, the Teleport Kubernetes Operator had to run as a sidecar
+of the Teleport auth. It was not possible to use the operator in Teleport Cloud
+or against a Teleport cluster not deployed with the `teleport-cluster` Helm chart.
+
+In Teleport 15, the Teleport Operator can reconcile resources in any Teleport
+cluster. Teleport Cloud users can now use the operator to manage their resources.
+
+When deployed with the `teleport-cluster` chart, the operator now runs in a
+separate pod. This ensures that Teleport's availability won't be impacted if
+the operator becomes unready.
+
+See [the Standalone Operator guide](docs/pages/management/dynamic-resources/teleport-operator-standalone.mdx)
+for installation instructions.
+
+#### Teleport Operator now supports roles v6 and v7
+
+Starting with Teleport 15, newly supported kinds will contain the resource version.
+For example: `TeleportRoleV6` and `TeleportRoleV7` kinds will allow users to
+create Teleport Roles v6 and v7.
+
+Existing kinds will remain unchanged in Teleport 15, but will be renamed in
+Teleport 16 for consistency.
+
+To migrate an existing Custom Resource (CR) `TeleportRole` to
+a `TeleportRoleV7`, you must:
+- upgrade Teleport and the operator to v15
+- annotate the exiting `TeleportRole` CR with `teleport.dev/keep: "true"`
+- delete the `TeleportRole` CR (it won't delete the role in Teleport thanks to the annotation)
+- create a new `TeleportRoleV7` CR with the same name
+
 ### Breaking changes and deprecations
 
 #### RDP engine requires RemoteFX
@@ -53,17 +97,6 @@ rely on parsing the output from multiple nodes should pass the `--log-dir` flag
 to `tsh ssh`, which will create a directory where the separated output of each node
 will be written.
 
-#### `tsh play` now streams PTY playback
-
-Prior to Teleport 15, `tsh play` would download the entire session recording
-before starting playback. As a result, playback of large recordings could be
-slow to start. In Teleport 15 session recordings are streamed from the auth
-server, allowing playback to start before the entire session is downloaded and
-unpacked.
-
-Additionally, `tsh play` now supports a `--speed` flag for adjusting the
-playback speed.
-
 #### `drop` host user creation mode
 
 The `drop` host user creation mode has been removed in Teleport 15. It is replaced
@@ -71,7 +104,13 @@ by `insecure-drop`, which still creates temporary users but does not create a
 home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
 or use PAM.
 
-##### Packages no longer published to legacy Debian and RPM repos
+#### Remove restricted sessions for SSH
+
+The restricted session feature for SSH has been deprecated since Teleport 14 and 
+has been removed in Teleport 15. We recommend implementing network restrictions 
+outside of Teleport (iptables, security groups, etc).
+
+#### Packages no longer published to legacy Debian and RPM repos
 
 `deb.releases.teleport.dev` and `rpm.releases.teleport.dev` were deprecated in
 Teleport 11. Beginning in Teleport 15, Debian and RPM packages will no longer be
@@ -158,6 +197,63 @@ the newer hardened Amazon Linux 2023 AMIs will be produced.
 
 The legacy AMIs will continue to be published for Teleport 13 and 14 throughout
 the remainder of these releases' lifecycle.
+
+#### `windows_desktop_service` no longer writes to the NTAuth store
+
+In Teleport 15, the process that periodically publishes Teleport's user CA to
+the Windows NTAuth store has been removed. It is not necessary for Teleport to
+perform this step since it must be done by an administrator at installation
+time. As a result, Teleport's service account can use more restrictive
+permissions.
+
+#### Example AWS cluster deployments updated
+
+The AWS terraform examples for Teleport clusters have been updated to use the
+newer hardened Amazon Linux 2023 AMIs. Additionally, the default architecture
+and instance type has been changed to ARM64/Graviton.
+
+As a result of this modernization, the legacy monitoring stack configuration
+used with the legacy AMIs has been removed.
+
+#### `teleport-cluster` Helm chart changes
+
+Due to the new separate operator deployment, the operator is deployed by a subchart.
+This causes the following breaking changes:
+- `installCRDs` has been replaced by `operator.installCRDs`
+- `teleportVersionOverride` does not set the operator version anymore, you must 
+  use `operator.teleportVersionOverride` to override the operator version.
+
+Note: version overrides are dangerous and not recommended. Each chart version
+is designed to run a specific Teleport and operator version. If you want to
+deploy a specific Teleport version, use Helm's `--version X.Y.Z` instead.
+
+The operator now joins using a Kubernetes ServiceAccount token. To validate the
+token, the Teleport Auth Service must have access to the `TokenReview` API.
+The chart configures this for you since v12, unless you disabled `rbac` creation.
+
+#### Resource version is now mandatory and immutable in the Terraform provider
+
+Starting with Teleport 15, each Terraform resource must have its version specified.
+Before version 15, Terraform was picking the latest version available on resource creation.
+This caused inconsistencies as new resources created with the same manifest as
+old resources were not exhibiting the same behavior.
+
+Resource version is now immutable. Changing a resource version will cause
+Terraform to delete and re-create the resource. This ensures the correct
+defaults are set.
+
+Existing resources will continue to work as Terraform already imported their
+version. However, new resources will require an explicit version.
+
+### Other changes
+
+#### Increased password length
+
+The minimum password length has been increased to 12 characters.
+
+#### Increased account lockout interval
+
+The account lockout interval has been increased to 30 minutes.
 
 ## 14.0.0 (09/20/23)
 

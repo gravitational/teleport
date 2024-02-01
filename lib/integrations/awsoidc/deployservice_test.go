@@ -146,7 +146,7 @@ func TestDeployServiceRequest(t *testing.T) {
 				ClusterName:          stringPointer("mycluster-teleport"),
 				ServiceName:          stringPointer("mycluster-teleport-database-service"),
 				TaskName:             stringPointer("mycluster-teleport-database-service"),
-				TeleportIAMTokenName: stringPointer("discover-aws-oidc-iam-token"),
+				TeleportIAMTokenName: "discover-aws-oidc-iam-token",
 				IntegrationName:      "teleportdev",
 				ProxyServerHostPort:  "proxy.example.com:3080",
 				ResourceCreationTags: AWSTags{

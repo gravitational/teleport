@@ -89,7 +89,7 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	c.nodeAdd.Alias(AddNodeHelp)
 
 	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster.")
-	c.nodeList.Flag("namespace", "Namespace of the nodes").Default(apidefaults.Namespace).StringVar(&c.namespace)
+	c.nodeList.Flag("namespace", "Namespace of the nodes").Hidden().Default(apidefaults.Namespace).StringVar(&c.namespace)
 	c.nodeList.Flag("format", "Output format, 'text', or 'yaml'").Default(teleport.Text).StringVar(&c.lsFormat)
 	c.nodeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 	c.nodeList.Alias(ListNodesHelp)
@@ -146,7 +146,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 
 	token := c.token
 	if c.token == "" {
-		token, err = utils.CryptoRandomHex(auth.TokenLenBytes)
+		token, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return trace.WrapWithMessage(err, "generating token value")
 		}

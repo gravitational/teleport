@@ -69,6 +69,7 @@ func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventReques
 				BotName:       a.AnonymizeString(u.BotName),
 				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
 				JoinMethod:    u.JoinMethod,
+				UserName:      a.AnonymizeString(u.UserName),
 			},
 		},
 	}
@@ -95,6 +96,7 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 	sessionStart := &prehogv1a.SessionStartEvent{
 		UserName:    a.AnonymizeString(u.UserName),
 		SessionType: u.SessionType,
+		UserKind:    u.UserKind,
 	}
 	if u.Database != nil {
 		sessionStart.Database = &prehogv1a.SessionStartDatabaseMetadata{
@@ -483,6 +485,7 @@ func (u *KubeRequestEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRe
 		Event: &prehogv1a.SubmitEventRequest_KubeRequest{
 			KubeRequest: &prehogv1a.KubeRequestEvent{
 				UserName: a.AnonymizeString(u.UserName),
+				UserKind: u.UserKind,
 			},
 		},
 	}
@@ -496,6 +499,7 @@ func (u *SFTPEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 		Event: &prehogv1a.SubmitEventRequest_Sftp{
 			Sftp: &prehogv1a.SFTPEvent{
 				UserName: a.AnonymizeString(u.UserName),
+				UserKind: u.UserKind,
 				Action:   u.Action,
 			},
 		},
@@ -1005,6 +1009,23 @@ func (e *DiscoveryFetchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEven
 			DiscoveryFetchEvent: &prehogv1a.DiscoveryFetchEvent{
 				CloudProvider: e.CloudProvider,
 				ResourceType:  e.ResourceType,
+			},
+		},
+	}
+}
+
+// MFAAuthenticationEvent is emitted when a user performs MFA authentication.
+type MFAAuthenticationEvent prehogv1a.MFAAuthenticationEvent
+
+// Anonymize anonymizes the event.
+func (e *MFAAuthenticationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_MfaAuthenticationEvent{
+			MfaAuthenticationEvent: &prehogv1a.MFAAuthenticationEvent{
+				UserName:          a.AnonymizeString(e.UserName),
+				DeviceId:          a.AnonymizeString(e.DeviceId),
+				DeviceType:        e.DeviceType,
+				MfaChallengeScope: e.MfaChallengeScope,
 			},
 		},
 	}

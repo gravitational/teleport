@@ -18,12 +18,12 @@
 
 import { createInsecureClientCredentials } from 'teleterm/services/grpcCredentials';
 
-import createClient from './createClient';
+import { createTshdClient } from './createClient';
 
 // This test detects situations where one of the generated JS protobufs has missing dependencies.
 // Dependencies must be provided as `--path` values to `buf generate` in build.assets/genproto.sh.
 test('generated protos import necessary dependencies', () => {
   expect(() => {
-    createClient('localhost:0', createInsecureClientCredentials());
+    createTshdClient('localhost:0', createInsecureClientCredentials());
   }).not.toThrow();
 });

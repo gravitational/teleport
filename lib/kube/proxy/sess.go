@@ -180,7 +180,7 @@ func (p *kubeProxyClientStreams) Close() error {
 		p.sizeQueue.Close()
 	}
 	p.wg.Wait()
-	return trace.Wrap(p.proxy.Close())
+	return nil
 }
 
 // multiResizeQueue is a merged queue of multiple terminal size queues.
@@ -272,7 +272,7 @@ type party struct {
 	ID        uuid.UUID
 	Client    remoteClient
 	Mode      types.SessionParticipantMode
-	closeC    chan struct{}
+	closeC    chan error
 	closeOnce sync.Once
 }
 
@@ -283,13 +283,14 @@ func newParty(ctx authContext, mode types.SessionParticipantMode, client remoteC
 		ID:     uuid.New(),
 		Client: client,
 		Mode:   mode,
-		closeC: make(chan struct{}),
+		closeC: make(chan error, 1),
 	}
 }
 
 // InformClose informs the party that he must leave the session.
-func (p *party) InformClose() {
+func (p *party) InformClose(err error) {
 	p.closeOnce.Do(func() {
+		p.closeC <- err
 		close(p.closeC)
 	})
 }
@@ -372,6 +373,8 @@ type session struct {
 	// decremented when he leaves - it waits until the session leave events
 	// are emitted for every party before returning.
 	partiesWg sync.WaitGroup
+	// terminationErr is set when the session is terminated.
+	terminationErr error
 }
 
 // newSession creates a new session in pending mode.
@@ -612,11 +615,22 @@ func (s *session) launch() error {
 
 	s.io.On()
 	if err = executor.StreamWithContext(s.streamContext, options); err != nil {
+		s.setTerminationErr(err)
 		s.reportErrorToSessionRecorder(err)
 		s.log.WithError(err).Warning("Executor failed while streaming.")
+
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (s *session) setTerminationErr(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.terminationErr != nil {
+		return
+	}
+	s.terminationErr = err
 }
 
 // reportErrorToSessionRecorder reports the error to the session recorder
@@ -626,7 +640,7 @@ func (s *session) reportErrorToSessionRecorder(err error) {
 		return
 	}
 	if s.recorder != nil {
-		fmt.Fprintf(s.recorder, "\n---\nSession exited with error: %v\n", err)
+		fmt.Fprintf(s.recorder, "\r\n---\r\nSession exited with error: %v\r\n", err)
 	}
 }
 
@@ -747,12 +761,6 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		defer s.eventsWaiter.Done()
 		s.mu.Lock()
 		defer s.mu.Unlock()
-
-		for _, party := range s.parties {
-			if err := party.Client.sendStatus(errExec); err != nil {
-				s.forwarder.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-			}
-		}
 
 		serverMetadata := apievents.ServerMetadata{
 			ServerID:        s.forwarder.cfg.HostID,
@@ -913,6 +921,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 			c := p.Client.forceTerminate()
 			select {
 			case <-c:
+				s.setTerminationErr(sessionTerminatedByModeratorErr)
 				go func() {
 					s.log.Debugf("Received force termination request")
 					err := s.Close()
@@ -1055,14 +1064,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		errs = append(errs, trace.Wrap(err))
 	}
 
-	party.InformClose()
-	defer func() {
-		if err := party.Client.Close(); err != nil {
-			s.log.WithError(err).Error("Error closing party")
-			errs = append(errs, trace.Wrap(err))
-		}
-	}()
-
+	party.InformClose(s.terminationErr)
 	if len(s.parties) == 0 || id == s.initiator {
 		go func() {
 			// Currently, Teleport closes the session when the initiator exits.
@@ -1163,9 +1165,10 @@ func (s *session) Close() error {
 			s.log.WithError(err).Debug("Failed to close session tracker")
 		}
 		s.mu.Lock()
+		terminationErr := s.terminationErr
 		// terminate all active parties in the session.
 		for _, party := range s.parties {
-			party.InformClose()
+			party.InformClose(terminationErr)
 		}
 		recorder := s.recorder
 		s.mu.Unlock()

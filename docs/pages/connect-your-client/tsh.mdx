@@ -436,9 +436,8 @@ $ tsh ls
 
 # Node Name     Address            Labels
 # ---------     -------            ------
-# turing        10.1.0.5:3022      os:linux
-# turing        10.1.0.6:3022      os:linux
-# graviton      10.1.0.7:3022      os:osx
+# turing        ⟵ Tunnel          os=linux
+# graviton      10.1.0.7:3022      os=osx
 ```
 
 [CLI Docs - tsh ls](../reference/cli/tsh.mdx#tsh-ls)
@@ -449,9 +448,9 @@ $ tsh ls
 # Only show Nodes with os label set to 'osx':
 $ tsh ls os=osx
 
-# Nodename      UUID                   Address            Labels
-# ---------     -------                -------            ------
-# graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
+# Nodename      Address            Labels
+# ---------     -------            ------
+# graviton      10.1.0.7:3022      os=osx
 ```
 
 [CLI Docs -tsh ls](../reference/cli/tsh.mdx#tsh-ls)

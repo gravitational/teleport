@@ -108,6 +108,13 @@ const (
 	// assistantLimiterCapacity is the total capacity of the token bucket for the assistant rate limiter.
 	// The bucket starts full, prefilled for a week.
 	assistantLimiterCapacity = assistantTokensPerHour * 24 * 7
+	// webUIFlowLabelKey is a label that may be added to resources
+	// created via the web UI, indicating which flow the resource was created on.
+	// This label is used for enhancing UX in the web app, by showing icons related,
+	// to the workflow it was added, or providing unique features to those resources.
+	// Example values:
+	// - github-actions-ssh: indicates that the resource was added via the Bot GitHub Actions SSH flow
+	webUIFlowLabelKey = "teleport.internal/ui-flow"
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -325,7 +332,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request has a session cookie or a client cert, forward to
 	// application handlers. If the request is requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
-	if h.appHandler != nil && (app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r)) {
+	if h.appHandler != nil && (app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r)) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
@@ -535,8 +542,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 			httplib.SetNoCacheHeaders(w.Header())
 
-			// app access needs to make a CORS fetch request, so we only set the default CSP on that page
+			// DELETE IN 17.0: Delete the first if block. Keep the else case.
+			// Kept for backwards compatibility.
+			//
+			// This case only adds an additional CSP `content-src` value of the
+			// app URL which allows requesting to the app domain required by
+			// the legacy app access.
 			if strings.HasPrefix(r.URL.Path, "/web/launch/") {
+				// legacy app access needs to make a CORS fetch request,
+				// so we only set the default CSP on that page
 				parts := strings.Split(r.URL.Path, "/")
 				// grab the FQDN from the URL to allow in the connect-src CSP
 				applicationURL := "https://" + parts[3] + ":*"
@@ -545,6 +559,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			} else {
 				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
 			}
+
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
 			}
@@ -717,8 +732,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
-	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet))         // get recorded session's timing information (from events)
-	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                            // get recorded session's bytes (from events)
+	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
+
+	// DELETE in 16(zmb3): v15+ web UIs use new streaming 'ttyplayback' endpoint
+	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
+	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
 	// scp file transfer
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
@@ -741,6 +759,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", h.WithLimiter(h.getAppJoinScriptHandle))
 	h.GET("/scripts/:token/install-database.sh", h.WithLimiter(h.getDatabaseJoinScriptHandle))
+
+	// Discovery installation script requires a query param to define the DiscoveryGroup:
+	// ?discoveryGroup=<group name>
+	h.GET("/scripts/:token/install-discovery.sh", h.WithLimiter(h.getDiscoveryJoinScriptHandle))
+
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
@@ -833,13 +856,17 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.GET("/webapi/scripts/integrations/configure/listdatabases-iam.sh", h.WithLimiter(h.awsOIDCConfigureListDatabasesIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deploydatabaseservices", h.WithClusterAuth(h.awsOIDCDeployDatabaseServices))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/eksclusters", h.WithClusterAuth(h.awsOIDCListEKSClusters))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/enrolleksclusters", h.WithClusterAuth(h.awsOIDCEnrollEKSClusters))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
+	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
@@ -909,8 +936,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Channel can contain "/", hence the use of a catch-all parameter
 	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades))
 
+	// GET Machine ID bot by name
+	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
 	// Create Machine ID bots
 	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
+	// Create bot join tokens
+	h.POST("/webapi/sites/:site/machine-id/token", h.WithClusterAuth(h.createBotJoinToken))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1064,16 +1095,15 @@ func (h *Handler) AccessGraphAddr() utils.NetAddr {
 
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
-		Type:                constants.Local,
-		SecondFactor:        cap.GetSecondFactor(),
-		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
-		AllowPasswordless:   cap.GetAllowPasswordless(),
-		AllowHeadless:       cap.GetAllowHeadless(),
-		Local:               &webclient.LocalSettings{},
-		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
-		PIVSlot:             cap.GetPIVSlot(),
-		DeviceTrustDisabled: deviceTrustDisabled(cap),
-		DeviceTrust:         deviceTrustSettings(cap),
+		Type:              constants.Local,
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		AllowPasswordless: cap.GetAllowPasswordless(),
+		AllowHeadless:     cap.GetAllowHeadless(),
+		Local:             &webclient.LocalSettings{},
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
+		PIVSlot:           cap.GetPIVSlot(),
+		DeviceTrust:       deviceTrustSettings(cap),
 	}
 
 	// Only copy the connector name if it's truly local and not a local fallback.
@@ -1110,12 +1140,11 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:        cap.GetSecondFactor(),
-		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
-		PIVSlot:             cap.GetPIVSlot(),
-		DeviceTrustDisabled: deviceTrustDisabled(cap),
-		DeviceTrust:         deviceTrustSettings(cap),
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
+		PIVSlot:           cap.GetPIVSlot(),
+		DeviceTrust:       deviceTrustSettings(cap),
 	}
 }
 
@@ -1127,12 +1156,11 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:        cap.GetSecondFactor(),
-		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
-		PIVSlot:             cap.GetPIVSlot(),
-		DeviceTrustDisabled: deviceTrustDisabled(cap),
-		DeviceTrust:         deviceTrustSettings(cap),
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
+		PIVSlot:           cap.GetPIVSlot(),
+		DeviceTrust:       deviceTrustSettings(cap),
 	}
 }
 
@@ -1144,12 +1172,11 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:        cap.GetSecondFactor(),
-		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
-		PIVSlot:             cap.GetPIVSlot(),
-		DeviceTrustDisabled: deviceTrustDisabled(cap),
-		DeviceTrust:         deviceTrustSettings(cap),
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
+		PIVSlot:           cap.GetPIVSlot(),
+		DeviceTrust:       deviceTrustSettings(cap),
 	}
 }
 
@@ -1584,9 +1611,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
 		automaticUpgradesTargetVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(r.Context())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		h.log.WithError(err).Error("Cannot read target version")
 	}
 
 	webCfg := webclient.WebConfig{
@@ -1596,7 +1621,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		TunnelPublicAddress:            tunnelPublicAddr,
 		RecoveryCodesEnabled:           clusterFeatures.GetRecoveryCodes(),
 		UI:                             h.getUIConfig(r.Context()),
-		IsDashboard:                    isDashboard(clusterFeatures),
+		IsDashboard:                    services.IsDashboard(clusterFeatures),
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
@@ -2055,7 +2080,7 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 //
 // POST /v1/webapi/sessions/web
 //
-// {"user": "alex", "pass": "abc123", "second_factor_token": "token", "second_factor_type": "totp"}
+// {"user": "alex", "pass": "abcdef123456", "second_factor_token": "token", "second_factor_type": "totp"}
 //
 // # Response
 //
@@ -2363,7 +2388,7 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 //
 // POST /webapi/mfa/login/begin
 //
-// {"user": "alex", "pass": "abc123"}
+// {"user": "alex", "pass": "abcdef123456"}
 // {"passwordless": true}
 //
 // Successful response:
@@ -3412,6 +3437,8 @@ func queryOrder(query url.Values, name string, def types.EventOrder) (types.Even
 // It returns the binary stream unencoded, directly in the respose body,
 // with Content-Type of application/octet-stream, gzipped with up to 95%
 // compression ratio.
+//
+// DELETE IN 16(zmb3)
 func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	httplib.SetNoCacheHeaders(w.Header())
 
@@ -4322,17 +4349,6 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 	// ServeContent sets the correct headers: Content-Type, Content-Length and Accept-Ranges.
 	// It also handles the Range negotiation
 	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
-}
-
-// isDashboard returns a bool indicating if the cluster is a
-// dashboard cluster.
-// Dashboard is a cluster running on cloud infrastructure that
-// isn't a Teleport Cloud cluster
-func isDashboard(features proto.Features) bool {
-	// TODO(matheus): for now, we assume dashboard based on
-	// the presence of recovery codes, which are never enabled
-	// in OSS or self-hosted Teleport.
-	return !features.GetCloud() && features.GetRecoveryCodes()
 }
 
 const robots = `User-agent: *

@@ -32,5 +32,29 @@ type OktaConfig struct {
 	APITokenPath string
 
 	// SyncPeriod is the duration between synchronization calls.
+	// TODO(mdwn): Remove this once enterprise changes have been made.
 	SyncPeriod time.Duration
+
+	// SyncSettings is the settings for synchronizing access lists from Okta.
+	SyncSettings OktaSyncSettings
+}
+
+// OktaSyncSettings specifies the configuration for synchronizing permissions from Okta.
+type OktaSyncSettings struct {
+	// AppGroupSyncPeriod is the duration between synchronization calls for synchronizing Okta applications and groups.
+	AppGroupSyncPeriod time.Duration
+
+	// SyncAccessLists turns the Okta access list synchronization functionality.
+	SyncAccessLists bool
+
+	// DefaultOwners are the default owners for all imported access lists.
+	DefaultOwners []string
+
+	// GroupFilters are filters for which Okta groups to synchronize as access lists.
+	// These are globs/regexes.
+	GroupFilters []string
+
+	// AppFilters are filters for which Okta applications to synchronize as access lists.
+	// These are globs/regexes.
+	AppFilters []string
 }

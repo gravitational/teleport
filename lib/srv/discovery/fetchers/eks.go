@@ -232,7 +232,7 @@ func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName str
 		return nil, trace.CompareFailed("EKS cluster %q not enrolled due to its current status: %s", clusterName, st)
 	}
 
-	cluster, err := services.NewKubeClusterFromAWSEKS(rsp.Cluster)
+	cluster, err := services.NewKubeClusterFromAWSEKS(aws.StringValue(rsp.Cluster.Name), aws.StringValue(rsp.Cluster.Arn), rsp.Cluster.Tags)
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "Unable to convert eks.Cluster cluster into types.KubernetesClusterV3.")
 	}

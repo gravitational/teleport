@@ -270,6 +270,13 @@ func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessLis
 	return members, nextToken, nil
 }
 
+// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	// Locks are not used here as these operations are more likely to be used by the cache.
+	// Lists all access list members for all access lists.
+	return a.memberService.ListResources(ctx, pageSize, nextToken)
+}
+
 // GetAccessListMember returns the specified access list member resource.
 func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	var member *accesslist.AccessListMember
@@ -477,15 +484,26 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 	return reviews, nextToken, nil
 }
 
+// ListAllAccessListReviews will list access list reviews for all access lists.
+func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
+	// Locks are not used here as these operations are more likely to be used by the cache.
+	// Lists all access list reviews for all access lists.
+	return a.reviewService.ListResources(ctx, pageSize, pageToken)
+}
+
 // CreateAccessListReview will create a new review for an access list.
 func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, time.Time, error) {
 	reviewName := uuid.New().String()
 	createdReview, err := accesslist.NewReview(header.Metadata{
-		Name: reviewName,
+		Name:        reviewName,
+		Labels:      review.GetAllLabels(),
+		Description: review.Metadata.Description,
+		Expires:     review.Expiry(),
 	}, accesslist.ReviewSpec{
 		AccessList: review.Spec.AccessList,
 		Reviewers:  review.Spec.Reviewers,
 		ReviewDate: review.Spec.ReviewDate,
+		Notes:      review.Spec.Notes,
 		Changes:    review.Spec.Changes,
 	})
 	if err != nil {
@@ -601,16 +619,11 @@ func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessLi
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessListReviews will delete all access list reviews from an access list.
-func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context, accessList string) error {
-	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		_, err := a.service.GetResource(ctx, accessList)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(a.reviewService.WithPrefix(accessList).DeleteAllResources(ctx))
-	})
-	return trace.Wrap(err)
+// DeleteAllAccessListReviews will delete all access list reviews from all access lists.
+func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context) error {
+	// Locks are not used here as these operations are more likely to be used by the cache.
+	// Delete all members for all access lists.
+	return trace.Wrap(a.reviewService.DeleteAllResources(ctx))
 }
 
 func lockName(accessListName string) string {

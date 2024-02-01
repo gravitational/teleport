@@ -240,9 +240,6 @@ const (
 	// ComponentBPF is the eBPF packagae.
 	ComponentBPF = "bpf"
 
-	// ComponentRestrictedSession is restriction of user access to kernel objects
-	ComponentRestrictedSession = "restrictedsess"
-
 	// ComponentCgroup is the cgroup package.
 	ComponentCgroup = "cgroups"
 
@@ -495,6 +492,9 @@ const (
 	// CertExtensionDeviceCredentialID is the identifier for the credential used
 	// by the device to authenticate itself.
 	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
+	// CertExtensionBotName indicates the name of the Machine ID bot this
+	// certificate was issued to, if any.
+	CertExtensionBotName = "bot-name@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.

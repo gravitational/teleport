@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -47,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -55,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -505,13 +504,6 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 	return &srv.HostSudoersNotImplemented{}
 }
 
-// GetRestrictedSessionManager returns a NOP manager since for a
-// forwarding server it makes no sense (it has to run on the actual
-// node).
-func (s *Server) GetRestrictedSessionManager() restricted.Manager {
-	return &restricted.NOP{}
-}
-
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() types.Server {
 	return &types.ServerV2{
@@ -670,14 +662,7 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	issuer, err := oidc.IssuerForCluster(ctx, s.authClient)
-	if err != nil {
-		return nil, trace.BadParameter("failed to get issuer %v", err)
-	}
-
-	token, err := s.authClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: issuer,
-	})
+	token, err := s.authClient.GenerateAWSOIDCToken(ctx)
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
@@ -904,23 +889,6 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 	channelType := nch.ChannelType()
 
 	switch channelType {
-	// Channels of type "tracing-request" are sent to determine if ssh tracing envelopes
-	// are supported. Accepting the channel indicates to clients that they may wrap their
-	// ssh payload with tracing context.
-	case tracessh.TracingChannel:
-		ch, _, err := nch.Accept()
-		if err != nil {
-			s.log.Warnf("Unable to accept channel: %v", err)
-			if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-				s.log.Warnf("Failed to reject channel: %v", err)
-			}
-			return
-		}
-
-		if err := ch.Close(); err != nil {
-			s.log.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-		}
-		return
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
@@ -1185,8 +1153,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// subset of all the possible request types.
 	if scx.JoinOnly {
 		switch req.Type {
-		case tracessh.TracingRequest:
-			return s.handleTracingRequest(ctx, req, scx)
 		case sshutils.PTYRequest:
 			return s.termHandlers.HandlePTYReq(ctx, ch, req, scx)
 		case sshutils.ShellRequest:
@@ -1217,8 +1183,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 
 	switch req.Type {
-	case tracessh.TracingRequest:
-		return s.handleTracingRequest(ctx, req, scx)
 	case sshutils.ExecRequest:
 		return s.termHandlers.HandleExec(ctx, ch, req, scx)
 	case sshutils.PTYRequest:
@@ -1398,7 +1362,18 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 
 	// if SFTP was requested, check that
 	if subsystem.subsytemName == teleport.SFTPSubsystem {
-		if err := serverContext.CheckSFTPAllowed(s.sessionRegistry); err != nil {
+		err := serverContext.CheckSFTPAllowed(s.sessionRegistry)
+		if err != nil {
+			s.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
+				Metadata: apievents.Metadata{
+					Code: events.SFTPDisallowedCode,
+					Type: events.SFTPEvent,
+					Time: time.Now(),
+				},
+				UserMetadata:   serverContext.Identity.GetUserMetadata(),
+				ServerMetadata: serverContext.GetServerMetadata(),
+				Error:          err.Error(),
+			})
 			return trace.Wrap(err)
 		}
 	}
@@ -1421,14 +1396,6 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 			Err:  trace.Wrap(err),
 		})
 	}()
-
-	return nil
-}
-
-func (s *Server) handleTracingRequest(ctx context.Context, req *ssh.Request, scx *srv.ServerContext) error {
-	if _, err := scx.RemoteSession.SendRequest(ctx, req.Type, false, req.Payload); err != nil {
-		s.log.WithError(err).Debugf("Unable to set forward tracing context")
-	}
 
 	return nil
 }

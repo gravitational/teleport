@@ -20,7 +20,7 @@ import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
 import * as types from '../types';
 
-export class MockTshClient implements types.TshClient {
+export class MockTshClient implements types.TshdClient {
   listRootClusters: () => Promise<types.Cluster[]>;
   listLeafClusters = () => Promise.resolve([]);
   getKubes: (
@@ -36,6 +36,7 @@ export class MockTshClient implements types.TshClient {
   getServers: (
     params: types.GetResourcesParams
   ) => Promise<types.GetServersResponse>;
+  getApps: (params: types.GetResourcesParams) => Promise<types.GetAppsResponse>;
   assumeRole: (
     clusterUri: string,
     requestIds: string[],
@@ -91,7 +92,6 @@ export class MockTshClient implements types.TshClient {
   createConnectMyComputerRole = () => Promise.resolve({ certsReloaded: true });
   createConnectMyComputerNodeToken = () =>
     Promise.resolve({ token: 'abc', labelsList: [] });
-  deleteConnectMyComputerToken = () => Promise.resolve();
   waitForConnectMyComputerNodeJoin: () => Promise<types.WaitForConnectMyComputerNodeJoinResponse>;
 
   updateHeadlessAuthenticationState: (
@@ -105,4 +105,6 @@ export class MockTshClient implements types.TshClient {
   updateUserPreferences = async () => ({});
   getSuggestedAccessLists = async () => [];
   promoteAccessRequest = async () => undefined;
+
+  updateTshdEventsServerAddress: (address: string) => Promise<void>;
 }

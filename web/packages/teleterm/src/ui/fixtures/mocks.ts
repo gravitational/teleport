@@ -32,7 +32,7 @@ export class MockAppContext extends AppContext {
       mainProcessClient,
       tshClient: tshdClient,
       ptyServiceClient,
-      subscribeToTshdEvent: () => {},
+      setupTshdEventContextBridgeService: () => {},
     });
   }
 }

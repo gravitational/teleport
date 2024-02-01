@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/proxy"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -178,9 +177,6 @@ type Server struct {
 	// ebpf is the service used for enhanced session recording.
 	ebpf bpf.BPF
 
-	// restrictedMgr is the service used for restricting access to kernel objects
-	restrictedMgr restricted.Manager
-
 	// onHeartbeat is a callback for heartbeat status.
 	onHeartbeat func(error)
 
@@ -296,11 +292,6 @@ func (s *Server) UseTunnel() bool {
 // GetBPF returns the BPF service used by enhanced session recording.
 func (s *Server) GetBPF() bpf.BPF {
 	return s.ebpf
-}
-
-// GetRestrictedSessionManager returns the manager for restricting user activity.
-func (s *Server) GetRestrictedSessionManager() restricted.Manager {
-	return s.restrictedMgr
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -603,13 +594,6 @@ func SetFIPS(fips bool) ServerOption {
 func SetBPF(ebpf bpf.BPF) ServerOption {
 	return func(s *Server) error {
 		s.ebpf = ebpf
-		return nil
-	}
-}
-
-func SetRestrictedSessionManager(m restricted.Manager) ServerOption {
-	return func(s *Server) error {
-		s.restrictedMgr = m
 		return nil
 	}
 }
@@ -1311,22 +1295,6 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	channelType := nch.ChannelType()
 	if s.proxyMode {
 		switch channelType {
-		// Channels of type "tracing-request" are sent to determine if ssh tracing envelopes
-		// are supported. Accepting the channel indicates to clients that they may wrap their
-		// ssh payload with tracing context.
-		case tracessh.TracingChannel:
-			ch, _, err := nch.Accept()
-			if err != nil {
-				s.Logger.Warnf("Unable to accept channel: %v", err)
-				if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-					s.Logger.Warnf("Failed to reject channel: %v", err)
-				}
-				return
-			}
-			if err := ch.Close(); err != nil {
-				s.Logger.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-			}
-			return
 		// Channels of type "direct-tcpip", for proxies, it's equivalent
 		// of teleport proxy: subsystem
 		case teleport.ChanDirectTCPIP:
@@ -1364,22 +1332,6 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	switch channelType {
-	// Channels of type "tracing-request" are sent to determine if ssh tracing envelopes
-	// are supported. Accepting the channel indicates to clients that they may wrap their
-	// ssh payload with tracing context.
-	case tracessh.TracingChannel:
-		ch, _, err := nch.Accept()
-		if err != nil {
-			if err := nch.Reject(ssh.ConnectionFailed, err.Error()); err != nil {
-				s.Logger.Warnf("Unable to reject %q channel: %v", nch.ChannelType(), err)
-			}
-			return
-		}
-
-		if err := ch.Close(); err != nil {
-			s.Logger.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-		}
-		return
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
@@ -1694,8 +1646,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// other than our own custom "subsystems" and environment manipulation.
 	if s.proxyMode {
 		switch req.Type {
-		case tracessh.TracingRequest:
-			return nil
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest:
@@ -1732,8 +1682,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// subset of all the possible request types.
 	if serverContext.JoinOnly {
 		switch req.Type {
-		case tracessh.TracingRequest:
-			return nil
 		case sshutils.PTYRequest:
 			return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 		case sshutils.ShellRequest:
@@ -1772,8 +1720,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		}
 	}
 	switch req.Type {
-	case tracessh.TracingRequest:
-		return nil
 	case sshutils.ExecRequest:
 		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
 			return trace.Wrap(err)
@@ -2208,7 +2154,18 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
 	case r.Name == teleport.SFTPSubsystem:
-		if err := ctx.CheckSFTPAllowed(s.reg); err != nil {
+		err := ctx.CheckSFTPAllowed(s.reg)
+		if err != nil {
+			s.EmitAuditEvent(context.Background(), &apievents.SFTP{
+				Metadata: apievents.Metadata{
+					Code: events.SFTPDisallowedCode,
+					Type: events.SFTPEvent,
+					Time: time.Now(),
+				},
+				UserMetadata:   ctx.Identity.GetUserMetadata(),
+				ServerMetadata: ctx.GetServerMetadata(),
+				Error:          err.Error(),
+			})
 			return nil, trace.Wrap(err)
 		}
 

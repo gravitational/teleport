@@ -67,9 +67,12 @@ spec:
           - "--base-image={{ include "teleport-kube-agent.baseImage" . }}"
           - "--version-server={{ tpl $updater.versionServer . }}"
           - "--version-channel={{ $updater.releaseChannel }}"
-          {{- if .Values.updater.extraArgs }}
-            {{- toYaml .Values.updater.extraArgs | nindent 10 }}
-          {{- end }}
+{{- if $updater.pullCredentials }}
+          - "--pull-credentials={{ $updater.pullCredentials }}"
+{{- end }}
+{{- if .Values.updater.extraArgs }}
+          {{- toYaml .Values.updater.extraArgs | nindent 10 }}
+{{- end }}
 {{- if $updater.securityContext }}
         securityContext: {{- toYaml $updater.securityContext | nindent 10 }}
 {{- end }}

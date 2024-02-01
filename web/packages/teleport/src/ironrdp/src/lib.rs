@@ -29,9 +29,13 @@ use ironrdp_session::{
 };
 use js_sys::Uint8Array;
 use log::{debug, warn};
-use std::convert::TryFrom;
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
+
+use ironrdp_pdu::cursor::ReadCursor;
+use ironrdp_pdu::decode_cursor;
+use ironrdp_pdu::fast_path::UpdateCode::{Bitmap, SurfaceCommands};
+use ironrdp_pdu::fast_path::{FastPathHeader, FastPathUpdatePdu};
 
 #[wasm_bindgen]
 pub fn init_wasm_log(log_level: &str) {
@@ -62,7 +66,7 @@ pub fn init_wasm_log(log_level: &str) {
             .with(level_filter)
             .init();
 
-        debug!("IronRDP wasm log is ready");
+        debug!("WASM log is ready");
         // TODO(isaiah): is it possible to set up logging for IronRDP trace logs like so: https://github.com/Devolutions/IronRDP/blob/c71ada5783fee13eea512d5d3d8ac79606716dc5/crates/ironrdp-client/src/main.rs#L47-L78
     }
 }
@@ -145,6 +149,7 @@ fn create_image_data_from_image_and_region(
 pub struct FastPathProcessor {
     fast_path_processor: IronRdpFastPathProcessor,
     image: DecodedImage,
+    remote_fx_check_required: bool,
 }
 
 #[wasm_bindgen]
@@ -162,6 +167,7 @@ impl FastPathProcessor {
             }
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
+            remote_fx_check_required: true,
         }
     }
 
@@ -179,6 +185,8 @@ impl FastPathProcessor {
         draw_cb: &js_sys::Function,
         respond_cb: &js_sys::Function,
     ) -> Result<(), JsValue> {
+        self.check_remote_fx(tdp_fast_path_frame)?;
+
         let (rdp_responses, client_updates) = {
             let mut output = WriteBuf::new();
 
@@ -241,6 +249,35 @@ impl FastPathProcessor {
         Ok(())
     }
 
+    /// check_remote_fx check if each fast path frame is RemoteFX frame, if we find bitmap frame
+    /// (i.e. RemoteFX is not enabled on the server) we return error with helpful message
+    fn check_remote_fx(&mut self, tdp_fast_path_frame: &[u8]) -> Result<(), JsValue> {
+        if !self.remote_fx_check_required {
+            return Ok(());
+        }
+
+        // we have to, at least partially, parse frame to check update code,
+        // code here is copied from fast_path::Processor::process
+        let mut input = ReadCursor::new(tdp_fast_path_frame);
+        decode_cursor::<FastPathHeader>(&mut input)
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+        let update_pdu = decode_cursor::<FastPathUpdatePdu<'_>>(&mut input)
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+
+        match update_pdu.update_code {
+            SurfaceCommands => {
+                self.remote_fx_check_required = false;
+                Ok(())
+            }
+            Bitmap => Err(JsValue::from_str(concat!(
+                "Teleport requires the RemoteFX codec for Windows desktop sessions, ",
+                "but it is not currently enabled. For detailed instructions, see:\n",
+                "https://goteleport.com/docs/ver/15.x/desktop-access/active-directory-manual/#enable-remotefx"
+            ))),
+            _ => Ok(()),
+        }
+    }
+
     fn apply_image_to_canvas(
         &self,
         image_data: Vec<u8>,
@@ -285,7 +322,7 @@ fn extract_smallest_rectangle(
 ) -> (InclusiveRectangle, Vec<u8>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
-    let image_width = usize::try_from(image.width()).unwrap();
+    let image_width = usize::from(image.width());
     let image_stride = image_width * pixel_size;
 
     let region_top = usize::from(region.top);
@@ -321,7 +358,7 @@ fn extract_whole_rows(
 ) -> (InclusiveRectangle, Vec<u8>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
-    let image_width = usize::try_from(image.width()).unwrap();
+    let image_width = usize::from(image.width());
     let image_stride = image_width * pixel_size;
 
     let region_top = usize::from(region.top);

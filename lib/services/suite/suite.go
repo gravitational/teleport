@@ -78,7 +78,15 @@ type TestCAConfig struct {
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	// privateKeys is to specify another RSA private key
 	if len(config.PrivateKeys) == 0 {
-		config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+		// db client CA gets its own private key to distinguish its pub key
+		// from the other CAs. Snowflake uses public key to verify JWT signer,
+		// so if we don't do this then tests verifying that the correct
+		// signer was used are pointless.
+		if config.Type == types.DatabaseClientCA {
+			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa-db-client"]}
+		} else {
+			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+		}
 	}
 	keyBytes := config.PrivateKeys[0]
 	rsaKey, err := ssh.ParseRawPrivateKey(keyBytes)
@@ -120,7 +128,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Match the key set to lib/auth/auth.go:newKeySet().
 	switch config.Type {
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
 		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
 	case types.KindJWT, types.OIDCIdPCA:
 		// Generating keys is CPU intensive operation. Generate JWT keys only
@@ -148,8 +156,6 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 				PrivateKey: keyBytes,
 			}},
 		}
-	case types.SAMLIDPCA:
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
 	default:
 		panic("unknown CA type")
 	}
@@ -167,6 +173,11 @@ type ServicesTestSuite struct {
 	ProvisioningS services.Provisioner
 	WebS          services.Identity
 	ConfigS       services.ClusterConfiguration
+	// LocalConfigS is used for local config which can only be
+	// managed by the Auth service directly (static tokens).
+	// Used by some tests to differentiate between a server
+	// and client interface.
+	LocalConfigS  services.ClusterConfiguration
 	EventsS       types.Events
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
@@ -1061,7 +1072,6 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NotEmpty(t, upserted.GetRevision())
 	require.NotEqual(t, updated.GetRevision(), upserted.GetRevision())
 	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
-
 }
 
 func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
@@ -1558,13 +1568,13 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.SetStaticTokens(staticTokens)
+				err = s.LocalConfigS.SetStaticTokens(staticTokens)
 				require.NoError(t, err)
 
-				out, err := s.ConfigS.GetStaticTokens()
+				out, err := s.LocalConfigS.GetStaticTokens()
 				require.NoError(t, err)
 
-				err = s.ConfigS.DeleteStaticTokens()
+				err = s.LocalConfigS.DeleteStaticTokens()
 				require.NoError(t, err)
 
 				return out

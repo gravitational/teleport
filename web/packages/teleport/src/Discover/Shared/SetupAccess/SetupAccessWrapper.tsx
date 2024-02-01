@@ -46,6 +46,7 @@ export type Props = {
   onPrev(): void;
   children: React.ReactNode;
   infoContent?: React.ReactNode;
+  wantAutoDiscover?: boolean;
 };
 
 export function SetupAccessWrapper({
@@ -61,6 +62,7 @@ export function SetupAccessWrapper({
   onPrev,
   children,
   infoContent,
+  wantAutoDiscover = false,
 }: Props) {
   const canAddTraits = !isSsoUser && canEditUser;
 
@@ -139,6 +141,7 @@ export function SetupAccessWrapper({
       <ActionButtons
         onProceed={onProceed}
         onPrev={onPrev}
+        lastStep={wantAutoDiscover}
         disableProceed={
           attempt.status === 'failed' ||
           attempt.status === 'processing' ||

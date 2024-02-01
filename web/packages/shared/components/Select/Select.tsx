@@ -233,7 +233,6 @@ export const StyledSelect = styled.div`
     display: none;
   }
 
-  .react-select--is-disabled,
   .react-select__control--is-disabled {
     color: ${props => props.theme.colors.text.disabled};
     border: 1px solid ${props => props.theme.colors.text.disabled};

@@ -965,3 +965,10 @@ func TestProvisionTokenV2_CaseInsensitiveRoles(t *testing.T) {
 		require.Equal(t, SystemRoles{RoleNode, RoleAuth}, tok.GetRoles())
 	})
 }
+
+func TestProvisionTokenV2_SignupRole(t *testing.T) {
+	t.Parallel()
+	tok, err := NewProvisionToken("token", SystemRoles{RoleSignup}, time.Now())
+	require.NoError(t, err)
+	require.Equal(t, SystemRoles{RoleSignup}, tok.GetRoles())
+}

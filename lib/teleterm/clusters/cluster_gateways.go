@@ -60,6 +60,10 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		gateway, err := c.createKubeGateway(ctx, params)
 		return gateway, trace.Wrap(err)
 
+	case params.TargetURI.IsApp():
+		gateway, err := c.createAppGateway(ctx, params)
+		return gateway, trace.Wrap(err)
+
 	default:
 		return nil, trace.NotImplemented("gateway not supported for %v", params.TargetURI)
 	}
@@ -148,6 +152,43 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 	return gw, trace.Wrap(err)
 }
 
+func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
+	appName := params.TargetURI.GetAppName()
+
+	app, err := c.getApp(ctx, appName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var cert tls.Certificate
+
+	if err := AddMetadataToRetryableError(ctx, func() error {
+		cert, err = c.reissueAppCert(ctx, app)
+		return trace.Wrap(err)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gw, err := gateway.New(gateway.Config{
+		LocalPort:                     params.LocalPort,
+		TargetURI:                     params.TargetURI,
+		TargetName:                    appName,
+		Cert:                          cert,
+		Protocol:                      app.GetProtocol(),
+		Insecure:                      c.clusterClient.InsecureSkipVerify,
+		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
+		Log:                           c.Log,
+		TCPPortAllocator:              params.TCPPortAllocator,
+		OnExpiredCert:                 params.OnExpiredCert,
+		Clock:                         c.clock,
+		TLSRoutingConnUpgradeRequired: c.clusterClient.TLSRoutingConnUpgradeRequired,
+		RootClusterCACertPoolFunc:     c.clusterClient.RootClusterCACertPool,
+		ClusterName:                   c.Name,
+		Username:                      c.status.Username,
+	})
+	return gw, trace.Wrap(err)
+}
+
 // ReissueGatewayCerts reissues certificate for the provided gateway.
 //
 // At the moment, kube gateways reload their certs in memory while db gateways use the old approach
@@ -166,6 +207,8 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 		}
 
 		// db gateways still store certs on disk, so they need to load it after reissue.
+		// Unlike other gateway types, the custom middleware for db proxies does not set the cert on the
+		// local proxy.
 		err = g.ReloadCert()
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
@@ -176,6 +219,17 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 		return tls.Certificate{}, nil
 	case g.TargetURI().IsKube():
 		cert, err := c.reissueKubeCert(ctx, g.TargetName())
+		return cert, trace.Wrap(err)
+	case g.TargetURI().IsApp():
+		appName := g.TargetURI().GetAppName()
+		app, err := c.getApp(ctx, appName)
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err)
+		}
+
+		// The cert is saved and then loaded from disk, then returned from this function and finally set
+		// on LocalProxy by the middleware.
+		cert, err := c.reissueAppCert(ctx, app)
 		return cert, trace.Wrap(err)
 	default:
 		return tls.Certificate{}, trace.NotImplemented("ReissueGatewayCerts does not support this gateway kind %v", g.TargetURI().String())

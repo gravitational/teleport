@@ -51,7 +51,8 @@ export enum MessageType {
   NOTIFICATION = 28,
   RDP_FASTPATH_PDU = 29,
   RDP_RESPONSE_PDU = 30,
-  RDP_CHANNEL_IDS = 31,
+  RDP_CONNECTION_INITIALIZED = 31,
+  SYNC_KEYS = 32,
   __LAST, // utility value
 }
 
@@ -104,10 +105,12 @@ export type ClipboardData = {
   data: string;
 };
 
-// | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-export type RDPChannelIDs = {
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
+export type RDPConnectionInitialized = {
   ioChannelId: number;
   userChannelId: number;
+  screenWidth: number;
+  screenHeight: number;
 };
 
 export enum Severity {
@@ -141,6 +144,14 @@ export type Notification = {
 export type MfaJson = {
   mfaType: 'u' | 'n';
   jsonString: string;
+};
+
+// | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+export type SyncKeys = {
+  scrollLockState: ButtonState;
+  numLockState: ButtonState;
+  capsLockState: ButtonState;
+  kanaLockState: ButtonState;
 };
 
 // | message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
@@ -525,6 +536,23 @@ export default class Codec {
     view.setUint8(0, MessageType.KEYBOARD_BUTTON);
     view.setUint32(1, scanCode);
     view.setUint8(5, state);
+    return buffer;
+  }
+
+  // encodeSyncKeys synchronizes the state of keyboard's modifier keys (caps lock)
+  // and resets the server key state to all keys up.
+  // | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+  encodeSyncKeys(syncKeys: SyncKeys): Message {
+    const buffer = new ArrayBuffer(byteLength * 5);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset++, MessageType.SYNC_KEYS);
+    view.setUint8(offset++, syncKeys.scrollLockState);
+    view.setUint8(offset++, syncKeys.numLockState);
+    view.setUint8(offset++, syncKeys.capsLockState);
+    view.setUint8(offset++, syncKeys.kanaLockState);
+
     return buffer;
   }
 
@@ -969,15 +997,22 @@ export default class Codec {
     return new Uint8Array(buffer, offset, dataLength);
   }
 
-  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-  decodeRDPChannelIDs(buffer: ArrayBuffer): RDPChannelIDs {
+  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
+  decodeRDPConnectionInitialied(buffer: ArrayBuffer): RDPConnectionInitialized {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += byteLength; // eat message type
     const ioChannelId = dv.getUint16(offset);
-    offset += uint16Length; // eat io_channel_id
+    offset += uint16Length;
     const userChannelId = dv.getUint16(offset);
-    return { ioChannelId, userChannelId };
+    offset += uint16Length;
+
+    const screenWidth = dv.getUint16(offset);
+    offset += uint16Length;
+    const screenHeight = dv.getUint16(offset);
+    offset += uint16Length;
+
+    return { ioChannelId, userChannelId, screenWidth, screenHeight };
   }
 
   // | message type (12) | err_code error | directory_id uint32 |

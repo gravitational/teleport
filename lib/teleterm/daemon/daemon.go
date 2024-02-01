@@ -229,6 +229,8 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
+	// Those RPCs assume that the default CLI prompt is in use.
 	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI.String())
 	return cluster, clusterClient, nil
 }
@@ -443,6 +445,10 @@ func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, erro
 
 	case targetURI.IsKube():
 		cmd, err := cmd.NewKubeCLICommand(gateway)
+		return cmd, trace.Wrap(err)
+
+	case targetURI.IsApp():
+		cmd, err := cmd.NewAppCLICommand(gateway)
 		return cmd, trace.Wrap(err)
 
 	default:
@@ -909,33 +915,6 @@ func (s *Service) GetConnectMyComputerNodeName(req *api.GetConnectMyComputerNode
 
 	uuid, err := s.cfg.ConnectMyComputerNodeName.Get(cluster)
 	return &api.GetConnectMyComputerNodeNameResponse{Name: uuid}, trace.Wrap(err)
-}
-
-// DeleteConnectMyComputerToken deletes a join token.
-func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
-	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response := &api.DeleteConnectMyComputerTokenResponse{}
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		err = s.cfg.ConnectMyComputerTokenProvisioner.DeleteToken(ctx, authClient, req.Token)
-		return trace.Wrap(err)
-	})
-
-	return response, trace.Wrap(err)
 }
 
 // WaitForConnectMyComputerNodeJoin returns a response only after detecting that a Connect My

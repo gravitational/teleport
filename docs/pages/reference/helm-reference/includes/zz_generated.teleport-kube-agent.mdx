@@ -675,6 +675,20 @@ than a Teleport-published image.
 `updater.serviceAccount.name` is the updater Kubernetes Service
 Account name. When unset, it defaults to `<kube agent sa name>-updater`
 
+### `updater.pullCredentials`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`updater.pullCredentials` configures how the updater attempts to
+get the image pull credentials used to validate the image signature.
+
+This is not required when pulling images from official public Teleport
+registries (chart's default).
+
+Supported values are `amazon`, `google`, `docker` and `none`.
+
 ### `updater.extraArgs`
 
 | Type | Default |

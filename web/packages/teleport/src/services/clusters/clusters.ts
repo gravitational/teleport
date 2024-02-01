@@ -21,10 +21,22 @@ import cfg from 'teleport/config';
 
 import { makeClusterList } from './makeCluster';
 
-const service = {
-  fetchClusters() {
-    return api.get(cfg.api.clustersPath).then(makeClusterList);
-  },
-};
+import { Cluster } from '.';
 
-export default service;
+export default class ClustersService {
+  clusters: Cluster[] = [];
+
+  fetchClusters(abortSignal?: AbortSignal, fromCache = true) {
+    if (!fromCache) {
+      return api.get(cfg.api.clustersPath, abortSignal).then(makeClusterList);
+    }
+    if (this.clusters.length < 1) {
+      return api.get(cfg.api.clustersPath, abortSignal).then(res => {
+        // cache the result of clusters response
+        this.clusters = makeClusterList(res);
+        return this.clusters;
+      });
+    }
+    return Promise.resolve(this.clusters);
+  }
+}

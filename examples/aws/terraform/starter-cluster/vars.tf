@@ -127,8 +127,8 @@ variable "cluster_instance_type" {
 // This is useful for persisting a different default authentication type across AMI upgrades when you have a SAML, OIDC
 // or GitHub connector configured in DynamoDB. The default if not set is "local".
 // Teleport Community Edition supports "local" or "github"
-// Teleport Enterprise Edition supports "local", "github", "oidc" or "saml"
-// Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc" or "saml"
+// Teleport Enterprise Edition supports "local", "github", "oidc", or "saml"
+// Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc", or "saml"
 variable "teleport_auth_type" {
   type    = string
   default = "local"

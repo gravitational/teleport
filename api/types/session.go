@@ -224,7 +224,6 @@ func (ws *WebSessionV2) CheckAndSetDefaults() error {
 	if err := ws.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-
 	if ws.Spec.User == "" {
 		return trace.BadParameter("missing User")
 	}

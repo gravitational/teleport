@@ -32,6 +32,8 @@ var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
 var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
 var pathKubes = urlpath.New("/clusters/:cluster/kubes/:kubeName")
 var pathLeafKubes = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName")
+var pathApps = urlpath.New("/clusters/:cluster/apps/:appName")
+var pathLeafApps = urlpath.New("/clusters/:cluster/leaves/:leaf/apps/:appName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
@@ -115,6 +117,21 @@ func (r ResourceURI) GetKubeName() string {
 	result, ok = pathLeafKubes.Match(r.path)
 	if ok {
 		return result.Params["kubeName"]
+	}
+
+	return ""
+}
+
+// GetAppName extracts the app name from r. Returns an empty string if the path is not an app URI.
+func (r ResourceURI) GetAppName() string {
+	result, ok := pathApps.Match(r.path)
+	if ok {
+		return result.Params["appName"]
+	}
+
+	result, ok = pathLeafApps.Match(r.path)
+	if ok {
+		return result.Params["appName"]
 	}
 
 	return ""
@@ -210,4 +227,9 @@ func (r ResourceURI) IsDB() bool {
 // IsKube returns true if URI is a kube resource.
 func (r ResourceURI) IsKube() bool {
 	return r.GetKubeName() != ""
+}
+
+// IsApp returns true if URI is an app resource.
+func (r ResourceURI) IsApp() bool {
+	return r.GetAppName() != ""
 }

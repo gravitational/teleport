@@ -46,9 +46,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.12 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.13 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'c3cc0f1386b0544383a61244a4beeb762b67498f' ] && \
+    [ "$(git rev-parse HEAD)" = '85cf92f55d9e2ac5aacf92bedd33fb890b9f8b4c' ] && \
     ./config --release -fPIC --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -224,7 +224,7 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
 
 ARG WASM_PACK_VERSION
 # Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
+RUN cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}
 
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
@@ -312,7 +312,7 @@ RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.11.0
+RUN go install github.com/daixiang0/gci@v0.12.1
 
 # Install gotestsum.
 RUN go install gotest.tools/gotestsum@v1.10.1

@@ -38,13 +38,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -62,8 +62,6 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 type IdentityService struct {
 	backend.Backend
 	log logrus.FieldLogger
-	// desyncedClockForTesting is used in tests to desync the service clock from the backend clock.
-	desyncedClockForTesting clockwork.Clock
 }
 
 // NewIdentityService returns a new instance of IdentityService object
@@ -72,13 +70,6 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 		Backend: backend,
 		log:     logrus.WithField(trace.Component, "identity"),
 	}
-}
-
-func (s *IdentityService) getClock() clockwork.Clock {
-	if s.desyncedClockForTesting != nil {
-		return s.desyncedClockForTesting
-	}
-	return s.Backend.Clock()
 }
 
 // DeleteAllUsers deletes all users
@@ -882,7 +873,7 @@ func webauthnUserKey(id []byte) []byte {
 	return backend.Key(webauthnPrefix, usersPrefix, key)
 }
 
-func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
+func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
 	switch {
 	case user == "":
 		return trace.BadParameter("missing parameter user")
@@ -904,7 +895,7 @@ func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, s
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
+func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
 	switch {
 	case user == "":
 		return nil, trace.BadParameter("missing parameter user")
@@ -913,22 +904,10 @@ func (s *IdentityService) GetWebauthnSessionData(ctx context.Context, user, sess
 	}
 
 	item, err := s.Get(ctx, sessionDataKey(user, sessionID))
-	if trace.IsNotFound(err) {
-		return nil, trace.NotFound("webauthn session data is not found")
-	} else if err != nil {
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if !s.getClock().Now().Before(item.Expires) {
-		// Webauthn session already expired. Some backends do not clean up expired
-		// items in a timely manner, force delete.
-		if err := s.Delete(ctx, item.Key); err != nil && !trace.IsNotFound(err) {
-			s.log.WithError(err).Debug("Failed to delete expired webauthn session")
-		}
-		return nil, trace.NotFound("webauthn session data is not found")
-	}
-
-	sd := &wanpb.SessionData{}
+	sd := &wantypes.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 
@@ -989,7 +968,7 @@ var sdLimiter = &globalSessionDataLimiter{
 	scopeCount:  make(map[string]int),
 }
 
-func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error {
+func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error {
 	switch {
 	case scope == "":
 		return trace.BadParameter("missing parameter scope")
@@ -1022,7 +1001,7 @@ func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, s
 	return nil
 }
 
-func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error) {
+func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
 	switch {
 	case scope == "":
 		return nil, trace.BadParameter("missing parameter scope")
@@ -1034,7 +1013,7 @@ func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scop
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd := &wanpb.SessionData{}
+	sd := &wantypes.SessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 
@@ -1761,83 +1740,6 @@ func (s *IdentityService) UpsertRecoveryCodes(ctx context.Context, user string, 
 	return trace.Wrap(err)
 }
 
-// CreateUserRecoveryAttempt creates new user recovery attempt.
-func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error {
-	if user == "" {
-		return trace.BadParameter("missing parameter user")
-	}
-
-	if err := attempt.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	value, err := json.Marshal(attempt)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, recoveryAttemptsPrefix, uuid.New().String()),
-		Value:   value,
-		Expires: attempt.Expires,
-	}
-
-	_, err = s.Create(ctx, item)
-	return trace.Wrap(err)
-}
-
-// GetUserRecoveryAttempts returns users recovery attempts.
-func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error) {
-	if user == "" {
-		return nil, trace.BadParameter("missing parameter user")
-	}
-
-	startKey := backend.ExactKey(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out := make([]*types.RecoveryAttempt, len(result.Items))
-	for i, item := range result.Items {
-		var a types.RecoveryAttempt
-		if err := json.Unmarshal(item.Value, &a); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out[i] = &a
-	}
-
-	sort.Sort(recoveryAttemptsChronologically(out))
-
-	return out, nil
-}
-
-// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
-func (s *IdentityService) DeleteUserRecoveryAttempts(ctx context.Context, user string) error {
-	if user == "" {
-		return trace.BadParameter("missing parameter user")
-	}
-
-	startKey := backend.ExactKey(webPrefix, usersPrefix, user, recoveryAttemptsPrefix)
-	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
-}
-
-// recoveryAttemptsChronologically sorts recovery attempts by oldest to latest time.
-type recoveryAttemptsChronologically []*types.RecoveryAttempt
-
-func (s recoveryAttemptsChronologically) Len() int {
-	return len(s)
-}
-
-// Less stacks latest attempts to the end of the list.
-func (s recoveryAttemptsChronologically) Less(i, j int) bool {
-	return s[i].Time.Before(s[j].Time)
-}
-
-func (s recoveryAttemptsChronologically) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 // UpsertKeyAttestationData upserts a verified public key attestation response.
 func (s *IdentityService) UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error {
 	value, err := json.Marshal(attestationData)
@@ -1877,16 +1779,6 @@ func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey c
 	key := keyAttestationDataFingerprint(pubDER)
 	item, err := s.Get(ctx, backend.Key(attestationsPrefix, key))
 
-	// Fallback to old fingerprint (std base64 encoded ssh public key) for backwards compatibility.
-	// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
-	if trace.IsNotFound(err) {
-		key, err = KeyAttestationDataFingerprintV11(publicKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		item, err = s.Get(ctx, backend.Key(attestationsPrefix, key))
-	}
-
 	if trace.IsNotFound(err) {
 		return nil, trace.NotFound("hardware key attestation not found")
 	} else if err != nil {
@@ -1904,18 +1796,6 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 	sha256sum := sha256.Sum256(pubDER)
 	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
 	return encodedSHA
-}
-
-// KeyAttestationDataFingerprintV11 creates a "KeyAttestationData" fingerprint
-// compatible with older patches of Teleport v11.
-// Exposed for testing, do not use this function directly.
-// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
-func KeyAttestationDataFingerprintV11(pub crypto.PublicKey) (string, error) {
-	sshPub, err := ssh.NewPublicKey(pub)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return ssh.FingerprintSHA256(sshPub), nil
 }
 
 const (
@@ -1938,7 +1818,6 @@ const (
 	webauthnLocalAuthPrefix     = "webauthnlocalauth"
 	webauthnSessionData         = "webauthnsessiondata"
 	recoveryCodesPrefix         = "recoverycodes"
-	recoveryAttemptsPrefix      = "recoveryattempts"
 	attestationsPrefix          = "key_attestations"
 	assistantMessagePrefix      = "assistant_messages"
 	assistantConversationPrefix = "assistant_conversations"

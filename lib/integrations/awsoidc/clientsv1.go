@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // FetchToken returns the token.
@@ -48,7 +47,7 @@ type IntegrationTokenGenerator interface {
 	GetProxies() ([]types.Server, error)
 
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+	GenerateAWSOIDCToken(ctx context.Context) (string, error)
 }
 
 // NewSessionV1 creates a new AWS Session for the region using the integration as source of credentials.
@@ -80,18 +79,11 @@ func NewSessionV1(ctx context.Context, client IntegrationTokenGenerator, region 
 		return nil, trace.Wrap(err)
 	}
 
-	issuer, err := oidc.IssuerForCluster(ctx, client)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// AWS SDK calls FetchToken everytime the session is no longer valid (or there's no session).
 	// Generating a token here and using it as a Static would make this token valid for the Max Duration Session for the current AWS Role (usually, 1 hour).
 	// Instead, it generates a token everytime the Session's client requests a new token, ensuring it always receives a fresh one.
 	var integrationTokenFetcher IntegrationTokenFetcher = func(ctx context.Context) ([]byte, error) {
-		token, err := client.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-			Issuer: issuer,
-		})
+		token, err := client.GenerateAWSOIDCToken(ctx)
 		return []byte(token), trace.Wrap(err)
 	}
 

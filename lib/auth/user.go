@@ -70,8 +70,9 @@ func (a *Server) CreateUser(ctx context.Context, user types.User) (types.User, e
 			Name:    created.GetName(),
 			Expires: created.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     created.GetRoles(),
+		Connector:          connectorName,
+		Roles:              created.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user create event.")
 	}
@@ -129,8 +130,9 @@ func (a *Server) UpdateUser(ctx context.Context, user types.User) (types.User, e
 			Name:    updated.GetName(),
 			Expires: updated.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     updated.GetRoles(),
+		Connector:          connectorName,
+		Roles:              updated.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
@@ -182,8 +184,9 @@ func (a *Server) UpsertUser(ctx context.Context, user types.User) (types.User, e
 			Name:    upserted.GetName(),
 			Expires: upserted.Expiry(),
 		},
-		Connector: connectorName,
-		Roles:     upserted.GetRoles(),
+		Connector:          connectorName,
+		Roles:              upserted.GetRoles(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user upsert event.")
 	}
@@ -263,6 +266,7 @@ func (a *Server) DeleteUser(ctx context.Context, user string) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: user,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user delete event.")
 	}

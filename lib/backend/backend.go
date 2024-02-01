@@ -106,6 +106,21 @@ type Backend interface {
 	CloseWatchers()
 }
 
+// New initializes a new [Backend] implementation based on the service config.
+func New(ctx context.Context, backend string, params Params) (Backend, error) {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	newbk, ok := registry[backend]
+	if !ok {
+		return nil, trace.BadParameter("unsupported secrets storage type: %q", backend)
+	}
+	bk, err := newbk(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return bk, nil
+}
+
 // IterateRange is a helper for stepping over a range
 func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byte, limit int, fn func([]Item) (stop bool, err error)) error {
 	for {
@@ -297,36 +312,35 @@ func RangeEnd(key []byte) []byte {
 	return nextKey(key)
 }
 
-// NextPaginationKey returns the next pagination key.
-// For resources that have the HostID in their keys, the next key will also
-// have the HostID part.
-func NextPaginationKey(r types.Resource) string {
-	switch resourceWithType := r.(type) {
-	case types.DatabaseServer:
-		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
-	case types.AppServer:
-		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
-	case types.KubeServer:
-		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
-	default:
-		return string(nextKey([]byte(r.GetName())))
-	}
+// HostID is a derivation of a KeyedItem that allows the host id
+// to be included in the key.
+type HostID interface {
+	KeyedItem
+	GetHostID() string
 }
 
-// GetPaginationKey returns the pagination key given resource.
-func GetPaginationKey(r types.Resource) string {
-	switch resourceWithType := r.(type) {
-	case types.DatabaseServer:
-		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
-	case types.AppServer:
-		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
-	case types.KubeServer:
-		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
-	case types.WindowsDesktop:
-		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
-	default:
-		return r.GetName()
+// KeyedItem represents an item from which a pagination key can be derived.
+type KeyedItem interface {
+	GetName() string
+}
+
+// NextPaginationKey returns the next pagination key.
+// For items that implement HostID, the next key will also
+// have the HostID part.
+func NextPaginationKey(ki KeyedItem) string {
+	key := GetPaginationKey(ki)
+	return string(nextKey([]byte(key)))
+}
+
+// GetPaginationKey returns the pagination key given item.
+// For items that implement HostID, the next key will also
+// have the HostID part.
+func GetPaginationKey(ki KeyedItem) string {
+	if h, ok := ki.(HostID); ok {
+		return string(internalKey(h.GetHostID(), h.GetName()))
 	}
+
+	return ki.GetName()
 }
 
 // MaskKeyName masks the given key name.

@@ -34,6 +34,16 @@ export const Ec2 = () => {
   );
 };
 
+export const Eks = () => {
+  return (
+    <ConfigureIamPerms
+      kind="eks"
+      region="us-east-1"
+      integrationRoleArn="arn:aws:iam::123456789012:role/some-iam-role-name"
+    />
+  );
+};
+
 export const Rds = () => {
   return (
     <ConfigureIamPerms

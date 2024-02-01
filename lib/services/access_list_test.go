@@ -326,6 +326,18 @@ func (t *testMembersAndLockGetter) ListAccessListMembers(ctx context.Context, ac
 	return members, "", nil
 }
 
+// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+func (t *testMembersAndLockGetter) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+	var allMembers []*accesslist.AccessListMember
+	for _, members := range t.members {
+		for _, member := range members {
+			allMembers = append(allMembers, member)
+		}
+	}
+
+	return allMembers, "", nil
+}
+
 // GetAccessListMember returns the specified access list member resource.
 func (t *testMembersAndLockGetter) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	members, ok := t.members[accessList]

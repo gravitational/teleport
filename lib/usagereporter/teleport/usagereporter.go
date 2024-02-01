@@ -122,12 +122,15 @@ func (t *StreamingUsageReporter) Run(ctx context.Context) {
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
-func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*StreamingUsageReporter, error) {
+func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, anonymizationKey string, submitter SubmitFunc) (*StreamingUsageReporter, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(clusterName.GetClusterID())
+	if anonymizationKey == "" {
+		return nil, trace.BadParameter("anonymization key is required")
+	}
+	anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

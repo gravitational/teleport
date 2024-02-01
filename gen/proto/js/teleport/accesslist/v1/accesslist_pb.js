@@ -562,7 +562,8 @@ proto.teleport.accesslist.v1.AccessListSpec.toObject = function(includeInstance,
     grants: (f = msg.getGrants()) && proto.teleport.accesslist.v1.AccessListGrants.toObject(includeInstance, f),
     title: jspb.Message.getFieldWithDefault(msg, 8, ""),
     membership: jspb.Message.getFieldWithDefault(msg, 9, ""),
-    ownership: jspb.Message.getFieldWithDefault(msg, 10, "")
+    ownership: jspb.Message.getFieldWithDefault(msg, 10, ""),
+    ownerGrants: (f = msg.getOwnerGrants()) && proto.teleport.accesslist.v1.AccessListGrants.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -639,6 +640,11 @@ proto.teleport.accesslist.v1.AccessListSpec.deserializeBinaryFromReader = functi
     case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.setOwnership(value);
+      break;
+    case 11:
+      var value = new proto.teleport.accesslist.v1.AccessListGrants;
+      reader.readMessage(value,proto.teleport.accesslist.v1.AccessListGrants.deserializeBinaryFromReader);
+      msg.setOwnerGrants(value);
       break;
     default:
       reader.skipField();
@@ -735,6 +741,14 @@ proto.teleport.accesslist.v1.AccessListSpec.serializeBinaryToWriter = function(m
     writer.writeString(
       10,
       f
+    );
+  }
+  f = message.getOwnerGrants();
+  if (f != null) {
+    writer.writeMessage(
+      11,
+      f,
+      proto.teleport.accesslist.v1.AccessListGrants.serializeBinaryToWriter
     );
   }
 };
@@ -995,6 +1009,43 @@ proto.teleport.accesslist.v1.AccessListSpec.prototype.getOwnership = function() 
  */
 proto.teleport.accesslist.v1.AccessListSpec.prototype.setOwnership = function(value) {
   return jspb.Message.setProto3StringField(this, 10, value);
+};
+
+
+/**
+ * optional AccessListGrants owner_grants = 11;
+ * @return {?proto.teleport.accesslist.v1.AccessListGrants}
+ */
+proto.teleport.accesslist.v1.AccessListSpec.prototype.getOwnerGrants = function() {
+  return /** @type{?proto.teleport.accesslist.v1.AccessListGrants} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.accesslist.v1.AccessListGrants, 11));
+};
+
+
+/**
+ * @param {?proto.teleport.accesslist.v1.AccessListGrants|undefined} value
+ * @return {!proto.teleport.accesslist.v1.AccessListSpec} returns this
+*/
+proto.teleport.accesslist.v1.AccessListSpec.prototype.setOwnerGrants = function(value) {
+  return jspb.Message.setWrapperField(this, 11, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.accesslist.v1.AccessListSpec} returns this
+ */
+proto.teleport.accesslist.v1.AccessListSpec.prototype.clearOwnerGrants = function() {
+  return this.setOwnerGrants(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.accesslist.v1.AccessListSpec.prototype.hasOwnerGrants = function() {
+  return jspb.Message.getField(this, 11) != null;
 };
 
 

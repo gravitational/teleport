@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -84,10 +85,7 @@ func (s sortedLabels) Less(i, j int) bool {
 	labelA := strings.ToLower(s[i].Name)
 	labelB := strings.ToLower(s[j].Name)
 
-	// types.CloudLabelPrefixes are label names that we want to always be at the end of
-	// the sorted labels list to reduce visual clutter. This will generally be automatically
-	// discovered cloud provider labels such as azure/aks-managed-createOperationID=123123123123
-	for _, sortName := range types.CloudLabelPrefixes {
+	for _, sortName := range types.BackSortedLabelPrefixes {
 		name := strings.ToLower(sortName)
 		if strings.Contains(labelA, name) && !strings.Contains(labelB, name) {
 			return false // labelA should be at the end
@@ -157,6 +155,16 @@ func MakeServers(clusterName string, servers []types.Server, accessChecker servi
 	return uiServers, nil
 }
 
+// EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
+type EKSCluster struct {
+	Name       string  `json:"name"`
+	Region     string  `json:"region"`
+	Arn        string  `json:"arn"`
+	Labels     []Label `json:"labels"`
+	JoinLabels []Label `json:"joinLabels"`
+	Status     string  `json:"status"`
+}
+
 // KubeCluster describes a kube cluster.
 type KubeCluster struct {
 	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
@@ -184,6 +192,23 @@ func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChe
 		KubeUsers:  kubeUsers,
 		KubeGroups: kubeGroups,
 	}
+}
+
+// MakeEKSClusters creates EKS objects for the web UI.
+func MakeEKSClusters(clusters []awsoidc.EKSCluster) []EKSCluster {
+	uiEKSClusters := make([]EKSCluster, 0, len(clusters))
+
+	for _, cluster := range clusters {
+		uiEKSClusters = append(uiEKSClusters, EKSCluster{
+			Name:       cluster.Name,
+			Region:     cluster.Region,
+			Arn:        cluster.Arn,
+			Labels:     makeLabels(cluster.Labels),
+			JoinLabels: makeLabels(cluster.JoinLabels),
+			Status:     cluster.Status,
+		})
+	}
+	return uiEKSClusters
 }
 
 // MakeKubeClusters creates ui kube objects and returns a list.

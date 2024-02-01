@@ -189,6 +189,9 @@ type Spec struct {
 
 	// Grants describes the access granted by membership to this access list.
 	Grants Grants `json:"grants" yaml:"grants"`
+
+	// OwnerGrants describes the access granted by ownership of this access list.
+	OwnerGrants Grants `json:"owner_grants" yaml:"owner_grants"`
 }
 
 // Owner is an owner of an access list.
@@ -447,6 +450,9 @@ func (a *Audit) UnmarshalJSON(data []byte) error {
 		return trace.Wrap(err)
 	}
 
+	if audit.NextAuditDate == "" {
+		return nil
+	}
 	var err error
 	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, audit.NextAuditDate)
 	if err != nil {

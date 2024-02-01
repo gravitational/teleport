@@ -52,9 +52,7 @@ resource "aws_launch_template" "node" {
     {
       region           = var.region
       cluster_name     = var.cluster_name
-      telegraf_version = var.telegraf_version
       auth_server_addr = aws_lb.auth.dns_name
-      influxdb_addr    = "http://${aws_lb.monitor.dns_name}:8086"
       use_acm          = var.use_acm
     }
   ))

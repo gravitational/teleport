@@ -168,7 +168,10 @@ message ResourceHeader {
   string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the API version used to create the resource. It must be
+  // specified. Based on this version, Teleport will apply different defaults on
+  // resource creation or deletion. It must be an integer prefixed by "v".
+  // For example: `v1`
   string Version = 3 [(gogoproto.jsontag) = "version,omitempty"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -249,7 +252,8 @@ message DatabaseV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is the resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is the database metadata.
   Metadata Metadata = 4 [
@@ -780,11 +784,11 @@ message ServerV2 {
 
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
+  reserved 2;
+  reserved "PublicAddr";
+
   // Addr is a host:port address where this server can be reached.
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
-  // PublicAddr is the public address where this server can be reached.
-  // DELETE IN 15.0. (joerger) Deprecated in favor of public_addrs.
-  string PublicAddr = 2 [(gogoproto.jsontag) = "public_addr,omitempty"];
   // Hostname is server hostname
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
   // CmdLabels is server dynamic labels
@@ -902,7 +906,8 @@ message AppV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is the resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is the app resource metadata.
   Metadata Metadata = 4 [
@@ -1003,6 +1008,8 @@ enum PrivateKeyType {
   PKCS11 = 1;
   // GCP_KMS is a private key backed by GCP KMS.
   GCP_KMS = 2;
+  // AWS_KMS is a private key backed by AWS KMS.
+  AWS_KMS = 3;
 }
 
 // SSHKeyPair is an SSH CA key pair.
@@ -1159,7 +1166,8 @@ message ProvisionTokenV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1303,7 +1311,7 @@ message ProvisionTokenSpecV2GitHub {
   // be specified if `enterprise_server_host` is specified.
   //
   // See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
-  // for more information about customised issuer values.
+  // for more information about customized issuer values.
   string EnterpriseSlug = 3 [(gogoproto.jsontag) = "enterprise_slug,omitempty"];
 }
 
@@ -1649,7 +1657,8 @@ message ClusterNetworkingConfigV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1768,7 +1777,8 @@ message SessionRecordingConfigV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version
+  // Version is the resource version. It must be specified.
+  // Supported values are:`v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -1806,7 +1816,8 @@ message AuthPreferenceV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -2517,7 +2528,8 @@ message RoleV6 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -2558,8 +2570,9 @@ enum CreateHostUserMode {
   HOST_USER_MODE_UNSPECIFIED = 0;
   // HOST_USER_MODE_OFF disables host user creation.
   HOST_USER_MODE_OFF = 1;
-  reserved 2; // HOST_USER_MODE_DROP replaced by HOST_USER_MODE_INSECURE_DROP.
-  reserved "HOST_USER_MODE_DROP";
+  // HOST_USER_MODE_DROP enables host user creation and deletes users at session end.
+  // Deprecated: replaced by HOST_USER_MODE_INSECURE_DROP.
+  HOST_USER_MODE_DROP = 2 [deprecated = true];
   // HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
   HOST_USER_MODE_KEEP = 3;
   // HOST_USER_MODE_INSECURE_DROP enables host user creation without a home directory and deletes
@@ -3153,7 +3166,8 @@ message UserV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is version
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -3262,14 +3276,8 @@ message LoginStatus {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "lock_expires,omitempty"
   ];
-  // RecoveryAttemptLockExpires contains the time when this lock will expire
-  // from reaching MaxAccountRecoveryAttempts. This field is used to determine
-  // if a user got locked from recovery attempts.
-  google.protobuf.Timestamp RecoveryAttemptLockExpires = 5 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "recovery_attempt_lock_expires,omitempty"
-  ];
+  reserved 5; // removed "google.protobuf.Timestamp RecoveryAttemptLockExpires" after lockout was removed
+  reserved "RecoveryAttemptLockExpires";
 }
 
 // CreatedBy holds information about the person or agent who created the user
@@ -4035,7 +4043,8 @@ message OIDCConnectorV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4199,7 +4208,8 @@ message SAMLConnectorV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4354,7 +4364,8 @@ message GithubConnectorV3 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v3`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4654,7 +4665,8 @@ message TrustedClusterV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -4706,7 +4718,8 @@ message LockV2 {
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource sub kind, used in some resources.
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is a resource version.
+  // Version is the resource version. It must be specified.
+  // Supported values are: `v2`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata holds resource metadata.
   Metadata Metadata = 4 [
@@ -5618,11 +5631,58 @@ message PluginOktaSettings {
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
 
-  // EnableUserSync controls the user sync in the Okta integration service.
+  // EnableUserSync controls the user sync in the Okta integration service. Deprecated.
+  // TODO(mdwn): Remove once e changes have been made.
   bool enable_user_sync = 2;
 
-  // SSOConnectorID
+  // SSOConnectorID (deprecated)
+  // TODO(mdwn): Remove once e changes have been made.
   string sso_connector_id = 3;
+
+  // Sync settings controls the user and access list sync settings for Okta.
+  PluginOktaSyncSettings sync_settings = 4;
+}
+
+// Defines settings for syncing users and access lists from Okta.
+message PluginOktaSyncSettings {
+  option (gogoproto.equal) = true;
+
+  // SyncUsers controls the user sync in the Okta integration service.
+  bool sync_users = 1;
+
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Okta plugin
+  string sso_connector_id = 2;
+
+  // SyncAccessLists controls the access list sync in the Okta integration service.
+  bool sync_access_lists = 3;
+
+  // DefaultOwners are the default owners for all imported access lists.
+  repeated string default_owners = 4;
+
+  // AppID is the Okta-assigned ID of the Okta App that Teleport uses as a
+  // gateway to interact with Okta for SAML login, SCIM provisioning and user
+  // sync. When set, user sync will pull users from the assignment list for this
+  // app. When empty the plugin will fall back to the legacy behaviour of syncing
+  // users from the entre organization.
+  string app_id = 5;
+
+  // GroupFilters are filters for which Okta groups to synchronize as access lists.
+  // Filters can be globs, for example:
+  //   group*
+  //   *service*
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //   ^group.*$
+  //   ^.*service.*$
+  repeated string group_filters = 6;
+
+  // AppFilters are filters for which Okta applications to synchronize as access lists.
+  // Filters can be globs, for example:
+  //   app*
+  //   *service*
+  // Or regexes if they're prefixed and suffixed with ^ and $, for example:
+  //   ^app.*$
+  //   ^.*service.*$
+  repeated string app_filters = 7;
 }
 
 // Defines a set of discord channel IDs

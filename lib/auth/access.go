@@ -49,6 +49,7 @@ func (a *Server) CreateRole(ctx context.Context, role types.Role) (types.Role, e
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: role.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
@@ -71,6 +72,7 @@ func (a *Server) UpdateRole(ctx context.Context, role types.Role) (types.Role, e
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: role.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
@@ -93,6 +95,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) (types.Role, e
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: role.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
@@ -179,6 +182,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warnf("Failed to emit role delete event.")
 	}

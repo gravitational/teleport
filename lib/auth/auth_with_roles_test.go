@@ -29,9 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -44,7 +41,6 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1092,7 +1088,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 }
 
 // TestGenerateDatabaseCert makes sure users and services with appropriate
-// permissions can generate certificates for self-hosted databases.
+// permissions can generate database certificates.
 func TestGenerateDatabaseCert(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1113,22 +1109,26 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		desc     string
-		identity TestIdentity
-		err      string
+		desc      string
+		identity  TestIdentity
+		requester proto.DatabaseCertRequest_Requester
+		err       string
 	}{
 		{
-			desc:     "user can't sign database certs",
-			identity: TestUser(userWithoutAccess.GetName()),
-			err:      "access denied",
+			desc:      "user can't sign database certs",
+			identity:  TestUser(userWithoutAccess.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
+			err:       "access denied",
 		},
 		{
-			desc:     "user can impersonate Db and sign database certs",
-			identity: TestUser(userImpersonateDb.GetName()),
+			desc:      "user can impersonate Db and sign database certs",
+			identity:  TestUser(userImpersonateDb.GetName()),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
-			desc:     "built-in admin can sign database certs",
-			identity: TestAdmin(),
+			desc:      "built-in admin can sign database certs",
+			identity:  TestAdmin(),
+			requester: proto.DatabaseCertRequest_TCTL,
 		},
 		{
 			desc:     "database service can sign database certs",
@@ -1148,7 +1148,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 			client, err := srv.NewClient(test.identity)
 			require.NoError(t, err)
 
-			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
+			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr, RequesterName: test.requester})
 			if test.err != "" {
 				require.ErrorContains(t, err, test.err)
 			} else {
@@ -1822,9 +1822,9 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	require.NoError(t, err)
 
 	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
+	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer.Services, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
-	authContext.AdminActionAuthorized = true
+	authContext.AdminActionAuthState = authz.AdminActionAuthMFAVerified
 
 	return &ServerWithRoles{
 		authServer: srv.AuthServer,
@@ -2043,11 +2043,11 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	discoveryClt, err := srv.NewClient(TestBuiltin(types.RoleDiscovery))
 	require.NoError(t, err)
 
-	eksCluster, err := services.NewKubeClusterFromAWSEKS(&eks.Cluster{
-		Name:   aws.String("eks-cluster1"),
-		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
-		Status: aws.String(eks.ClusterStatusActive),
-	})
+	eksCluster, err := services.NewKubeClusterFromAWSEKS(
+		"eks-cluster1",
+		"arn:aws:eks:eu-west-1:accountID:cluster/cluster1",
+		nil,
+	)
 	require.NoError(t, err)
 	eksCluster.SetOrigin(types.OriginCloud)
 
@@ -2063,11 +2063,11 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	require.NoError(t, srv.Auth().CreateKubernetesCluster(ctx, nonCloudCluster))
 
 	// Discovery service cannot create cluster with dynamic labels.
-	clusterWithDynamicLabels, err := services.NewKubeClusterFromAWSEKS(&eks.Cluster{
-		Name:   aws.String("eks-cluster2"),
-		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
-		Status: aws.String(eks.ClusterStatusActive),
-	})
+	clusterWithDynamicLabels, err := services.NewKubeClusterFromAWSEKS(
+		"eks-cluster2",
+		"arn:aws:eks:eu-west-1:accountID:cluster/cluster2",
+		nil,
+	)
 	require.NoError(t, err)
 	clusterWithDynamicLabels.SetOrigin(types.OriginCloud)
 	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{
@@ -5772,8 +5772,9 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     true,
 			assertError: require.NoError,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Len(t, emitter.Events(), 1)
-				require.Equal(t, events.UserHeadlessLoginApprovedCode, emitter.LastEvent().GetCode())
+				require.Len(t, emitter.Events(), 2)
+				require.Equal(t, events.ValidateMFAAuthResponseCode, emitter.Events()[0].GetCode())
+				require.Equal(t, events.UserHeadlessLoginApprovedCode, emitter.Events()[1].GetCode())
 			},
 		}, {
 			name:        "NOK same user approved without mfa",
@@ -5781,8 +5782,9 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     false,
 			assertError: assertAccessDenied,
 			assertEvents: func(t *testing.T, emitter *eventstest.MockRecorderEmitter) {
-				require.Len(t, emitter.Events(), 1)
-				require.Equal(t, events.UserHeadlessLoginApprovedFailureCode, emitter.LastEvent().GetCode())
+				require.Len(t, emitter.Events(), 2)
+				require.Equal(t, events.ValidateMFAAuthResponseFailureCode, emitter.Events()[0].GetCode())
+				require.Equal(t, events.UserHeadlessLoginApprovedFailureCode, emitter.Events()[1].GetCode())
 			},
 		}, {
 			name:        "NOK not found",
@@ -6390,153 +6392,6 @@ func createSessionTestUsers(t *testing.T, authServer *Server) (string, string, s
 	return "alice", "bob", "admin"
 }
 
-func TestCheckInventorySupportsRole(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	emptyRole, err := types.NewRole("empty", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	roleWithLabelExpressions, err := types.NewRole("expressions", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			NodeLabelsExpression: `contains(user.spec.traits["allow-env"], labels["env"])`,
-		},
-	})
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		desc                   string
-		role                   types.Role
-		authVersion            string
-		inventoryVersions      []string
-		assertErr              require.ErrorAssertionFunc
-		expectNoInventoryCheck bool
-	}{
-		{
-			desc:                   "basic",
-			role:                   emptyRole,
-			authVersion:            api.Version,
-			inventoryVersions:      []string{"12.1.2", "13.0.0", api.Version},
-			assertErr:              require.NoError,
-			expectNoInventoryCheck: true,
-		},
-		{
-			desc:              "label expressions supported",
-			role:              roleWithLabelExpressions,
-			authVersion:       "14.0.0-dev",
-			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.2.3"},
-			assertErr:         require.NoError,
-		},
-		{
-			desc:              "unparseable server version doesn't break UpsertRole",
-			role:              roleWithLabelExpressions,
-			authVersion:       "14.0.0-dev",
-			inventoryVersions: []string{"Not a version"},
-			assertErr:         require.NoError,
-		},
-		{
-			desc:              "block upsert with unsupported nodes in v13",
-			role:              roleWithLabelExpressions,
-			authVersion:       "13.2.3",
-			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.0.0-unsupported", "13.2.3"},
-			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
-				require.ErrorContains(t, err, "does not support the label expressions used in this role")
-			},
-		},
-		{
-			desc:              "block upsert with unsupported nodes in v14",
-			role:              roleWithLabelExpressions,
-			authVersion:       "14.1.2",
-			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.0.0-unsupported", "13.2.3"},
-			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
-				require.ErrorContains(t, err, "does not support the label expressions used in this role")
-			},
-		},
-		{
-			desc:                   "skip inventory check in 15",
-			role:                   roleWithLabelExpressions,
-			authVersion:            "15.0.0-dev",
-			inventoryVersions:      []string{"14.0.0", "15.0.0"},
-			assertErr:              require.NoError,
-			expectNoInventoryCheck: true,
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			getInventory := func(context.Context, proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-				if tc.expectNoInventoryCheck {
-					require.Fail(t, "getInventory called when the inventory check should have been skipped")
-				}
-
-				hellos := make([]proto.UpstreamInventoryHello, 0, len(tc.inventoryVersions))
-				for _, v := range tc.inventoryVersions {
-					hellos = append(hellos, proto.UpstreamInventoryHello{
-						Version: v,
-					})
-				}
-				return proto.InventoryStatusSummary{
-					Connected: hellos,
-				}, nil
-			}
-
-			err := checkInventorySupportsRole(ctx, tc.role, tc.authVersion, getInventory)
-			tc.assertErr(t, err)
-		})
-	}
-}
-
-func TestSafeToSkipInventoryCheck(t *testing.T) {
-	for _, tc := range []struct {
-		desc               string
-		authVersion        string
-		minRequiredVersion string
-		safeToSkip         bool
-	}{
-		{
-			desc:               "auth two majors ahead of required minor release",
-			authVersion:        "15.0.0",
-			minRequiredVersion: "13.1.0",
-			safeToSkip:         true,
-		},
-		{
-			desc:               "auth within one major of required minor release",
-			authVersion:        "14.0.0",
-			minRequiredVersion: "13.1.0",
-			safeToSkip:         false,
-		},
-		{
-			desc:               "auth one major greater than required major release",
-			authVersion:        "14.0.0",
-			minRequiredVersion: "13.0.0",
-			safeToSkip:         true, // anything older than 13.0.0 is >1 major behind 14.0.0
-		},
-		{
-			desc:               "auth within one major of required major release",
-			authVersion:        "13.3.12",
-			minRequiredVersion: "13.0.0",
-			safeToSkip:         false,
-		},
-		{
-			desc:               "matching releases",
-			authVersion:        "13.2.0",
-			minRequiredVersion: "13.2.0",
-			safeToSkip:         false,
-		},
-		{
-			desc:               "skip for zero version",
-			authVersion:        "13.2.0",
-			minRequiredVersion: "0.0.0",
-			safeToSkip:         true,
-		},
-	} {
-		require.Equal(t, tc.safeToSkip,
-			safeToSkipInventoryCheck(*semver.New(tc.authVersion), *semver.New(tc.minRequiredVersion)))
-	}
-}
-
 func TestCreateAccessRequest(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -7019,5 +6874,56 @@ func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tic
 				return
 			}
 		}
+	}
+}
+
+func TestIsMFARequired_AdminAction(t *testing.T) {
+	for _, tt := range []struct {
+		name                 string
+		adminActionAuthState authz.AdminActionAuthState
+		expectResp           *proto.IsMFARequiredResponse
+	}{
+		{
+			name:                 "unauthorized",
+			adminActionAuthState: authz.AdminActionAuthUnauthorized,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			},
+		}, {
+			name:                 "not required",
+			adminActionAuthState: authz.AdminActionAuthNotRequired,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			},
+		}, {
+			name:                 "mfa verified",
+			adminActionAuthState: authz.AdminActionAuthMFAVerified,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			},
+		}, {
+			name:                 "mfa verified with reuse",
+			adminActionAuthState: authz.AdminActionAuthMFAVerifiedWithReuse,
+			expectResp: &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			server := ServerWithRoles{
+				context: authz.Context{
+					AdminActionAuthState: tt.adminActionAuthState,
+				},
+			}
+			resp, err := server.IsMFARequired(context.Background(), &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_AdminAction{},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.expectResp, resp)
+		})
 	}
 }

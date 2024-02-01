@@ -67,16 +67,6 @@ describe('components/BannerList/Banner', () => {
     expect(dismiss).toHaveBeenCalledWith('test-banner1');
   });
 
-  it('supports rendering children', () => {
-    const message = 'That was easy';
-    render(
-      <BannerList banners={banners}>
-        <button>{message}</button>
-      </BannerList>
-    );
-    expect(screen.getByText(message)).toBeInTheDocument();
-  });
-
   it('does not modify the provided banner list on hide', () => {
     banners.pop();
     render(<BannerList banners={banners} />);

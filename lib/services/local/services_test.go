@@ -69,6 +69,7 @@ func setupServicesContext(ctx context.Context, t *testing.T) *servicesContext {
 		EventsS:       eventsService,
 		ChangesC:      make(chan interface{}),
 		ConfigS:       configService,
+		LocalConfigS:  configService,
 		RestrictionsS: NewRestrictionsService(tt.bk),
 		Clock:         clock,
 	}

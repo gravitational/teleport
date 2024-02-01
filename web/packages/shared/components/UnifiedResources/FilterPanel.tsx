@@ -33,7 +33,8 @@ import {
   ArrowsOut,
 } from 'design/Icon';
 
-import { ViewMode } from 'shared/services/unifiedResourcePreferences';
+import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { FilterKind } from './UnifiedResources';
@@ -65,6 +66,11 @@ interface FilterPanelProps {
   expandAllLabels: boolean;
   setExpandAllLabels: (expandAllLabels: boolean) => void;
   hideViewModeOptions: boolean;
+  /*
+   * ClusterDropdown is an optional prop to add a ClusterDropdown to the
+   * FilterPanel component. This is useful to turn off in Connect and use on web only
+   */
+  ClusterDropdown?: JSX.Element;
 }
 
 export function FilterPanel({
@@ -79,6 +85,7 @@ export function FilterPanel({
   expandAllLabels,
   setExpandAllLabels,
   hideViewModeOptions,
+  ClusterDropdown = null,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -120,12 +127,13 @@ export function FilterPanel({
           availableKinds={availableKinds}
           kindsFromParams={kinds || []}
         />
+        {ClusterDropdown}
       </Flex>
       <Flex gap={2} alignItems="center">
         <Flex mr={1}>{BulkActions}</Flex>
         {!hideViewModeOptions && (
           <>
-            {currentViewMode === ViewMode.VIEW_MODE_LIST && (
+            {currentViewMode === ViewMode.LIST && (
               <ButtonBorder
                 size="small"
                 css={`
@@ -461,10 +469,8 @@ function ViewModeSwitch({
   return (
     <ViewModeSwitchContainer>
       <ViewModeSwitchButton
-        className={
-          currentViewMode === ViewMode.VIEW_MODE_CARD ? 'selected' : ''
-        }
-        onClick={() => setCurrentViewMode(ViewMode.VIEW_MODE_CARD)}
+        className={currentViewMode === ViewMode.CARD ? 'selected' : ''}
+        onClick={() => setCurrentViewMode(ViewMode.CARD)}
         css={`
           border-right: 1px solid
             ${props => props.theme.colors.spotBackground[2]};
@@ -475,10 +481,8 @@ function ViewModeSwitch({
         <SquaresFour size="small" color="text.main" />
       </ViewModeSwitchButton>
       <ViewModeSwitchButton
-        className={
-          currentViewMode === ViewMode.VIEW_MODE_LIST ? 'selected' : ''
-        }
-        onClick={() => setCurrentViewMode(ViewMode.VIEW_MODE_LIST)}
+        className={currentViewMode === ViewMode.LIST ? 'selected' : ''}
+        onClick={() => setCurrentViewMode(ViewMode.LIST)}
         css={`
           border-top-right-radius: 4px;
           border-bottom-right-radius: 4px;

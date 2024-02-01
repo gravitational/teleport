@@ -17,47 +17,55 @@
  */
 
 import grpc from '@grpc/grpc-js';
-import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
-import { UserPreferences } from 'gen-proto-js/teleport/userpreferences/v1/userpreferences_pb';
+import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.grpc-client';
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 import {
   ClusterUserPreferences,
   PinnedResourcesUserPreferences,
-} from 'gen-proto-js/teleport/userpreferences/v1/cluster_preferences_pb';
-import { UnifiedResourcePreferences } from 'gen-proto-js/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { TerminalServiceClient } from 'gen-proto-js/teleport/lib/teleterm/v1/service_grpc_pb';
+} from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
+import { UnifiedResourcePreferences } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import {
   AccessRequest,
   ResourceID,
-} from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 
 import Logger from 'teleterm/logger';
 import * as uri from 'teleterm/ui/uri';
 
+import {
+  resourceOneOfIsApp,
+  resourceOneOfIsDatabase,
+  resourceOneOfIsKube,
+  resourceOneOfIsServer,
+} from 'teleterm/helpers';
+
 import { createFileTransferStream } from './createFileTransferStream';
-import middleware, { withLogging } from './middleware';
+import { loggingInterceptor } from './interceptors';
 import * as types from './types';
-import createAbortController from './createAbortController';
-import { mapUsageEvent } from './mapUsageEvent';
 import {
   ReportUsageEventRequest,
+  UnifiedResourceResponse,
   UpdateHeadlessAuthenticationStateParams,
 } from './types';
+import createAbortController from './createAbortController';
+import { mapUsageEvent } from './mapUsageEvent';
 
-export default function createClient(
+export function createTshdClient(
   addr: string,
   credentials: grpc.ChannelCredentials
-) {
+): types.TshdClient {
   const logger = new Logger('tshd');
-  const tshd = middleware(new TerminalServiceClient(addr, credentials), [
-    withLogging(logger),
-  ]);
+  const tshd = new TerminalServiceClient(addr, credentials, {
+    interceptors: [loggingInterceptor(logger)],
+  });
 
   // Create a client instance that could be shared with the  renderer (UI) via Electron contextBridge
   const client = {
     createAbortController,
 
     async logout(clusterUri: uri.RootClusterUri) {
-      const req = new api.LogoutRequest().setClusterUri(clusterUri);
+      const req = api.LogoutRequest.create({ clusterUri });
       return new Promise<void>((resolve, reject) => {
         tshd.logout(req, err => {
           if (err) {
@@ -78,16 +86,17 @@ export default function createClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const req = new api.GetKubesRequest()
-        .setClusterUri(clusterUri)
-        .setSearchAsRoles(searchAsRoles)
-        .setStartKey(startKey)
-        .setSearch(search)
-        .setQuery(query)
-        .setLimit(limit);
+      const req = api.GetKubesRequest.create({
+        clusterUri,
+        searchAsRoles,
+        startKey,
+        search,
+        query,
+        limit,
+      });
 
       if (sort) {
-        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
+        req.sortBy = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
       }
 
       return new Promise<types.GetKubesResponse>((resolve, reject) => {
@@ -95,47 +104,84 @@ export default function createClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.GetKubesResponse);
+            resolve(response as types.GetKubesResponse);
+          }
+        });
+      });
+    },
+
+    async getApps({
+      clusterUri,
+      search,
+      sort,
+      query,
+      searchAsRoles,
+      startKey,
+      limit,
+    }: types.GetResourcesParams) {
+      const req = api.GetAppsRequest.create({
+        clusterUri,
+        searchAsRoles,
+        startKey,
+        search,
+        query,
+        limit,
+      });
+
+      if (sort) {
+        req.sortBy = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
+      }
+
+      return new Promise<types.GetAppsResponse>((resolve, reject) => {
+        tshd.getApps(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response as types.GetAppsResponse);
           }
         });
       });
     },
 
     async listGateways() {
-      const req = new api.ListGatewaysRequest();
+      const req = api.ListGatewaysRequest.create();
       return new Promise<types.Gateway[]>((resolve, reject) => {
         tshd.listGateways(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().gatewaysList as types.Gateway[]);
+            resolve(response.gateways as types.Gateway[]);
           }
         });
       });
     },
 
     async listLeafClusters(clusterUri: uri.RootClusterUri) {
-      const req = new api.ListLeafClustersRequest().setClusterUri(clusterUri);
+      const req = api.ListLeafClustersRequest.create({ clusterUri });
       return new Promise<types.Cluster[]>((resolve, reject) => {
         tshd.listLeafClusters(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().clustersList as types.Cluster[]);
+            resolve(response.clusters as types.Cluster[]);
           }
         });
       });
     },
 
-    async listRootClusters() {
-      const req = new api.ListClustersRequest();
-      return new Promise<types.Cluster[]>((resolve, reject) => {
-        tshd.listRootClusters(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().clustersList as types.Cluster[]);
-          }
+    async listRootClusters(abortSignal?: types.TshAbortSignal) {
+      return withAbort(abortSignal, callRef => {
+        return new Promise<types.Cluster[]>((resolve, reject) => {
+          callRef.current = tshd.listRootClusters(
+            api.ListClustersRequest.create(),
+            (err, response) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(response.clusters as types.Cluster[]);
+              }
+            }
+          );
         });
       });
     },
@@ -149,16 +195,17 @@ export default function createClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const req = new api.GetDatabasesRequest()
-        .setClusterUri(clusterUri)
-        .setSearchAsRoles(searchAsRoles)
-        .setStartKey(startKey)
-        .setSearch(search)
-        .setQuery(query)
-        .setLimit(limit);
+      const req = api.GetDatabasesRequest.create({
+        clusterUri,
+        searchAsRoles,
+        startKey,
+        search,
+        query,
+        limit,
+      });
 
       if (sort) {
-        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
+        req.sortBy = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
       }
 
       return new Promise<types.GetDatabasesResponse>((resolve, reject) => {
@@ -166,48 +213,49 @@ export default function createClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.GetDatabasesResponse);
+            resolve(response as types.GetDatabasesResponse);
           }
         });
       });
     },
 
     async listDatabaseUsers(dbUri: uri.DatabaseUri) {
-      const req = new api.ListDatabaseUsersRequest().setDbUri(dbUri);
+      const req = api.ListDatabaseUsersRequest.create({ dbUri });
       return new Promise<string[]>((resolve, reject) => {
         tshd.listDatabaseUsers(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().usersList);
+            resolve(response.users);
           }
         });
       });
     },
 
     async getAccessRequest(clusterUri: uri.RootClusterUri, requestId: string) {
-      const req = new api.GetAccessRequestRequest()
-        .setClusterUri(clusterUri)
-        .setAccessRequestId(requestId);
+      const req = api.GetAccessRequestRequest.create({
+        clusterUri,
+        accessRequestId: requestId,
+      });
       return new Promise<types.AccessRequest>((resolve, reject) => {
         tshd.getAccessRequest(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().request);
+            resolve(response.request);
           }
         });
       });
     },
 
     async getAccessRequests(clusterUri: uri.RootClusterUri) {
-      const req = new api.GetAccessRequestsRequest().setClusterUri(clusterUri);
+      const req = api.GetAccessRequestsRequest.create({ clusterUri });
       return new Promise<types.AccessRequest[]>((resolve, reject) => {
         tshd.getAccessRequests(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().requestsList);
+            resolve(response.requests);
           }
         });
       });
@@ -222,16 +270,17 @@ export default function createClient(
       startKey,
       limit,
     }: types.GetResourcesParams) {
-      const req = new api.GetServersRequest()
-        .setClusterUri(clusterUri)
-        .setSearchAsRoles(searchAsRoles)
-        .setStartKey(startKey)
-        .setSearch(search)
-        .setQuery(query)
-        .setLimit(limit);
+      const req = api.GetServersRequest.create({
+        clusterUri,
+        searchAsRoles,
+        startKey,
+        search,
+        query,
+        limit,
+      });
 
       if (sort) {
-        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
+        req.sortBy = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
       }
 
       return new Promise<types.GetServersResponse>((resolve, reject) => {
@@ -239,33 +288,32 @@ export default function createClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.GetServersResponse);
+            resolve(response as types.GetServersResponse);
           }
         });
       });
     },
 
     async createAccessRequest(params: types.CreateAccessRequestParams) {
-      const req = new api.CreateAccessRequestRequest()
-        .setRootClusterUri(params.rootClusterUri)
-        .setSuggestedReviewersList(params.suggestedReviewers)
-        .setRolesList(params.roles)
-        .setResourceIdsList(
-          params.resourceIds.map(({ id, clusterName, kind }) => {
-            const resourceId = new ResourceID();
-            resourceId.setName(id);
-            resourceId.setClusterName(clusterName);
-            resourceId.setKind(kind);
-            return resourceId;
+      const req = api.CreateAccessRequestRequest.create({
+        rootClusterUri: params.rootClusterUri,
+        suggestedReviewers: params.suggestedReviewers,
+        roles: params.roles,
+        reason: params.reason,
+        resourceIds: params.resourceIds.map(({ id, clusterName, kind }) =>
+          ResourceID.create({
+            name: id,
+            clusterName,
+            kind,
           })
-        )
-        .setReason(params.reason);
-      return new Promise<AccessRequest.AsObject>((resolve, reject) => {
+        ),
+      });
+      return new Promise<AccessRequest>((resolve, reject) => {
         tshd.createAccessRequest(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().request);
+            resolve(response.request);
           }
         });
       });
@@ -275,9 +323,10 @@ export default function createClient(
       clusterUri: uri.RootClusterUri,
       requestId: string
     ) {
-      const req = new api.DeleteAccessRequestRequest()
-        .setRootClusterUri(clusterUri)
-        .setAccessRequestId(requestId);
+      const req = api.DeleteAccessRequestRequest.create({
+        rootClusterUri: clusterUri,
+        accessRequestId: requestId,
+      });
       return new Promise<void>((resolve, reject) => {
         tshd.deleteAccessRequest(req, err => {
           if (err) {
@@ -294,10 +343,11 @@ export default function createClient(
       requestIds: string[],
       dropIds: string[]
     ) {
-      const req = new api.AssumeRoleRequest()
-        .setRootClusterUri(clusterUri)
-        .setAccessRequestIdsList(requestIds)
-        .setDropRequestIdsList(dropIds);
+      const req = api.AssumeRoleRequest.create({
+        rootClusterUri: clusterUri,
+        accessRequestIds: requestIds,
+        dropRequestIds: dropIds,
+      });
       return new Promise<void>((resolve, reject) => {
         tshd.assumeRole(req, err => {
           if (err) {
@@ -313,42 +363,42 @@ export default function createClient(
       clusterUri: uri.RootClusterUri,
       params: types.ReviewAccessRequestParams
     ) {
-      const req = new api.ReviewAccessRequestRequest()
-        .setRootClusterUri(clusterUri)
-        .setAccessRequestId(params.id)
-        .setState(params.state)
-        .setReason(params.reason)
-        .setRolesList(params.roles);
+      const req = api.ReviewAccessRequestRequest.create({
+        rootClusterUri: clusterUri,
+        accessRequestId: params.id,
+        state: params.state,
+        reason: params.reason,
+        roles: params.roles,
+      });
       return new Promise<types.AccessRequest>((resolve, reject) => {
         tshd.reviewAccessRequest(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().request);
+            resolve(response.request);
           }
         });
       });
     },
 
     async getRequestableRoles(params: types.GetRequestableRolesParams) {
-      const req = new api.GetRequestableRolesRequest()
-        .setClusterUri(params.rootClusterUri)
-        .setResourceIdsList(
-          params.resourceIds.map(({ id, clusterName, kind }) => {
-            const resourceId = new ResourceID();
-            resourceId.setName(id);
-            resourceId.setClusterName(clusterName);
-            resourceId.setKind(kind);
-            return resourceId;
+      const req = api.GetRequestableRolesRequest.create({
+        clusterUri: params.rootClusterUri,
+        resourceIds: params.resourceIds!.map(({ id, clusterName, kind }) =>
+          ResourceID.create({
+            name: id,
+            clusterName,
+            kind,
           })
-        );
+        ),
+      });
       return new Promise<types.GetRequestableRolesResponse>(
         (resolve, reject) => {
           tshd.getRequestableRoles(req, (err, response) => {
             if (err) {
               reject(err);
             } else {
-              resolve(response.toObject());
+              resolve(response);
             }
           });
         }
@@ -356,26 +406,26 @@ export default function createClient(
     },
 
     async addRootCluster(addr: string) {
-      const req = new api.AddClusterRequest().setName(addr);
+      const req = api.AddClusterRequest.create({ name: addr });
       return new Promise<types.Cluster>((resolve, reject) => {
         tshd.addCluster(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.Cluster);
+            resolve(response as types.Cluster);
           }
         });
       });
     },
 
     async getCluster(uri: uri.RootClusterUri) {
-      const req = new api.GetClusterRequest().setClusterUri(uri);
+      const req = api.GetClusterRequest.create({ clusterUri: uri });
       return new Promise<types.Cluster>((resolve, reject) => {
         tshd.getCluster(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.Cluster);
+            resolve(response as types.Cluster);
           }
         });
       });
@@ -385,15 +435,19 @@ export default function createClient(
       params: types.LoginLocalParams,
       abortSignal?: types.TshAbortSignal
     ) {
-      const localParams = new api.LoginRequest.LocalParams()
-        .setToken(params.token)
-        .setUser(params.username)
-        .setPassword(params.password);
-
+      const localParams = api.LoginRequest_LocalParams.create({
+        token: params.token,
+        user: params.username,
+        password: params.password,
+      });
       return withAbort(abortSignal, callRef => {
-        const req = new api.LoginRequest().setClusterUri(params.clusterUri);
-        req.setLocal(localParams);
-
+        const req = api.LoginRequest.create({
+          clusterUri: params.clusterUri,
+          params: {
+            oneofKind: 'local',
+            local: localParams,
+          },
+        });
         return new Promise<void>((resolve, reject) => {
           callRef.current = tshd.login(req, err => {
             if (err) {
@@ -410,14 +464,18 @@ export default function createClient(
       params: types.LoginSsoParams,
       abortSignal?: types.TshAbortSignal
     ) {
-      const ssoParams = new api.LoginRequest.SsoParams()
-        .setProviderName(params.providerName)
-        .setProviderType(params.providerType);
-
+      const ssoParams = api.LoginRequest_SsoParams.create({
+        providerName: params.providerName,
+        providerType: params.providerType,
+      });
       return withAbort(abortSignal, callRef => {
-        const req = new api.LoginRequest().setClusterUri(params.clusterUri);
-        req.setSso(ssoParams);
-
+        const req = api.LoginRequest.create({
+          clusterUri: params.clusterUri,
+          params: {
+            oneofKind: 'sso',
+            sso: ssoParams,
+          },
+        });
         return new Promise<void>((resolve, reject) => {
           callRef.current = tshd.login(req, err => {
             if (err) {
@@ -436,13 +494,15 @@ export default function createClient(
     ) {
       return withAbort(abortSignal, callRef => {
         const streamInitReq =
-          new api.LoginPasswordlessRequest.LoginPasswordlessRequestInit().setClusterUri(
-            params.clusterUri
-          );
-        const streamReq = new api.LoginPasswordlessRequest().setInit(
-          streamInitReq
-        );
-
+          api.LoginPasswordlessRequest_LoginPasswordlessRequestInit.create({
+            clusterUri: params.clusterUri,
+          });
+        const streamReq = api.LoginPasswordlessRequest.create({
+          request: {
+            oneofKind: 'init',
+            init: streamInitReq,
+          },
+        });
         return new Promise<void>((resolve, reject) => {
           callRef.current = tshd.loginPasswordless();
           const stream = callRef.current as grpc.ClientDuplexStream<
@@ -456,17 +516,20 @@ export default function createClient(
           stream.write(streamReq);
 
           stream.on('data', function (response: api.LoginPasswordlessResponse) {
-            const req = response.toObject();
-
-            switch (req.prompt) {
-              case api.PasswordlessPrompt.PASSWORDLESS_PROMPT_PIN:
+            switch (response.prompt) {
+              case api.PasswordlessPrompt.PIN:
                 const pinResponse = pin => {
                   const pinRes =
-                    new api.LoginPasswordlessRequest.LoginPasswordlessPINResponse().setPin(
-                      pin
+                    api.LoginPasswordlessRequest_LoginPasswordlessPINResponse.create(
+                      { pin }
                     );
                   stream.write(
-                    new api.LoginPasswordlessRequest().setPin(pinRes)
+                    api.LoginPasswordlessRequest.create({
+                      request: {
+                        oneofKind: 'pin',
+                        pin: pinRes,
+                      },
+                    })
                   );
                 };
 
@@ -476,25 +539,30 @@ export default function createClient(
                 });
                 return;
 
-              case api.PasswordlessPrompt.PASSWORDLESS_PROMPT_CREDENTIAL:
+              case api.PasswordlessPrompt.CREDENTIAL:
                 const credResponse = index => {
                   const credRes =
-                    new api.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse().setIndex(
-                      index
+                    api.LoginPasswordlessRequest_LoginPasswordlessCredentialResponse.create(
+                      { index }
                     );
                   stream.write(
-                    new api.LoginPasswordlessRequest().setCredential(credRes)
+                    api.LoginPasswordlessRequest.create({
+                      request: {
+                        oneofKind: 'credential',
+                        credential: credRes,
+                      },
+                    })
                   );
                 };
 
                 params.onPromptCallback({
                   type: 'credential',
                   onUserResponse: credResponse,
-                  data: { credentials: req.credentialsList || [] },
+                  data: { credentials: response.credentials || [] },
                 });
                 return;
 
-              case api.PasswordlessPrompt.PASSWORDLESS_PROMPT_TAP:
+              case api.PasswordlessPrompt.TAP:
                 if (hasDeviceBeenTapped) {
                   params.onPromptCallback({ type: 'retap' });
                 } else {
@@ -504,7 +572,7 @@ export default function createClient(
                 return;
 
               // Following cases should never happen but just in case?
-              case api.PasswordlessPrompt.PASSWORDLESS_PROMPT_UNSPECIFIED:
+              case api.PasswordlessPrompt.UNSPECIFIED:
                 stream.cancel();
                 return reject(
                   new Error('no passwordless prompt was specified')
@@ -513,7 +581,9 @@ export default function createClient(
               default:
                 stream.cancel();
                 return reject(
-                  new Error(`passwordless prompt '${req.prompt}' not supported`)
+                  new Error(
+                    `passwordless prompt '${response.prompt}' not supported`
+                  )
                 );
             }
           });
@@ -530,37 +600,38 @@ export default function createClient(
     },
 
     async getAuthSettings(clusterUri: uri.RootClusterUri) {
-      const req = new api.GetAuthSettingsRequest().setClusterUri(clusterUri);
+      const req = api.GetAuthSettingsRequest.create({ clusterUri });
       return new Promise<types.AuthSettings>((resolve, reject) => {
         tshd.getAuthSettings(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject());
+            resolve(response);
           }
         });
       });
     },
 
     async createGateway(params: types.CreateGatewayParams) {
-      const req = new api.CreateGatewayRequest()
-        .setTargetUri(params.targetUri)
-        .setTargetUser(params.user)
-        .setLocalPort(params.port)
-        .setTargetSubresourceName(params.subresource_name);
+      const req = api.CreateGatewayRequest.create({
+        targetUri: params.targetUri,
+        targetUser: params.user,
+        localPort: params.port,
+        targetSubresourceName: params.subresource_name,
+      });
       return new Promise<types.Gateway>((resolve, reject) => {
         tshd.createGateway(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.Gateway);
+            resolve(response as types.Gateway);
           }
         });
       });
     },
 
     async removeCluster(clusterUri: uri.RootClusterUri) {
-      const req = new api.RemoveClusterRequest().setClusterUri(clusterUri);
+      const req = api.RemoveClusterRequest.create({ clusterUri });
       return new Promise<void>((resolve, reject) => {
         tshd.removeCluster(req, err => {
           if (err) {
@@ -573,7 +644,7 @@ export default function createClient(
     },
 
     async removeGateway(gatewayUri: uri.GatewayUri) {
-      const req = new api.RemoveGatewayRequest().setGatewayUri(gatewayUri);
+      const req = api.RemoveGatewayRequest.create({ gatewayUri });
       return new Promise<void>((resolve, reject) => {
         tshd.removeGateway(req, err => {
           if (err) {
@@ -589,30 +660,32 @@ export default function createClient(
       gatewayUri: uri.GatewayUri,
       targetSubresourceName = ''
     ) {
-      const req = new api.SetGatewayTargetSubresourceNameRequest()
-        .setGatewayUri(gatewayUri)
-        .setTargetSubresourceName(targetSubresourceName);
+      const req = api.SetGatewayTargetSubresourceNameRequest.create({
+        gatewayUri,
+        targetSubresourceName,
+      });
       return new Promise<types.Gateway>((resolve, reject) => {
         tshd.setGatewayTargetSubresourceName(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.Gateway);
+            resolve(response as types.Gateway);
           }
         });
       });
     },
 
     async setGatewayLocalPort(gatewayUri: uri.GatewayUri, localPort: string) {
-      const req = new api.SetGatewayLocalPortRequest()
-        .setGatewayUri(gatewayUri)
-        .setLocalPort(localPort);
+      const req = api.SetGatewayLocalPortRequest.create({
+        gatewayUri,
+        localPort,
+      });
       return new Promise<types.Gateway>((resolve, reject) => {
         tshd.setGatewayLocalPort(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.Gateway);
+            resolve(response as types.Gateway);
           }
         });
       });
@@ -622,20 +695,19 @@ export default function createClient(
       options: types.FileTransferRequest,
       abortSignal: types.TshAbortSignal
     ) {
-      const req = new api.FileTransferRequest()
-        .setServerUri(options.serverUri)
-        .setLogin(options.login)
-        .setSource(options.source)
-        .setDestination(options.destination)
-        .setDirection(options.direction);
+      const req = api.FileTransferRequest.create({
+        serverUri: options.serverUri,
+        login: options.login,
+        source: options.source,
+        destination: options.destination,
+        direction: options.direction,
+      });
 
       return createFileTransferStream(tshd.transferFile(req), abortSignal);
     },
 
     updateTshdEventsServerAddress(address: string) {
-      const req = new api.UpdateTshdEventsServerAddressRequest().setAddress(
-        address
-      );
+      const req = api.UpdateTshdEventsServerAddressRequest.create({ address });
       return new Promise<void>((resolve, reject) => {
         tshd.updateTshdEventsServerAddress(req, err => {
           if (err) {
@@ -661,10 +733,9 @@ export default function createClient(
     },
 
     createConnectMyComputerRole(rootClusterUri: uri.RootClusterUri) {
-      const req =
-        new api.CreateConnectMyComputerRoleRequest().setRootClusterUri(
-          rootClusterUri
-        );
+      const req = api.CreateConnectMyComputerRoleRequest.create({
+        rootClusterUri,
+      });
 
       return new Promise<types.CreateConnectMyComputerRoleResponse>(
         (resolve, reject) => {
@@ -672,7 +743,7 @@ export default function createClient(
             if (err) {
               reject(err);
             } else {
-              resolve(response.toObject());
+              resolve(response);
             }
           });
         }
@@ -683,14 +754,14 @@ export default function createClient(
       return new Promise<types.CreateConnectMyComputerNodeTokenResponse>(
         (resolve, reject) => {
           tshd.createConnectMyComputerNodeToken(
-            new api.CreateConnectMyComputerNodeTokenRequest().setRootClusterUri(
-              uri
-            ),
+            api.CreateConnectMyComputerNodeTokenRequest.create({
+              rootClusterUri: uri,
+            }),
             (err, response) => {
               if (err) {
                 reject(err);
               } else {
-                resolve(response.toObject());
+                resolve(response);
               }
             }
           );
@@ -698,31 +769,13 @@ export default function createClient(
       );
     },
 
-    deleteConnectMyComputerToken(uri: uri.RootClusterUri, token: string) {
-      return new Promise<void>((resolve, reject) => {
-        tshd.deleteConnectMyComputerToken(
-          new api.DeleteConnectMyComputerTokenRequest()
-            .setRootClusterUri(uri)
-            .setToken(token),
-          err => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          }
-        );
-      });
-    },
-
     waitForConnectMyComputerNodeJoin(
       uri: uri.RootClusterUri,
       abortSignal: types.TshAbortSignal
     ) {
-      const req =
-        new api.WaitForConnectMyComputerNodeJoinRequest().setRootClusterUri(
-          uri
-        );
+      const req = api.WaitForConnectMyComputerNodeJoinRequest.create({
+        rootClusterUri: uri,
+      });
 
       return withAbort(
         abortSignal,
@@ -736,7 +789,7 @@ export default function createClient(
                     reject(err);
                   } else {
                     resolve(
-                      response.toObject() as types.WaitForConnectMyComputerNodeJoinResponse
+                      response as types.WaitForConnectMyComputerNodeJoinResponse
                     );
                   }
                 }
@@ -749,7 +802,9 @@ export default function createClient(
     deleteConnectMyComputerNode(uri: uri.RootClusterUri) {
       return new Promise<void>((resolve, reject) => {
         tshd.deleteConnectMyComputerNode(
-          new api.DeleteConnectMyComputerNodeRequest().setRootClusterUri(uri),
+          api.DeleteConnectMyComputerNodeRequest.create({
+            rootClusterUri: uri,
+          }),
           err => {
             if (err) {
               reject(err);
@@ -764,12 +819,14 @@ export default function createClient(
     getConnectMyComputerNodeName(uri: uri.RootClusterUri) {
       return new Promise<string>((resolve, reject) => {
         tshd.getConnectMyComputerNodeName(
-          new api.GetConnectMyComputerNodeNameRequest().setRootClusterUri(uri),
+          api.GetConnectMyComputerNodeNameRequest.create({
+            rootClusterUri: uri,
+          }),
           (err, response) => {
             if (err) {
               reject(err);
             } else {
-              resolve(response.getName() as uri.ServerUri);
+              resolve(response.name as uri.ServerUri);
             }
           }
         );
@@ -781,10 +838,11 @@ export default function createClient(
       abortSignal?: types.TshAbortSignal
     ) {
       return withAbort(abortSignal, callRef => {
-        const req = new api.UpdateHeadlessAuthenticationStateRequest()
-          .setRootClusterUri(params.rootClusterUri)
-          .setHeadlessAuthenticationId(params.headlessAuthenticationId)
-          .setState(params.state);
+        const req = api.UpdateHeadlessAuthenticationStateRequest.create({
+          rootClusterUri: params.rootClusterUri,
+          headlessAuthenticationId: params.headlessAuthenticationId,
+          state: params.state,
+        });
 
         return new Promise<void>((resolve, reject) => {
           callRef.current = tshd.updateHeadlessAuthenticationState(req, err => {
@@ -803,21 +861,21 @@ export default function createClient(
       abortSignal?: types.TshAbortSignal
     ) {
       return withAbort(abortSignal, callRef => {
-        const req = new api.ListUnifiedResourcesRequest()
-          .setClusterUri(params.clusterUri)
-          .setLimit(params.limit)
-          .setKindsList(params.kindsList)
-          .setStartKey(params.startKey)
-          .setSearch(params.search)
-          .setQuery(params.query)
-          .setPinnedOnly(params.pinnedOnly)
-          .setSearchAsRoles(params.searchAsRoles);
+        const req = api.ListUnifiedResourcesRequest.create({
+          clusterUri: params.clusterUri,
+          limit: params.limit,
+          kinds: params.kinds,
+          startKey: params.startKey,
+          search: params.search,
+          query: params.query,
+          pinnedOnly: params.pinnedOnly,
+          searchAsRoles: params.searchAsRoles,
+        });
         if (params.sortBy) {
-          req.setSortBy(
-            new api.SortBy()
-              .setField(params.sortBy.field)
-              .setIsDesc(params.sortBy.isDesc)
-          );
+          req.sortBy = api.SortBy.create({
+            field: params.sortBy.field,
+            isDesc: params.sortBy.isDesc,
+          });
         }
 
         return new Promise<types.ListUnifiedResourcesResponse>(
@@ -827,37 +885,42 @@ export default function createClient(
                 reject(err);
               } else {
                 resolve({
-                  nextKey: res.getNextKey(),
-                  resources: res
-                    .getResourcesList()
+                  nextKey: res.nextKey,
+                  resources: res.resources
                     .map(p => {
-                      switch (p.getResourceCase()) {
-                        case api.PaginatedResource.ResourceCase.SERVER:
-                          return {
-                            kind: 'server' as const,
-                            resource: p.getServer().toObject() as types.Server,
-                          };
-                        case api.PaginatedResource.ResourceCase.DATABASE:
-                          return {
-                            kind: 'database' as const,
-                            resource: p
-                              .getDatabase()
-                              .toObject() as types.Database,
-                          };
-                        case api.PaginatedResource.ResourceCase.KUBE:
-                          return {
-                            kind: 'kube' as const,
-                            resource: p.getKube().toObject() as types.Kube,
-                          };
-                        default:
-                          logger.info(
-                            `Ignoring unsupported resource ${JSON.stringify(
-                              p.toObject()
-                            )}.`
-                          );
+                      if (resourceOneOfIsServer(p.resource)) {
+                        return {
+                          kind: 'server',
+                          resource: p.resource.server,
+                        };
                       }
+
+                      if (resourceOneOfIsDatabase(p.resource)) {
+                        return {
+                          kind: 'database',
+                          resource: p.resource.database,
+                        };
+                      }
+
+                      if (resourceOneOfIsApp(p.resource)) {
+                        return {
+                          kind: 'app',
+                          resource: p.resource.app,
+                        };
+                      }
+
+                      if (resourceOneOfIsKube(p.resource)) {
+                        return {
+                          kind: 'kube',
+                          resource: p.resource.kube,
+                        };
+                      }
+
+                      logger.info(
+                        `Ignoring unsupported resource ${JSON.stringify(p)}.`
+                      );
                     })
-                    .filter(Boolean),
+                    .filter(Boolean) as UnifiedResourceResponse[],
                 });
               }
             });
@@ -866,105 +929,101 @@ export default function createClient(
       });
     },
     getUserPreferences(
-      params: api.GetUserPreferencesRequest.AsObject,
+      params: api.GetUserPreferencesRequest,
       abortSignal?: types.TshAbortSignal
-    ): Promise<api.UserPreferences.AsObject> {
+    ): Promise<api.UserPreferences> {
       return withAbort(abortSignal, callRef => {
-        const req = new api.GetUserPreferencesRequest().setClusterUri(
-          params.clusterUri
-        );
+        const req = api.GetUserPreferencesRequest.create({
+          clusterUri: params.clusterUri,
+        });
 
         return new Promise((resolve, reject) => {
           callRef.current = tshd.getUserPreferences(req, (err, response) => {
             if (err) {
               reject(err);
             } else {
-              const res = response.toObject();
-              resolve(res.userPreferences);
+              resolve(response.userPreferences);
             }
           });
         });
       });
     },
     updateUserPreferences(
-      params: api.UpdateUserPreferencesRequest.AsObject,
+      params: api.UpdateUserPreferencesRequest,
       abortSignal?: types.TshAbortSignal
-    ): Promise<api.UserPreferences.AsObject> {
-      const userPreferences = new UserPreferences();
+    ): Promise<api.UserPreferences> {
+      const userPreferences = UserPreferences.create();
       if (params.userPreferences.clusterPreferences) {
-        userPreferences.setClusterPreferences(
-          new ClusterUserPreferences().setPinnedResources(
-            new PinnedResourcesUserPreferences().setResourceIdsList(
+        userPreferences.clusterPreferences = ClusterUserPreferences.create({
+          pinnedResources: PinnedResourcesUserPreferences.create({
+            resourceIds:
               params.userPreferences.clusterPreferences.pinnedResources
-                .resourceIdsList
-            )
-          )
-        );
+                ?.resourceIds,
+          }),
+        });
       }
 
       if (params.userPreferences.unifiedResourcePreferences) {
-        userPreferences.setUnifiedResourcePreferences(
-          new UnifiedResourcePreferences()
-            .setDefaultTab(
-              params.userPreferences.unifiedResourcePreferences.defaultTab
-            )
-            .setViewMode(
-              params.userPreferences.unifiedResourcePreferences.viewMode
-            )
-            .setLabelsViewMode(
-              params.userPreferences.unifiedResourcePreferences.labelsViewMode
-            )
-        );
+        userPreferences.unifiedResourcePreferences =
+          UnifiedResourcePreferences.create({
+            defaultTab:
+              params.userPreferences.unifiedResourcePreferences.defaultTab,
+            viewMode:
+              params.userPreferences.unifiedResourcePreferences.viewMode,
+            labelsViewMode:
+              params.userPreferences.unifiedResourcePreferences.labelsViewMode,
+          });
       }
 
       return withAbort(abortSignal, callRef => {
-        const req = new api.UpdateUserPreferencesRequest()
-          .setClusterUri(params.clusterUri)
-          .setUserPreferences(userPreferences);
+        const req = api.UpdateUserPreferencesRequest.create({
+          clusterUri: params.clusterUri,
+          userPreferences,
+        });
 
         return new Promise((resolve, reject) => {
           callRef.current = tshd.updateUserPreferences(req, (err, response) => {
             if (err) {
               reject(err);
             } else {
-              const res = response.toObject();
-              resolve(res.userPreferences);
+              resolve(response.userPreferences);
             }
           });
         });
       });
     },
     promoteAccessRequest(
-      params: api.PromoteAccessRequestRequest.AsObject,
+      params: api.PromoteAccessRequestRequest,
       abortSignal?: types.TshAbortSignal
     ): Promise<types.AccessRequest> {
       return withAbort(abortSignal, callRef => {
-        const req = new api.PromoteAccessRequestRequest()
-          .setRootClusterUri(params.rootClusterUri)
-          .setAccessRequestId(params.accessRequestId)
-          .setAccessListId(params.accessListId)
-          .setReason(params.reason);
+        const req = api.PromoteAccessRequestRequest.create({
+          rootClusterUri: params.rootClusterUri,
+          accessRequestId: params.accessRequestId,
+          accessListId: params.accessListId,
+          reason: params.reason,
+        });
 
         return new Promise((resolve, reject) => {
           callRef.current = tshd.promoteAccessRequest(req, (err, response) => {
             if (err) {
               reject(err);
             } else {
-              const res = response.toObject();
-              resolve(res.request);
+              resolve(response.request);
             }
           });
         });
       });
     },
     getSuggestedAccessLists(
-      params: api.GetSuggestedAccessListsRequest.AsObject,
+      params: api.GetSuggestedAccessListsRequest,
       abortSignal?: types.TshAbortSignal
     ): Promise<types.AccessList[]> {
       return withAbort(abortSignal, callRef => {
-        const req = new api.GetSuggestedAccessListsRequest()
-          .setRootClusterUri(params.rootClusterUri)
-          .setAccessRequestId(params.accessRequestId);
+        const req = api.GetSuggestedAccessListsRequest.create({
+          rootClusterUri: params.rootClusterUri,
+          accessRequestId: params.accessRequestId,
+        });
 
         return new Promise((resolve, reject) => {
           callRef.current = tshd.getSuggestedAccessLists(
@@ -973,8 +1032,7 @@ export default function createClient(
               if (err) {
                 reject(err);
               } else {
-                const res = response.toObject();
-                resolve(res.accessListsList);
+                resolve(response.accessLists);
               }
             }
           );
@@ -987,21 +1045,21 @@ export default function createClient(
 }
 
 type CallRef = {
-  current?: {
+  current: {
     cancel(): void;
-  };
+  } | null;
 };
 
 async function withAbort<T>(
-  sig: types.TshAbortSignal,
+  sig: types.TshAbortSignal | undefined,
   cb: (ref: CallRef) => Promise<T>
 ) {
-  const ref = {
+  const ref: CallRef = {
     current: null,
   };
 
   const abort = () => {
-    ref?.current.cancel();
+    ref?.current?.cancel();
   };
 
   sig?.addEventListener(abort);
