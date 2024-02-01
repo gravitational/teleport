@@ -32,7 +32,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -508,18 +507,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		span.AddEvent("creating preset roles")
 		if err := createPresetRoles(ctx, asrv); err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(trace.Unwrap(err))
-			span.End()
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset roles")
 
 		span.AddEvent("creating preset users")
 		if err := createPresetUsers(ctx, asrv); err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(trace.Unwrap(err))
-			span.End()
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset users")
