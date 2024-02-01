@@ -65,7 +65,6 @@ type AccessListService struct {
 	service       *generic.Service[*accesslist.AccessList]
 	memberService *generic.Service[*accesslist.AccessListMember]
 	reviewService *generic.Service[*accesslist.Review]
-	backend       backend.Backend
 }
 
 // compile-time assertion that the AccessListService implements the AccessLists
@@ -116,7 +115,6 @@ func NewAccessListService(backend backend.Backend, clock clockwork.Clock) (*Acce
 		service:       service,
 		memberService: memberService,
 		reviewService: reviewService,
-		backend:       backend,
 	}, nil
 }
 
@@ -274,43 +272,15 @@ func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessLis
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
 func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
-	// Locks are not used here as these operations are more likely to be used by the cache.
-	rangeStart := backend.Key(accessListMemberPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(accessListMemberPrefix))
-
-	// Adjust page size, so it can't be too large.
-	if pageSize <= 0 || pageSize > int(accessListMemberMaxPageSize) {
-		pageSize = int(accessListMemberMaxPageSize)
-	}
-
-	limit := pageSize + 1
-
-	// no filter provided get the range directly
-	result, err := a.backend.GetRange(ctx, rangeStart, rangeEnd, limit)
+	members, next, err := a.memberService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-
-	out := make([]*accesslist.AccessListMember, 0, len(result.Items))
-	for _, item := range result.Items {
-		resource, err := services.UnmarshalAccessListMember(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		out = append(out, resource)
-	}
-
 	var nextKey string
-	if len(out) > pageSize {
-		// For listing all access list members for all access lists, we want to list members regardless of which
-		// access list they belong to. As a result, we'll use custom pagination logic here to include the appropriate
-		// prefix across pages.
-		nextKey = out[pageSize].Spec.AccessList + string(backend.Separator) + out[pageSize].Metadata.Name
-		// Truncate the last item that was used to determine next row existence.
-		out = out[:pageSize]
+	if next != nil {
+		nextKey = next.Spec.AccessList + string(backend.Separator) + next.Metadata.Name
 	}
-
-	return out, nextKey, nil
+	return members, nextKey, nil
 }
 
 // GetAccessListMember returns the specified access list member resource.
@@ -522,43 +492,15 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 
 // ListAllAccessListReviews will list access list reviews for all access lists.
 func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
-	// Locks are not used here as these operations are more likely to be used by the cache.
-	rangeStart := backend.Key(accessListReviewPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(accessListReviewPrefix))
-
-	// Adjust page size, so it can't be too large.
-	if pageSize <= 0 || pageSize > int(accessListMemberMaxPageSize) {
-		pageSize = int(accessListMemberMaxPageSize)
-	}
-
-	limit := pageSize + 1
-
-	// no filter provided get the range directly
-	result, err := a.backend.GetRange(ctx, rangeStart, rangeEnd, limit)
+	reviews, next, err := a.reviewService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-
-	out := make([]*accesslist.Review, 0, len(result.Items))
-	for _, item := range result.Items {
-		resource, err := services.UnmarshalAccessListReview(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		out = append(out, resource)
-	}
-
 	var nextKey string
-	if len(out) > pageSize {
-		// For listing all access list reviews for all access lists, we want to list reviews regardless of which
-		// access list they belong to. As a result, we'll use custom pagination logic here to include the appropriate
-		// prefix across pages.
-		nextKey = out[pageSize].Spec.AccessList + string(backend.Separator) + out[pageSize].Metadata.Name
-		// Truncate the last item that was used to determine next row existence.
-		out = out[:pageSize]
+	if next != nil {
+		nextKey = next.Spec.AccessList + string(backend.Separator) + next.Metadata.Name
 	}
-
-	return out, nextKey, nil
+	return reviews, nextKey, nil
 }
 
 // CreateAccessListReview will create a new review for an access list.
