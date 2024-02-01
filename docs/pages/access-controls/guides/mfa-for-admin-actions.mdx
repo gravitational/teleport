@@ -1,50 +1,38 @@
 ---
-title: MFA for Admin Actions
-description: Require MFA checks to perform admin actions.
+title: MFA for Administrative Actions
+description: Require MFA checks to perform administrative actions.
 ---
 
 Teleport can be configured to require additional multi-factor authentication
-checks to perform admin actions. This requirement applies to adding, editing,
-or deleting the following administrative resources:
+checks to perform administrative actions through `tctl`, `tsh`, the Web UI,
+Teleport Connect, and any other Teleport client.
 
-- User Management:
-  - Users
-  - User Groups
-  - Roles
-  - Trusted Devices
-  - Account Recovery
-- Access Management:
-  - Access Requests
-  - Access Lists
-  - Login Rules
-  - Join Tokens
-- Cluster Config:
-  - Authentication Preference
-  - Session Recording Config
-  - Networking Config
-  - Network Restrictions
-- Authentication Connectors:
-  - SAML connectors
-  - Github connectors
-  - OIDC connectors
-- Certificates:
-  - Certificate Authorities
-  - User Certificates
-  - Host Certificates
-  - Bots
+Examples of administrative actions include, but are not limited to:
+
+- Resetting or recovering user accounts
+- Inviting new users
+- Updating cluster configuration resources
+- Modifying access management resources
+- Approving access requests
+- Generating new join tokens
+- Impersonation
+- Creating new bots for Machine ID
 
 This is an advanced security feature that protects users against compromises of
 their on-disk Teleport certificates.
 
 <Notice type="warning">
-  MFA for admin actions is a breaking change for non-interactive clients that
-  need to perform admin actions, such as the [Terraform Provider](../../machine-id/access-guides/terraform.mdx)
-  or [Access Request plugins](../access-request-plugins/index.mdx).
+  When MFA for administrative actions is enabled, user certificates produced
+  with `tctl auth sign` will no longer be suitable for automation due to the
+  additional MFA checks.
 
-  To avoid MFA checks for admin actions for such use cases, users must use
-  [Machine ID](../../machine-id/getting-started.mdx). Creating the bot with
-  `tctl bots add` still requires an MFA check, but the certificates output
-  by `tbot` skip the MFA checks.
+  We recommend using [Machine ID](../../machine-id/getting-started.mdx) to
+  issue certificates for automated workflows, which uses role impersonation
+  that is not subject to MFA checks.
+
+  Certificates produced with `tctl auth sign` directly on an Auth service
+  instance using the super-administrative are not subject to MFA checks to support
+  legacy self-hosted setups.
 </Notice>
 
 ## Prerequisites
@@ -58,14 +46,14 @@ their on-disk Teleport certificates.
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH or desktop sessions from the Teleport Web UI).
 
-## Require MFA for admin actions
+## Require MFA for administrative actions
 
-MFA for admin actions is automatically enforced for clusters where WebAuthn is
-the only form of second factor allowed.
+MFA for administrative actions is automatically enforced for clusters where
+WebAuthn is the only form of second factor allowed.
 
 <Notice type="note">
-  Teleport may widen the sope of these MFA checks in a future major version to
-  cover a wider range of cluster configurations.
+  In a future major version, Teleport may enforce MFA for administrative actions
+  for a wider range of cluster configurations.
 </Notice>
 
 <Tabs>
