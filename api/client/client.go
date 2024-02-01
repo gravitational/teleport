@@ -1731,32 +1731,13 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// Deprecated: Use AddMFADeviceSync instead.
-func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
-	stream, err := c.grpc.AddMFADevice(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return stream, nil
-}
-
-// Deprecated: Use DeleteMFADeviceSync instead.
-func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
-	stream, err := c.grpc.DeleteMFADevice(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return stream, nil
-}
-
-// AddMFADeviceSync adds a new MFA device (nonstream).
+// AddMFADeviceSync adds a new MFA device.
 func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
 	res, err := c.grpc.AddMFADeviceSync(ctx, in)
 	return res, trace.Wrap(err)
 }
 
-// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+// DeleteMFADeviceSync deletes a users MFA device.
 func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
 	_, err := c.grpc.DeleteMFADeviceSync(ctx, in)
 	return trace.Wrap(err)
