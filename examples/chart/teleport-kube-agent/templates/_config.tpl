@@ -51,8 +51,8 @@ app_service:
       {{- if not (hasKey $app "name") }}
         {{- fail "'name' is required for all 'apps' in chart values when app role is enabled, see README" }}
       {{- end }}
-      {{- if not (hasKey $app "uri") }}
-        {{- fail "'uri' is required for all 'apps' in chart values when app role is enabled, see README" }}
+      {{- if (and (not (hasKey $app "uri")) (not (hasKey $app "cloud"))) }}
+        {{- fail "'uri' or 'cloud' is required for all 'apps' in chart values when app role is enabled, see README" }}
       {{- end }}
     {{- end }}
   apps:
