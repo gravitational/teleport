@@ -822,8 +822,8 @@ github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8F
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFER/+0TfRypJhc9XeuggTtEZzhhe75DSVqMv/avHEU=
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
-github.com/gravitational/kustomize/api v0.0.0-20240201174225-90bb1eeead9a h1:1f9Gq0tWXk3hdNh6Mr7jvf+wxQCmCqoHTqy4q/FMxVk=
-github.com/gravitational/kustomize/api v0.0.0-20240201174225-90bb1eeead9a/go.mod h1:E/0/egj7ED7xWEegMHlRagaZTiL6fxakmSR2pyiK2ZU=
+github.com/gravitational/kustomize/api v0.16.0-teleport.1 h1:d/aWgghHn/N6TlwGxjjbelUC7b0G0YRyUDf8XS1aScg=
+github.com/gravitational/kustomize/api v0.16.0-teleport.1/go.mod h1:E/0/egj7ED7xWEegMHlRagaZTiL6fxakmSR2pyiK2ZU=
 github.com/gravitational/license v0.0.0-20231228155916-928ed9ac0335 h1:fShrzWedyujntzzpjdDmy7r22d+6nKIokEWZRG2QoMQ=
 github.com/gravitational/license v0.0.0-20231228155916-928ed9ac0335/go.mod h1:kzMpXT7DIdeoGVSTwsZowcW6jiu3NRwg+E1XfdGvzyI=
 github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680 h1:acbjjEJoR2vu1cuSE15Q9YDgWZxWRFj7nr2Vsi/Pn18=
