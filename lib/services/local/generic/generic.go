@@ -34,7 +34,6 @@ import (
 // Resource represents a Teleport resource that may be generically
 // persisted into the backend.
 type Resource interface {
-	comparable
 	GetName() string
 }
 
@@ -149,16 +148,15 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
 	resources, next, err := s.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
 	var nextKey string
-	var zero T
-	if next != zero {
-		nextKey = backend.GetPaginationKey(next)
+	if next != nil {
+		nextKey = backend.GetPaginationKey(*next)
 	}
 	return resources, nextKey, trace.Wrap(err)
 }
 
 // ListResourcesReturnNextResource returns a paginated list of resources. The next resource is returned, which allows consumers to construct
 // the next pagination key as appropriate.
-func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSize int, pageToken string) (page []T, next T, err error) {
+func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSize int, pageToken string) (page []T, next *T, err error) {
 	rangeStart := backend.Key(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
@@ -185,7 +183,7 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 	}
 
 	if len(out) > pageSize {
-		next = out[len(out)-1]
+		next = &out[len(out)-1]
 		// Truncate the last item that was used to determine next row existence.
 		out = out[:pageSize]
 	}
