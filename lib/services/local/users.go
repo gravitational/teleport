@@ -441,58 +441,76 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
-// CompareAndSwapUser updates a user, but fails if the value (as exists in the
-// backend) differs from the provided `existing` value. If the existing value
+// CompareAndSwapUser updates a user, but fails if the user (as exists in the
+// backend) differs from the provided `existing` user. If the existing user
 // matches, returns no error, otherwise returns `trace.CompareFailed`.
 func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing types.User) error {
+	if new.GetName() != existing.GetName() {
+		return trace.BadParameter("name mismatch between new and existing user")
+	}
 	if err := services.ValidateUser(new); err != nil {
 		return trace.Wrap(err)
 	}
 
-	newRaw, ok := new.WithoutSecrets().(types.User)
+	newWithoutSecrets, ok := new.WithoutSecrets().(types.User)
 	if !ok {
-		return trace.BadParameter("Invalid user type %T", new)
+		return trace.BadParameter("Invalid new user type %T (this is a bug).", new)
 	}
-	rev := new.GetRevision()
-	newValue, err := services.MarshalUser(newRaw)
-	if err != nil {
-		return trace.Wrap(err)
+
+	existingWithoutSecrets, ok := existing.WithoutSecrets().(types.User)
+	if !ok {
+		return trace.BadParameter("Invalid existing user type %T (this is a bug).", existing)
 	}
-	newItem := backend.Item{
+
+	item := backend.Item{
 		Key:      backend.Key(webPrefix, usersPrefix, new.GetName(), paramsPrefix),
-		Value:    newValue,
+		Value:    nil, // avoid marshaling new until we pass one comparison
 		Expires:  new.Expiry(),
-		ID:       new.GetResourceID(),
-		Revision: rev,
+		Revision: "",
 	}
 
-	existingRaw, ok := existing.WithoutSecrets().(types.User)
-	if !ok {
-		return trace.BadParameter("Invalid user type %T", existing)
-	}
-	existingValue, err := services.MarshalUser(existingRaw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	existingItem := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, existing.GetName(), paramsPrefix),
-		Value: existingValue,
-	}
-
-	_, err = s.CompareAndSwap(ctx, existingItem, newItem)
-	if err != nil {
-		if trace.IsCompareFailed(err) {
-			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
-		}
-		return trace.Wrap(err)
-	}
-
-	if auth := new.GetLocalAuth(); auth != nil {
-		if err = s.upsertLocalAuthSecrets(ctx, new.GetName(), *auth); err != nil {
+	const iterationLimit = 5
+	for i := 0; i < iterationLimit; i++ {
+		const notWithSecrets = false
+		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), notWithSecrets)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
+			}
 			return trace.Wrap(err)
 		}
+
+		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
+			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
+		}
+
+		if item.Value == nil {
+			v, err := services.MarshalUser(newWithoutSecrets)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			item.Value = v
+		}
+
+		item.Revision = currentWithoutSecrets.GetRevision()
+
+		_, err = s.Backend.ConditionalUpdate(ctx, item)
+		if err != nil {
+			if trace.IsCompareFailed(err) {
+				continue
+			}
+			return trace.Wrap(err)
+		}
+
+		if auth := new.GetLocalAuth(); auth != nil {
+			if err = s.upsertLocalAuthSecrets(ctx, new.GetName(), *auth); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
 	}
-	return nil
+
+	return trace.LimitExceeded("failed to update user within %v iterations", iterationLimit)
 }
 
 // GetUser returns a user by name
