@@ -65,6 +65,7 @@ import type {
   ServerMessage,
 } from 'teleport/Assist/types';
 import type { AssistState } from 'teleport/Assist/context/state';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebsoscket';
 
 interface AssistContextValue {
   cancelMfaChallenge: () => void;
@@ -86,9 +87,9 @@ let lastCommandExecutionResultId = 0;
 const TEN_MINUTES = 10 * 60 * 1000;
 
 export function AssistContextProvider(props: PropsWithChildren<unknown>) {
-  const activeWebSocket = useRef<WebSocket>(null);
+  const activeWebSocket = useRef<AuthenticatedWebSocket>(null);
   // TODO(ryan): this should be removed once https://github.com/gravitational/teleport.e/pull/1609 is implemented
-  const executeCommandWebSocket = useRef<WebSocket>(null);
+  const executeCommandWebSocket = useRef<AuthenticatedWebSocket>(null);
   const refreshWebSocketTimeout = useRef<number | null>(null);
 
   const { clusterId } = useStickyClusterId();
@@ -126,13 +127,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   }
 
   function setupWebSocket(conversationId: string, initialMessage?: string) {
-    activeWebSocket.current = new WebSocket(
-      cfg.getAssistConversationWebSocketUrl(
-        getHostName(),
-        clusterId,
-        conversationId
-      )
-    );
+
 
     window.clearTimeout(refreshWebSocketTimeout.current);
 
@@ -142,43 +137,20 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       TEN_MINUTES * 0.8
     );
 
-    activeWebSocket.current.onopen = () => {
-      executeCommandWebSocket.current.send(
-        JSON.stringify({ token: getAccessToken() })
-      );
-    };
+	const onopen = () => {
+      if (initialMessage) {
+        activeWebSocket.current.send(initialMessage);
+      }
+	}
 
-    let authenticated = false;
-
-    activeWebSocket.current.onclose = () => {
+    const onclose = () => {
       dispatch({
         type: AssistStateActionType.SetStreaming,
         streaming: false,
       });
     };
 
-    executeCommandWebSocket.current.onmessage = event => {
-      if (!authenticated) {
-        const authResponse = JSON.parse(event.data) as WebsocketStatus;
-        if (authResponse.type != 'create_session_response') {
-          executeCommandWebSocket.current.close();
-          console.log('invalid auth response type: ' + authResponse.message);
-          return;
-        }
-
-        if (authResponse.status == 'error') {
-          executeCommandWebSocket.current.close();
-          console.log(
-            'auth error connecting to websocket: ' + authResponse.message
-          );
-          return;
-        }
-        authenticated = true;
-        if (initialMessage) {
-          activeWebSocket.current.send(initialMessage);
-        }
-      }
-
+    const onmessage = event => {
       const data = JSON.parse(event.data) as ServerMessage;
       switch (data.type) {
         case ServerMessageType.Assist:
@@ -273,6 +245,14 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
       }
     };
+
+    activeWebSocket.current = new AuthenticatedWebSocket(
+      cfg.getAssistConversationWebSocketUrl(
+        getHostName(),
+        clusterId,
+        conversationId
+      ), onopen, onmessage, null, onclose
+    );	
   }
 
   async function createConversation() {
@@ -474,37 +454,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       execParams
     );
 
-    executeCommandWebSocket.current = new WebSocket(url);
-
-    executeCommandWebSocket.current.onopen = () => {
-      executeCommandWebSocket.current.send(
-        JSON.stringify({ token: getAccessToken() })
-      );
-    };
-
-    let authenticated = false;
-
     const proto = new Protobuf();
-    executeCommandWebSocket.current.onmessage = event => {
-      if (!authenticated) {
-        const authResponse = JSON.parse(event.data) as WebsocketStatus;
-        if (authResponse.type != 'create_session_response') {
-          executeCommandWebSocket.current.close();
-          console.log('invalid auth response type: ' + authResponse.message);
-          return;
-        }
-
-        if (authResponse.status == 'error') {
-          executeCommandWebSocket.current.close();
-          console.log(
-            'auth error connecting to websocket: ' + authResponse.message
-          );
-          return;
-        }
-        authenticated = true;
-        return;
-      }
-
+    const onmessage = (event: MessageEvent) => {
       executeCommandWebSocket.current.binaryType = 'arraybuffer';
       const uintArray = new Uint8Array(event.data);
 
@@ -582,10 +533,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       }
     };
 
-    executeCommandWebSocket.current.onclose = () => {
+    const onclose = () => {
       executeCommandWebSocket.current = null;
-      authenticated = false;
-
       // If the execution failed, we won't get a SESSION_END message, so we
       // need to mark all the results as finished here.
       for (const nodeId of nodeIdToResultId.keys()) {
@@ -597,6 +546,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       }
       nodeIdToResultId.clear();
     };
+
+    executeCommandWebSocket.current = new AuthenticatedWebSocket(url, null, onmessage, null, onclose);
   }
 
   async function deleteConversation(conversationId: string) {
