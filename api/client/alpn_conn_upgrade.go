@@ -113,7 +113,11 @@ func isUnadvertisedALPNError(err error) bool {
 // OverwriteALPNConnUpgradeRequirementByEnv overwrites ALPN connection upgrade
 // requirement by environment variable.
 //
-// TODO(greedy52) DELETE in 15.0
+// TODO(greedy52) DELETE in ??. Note that this toggle was planned to be deleted
+// in 15.0 when the feature exits preview. However, many users still rely on
+// this manual toggle as IsALPNConnUpgradeRequired cannot detect many
+// situations where connection upgrade is required. This can be deleted once
+// IsALPNConnUpgradeRequired is improved.
 func OverwriteALPNConnUpgradeRequirementByEnv(addr string) (bool, bool) {
 	envValue := os.Getenv(defaults.TLSRoutingConnUpgradeEnvVar)
 	if envValue == "" {
@@ -268,13 +272,13 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string
 			return nil, trace.Wrap(err)
 		}
 
-		logrus.Debugf("Performing ALPN WebSocket connection upgrade for %v.", api.Host)
+		logrus.WithField("hostname", api.Host).Debug("Performing ALPN WebSocket connection upgrade.")
 		return newWebSocketALPNClientConn(conn), nil
 	}
 
 	// Handle "legacy".
 	// TODO(greedy52) DELETE in 17.0.
-	logrus.Debugf("Performing ALPN legacy connection upgrade for %v.", api.Host)
+	logrus.WithField("hostname", api.Host).Debug("Performing ALPN legacy connection upgrade.")
 	if alpnUpgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
 		return pingconn.New(conn), nil
 	}

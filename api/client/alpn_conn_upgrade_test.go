@@ -166,10 +166,12 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		wantError     bool
 	}{
 		{
+			// TODO(greedy52) DELETE in 17.0
 			name:          "connection upgrade (legacy)",
 			serverHandler: mockLegacyConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPN, []byte("hello")),
 		},
 		{
+			// TODO(greedy52) DELETE in 17.0
 			name:          "connection upgrade with ping (legacy)",
 			serverHandler: mockLegacyConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPNPing, []byte("hello")),
 			withPing:      true,

@@ -99,12 +99,14 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 			checkHandlerError: trace.IsNotFound,
 		},
 		{
+			// TODO(greedy52) DELETE in 17.0
 			name:                  "upgraded to ALPN (legacy)",
 			inputRequest:          makeConnUpgradeRequest(t, "", constants.WebAPIConnUpgradeTypeALPN, expectedIP),
 			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPN,
 			checkClientConnString: mustReadClientConnString,
 		},
 		{
+			// TODO(greedy52) DELETE in 17.0
 			name:                  "upgraded to ALPN with Ping (legacy)",
 			inputRequest:          makeConnUpgradeRequest(t, "", constants.WebAPIConnUpgradeTypeALPNPing, expectedIP),
 			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPNPing,

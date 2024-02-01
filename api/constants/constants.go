@@ -408,6 +408,8 @@ const (
 	MaxAssumeStartDuration = time.Hour * 24 * 7
 )
 
+// Constants for TLS routing connection upgrade. See RFD for more details:
+// https://github.com/gravitational/teleport/blob/master/rfd/0123-tls-routing-behind-layer7-lb.md
 const (
 	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
 	// call.

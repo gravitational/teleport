@@ -110,7 +110,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 	}
 	defer wsConn.Close()
 
-	logrus.Tracef("Received WebSocket upgrade with subtype: %v.", wsConn.Subprotocol())
+	logrus.WithField("protocol", wsConn.Subprotocol()).Trace("Received WebSocket upgrade.")
 
 	conn := newWebSocketALPNServerConn(wsConn)
 	ctx, cancel := context.WithCancel(r.Context())
@@ -125,12 +125,14 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 	default:
 		// Just close the connection. Upgrader hijacks the connection so no
 		// point returning an error.
-		h.log.WithError(err).Debug("Unknown or empty WebSocket subprotocol.")
+		h.log.WithField("client-protocols", websocket.Subprotocols(r)).
+			Debug("Unknown or empty WebSocket subprotocol.")
 		return nil, nil
 	}
 
 	if err := upgradeHandler(ctx, conn); err != nil && !utils.IsOKNetworkError(err) {
-		h.log.WithError(err).Errorf("Failed to handle %v upgrade request.", wsConn.Subprotocol())
+		// Upgrader hijacks the connection so no point returning an error here.
+		h.log.WithError(err).WithField("protocol", wsConn.Subprotocol()).Errorf("Failed to handle WebSocket upgrade request.")
 	}
 	return nil, nil
 }
@@ -236,6 +238,7 @@ type websocketALPNServerConn struct {
 	*websocket.Conn
 	readBuffer []byte
 	readError  error
+	readMutex  sync.Mutex
 	writeMutex sync.Mutex
 }
 
@@ -252,7 +255,15 @@ func (c *websocketALPNServerConn) convertError(err error) error {
 	return err
 }
 
-func (c *websocketALPNServerConn) Read(b []byte) (n int, err error) {
+func (c *websocketALPNServerConn) Read(b []byte) (int, error) {
+	c.readMutex.Lock()
+	defer c.readMutex.Unlock()
+
+	n, err := c.readLocked(b)
+	return n, trace.Wrap(err)
+}
+
+func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
 	// Stop reading if any previous read err.
 	if c.readError != nil {
 		return 0, trace.Wrap(c.readError)
@@ -269,7 +280,7 @@ func (c *websocketALPNServerConn) Read(b []byte) (n int, err error) {
 	}
 
 	for {
-		messageType, data, err := c.ReadMessage()
+		messageType, data, err := c.Conn.ReadMessage()
 		if err != nil {
 			c.readError = c.convertError(err)
 			return 0, trace.Wrap(c.readError)
@@ -280,7 +291,7 @@ func (c *websocketALPNServerConn) Read(b []byte) (n int, err error) {
 			return 0, nil
 		case websocket.BinaryMessage:
 			c.readBuffer = data
-			return c.Read(b)
+			return c.readLocked(b)
 		}
 	}
 }

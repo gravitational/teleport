@@ -86,6 +86,7 @@ func checkWebSocketUpgradeResponse(resp *http.Response, alpnUpgradeType, challen
 type websocketALPNClientConn struct {
 	net.Conn
 	readBuffer []byte
+	readMutex  sync.Mutex
 	writeMutex sync.Mutex
 }
 
@@ -96,6 +97,14 @@ func newWebSocketALPNClientConn(conn net.Conn) *websocketALPNClientConn {
 }
 
 func (c *websocketALPNClientConn) Read(b []byte) (int, error) {
+	c.readMutex.Lock()
+	defer c.readMutex.Unlock()
+
+	n, err := c.readLocked(b)
+	return n, trace.Wrap(err)
+}
+
+func (c *websocketALPNClientConn) readLocked(b []byte) (int, error) {
 	if len(c.readBuffer) > 0 {
 		n := copy(b, c.readBuffer)
 		if n < len(c.readBuffer) {
@@ -123,7 +132,7 @@ func (c *websocketALPNClientConn) Read(b []byte) (int, error) {
 			}
 		case ws.OpBinary:
 			c.readBuffer = frame.Payload
-			return c.Read(b)
+			return c.readLocked(b)
 		}
 	}
 }
