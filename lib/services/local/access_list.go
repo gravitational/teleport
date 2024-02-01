@@ -305,12 +305,7 @@ func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSi
 		// For listing all access list members for all access lists, we want to list members regardless of which
 		// access list they belong to. As a result, we'll use custom pagination logic here to include the appropriate
 		// prefix across pages.
-		lastItemKey := result.Items[len(out)-1].Key
-		prefixOffset := 2 + len(accessListMemberPrefix)
-		if len(lastItemKey) < prefixOffset {
-			return nil, "", trace.BadParameter("unable to calculate next page for listing all access list members")
-		}
-		nextKey = string(lastItemKey[prefixOffset:])
+		nextKey = out[pageSize].Spec.AccessList + string(backend.Separator) + out[pageSize].Metadata.Name
 		// Truncate the last item that was used to determine next row existence.
 		out = out[:pageSize]
 	}
@@ -555,15 +550,10 @@ func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSi
 
 	var nextKey string
 	if len(out) > pageSize {
-		// For listing all access list members for all access lists, we want to list members regardless of which
+		// For listing all access list reviews for all access lists, we want to list reviews regardless of which
 		// access list they belong to. As a result, we'll use custom pagination logic here to include the appropriate
 		// prefix across pages.
-		lastItemKey := result.Items[len(out)-1].Key
-		prefixOffset := 2 + len(accessListReviewPrefix)
-		if len(lastItemKey) < prefixOffset {
-			return nil, "", trace.BadParameter("unable to calculate next page for listing all access list reviews")
-		}
-		nextKey = string(lastItemKey[prefixOffset:])
+		nextKey = out[pageSize].Spec.AccessList + string(backend.Separator) + out[pageSize].Metadata.Name
 		// Truncate the last item that was used to determine next row existence.
 		out = out[:pageSize]
 	}
