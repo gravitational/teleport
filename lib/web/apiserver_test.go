@@ -8965,6 +8965,59 @@ func TestLogout(t *testing.T) {
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
 }
 
+// TestSAMlSessionClearedOnLogout tests if SAML IdP session is cleared on logout.
+func TestSAMlSessionClearedOnLogout(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 2)
+
+	// create a logged in user for proxy 1.
+	user := "llama"
+	pack := env.proxies[0].authPack(t, user, nil /* roles */)
+
+	samlSessionID := "saml_session_id"
+	// manually add SAML IdP session. The actual SAML IdP session and session cookie is set
+	// by the SAML IdP and the code to do that is on teleport.e.
+	_, err := env.proxies[0].client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+		SessionID:   samlSessionID,
+		Username:    pack.user,
+		SAMLSession: &types.SAMLSessionData{ID: samlSessionID},
+	})
+	require.NoError(t, err)
+	samlSession, err := env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
+		SessionID: samlSessionID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, samlSession.GetUser(), user)
+	require.Equal(t, samlSession.GetSAMLSession().ID, samlSessionID)
+
+	// logout from web. The saml session needs to be deleted and the proxy should
+	// respond with SAML session cookie with empty value.
+	resp, err := pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
+	require.NoError(t, err)
+	require.True(t, matchSAMLSessionCookie(resp.Cookies()))
+	_, err = env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
+		SessionID: samlSessionID,
+	})
+	require.ErrorContains(t, err, `key "/saml_idp/sessions/saml_session_id" is not found`)
+}
+
+func matchSAMLSessionCookie(cookies []*http.Cookie) bool {
+	samlCookie := &http.Cookie{
+		Name:     websession.SAMLSessionCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+	}
+	for _, cookie := range cookies {
+		if cookie.String() == samlCookie.String() {
+			return true
+		}
+	}
+	return false
+}
+
 // initGRPCServer creates a gRPC server serving on the provided listener.
 func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	clusterName := env.server.ClusterName()
