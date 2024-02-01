@@ -839,7 +839,8 @@ func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
 
 	const numAccessLists = 10
 	const numAccessListMembersPerAccessList = 250
@@ -875,7 +876,7 @@ func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
 		}
 	}
 
-	require.Empty(t, cmp.Diff(expectedMembers, allMembers, cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(expectedMembers, allMembers, cmpopts.IgnoreFields(header.Metadata{}, "ID")))
 }
 
 func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
@@ -888,7 +889,8 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
 
 	const numAccessLists = 10
 	const numAccessListReviewsPerAccessList = 250
@@ -936,27 +938,9 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 		}
 	}
 
-	require.Empty(t, cmp.Diff(expectedReviews, allReviews, cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"), cmpopts.SortSlices(
+	require.Empty(t, cmp.Diff(expectedReviews, allReviews, cmpopts.IgnoreFields(header.Metadata{}, "ID"), cmpopts.SortSlices(
 		func(r1, r2 *accesslist.Review) bool {
 			return r1.GetName() < r2.GetName()
 		}),
 	))
-}
-
-func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {
-	t.Helper()
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			IdentityGovernanceSecurity: igsEnabled,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 1,
-			},
-		},
-	})
-
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
-	require.NoError(t, err)
-
-	return service
 }
