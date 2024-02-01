@@ -1302,6 +1302,8 @@ type ClientConfig struct {
 	Stdout io.Writer
 	// ALBAddr is the address to a local server that simulates a layer 7 load balancer.
 	ALBAddr string
+	// DisableSSHResumption disables SSH connection resumption.
+	DisableSSHResumption bool
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1380,6 +1382,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Stdin:                         cfg.Stdin,
 		Stdout:                        cfg.Stdout,
 		NonInteractive:                true,
+		DisableSSHResumption:          cfg.DisableSSHResumption,
 	}
 
 	// JumpHost turns on jump host mode

@@ -64,7 +64,10 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   const ptyServiceClient = createPtyService(
     addresses.shared,
     credentials.shared,
-    runtimeSettings
+    runtimeSettings,
+    {
+      noResume: mainProcessClient.configService.get('ssh.noResume').value,
+    }
   );
   const {
     setupTshdEventContextBridgeService,

@@ -44,7 +44,7 @@ import {
 
 import { ButtonIconContainer } from '../Shared';
 
-export function Notifications() {
+export function Notifications({ iconSize = 24 }: { iconSize?: number }) {
   const ctx = useTeleport();
   useStore(ctx.storeNotifications);
 
@@ -86,7 +86,10 @@ export function Notifications() {
           data-testid="tb-note-button"
         >
           {items.length > 0 && <AttentionDot data-testid="tb-note-attention" />}
-          <NotificationIcon color={open ? 'text.main' : 'text.muted'} />
+          <NotificationIcon
+            color={open ? 'text.main' : 'text.muted'}
+            size={iconSize}
+          />
         </ButtonIconContainer>
 
         <Dropdown

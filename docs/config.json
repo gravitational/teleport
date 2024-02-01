@@ -8,6 +8,10 @@
           "title": "Get Started with Teleport",
           "slug": "/"
         },
+	{
+	  "title": "Documentation Overview",
+	  "slug": "/documentation-overview/"
+	},
         {
           "title": "Core Concepts",
           "slug": "/core-concepts/"
@@ -123,6 +127,11 @@
             {
               "title": "HSM",
               "slug": "/choose-an-edition/teleport-enterprise/hsm/",
+              "forScopes": ["enterprise"]
+            },
+            {
+              "title": "AWS KMS",
+              "slug": "/choose-an-edition/teleport-enterprise/aws-kms/",
               "forScopes": ["enterprise"]
             },
             {
@@ -355,6 +364,11 @@
             {
               "title": "SAML Identity Provider Guide",
               "slug": "/access-controls/idps/saml-guide/",
+              "forScopes": ["enterprise", "cloud", "team"]
+            },
+            {
+              "title": "SAML Attribute Mapping",
+              "slug": "/access-controls/idps/saml-attribute-mapping/",
               "forScopes": ["enterprise", "cloud", "team"]
             },
             {
@@ -990,10 +1004,6 @@
             {
               "title": "BPF Session Recording",
               "slug": "/server-access/guides/bpf-session-recording/"
-            },
-            {
-              "title": "Restricted Session",
-              "slug": "/server-access/guides/restricted-session/"
             },
             {
               "title": "Visual Studio Code",
@@ -1783,7 +1793,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "14.3.0",
+      "version": "14.3.3",
       "major_version": "14",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1827,8 +1837,8 @@
     },
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
-      "major_version": "15",
-      "version": "15.0.0-dev",
+      "major_version": "16",
+      "version": "16.0.0-dev",
       "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
@@ -3048,6 +3058,11 @@
     {
       "source": "/management/admin/upgrading-the-teleport-binary/",
       "destination": "/upgrading/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/restricted-session/",
+      "destination": "/server-access/guides/",
       "permanent": true
     }
   ]

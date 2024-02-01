@@ -95,7 +95,7 @@ export function CreateDatabaseDialog({
     content = (
       <>
         <Text mb={5}>
-          <Icons.Check size="small" ml={1} mr={2} color="success" />
+          <Icons.Check size="small" ml={1} mr={2} color="success.main" />
           Database "{dbName}" successfully registered
         </Text>
         <ButtonPrimary width="100%" onClick={next}>

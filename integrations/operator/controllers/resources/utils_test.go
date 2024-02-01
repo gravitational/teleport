@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -92,6 +93,74 @@ func TestCheckOwnership(t *testing.T) {
 			require.Equal(t, ConditionTypeTeleportResourceOwned, condition.Type)
 			require.Equal(t, tc.expectedConditionStatus, condition.Status)
 			require.Equal(t, tc.expectedConditionReason, condition.Reason)
+		})
+	}
+}
+
+func TestCheckAnnotationFlag(t *testing.T) {
+	testFlag := "foo"
+	tests := []struct {
+		name           string
+		annotations    map[string]string
+		defaultValue   bool
+		expectedOutput bool
+	}{
+		{
+			name:           "flag set true, default true",
+			annotations:    map[string]string{testFlag: "true"},
+			defaultValue:   true,
+			expectedOutput: true,
+		},
+		{
+			name:           "flag set false, default true",
+			annotations:    map[string]string{testFlag: "false"},
+			defaultValue:   true,
+			expectedOutput: false,
+		},
+		{
+			name:           "flag set true, default false",
+			annotations:    map[string]string{testFlag: "true"},
+			defaultValue:   false,
+			expectedOutput: true,
+		},
+		{
+			name:           "flag set false, default false",
+			annotations:    map[string]string{testFlag: "false"},
+			defaultValue:   false,
+			expectedOutput: false,
+		},
+		{
+			name:           "flag missing, default true",
+			annotations:    map[string]string{},
+			defaultValue:   true,
+			expectedOutput: true,
+		},
+		{
+			name:           "flag missing, default false",
+			annotations:    map[string]string{},
+			defaultValue:   false,
+			expectedOutput: false,
+		},
+		{
+			name:           "flag malformed, default true",
+			annotations:    map[string]string{testFlag: "malformed"},
+			defaultValue:   true,
+			expectedOutput: true,
+		},
+		{
+			name:           "flag malformed, default false",
+			annotations:    map[string]string{testFlag: "malformed"},
+			defaultValue:   false,
+			expectedOutput: false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			obj := &unstructured.Unstructured{}
+			obj.SetAnnotations(tt.annotations)
+			require.Equal(t, tt.expectedOutput, checkAnnotationFlag(obj, testFlag, tt.defaultValue))
 		})
 	}
 }

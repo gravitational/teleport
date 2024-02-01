@@ -78,8 +78,7 @@ spec:
                 type: array
             type: object
           status:
-            description: TeleportGithubConnectorStatus defines the observed state
-              of TeleportGithubConnector
+            description: Status defines the observed state of the Teleport resource
             properties:
               conditions:
                 description: Conditions represent the latest available observations

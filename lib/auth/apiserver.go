@@ -94,6 +94,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// TODO(Joerger): DELETE IN 16.0.0, migrated to gRPC.
 	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
+	// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
 	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
 
 	// Generating certificates for user and host authorities
@@ -588,6 +589,7 @@ type rotateExternalCertAuthorityRawReq struct {
 	CA json.RawMessage `json:"ca"`
 }
 
+// TODO(Joerger): DELETE IN v16.0.0, migrated to gRPC
 func (s *APIServer) rotateExternalCertAuthority(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req rotateExternalCertAuthorityRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {

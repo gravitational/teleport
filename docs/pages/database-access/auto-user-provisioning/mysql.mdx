@@ -1,5 +1,5 @@
 ---
-title: MySQL Automatic User Provisioning 
+title: MySQL Automatic User Provisioning
 description: Configure automatic user provisioning for MySQL.
 ---
 
@@ -80,7 +80,7 @@ databases.
 
 User can find its own attributes in an auto-provisioned database session by:
 ```sql
-SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE CONCAT(USER, '@', HOST) = current_user(); 
+SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE CONCAT(USER, '@', HOST) = current_user();
 ```
 
 Database admins can search a particular Teleport username by:
@@ -98,6 +98,18 @@ database queries in the Teleport Audit Logs, when the Teleport username is over
 ## Step 3/3. Connect to the database
 
 (!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="MySQL Workbench"!)
+
+## Troubleshooting
+
+By default, the newly created users won't have permissions to access any particular database. These permissions should be
+granted through database-specific roles, such as `reader`.
+
+Otherwise you may see errors like the following:
+
+```shell
+> tsh db connect mysql --db-name <database> example
+ERROR 1105 (HY000): ERROR 1044 (42000): Access denied for user '<your-teleport-username>'@'%' to database '<database>'
+```
 
 ## Next steps
 

@@ -297,6 +297,7 @@ $ tsh db login --db-user=postgres --db-name=postgres example
 | - | - |
 | `--db-user` | The database user to log in as. |
 | `--db-name` | The database name to log in to. |
+| `--db-roles` | Comma-separated list of database roles to use for auto-provisioned user. If not provided, all database roles will be assigned. |
 
 (!docs/pages/includes/db-user-name-flags.mdx!)
 
@@ -320,6 +321,8 @@ $ tsh db connect
 $ tsh db connect example
 # Provide database user and name to connect to.
 $ tsh db connect --db-user=alice --db-name=db example
+# Select a subset of allowed database roles.
+$ tsh db connect --db-user=alice --db-name=db --db-roles reader example
 ```
 
 <Admonition type="note" title="Note">
@@ -331,6 +334,7 @@ $ tsh db connect --db-user=alice --db-name=db example
 | - | - |
 | `--db-user` | The database user to log in as. |
 | `--db-name` | The database name to log in to. |
+| `--db-roles` | Comma-separated list of database roles to use for auto-provisioned user. If not provided, all database roles will be assigned. |
 
 (!docs/pages/includes/db-user-name-flags.mdx!)
 

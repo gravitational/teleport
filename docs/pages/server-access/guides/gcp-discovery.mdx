@@ -73,6 +73,9 @@ discover instances.
   - `compute.instances.getGuestAttributes`
   - `compute.instances.list`
   - `compute.instances.setMetadata`
+  - `iam.serviceAccounts.actAs`
+  - `iam.serviceAccounts.get`
+  - `iam.serviceAccounts.list`
 
   ![Custom role](../../../img/server-access/guides/gcp/custom-role@2x.png)
 
@@ -103,6 +106,9 @@ discover instances.
   - compute.instances.getGuestAttributes
   - compute.instances.list
   - compute.instances.setMetadata
+  - iam.serviceAccounts.actAs
+  - iam.serviceAccounts.get
+  - iam.serviceAccounts.list
   ```
 
   Then run the following command to create the role:
@@ -123,7 +129,7 @@ discover instances.
   ```code
   $ gcloud projects add-iam-policy-binding <Var name="project_id" description="GCP project ID" /> \
   --member="serviceAccount:teleport-discovery@<Var name="project_id" />.iam.gserviceaccount.com" \
-  --role="projects/<Var name="project_id" />/role/teleport_discovery"
+  --role="projects/<Var name="project_id" />/roles/teleport_discovery"
   ```
 </TabItem>
 </Tabs>
@@ -212,12 +218,12 @@ In order to enable GCP instance discovery the `discovery_service.gcp` section
 of `teleport.yaml` must include at least one entry:
 
 ```yaml
-version: v2
+version: v3
 teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: "teleport.example.com:443"
+  proxy_server: "<Var name="teleport.example.com" />:443"
 auth_service:
   enabled: off
 proxy_service:
@@ -239,6 +245,8 @@ discovery_service:
       # (Optional) Labels that joining VMs must have.
       labels:
         "env": "prod" # Match virtual machines where label:env=prod
+      installer:
+        public_proxy_addr: "<Var name="teleport.example.com" />:443"
 ```
 
 - Edit the `teleport.auth_server` or `teleport.proxy_server` key to match your Auth Service or Proxy Service's domain name

@@ -266,6 +266,8 @@ operator:
   #    memory: "1Gi"
   joinMethod: "kubernetes"
   token: "teleport-operator"
+  # This is needed to have a sensible name and predictible service account name.
+  nameOverride: operator
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
@@ -444,7 +446,8 @@ azure:
 #   is not supported with multiple replicas.
 # For proxy pods:
 #   Proxy pods need to be provided a certificate to be replicated (either via
-#  `tls.existingSecretName` or via `highAvailability.certManager`).
+#  `tls.existingSecretName` or via `highAvailability.certManager`) or be exposed
+#   via an ingress (`ingress.enabled`).
 #   If proxy pods are replicable, they will default to 2 replicas,
 #   even if `highAvailability.replicaCount` is 1. To force a single proxy replica,
 #   set `proxy.highAvailability.replicaCount: 1`.

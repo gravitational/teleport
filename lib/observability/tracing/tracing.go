@@ -34,7 +34,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.22.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/embedded"
 
@@ -201,7 +201,6 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	attrs = append(attrs, cfg.Attributes...)
 
 	res, err := resource.New(ctx,
-		resource.WithSchemaURL(semconv.SchemaURL),
 		resource.WithFromEnv(),
 		resource.WithProcessExecutableName(),
 		resource.WithProcessRuntimeName(),

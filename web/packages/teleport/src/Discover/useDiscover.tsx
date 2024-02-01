@@ -31,13 +31,12 @@ import {
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 import { DiscoveryConfig } from 'teleport/services/discovery';
-
 import {
   addIndexToViews,
   findViewAtIndex,
-  ResourceViewConfig,
-  View,
-} from './flow';
+} from 'teleport/components/Wizard/flow';
+
+import { ResourceViewConfig, View } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
 import { EViewConfigs } from './types';
 import { ServiceDeployMethod } from './Database/common';
@@ -295,7 +294,7 @@ export function DiscoverProvider({
     const currCfg = [...viewConfigs, ...eViewConfigs].find(
       r => r.kind === resource.kind
     );
-    let indexedViews = [];
+    let indexedViews: View[] = [];
     if (typeof currCfg.views === 'function') {
       indexedViews = addIndexToViews(currCfg.views(resource));
     } else {
@@ -523,6 +522,12 @@ export type KubeMeta = BaseMeta & {
   kube: Kube;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta;
+// KubeMeta describes the fields for a kube resource
+// that needs to be preserved throughout the flow.
+export type EksMeta = BaseMeta & {
+  kube: Kube;
+};
+
+export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta;
 
 export type State = ReturnType<typeof useDiscover>;

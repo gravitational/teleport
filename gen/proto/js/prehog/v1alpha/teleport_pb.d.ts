@@ -41,6 +41,39 @@ export namespace UserLoginEvent {
     }
 }
 
+export class MFAAuthenticationEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): MFAAuthenticationEvent;
+
+    getDeviceId(): string;
+    setDeviceId(value: string): MFAAuthenticationEvent;
+
+    getDeviceType(): string;
+    setDeviceType(value: string): MFAAuthenticationEvent;
+
+    getMfaChallengeScope(): string;
+    setMfaChallengeScope(value: string): MFAAuthenticationEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): MFAAuthenticationEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: MFAAuthenticationEvent): MFAAuthenticationEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: MFAAuthenticationEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): MFAAuthenticationEvent;
+    static deserializeBinaryFromReader(message: MFAAuthenticationEvent, reader: jspb.BinaryReader): MFAAuthenticationEvent;
+}
+
+export namespace MFAAuthenticationEvent {
+    export type AsObject = {
+        userName: string,
+        deviceId: string,
+        deviceType: string,
+        mfaChallengeScope: string,
+    }
+}
+
 export class SSOCreateEvent extends jspb.Message { 
     getConnectorType(): string;
     setConnectorType(value: string): SSOCreateEvent;
@@ -308,6 +341,47 @@ export namespace UserCertificateIssuedEvent {
         usageKubernetes: boolean,
         usageDesktop: boolean,
         privateKeyPolicy: string,
+    }
+}
+
+export class SPIFFESVIDIssuedEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): SPIFFESVIDIssuedEvent;
+
+    getUserKind(): UserKind;
+    setUserKind(value: UserKind): SPIFFESVIDIssuedEvent;
+
+    getSpiffeId(): string;
+    setSpiffeId(value: string): SPIFFESVIDIssuedEvent;
+
+    getIpSansCount(): number;
+    setIpSansCount(value: number): SPIFFESVIDIssuedEvent;
+
+    getDnsSansCount(): number;
+    setDnsSansCount(value: number): SPIFFESVIDIssuedEvent;
+
+    getSvidType(): string;
+    setSvidType(value: string): SPIFFESVIDIssuedEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SPIFFESVIDIssuedEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: SPIFFESVIDIssuedEvent): SPIFFESVIDIssuedEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SPIFFESVIDIssuedEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SPIFFESVIDIssuedEvent;
+    static deserializeBinaryFromReader(message: SPIFFESVIDIssuedEvent, reader: jspb.BinaryReader): SPIFFESVIDIssuedEvent;
+}
+
+export namespace SPIFFESVIDIssuedEvent {
+    export type AsObject = {
+        userName: string,
+        userKind: UserKind,
+        spiffeId: string,
+        ipSansCount: number,
+        dnsSansCount: number,
+        svidType: string,
     }
 }
 
@@ -2959,6 +3033,18 @@ export class SubmitEventRequest extends jspb.Message {
     setAccessListReviewCompliance(value?: AccessListReviewComplianceEvent): SubmitEventRequest;
 
 
+    hasMfaAuthenticationEvent(): boolean;
+    clearMfaAuthenticationEvent(): void;
+    getMfaAuthenticationEvent(): MFAAuthenticationEvent | undefined;
+    setMfaAuthenticationEvent(value?: MFAAuthenticationEvent): SubmitEventRequest;
+
+
+    hasSpiffeSvidIssued(): boolean;
+    clearSpiffeSvidIssued(): void;
+    getSpiffeSvidIssued(): SPIFFESVIDIssuedEvent | undefined;
+    setSpiffeSvidIssued(value?: SPIFFESVIDIssuedEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -3049,6 +3135,8 @@ export namespace SubmitEventRequest {
         accessListReviewCreate?: AccessListReviewCreateEvent.AsObject,
         accessListReviewDelete?: AccessListReviewDeleteEvent.AsObject,
         accessListReviewCompliance?: AccessListReviewComplianceEvent.AsObject,
+        mfaAuthenticationEvent?: MFAAuthenticationEvent.AsObject,
+        spiffeSvidIssued?: SPIFFESVIDIssuedEvent.AsObject,
     }
 
     export enum EventCase {
@@ -3201,6 +3289,10 @@ export namespace SubmitEventRequest {
     ACCESS_LIST_REVIEW_DELETE = 76,
 
     ACCESS_LIST_REVIEW_COMPLIANCE = 77,
+
+    MFA_AUTHENTICATION_EVENT = 78,
+
+    SPIFFE_SVID_ISSUED = 79,
 
     }
 
@@ -3355,6 +3447,7 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_SAML_APPLICATION = 37,
     DISCOVER_RESOURCE_EC2_INSTANCE = 38,
     DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39,
+    DISCOVER_RESOURCE_KUBERNETES_EKS = 40,
 }
 
 export enum DiscoverStatus {

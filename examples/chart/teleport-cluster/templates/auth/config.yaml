@@ -132,7 +132,7 @@ data:
       bot_name: operator
       kubernetes:
         allow:
-          - service_account: "{{ .Release.Namespace }}:{{ include "teleport-cluster.operator.serviceAccountName" . }}"
+          - service_account: "{{ .Release.Namespace }}:{{ include "teleport-cluster.auth.operatorServiceAccountName" . }}"
   {{- end }}
 {{- end }}
   teleport.yaml: |2

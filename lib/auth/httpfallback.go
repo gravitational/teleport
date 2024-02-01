@@ -28,6 +28,7 @@ import (
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC
@@ -108,5 +109,23 @@ func (c *Client) RotateCertAuthority(ctx context.Context, req types.RotateReques
 		_, err := c.PostJSON(ctx, c.Endpoint("authorities", string(req.Type), "rotate"), req)
 		return trace.Wrap(err)
 	}
+
+	return trace.Wrap(err)
+}
+
+// TODO(Joerger): DELETE IN 16.0.0
+func (c *Client) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	err := c.APIClient.RotateExternalCertAuthority(ctx, ca)
+	if trace.IsNotImplemented(err) {
+		// Fall back to HTTP implementation.
+		data, err := services.MarshalCertAuthority(ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = c.PostJSON(ctx, c.Endpoint("authorities", string(ca.GetType()), "rotate", "external"),
+			&rotateExternalCertAuthorityRawReq{CA: data})
+		return trace.Wrap(err)
+	}
+
 	return trace.Wrap(err)
 }

@@ -89,7 +89,6 @@ export function Audit(props: State) {
       {attempt.status === 'success' && (
         <EventList
           events={events}
-          clusterId={clusterId}
           fetchMore={fetchMore}
           fetchStatus={fetchStatus}
         />

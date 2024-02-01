@@ -103,14 +103,7 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	issuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := clt.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: issuer,
-	})
+	token, err := clt.GenerateAWSOIDCToken(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -390,6 +383,70 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
+}
+
+// awsOIDCEnrollEKSClusters enroll EKS clusters by installing teleport-kube-agent Helm chart on them.
+func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCEnrollEKSClustersRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, clt.CreateToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// todo(anton): get auth server version and use it instead of this proxy teleport.version.
+	agentVersion := teleport.Version
+	if h.ClusterFeatures.GetAutomaticUpgrades() {
+		upgradesVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		agentVersion = strings.TrimPrefix(upgradesVersion, "v")
+	}
+
+	resp := awsoidc.EnrollEKSClusters(ctx, log, h.clock, h.cfg.PublicProxyAddr, credsProvider, enrollEKSClient,
+		awsoidc.EnrollEKSClustersRequest{
+			Region:             req.Region,
+			ClusterNames:       req.ClusterNames,
+			EnableAppDiscovery: req.EnableAppDiscovery,
+			EnableAutoUpgrades: h.ClusterFeatures.GetAutomaticUpgrades(),
+			IsCloud:            h.ClusterFeatures.GetCloud(),
+			AgentVersion:       agentVersion,
+		})
+
+	var data []ui.EKSClusterEnrollmentResult
+	for _, result := range resp.Results {
+		data = append(data, ui.EKSClusterEnrollmentResult{
+			ClusterName: result.ClusterName,
+			Error:       trace.UserMessage(result.Error),
+			ResourceId:  result.ResourceId},
+		)
+	}
+
+	return ui.AWSOIDCEnrollEKSClustersResponse{
+		Results: data,
+	}, nil
 }
 
 // awsOIDCListEKSClusters returns a list of EKS clusters using the ListEKSClusters action of the AWS OIDC integration.
