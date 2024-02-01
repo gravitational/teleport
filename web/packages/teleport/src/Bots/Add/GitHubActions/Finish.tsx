@@ -59,11 +59,7 @@ export function Finish() {
         <ButtonPrimary mr="4" as={Link} to={cfg.getBotsRoute()} size="large">
           View Bots
         </ButtonPrimary>
-        <ButtonSecondary
-          as={Link}
-          to={cfg.getIntegrationEnrollRoute(null)}
-          size="large"
-        >
+        <ButtonSecondary as={Link} to={cfg.getBotsNewRoute()} size="large">
           Add Another Integration
         </ButtonSecondary>
       </Flex>

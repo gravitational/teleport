@@ -125,7 +125,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                 setLabels={labels =>
                   setCreateBotRequest({ ...createBotRequest, labels: labels })
                 }
-                disableBtns={false} // TODO
+                disableBtns={isLoading}
               />
             </Box>
             <FormItem>
@@ -155,7 +155,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
             <FormItem>
               <Text>Create a Name for Your Bot User *</Text>
               <FieldInput
-                rule={requiredField('Name for Machine User is required')}
+                rule={requiredField('Name for the Bot is required')}
                 mb={3}
                 placeholder="ex. github-actions-cd"
                 value={createBotRequest.botName}

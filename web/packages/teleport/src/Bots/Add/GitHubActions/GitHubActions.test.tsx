@@ -71,6 +71,11 @@ describe('gitHub component', () => {
       expiry: new Date('2020-01-01'),
     });
     jest.spyOn(botService, 'createBot').mockResolvedValue();
+    jest.spyOn(botService, 'createBotToken').mockResolvedValue({
+      integrationName: 'test-integration',
+      joinMethod: 'github',
+      webFlowLabel: 'github-actions-ssh',
+    });
     jest.spyOn(botService, 'getBot').mockResolvedValue(null);
 
     render(

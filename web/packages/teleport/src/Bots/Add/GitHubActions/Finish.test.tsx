@@ -58,6 +58,6 @@ describe('finish Component', () => {
     );
     expect(
       screen.getByText('Add Another Integration').closest('a')
-    ).toHaveAttribute('href', cfg.getIntegrationEnrollRoute(null));
+    ).toHaveAttribute('href', cfg.getBotsNewRoute());
   });
 });
