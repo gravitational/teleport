@@ -22,11 +22,12 @@ import (
 	"context"
 	"net"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DirectTCPIPReq represents the payload of an SSH "direct-tcpip" or
