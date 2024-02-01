@@ -58,15 +58,15 @@ func (r githubConnectorClient) Delete(ctx context.Context, name string) error {
 }
 
 // NewGithubConnectorReconciler instantiates a new Kubernetes controller reconciling github_connector resources
-func NewGithubConnectorReconciler(client kclient.Client, tClient *client.Client) *TeleportResourceReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector] {
+func NewGithubConnectorReconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
 	githubClient := &githubConnectorClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler := NewTeleportResourceReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector](
+	resourceReconciler, err := NewTeleportResourceReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector](
 		client,
 		githubClient,
 	)
 
-	return resourceReconciler
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
 }

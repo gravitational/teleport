@@ -38,7 +38,7 @@ export class ResourcesService {
     hostname: string
   ): Promise<types.Server | undefined> {
     const query = `name == "${hostname}"`;
-    const { agentsList: servers } = await this.fetchServers({
+    const { agents: servers } = await this.fetchServers({
       clusterUri,
       query,
       limit: 2,
@@ -94,7 +94,7 @@ export class ResourcesService {
     const getServers = () =>
       this.fetchServers(params).then(
         res =>
-          res.agentsList.map(resource => ({
+          res.agents.map(resource => ({
             kind: 'server' as const,
             resource,
           })),
@@ -104,7 +104,7 @@ export class ResourcesService {
     const getApps = () =>
       this.fetchApps(params).then(
         res =>
-          res.agentsList.map(resource => ({
+          res.agents.map(resource => ({
             kind: 'app' as const,
             resource: makeApp(resource),
           })),
@@ -113,7 +113,7 @@ export class ResourcesService {
     const getDatabases = () =>
       this.fetchDatabases(params).then(
         res =>
-          res.agentsList.map(resource => ({
+          res.agents.map(resource => ({
             kind: 'database' as const,
             resource,
           })),
@@ -123,7 +123,7 @@ export class ResourcesService {
     const getKubes = () =>
       this.fetchKubes(params).then(
         res =>
-          res.agentsList.map(resource => ({
+          res.agents.map(resource => ({
             kind: 'kube' as const,
             resource,
           })),

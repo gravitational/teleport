@@ -274,6 +274,8 @@ type VisualisationColors = {
 };
 
 export type SharedStyles = {
+  sidebarWidth: number;
+  dockedAssistWidth: number;
   boxShadow: string[];
   breakpoints: {
     mobile: number;

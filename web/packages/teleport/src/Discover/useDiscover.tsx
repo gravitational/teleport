@@ -523,6 +523,12 @@ export type KubeMeta = BaseMeta & {
   kube: Kube;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta;
+// KubeMeta describes the fields for a kube resource
+// that needs to be preserved throughout the flow.
+export type EksMeta = BaseMeta & {
+  kube: Kube;
+};
+
+export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta;
 
 export type State = ReturnType<typeof useDiscover>;

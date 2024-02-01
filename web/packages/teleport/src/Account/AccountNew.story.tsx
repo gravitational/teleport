@@ -27,7 +27,11 @@ export default {
 
 export const Loaded = () => <Account {...props} />;
 
-export const LoadedMfaOff = () => <Account {...props} mfaDisabled />;
+export const LoadedPasskeysOff = () => (
+  <Account {...props} canAddPasskeys={false} />
+);
+
+export const LoadedMfaOff = () => <Account {...props} canAddMFA={false} />;
 
 export const LoadingDevices = () => (
   <Account
@@ -105,6 +109,8 @@ const props: AccountProps = {
   isRemoveDeviceVisible: false,
   isSso: false,
   restrictNewDeviceUsage: null,
+  canAddPasskeys: true,
+  canAddMFA: true,
   devices: [
     {
       id: '1',

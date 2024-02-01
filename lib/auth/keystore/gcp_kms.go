@@ -135,6 +135,12 @@ func newGCPKMSKeyStore(ctx context.Context, cfg *GCPKMSConfig, logger logrus.Fie
 	}, nil
 }
 
+// keyTypeDescription returns a human-readable description of the types of keys
+// this backend uses.
+func (g *gcpKMSKeyStore) keyTypeDescription() string {
+	return fmt.Sprintf("GCP KMS keys in keyring %s", g.keyRing)
+}
+
 // generateRSA creates a new RSA private key and returns its identifier and a
 // crypto.Signer. The returned identifier for gcpKMSKeyStore encoded the full
 // GCP KMS key version name, and can be passed to getSigner later to get the same
@@ -403,6 +409,19 @@ type gcpKMSKeyID struct {
 
 func (g gcpKMSKeyID) marshal() []byte {
 	return []byte(gcpkmsPrefix + g.keyVersionName)
+}
+
+func (g gcpKMSKeyID) keyring() (string, error) {
+	// keyVersionName has this format:
+	//   projects/*/locations/*/keyRings/*/cryptoKeys/*/cryptoKeyVersions/1
+	// want to extract:
+	//   projects/*/locations/*/keyRings/*
+	// project name, location, and keyRing name can't contain '/'
+	splits := strings.SplitN(g.keyVersionName, "/", 7)
+	if len(splits) < 7 {
+		return "", trace.BadParameter("GCP KMS keyVersionName has bad format")
+	}
+	return strings.Join(splits[:6], "/"), nil
 }
 
 func parseGCPKMSKeyID(key []byte) (gcpKMSKeyID, error) {

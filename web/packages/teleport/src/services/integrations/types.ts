@@ -293,6 +293,56 @@ export type AwsOidcDeployDatabaseServicesRequest = {
   deployments: DeployDatabaseServiceDeployment[];
 };
 
+export type AwsEksCluster = {
+  name: string;
+  region: Regions;
+  accountId: string;
+  status:
+    | 'active'
+    | 'pending'
+    | 'creating'
+    | 'failed'
+    | 'updating'
+    | 'deleting';
+  /**
+   * labels contains this cluster's tags.
+   */
+  labels: Label[];
+  /**
+   * joinLabels contains labels that should be injected into teleport kube agent, if EKS cluster is being enrolled.
+   */
+  joinLabels: Label[];
+};
+
+export type EnrollEksClustersRequest = {
+  region: string;
+  enableAppDiscovery: boolean;
+  joinToken: string;
+  resourceId: string;
+  clusterNames: string[];
+};
+
+export type EnrollEksClustersResponse = {
+  results: {
+    clusterName: string;
+    resourceId: string;
+    error: { message: string };
+  }[];
+};
+
+export type ListEksClustersRequest = {
+  region: Regions;
+  nextToken?: string;
+};
+
+export type ListEksClustersResponse = {
+  /**
+   * clusters is the list of EKS clusters.
+   */
+  clusters: AwsEksCluster[];
+  nextToken?: string;
+};
+
 export type ListEc2InstancesRequest = {
   region: Regions;
   nextToken?: string;

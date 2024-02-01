@@ -60,6 +60,9 @@ type EKSCluster struct {
 	// Region is an AWS region.
 	Region string
 
+	// Arn is an AWS ARN identification of the EKS cluster.
+	Arn string
+
 	// Labels are labels of a EKS cluster.
 	Labels map[string]string
 
@@ -158,6 +161,7 @@ func ListEKSClusters(ctx context.Context, clt ListEKSClustersClient, req ListEKS
 			ret.Clusters = append(ret.Clusters, EKSCluster{
 				Name:       aws.ToString(eksClusterInfo.Cluster.Name),
 				Region:     req.Region,
+				Arn:        aws.ToString(eksClusterInfo.Cluster.Arn),
 				Labels:     eksClusterInfo.Cluster.Tags,
 				JoinLabels: extraLabels,
 				Status:     strings.ToLower(string(eksClusterInfo.Cluster.Status)),

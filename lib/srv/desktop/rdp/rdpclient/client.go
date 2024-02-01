@@ -434,6 +434,16 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			); errCode != C.ErrCodeSuccess {
 				return trace.Errorf("KeyboardButton: client_write_rdp_keyboard: %v", errCode)
 			}
+		case tdp.SyncKeys:
+			if errCode := C.client_write_rdp_sync_keys(C.ulong(c.handle),
+				C.CGOSyncKeys{
+					scroll_lock_down: m.ScrollLockState == tdp.ButtonPressed,
+					num_lock_down:    m.NumLockState == tdp.ButtonPressed,
+					caps_lock_down:   m.CapsLockState == tdp.ButtonPressed,
+					kana_lock_down:   m.KanaLockState == tdp.ButtonPressed,
+				}); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("SyncKeys: client_write_rdp_sync_keys: %v", errCode)
+			}
 		case tdp.ClipboardData:
 			if !c.cfg.AllowClipboard {
 				continue

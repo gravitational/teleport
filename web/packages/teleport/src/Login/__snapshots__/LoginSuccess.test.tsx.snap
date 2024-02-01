@@ -32,13 +32,8 @@ exports[`renders 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: #00BFA6;
   margin-bottom: 16px;
-}
-
-.c3 color {
-  main: #00BFA6;
-  hover: #33CCB8;
-  active: #66D9CA;
 }
 
 .c0 {
@@ -63,7 +58,7 @@ exports[`renders 1`] = `
   >
     <span
       class="c3 icon icon-circlecheck"
-      color="success"
+      color="success.main"
     >
       <svg
         fill="currentColor"

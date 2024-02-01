@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
@@ -59,7 +59,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 	if q.Get("state") == "" {
 		// secretToken is the token we will look for in both the cookie
 		// and in the request "state" query param.
-		secretToken, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+		secretToken, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			h.log.WithError(err).Debug("Failed to generate token required for app auth exchange")
 			return trace.AccessDenied("access denied")
@@ -71,7 +71,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 		// This prevents a race condition (state token mismatch error)
 		// where we can overwrite existing cookie (with the same name) with a
 		// different token value eg: launch app in multiple tabs in quick succession
-		cookieIdentifier, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+		cookieIdentifier, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			h.log.WithError(err).Debug("Failed to generate an UID for the app auth state cookie")
 			return trace.AccessDenied("access denied")
@@ -95,7 +95,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 
 	// Continue the auth exchange.
 
-	nonce, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	nonce, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		h.log.WithError(err).Debug("Failed to create a random nonce for the app redirection HTML inline script")
 		return trace.AccessDenied("access denied")

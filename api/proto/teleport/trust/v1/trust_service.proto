@@ -35,6 +35,8 @@ service TrustService {
   rpc UpsertCertAuthority(UpsertCertAuthorityRequest) returns (types.CertAuthorityV2);
   // RotateCertAuthority is a request to start rotation of the certificate authority.
   rpc RotateCertAuthority(RotateCertAuthorityRequest) returns (RotateCertAuthorityResponse);
+  // RotateExternalCertAuthority rotates an external cert authority.
+  rpc RotateExternalCertAuthority(RotateExternalCertAuthorityRequest) returns (RotateExternalCertAuthorityResponse);
   // GenerateHostCert takes a public key in the OpenSSH `authorized_keys` format and returns
   // a SSH certificate signed by the Host CA.
   rpc GenerateHostCert(GenerateHostCertRequest) returns (GenerateHostCertResponse);
@@ -114,6 +116,15 @@ message RotationSchedule {
 
 // Response for RotateCertAuthority.
 message RotateCertAuthorityResponse {}
+
+// Request for RotateExternalCertAuthority.
+message RotateExternalCertAuthorityRequest {
+  // The certificate authority to rotate.
+  types.CertAuthorityV2 cert_authority = 1;
+}
+
+// Response for RotateExternalCertAuthority.
+message RotateExternalCertAuthorityResponse {}
 
 // GenerateHostCertRequest is the request for GenerateHostCert.
 message GenerateHostCertRequest {

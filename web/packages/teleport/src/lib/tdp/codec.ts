@@ -52,6 +52,7 @@ export enum MessageType {
   RDP_FASTPATH_PDU = 29,
   RDP_RESPONSE_PDU = 30,
   RDP_CONNECTION_INITIALIZED = 31,
+  SYNC_KEYS = 32,
   __LAST, // utility value
 }
 
@@ -143,6 +144,14 @@ export type Notification = {
 export type MfaJson = {
   mfaType: 'u' | 'n';
   jsonString: string;
+};
+
+// | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+export type SyncKeys = {
+  scrollLockState: ButtonState;
+  numLockState: ButtonState;
+  capsLockState: ButtonState;
+  kanaLockState: ButtonState;
 };
 
 // | message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
@@ -527,6 +536,23 @@ export default class Codec {
     view.setUint8(0, MessageType.KEYBOARD_BUTTON);
     view.setUint32(1, scanCode);
     view.setUint8(5, state);
+    return buffer;
+  }
+
+  // encodeSyncKeys synchronizes the state of keyboard's modifier keys (caps lock)
+  // and resets the server key state to all keys up.
+  // | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+  encodeSyncKeys(syncKeys: SyncKeys): Message {
+    const buffer = new ArrayBuffer(byteLength * 5);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset++, MessageType.SYNC_KEYS);
+    view.setUint8(offset++, syncKeys.scrollLockState);
+    view.setUint8(offset++, syncKeys.numLockState);
+    view.setUint8(offset++, syncKeys.capsLockState);
+    view.setUint8(offset++, syncKeys.kanaLockState);
+
     return buffer;
   }
 

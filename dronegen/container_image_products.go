@@ -46,8 +46,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Pro
 	workingDirectory := "/go/build"
 	name := "teleport"
 	dockerfileTarget := "teleport"
-	supportedArches := []string{"amd64"}
-	// supportedArches := []string{"amd64", "arm64"}
+	supportedArches := []string{"amd64", "arm64"}
 
 	if isEnterprise {
 		name += "-ent"
@@ -56,8 +55,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *ReleaseVersion) *Pro
 		dockerfileTarget += "-fips"
 		name += "-fips"
 	} else {
-		supportedArches = append(supportedArches, "arm", "arm64")
-		// supportedArches = append(supportedArches, "arm")
+		supportedArches = append(supportedArches, "arm")
 	}
 
 	setupSteps, dockerfilePath, downloadProfileName := getTeleportSetupSteps(name, workingDirectory, version.ShellVersion)

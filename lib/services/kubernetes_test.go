@@ -95,6 +95,7 @@ func TestNewKubeClusterFromAWSEKS(t *testing.T) {
 					types.DiscoveryLabelAccountID: "123456789012",
 					types.DiscoveryLabelRegion:    "eu-west-1",
 					types.CloudLabel:              types.CloudAWS,
+					types.DiscoveryLabelAWSArn:    "arn:aws:eks:eu-west-1:123456789012:cluster/cluster1",
 					overrideLabel:                 "override-1",
 					"env":                         "prod",
 				},

@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -209,9 +210,12 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 			attribute.String("cluster", clusterName),
 		),
 	)
+	connectingToNode.Inc()
 	defer func() {
 		if err != nil {
 			failedConnectingToNode.Inc()
+			span.RecordError(trace.Unwrap(err))
+			span.SetStatus(codes.Error, err.Error())
 		}
 		span.End()
 	}()
@@ -474,7 +478,7 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 // DialSite establishes a connection to the auth server in the provided
 // cluster. If the clusterName is an empty string then a connection to
 // the local auth server will be established.
-func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
+func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (_ net.Conn, err error) {
 	_, span := r.tracer.Start(
 		ctx,
 		"router/DialSite",
@@ -482,7 +486,13 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 			attribute.String("cluster", clusterName),
 		),
 	)
-	defer span.End()
+	defer func() {
+		if err != nil {
+			span.RecordError(trace.Unwrap(err))
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 
 	// default to local cluster if one wasn't provided
 	if clusterName == "" {

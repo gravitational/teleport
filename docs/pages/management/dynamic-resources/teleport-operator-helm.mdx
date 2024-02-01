@@ -91,8 +91,8 @@ cluster. All resources (except CRDs, which are cluster-scoped) are created in th
 Create a manifest called `teleport-resources.yaml` that describes two custom resources: a `TeleportUser` and a `TeleportRole`:
 
 ```yaml
-apiVersion: resources.teleport.dev/v5
-kind: TeleportRole
+apiVersion: resources.teleport.dev/v1
+kind: TeleportRoleV7
 metadata:
   name: myrole
 spec:
@@ -124,7 +124,7 @@ $ kubectl apply -n <Var name="teleport-cluster"/> -f teleport-resources.yaml
 List the created Kubernetes resources:
 
 ```code
-$ kubectl get teleportroles -n <Var name="teleport-cluster"/>
+$ kubectl get teleportrolesv7 -n <Var name="teleport-cluster"/>
 # NAME     AGE
 # myrole   10m
 
@@ -155,13 +155,13 @@ $ kubectl explain teleportroles.spec
 ```
 Returns the following fields:
 ```shell
-KIND:     TeleportRole
-VERSION:  resources.teleport.dev/v5
+KIND:     TeleportRoleV7
+VERSION:  resources.teleport.dev/v1
 
 RESOURCE: spec <Object>
 
 DESCRIPTION:
-    Role resource definition v5 from Teleport
+    Role resource definition v7 from Teleport
 
 FIELDS:
    allow	<Object>

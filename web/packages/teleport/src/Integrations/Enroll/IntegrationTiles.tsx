@@ -137,7 +137,7 @@ function renderExternalAuditStorageBadge(
           recordings using Athena and S3.
         </div>
       }
-      color="success"
+      color="success.main"
     />
   );
 }

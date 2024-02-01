@@ -302,3 +302,16 @@ See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windo
 
 In addition, this message also contains the screen resolution that the server agreed upon
 (you don't always get the resolution that you requested).
+
+#### 32 - sync keys
+
+This message is sent from the client to the server to synchronize the state of keyboard's modifier keys.
+
+```
+| message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+```
+
+`*_lock_state` is one of:
+
+- `0` for \* lock inactive
+- `1` FOR \* LOCK ACTIVE

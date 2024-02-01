@@ -89,7 +89,7 @@ export function SuccessBox(props: { children: React.ReactNode }) {
           white-space: pre;
         `}
       >
-        <Icons.CircleCheck size="medium" color="success" />
+        <Icons.CircleCheck size="medium" color="success.main" />
       </TextIcon>
       <Box>{props.children}</Box>
     </SuccessInfo>

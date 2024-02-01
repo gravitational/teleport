@@ -1524,19 +1524,6 @@ type RestrictedSession struct {
 	EventsBufferSize *int `yaml:"events_buffer_size,omitempty"`
 }
 
-// Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*servicecfg.RestrictedSessionConfig, error) {
-	enabled, err := apiutils.ParseBool(r.Enabled)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &servicecfg.RestrictedSessionConfig{
-		Enabled:          enabled,
-		EventsBufferSize: r.EventsBufferSize,
-	}, nil
-}
-
 // X11 is a configuration for X11 forwarding
 type X11 struct {
 	// Enabled controls whether X11 forwarding requests can be granted by the server.
@@ -2381,6 +2368,14 @@ type OktaSync struct {
 
 	// DefaultOwners are the default owners for all imported access lists.
 	DefaultOwners []string `yaml:"default_owners,omitempty"`
+
+	// GroupFilters are filters for which Okta groups to synchronize as access lists.
+	// These are globs/regexes.
+	GroupFilters []string `yaml:"group_filters,omitempty"`
+
+	// AppFilters are filters for which Okta applications to synchronize as access lists.
+	// These are globs/regexes.
+	AppFilters []string `yaml:"app_filters,omitempty"`
 }
 
 func (o *OktaSync) SyncAccessLists() bool {
@@ -2397,10 +2392,26 @@ func (o *OktaSync) Parse() (*servicecfg.OktaSyncSettings, error) {
 		return nil, trace.BadParameter("default owners must be set when access list import is enabled")
 	}
 
+	for _, filter := range o.GroupFilters {
+		_, err := utils.CompileExpression(filter)
+		if err != nil {
+			return nil, trace.Wrap(err, "error parsing group filter: %s", filter)
+		}
+	}
+
+	for _, filter := range o.AppFilters {
+		_, err := utils.CompileExpression(filter)
+		if err != nil {
+			return nil, trace.Wrap(err, "error parsing app filter: %s", filter)
+		}
+	}
+
 	return &servicecfg.OktaSyncSettings{
 		AppGroupSyncPeriod: o.AppGroupSyncPeriod,
 		SyncAccessLists:    o.SyncAccessLists(),
 		DefaultOwners:      o.DefaultOwners,
+		GroupFilters:       o.GroupFilters,
+		AppFilters:         o.AppFilters,
 	}, nil
 }
 

@@ -32,8 +32,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -134,11 +134,11 @@ type Identity interface {
 	// storage, for the purpose of later verifying an authentication or
 	// registration challenge.
 	// Session data is expected to expire according to backend settings.
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
 
 	// GetWebauthnSessionData retrieves a previously-stored session data by ID,
 	// if it exists and has not expired.
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 
 	// DeleteWebauthnSessionData deletes session data by ID, if it exists and has
 	// not expired.
@@ -148,12 +148,12 @@ type Identity interface {
 	// storage, for the purpose of later verifying an authentication challenge.
 	// Session data is expected to expire according to backend settings.
 	// Used for passwordless challenges.
-	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error
+	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error
 
 	// GetGlobalWebauthnSessionData retrieves previously-stored session data by ID,
 	// if it exists and has not expired.
 	// Used for passwordless challenges.
-	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error)
+	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error)
 
 	// DeleteGlobalWebauthnSessionData deletes session data by ID, if it exists
 	// and has not expired.
@@ -265,15 +265,6 @@ type Identity interface {
 
 	// GetRecoveryCodes gets a user's recovery codes.
 	GetRecoveryCodes(ctx context.Context, user string, withSecrets bool) (*types.RecoveryCodesV1, error)
-
-	// CreateUserRecoveryAttempt logs user recovery attempt.
-	CreateUserRecoveryAttempt(ctx context.Context, user string, attempt *types.RecoveryAttempt) error
-
-	// GetUserRecoveryAttempts returns user recovery attempts sorted by oldest to latest time.
-	GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error)
-
-	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
-	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
 
 	// UpsertKeyAttestationData upserts a verified public key attestation response.
 	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error

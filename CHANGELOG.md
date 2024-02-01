@@ -1,19 +1,112 @@
 # Changelog
 
-## 15.0.0 (xx/xx/24)
+## 15.0.0 (01/31/24)
 
-### New features
+Teleport 15 brings the following new major features and improvements:
 
-#### FIPS now supported on ARM64
+- Desktop access performance improvements
+- Enhanced Device Trust support
+- SSH connection resumption
+- RDS auto-discovery in Access Management UI
+- EKS Integration for Teleport
+- MFA for Administrative Actions
+- Improved SAML IdP configuration flow
+- Improved provisioning for Okta
+- Support for AWS KMS
+- Teleport Connect improvements
+- Session playback improvements
+- Standalone Kubernetes Operator
+- Roles v6 and v7 support for Kubernetes Operator
+- Enhanced ARM64 builds
 
-Teleport 15 now provides FIPS-compliant Linux builds on ARM64. Users will now
-be able to run Teleport in FedRAMP/FIPS mode on ARM64.
+In addition, this release includes several changes that affect existing
+functionality listed in the “Breaking changes” section below. Users are advised
+to review them before upgrading.
 
-#### Hardened AMIs now produced for ARM64
+### Description
 
-Teleport 15 now provides hardened AWS AMIs on ARM64.
+#### Desktop access performance improvements
 
-#### Streaming session playback
+Teleport 15 leverages a new, more performant RDP engine, resulting in a smoother
+desktop access experience.
+
+#### Device Trust for Linux support
+
+Teleport Device Trust now supports TPM joining on Linux devices.
+
+Additionally, `tsh proxy app` can now solve device challenges, allowing users to
+enforce the use of a trusted device to access applications.
+
+#### SSH connection resumption
+
+Teleport v15 introduces automatic SSH connection resumption if the network path
+between the client and the Teleport node is interrupted due to connectivity
+issues, and transparent connection migration if the control plane is gracefully
+upgraded.
+
+The feature is active by default when a v15 client (`tsh`, OpenSSH or PuTTY
+configured by `tsh config`, or Teleport Connect) connects to a v15 Teleport
+node.
+
+#### RDS auto-discovery in Access Management UI
+
+Users going through the Access Management UI flow to enroll RDS databases are
+now able to set up auto-discovery.
+
+#### EKS Integration for Teleport
+
+Teleport now allows users to enroll EKS clusters via the Access Management UI.
+
+#### Improved SAML IdP configuration flow
+
+When adding a SAML application via Access Management UI, users are now able to
+configure attribute mapping and have Teleport fetch service provider's entity
+descriptor automatically.
+
+#### Improved provisioning for Okta
+
+Teleport 15 improves performance of receiving user/group updates from Okta by
+leveraging System for Cross-domain Identity Management (SCIM).
+
+Note: This feature will come out in a later 15.0 patch release.
+
+#### Support for AWS KMS
+
+Teleport 15 supports the use of AWS Key Management Service (KMS) to store and
+handle the CA private key material used to sign all Teleport-issued
+certificates. When enabled, private key material never leaves AWS KMS.
+
+To migrate existing clusters to AWS KMS, you must perform a CA rotation.
+
+#### MFA for administrative actions
+
+When Teleport is configured to require webauthn (`second_factor: webauthn`),
+administrative actions performed via `tctl` or the web UI will require an
+additional MFA tap.
+
+Examples of administrative actions include, but are not limited to:
+
+- Resetting or recovering user accounts
+- Inviting new users
+- Updating cluster configuration resources
+- Creating and approving access requests
+- Generating new join tokens
+
+Note: when MFA for administrative actions is enabled, user certificates produced
+with `tctl auth sign` will no longer be suitable for automation due to the additional
+MFA checks, unless run directly on a local Auth server (legacy setup). We
+recommend using Machine ID to issue certificates for automated workflows, which
+uses role impersonation that is not subject to MFA checks.
+
+#### Teleport Connect improvements
+
+Teleport Connect will now prompt for an MFA tap prior to accessing Kubernetes
+clusters when per-session MFA is enabled.
+
+Additionally, Teleport Connect includes support for TCP and web applications,
+and can also launch AWS and SAML apps in a web browser.
+
+#### Session playback improvements
 
 Prior to Teleport 15, `tsh play` and the web UI would download the entire
 session recording before starting playback. As a result, playback of large
@@ -23,7 +116,64 @@ In Teleport 15, session recordings are streamed from the auth server, allowing
 playback to start before the entire session is downloaded and unpacked.
 
 Additionally, `tsh play` now supports a `--speed` flag for adjusting the
-playback speed.
+playback speed, and desktop session playback now supports seeking to arbitrary
+positions in the recording.
+
+#### Web UI improvements
+
+Prior to Teleport 15, there was a dropdown in the sidebar between “Resources”
+and “Management,” and in the Resources mode, there were tabs in the sidebar for
+Access Requests and Active Sessions. In Teleport 15, all of the above have moved
+to tabs in a top navbar, and the Resources view is fully responsive across
+viewport widths. A side navbar still exists in the “Access Management” tab.
+
+Prior to Teleport 15, Passkeys and MFA devices were shown in a single list on
+the “Account Settings” screen, without a clear distinction between them. In
+Teleport 15, these have been split into distinct lists so it is clearer which
+type of authentication you are adding to your account.
+
+#### Standalone Kubernetes Operator
+
+Prior to Teleport 15, the Teleport Kubernetes Operator had to run as a sidecar
+of the Teleport auth. It was not possible to use the operator in Teleport Cloud
+or against a Teleport cluster not deployed with the `teleport-cluster` Helm
+chart.
+
+In Teleport 15, the Teleport Operator can reconcile resources in any Teleport
+cluster. Teleport Cloud users can now use the operator to manage their
+resources.
+
+When deployed with the `teleport-cluster` chart, the operator now runs in a
+separate pod. This ensures that Teleport's availability won't be impacted if the
+operator becomes unready.
+
+See [the Standalone Operator
+guide](docs/pages/management/dynamic-resources/teleport-operator-standalone.mdx)
+for installation instructions.
+
+#### Roles v6 and v7 support for Kubernetes Operator
+
+Starting with Teleport 15, newly supported kinds will contain the resource
+version. For example: `TeleportRoleV6` and `TeleportRoleV7` kinds will allow
+users to create Teleport Roles v6 and v7.
+
+Existing kinds will remain unchanged in Teleport 15, but will be renamed in
+Teleport 16 for consistency.
+
+To migrate an existing Custom Resource (CR) `TeleportRole` to a
+`TeleportRoleV7`, you must:
+- upgrade Teleport and the operator to v15
+- annotate the exiting `TeleportRole` CR with `teleport.dev/keep: "true"`
+- delete the `TeleportRole` CR (it won't delete the role in Teleport thanks to
+  the annotation)
+- create a new `TeleportRoleV7` CR with the same name
+
+#### Enhanced ARM64 builds
+
+Teleport 15 now provides FIPS-compliant Linux builds on ARM64. Users will now be
+able to run Teleport in FedRAMP/FIPS mode on ARM64.
+
+Additionally, Teleport 15 includes hardened AWS AMIs for ARM64.
 
 ### Breaking changes and deprecations
 
@@ -49,28 +199,36 @@ Directory environment, you should enable RemoteFX via group policy.
 Under Computer Configuration > Administrative Templates > Windows Components >
 Remote Desktop Services > Remote Desktop Session Host, enable:
 
-1. Remote Session Environment > RemoteFX for Windows Server 2008 R2 > Configure RemoteFX
-1. Remote Session Environment > Enable RemoteFX encoding for RemoteFX clients designed for Windows Server 2008 R2 SP1
+1. Remote Session Environment > RemoteFX for Windows Server 2008 R2 > Configure
+   RemoteFX
+1. Remote Session Environment > Enable RemoteFX encoding for RemoteFX clients
+   designed for Windows Server 2008 R2 SP1
 1. Remote Session Environment > Limit maximum color depth
 
-Detailed instructions are available in the
-[setup guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx).
-A reboot may be required for these changes to take effect.
+Detailed instructions are available in the [setup
+guide](docs/pages/desktop-access/active-directory-manual.mdx#enable-remotefx). A
+reboot may be required for these changes to take effect.
 
 #### `tsh ssh`
 
-When running a command on multiple nodes with `tsh ssh`, each line of output
-is now labeled with the hostname of the node it was written by. Users that
-rely on parsing the output from multiple nodes should pass the `--log-dir` flag
-to `tsh ssh`, which will create a directory where the separated output of each node
-will be written.
+When running a command on multiple nodes with `tsh ssh`, each line of output is
+now labeled with the hostname of the node it was written by. Users that rely on
+parsing the output from multiple nodes should pass the `--log-dir` flag to `tsh
+ssh`, which will create a directory where the separated output of each node will
+be written.
 
 #### `drop` host user creation mode
 
-The `drop` host user creation mode has been removed in Teleport 15. It is replaced
-by `insecure-drop`, which still creates temporary users but does not create a
-home directory. Users who need home directory creation should either wrap `useradd`/`userdel`
-or use PAM.
+The `drop` host user creation mode has been removed in Teleport 15. It is
+replaced by `insecure-drop`, which still creates temporary users but does not
+create a home directory. Users who need home directory creation should either
+wrap `useradd`/`userdel` or use PAM.
+
+#### Remove restricted sessions for SSH
+
+The restricted session feature for SSH has been deprecated since Teleport 14 and
+has been removed in Teleport 15. We recommend implementing network restrictions
+outside of Teleport (iptables, security groups, etc).
 
 #### Packages no longer published to legacy Debian and RPM repos
 
@@ -83,8 +241,8 @@ All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
 [instructions](docs/pages/installation.mdx).
 
-The legacy package repos will be shut off in mid 2025 after Teleport 14
-has been out of support for many months.
+The legacy package repos will be shut off in mid 2025 after Teleport 14 has been
+out of support for many months.
 
 #### Container images
 
@@ -94,17 +252,20 @@ and usability of Teleport-provided container images.
 ##### "Heavy" container images are discontinued
 
 In order to increase default security in 15+, Teleport will no longer publish
-[container images containing a shell and rich command line environment](https://github.com/gravitational/teleport/blob/branch/v14/build.assets/charts/Dockerfile)
-to Elastic Container Registry's [gravitational/teleport](https://gallery.ecr.aws/gravitational/teleport)
-image repo. Instead, all users should use the [distroless images](https://github.com/gravitational/teleport/blob/branch/v15/build.assets/charts/Dockerfile-distroless)
+[container images containing a shell and rich command line
+environment](https://github.com/gravitational/teleport/blob/branch/v14/build.assets/charts/Dockerfile)
+to Elastic Container Registry's
+[gravitational/teleport](https://gallery.ecr.aws/gravitational/teleport) image
+repo. Instead, all users should use the [distroless
+images](https://github.com/gravitational/teleport/blob/branch/v15/build.assets/charts/Dockerfile-distroless)
 introduced in Teleport 12. These images can be found at:
 
 * https://gallery.ecr.aws/gravitational/teleport-distroless
 * https://gallery.ecr.aws/gravitational/teleport-ent-distroless
 
-For users who need a shell in a Teleport container, a "debug" image is
-available which contains BusyBox, including a shell and many CLI tools. Find
-the debug images at:
+For users who need a shell in a Teleport container, a "debug" image is available
+which contains BusyBox, including a shell and many CLI tools. Find the debug
+images at:
 
 * https://gallery.ecr.aws/gravitational/teleport-distroless-debug
 * https://gallery.ecr.aws/gravitational/teleport-ent-distroless-debug
@@ -118,10 +279,11 @@ throughout the remainder of these releases' lifecycle.
 
 Teleport Operator container images will no longer be published with architecture
 suffixes in their tags (for example: `14.2.1-amd64` and `14.2.1-arm`). Instead,
-only a single tag will be published with multi-platform support (e.g., `15.0.0`).
-If you use Teleport Operator images with an architecture suffix, remove the
-suffix and your client should automatically pull the platform-appropriate image.
-Individual architectures may be pulled with `docker pull --platform <arch>`.
+only a single tag will be published with multi-platform support (e.g.,
+`15.0.0`). If you use Teleport Operator images with an architecture suffix,
+remove the suffix and your client should automatically pull the
+platform-appropriate image. Individual architectures may be pulled with `docker
+pull --platform <arch>`.
 
 ##### Quay.io registry
 
@@ -129,13 +291,13 @@ The quay.io container registry was deprecated and Teleport 12 is the last
 version to publish images to quay.io. With Teleport 15's release, v12 is no
 longer supported and no new container images will be published to quay.io.
 
-For Teleport 8+, replacement container images can be found in [Teleport's public ECR registry](https://gallery.ecr.aws/gravitational).
+For Teleport 8+, replacement container images can be found in [Teleport's public
+ECR registry](https://gallery.ecr.aws/gravitational).
 
-Users who wish to continue to use unsupported container images prior to
-Teleport 8 will need to download any quay.io images they depend on and mirror
-them elsewhere before July 2024. Following brownouts in May and June, Teleport
-will disable pulls from all Teleport quay.io repositories on Wednesday July 3,
-2024.
+Users who wish to continue to use unsupported container images prior to Teleport
+8 will need to download any quay.io images they depend on and mirror them
+elsewhere before July 2024. Following brownouts in May and June, Teleport will
+disable pulls from all Teleport quay.io repositories on Wednesday July 3, 2024.
 
 #### Amazon AMIs
 
@@ -154,8 +316,8 @@ naming scheme for these AMIs has been changed to include the architecture.
 ##### Legacy Amazon Linux 2 AMIs
 
 Teleport-provided Amazon Linux 2 AMIs were deprecated, and Teleport 14 is the
-last version to produce such legacy AMIs. With Teleport 15's release, only
-the newer hardened Amazon Linux 2023 AMIs will be produced.
+last version to produce such legacy AMIs. With Teleport 15's release, only the
+newer hardened Amazon Linux 2023 AMIs will be produced.
 
 The legacy AMIs will continue to be published for Teleport 13 and 14 throughout
 the remainder of these releases' lifecycle.
@@ -177,15 +339,46 @@ and instance type has been changed to ARM64/Graviton.
 As a result of this modernization, the legacy monitoring stack configuration
 used with the legacy AMIs has been removed.
 
+##### `teleport-cluster` Helm chart changes
+
+Due to the new separate operator deployment, the operator is deployed by a
+subchart. This causes the following breaking changes:
+- `installCRDs` has been replaced by `operator.installCRDs`
+- `teleportVersionOverride` does not set the operator version anymore, you must
+  use `operator.teleportVersionOverride` to override the operator version.
+
+Note: version overrides are dangerous and not recommended. Each chart version is
+designed to run a specific Teleport and operator version. If you want to deploy
+a specific Teleport version, use Helm's `--version X.Y.Z` instead.
+
+The operator now joins using a Kubernetes ServiceAccount token. To validate the
+token, the Teleport Auth Service must have access to the `TokenReview` API. The
+chart configures this for you since v12, unless you disabled `rbac` creation.
+
+##### Resource version is now mandatory and immutable in the Terraform provider
+
+Starting with Teleport 15, each Terraform resource must have its version
+specified. Before version 15, Terraform was picking the latest version available
+on resource creation. This caused inconsistencies as new resources creates with
+the same manifest as old resources were not exhibiting the same behavior.
+
+Resource version is now immutable. Changing a resource version will cause
+Terraform to delete and re-create the resource. This ensures the correct
+defaults are set.
+
+Existing resources will continue to work as Terraform already imported their
+version. However, new resources will require an explicit version.
+
 ### Other changes
 
 #### Increased password length
 
-The minimum password length has been increased to 12 characters.
+The minimum password length for local users has been increased from 6 to 12
+characters.
 
 #### Increased account lockout interval
 
-The account lockout interval has been increased to 30 minutes.
+The account lockout interval has been increased from 20 to 30 minutes.
 
 ## 14.0.0 (09/20/23)
 

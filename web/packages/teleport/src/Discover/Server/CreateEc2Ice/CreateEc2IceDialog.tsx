@@ -248,7 +248,7 @@ export function CreateEc2IceDialog({
               mb={2}
               style={{ display: 'flex', textAlign: 'left', width: '100%' }}
             >
-              <Icons.Check size="small" ml={1} mr={2} color="success" />
+              <Icons.Check size="small" ml={1} mr={2} color="success.main" />
               The EC2 Instance Connect Endpoint was successfully deployed.
             </Text>
           )}
@@ -256,7 +256,7 @@ export function CreateEc2IceDialog({
             mb={5}
             style={{ display: 'flex', textAlign: 'left', width: '100%' }}
           >
-            <Icons.Check size="small" ml={1} mr={2} color="success" />
+            <Icons.Check size="small" ml={1} mr={2} color="success.main" />
             The EC2 instance [{typedAgentMeta?.node.awsMetadata.instanceId}] has
             been added to Teleport.
           </Text>

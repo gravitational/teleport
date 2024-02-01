@@ -18,5 +18,16 @@
 
 package local
 
+import "time"
+
 // SessionDataLimiter exports sdLimiter for tests.
 var SessionDataLimiter = sdLimiter
+
+// Reset resets the limiter to its initial state.
+// Exposed for testing.
+func (l *globalSessionDataLimiter) Reset() {
+	l.mu.Lock()
+	l.scopeCount = make(map[string]int)
+	l.lastReset = time.Time{}
+	l.mu.Unlock()
+}

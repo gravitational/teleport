@@ -152,12 +152,12 @@ const cfg = {
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
 
+    downloadCenter: '/web/downloads',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
     githubHandler: '/v1/webapi/github/*',
-
-    downloadCenter: '/web/downloads',
   },
 
   api: {
@@ -289,6 +289,11 @@ const cfg = {
     awsSecurityGroupsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
 
+    eksClustersListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
+    eksEnrollClustersPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+
     ec2InstancesListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
     ec2InstanceConnectEndpointsListPath:
@@ -374,6 +379,10 @@ const cfg = {
 
   isPasswordlessEnabled() {
     return cfg.auth.allowPasswordless;
+  },
+
+  isAdminActionMfaEnforced() {
+    return cfg.auth.second_factor === 'webauthn';
   },
 
   getPrimaryAuthType(): PrimaryAuthType {
@@ -922,6 +931,24 @@ const cfg = {
 
   getAccessGraphFeaturesUrl() {
     return cfg.api.accessGraphFeatures;
+  },
+
+  getEnrollEksClusterUrl(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eksEnrollClustersPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getListEKSClustersUrl(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eksClustersListPath, {
+      clusterId,
+      name: integrationName,
+    });
   },
 
   getListEc2InstancesUrl(integrationName: string) {

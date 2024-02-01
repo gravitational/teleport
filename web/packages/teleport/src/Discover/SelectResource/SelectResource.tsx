@@ -24,6 +24,10 @@ import styled from 'styled-components';
 import { Box, Flex, Link, Text } from 'design';
 import { getPlatform, Platform } from 'design/platform';
 
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
+import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl, AuthType, OnboardDiscover } from 'teleport/services/user';
@@ -40,11 +44,6 @@ import {
 import AddApp from 'teleport/Apps/AddApp';
 import { useUser } from 'teleport/User/UserContext';
 import { storageService } from 'teleport/services/storageService';
-
-import {
-  ClusterResource,
-  UserPreferences,
-} from 'teleport/services/userPreferences/types';
 
 import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
 
@@ -544,7 +543,7 @@ function getPrioritizedResources(
   const preferredResources = preferences.onboard.preferredResources || [];
 
   // hasPreferredResources will be false if all resources are selected
-  const maxResources = Object.keys(ClusterResource).length / 2 - 1;
+  const maxResources = Object.keys(Resource).length / 2 - 1;
   const selectedAll = preferredResources.length === maxResources;
 
   return {

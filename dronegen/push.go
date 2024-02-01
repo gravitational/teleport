@@ -49,7 +49,7 @@ func pushPipelines() []pipeline {
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "amd64", fips: true}))
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "386", fips: false}))
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "arm64", fips: false}))
-	// ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "arm64", fips: true}))
+	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "arm64", fips: true}))
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "arm", fips: false}))
 	ps = append(ps, ghaWindowsPushPipeline())
 

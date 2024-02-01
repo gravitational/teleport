@@ -17,13 +17,13 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Flex, Box } from 'design';
 import Table from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
 
 import {
   DisableableCell as Cell,
+  StatusCell,
+  ItemStatus,
   RadioCell,
   Labels,
   labelMatcher,
@@ -100,7 +100,11 @@ export const DatabaseList = ({
           key: 'status',
           headerText: 'Status',
           render: item => (
-            <StatusCell item={item} wantAutoDiscover={wantAutoDiscover} />
+            <StatusCell
+              status={getStatus(item)}
+              statusText={item.status}
+              {...disabledStates(item, wantAutoDiscover)}
+            />
           ),
         },
       ]}
@@ -113,62 +117,16 @@ export const DatabaseList = ({
   );
 };
 
-const StatusCell = ({
-  item,
-  wantAutoDiscover,
-}: {
-  item: CheckedAwsRdsDatabase;
-  wantAutoDiscover: boolean;
-}) => {
-  const status = getStatus(item);
-
-  return (
-    <Cell {...disabledStates(item, wantAutoDiscover)}>
-      <Flex alignItems="center">
-        <StatusLight status={status} />
-        {item.status}
-      </Flex>
-    </Cell>
-  );
-};
-
-enum Status {
-  Success,
-  Warning,
-  Error,
-}
-
 function getStatus(item: CheckedAwsRdsDatabase) {
   switch (item.status) {
     case 'available':
-      return Status.Success;
+      return ItemStatus.Success;
 
     case 'failed':
     case 'deleting':
-      return Status.Error;
+      return ItemStatus.Error;
   }
 }
-
-// TODO(lisa): copy from IntegrationList.tsx
-// move to common file for both files.
-const StatusLight = styled(Box)`
-  border-radius: 50%;
-  margin-right: 6px;
-  width: 8px;
-  height: 8px;
-  background-color: ${({ status, theme }) => {
-    if (status === Status.Success) {
-      return theme.colors.success.main;
-    }
-    if (status === Status.Error) {
-      return theme.colors.error.main;
-    }
-    if (status === Status.Warning) {
-      return theme.colors.warning;
-    }
-    return theme.colors.grey[300]; // Unknown
-  }};
-`;
 
 function disabledStates(
   item: CheckedAwsRdsDatabase,

@@ -159,10 +159,17 @@ buildbox-fips: buildbox-centos7-fips
 # but cannot be cross-compiled, so the host architecture must match the target
 # architecture we are building.
 #
+# This buildbox uses the cached assets from the buildbox-centos7-assets container.
+# build-centos7-assets can take a long time to complete, and thus it is not included
+# as a dependency of this target in order to make local builds / development faster.
+# It is called explicitly in CI before anything that depends on it is built, and when
+# building locally it can be called manually if the assets need to be rebuilt.
+#
 .PHONY:buildbox-centos7
 buildbox-centos7:
 	$(REQUIRE_HOST_ARCH)
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH))
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH))
 	docker buildx build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -185,11 +192,8 @@ buildbox-centos7:
 #
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips: buildbox-centos7
-	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH))
-	docker buildx build \
+	docker build \
 		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
-		--cache-from $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
-		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) -f Dockerfile-centos7-fips .
 
 #
