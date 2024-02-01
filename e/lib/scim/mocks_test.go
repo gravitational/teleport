@@ -170,11 +170,11 @@ func (m *mockProviderShim) onCreatedUser(ctx context.Context, u types.User, r *s
 	return result.Error(0)
 }
 
-func (m *mockProviderShim) onUpdatingUser(ctx context.Context, u types.User, r *scimpb.Resource) (types.User, error) {
+func (m *mockProviderShim) onUpdatingUser(ctx context.Context, u types.User, r *scimpb.Resource) (types.User, bool, error) {
 	result := m.Called(ctx, u, r)
-	fn, isDelegate := result.Get(0).(func(context.Context, types.User, *scimpb.Resource) (types.User, error))
+	fn, isDelegate := result.Get(0).(func(context.Context, types.User, *scimpb.Resource) (types.User, bool, error))
 	if isDelegate {
 		return fn(ctx, u, r)
 	}
-	return getResultAs[types.User](result, 0), result.Error(0)
+	return getResultAs[types.User](result, 0), result.Bool(1), result.Error(2)
 }

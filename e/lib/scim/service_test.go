@@ -702,15 +702,13 @@ func TestUpdateUser(t *testing.T) {
 		On("authorizeRequest", anyContext, testAuthHeader).
 		Return(nil)
 	fix.shim.
-		On("resourceToUser", anyContext, anyResource).
-		Return(resourceToTestUser)
-	fix.shim.
 		On("userToResource", anyContext, anyUser).
 		Return(testUserToResource)
 	fix.shim.
 		On("onUpdatingUser", anyContext, anyUser, anyResource).
-		Return(func(ctx context.Context, u types.User, r *scimpb.Resource) (types.User, error) {
-			return fix.shim.resourceToUser(ctx, r)
+		Return(func(ctx context.Context, u types.User, r *scimpb.Resource) (types.User, bool, error) {
+			user, err := resourceToTestUser(ctx, r)
+			return user, true, err
 		})
 
 	fix.users.

@@ -171,13 +171,13 @@ type oktaUserResource struct {
 
 // onUpdatingUser handles a user update request. Okta piggybacks user activation
 // and deactivation into "update" messages
-func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, res *scimpb.Resource) (types.User, error) {
+func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, res *scimpb.Resource) (types.User, bool, error) {
 	oktaSettings := s.plugin.Spec.GetOkta()
 	log := s.log.WithField("user", teleportUser.GetName())
 
 	var oktaUser oktaUserResource
 	if err := mapstructure.Decode(res.Attributes.AsMap(), &oktaUser); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
 
 	// Okta uses the "active" attribute as a signal rather than as a simple
@@ -196,9 +196,9 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 			err := okta.UnlockUser(ctx, teleportUser, okta.LockReasonDeactivated,
 				oktaSettings.OrgUrl, s.locks)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, false, trace.Wrap(err)
 			}
-			return teleportUser, errHandled
+			return teleportUser, false, nil
 		}
 
 		// if we get to here, this is a deactivation request as per
@@ -213,13 +213,13 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 			Log:      s.log,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, false, trace.Wrap(err)
 		}
 
 		// should we delete the user here as well, or wait for the sync to clean
 		// it up?
 
-		return teleportUser, errHandled
+		return teleportUser, false, nil
 	}
 
 	// Otherwise, Okta is actually trying to update our user. Because Okta's
@@ -234,14 +234,14 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 
 	newUser, err := s.getOktaUser(ctx, res.ExternalId, oktaSettings)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
 
 	// Things like the creation time, original creator, etc need to be preserved
 	// across the update.
 	okta.PreserveUserMetadata(newUser, teleportUser)
 
-	return newUser, nil
+	return newUser, true, nil
 }
 
 // getOktaUser fetches an appuser profile from the Okta Org API

@@ -2,13 +2,10 @@ package scim
 
 import (
 	"context"
-	"errors"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 )
-
-var errHandled = errors.New("Handled")
 
 // providerShim is an abstraction over the identity-provider-specific
 // requirements (e.g. different methods identifying Teleport users as belonging
@@ -44,10 +41,14 @@ type providerShim interface {
 	onCreatedUser(context.Context, types.User, *scimpb.Resource) error
 
 	// onUpdatingUser is called immediately prior to the user handler updating a
-	// Teleport user. May return errHandled to indicate that no further action
-	// should be taken, the Teleport user should NOT be updated and the resource
-	// should be returned to the client as-is.
-	onUpdatingUser(context.Context, types.User, *scimpb.Resource) (types.User, error)
+	// Teleport user. The event handler should update the supplied user with data
+	// from resource and return the resulting user.
+	//
+	// The event handler should also return `true` if the user handler
+	// should continue to update the cluster with the returned user, or
+	// `false` if the user handler should take no further action
+	// and just return the updated user to the client as-is.
+	onUpdatingUser(context.Context, types.User, *scimpb.Resource) (types.User, bool, error)
 }
 
 // shimFactory is a function for creating new shim instances from a given plugin

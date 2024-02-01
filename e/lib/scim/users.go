@@ -2,7 +2,6 @@ package scim
 
 import (
 	"context"
-	"errors"
 
 	"github.com/gravitational/trace"
 	"github.com/scim2/filter-parser/v2"
@@ -60,21 +59,19 @@ func (uh *userHandler) update(ctx context.Context, shim providerShim, r *scimpb.
 		return nil, trace.CompareFailed("invalid revision: %q != %q", user.GetRevision(), r.Meta.Version)
 	}
 
-	user, err = shim.onUpdatingUser(ctx, user, r)
+	updatedUser, saveUpdatedUser, err := shim.onUpdatingUser(ctx, user, r)
 	if err != nil {
-		if errors.Is(err, errHandled) {
-			result, err := shim.userToResource(ctx, user)
-			return result, trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	if saveUpdatedUser {
+		updatedUser, err = uh.users.UpdateUser(ctx, updatedUser)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err)
 	}
 
-	updated, err := uh.users.UpdateUser(ctx, user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	result, err := shim.userToResource(ctx, updated)
+	result, err := shim.userToResource(ctx, updatedUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
