@@ -24,6 +24,7 @@ import {
   getWebAppLaunchUrl,
   isWebApp,
   getAwsAppLaunchUrl,
+  getSamlAppSsoUrl,
 } from 'teleterm/services/tshd/app';
 
 import { DocumentOrigin } from './types';
@@ -41,11 +42,16 @@ export async function connectToApp(
   const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
   const cluster = ctx.clustersService.findClusterByResource(target.uri);
 
-  //TODO(gzdunek): Add regular dialogs for connecting to unsupported apps (non HTTP/TCP)
-  // that will explain that the user can connect via tsh/Web UI to them.
-  // These dialogs should provide instructions, just like those in the Web UI for database access.
   if (target.samlApp) {
-    alert('SAML apps are supported only in Web UI.');
+    launchAppInBrowser(
+      ctx,
+      target,
+      getSamlAppSsoUrl({
+        app: target,
+        rootCluster,
+      }),
+      telemetry
+    );
     return;
   }
 

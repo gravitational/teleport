@@ -43,24 +43,6 @@ export function makeBot(json: any): FlatBot {
   };
 }
 
-export function makeListBot(bot: ApiBot): FlatBot {
-  return {
-    kind: bot?.kind,
-    status: bot?.status,
-    subKind: bot?.subKind,
-    version: bot?.version,
-
-    name: bot?.metadata?.name,
-    namespace: bot?.metadata?.namespace,
-    description: bot?.metadata?.description,
-    labels: bot?.metadata?.labels,
-    revision: bot?.metadata?.revision,
-
-    roles: bot?.spec?.roles,
-    traits: bot?.spec?.traits,
-  };
-}
-
 /**
  *
  * @param spec a ProvisionTokenSpecV2GitHub
@@ -102,5 +84,28 @@ export function toApiGitHubRule({
     actor: actor,
     ref: ref,
     ref_type: refType,
+  };
+}
+
+
+export function makeListBot(bot: ApiBot): FlatBot {
+  if (!bot?.metadata?.name) {
+    return;
+  }
+
+  return {
+    kind: bot?.kind || '',
+    status: bot?.status || '',
+    subKind: bot?.subKind || '',
+    version: bot?.version || '',
+
+    name: bot?.metadata?.name || '',
+    namespace: bot?.metadata?.namespace || '',
+    description: bot?.metadata?.description || '',
+    labels: bot?.metadata?.labels || new Map<string, string>(),
+    revision: bot?.metadata?.revision || '',
+
+    roles: bot?.spec?.roles || [],
+    traits: bot?.spec?.traits || [],
   };
 }

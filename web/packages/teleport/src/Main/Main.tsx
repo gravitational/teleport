@@ -20,6 +20,7 @@ import React, {
   ReactNode,
   Suspense,
   useEffect,
+  useLayoutEffect,
   useMemo,
   lazy,
   useState,
@@ -309,8 +310,23 @@ type MinWidthContextState = {
 
 const ContentMinWidthContext = createContext<MinWidthContextState>(null);
 
+/**
+ * @deprecated Use useNoMinWidth instead.
+ */
 export const useContentMinWidthContext = () =>
   useContext(ContentMinWidthContext);
+
+export const useNoMinWidth = () => {
+  const { setEnforceMinWidth } = useContext(ContentMinWidthContext);
+
+  useLayoutEffect(() => {
+    setEnforceMinWidth(false);
+
+    return () => {
+      setEnforceMinWidth(true);
+    };
+  }, []);
+};
 
 const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);

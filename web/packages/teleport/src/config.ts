@@ -1034,16 +1034,19 @@ const cfg = {
     );
   },
 
-  getBotsUrl(clusterId: string, name: string = null) {
-    return generatePath(cfg.api.botsPath, { clusterId, name });
-  },
-
-  getBotUrlWithName(clusterId: string, name: string) {
-    return generatePath(cfg.api.botsPath, { clusterId, name });
-  },
-
-  getBotTokenUrl(clusterId: string) {
+  getBotTokenUrl() {
+    const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.botsTokenPath, { clusterId });
+  },
+
+  getBotsUrl() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botsPath, { clusterId });
+  },
+
+  getBotUrlWithName(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botPath, { clusterId, name });
   },
 
   init(backendConfig = {}) {

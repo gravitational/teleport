@@ -17,42 +17,33 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
 
-import { Flex } from 'design';
+import { BaseView } from '../flow';
 
-import { View } from '../flow';
-
-import { StepList } from './StepList';
 import { StepItem } from './StepItem';
 
-import type { ResourceSpec } from '../SelectResource';
-
-interface NavigationProps {
+interface StepListProps<T> {
+  views: BaseView<T>[];
   currentStep: number;
-  selectedResource: ResourceSpec;
-  views: View[];
+  index?: number;
 }
 
-const StyledNav = styled.div`
-  display: flex;
-`;
+export function StepList<T>(props: StepListProps<T>) {
+  const items = [];
 
-export function Navigation(props: NavigationProps) {
-  let content;
-  if (props.views) {
-    content = (
-      <Flex mt="10px" mb="45px">
-        {/*
-          This initial StepItem is to render the first "bullet"
-          in this nav, which is the selected resource's icon
-          and name.
-        */}
-        <StepItem selectedResource={props.selectedResource} />
-        <StepList views={props.views} currentStep={props.currentStep} />
-      </Flex>
+  let startIndex = props.index || 0;
+  for (const view of props.views) {
+    items.push(
+      <StepItem<T>
+        key={startIndex}
+        view={view}
+        currentStep={props.currentStep}
+        index={startIndex}
+      />
     );
+
+    startIndex += 1;
   }
 
-  return <StyledNav>{content}</StyledNav>;
+  return <>{items}</>;
 }

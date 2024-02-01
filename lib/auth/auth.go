@@ -1866,10 +1866,6 @@ func (r *certRequest) check() error {
 
 type certRequestOption func(*certRequest)
 
-func certRequestMFAVerified(mfaID string) certRequestOption {
-	return func(r *certRequest) { r.mfaVerified = mfaID }
-}
-
 func certRequestPreviousIdentityExpires(previousIdentityExpires time.Time) certRequestOption {
 	return func(r *certRequest) { r.previousIdentityExpires = previousIdentityExpires }
 }
@@ -2608,16 +2604,13 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	// Only validate/default kubernetes cluster name for the current teleport
-	// cluster. If this cert is targeting a trusted teleport cluster, leave all
-	// the kubernetes cluster validation up to them.
-	if req.routeToCluster == clusterName {
-		req.kubernetesCluster, err = kubeutils.CheckOrSetKubeCluster(a.closeCtx, a, req.kubernetesCluster, clusterName)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			log.Debug("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
+	// Ensure that the Kubernetes cluster name specified in the request exists
+	// when the certificate is intended for a local Kubernetes cluster.
+	// If the certificate is targeting a trusted Teleport cluster, it is the
+	// responsibility of the cluster to ensure its existence.
+	if req.routeToCluster == clusterName && req.kubernetesCluster != "" {
+		if err := kubeutils.CheckKubeCluster(a.closeCtx, a, req.kubernetesCluster); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -3118,23 +3111,19 @@ type newRegisterChallengeRequest struct {
 func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
 	switch req.deviceType {
 	case proto.DeviceType_DEVICE_TYPE_TOTP:
+		if req.token == nil {
+			return nil, trace.BadParameter("all TOTP registrations require a privilege token")
+		}
+
 		otpKey, otpOpts, err := a.newTOTPKey(req.username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		// TODO(codingllama): Once AddMFADeviceSync is no more all requests should
-		//  have a token. If they don't, then the secret is "lost" to the server.
-		var qrCode []byte
-		var challengeID string
-		if token := req.token; token != nil {
-			secrets, err := a.createTOTPUserTokenSecrets(ctx, token, otpKey)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			qrCode = secrets.GetQRCode()
-			challengeID = token.GetName()
+		token := req.token
+		secrets, err := a.createTOTPUserTokenSecrets(ctx, token, otpKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		return &proto.MFARegisterChallenge{
@@ -3146,8 +3135,8 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 					Algorithm:     otpOpts.Algorithm.String(),
 					Digits:        uint32(otpOpts.Digits.Length()),
 					Account:       otpKey.AccountName(),
-					QRCode:        qrCode,
-					ID:            challengeID,
+					QRCode:        secrets.GetQRCode(),
+					ID:            token.GetName(),
 				},
 			},
 		}, nil
@@ -3431,10 +3420,6 @@ type newMFADeviceFields struct {
 	// tokenID is the ID of a reset/invite/recovery/privilege token.
 	// It is generally used to recover the TOTP secret stored in the token.
 	tokenID string
-	// totpSecret is a secret shared by client and server to generate totp codes.
-	// Field can be empty to get secret by "tokenID".
-	// DELETE IN 16. Only used by the streaming AddMFADevice RPC. (codingllama)
-	totpSecret string
 
 	// webIdentityOverride is an optional RegistrationIdentity override to be used
 	// for device registration. A common override is decorating the regular
@@ -3507,19 +3492,15 @@ func (a *Server) registerTOTPDevice(ctx context.Context, regResp *proto.MFARegis
 		return nil, trace.BadParameter("second factor TOTP not allowed by cluster")
 	}
 
-	var secret string
-	switch {
-	case req.tokenID != "":
-		secrets, err := a.GetUserTokenSecrets(ctx, req.tokenID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		secret = secrets.GetOTPKey()
-	case req.totpSecret != "":
-		secret = req.totpSecret
-	default:
+	if req.tokenID == "" {
 		return nil, trace.BadParameter("missing TOTP secret")
 	}
+
+	secrets, err := a.GetUserTokenSecrets(ctx, req.tokenID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	secret := secrets.GetOTPKey()
 
 	dev, err := services.NewTOTPDevice(req.newDeviceName, secret, a.clock.Now())
 	if err != nil {

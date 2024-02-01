@@ -33,18 +33,6 @@ import {
   CreateBotJoinTokenRequest,
 } from './types';
 
-export function fetchBots(signal: AbortSignal): Promise<BotList> {
-  return api
-    .get(cfg.getBotsUrl(cfg.proxyCluster), signal)
-    .then((json: BotResponse) => {
-      const items = json?.items || [];
-      return { bots: items.map(makeListBot) };
-    })
-    .catch(res => {
-      throw res;
-    });
-}
-
 export function createBot(config: CreateBotRequest): Promise<void> {
   return api.post(cfg.getBotsUrl(cfg.proxyCluster), config);
 }
@@ -61,10 +49,6 @@ export async function getBot(name: string): Promise<FlatBot | null> {
   }
 }
 
-export function deleteBot(name: string): Promise<void> {
-  return api.delete(cfg.getBotUrlWithName(cfg.proxyCluster, name));
-}
-
 export function createBotToken(req: CreateBotJoinTokenRequest) {
   return api.post(cfg.getBotTokenUrl(cfg.proxyCluster), {
     integrationName: req.integrationName,
@@ -72,4 +56,15 @@ export function createBotToken(req: CreateBotJoinTokenRequest) {
     webFlowLabel: req.webFlowLabel,
     gitHub: toApiGitHubTokenSpec(req.gitHub),
   });
+}
+
+export function fetchBots(signal: AbortSignal): Promise<BotList> {
+  return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
+    const items = json?.items || [];
+    return { bots: items.map(makeListBot) };
+  });
+}
+
+export function deleteBot(name: string) {
+  return api.delete(cfg.getBotUrlWithName(name));
 }
