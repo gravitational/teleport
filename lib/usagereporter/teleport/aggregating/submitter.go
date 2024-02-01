@@ -127,10 +127,13 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	}
 
 	freeBatchSize := submitBatchSize - len(userActivityReports)
-	resourcePresenceReports, err := svc.listResourcePresenceReports(ctx, freeBatchSize)
-	if err != nil {
-		c.Log.WithError(err).Error("Failed to load resource counts reports for submission.")
-		return
+	var resourcePresenceReports []*prehogv1.ResourcePresenceReport
+	if freeBatchSize > 0 {
+		resourcePresenceReports, err = svc.listResourcePresenceReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Log.WithError(err).Error("Failed to load resource counts reports for submission.")
+			return
+		}
 	}
 
 	totalReportCount := len(userActivityReports) + len(resourcePresenceReports)
