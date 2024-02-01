@@ -99,7 +99,7 @@ func TestGRPCErrorWrapping(t *testing.T) {
 		// io.EOF error (meaning the server errored and closed the stream).
 		// In either case, it is still safe to recv from the stream and check for
 		// the already exists error.
-		if sendErr != nil && sendErr != io.EOF /* == error comparsion on purpose! */ {
+		if sendErr != nil && sendErr != io.EOF /* == error comparison on purpose! */ {
 			t.Fatalf("Unexpected error: %q (%T)", sendErr, sendErr)
 		}
 
