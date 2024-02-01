@@ -36,6 +36,7 @@ import {
   SuggestedCommandMessage,
   UserMessage,
 } from 'teleport/Console/DocumentSsh/TerminalAssist/types';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebsoscket';
 
 interface TerminalAssistContextValue {
   close: () => void;
@@ -57,7 +58,7 @@ export function TerminalAssistContextProvider(
 
   const [visible, setVisible] = useState(false);
 
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<AuthenticatedWebSocket | null>(null);
   const socketUrl = cfg.getAssistActionWebSocketUrl(
     getHostName(),
     clusterId,
@@ -71,25 +72,8 @@ export function TerminalAssistContextProvider(
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
-    socketRef.current = new WebSocket(socketUrl);
-
-    socketRef.current.onopen = () => {
-      socketRef.current.send(JSON.stringify({ token: getAccessToken() }));
-    };
-
-    socketRef.current.onmessage = e => {
-      const resData = JSON.parse(e.data);
-
-      if (resData.type === 'create_session_response') {
-        if (resData.status == 'error') {
-          socketRef.current.close();
-          console.log('auth error connecting to websocket: ' + resData.message);
-          return;
-        }
-        return;
-      }
-
-      const data = resData as ServerMessage;
+    let onmessage = (e: MessageEvent) => {
+      const data = JSON.parse(e.data) as ServerMessage;
       const payload = JSON.parse(data.payload) as {
         action: string;
         input: string;
@@ -109,6 +93,8 @@ export function TerminalAssistContextProvider(
       setLoading(false);
       setMessages(m => [message, ...m]);
     };
+
+    socketRef.current = new AuthenticatedWebSocket(socketUrl, null, onmessage);
   }, []);
 
   function close() {
@@ -134,27 +120,14 @@ export function TerminalAssistContextProvider(
       'ssh-explain'
     );
 
-    const ws = new WebSocket(socketUrl);
 
-    ws.onopen = () => {
-      socketRef.current.send(JSON.stringify({ token: getAccessToken() }));
+
+    let onopen = () => {
+        ws.send(encodedOutput);
     };
 
-    ws.onmessage = event => {
-      const message = event.data;
-      const resMsg = JSON.parse(message);
-
-      if (resMsg.type === 'create_session_response') {
-        if (resMsg.status == 'error') {
-          socketRef.current.close();
-          console.log('auth error connecting to websocket: ' + resMsg.message);
-          return;
-        }
-        ws.send(encodedOutput);
-        return;
-      }
-
-      const msg = resMsg as ServerMessage;
+    let onmessage = (event: MessageEvent) => {
+      const msg = JSON.parse(event.data) as ServerMessage;
 
       const explanation: ExplanationMessage = {
         author: Author.Teleport,
@@ -167,6 +140,7 @@ export function TerminalAssistContextProvider(
 
       ws.close();
     };
+    const ws = new AuthenticatedWebSocket(socketUrl, onopen, onmessage);
   }
 
   function send(message: string) {

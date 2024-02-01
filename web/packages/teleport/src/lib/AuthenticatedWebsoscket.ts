@@ -30,10 +30,10 @@ export class AuthenticatedWebSocket {
 
   constructor(
     socketAddr: string,
-    onopen: (ev: Event) => void | null,
-    onmessage: (ev: MessageEvent) => void | null,
-    onerror: (ev: Event) => void | null,
-    onclose: (ev: CloseEvent) => void | null
+    onopen: (ev: Event) => void | null = null,
+    onmessage: (ev: MessageEvent) => void | null = null,
+    onerror: (ev: Event) => void | null = null,
+    onclose: (ev: CloseEvent) => void | null = null,
   ) {
     this.onopen = this.onopen.bind(this);
     this.onmessage = this.onmessage.bind(this);
@@ -53,11 +53,19 @@ export class AuthenticatedWebSocket {
     this.ws.onclose = this.onclose;
   }
 
-  onopen(): void {
+  set binaryType(btype: BinaryType) {
+	this.ws.binaryType = btype
+  }
+
+  get readyState(): number {
+	return this.ws.readyState
+  }
+
+  private onopen(): void {
     this.ws.send(JSON.stringify({ token: getAccessToken() }));
   }
 
-  onmessage(ev: MessageEvent): void {
+  private onmessage(ev: MessageEvent): void {
     if (!this.authenticated) {
       const authResponse = JSON.parse(ev.data) as WebsocketStatus;
       if (authResponse.type != 'create_session_response') {
@@ -87,7 +95,7 @@ export class AuthenticatedWebSocket {
     }
   }
 
-  onclose(ev: CloseEvent): void {
+  private onclose(ev: CloseEvent): void {
     if (this.oncloseAfterAuth) {
       this.oncloseAfterAuth(ev);
     }
