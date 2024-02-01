@@ -502,7 +502,7 @@ func TestListResources(t *testing.T) {
 				ResourceType: test.resourceType,
 			})
 			require.Error(t, err)
-			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 		})
 	}
 
@@ -528,7 +528,7 @@ func testGetResources[T types.ResourceWithLabels](t *testing.T, clt *Client, kin
 		ResourceType: kind,
 	})
 	require.Error(t, err)
-	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+	require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 
 	// Test getting a page of resources
 	page, err := GetResourcePage[T](ctx, clt, &proto.ListResourcesRequest{
@@ -636,7 +636,7 @@ func TestGetResourcesWithFilters(t *testing.T) {
 				ResourceType: test.resourceType,
 			})
 			require.Error(t, err)
-			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 
 			// Test getting all resources by chunks to handle limit exceeded.
 			resources, err := GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
