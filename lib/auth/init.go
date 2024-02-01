@@ -32,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -504,21 +505,26 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	span.AddEvent("completed migration legacy resources")
 
 	// Create presets - convenience and example resources.
-	isDashboard := !modules.GetModules().Features().Cloud && modules.GetModules().Features().RecoveryCodes
-	if !isDashboard {
+	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		span.AddEvent("creating preset roles")
 		if err := createPresetRoles(ctx, asrv); err != nil {
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
+			span.End()
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset roles")
 
 		span.AddEvent("creating preset users")
 		if err := createPresetUsers(ctx, asrv); err != nil {
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
+			span.End()
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset users")
 	} else {
-		span.AddEvent("skipping preset role and user creation")
+		log.Info("skipping preset role and user creation")
 	}
 
 	if !cfg.SkipPeriodicOperations {
