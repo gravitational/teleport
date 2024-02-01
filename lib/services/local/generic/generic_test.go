@@ -310,7 +310,7 @@ func TestGenericListResourcesReturnNextResource(t *testing.T) {
 	))
 	require.NotNil(t, next)
 
-	page, next, err = service.ListResourcesReturnNextResource(ctx, 1, "another-unique-prefix"+string(backend.Separator)+backend.GetPaginationKey(next))
+	page, next, err = service.ListResourcesReturnNextResource(ctx, 1, "another-unique-prefix"+string(backend.Separator)+backend.GetPaginationKey(*next))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),

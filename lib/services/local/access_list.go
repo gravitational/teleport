@@ -278,7 +278,7 @@ func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSi
 	}
 	var nextKey string
 	if next != nil {
-		nextKey = next.Spec.AccessList + string(backend.Separator) + next.Metadata.Name
+		nextKey = (*next).Spec.AccessList + string(backend.Separator) + (*next).Metadata.Name
 	}
 	return members, nextKey, nil
 }
@@ -498,7 +498,7 @@ func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSi
 	}
 	var nextKey string
 	if next != nil {
-		nextKey = next.Spec.AccessList + string(backend.Separator) + next.Metadata.Name
+		nextKey = (*next).Spec.AccessList + string(backend.Separator) + (*next).Metadata.Name
 	}
 	return reviews, nextKey, nil
 }
