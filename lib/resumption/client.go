@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -93,6 +94,10 @@ type redialFunc = func(ctx context.Context, hostID string) (net.Conn, error)
 // connection is wrapped, the context applies to the lifetime of the returned
 // connection, not just the duration of the function call.
 func WrapSSHClientConn(ctx context.Context, nc net.Conn, redial redialFunc) (net.Conn, error) {
+	return wrapSSHClientConn(ctx, nc, redial, clockwork.NewRealClock())
+}
+
+func wrapSSHClientConn(ctx context.Context, nc net.Conn, redial redialFunc, clock clockwork.Clock) (net.Conn, error) {
 	dhKey, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to generate ECDH key, proceeding without resumption (this is a bug).")
@@ -162,7 +167,7 @@ func WrapSSHClientConn(ctx context.Context, nc net.Conn, redial redialFunc) (net
 	resumableConn := newResumableConn(conn.LocalAddr(), conn.RemoteAddr())
 	// runClientResumable expects a brand new, locked *Conn
 	resumableConn.mu.Lock()
-	go runClientResumableUnlocking(ctx, resumableConn, conn, token, hostID, redial)
+	go runClientResumableUnlocking(ctx, resumableConn, conn, token, hostID, redial, clock)
 
 	return resumableConn, nil
 }
@@ -170,14 +175,14 @@ func WrapSSHClientConn(ctx context.Context, nc net.Conn, redial redialFunc) (net
 // runClientResumableUnlocking expects firstConn to be ready to be passed to
 // runResumeV1Unlocking, and will drive resumableConn until the connection is
 // impossible to resume further or connCtx is done.
-func runClientResumableUnlocking(ctx context.Context, resumableConn *Conn, firstConn net.Conn, token resumptionToken, hostID string, redial redialFunc) {
+func runClientResumableUnlocking(ctx context.Context, resumableConn *Conn, firstConn net.Conn, token resumptionToken, hostID string, redial redialFunc, clock clockwork.Clock) {
 	defer resumableConn.Close()
 
 	// detached is held open by the current underlying connection
 	const isFirstConn = true
 	detached := goAttachResumableUnlocking(resumableConn, firstConn, isFirstConn)
 
-	reconnectTicker := time.NewTicker(replacementInterval)
+	reconnectTicker := clock.NewTicker(replacementInterval)
 	defer reconnectTicker.Stop()
 
 	for {
@@ -185,7 +190,7 @@ func runClientResumableUnlocking(ctx context.Context, resumableConn *Conn, first
 		case <-ctx.Done():
 			return
 
-		case <-reconnectTicker.C:
+		case <-reconnectTicker.Chan():
 			logrus.Debug("Attempting periodic reconnection.")
 
 			newConn, err := dialResumable(ctx, token, hostID, redial)
@@ -257,7 +262,7 @@ func runClientResumableUnlocking(ctx context.Context, resumableConn *Conn, first
 
 		reconnectTicker.Reset(replacementInterval)
 		select {
-		case <-reconnectTicker.C:
+		case <-reconnectTicker.Chan():
 		default:
 		}
 	}
