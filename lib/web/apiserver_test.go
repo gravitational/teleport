@@ -9141,7 +9141,7 @@ func TestWSAuthenticateRequest(t *testing.T) {
 			serverExpectError: "i/o timeout",
 			token:             pack.session.Token,
 			readTimeout: func() {
-				<-time.After(time.Second * 3)
+				<-time.After(wsIODeadline * 3)
 			},
 		},
 	} {
