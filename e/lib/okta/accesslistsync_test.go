@@ -16,8 +16,11 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -28,12 +31,13 @@ var cmpOpts = []cmp.Option{
 
 // accessListSyncTestContext contains test information for testing the access list synchronizer.
 type accessListSyncTestContext struct {
-	svc    *accessListSync
-	clock  clockwork.FakeClock
-	client *testOktaClient
-	ap     *testAccessPoint
-	apps   map[string]types.Application
-	groups map[string]types.UserGroup
+	svc     *accessListSync
+	clock   clockwork.FakeClock
+	emitter *eventstest.ChannelEmitter
+	client  *testOktaClient
+	ap      *testAccessPoint
+	apps    map[string]types.Application
+	groups  map[string]types.UserGroup
 }
 
 func (a *accessListSyncTestContext) addApp(app types.Application) {
@@ -56,6 +60,7 @@ func initAccessListSync(t *testing.T) *accessListSyncTestContext {
 	clock := clockwork.NewFakeClock()
 	client := newTestClient()
 	ap := newTestAccessPoint(t, clockwork.NewFakeClock())
+	emitter := eventstest.NewChannelEmitter(1)
 	stopCh := make(chan struct{}, 1)
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -67,17 +72,20 @@ func initAccessListSync(t *testing.T) *accessListSyncTestContext {
 	})
 
 	alsCtx := &accessListSyncTestContext{
-		clock:  clock,
-		client: client,
-		ap:     ap,
-		apps:   map[string]types.Application{},
-		groups: map[string]types.UserGroup{},
+		clock:   clock,
+		emitter: emitter,
+		client:  client,
+		ap:      ap,
+		apps:    map[string]types.Application{},
+		groups:  map[string]types.UserGroup{},
 	}
 
 	alSync, err := newAccessListSync(accessListSyncConfig{
 		Clock:       clock,
+		ClusterName: testClusterName,
 		Client:      client,
 		Owners:      []string{"owner1", "owner2"},
+		Emitter:     emitter,
 		Access:      ap,
 		AccessLists: ap,
 		OrgURL:      testOrgURL,
@@ -124,18 +132,30 @@ func TestAccessListSync(t *testing.T) {
 		require.Empty(t, c.svc.getNewImportAccessListMembers())
 		require.Empty(t, c.svc.getImportRoles())
 		require.Empty(t, c.svc.getNewImportRoles())
+
+		expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
+			require.True(t, event.Success)
+			require.Equal(t, testClusterName, event.ClusterName)
+			require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+			require.Zero(t, event.NumAppFilters)
+			require.Zero(t, event.NumGroupFilters)
+			require.Zero(t, event.NumApps)
+			require.Zero(t, event.NumGroups)
+			require.Zero(t, event.NumRoles)
+			require.Zero(t, event.NumAccessLists)
+			require.Zero(t, event.NumAccessListMembers)
+		})
 	})
 
 	t.Run("Okta apps and groups but no assignments", func(t *testing.T) {
 		c := initAccessListSync(t)
-		c.advanceAndWaitForSync()
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
 		c.addApp(newAccessListSyncApp(t, "app2"))
 		c.addGroup(newAccessListSyncGroup(t, "group1"))
 		c.addGroup(newAccessListSyncGroup(t, "group2"))
 
-		require.NoError(t, c.svc.importOktaNativeAssignmentsAsAccessLists(ctx))
+		c.advanceAndWaitForSync()
 
 		require.Empty(t, c.svc.getImportAccessLists())
 		require.Empty(t, c.svc.getNewImportAccessLists())
@@ -143,6 +163,19 @@ func TestAccessListSync(t *testing.T) {
 		require.Empty(t, c.svc.getNewImportAccessListMembers())
 		require.Empty(t, c.svc.getImportRoles())
 		require.Empty(t, c.svc.getNewImportRoles())
+
+		expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
+			require.True(t, event.Success)
+			require.Equal(t, testClusterName, event.ClusterName)
+			require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+			require.Zero(t, event.NumAppFilters)
+			require.Zero(t, event.NumGroupFilters)
+			require.Zero(t, event.NumApps)
+			require.Zero(t, event.NumGroups)
+			require.Zero(t, event.NumRoles)
+			require.Zero(t, event.NumAccessLists)
+			require.Zero(t, event.NumAccessListMembers)
+		})
 	})
 
 	t.Run("Okta apps have assignments, groups have no assignments", func(t *testing.T) {
@@ -184,6 +217,19 @@ func TestAccessListSync(t *testing.T) {
 		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
 
 		verifyServiceMatchesBackend(t, c.ap, c.svc)
+
+		expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
+			require.True(t, event.Success)
+			require.Equal(t, testClusterName, event.ClusterName)
+			require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+			require.Zero(t, event.NumAppFilters)
+			require.Zero(t, event.NumGroupFilters)
+			require.Equal(t, int32(2), event.NumApps)
+			require.Zero(t, event.NumGroups)
+			require.Equal(t, int32(4), event.NumRoles)
+			require.Equal(t, int32(2), event.NumAccessLists)
+			require.Equal(t, int32(6), event.NumAccessListMembers)
+		})
 	})
 
 	t.Run("Okta apps have assignments, groups have assignments", func(t *testing.T) {
@@ -227,6 +273,19 @@ func TestAccessListSync(t *testing.T) {
 		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
 
 		verifyServiceMatchesBackend(t, c.ap, c.svc)
+
+		expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
+			require.True(t, event.Success)
+			require.Equal(t, testClusterName, event.ClusterName)
+			require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+			require.Zero(t, event.NumAppFilters)
+			require.Zero(t, event.NumGroupFilters)
+			require.Equal(t, int32(2), event.NumApps)
+			require.Equal(t, int32(1), event.NumGroups)
+			require.Equal(t, int32(6), event.NumRoles)
+			require.Equal(t, int32(3), event.NumAccessLists)
+			require.Equal(t, int32(5), event.NumAccessListMembers)
+		})
 	})
 
 	t.Run("Okta apps have assignments, groups have assignments, apps and group filters added.", func(t *testing.T) {
@@ -288,10 +347,27 @@ func TestAccessListSync(t *testing.T) {
 		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
 
 		verifyServiceMatchesBackend(t, c.ap, c.svc)
+
+		expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
+			require.True(t, event.Success)
+			require.Equal(t, testClusterName, event.ClusterName)
+			require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+			require.Equal(t, int32(1), event.NumAppFilters)
+			require.Equal(t, int32(1), event.NumGroupFilters)
+			require.Equal(t, int32(2), event.NumApps)
+			require.Equal(t, int32(2), event.NumGroups)
+			require.Equal(t, int32(8), event.NumRoles)
+			require.Equal(t, int32(4), event.NumAccessLists)
+			require.Equal(t, int32(8), event.NumAccessListMembers)
+		})
 	})
 
 	t.Run("previously existing apps and groups erased or updated, owners preserved", func(t *testing.T) {
 		c := initAccessListSync(t)
+
+		// Let's set the app/groups counters to an arbitrary value. This should be reset.
+		c.svc.appsImported.Store(12)
+		c.svc.groupsImported.Store(12)
 
 		// Create a bunch of resources that the reconciler should clean up.
 		_, err := c.ap.UpsertAccessList(ctx, newAccessList(t, "app1", "blah", []string{"some-role-reviewer"}, []string{"some-role"}, []string{"some-other-owner"}))
@@ -362,6 +438,19 @@ func TestAccessListSync(t *testing.T) {
 		require.Empty(t, cmp.Diff(c.svc.getImportRoles(), c.svc.getNewImportRoles(), cmpOpts...))
 
 		verifyServiceMatchesBackend(t, c.ap, c.svc)
+
+		expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
+			require.True(t, event.Success)
+			require.Equal(t, testClusterName, event.ClusterName)
+			require.Equal(t, events.OktaAccessListSyncSuccessCode, event.Code)
+			require.Zero(t, event.NumAppFilters)
+			require.Zero(t, event.NumGroupFilters)
+			require.Equal(t, int32(2), event.NumApps)
+			require.Equal(t, int32(1), event.NumGroups)
+			require.Equal(t, int32(6), event.NumRoles)
+			require.Equal(t, int32(3), event.NumAccessLists)
+			require.Equal(t, int32(5), event.NumAccessListMembers)
+		})
 	})
 }
 

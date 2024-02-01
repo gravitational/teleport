@@ -631,7 +631,9 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		alSync, err := newAccessListSync(accessListSyncConfig{
 			Log:          s.log,
 			Clock:        s.clock,
+			ClusterName:  s.clusterName,
 			Client:       s.client,
+			Emitter:      config.Emitter,
 			Access:       config.Access,
 			AccessLists:  config.AccessLists,
 			OrgURL:       s.orgURL,

@@ -16,9 +16,11 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -42,11 +44,17 @@ type accessListSyncConfig struct {
 	// Clock is the clock to use for the access list synchronizer.
 	Clock clockwork.Clock
 
+	// ClusterName is the name of the cluster.
+	ClusterName string
+
 	// Client is the okta client.
 	Client OktaClient
 
 	// Owners is the default owners for access lists.
 	Owners []string
+
+	// Emitter is events emitter, used to submit discrete events
+	Emitter apievents.Emitter
 
 	// Access is used by the access list sync service to interact users and roles.
 	Access services.Access
@@ -94,12 +102,20 @@ func (a *accessListSyncConfig) CheckAndSetDefaults() error {
 		a.Clock = clockwork.NewRealClock()
 	}
 
+	if a.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+
 	if a.Client == nil {
 		return trace.BadParameter("missing client")
 	}
 
 	if len(a.Owners) == 0 {
 		return trace.BadParameter("missing owners")
+	}
+
+	if a.Emitter == nil {
+		return trace.BadParameter("missing emitter")
 	}
 
 	if a.Access == nil {
@@ -146,7 +162,8 @@ func (a *accessListSyncConfig) CheckAndSetDefaults() error {
 type accessListSync struct {
 	log *logrus.Entry
 
-	clock clockwork.Clock
+	clock       clockwork.Clock
+	clusterName string
 
 	// client is the Okta client so that the importer can query the Okta API.
 	client OktaClient
@@ -158,6 +175,7 @@ type accessListSync struct {
 
 	syncInterval time.Duration
 
+	emitter     apievents.Emitter
 	access      services.Access
 	accessLists services.AccessLists
 
@@ -205,6 +223,10 @@ type accessListSync struct {
 	newImportRolesMu sync.Mutex
 	newImportRoles   map[string]types.Role
 
+	// these are used to maintain app and group import stats per synchronization run.
+	appsImported   atomic.Int32
+	groupsImported atomic.Int32
+
 	synchronizerSuccess *atomic.Bool
 	synchronizingMu     *sync.RWMutex
 	stopCh              chan struct{}
@@ -227,8 +249,10 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 	a := &accessListSync{
 		log:                        cfg.Log,
 		clock:                      cfg.Clock,
+		clusterName:                cfg.ClusterName,
 		client:                     cfg.Client,
 		owners:                     owners,
+		emitter:                    cfg.Emitter,
 		access:                     cfg.Access,
 		accessLists:                cfg.AccessLists,
 		orgURL:                     cfg.OrgURL,
@@ -450,6 +474,10 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 	groups := a.groupsGetter()
 	a.synchronizingMu.RUnlock()
 
+	// Reset apps/groups counters
+	a.appsImported.Store(0)
+	a.groupsImported.Store(0)
+
 	// Refresh the current imports from what's known in the backend and clear the new imports.
 	a.log.Info("Refreshing current imports")
 	if err := a.refreshCurrentImports(ctx); err != nil {
@@ -505,7 +533,11 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 	}
 
 	// Now that we've rebuilt our maps, run the reconciler.
-	return trace.Wrap(a.reconcileAll(ctx))
+	reconcileErr := a.reconcileAll(ctx)
+
+	a.emitAccessListSyncEvent(ctx, reconcileErr)
+
+	return trace.Wrap(reconcileErr)
 }
 
 // convertAccessListMetadata will take access list metadata and turn it into import resources. On return, it will
@@ -546,6 +578,51 @@ func (a *accessListSync) convertAccessListMetadata(ctx context.Context, importCh
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+// emitAccessListSyncEvent will take in a reconciler error and emit an audit event for the synchronization
+// that just occurred.
+func (a *accessListSync) emitAccessListSyncEvent(ctx context.Context, reconcileErr error) {
+	code := events.OktaAccessListSyncSuccessCode
+	var errorMsg string
+	success := true
+	if reconcileErr != nil {
+		code = events.OktaAccessListSyncFailureCode
+		errorMsg = reconcileErr.Error()
+		success = false
+	}
+
+	event := &apievents.OktaAccessListSync{
+		Metadata: apievents.Metadata{
+			Type:        events.OktaAccessListSyncEvent,
+			Code:        code,
+			ClusterName: a.clusterName,
+		},
+		Status: apievents.Status{
+			Error:   errorMsg,
+			Success: success,
+		},
+		NumAppFilters:   int32(len(a.appFilters)),
+		NumGroupFilters: int32(len(a.groupFilters)),
+		NumApps:         a.appsImported.Load(),
+		NumGroups:       a.groupsImported.Load(),
+	}
+
+	a.importRolesMu.Lock()
+	event.NumRoles = int32(len(a.importRoles))
+	a.importRolesMu.Unlock()
+
+	a.importAccessListsMu.Lock()
+	event.NumAccessLists = int32(len(a.importAccessLists))
+	a.importAccessListsMu.Unlock()
+
+	a.importAccessListMembersMu.Lock()
+	event.NumAccessListMembers = int32(len(a.importAccessListMembers))
+	a.importAccessListMembersMu.Unlock()
+
+	if err := a.emitter.EmitAuditEvent(ctx, event); err != nil {
+		a.log.WithError(err).Warn("Unable to emit audit event")
 	}
 }
 
@@ -615,6 +692,7 @@ func (a *accessListSync) importApps(ctx context.Context, apps map[string]types.A
 		if irMetadata != nil {
 			log.Info("Processing application")
 			importCh <- irMetadata
+			a.appsImported.Add(1)
 		} else {
 			log.Info("Application has no assignments, skipping")
 		}
@@ -706,6 +784,7 @@ func (a *accessListSync) importGroups(ctx context.Context, groups map[string]typ
 		if irMetadata != nil {
 			log.Info("Processing group")
 			importCh <- irMetadata
+			a.groupsImported.Add(1)
 		} else {
 			log.Info("Group has no assignments, skipping")
 		}
