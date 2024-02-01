@@ -27,3 +27,45 @@ func TestJoinHostPort(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "example.com:1234", JoinHostPort("example.com", 1234))
 }
+
+func TestSplitHostPort(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		addr       string
+		expectHost string
+		expectPort uint32
+		assertErr  assert.ErrorAssertionFunc
+	}{
+		{
+			name:      "empty",
+			assertErr: assert.NoError,
+		},
+		{
+			name:      "not a valid addr",
+			addr:      ":::::",
+			assertErr: assert.Error,
+		},
+		{
+			name:       "full host and port",
+			addr:       "example.com:1234",
+			expectHost: "example.com",
+			expectPort: 1234,
+			assertErr:  assert.NoError,
+		},
+		{
+			name:       "without port",
+			addr:       "example.com",
+			expectHost: "example.com",
+			assertErr:  assert.NoError,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			host, port, err := SplitHostPort(tc.addr)
+			tc.assertErr(t, err)
+			assert.Equal(t, tc.expectHost, host)
+			assert.Equal(t, tc.expectPort, port)
+		})
+	}
+}
