@@ -1551,6 +1551,16 @@ export const formatters: Formatters = {
     format: ({ name, source, user }) =>
       `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
   },
+  [eventCodes.OKTA_ACCESS_LIST_SYNC]: {
+    type: 'okta.access_list.sync',
+    desc: 'Okta access list synchronization completed',
+    format: () => `Okta access list synchronization successfully completed`,
+  },
+  [eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE]: {
+    type: 'okta.access_list.sync',
+    desc: 'Okta access list synchronization failed',
+    format: () => `Okta access list synchronization failed`,
+  },
   [eventCodes.ACCESS_LIST_CREATE]: {
     type: 'access_list.create',
     desc: 'Access list created',
