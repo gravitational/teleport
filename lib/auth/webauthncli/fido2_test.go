@@ -564,7 +564,7 @@ func TestFIDO2Login(t *testing.T) {
 				return &cp
 			},
 			prompt:  bio1,
-			wantErr: libfido2.ErrNoCredentials.Error(),
+			wantErr: wancli.ErrUsingNonRegisteredDevice.Error(),
 		},
 		{
 			name:  "NOK passwordless unknown user",
