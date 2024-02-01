@@ -1,0 +1,117 @@
+---
+title: MFA for Admin Actions
+description: Require MFA checks to perform admin actions.
+---
+
+Teleport can be configured to require additional multi-factor authentication
+checks to perform admin actions. This requirement applies to adding, editing,
+or deleting the following administrative resources:
+
+- User Management:
+  - Users
+  - User Groups
+  - Roles
+  - Trusted Devices
+  - Account Recovery
+- Access Management:
+  - Access Requests
+  - Access Lists
+  - Login Rules
+  - Join Tokens
+- Cluster Config:
+  - Authentication Preference
+  - Session Recording Config
+  - Networking Config
+  - Network Restrictions
+- Authentication Connectors:
+  - SAML connectors
+  - Github connectors
+  - OIDC connectors
+- Certificates:
+  - Certificate Authorities
+  - User Certificates
+  - Host Certificates
+  - Bots
+
+This is an advanced security feature that protects users against compromises of
+their on-disk Teleport certificates.
+
+<Notice type="warning">
+  MFA for admin actions is a breaking change for non-interactive clients that
+  need to perform admin actions, such as the [Terraform Provider](machine-id/access-guides/terraform.mdx)
+  or [Access Request plugins](access-controls/access-request-plugins/index.mdx).
+
+  To avoid MFA checks for admin actions for such use cases, users must use
+  [Machine ID](machine-id/getting-started.mdx). Creating the bot with
+  `tctl bots add` still requires an MFA check, but the certificates output
+  by `tbot` skip the MFA checks.
+</Notice>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- [WebAuthn configured](webauthn.mdx) on this cluster
+- Second factor hardware device, such as YubiKey or SoloKey
+- A Web browser with [WebAuthn support](
+  https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
+  SSH or desktop sessions from the Teleport Web UI).
+
+## Require MFA for admin actions
+
+MFA for admin actions is automatically enforced for clusters where WebAuthn is
+the only allowed form of second factor.
+
+<Notice type="note">
+  Teleport may widen the sope of these MFA checks in a future major version to
+  cover a wider range of cluster configurations.
+</Notice>
+
+<Tabs>
+  <TabItem label="Dynamic resources" scope={["team", "cloud"]}>
+
+  Edit the `cluster_auth_preference` resource:
+
+  ```code
+  $ tctl edit cap
+  ```
+
+  Update the `cluster_auth_preference` definition to include the following content:
+
+  ```yaml
+  kind: cluster_auth_preference
+  version: v2
+  metadata:
+    name: cluster-auth-preference
+  spec:
+    type: local
+    # To enable MFA for admin actinos, set this field to 'webauthn'
+    second_factor: "webauthn"
+    webauthn:
+      rp_id: example.com
+  ```
+
+  Save and exit the file. `tctl` will update the remote definition:
+
+  ```text
+  cluster auth preference has been updated
+  ```
+
+  </TabItem>
+  <TabItem label="Static Config" scope={["oss", "enterprise"]}>
+  Edit the Auth Server's `teleport.yaml` file and restart all Auth Services:
+
+  ```yaml
+  # snippet from /etc/teleport.yaml:
+  auth_service:
+    authentication:
+      type: local
+      # To enable MFA for admin actinos, set this field to 'webauthn'
+      second_factor: "webauthn"
+      webauthn:
+        rp_id: example.com
+  ```
+
+  </TabItem>
+</Tabs>
