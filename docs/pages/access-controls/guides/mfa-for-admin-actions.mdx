@@ -30,8 +30,8 @@ their on-disk Teleport certificates.
   issue certificates for automated workflows, which uses role impersonation
   that is not subject to MFA checks.
 
-  Certificates produced with `tctl auth sign` directly on an Auth service
-  instance using the super-administrative are not subject to MFA checks to support
+  Certificates produced with `tctl auth sign` directly on an Auth Service
+  instance using the super-admin role are not subject to MFA checks to support
   legacy self-hosted setups.
 </Notice>
 
@@ -57,7 +57,7 @@ WebAuthn is the only form of second factor allowed.
 </Notice>
 
 <Tabs>
-  <TabItem label="Dynamic resources" scope={["team", "cloud"]}>
+  <TabItem label="Dynamic Resources" scope={["team", "cloud"]}>
 
   Edit the `cluster_auth_preference` resource:
 
@@ -88,7 +88,7 @@ WebAuthn is the only form of second factor allowed.
 
   </TabItem>
   <TabItem label="Static Config" scope={["oss", "enterprise"]}>
-  Edit the Auth Server's `teleport.yaml` file and restart all Auth Services:
+  Edit the Auth Service's `teleport.yaml` file and restart all Auth Service instances:
 
   ```yaml
   # snippet from /etc/teleport.yaml:
