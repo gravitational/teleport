@@ -38,11 +38,11 @@ their on-disk Teleport certificates.
 
 <Notice type="warning">
   MFA for admin actions is a breaking change for non-interactive clients that
-  need to perform admin actions, such as the [Terraform Provider](machine-id/access-guides/terraform.mdx)
-  or [Access Request plugins](access-controls/access-request-plugins/index.mdx).
+  need to perform admin actions, such as the [Terraform Provider](../../machine-id/access-guides/terraform.mdx)
+  or [Access Request plugins](../access-request-plugins/index.mdx).
 
   To avoid MFA checks for admin actions for such use cases, users must use
-  [Machine ID](machine-id/getting-started.mdx). Creating the bot with
+  [Machine ID](../../machine-id/getting-started.mdx). Creating the bot with
   `tctl bots add` still requires an MFA check, but the certificates output
   by `tbot` skip the MFA checks.
 </Notice>
