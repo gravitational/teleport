@@ -392,6 +392,98 @@ func TestScheduleReportUpdate(t *testing.T) {
 	})
 }
 
+func TestReportUpdateThreshold(t *testing.T) {
+	s := newSuite(t)
+	ctx := context.Background()
+
+	t.Run("IGS license", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{
+				IsUsageBasedBilling:        true,
+				IdentityGovernanceSecurity: true,
+			},
+		})
+
+		err := s.svc.schedulesReportsUpdate(ctx)
+		require.NoError(t, err)
+		state, err := s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			Name: "test_report",
+			Days: 7,
+		})
+		require.NoError(t, err)
+		wantUpdatedAt := s.clock.Now().Format(time.RFC3339)
+		require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
+
+		t.Run("1h threshold not reached report should not be executed", func(t *testing.T) {
+			s.clock.Advance(time.Minute * 30)
+			s.updateCurrentLimiterUsage(t, 0)
+			err = s.svc.schedulesReportsUpdate(ctx)
+			require.NoError(t, err)
+			state, err = s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
+				Name: "test_report",
+				Days: 7,
+			})
+			require.NoError(t, err)
+			require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
+		})
+
+		t.Run("1h threshold reached report should be executed", func(t *testing.T) {
+			s.clock.Advance(time.Minute * 31)
+			s.updateCurrentLimiterUsage(t, 0)
+			err = s.svc.schedulesReportsUpdate(ctx)
+			require.NoError(t, err)
+			state, err = s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
+				Name: "test_report",
+				Days: 7,
+			})
+			require.NoError(t, err)
+			wantUpdatedAt = s.clock.Now().Format(time.RFC3339)
+			require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
+		})
+
+	})
+
+	t.Run("no-IGS license", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{
+				IsUsageBasedBilling:        false,
+				IdentityGovernanceSecurity: false,
+				AccessMonitoring: modules.AccessMonitoringFeature{
+					MaxReportRangeLimit: 30,
+				},
+			},
+		})
+
+		t.Run("24h threshold not reached report should not be executed", func(t *testing.T) {
+			wantUpdatedAt := s.clock.Now().Format(time.RFC3339)
+			s.clock.Advance(time.Hour + time.Minute)
+			s.updateCurrentLimiterUsage(t, 0)
+			err := s.svc.schedulesReportsUpdate(ctx)
+			require.NoError(t, err)
+			state, err := s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
+				Name: "test_report",
+				Days: 7,
+			})
+			require.NoError(t, err)
+			require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
+		})
+
+		t.Run("24h threshold reached, report should be executed", func(t *testing.T) {
+			s.clock.Advance(24 * time.Hour)
+			s.updateCurrentLimiterUsage(t, 0)
+			err := s.svc.schedulesReportsUpdate(ctx)
+			require.NoError(t, err)
+			state, err := s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
+				Name: "test_report",
+				Days: 7,
+			})
+			require.NoError(t, err)
+			wantUpdatedAt := s.clock.Now().Format(time.RFC3339)
+			require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
+		})
+	})
+}
+
 func TestGetReportExecutionDaysRange(t *testing.T) {
 	tests := []struct {
 		name     string
