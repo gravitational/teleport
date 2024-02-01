@@ -63,7 +63,8 @@ type ConnectionContext struct {
 	// tcpipForwardDialer is a lazily initialized dialer used to handle all tcpip
 	// forwarding requests.
 	tcpipForwardDialer TCPIPForwardDialer
-
+	// tcpipForwardConn is a lazily initialized connection to the subprocess that
+	// handles remote port forwarding.
 	tcpipForwardConn *uds.Conn
 
 	// closers is a list of io.Closer that will be called when session closes
@@ -268,6 +269,9 @@ func (c *ConnectionContext) AddCloser(closer io.Closer) {
 	c.closers = append(c.closers, closer)
 }
 
+// TrySetTCPIPForwardConn attempts to registers a TCPIPForwardConn. If a
+// different conn was concurrently registered, ok is false and the previously
+// registered conn is returned.
 func (c *ConnectionContext) TrySetTCPIPForwardConn(conn *uds.Conn) (registered *uds.Conn, ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -278,6 +282,7 @@ func (c *ConnectionContext) TrySetTCPIPForwardConn(conn *uds.Conn) (registered *
 	return c.tcpipForwardConn, true
 }
 
+// GetTCPIPForwardConn gets the registered TCPIPForwardConn if one exists.
 func (c *ConnectionContext) GetTCPIPForwardConn() (conn *uds.Conn, ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

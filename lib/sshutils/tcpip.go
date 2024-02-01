@@ -75,6 +75,8 @@ type CancelTCPIPForwardReq struct {
 	Port uint32
 }
 
+// StartRemoteListener listens on the given listener and forwards any accepted
+// connections over a new "forwarded-tcpip" channel.
 func StartRemoteListener(ctx context.Context, ccx *ConnectionContext, srcAddr, dstAddr string, listener net.Listener) error {
 	srcHost, srcPort, err := SplitHostPort(srcAddr)
 	if err != nil {

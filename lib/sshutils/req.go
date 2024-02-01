@@ -51,6 +51,8 @@ type PTYReqParams struct {
 	Modes string
 }
 
+// ForwardedTCPIPRequest specifies parameters for opening a port forwarding
+// channel from the server.
 type ForwardedTCPIPRequest struct {
 	Addr     string
 	Port     uint32
@@ -58,6 +60,7 @@ type ForwardedTCPIPRequest struct {
 	OrigPort uint32
 }
 
+// CheckAndSetDefaults checks and sets default values.
 func (req *ForwardedTCPIPRequest) CheckAndSetDefaults() error {
 	if req.Addr == "" {
 		return trace.BadParameter("missing field Addr")

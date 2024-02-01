@@ -2020,6 +2020,8 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 	log.WithError(ctx.Err()).Infof("Shutting down dynamic port forwarding.")
 }
 
+// remoteListenAndForward requests a listening socket and forwards all incoming
+// commands to the local address through the SSH tunnel.
 func (c *NodeClient) remoteListenAndForward(ctx context.Context, ln net.Listener, localAddr, remoteAddr string) {
 	defer ln.Close()
 	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)

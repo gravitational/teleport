@@ -177,6 +177,8 @@ type Server struct {
 	// or an agentless server.
 	targetServer types.Server
 
+	// remoteForwardingMap holds the remote port forwarding resources that need
+	// to be closed when forwarding finishes, keyed by listen addr.
 	remoteForwardingMap utils.SyncMap[string, io.Closer]
 }
 
