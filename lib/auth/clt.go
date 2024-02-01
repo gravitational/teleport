@@ -675,10 +675,6 @@ type IdentityService interface {
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
-	// Deprecated: Use AddMFADeviceSync instead.
-	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
-	// Deprecated: Use DeleteMFADeviceSync instead.
-	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
