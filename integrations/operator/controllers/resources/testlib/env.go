@@ -122,6 +122,9 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	unrestricted := []string{"list", "create", "read", "update", "delete"}
 	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			// the operator has wildcard noe labs to be able to see them
+			// but has no login allowed, so it cannot SSH into them
+			NodeLabels: types.Labels{"*": []string{"*"}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, unrestricted),
 				types.NewRule(types.KindUser, unrestricted),
@@ -130,6 +133,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindToken, unrestricted),
 				types.NewRule(types.KindOktaImportRule, unrestricted),
 				types.NewRule(types.KindAccessList, unrestricted),
+				types.NewRule(types.KindNode, unrestricted),
 			},
 		},
 	})

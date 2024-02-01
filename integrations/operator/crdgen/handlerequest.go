@@ -141,6 +141,20 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 				withVersionOverride(types.V1),
 			},
 		},
+		{
+			name: "ServerV2",
+			opts: []resourceSchemaOption{
+				withVersionInKindOverride(),
+				withNameOverride("OpensshServer"),
+			},
+		},
+		{
+			name: "ServerV2",
+			opts: []resourceSchemaOption{
+				withVersionInKindOverride(),
+				withNameOverride("OpensshEICEServer"),
+			},
+		},
 	}
 
 	for _, resource := range resources {
