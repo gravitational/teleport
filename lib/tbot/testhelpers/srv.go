@@ -161,7 +161,7 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 }
 
 // MakeBot creates a server-side bot and returns joining parameters.
-func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) (botconfig.OnboardingConfig, *machineidv1pb.Bot) {
+func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) (*botconfig.OnboardingConfig, *machineidv1pb.Bot) {
 	ctx := context.TODO()
 	t.Helper()
 
@@ -190,7 +190,7 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) (b
 	err = client.CreateToken(ctx, tok)
 	require.NoError(t, err)
 
-	return botconfig.OnboardingConfig{
+	return &botconfig.OnboardingConfig{
 		TokenValue: tok.GetName(),
 		JoinMethod: types.JoinMethodToken,
 	}, b
@@ -203,7 +203,7 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) (b
 // - Uses a memory storage destination
 // - Does not verify Proxy WebAPI certificates
 func DefaultBotConfig(
-	t *testing.T, fc *config.FileConfig, onboarding botconfig.OnboardingConfig, outputs []botconfig.Output, opts DefaultBotConfigOpts,
+	t *testing.T, fc *config.FileConfig, onboarding *botconfig.OnboardingConfig, outputs []botconfig.Output, opts DefaultBotConfigOpts,
 ) *botconfig.BotConfig {
 	t.Helper()
 
@@ -218,7 +218,7 @@ func DefaultBotConfig(
 
 	cfg := &botconfig.BotConfig{
 		AuthServer: authServer,
-		Onboarding: onboarding,
+		Onboarding: *onboarding,
 		Storage: &botconfig.StorageConfig{
 			Destination: &botconfig.DestinationMemory{},
 		},

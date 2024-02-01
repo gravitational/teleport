@@ -72,24 +72,6 @@ func TestCreateBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	legacyBotCreator, _, err := auth.CreateUserAndRole(
-		srv.Auth(),
-		"legacy-bot-creator",
-		[]string{},
-		[]types.Rule{
-			{
-				Resources: []string{types.KindUser},
-				Verbs:     []string{types.VerbCreate},
-			},
-			{
-				Resources: []string{types.KindRole},
-				Verbs:     []string{types.VerbCreate},
-			}, {
-				Resources: []string{types.KindToken},
-				Verbs:     []string{types.VerbCreate},
-			},
-		})
-	require.NoError(t, err)
 	testRole, err := auth.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
@@ -218,48 +200,6 @@ func TestCreateBot(t *testing.T) {
 							),
 						},
 					},
-				},
-			},
-		},
-		{
-			name: "success - legacy",
-			user: legacyBotCreator.GetName(),
-			req: &machineidv1pb.CreateBotRequest{
-				Bot: &machineidv1pb.Bot{
-					Metadata: &headerv1.Metadata{
-						Name: "success-legacy",
-					},
-					Spec: &machineidv1pb.BotSpec{
-						Roles: []string{testRole.GetName()},
-						Traits: []*machineidv1pb.Trait{
-							{
-								Name:   constants.TraitLogins,
-								Values: []string{"root"},
-							},
-						},
-					},
-				},
-			},
-
-			assertError: require.NoError,
-			want: &machineidv1pb.Bot{
-				Kind:    types.KindBot,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "success-legacy",
-				},
-				Spec: &machineidv1pb.BotSpec{
-					Roles: []string{testRole.GetName()},
-					Traits: []*machineidv1pb.Trait{
-						{
-							Name:   constants.TraitLogins,
-							Values: []string{"root"},
-						},
-					},
-				},
-				Status: &machineidv1pb.BotStatus{
-					UserName: "bot-success-legacy",
-					RoleName: "bot-success-legacy",
 				},
 			},
 		},
@@ -1240,25 +1180,6 @@ func TestDeleteBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-	botDeleterLegacyUser, _, err := auth.CreateUserAndRole(
-		srv.Auth(),
-		"bot-deleter-legacy",
-		[]string{},
-		[]types.Rule{
-			{
-				Resources: []string{types.KindBot},
-				Verbs:     []string{types.VerbDelete},
-			},
-			{
-				Resources: []string{types.KindBot},
-				Verbs:     []string{types.VerbDelete},
-			},
-			{
-				Resources: []string{types.KindBot},
-				Verbs:     []string{types.VerbDelete},
-			},
-		})
-	require.NoError(t, err)
 	testRole, err := auth.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
@@ -1295,20 +1216,6 @@ func TestDeleteBot(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	preExistingBot2, err := client.BotServiceClient().CreateBot(
-		ctx,
-		&machineidv1pb.CreateBotRequest{
-			Bot: &machineidv1pb.Bot{
-				Metadata: &headerv1.Metadata{
-					Name: "pre-existing-2",
-				},
-				Spec: &machineidv1pb.BotSpec{
-					Roles: []string{testRole.GetName()},
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
 	preExistingBot3, err := client.BotServiceClient().CreateBot(
 		ctx,
 		&machineidv1pb.CreateBotRequest{
@@ -1336,15 +1243,6 @@ func TestDeleteBot(t *testing.T) {
 			user: botDeleterUser.GetName(),
 			req: &machineidv1pb.DeleteBotRequest{
 				BotName: preExistingBot.Metadata.Name,
-			},
-			assertError:           require.NoError,
-			checkResourcesDeleted: true,
-		},
-		{
-			name: "success-legacy",
-			user: botDeleterLegacyUser.GetName(),
-			req: &machineidv1pb.DeleteBotRequest{
-				BotName: preExistingBot2.Metadata.Name,
 			},
 			assertError:           require.NoError,
 			checkResourcesDeleted: true,
