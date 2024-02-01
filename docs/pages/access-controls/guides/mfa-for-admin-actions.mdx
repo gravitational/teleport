@@ -61,7 +61,7 @@ their on-disk Teleport certificates.
 ## Require MFA for admin actions
 
 MFA for admin actions is automatically enforced for clusters where WebAuthn is
-the only allowed form of second factor.
+the only form of second factor allowed.
 
 <Notice type="note">
   Teleport may widen the sope of these MFA checks in a future major version to
@@ -86,7 +86,7 @@ the only allowed form of second factor.
     name: cluster-auth-preference
   spec:
     type: local
-    # To enable MFA for admin actinos, set this field to 'webauthn'
+    # To make webauthn the only form of second factor allowed, set this field to 'webauthn'.
     second_factor: "webauthn"
     webauthn:
       rp_id: example.com
@@ -107,7 +107,7 @@ the only allowed form of second factor.
   auth_service:
     authentication:
       type: local
-      # To enable MFA for admin actinos, set this field to 'webauthn'
+      # To make webauthn the only form of second factor allowed, set this field to 'webauthn'.
       second_factor: "webauthn"
       webauthn:
         rp_id: example.com
