@@ -535,5 +535,6 @@ replace (
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
 	// replace module sigs.k8s.io/kustomize/api until https://github.com/kubernetes-sigs/kustomize/issues/5524 is resolved,
 	// otherwise we get significant increase in size of the "teleport" binary.
-	sigs.k8s.io/kustomize/api => github.com/gravitational/kustomize/api v0.0.0-20240201174225-90bb1eeead9a
+	sigs.k8s.io/kustomize/api => github.com/gravitational/kustomize/api v0.16.0-teleport.1
+
 )
