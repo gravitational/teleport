@@ -50,7 +50,11 @@ type grpcClientStreamWrapper struct {
 
 // SendMsg wraps around ClientStream.SendMsg
 func (s *grpcClientStreamWrapper) SendMsg(m interface{}) error {
-	if err := s.ClientStream.SendMsg(m); err != nil {
+	switch err := s.ClientStream.SendMsg(m); {
+	case errors.Is(err, io.EOF):
+		// Do not wrap io.EOF errors, they are often used as stop guards for streams.
+		return err
+	case err != nil:
 		return &RemoteError{Err: trace.Unwrap(trail.FromGRPC(s.ClientStream.SendMsg(m)))}
 	}
 	return nil
