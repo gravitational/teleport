@@ -780,9 +780,9 @@ steps:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
       # build major version images which are just teleport:x
-      CURRENT_VERSION_ROOT: v14
-      PREVIOUS_VERSION_ONE_ROOT: v13
-      PREVIOUS_VERSION_TWO_ROOT: v12
+      CURRENT_VERSION_ROOT: v15
+      PREVIOUS_VERSION_ONE_ROOT: v14
+      PREVIOUS_VERSION_TWO_ROOT: v13
     commands:
       - apk --update --no-cache add curl go
       - mkdir -p /go/build && cd /go/build
@@ -2468,7 +2468,7 @@ steps:
   - Assume ECR - staging AWS Role
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
-- name: Pull teleport-operator:v15-amd64 and push it to Local Registry
+- name: Pull teleport-operator:v16-amd64 and push it to Local Registry
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -2502,7 +2502,7 @@ steps:
   - Build major, minor, and full semvers
   - Assume ECR - staging AWS Role
   - Assume ECR - production AWS Role
-- name: Pull teleport-operator:v15-arm and push it to Local Registry
+- name: Pull teleport-operator:v16-arm and push it to Local Registry
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -2536,7 +2536,7 @@ steps:
   - Build major, minor, and full semvers
   - Assume ECR - staging AWS Role
   - Assume ECR - production AWS Role
-- name: Pull teleport-operator:v15-arm64 and push it to Local Registry
+- name: Pull teleport-operator:v16-arm64 and push it to Local Registry
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -2570,7 +2570,7 @@ steps:
   - Build major, minor, and full semvers
   - Assume ECR - staging AWS Role
   - Assume ECR - production AWS Role
-- name: Tag and push image "teleport-operator:v15-amd64" to ECR - production
+- name: Tag and push image "teleport-operator:v16-amd64" to ECR - production
   image: docker
   commands:
   - docker pull --platform "linux/amd64" drone-docker-registry:5000/teleport-operator:$(cat
@@ -2611,8 +2611,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-operator:v15-amd64 and push it to Local Registry
-- name: Tag and push image "teleport-operator:v15-arm" to ECR - production
+  - Pull teleport-operator:v16-amd64 and push it to Local Registry
+- name: Tag and push image "teleport-operator:v16-arm" to ECR - production
   image: docker
   commands:
   - docker pull --platform "linux/arm" drone-docker-registry:5000/teleport-operator:$(cat
@@ -2653,8 +2653,8 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-operator:v15-arm and push it to Local Registry
-- name: Tag and push image "teleport-operator:v15-arm64" to ECR - production
+  - Pull teleport-operator:v16-arm and push it to Local Registry
+- name: Tag and push image "teleport-operator:v16-arm64" to ECR - production
   image: docker
   commands:
   - docker pull --platform "linux/arm64" drone-docker-registry:5000/teleport-operator:$(cat
@@ -2695,7 +2695,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Pull teleport-operator:v15-arm64 and push it to Local Registry
+  - Pull teleport-operator:v16-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport-operator:major" to ECR - production
   image: docker
   commands:
@@ -2725,9 +2725,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-operator:v15-amd64" to ECR - production
-  - Tag and push image "teleport-operator:v15-arm" to ECR - production
-  - Tag and push image "teleport-operator:v15-arm64" to ECR - production
+  - Tag and push image "teleport-operator:v16-amd64" to ECR - production
+  - Tag and push image "teleport-operator:v16-arm" to ECR - production
+  - Tag and push image "teleport-operator:v16-arm64" to ECR - production
 - name: Create manifest and push "teleport-operator:minor" to ECR - production
   image: docker
   commands:
@@ -2757,9 +2757,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-operator:v15-amd64" to ECR - production
-  - Tag and push image "teleport-operator:v15-arm" to ECR - production
-  - Tag and push image "teleport-operator:v15-arm64" to ECR - production
+  - Tag and push image "teleport-operator:v16-amd64" to ECR - production
+  - Tag and push image "teleport-operator:v16-arm" to ECR - production
+  - Tag and push image "teleport-operator:v16-arm64" to ECR - production
 - name: Create manifest and push "teleport-operator:full" to ECR - production
   image: docker
   commands:
@@ -2787,9 +2787,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push image "teleport-operator:v15-amd64" to ECR - production
-  - Tag and push image "teleport-operator:v15-arm" to ECR - production
-  - Tag and push image "teleport-operator:v15-arm64" to ECR - production
+  - Tag and push image "teleport-operator:v16-amd64" to ECR - production
+  - Tag and push image "teleport-operator:v16-arm" to ECR - production
+  - Tag and push image "teleport-operator:v16-arm64" to ECR - production
 services:
 - name: Start Docker
   image: docker:dind
@@ -2951,6 +2951,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 47d3b4d44c75e4b7c86eba814ac8cdb16c8de36d493b2e1661cdc28d7bbe601b
+hmac: 276b194530d269773e0bbea70af4c4712bcbcb951e307701c9e22ac9140f6a5c
 
 ...
