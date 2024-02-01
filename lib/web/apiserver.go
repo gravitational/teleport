@@ -3777,6 +3777,22 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	})
 }
 
+func (h *Handler) writeErrToWS(ws *websocket.Conn, err error) {
+	errEnvelope := Envelope{
+		Type:    defaults.WebsocketError,
+		Payload: err.Error(),
+	}
+	env, err := errEnvelope.Marshal()
+	if err != nil {
+		h.log.WithError(err).Error("error marshaling proto")
+		return
+	}
+	if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
+		h.log.WithError(err).Error("error writing proto")
+		return
+	}
+}
+
 // WithClusterAuthWS wraps a ClusterWebsocketHandler to ensure that a request is authenticated
 // to this proxy via websocket if websocketAuth is true, or via query parameter if false (the same as WithAuth), as
 // well as to grab the remoteSite (which can represent this local cluster or a remote trusted cluster)
@@ -3794,19 +3810,7 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 			defer ws.Close()
 
 			if _, err := fn(w, r, p, sctx, site, ws); err != nil {
-				errEnvelope := Envelope{
-					Type:    defaults.WebsocketError,
-					Payload: err.Error(),
-				}
-				env, err := errEnvelope.Marshal()
-				if err != nil {
-					h.log.WithError(err).Error("error marshaling proto")
-					return nil, nil
-				}
-				if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
-					h.log.WithError(err).Error("error writing proto")
-					return nil, nil
-				}
+				h.writeErrToWS(ws, err)
 			}
 			return nil, nil
 		}
@@ -3830,19 +3834,7 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 
 		defer ws.Close()
 		if _, err := fn(w, r, p, sctx, site, ws); err != nil {
-			errEnvelope := Envelope{
-				Type:    defaults.WebsocketError,
-				Payload: err.Error(),
-			}
-			env, err := errEnvelope.Marshal()
-			if err != nil {
-				h.log.WithError(err).Error("error marshaling proto")
-				return nil, nil
-			}
-			if err := ws.WriteMessage(websocket.BinaryMessage, env); err != nil {
-				h.log.WithError(err).Error("error writing proto")
-				return nil, nil
-			}
+			h.writeErrToWS(ws, err)
 		}
 		return nil, nil
 	})
@@ -4280,12 +4272,15 @@ type wsStatus struct {
 	Message string `json:"message,omitempty"`
 }
 
+// wsIODeadline is used to set a deadline for recieving a message from
+// an authenticated websocket so unauthenticated sockets dont get left
+// open.
 var wsIODeadline = time.Second * 4
 
 // AuthenticateRequest authenticates request using combination of a session cookie
 // and bearer token retrieved from a websocket
 func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) (*SessionContext, *websocket.Conn, error) {
-	ctx, err := h.validateCookie(w, r)
+	sctx, err := h.validateCookie(w, r)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -4299,8 +4294,7 @@ func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		return nil, nil, trace.ConnectionProblem(err, "Error upgrading to websocket: %v", err)
 	}
-	if err := ws.SetReadDeadline(deadlineForInterval(wsIODeadline)); err != nil {
-		log.WithError(err).Error("Error setting websocket read deadline")
+	if err := ws.SetReadDeadline(time.Now().Add(wsIODeadline)); err != nil {
 		return nil, nil, trace.ConnectionProblem(err, "Error setting websocket read deadline: %v", err)
 	}
 
@@ -4308,7 +4302,7 @@ func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) 
 	if err := ws.ReadJSON(&t); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	if err := ctx.validateBearerToken(r.Context(), t.Token); err != nil {
+	if err := sctx.validateBearerToken(r.Context(), t.Token); err != nil {
 		ws.WriteJSON(wsStatus{
 			Type:    "create_session_response",
 			Status:  "error",
@@ -4324,12 +4318,16 @@ func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) 
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// unset the deadline as downstream consumers should handle this themselves.
 	if err := ws.SetReadDeadline(time.Time{}); err != nil {
-		log.WithError(err).Error("Error setting websocket read deadline")
 		return nil, nil, trace.ConnectionProblem(err, "Error setting websocket read deadline: %v", err)
 	}
 
-	return ctx, ws, nil
+	if err := parseMFAResponseFromRequest(r); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return sctx, ws, nil
 }
 
 // ProxyWithRoles returns a reverse tunnel proxy verifying the permissions
