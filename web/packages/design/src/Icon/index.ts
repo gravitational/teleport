@@ -126,6 +126,7 @@ export { ListThin } from './Icons/ListThin';
 export { ListView } from './Icons/ListView';
 export { Lock } from './Icons/Lock';
 export { Logout } from './Icons/Logout';
+export { Bots } from './Icons/Bots';
 export { Magnifier } from './Icons/Magnifier';
 export { MagnifyingMinus } from './Icons/MagnifyingMinus';
 export { MagnifyingPlus } from './Icons/MagnifyingPlus';
