@@ -449,6 +449,10 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 		return trace.Wrap(err)
 	}
 
+	if !services.UsersEquals(existing, new) {
+		return trace.CompareFailed("user %v settings have been updated, try again", new.GetName())
+	}
+
 	newRaw, ok := new.WithoutSecrets().(types.User)
 	if !ok {
 		return trace.BadParameter("Invalid user type %T", new)
@@ -466,21 +470,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 		Revision: rev,
 	}
 
-	existingRaw, ok := existing.WithoutSecrets().(types.User)
-	if !ok {
-		return trace.BadParameter("Invalid user type %T", existing)
-	}
-	existingValue, err := services.MarshalUser(existingRaw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	existingItem := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, existing.GetName(), paramsPrefix),
-		Value: existingValue,
-	}
-
-	_, err = s.CompareAndSwap(ctx, existingItem, newItem)
-	if err != nil {
+	if _, err := s.ConditionalUpdate(ctx, newItem); err != nil {
 		if trace.IsCompareFailed(err) {
 			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
 		}
