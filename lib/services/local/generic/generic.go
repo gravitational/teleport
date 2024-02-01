@@ -156,7 +156,7 @@ func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken 
 
 // ListResourcesReturnNextResource returns a paginated list of resources. The next resource is returned, which allows consumers to construct
 // the next pagination key as appropriate.
-func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSize int, pageToken string) (page []T, next *T, err error) {
+func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSize int, pageToken string) ([]T, *T, error) {
 	rangeStart := backend.Key(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
@@ -170,20 +170,21 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 	// no filter provided get the range directly
 	result, err := s.backend.GetRange(ctx, rangeStart, rangeEnd, limit)
 	if err != nil {
-		return nil, next, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
 		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
 		if err != nil {
-			return nil, next, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		out = append(out, resource)
 	}
 
+	var next *T
 	if len(out) > pageSize {
-		next = &out[len(out)-1]
+		next = &out[pageSize]
 		// Truncate the last item that was used to determine next row existence.
 		out = out[:pageSize]
 	}
