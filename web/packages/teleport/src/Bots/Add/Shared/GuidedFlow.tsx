@@ -21,7 +21,7 @@ import React, { useState } from 'react';
 import Flex from 'design/Flex';
 import Text from 'design/Text';
 
-import { StepNavigation } from 'teleport/components/StepNavigation';
+import { Navigation } from 'teleport/components/Wizard/Navigation';
 
 export type FlowStepProps = {
   nextStep?: () => void;
@@ -70,9 +70,9 @@ export function GuidedFlow({ name, title, views, icon }: FlowProps) {
         <Text bold ml="2" mr="4">
           {name}
         </Text>
-        <StepNavigation
+        <Navigation
           currentStep={currentStep}
-          steps={views.map(v => ({ title: v.name }))}
+          views={views.map(v => ({ title: v.name }))}
         />
       </Flex>
       <Text as="h2" fontSize="24px" pt="2" pb="3">

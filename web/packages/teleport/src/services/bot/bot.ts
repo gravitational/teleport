@@ -34,12 +34,12 @@ import {
 } from './types';
 
 export function createBot(config: CreateBotRequest): Promise<void> {
-  return api.post(cfg.getBotsUrl(cfg.proxyCluster), config);
+  return api.post(cfg.getBotsUrl(), config);
 }
 
 export async function getBot(name: string): Promise<FlatBot | null> {
   try {
-    return await api.get(cfg.getBotsUrl(cfg.proxyCluster, name)).then(makeBot);
+    return await api.get(cfg.getBotUrlWithName(name)).then(makeBot);
   } catch (err) {
     // capture the not found error response and return null instead of throwing
     if (err?.response?.status === 404) {
@@ -50,7 +50,7 @@ export async function getBot(name: string): Promise<FlatBot | null> {
 }
 
 export function createBotToken(req: CreateBotJoinTokenRequest) {
-  return api.post(cfg.getBotTokenUrl(cfg.proxyCluster), {
+  return api.post(cfg.getBotTokenUrl(), {
     integrationName: req.integrationName,
     joinMethod: req.joinMethod,
     webFlowLabel: req.webFlowLabel,

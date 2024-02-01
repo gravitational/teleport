@@ -87,7 +87,6 @@ export function toApiGitHubRule({
   };
 }
 
-
 export function makeListBot(bot: ApiBot): FlatBot {
   if (!bot?.metadata?.name) {
     return;

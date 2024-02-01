@@ -98,7 +98,7 @@ export function GitHubFlowProvider({
           if (repoRules.length > 0) {
             const { host } = parseRepoAddress(repoRules[0].repoAddress);
             // the enterprise server host should be omited if using github.com
-            if (repoHost != GITHUB_HOST) {
+            if (host !== GITHUB_HOST) {
               repoHost = host;
             }
           }
