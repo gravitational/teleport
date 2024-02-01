@@ -266,8 +266,8 @@ func Test_runAssistError(t *testing.T) {
 
 	// Check for the close message
 	_, _, err = ws.ReadMessage()
-	closeErr, ok := err.(*websocket.CloseError)
-	require.True(t, ok, "Expected close error")
+	var closeErr *websocket.CloseError
+	require.ErrorAs(t, err, &closeErr, "Expected close error")
 	require.Equal(t, websocket.CloseInternalServerErr, closeErr.Code, "Expected abnormal closure")
 }
 

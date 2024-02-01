@@ -55,7 +55,8 @@ func IsFailedToSendCloseNotifyError(err error) bool {
 func IsOKNetworkError(err error) bool {
 	// trace.Aggregate contains at least one error and all the errors are
 	// non-nil
-	if a, ok := trace.Unwrap(err).(trace.Aggregate); ok {
+	var a trace.Aggregate
+	if errors.As(trace.Unwrap(err), &a) {
 		for _, err := range a.Errors() {
 			if !IsOKNetworkError(err) {
 				return false
@@ -70,7 +71,7 @@ func IsOKNetworkError(err error) bool {
 func IsConnectionRefused(err error) bool {
 	var errno syscall.Errno
 	if errors.As(err, &errno) {
-		return errno == syscall.ECONNREFUSED
+		return errors.Is(errno, syscall.ECONNREFUSED)
 	}
 	return false
 }

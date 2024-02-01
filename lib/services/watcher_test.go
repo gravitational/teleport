@@ -515,7 +515,11 @@ func (e *withUnreliability) NewWatcher(ctx context.Context, watch types.Watch) (
 
 func expectLockInForce(t *testing.T, expectedLock types.Lock, err error) {
 	require.Error(t, err)
-	errLock := err.(trace.Error).GetFields()["lock-in-force"]
+	var lockErr trace.Error
+	var errLock any
+	if errors.As(err, &lockErr) {
+		errLock = lockErr.GetFields()["lock-in-force"]
+	}
 	if expectedLock != nil {
 		require.Empty(t, resourceDiff(expectedLock, errLock.(types.Lock)))
 	} else {

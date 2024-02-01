@@ -4052,7 +4052,8 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 
 	err = limiter.RegisterRequest(remote, nil /* customRate */)
 	// MaxRateError doesn't play well with errors.Is, hence the type assertion.
-	if _, ok := err.(*ratelimit.MaxRateError); ok {
+	var maxRateError *ratelimit.MaxRateError
+	if errors.As(err, &maxRateError) {
 		return trace.LimitExceeded(err.Error())
 	}
 	return trace.Wrap(err)
