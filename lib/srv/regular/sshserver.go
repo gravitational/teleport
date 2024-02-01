@@ -78,12 +78,6 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentNode,
 })
 
-type remoteForwardingContext struct {
-	ctx      context.Context
-	scx      *srv.ServerContext
-	listener net.Listener
-}
-
 // Server implements SSH server that uses configuration backend and
 // certificate-based authentication
 type Server struct {
@@ -249,7 +243,7 @@ type Server struct {
 	// caGetter is used to get host CA of the cluster to verify signed PROXY headers
 	caGetter CertAuthorityGetter
 
-	remoteForwardingMap utils.SyncMap[string, remoteForwardingContext]
+	remoteForwardingMap utils.SyncMap[string, io.Closer]
 }
 
 // TargetMetadata returns metadata about the server.
@@ -350,9 +344,15 @@ func (s *Server) close() {
 
 // Close closes listening socket and stops accepting connections
 func (s *Server) Close() error {
-	// TODO add remote forwarding listeners
 	s.close()
-	return s.srv.Close()
+	errs := []error{s.srv.Close()}
+	s.remoteForwardingMap.Range(func(_ string, closer io.Closer) bool {
+		if closer != nil {
+			errs = append(errs, closer.Close())
+		}
+		return true
+	})
+	return trace.NewAggregate(errs...)
 }
 
 // Shutdown performs graceful shutdown
@@ -2325,14 +2325,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	scx.AddCloser(listener)
 	// Set the src addr again since it may have been updated with a new port.
 	scx.SrcAddr = listener.Addr().String()
-
-	// Save context and listener.
-	fwdCtx := remoteForwardingContext{
-		ctx:      ctx,
-		scx:      scx,
-		listener: listener,
-	}
-	s.remoteForwardingMap.Store(scx.SrcAddr, fwdCtx)
+	s.remoteForwardingMap.Store(scx.SrcAddr, scx)
 
 	// Report addr back to the client.
 	if r.WantReply {
@@ -2370,8 +2363,7 @@ func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshut
 		return trace.Wrap(err)
 	}
 	addr := sshutils.JoinHostPort(req.Addr, req.Port)
-	// TODO should both load and delete be under a lock?
-	fwdCtx, ok := s.remoteForwardingMap.Load(addr)
+	scx, ok := s.remoteForwardingMap.LoadAndDelete(addr)
 	if !ok {
 		return trace.NotFound("no remote forwarding listener at %v", addr)
 	}
@@ -2380,8 +2372,7 @@ func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshut
 			return trace.Wrap(err)
 		}
 	}
-	s.remoteForwardingMap.Delete(addr)
-	return trace.Wrap(fwdCtx.scx.Close())
+	return trace.Wrap(scx.Close())
 }
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {

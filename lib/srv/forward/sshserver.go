@@ -177,7 +177,7 @@ type Server struct {
 	// or an agentless server.
 	targetServer types.Server
 
-	remoteForwardingMap utils.SyncMap[string, net.Listener]
+	remoteForwardingMap utils.SyncMap[string, io.Closer]
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -706,7 +706,6 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 
 // Close will close all underlying connections that the forwarding server holds.
 func (s *Server) Close() error {
-	// TODO add remote forwarding listeners
 	conns := []io.Closer{
 		s.userAgent,
 		s.sconn,
@@ -716,6 +715,13 @@ func (s *Server) Close() error {
 		s.remoteClient,
 		s.connectionContext,
 	}
+
+	s.remoteForwardingMap.Range(func(_ string, closer io.Closer) bool {
+		if closer != nil {
+			conns = append(conns, closer)
+		}
+		return true
+	})
 
 	var errs []error
 

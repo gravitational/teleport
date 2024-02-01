@@ -128,6 +128,8 @@ const (
 	ForwardAgentLocal
 )
 
+const remoteForwardUnsupportedMessage = "ssh: tcpip-forward request denied by peer"
+
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentClient,
 })
@@ -1966,6 +1968,9 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
 		socket, err := nodeClient.Client.Listen("tcp", addr)
 		if err != nil {
+			if strings.Contains(err.Error(), remoteForwardUnsupportedMessage) {
+				return trace.NotImplemented("Node does not support remote port forwarding (-R).")
+			}
 			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
 		go nodeClient.remoteListenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)), addr)
