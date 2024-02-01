@@ -75,6 +75,8 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportGithubConnector", NewGithubConnectorReconciler},
 		{"TeleportProvisionToken", NewProvisionTokenReconciler},
 		{"TeleportOktaImportRule", NewOktaImportRuleReconciler},
+		{"TeleportOpensshServerV2", NewOpensshServerV2Reconciler},
+		{"TeleportOpensshEICEServerV2", NewOpensshEICEServerV2Reconciler},
 	}
 
 	if features.GetOIDC() {
