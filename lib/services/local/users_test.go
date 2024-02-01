@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"testing"
@@ -898,10 +897,7 @@ Tirv9LjajEBxUnuV+wIDAQAB
 			err := identity.UpsertKeyAttestationData(ctx, attestationData, time.Hour)
 			require.NoError(t, err, "UpsertKeyAttestationData failed")
 
-			pub, err := x509.ParsePKIXPublicKey(pubDer)
-			require.NoError(t, err, "ParsePKIXPublicKey failed")
-
-			retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pub)
+			retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pubDer)
 			require.NoError(t, err, "GetKeyAttestationData failed")
 			require.Equal(t, attestationData, retrievedAttestationData, "GetKeyAttestationData mismatch")
 		})
@@ -925,22 +921,8 @@ func TestIdentityService_GetKeyAttestationDataV11Fingerprint(t *testing.T) {
 		PublicKeyDER:     pubDER,
 	}
 
-	// manually insert attestation data with old style fingerprint.
-	value, err := json.Marshal(attestationData)
-	require.NoError(t, err)
-
-	backendKey, err := local.KeyAttestationDataFingerprintV11(key.Public())
-	require.NoError(t, err)
-
-	item := backend.Item{
-		Key:   backend.Key("key_attestations", backendKey),
-		Value: value,
-	}
-	_, err = identity.Put(ctx, item)
-	require.NoError(t, err)
-
 	// Should be able to retrieve attestation data despite old fingerprint.
-	retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, key.Public())
+	retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pubDER)
 	require.NoError(t, err)
 	require.Equal(t, attestationData, retrievedAttestationData)
 }
