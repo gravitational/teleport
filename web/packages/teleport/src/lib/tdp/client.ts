@@ -25,9 +25,8 @@ import init, {
 
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
-import { WebsocketStatus } from 'teleport/types';
 
-import { getAccessToken } from 'teleport/services/api';
+import { AuthenticatedWebSocket } from '../AuthenticatedWebsoscket';
 
 import Codec, {
   MessageType,
@@ -93,7 +92,7 @@ export enum LogType {
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
 export default class Client extends EventEmitterWebAuthnSender {
   protected codec: Codec;
-  protected socket: WebSocket | undefined;
+  protected socket: AuthenticatedWebSocket | undefined;
   private socketAddr: string;
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
@@ -117,57 +116,37 @@ export default class Client extends EventEmitterWebAuthnSender {
   async connect(spec?: ClientScreenSpec) {
     await this.initWasm();
 
-    this.socket = new WebSocket(this.socketAddr);
-    this.socket.binaryType = 'arraybuffer';
-
-    this.socket.onopen = () => {
+    let onopen = () => {
       this.logger.info('websocket is open');
-      this.socket.send(JSON.stringify({ token: getAccessToken() }));
+
       this.emit(TdpClientEvent.WS_OPEN);
       if (spec) {
         this.sendClientScreenSpec(spec);
       }
     };
 
-    let authenticated = false;
-
-    this.socket.onmessage = async (ev: MessageEvent) => {
-      if (!authenticated) {
-        const authResponse = JSON.parse(ev.data) as WebsocketStatus;
-        if (authResponse.type != 'create_session_response') {
-          this.socket.close();
-          console.log('invalid auth response type: ' + authResponse.message);
-          return;
-        }
-
-        if (authResponse.status == 'error') {
-          this.socket.close();
-          console.log(
-            'auth error connecting to websocket: ' + authResponse.message
-          );
-          return;
-        }
-        authenticated = true;
-        return;
-      }
+    let onmessage = async (ev: MessageEvent) => {
       await this.processMessage(ev.data as ArrayBuffer);
     };
 
     // The socket 'error' event will only ever be emitted by the socket
     // prior to a socket 'close' event (https://stackoverflow.com/a/40084550/6277051).
     // Therefore, we can rely on our onclose handler to account for any websocket errors.
-    this.socket.onerror = null;
-    this.socket.onclose = () => {
+    let onerror = null;
+    let onclose = () => {
       this.logger.info('websocket is closed');
-      authenticated = false;
       // Clean up all of our socket's listeners and the socket itself.
-      this.socket.onopen = null;
-      this.socket.onmessage = null;
-      this.socket.onclose = null;
       this.socket = null;
-
       this.emit(TdpClientEvent.WS_CLOSE);
     };
+
+    this.socket = new AuthenticatedWebSocket(
+      this.socketAddr,
+      onopen,
+      onmessage,
+      onerror,
+      onclose
+    );
   }
 
   private async initWasm() {
@@ -586,9 +565,9 @@ export default class Client extends EventEmitterWebAuthnSender {
   protected send(
     data: string | ArrayBufferLike | Blob | ArrayBufferView
   ): void {
-    if (this.socket && this.socket.readyState === 1) {
+    if (this.socket && this.socket.ws.readyState === 1) {
       try {
-        this.socket.send(data);
+        this.socket.ws.send(data);
       } catch (e) {
         this.handleError(e, TdpClientEvent.CLIENT_ERROR);
       }
@@ -711,7 +690,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   ) {
     this.logger.error(err);
     this.emit(errType, err);
-    this.socket?.close();
+    this.socket?.ws?.close();
   }
 
   // Emits an warnType event
@@ -730,7 +709,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   // will simply do nothing.
   shutdown(closeCode = WebsocketCloseCode.NORMAL) {
     this.removeAllListeners();
-    this.socket?.close(closeCode);
+    this.socket?.ws?.close(closeCode);
   }
 }
 
