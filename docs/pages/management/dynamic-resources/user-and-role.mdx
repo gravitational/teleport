@@ -1,5 +1,5 @@
 ---
-title: Managing users and roles with IaC
+title: Managing Users And Roles With IaC
 description: Use Infrastructure-as-Code tooling to create Teleport users and roles.
 ---
 
@@ -14,7 +14,7 @@ create resources from code:
 - The `tctl` CLI that allows you to manage Teleport resources from your local
   computer or your CI environment
 
-### Prerequisites
+## Prerequisites
 
 To follow this guide, you must have:
 
@@ -49,7 +49,7 @@ A functional Teleport Terraform provider by following [the Terraform provider gu
 </TabItem>
 </Tabs>
 
-### Step 1/4 - Write manifests
+## Step 1/4 - Write manifests
 
 In this step, we'll write text files describing the resources we want in
 Teleport. Those files are called manifests and their syntax will vary based on
@@ -60,7 +60,7 @@ This allows you to keep track of all changes, follow standard code review
 procedures before changing resources in Teleport, and quickly redeploy your
 Teleport instance if needed.
 
-#### Write role manifests
+### Write role manifests
 
 We will create 2 roles:
 
@@ -103,8 +103,8 @@ spec:
 Create the following `roles.yaml` file:
 
 ```yaml
-apiVersion: resources.teleport.dev/v5
-kind: TeleportRole
+apiVersion: resources.teleport.dev/v1
+kind: TeleportRoleV7
 metadata:
   name: manager
 spec:
@@ -115,8 +115,8 @@ spec:
       - resources: ['session', 'event']
         verbs: ['list', 'read']
 ---
-apiVersion: resources.teleport.dev/v5
-kind: TeleportRole
+apiVersion: resources.teleport.dev/v1
+kind: TeleportRoleV7
 metadata:
   name: engineer
 spec:
@@ -125,11 +125,6 @@ spec:
     node_labels:
       'env': ['test', 'staging']
 ```
-
-<Admonition type="note">
-The role version is v5 because the Teleport Kubernetes Operator doesn't support
-yet roles v6 and v7.
-</Admonition>
 
 <Admonition type="note">
   Kubernetes validates all custom resource names to follow RFC 1123, which
@@ -187,7 +182,7 @@ resource "teleport_role" "engineer" {
 </TabItem>
 </Tabs>
 
-#### Write user manifests
+### Write user manifests
 
 We will create 2 users:
 - Bob, an engineer with the `engineer` role.
@@ -290,7 +285,7 @@ resource "teleport_user" "bob" {
 </TabItem>
 </Tabs>
 
-### Step 2/4 - Apply all manifests
+## Step 2/4 - Apply all manifests
 
 <Tabs>
 <TabItem label="tctl">
@@ -361,7 +356,7 @@ Apply complete! Resources: 4 added, 0 changed, 0 destroyed.
 </TabItem>
 </Tabs>
 
-### Step 3/4 - Validate users were created
+## Step 3/4 - Validate users were created
 
 Now that the IaC tooling has run, we'll validate that the users were properly
 created and granted the correct roles.
@@ -416,7 +411,7 @@ version: v2
 </TabItem>
 </Tabs>
 
-### Step 4/4 - Create a password reset link
+## Step 4/4 - Create a password reset link
 
 At this point, the local users have been created in Teleport. However, we never
 specified any password or additional authentications factors. You must issue a
@@ -484,7 +479,7 @@ resource "teleport_user" "bob" {
 </TabItem>
 </Tabs>
 
-### Next Steps
+## Next Steps
 
 - Allow users with the `manager` role to grant access to production servers to
   some `engineers` via Access Lists. Manager will need to justify and review
