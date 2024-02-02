@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,9 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+export const downloadObject = (filename: string, text: string) => {
+  /*
+   * http://stackoverflow.com/questions/3665115/create-a-file-in-memory-for-user-to-download-not-through-server
+   */
+  const element = document.createElement('a');
+  element.setAttribute(
+    'href',
+    'data:text/plain;charset=utf-8,' + encodeURIComponent(text)
+  );
+  element.setAttribute('download', filename);
+  element.style.display = 'none';
 
-func updateDocsPipeline() pipeline {
-	// TODO: migrate
-	return pipeline{}
-}
+  document.body.appendChild(element);
+
+  element.click();
+  document.body.removeChild(element);
+};
