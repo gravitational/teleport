@@ -2629,6 +2629,11 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// An old server would send PIVSlot instead of HardwareKey.PIVSlot
+	// DELETE IN 17.0.0
+	pref.CheckSetPIVSlot()
+
 	return pref, nil
 }
 
@@ -2638,6 +2643,11 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 	if !ok {
 		return trace.BadParameter("invalid type %T", authPref)
 	}
+
+	// An old server would expect PIVSlot instead of HardwareKey.PIVSlot
+	// DELETE IN 17.0.0
+	authPrefV2.CheckSetPIVSlot()
+
 	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2)
 	return trace.Wrap(err)
 }

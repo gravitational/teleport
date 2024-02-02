@@ -422,7 +422,10 @@ func (c *AuthPreferenceV2) GetHardwareKey() (*HardwareKey, error) {
 
 // GetPIVSlot returns the configured piv slot for the cluster.
 func (c *AuthPreferenceV2) GetPIVSlot() keys.PIVSlot {
-	return keys.PIVSlot(c.Spec.PIVSlot)
+	if hk, err := c.GetHardwareKey(); err == nil {
+		return keys.PIVSlot(hk.PIVSlot)
+	}
+	return ""
 }
 
 // GetHardwareKeySerialNumberValidation returns the cluster's hardware key
@@ -681,6 +684,15 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	}
 
+	// DELETE IN 17.0.0
+	c.CheckSetPIVSlot()
+
+	if hk, err := c.GetHardwareKey(); err == nil {
+		if err := keys.PIVSlot(hk.PIVSlot).Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// Make sure the IdP section is populated.
 	if c.Spec.IDP == nil {
 		c.Spec.IDP = &IdPOptions{}
@@ -703,6 +715,19 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// PIVSlot must be checked/set when communicating with an old server or client.
+// DELETE IN 17.0.0
+func (c *AuthPreferenceV2) CheckSetPIVSlot() {
+	if c.Spec.PIVSlot != "" {
+		if c.Spec.HardwareKey == nil {
+			c.Spec.HardwareKey = &HardwareKey{}
+		}
+		c.Spec.HardwareKey.PIVSlot = c.Spec.PIVSlot
+	} else if c.Spec.HardwareKey != nil && c.Spec.HardwareKey.PIVSlot != "" {
+		c.Spec.PIVSlot = c.Spec.HardwareKey.PIVSlot
+	}
 }
 
 // String represents a human readable version of authentication settings.

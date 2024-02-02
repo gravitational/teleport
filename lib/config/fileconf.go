@@ -1030,9 +1030,8 @@ type AuthenticationConfig struct {
 	// DefaultSessionTTL is the default cluster max session ttl
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
-	// PIVSlot is a PIV slot that Teleport clients should use instead of the
-	// default based on private key policy. For example, "9a" or "9e".
-	// TODO(Joerger): DELETE IN 17.0.0, replaced by HardwareKey settings
+	// Deprecated. HardwareKey.PIVSlot should be used instead.
+	// TODO(Joerger): DELETE IN 17.0.0
 	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
 
 	// HardwareKey holds settings related to hardware key support.
@@ -1076,7 +1075,9 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	// TODO(Joerger): Delete in 17.0.0
 	if a.PIVSlot != "" {
+		log.Warn(`The "piv_slot" setting will be removed in 17.0.0, please set "hardware_key.piv_slot" instead.`)
 		if err = a.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err, "failed to parse piv_slot")
 		}
