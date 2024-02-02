@@ -288,9 +288,9 @@ func TestGenericListResourcesReturnNextResource(t *testing.T) {
 	r1 := newTestResource("r1")
 	r2 := newTestResource("r2")
 
-	_, err = service.WithPrefix("a-unique-prefix").UpsertResource(ctx, r1)
+	err = service.WithPrefix("a-unique-prefix").UpsertResource(ctx, r1)
 	require.NoError(t, err)
-	_, err = service.WithPrefix("another-unique-prefix").UpsertResource(ctx, r2)
+	err = service.WithPrefix("another-unique-prefix").UpsertResource(ctx, r2)
 	require.NoError(t, err)
 
 	page, next, err := service.ListResourcesReturnNextResource(ctx, 1, "")
