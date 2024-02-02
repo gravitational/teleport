@@ -1,17 +1,17 @@
 ---
 title: Managing Users And Roles With IaC
-description: Use Infrastructure-as-Code tooling to create Teleport users and roles.
+description: Use infrastructure-as-code tooling to create Teleport users and roles.
 ---
 
 In this guide, you will see how to create users and grant them roles through
-Infrastructure-as-Code (IaC). Teleports supports three ways to dynamically
+infrastructure as code (IaC). Teleports supports three ways to dynamically
 create resources from code:
 
-- The Teleport Kubernetes Operator that allows you to manage Teleport resources
+- The Teleport Kubernetes Operator, which allows you to manage Teleport resources
   from Kubernetes
-- The Teleport Terraform Provider that allows you to manage Teleport Resources
+- The Teleport Terraform Provider, which allows you to manage Teleport resources
   via Terraform
-- The `tctl` CLI that allows you to manage Teleport resources from your local
+- The `tctl` CLI, which allows you to manage Teleport resources from your local
   computer or your CI environment
 
 ## Prerequisites
@@ -24,7 +24,7 @@ To follow this guide, you must have:
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 </TabItem>
-<TabItem label="operator">
+<TabItem label="Kubernetes Operator">
 
 A running operator by following either:
 - [the guide to enable the operator in the `teleport-cluster` Helm chart](./teleport-operator-helm.mdx).
@@ -64,9 +64,9 @@ Teleport instance if needed.
 
 We will create 2 roles:
 
-- `manager` that allows listing users, roles and reviewing audit events and
+- `manager` allows listing users and roles, as well as reviewing audit events and
   session contents.
-- `engineer` that grants access to dev and staging servers.
+- `engineer` grants access to dev and staging servers.
 
 <Tabs>
 <TabItem label="tctl">
@@ -362,7 +362,7 @@ Now that the IaC tooling has run, we'll validate that the users were properly
 created and granted the correct roles.
 
 <Tabs>
-<TabItem label="via the UI">
+<TabItem label="Via the UI">
 
 If you have UI access, connect to your Teleport cluster Web UI, open the
 management panel, and select the "Users" tab.
@@ -372,7 +372,7 @@ management panel, and select the "Users" tab.
 Two new users `alice` and `bob` should be present.
 
 </TabItem>
-<TabItem label="via CLI">
+<TabItem label="Via CLI">
 
 ```code
 $ tctl users ls
@@ -448,8 +448,8 @@ $ tctl users reset alice --format=json | \
 ```
 
 You must replace the `jq` command by something that actually sends the link over
-a secure channel. This channel will depend on your organization, it is usually a
-direct message, or an email.
+a secure channel. This channel will depend on your organization. It is usually a
+direct message or an email.
 
 <Admonition type="tip" title="For Terraform users">
 
@@ -490,7 +490,7 @@ resource "teleport_user" "bob" {
   AccessList setup.
 - Allow users with the `engineer` role to request temporary access to
   production, and have users with the `manager` role validate the requests.
-  See [the access-requests documentation](../../access-controls/access-requests.mdx)
+  See [the Access Requests documentation](../../access-controls/access-requests.mdx)
 - You can see all supported fields in the references
   of [the user resource](../../reference/resources.mdx#user)
   and [the role resource](../../reference/resources.mdx#role).
