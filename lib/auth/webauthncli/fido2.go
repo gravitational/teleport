@@ -234,7 +234,18 @@ func fido2Login(
 			assertions, err = dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
 		}
 		if errors.Is(err, libfido2.ErrNoCredentials) {
-			err = ErrUsingNonRegisteredDevice // "Upgrade" error message.
+			// U2F devices error instantly with ErrNoCredentials.
+			// If that is the case, we mark the error as non-interactive and continue
+			// without this device. This is the only safe option, as it lets the
+			// handleDevice goroutine exit gracefully. Do not attempt to wait for
+			// touch - this causes another slew of problems with abandoned U2F
+			// goroutines during registration.
+			if !info.fido2 {
+				log.Debugf("FIDO2: U2F device %v not registered, ignoring it", info.path)
+				err = &nonInteractiveError{err: err}
+			} else {
+				err = ErrUsingNonRegisteredDevice // "Upgrade" error message.
+			}
 		}
 		if err != nil {
 			return trace.Wrap(err)
