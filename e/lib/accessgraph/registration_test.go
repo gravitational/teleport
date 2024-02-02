@@ -153,8 +153,8 @@ func TestRegister_CallsReplaceCAsInAllCases(t *testing.T) {
 			if tc.registerError != nil && tc.replaceCAsError != nil {
 				require.Error(t, err)
 				unwrapped := trace.Unwrap(err)
-				aerr, ok := unwrapped.(trace.Aggregate)
-				require.True(t, ok, "expected error to be trace.Aggregate, was %T instead", unwrapped)
+				var aerr trace.Aggregate
+				require.ErrorAs(t, unwrapped, &aerr, "expected error to be trace.Aggregate, was %T instead", unwrapped)
 				// both errors should be reported
 				require.Len(t, aerr.Errors(), 2)
 				require.Equal(t, aerr.Errors()[0], tc.registerError)

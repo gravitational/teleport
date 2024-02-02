@@ -30,7 +30,7 @@ func createAndEnroll(
 		CreateEnrollToken: true,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("method CreateDevice: %v", err)
+		return nil, nil, fmt.Errorf("method CreateDevice: %w", err)
 	}
 
 	return enrollDevice(ctx, devices, dev, defaultCollectData)

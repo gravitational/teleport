@@ -415,10 +415,9 @@ func (o oktaAPIValidationError) Error() string {
 
 // oktaErrToTrace takes Okta errors and converts them into appropriate trace equivalents.
 func (w *wrappedClient) oktaErrToTrace(ctx context.Context, err error) error {
-	oktaErr, ok := err.(*okta.Error)
-
+	var oktaErr *okta.Error
 	// If this is not an Okta error, just wrap the error and return it.
-	if !ok {
+	if !errors.As(err, &oktaErr) {
 		return trace.Wrap(err)
 	}
 

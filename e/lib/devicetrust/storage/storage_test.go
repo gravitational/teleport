@@ -2834,7 +2834,7 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 func createAndEnroll(ctx context.Context, s *storage.S, dev *devicepb.Device, owner string) (*devicepb.Device, crypto.PrivateKey, error) {
 	dev, err := s.CreateDevice(ctx, dev, false /* createAsResource */)
 	if err != nil {
-		return nil, nil, fmt.Errorf("calling CreateDevice: %v", err)
+		return nil, nil, fmt.Errorf("calling CreateDevice: %w", err)
 	}
 	return enroll(ctx, s, dev, owner)
 }
@@ -2846,11 +2846,11 @@ func enroll(ctx context.Context, s *storage.S, dev *devicepb.Device, owner strin
 	case devicepb.OSType_OS_TYPE_MACOS:
 		ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
-			return nil, nil, fmt.Errorf("calling GenerateKey: %v", err)
+			return nil, nil, fmt.Errorf("calling GenerateKey: %w", err)
 		}
 		pubKeyDER, err := x509.MarshalPKIXPublicKey(ecdsaKey.Public())
 		if err != nil {
-			return nil, nil, fmt.Errorf("calling MarshalPKIXPublicKey: %v", err)
+			return nil, nil, fmt.Errorf("calling MarshalPKIXPublicKey: %w", err)
 		}
 		cred = &devicepb.DeviceCredential{
 			Id:           uuid.NewString(),
@@ -3248,7 +3248,7 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 				// First token cannot be spent anymore.
 				if err := s.SpendDeviceEnrollToken(ctx, deviceID, first.Token); !trace.IsBadParameter(err) {
 					// Original error type erased on purpose (%v instead of %w)
-					return nil, fmt.Errorf("unexpected error attempting to spend first token: %v", err)
+					return nil, fmt.Errorf("unexpected error attempting to spend first token: %w", err)
 				}
 
 				return second, nil

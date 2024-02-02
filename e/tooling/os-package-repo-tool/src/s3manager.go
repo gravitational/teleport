@@ -504,7 +504,7 @@ func isDirectoryEmpty(dirPath string) (bool, error) {
 	defer f.Close()
 
 	_, err = f.Readdirnames(1)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return true, nil
 	}
 

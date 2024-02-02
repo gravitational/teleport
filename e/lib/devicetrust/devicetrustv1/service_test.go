@@ -2104,7 +2104,7 @@ func (a *userAwareAuthorizer) Authorize(ctx context.Context) (*authz.Context, er
 	// Proceed.
 	user, err := types.NewUser(username)
 	if err != nil {
-		return nil, fmt.Errorf("creating user: %v", err)
+		return nil, fmt.Errorf("creating user: %w", err)
 	}
 	return &authz.Context{
 		User:                 user,

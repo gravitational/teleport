@@ -176,7 +176,7 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 	}
 
 	body, err := scim.MarshalResource(resource)
-	if err != err {
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -219,7 +219,7 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	}
 
 	body, err := scim.MarshalResource(updated)
-	if err != err {
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -270,7 +270,7 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 	}
 
 	body, err := scim.MarshalResource(updated)
-	if err != err {
+	if err != nil {
 		return trace.Wrap(err)
 	}
 

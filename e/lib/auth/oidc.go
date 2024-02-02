@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -953,7 +954,8 @@ func getClaims(ctx context.Context, oidcClient *oidc.Client, connector types.OID
 
 	t, err := oac.RequestToken(oauth2.GrantTypeAuthCode, code)
 	if err != nil {
-		if e, ok := err.(*oauth2.Error); ok {
+		var e *oauth2.Error
+		if errors.As(err, &e) {
 			if e.Type == oauth2.ErrorAccessDenied {
 				return nil, trace.Wrap(err, "the client_id and/or client_secret may be incorrect")
 			}
