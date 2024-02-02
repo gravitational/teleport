@@ -23,20 +23,43 @@ import React from 'react';
 
 import styled from 'styled-components';
 
+import {
+  GenerateCmdProps,
+  generateCmd,
+} from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { JoinToken } from 'teleport/services/joinToken';
+
 type ManualHelmDialogProps = {
-  command: string;
+  commandProps: GenerateCmdProps;
+  setJoinToken(token: JoinToken): void;
   confirmedCommands(): void;
   cancel(): void;
 };
 
 export function ManualHelmDialog({
-  command,
+  commandProps,
+  setJoinToken,
   cancel,
   confirmedCommands,
 }: ManualHelmDialogProps) {
+  const { joinToken } = useJoinTokenSuspender([
+    ResourceKind.Kubernetes,
+    ResourceKind.Application,
+    ResourceKind.Discovery,
+  ]);
+
+  setJoinToken(joinToken);
+  const command = generateCmd({
+    ...commandProps,
+    tokenId: joinToken.id,
+    resourceId: joinToken.internalResourceId,
+  });
+
   return (
     <Dialog onClose={cancel} open={true}>
       <DialogContent width="850px" mb={0}>
