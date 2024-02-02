@@ -659,13 +659,6 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
-	// CreateBot creates a new certificate renewal bot and associated resources.
-	CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error)
-	// DeleteBot removes a certificate renewal bot and associated resources.
-	DeleteBot(ctx context.Context, botName string) error
-	// GetBotUsers gets all bot users.
-	GetBotUsers(ctx context.Context) ([]types.User, error)
-
 	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
 	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
@@ -675,10 +668,6 @@ type IdentityService interface {
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
-	// Deprecated: Use AddMFADeviceSync instead.
-	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
-	// Deprecated: Use DeleteMFADeviceSync instead.
-	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).

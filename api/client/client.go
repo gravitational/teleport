@@ -1127,52 +1127,6 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	return token, nil
 }
 
-// CreateBot creates a new bot from the specified descriptor.
-//
-// TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1pb.BotServiceClient.CreateBot] instead.
-func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	response, err := c.grpc.CreateBot(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return response, nil
-}
-
-// DeleteBot deletes a bot and associated resources.
-//
-// TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1pb.BotServiceClient.DeleteBot] instead.
-func (c *Client) DeleteBot(ctx context.Context, botName string) error {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	_, err := c.grpc.DeleteBot(ctx, &proto.DeleteBotRequest{
-		Name: botName,
-	})
-	return trace.Wrap(err)
-}
-
-// GetBotUsers fetches all bot users.
-//
-// TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1pb.BotServiceClient.ListBots] instead.
-func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var users []types.User
-	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		users = append(users, user)
-	}
-	return users, nil
-}
-
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
 func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	stream, err := c.grpc.GetAccessRequestsV2(ctx, &filter)
@@ -1777,32 +1731,13 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// Deprecated: Use AddMFADeviceSync instead.
-func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
-	stream, err := c.grpc.AddMFADevice(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return stream, nil
-}
-
-// Deprecated: Use DeleteMFADeviceSync instead.
-func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
-	stream, err := c.grpc.DeleteMFADevice(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return stream, nil
-}
-
-// AddMFADeviceSync adds a new MFA device (nonstream).
+// AddMFADeviceSync adds a new MFA device.
 func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
 	res, err := c.grpc.AddMFADeviceSync(ctx, in)
 	return res, trace.Wrap(err)
 }
 
-// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+// DeleteMFADeviceSync deletes a users MFA device.
 func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
 	_, err := c.grpc.DeleteMFADeviceSync(ctx, in)
 	return trace.Wrap(err)
