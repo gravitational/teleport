@@ -703,10 +703,10 @@ func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, rem
 		stdin = escape.NewReader(stdin, term.Stderr(), func(err error) {
 			log.Debugf("escape.NewReader error: %v", err)
 
-			switch err {
-			case escape.ErrDisconnect:
+			switch {
+			case errors.Is(err, escape.ErrDisconnect):
 				fmt.Fprint(term.Stderr(), "\r\nDisconnected\r\n")
-			case escape.ErrTooMuchBufferedData:
+			case errors.Is(err, escape.ErrTooMuchBufferedData):
 				fmt.Fprint(term.Stderr(), "\r\nRemote peer may be unreachable, check your connectivity\r\n")
 			default:
 				fmt.Fprintf(term.Stderr(), "\r\nunknown error: %v\r\n", err.Error())

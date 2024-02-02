@@ -1967,7 +1967,7 @@ type errorVerifier func(error) error
 func errorContains(text string) errorVerifier {
 	return func(err error) error {
 		if err == nil || !strings.Contains(err.Error(), text) {
-			return fmt.Errorf("Expected error to contain %q, got: %v", text, err)
+			return fmt.Errorf("Expected error to contain %q, got: %w", text, err)
 		}
 		return nil
 	}
@@ -2285,7 +2285,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 					asyncErrors <- badErrorErr
 				}
 			} else if err != nil && !errors.Is(err, io.EOF) && !isSSHError(err) {
-				asyncErrors <- fmt.Errorf("expected EOF, ExitError, or nil, got %v instead", err)
+				asyncErrors <- fmt.Errorf("expected EOF, ExitError, or nil, got %w instead", err)
 				return
 			}
 		}
@@ -2320,8 +2320,10 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 }
 
 func isSSHError(err error) bool {
-	switch trace.Unwrap(err).(type) {
-	case *ssh.ExitError, *ssh.ExitMissingError:
+	var exitError *ssh.ExitError
+	var exitMissingError *ssh.ExitMissingError
+	switch err := trace.Unwrap(err); {
+	case errors.As(err, &exitError), errors.As(err, &exitMissingError):
 		return true
 	default:
 		return false
@@ -4605,7 +4607,8 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			} else {
 				// ensure stderr is printed as a string rather than bytes
 				var stderr string
-				if e, ok := err.(*exec.ExitError); ok {
+				var e *exec.ExitError
+				if errors.As(err, &e) {
 					stderr = string(e.Stderr)
 				}
 				require.NoError(t, err, "stderr=%q", stderr)
@@ -4703,7 +4706,8 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 
 				// ensure stderr is printed as a string rather than bytes
 				var stderr string
-				if e, ok := err.(*exec.ExitError); ok {
+				var e *exec.ExitError
+				if errors.As(err, &e) {
 					stderr = string(e.Stderr)
 				}
 				require.NoError(t, err, "stderr=%q", stderr)
