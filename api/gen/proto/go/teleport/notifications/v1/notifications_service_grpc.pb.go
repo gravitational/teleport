@@ -69,11 +69,11 @@ type NotificationServiceClient interface {
 	DeleteGlobalNotification(ctx context.Context, in *DeleteGlobalNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ListGlobalNotifications returns a page of global notifications.
 	ListGlobalNotifications(ctx context.Context, in *ListGlobalNotificationsRequest, opts ...grpc.CallOption) (*ListGlobalNotificationsResponse, error)
-	// CreateUserNotificationState creates a user notification state.
+	// CreateUserNotificationState creates a user notification state which records whether a user has clicked on or dismissed a notification.
 	CreateUserNotificationState(ctx context.Context, in *CreateUserNotificationStateRequest, opts ...grpc.CallOption) (*UserNotificationState, error)
-	// UpdateUserNotificationState updates a user notification state.
+	// UpdateUserNotificationState updates a user notification state to record whether a user has clicked on or dismissed a notification.
 	UpdateUserNotificationState(ctx context.Context, in *UpdateUserNotificationStateRequest, opts ...grpc.CallOption) (*UserNotificationState, error)
-	// DeleteUserNotificationState deltes a user notification state.
+	// DeleteUserNotificationState deletes a user notification state object.
 	DeleteUserNotificationState(ctx context.Context, in *DeleteUserNotificationStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ListUserNotificationStates returns a page of user notification states.
 	ListUserNotificationStates(ctx context.Context, in *ListUserNotificationStatesRequest, opts ...grpc.CallOption) (*ListUserNotificationStatesResponse, error)
@@ -237,11 +237,11 @@ type NotificationServiceServer interface {
 	DeleteGlobalNotification(context.Context, *DeleteGlobalNotificationRequest) (*emptypb.Empty, error)
 	// ListGlobalNotifications returns a page of global notifications.
 	ListGlobalNotifications(context.Context, *ListGlobalNotificationsRequest) (*ListGlobalNotificationsResponse, error)
-	// CreateUserNotificationState creates a user notification state.
+	// CreateUserNotificationState creates a user notification state which records whether a user has clicked on or dismissed a notification.
 	CreateUserNotificationState(context.Context, *CreateUserNotificationStateRequest) (*UserNotificationState, error)
-	// UpdateUserNotificationState updates a user notification state.
+	// UpdateUserNotificationState updates a user notification state to record whether a user has clicked on or dismissed a notification.
 	UpdateUserNotificationState(context.Context, *UpdateUserNotificationStateRequest) (*UserNotificationState, error)
-	// DeleteUserNotificationState deltes a user notification state.
+	// DeleteUserNotificationState deletes a user notification state object.
 	DeleteUserNotificationState(context.Context, *DeleteUserNotificationStateRequest) (*emptypb.Empty, error)
 	// ListUserNotificationStates returns a page of user notification states.
 	ListUserNotificationStates(context.Context, *ListUserNotificationStatesRequest) (*ListUserNotificationStatesResponse, error)
