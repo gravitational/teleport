@@ -220,7 +220,11 @@ export function parseRepoAddress(repoAddr: string): {
   };
 }
 
-function getRoleYaml(botName: string, labels: ResourceLabel[], login): string {
+function getRoleYaml(
+  botName: string,
+  labels: ResourceLabel[],
+  login: string
+): string {
   const nodeLabelsStanza = labels.map(
     label => `'${label.name}': '${label.value}'\n`
   );
