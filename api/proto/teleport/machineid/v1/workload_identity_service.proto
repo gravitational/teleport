@@ -57,7 +57,7 @@ message SVIDRequest {
 
 // The generated x509 SVID.
 message SVIDResponse {
-  // The signed x509 SVID.
+  // A PEM-wrapped signed x509 SVID.
   bytes certificate = 1;
   // The full SPIFFE ID that was included in the x509 SVID.
   string spiffe_id = 2;

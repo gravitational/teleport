@@ -27,6 +27,7 @@ import (
 	"math/big"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -86,7 +87,7 @@ func NewWorkloadIdentityService(
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(trace.Component, "bot.service")
+		cfg.Logger = logrus.WithField(trace.Component, "workload-identity.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -130,7 +131,9 @@ func signx509SVID(
 	block, _ := pem.Decode(publicKeyBytes)
 	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "parsing public key pkix")
+		return nil, nil, trace.Wrap(
+			err, "parsing public key pkix",
+		)
 	}
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
@@ -207,7 +210,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 			evt.Code = events.SPIFFESVIDIssuedFailureCode
 		}
 		if serialNumber != nil {
-			// TODO: Convert serial number to a lovely hex string
+			// TODO: Convert serial number to a lovely hex string??
 			evt.SerialNumber = serialNumber.String()
 		}
 		if spiffeID != nil {
@@ -221,14 +224,26 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	}()
 
 	// Parse and validate parameters
+	switch {
+	case req.SpiffeIdPath == "":
+		return nil, trace.BadParameter("spiffeIdPath: must be non-empty")
+	case !strings.HasPrefix(req.SpiffeIdPath, "/"):
+		return nil, trace.BadParameter("spiffeIdPath: must start with '/'")
+	}
 	spiffeID = &url.URL{
 		Scheme: spiffeScheme,
 		Host:   clusterName,
 		Path:   req.SpiffeIdPath,
 	}
 	ipSans := []net.IP{}
-	for _, stringIP := range req.IpSans {
-		ipSans = append(ipSans, net.ParseIP(stringIP))
+	for i, stringIP := range req.IpSans {
+		ip := net.ParseIP(stringIP)
+		if ip == nil {
+			return nil, trace.BadParameter(
+				"ipSans[%d]: invalid IP address %q", i, stringIP,
+			)
+		}
+		ipSans = append(ipSans, ip)
 	}
 
 	// Default TTL is 1 hour - maximum is 24 hours. If TTL is greater than max,
