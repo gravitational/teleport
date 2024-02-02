@@ -132,6 +132,6 @@ describe('gitHub component', () => {
       screen.getByText(/Your Bot is Added to Teleport/)
     ).toBeInTheDocument();
     expect(screen.getByText(/View Bots/)).toBeInTheDocument();
-    expect(screen.getByText(/Add Another Integration/)).toBeInTheDocument();
+    expect(screen.getByText(/Add Another Bot/)).toBeInTheDocument();
   });
 });

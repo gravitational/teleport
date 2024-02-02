@@ -54,7 +54,7 @@ export function FlowButtons({
           mr="3"
           data-testid="button-next"
         >
-          {isLast ? 'Finish' : 'Next'}
+          {isLast ? 'Complete Integration' : 'Next'}
         </ButtonPrimary>
       )}
       {!backButton?.hidden && (

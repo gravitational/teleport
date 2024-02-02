@@ -60,7 +60,7 @@ export function Finish() {
           View Bots
         </ButtonPrimary>
         <ButtonSecondary as={Link} to={cfg.getBotsNewRoute()} size="large">
-          Add Another Integration
+          Add Another Bot
         </ButtonSecondary>
       </Flex>
     </Flex>

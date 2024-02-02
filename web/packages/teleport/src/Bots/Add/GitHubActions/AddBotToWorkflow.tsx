@@ -53,7 +53,16 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
         example GitHub Actions workflow doc to help you get started. You can
         find this again from the bot’s options dropdown
       </Text>
-      <Flex flex="1" height="630px" maxWidth="840px" mb="3">
+      <Flex
+        flex="1"
+        height="630px"
+        maxWidth="840px"
+        mb="3"
+        pt="3"
+        pr="3"
+        bg="levels.deep"
+        borderRadius={3}
+      >
         <TextEditor
           readOnly={true}
           bg="levels.deep"
@@ -66,6 +75,7 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
       <FlowButtons
         nextStep={nextStep}
         prevStep={prevStep}
+        isLast={true}
         backButton={{
           hidden: true,
         }}

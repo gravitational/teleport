@@ -35,15 +35,35 @@ import FieldInput from 'shared/components/FieldInput';
 
 import Alert from 'design/Alert';
 
+import Link from 'design/Link';
+
+import cfg from 'teleport/config';
+
 import { FlowButtons } from '../Shared/FlowButtons';
 import { FlowStepProps } from '../Shared/GuidedFlow';
 
 import {
+  GITHUB_HOST,
   RefTypeOption,
   Rule,
   parseRepoAddress,
   useGitHubFlow,
 } from './useGitHubFlow';
+
+const MULTIPLE_HOSTS_ERROR =
+  'All repositories must be in the same host. Please createdifferent bots for each host.';
+const ENTERPRISE_HOST_ERROR = () => {
+  return (
+    <Box>
+      GitHub Enterprise Server Host require Teleport Enterprise.Please use a
+      repository hosted at github.com or{' '}
+      <Link target="_blank" href="https://goteleport.com/signup/enterprise/">
+        contact us
+      </Link>
+      .
+    </Box>
+  );
+};
 
 const refTypeOptions: RefTypeOption[] = [
   {
@@ -71,25 +91,32 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
   } = useGitHubFlow();
   const isLoading = attempt.status === 'processing';
 
-  const [multipleHostsErr, setMultipleHostsErr] = useState(false);
+  const [hostError, setHostError] = useState<JSX.Element | string>(null);
 
   function handleNext(validator: Validator) {
     // clear errors
-    setMultipleHostsErr(false);
+    setHostError(null);
 
     if (!validator.validate()) {
       return;
     }
 
-    // all repositories should have the same host
     const hosts = new Set<string>();
     repoRules.forEach(rule => {
       const { host } = parseRepoAddress(rule.repoAddress);
       hosts.add(host);
     });
 
+    // ensure all repositories have the same host
     if (hosts.size > 1) {
-      setMultipleHostsErr(true);
+      setHostError(MULTIPLE_HOSTS_ERROR);
+      return;
+    }
+
+    const isGitHubEnterpriseHost = [...hosts][0] !== GITHUB_HOST;
+    // ensure only enterprise users can use GitHub Enterprise Server Host
+    if (isGitHubEnterpriseHost && !cfg.isEnterprise) {
+      setHostError(ENTERPRISE_HOST_ERROR);
       return;
     }
 
@@ -248,12 +275,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
               {attempt.status === 'failed' && (
                 <Alert kind="danger">{attempt.statusText}</Alert>
               )}
-              {multipleHostsErr && (
-                <Alert kind="danger">
-                  All repositories must be in the same host. Please create
-                  different bots for each host.
-                </Alert>
-              )}
+              {hostError && <Alert kind="danger">{hostError}</Alert>}
               <ButtonSecondary disabled={isLoading} onClick={addEmptyRepoRule}>
                 + Add Another Set of Repository Rules
               </ButtonSecondary>

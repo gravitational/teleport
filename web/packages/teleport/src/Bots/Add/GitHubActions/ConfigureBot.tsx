@@ -104,17 +104,36 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
         GitHub Actions runners as well as GitHub Enterprise Server.
       </Text>
 
-      <Text bold fontSize={4} mb="3">
+      <Text bold fontSize={4} mb="2">
         Step 1: Scope the Permissions for Your Bot
       </Text>
       <Validation>
         {({ validator }) => (
           <>
-            <Box mb="4">
+            <Box mb="2">
               <Text>
                 These first fields will enable Teleport to scope access to only
                 what is needed by your GitHub Actions workflow.
               </Text>
+            </Box>
+
+            <FormItem>
+              <Text>Create a Name for Your Bot Integration *</Text>
+              <FieldInput
+                rule={requiredField('Name for the Bot is required')}
+                mb={3}
+                placeholder="ex. github-actions-cd"
+                value={createBotRequest.botName}
+                onChange={e =>
+                  setCreateBotRequest({
+                    ...createBotRequest,
+                    botName: e.target.value,
+                  })
+                }
+              />
+            </FormItem>
+
+            <Box mb="4">
               {missingLabels && (
                 <Text mt="1" color="error.main">
                   At least one label is required
@@ -147,22 +166,6 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                   setCreateBotRequest({
                     ...createBotRequest,
                     login: e.target.value,
-                  })
-                }
-              />
-            </FormItem>
-
-            <FormItem>
-              <Text>Create a Name for Your Bot User *</Text>
-              <FieldInput
-                rule={requiredField('Name for the Bot is required')}
-                mb={3}
-                placeholder="ex. github-actions-cd"
-                value={createBotRequest.botName}
-                onChange={e =>
-                  setCreateBotRequest({
-                    ...createBotRequest,
-                    botName: e.target.value,
                   })
                 }
               />

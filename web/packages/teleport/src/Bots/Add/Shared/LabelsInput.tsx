@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Box, Flex, ButtonIcon, ButtonText } from 'design';
+import { Box, Flex, ButtonIcon, ButtonSecondary } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import { useValidation, Validator } from 'shared/components/Validation';
@@ -144,18 +144,21 @@ export function LabelsInput({
           );
         })}
       </Box>
-      <ButtonText
+      <ButtonSecondary
         onClick={e => {
           e.preventDefault();
           addLabel();
         }}
         css={`
-          padding-left: 0px;
+          text-transform: none;
+          font-weight: normal;
           &:disabled {
             .icon-add {
               opacity: 0.35;
             }
             pointer-events: none;
+          }
+          &:hover {
           }
         `}
         disabled={disableBtns}
@@ -169,8 +172,8 @@ export function LabelsInput({
             margin-right: 3px;
           `}
         />
-        Add New Label
-      </ButtonText>
+        Add Another Label
+      </ButtonSecondary>
     </>
   );
 }

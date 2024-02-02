@@ -75,7 +75,7 @@ export function GuidedFlow({ name, title, views, icon }: FlowProps) {
           views={views.map(v => ({ title: v.name }))}
         />
       </Flex>
-      <Text as="h2" fontSize="24px" pt="2" pb="3">
+      <Text as="h2" fontSize="24px" mt="4" mb="3">
         {title}
       </Text>
       <Component nextStep={handleNextStep} prevStep={handlePrevStep} />

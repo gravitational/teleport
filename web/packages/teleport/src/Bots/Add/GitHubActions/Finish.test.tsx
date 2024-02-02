@@ -47,7 +47,7 @@ describe('finish Component', () => {
       screen.getByText('Your Bot is Added to Teleport')
     ).toBeInTheDocument();
     expect(screen.getByText('View Bots')).toBeInTheDocument();
-    expect(screen.getByText('Add Another Integration')).toBeInTheDocument();
+    expect(screen.getByText('Add Another Bot')).toBeInTheDocument();
   });
 
   it('has correct links on buttons', () => {
@@ -56,8 +56,9 @@ describe('finish Component', () => {
       'href',
       cfg.getBotsRoute()
     );
-    expect(
-      screen.getByText('Add Another Integration').closest('a')
-    ).toHaveAttribute('href', cfg.getBotsNewRoute());
+    expect(screen.getByText('Add Another Bot').closest('a')).toHaveAttribute(
+      'href',
+      cfg.getBotsNewRoute()
+    );
   });
 });

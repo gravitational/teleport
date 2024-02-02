@@ -34,7 +34,7 @@ import {
 
 import useTeleport from 'teleport/useTeleport';
 
-const GITHUB_HOST = 'github.com';
+export const GITHUB_HOST = 'github.com';
 const GITHUB_ACTIONS_LABEL_KEY = 'teleport.internal/ui-flow';
 const GITHUB_ACTIONS_LABEL_VAL = 'github-actions-ssh';
 
@@ -224,11 +224,10 @@ function getRoleYaml(botName: string, labels: ResourceLabel[], login): string {
   const nodeLabelsStanza = labels.map(
     label => `'${label.name}': '${label.value}'\n`
   );
-  const timestamp = new Date().getTime();
 
   return `kind: role
 metadata:
-  name: bot-${botName}-role-${timestamp}
+  name: ${botName}
   labels:
     ${GITHUB_ACTIONS_LABEL_KEY}: ${GITHUB_ACTIONS_LABEL_VAL}
 spec:
