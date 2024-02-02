@@ -37,7 +37,7 @@ import type {
 } from 'teleport/types';
 
 const AuthConnectors = lazy(() => import('e-teleport/AuthConnectors'));
-const AccountE = lazy(() => import('e-teleport/Account/AccountNew'));
+const AccountE = lazy(() => import('e-teleport/Account'));
 const Integrations = lazy(() => import('e-teleport/Integrations'));
 const IntegrationEnroll = lazy(
   () => import('e-teleport/Integrations/IntegrationEnroll')

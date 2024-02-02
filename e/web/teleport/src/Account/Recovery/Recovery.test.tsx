@@ -11,8 +11,11 @@ import Recovery from './Recovery';
 const privilegeToken = 'privilegeToken123';
 
 describe('recovery dashboard testing', () => {
-  const setup = () => {
-    const ctx = new TeleportContextE();
+  let addNotification;
+  let ctx;
+
+  beforeEach(() => {
+    ctx = new TeleportContextE();
     ctx.storeUser.setState({ username: 'joe@example.com' });
 
     jest
@@ -38,21 +41,22 @@ describe('recovery dashboard testing', () => {
 
     jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('on');
 
+    addNotification = jest.fn();
+  });
+
+  const renderRecovery = () =>
     render(
       <ContextProvider ctx={ctx}>
-        <Recovery />
+        <Recovery addNotification={addNotification} />
       </ContextProvider>
     );
-
-    return { ctx };
-  };
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
   test('generating new codes with totp', async () => {
-    const { ctx } = setup();
+    renderRecovery();
 
     expect(ctx.recoveryService.fetchRecoveryCodesMetadata).toHaveBeenCalled();
 
@@ -90,7 +94,7 @@ describe('recovery dashboard testing', () => {
   });
 
   test('generating new codes with webauthn', async () => {
-    const { ctx } = setup();
+    renderRecovery();
 
     jest.spyOn(cfg.oss, 'getPreferredMfaType').mockReturnValue('webauthn');
 
@@ -116,5 +120,30 @@ describe('recovery dashboard testing', () => {
     expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-2/i)).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-3/i)).toBeInTheDocument();
+  });
+
+  test('fetches metadata and shows last generation date', async () => {
+    renderRecovery();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Recovery codes were last generated on:')
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText('8/30/2019')).toBeInTheDocument();
+  });
+
+  test('adds a notification when metadata fetch fails', async () => {
+    ctx.recoveryService.fetchRecoveryCodesMetadata.mockRejectedValue(
+      new Error('failed to fetch')
+    );
+    renderRecovery();
+
+    await waitFor(() => {
+      expect(addNotification).toHaveBeenCalledWith('error', 'failed to fetch');
+    });
+    expect(
+      screen.queryByText('Recovery codes were last generated on:')
+    ).not.toBeInTheDocument();
   });
 });

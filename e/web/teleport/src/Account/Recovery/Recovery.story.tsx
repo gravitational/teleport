@@ -21,16 +21,6 @@ export const Processing = () => (
   <Recovery {...props} attempt={{ status: 'processing' }} />
 );
 
-export const Failed = () => (
-  <Recovery
-    {...props}
-    attempt={{
-      status: 'failed',
-      statusText: 'failed to fetch date of codes generation',
-    }}
-  />
-);
-
 const props: State = {
   attempt: { status: 'success' },
   token: '',
