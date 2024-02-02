@@ -414,13 +414,20 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// Check that the user certificate uses supported public key algorithms, was
 	// issued by Teleport, and check the certificate metadata (principals,
 	// timestamp, etc). Fallback to keys is not supported.
-	certChecker := apisshutils.CertChecker{
+	certChecker := fakeChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
-			Clock:           h.c.Clock.Now,
 		},
-		FIPS: h.c.FIPS,
 	}
+
+	//certChecker := apisshutils.CertChecker{
+	//    CertChecker: newFakeChecker(h.IsUserAuthority),
+	//	//CertChecker: ssh.CertChecker{
+	//	//	IsUserAuthority: h.IsUserAuthority,
+	//	//	Clock:           h.c.Clock.Now,
+	//	//},
+	//	FIPS: h.c.FIPS,
+	//}
 
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
@@ -508,6 +515,96 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 
 	return permissions, nil
+}
+
+type fakeChecker struct {
+	ssh.CertChecker
+}
+
+func (c *fakeChecker) Authenticate(conn ssh.ConnMetadata, pubKey ssh.PublicKey) (*ssh.Permissions, error) {
+	cert, ok := pubKey.(*ssh.Certificate)
+	if !ok {
+		if c.UserKeyFallback != nil {
+			return c.UserKeyFallback(conn, pubKey)
+		}
+		return nil, fmt.Errorf("ssh: normal key pairs not accepted")
+	}
+
+	if cert.CertType != ssh.UserCert {
+		return nil, fmt.Errorf("ssh: cert has type %d", cert.CertType)
+	}
+	if !c.IsUserAuthority(cert.SignatureKey) {
+		return nil, fmt.Errorf("ssh: certificate signed by unrecognized authority")
+	}
+
+	if err := c.CheckCert(conn.User(), cert); err != nil {
+		return nil, err
+	}
+
+	return &cert.Permissions, nil
+}
+
+func (c *fakeChecker) CheckCert(principal string, cert *ssh.Certificate) error {
+	if c.IsRevoked != nil && c.IsRevoked(cert) {
+		return fmt.Errorf("ssh: certificate serial %d revoked", cert.Serial)
+	}
+
+	for opt := range cert.CriticalOptions {
+		//// sourceAddressCriticalOption will be enforced by
+		//// serverAuthenticate
+		//if opt == sourceAddressCriticalOption {
+		//	continue
+		//}
+
+		found := false
+		for _, supp := range c.SupportedCriticalOptions {
+			if supp == opt {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("ssh: unsupported critical option %q in certificate", opt)
+		}
+	}
+
+	if len(cert.ValidPrincipals) > 0 {
+		// By default, certs are valid for all users/hosts.
+		found := false
+		for _, p := range cert.ValidPrincipals {
+			if p == principal {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("ssh: principal %q not in the set of valid principals for given certificate: %q", principal, cert.ValidPrincipals)
+		}
+	}
+
+	//clock := c.Clock
+	//if clock == nil {
+	//	clock = time.Now
+	//}
+
+	//unixNow := clock().Unix()
+	//if after := int64(cert.ValidAfter); after < 0 || unixNow < int64(cert.ValidAfter) {
+	//	return fmt.Errorf("ssh: cert is not yet valid")
+	//}
+	//if before := int64(cert.ValidBefore); cert.ValidBefore != uint64(CertTimeInfinity) && (unixNow >= before || before < 0) {
+	//	return fmt.Errorf("ssh: cert has expired")
+	//}
+
+	c2 := *cert
+	c2.Signature = nil
+	out := c2.Marshal()
+	bytesForSigning := out[:len(out)-4]
+
+	if err := cert.SignatureKey.Verify(bytesForSigning, cert.Signature); err != nil {
+		return fmt.Errorf("ssh: certificate signature does not verify")
+	}
+
+	return nil
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {

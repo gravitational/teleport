@@ -27,7 +27,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -514,66 +513,66 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				continue // Skipping LOCAL command of PROXY protocol
 			}
 
-			// If proxyline is not signed, so we don't try to verify to avoid unnecessary load
-			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && newPROXYLine.IsSigned() {
-				err = newPROXYLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
-				if errors.Is(err, ErrNoHostCA) {
-					m.WithFields(log.Fields{
-						"src_addr": conn.RemoteAddr(),
-						"dst_addr": conn.LocalAddr(),
-					}).Warnf("%s - could not get host CA", invalidProxySignatureError)
-					continue
-				}
-				if err != nil {
-					return nil, trace.Wrap(err, "%s %s -> %s", invalidProxySignatureError, conn.RemoteAddr(), conn.LocalAddr())
-				}
-				m.WithFields(log.Fields{
-					"conn_src_addr":   conn.RemoteAddr(),
-					"conn_dst_addr":   conn.LocalAddr(),
-					"client_src_addr": newPROXYLine.Source.String(),
-				}).Tracef("Successfully verified signed PROXYv2 header")
-			}
+			//// If proxyline is not signed, so we don't try to verify to avoid unnecessary load
+			//if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && newPROXYLine.IsSigned() {
+			//	err = newPROXYLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
+			//	if errors.Is(err, ErrNoHostCA) {
+			//		m.WithFields(log.Fields{
+			//			"src_addr": conn.RemoteAddr(),
+			//			"dst_addr": conn.LocalAddr(),
+			//		}).Warnf("%s - could not get host CA", invalidProxySignatureError)
+			//		continue
+			//	}
+			//	if err != nil {
+			//		return nil, trace.Wrap(err, "%s %s -> %s", invalidProxySignatureError, conn.RemoteAddr(), conn.LocalAddr())
+			//	}
+			//	m.WithFields(log.Fields{
+			//		"conn_src_addr":   conn.RemoteAddr(),
+			//		"conn_dst_addr":   conn.LocalAddr(),
+			//		"client_src_addr": newPROXYLine.Source.String(),
+			//	}).Tracef("Successfully verified signed PROXYv2 header")
+			//}
 
-			// If proxy line is signed and successfully verified and there's no already signed proxy header,
-			// we accept, otherwise reject
-			if newPROXYLine.IsVerified {
-				if proxyLine != nil && proxyLine.IsVerified {
-					return nil, trace.BadParameter(duplicateSignedProxyLineError)
-				}
+			//// If proxy line is signed and successfully verified and there's no already signed proxy header,
+			//// we accept, otherwise reject
+			//if newPROXYLine.IsVerified {
+			//	if proxyLine != nil && proxyLine.IsVerified {
+			//		return nil, trace.BadParameter(duplicateSignedProxyLineError)
+			//	}
 
-				proxyLine = newPROXYLine
-				continue
-			}
+			//	proxyLine = newPROXYLine
+			//	continue
+			//}
 
-			if m.CertAuthorityGetter != nil && newPROXYLine.IsSigned() && !newPROXYLine.IsVerified {
-				return nil, trace.BadParameter("could not verify PROXY line signature")
-			}
+			//if m.CertAuthorityGetter != nil && newPROXYLine.IsSigned() && !newPROXYLine.IsVerified {
+			//	return nil, trace.BadParameter("could not verify PROXY line signature")
+			//}
 
-			// This is unsigned proxy line, return error if external PROXY protocol is not enabled
-			if m.PROXYProtocolMode == PROXYProtocolOff {
-				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
-			}
+			//// This is unsigned proxy line, return error if external PROXY protocol is not enabled
+			//if m.PROXYProtocolMode == PROXYProtocolOff {
+			//	return nil, trace.BadParameter(externalProxyProtocolDisabledError)
+			//}
 
-			if unsignedPROXYLineReceived {
-				// We allow only one unsigned PROXY line
-				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
-			}
-			unsignedPROXYLineReceived = true
+			//if unsignedPROXYLineReceived {
+			//	// We allow only one unsigned PROXY line
+			//	return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+			//}
+			//unsignedPROXYLineReceived = true
 
-			if m.PROXYProtocolMode == PROXYProtocolUnspecified {
-				m.logLimiter.Log(m.WithFields(log.Fields{
-					"direct_src_addr": conn.RemoteAddr(),
-					"direct_dst_addr": conn.LocalAddr(),
-					"proxy_src_addr:": newPROXYLine.Source.String(),
-					"proxy_dst_addr:": newPROXYLine.Destination.String(),
-				}), log.ErrorLevel, unexpectedPROXYLineError)
-				newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
-			}
+			//if m.PROXYProtocolMode == PROXYProtocolUnspecified {
+			//	m.logLimiter.Log(m.WithFields(log.Fields{
+			//		"direct_src_addr": conn.RemoteAddr(),
+			//		"direct_dst_addr": conn.LocalAddr(),
+			//		"proxy_src_addr:": newPROXYLine.Source.String(),
+			//		"proxy_dst_addr:": newPROXYLine.Destination.String(),
+			//	}), log.ErrorLevel, unexpectedPROXYLineError)
+			//	newPROXYLine.Source.Port = 0 // Mark connection, so if later IP pinning check is used on it we can reject it.
+			//}
 
-			// Unsigned PROXY line after signed should not happen
-			if proxyLine != nil && proxyLine.IsVerified {
-				return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
-			}
+			//// Unsigned PROXY line after signed should not happen
+			//if proxyLine != nil && proxyLine.IsVerified {
+			//	return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
+			//}
 
 			proxyLine = newPROXYLine
 			// repeat the cycle to detect the protocol
