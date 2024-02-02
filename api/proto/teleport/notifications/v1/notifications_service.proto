@@ -41,11 +41,11 @@ service NotificationService {
   // ListGlobalNotifications returns a page of global notifications.
   rpc ListGlobalNotifications(ListGlobalNotificationsRequest) returns (ListGlobalNotificationsResponse);
 
-  // CreateUserNotificationState creates a user notification state.
+  // CreateUserNotificationState creates a user notification state which records whether a user has clicked on or dismissed a notification.
   rpc CreateUserNotificationState(CreateUserNotificationStateRequest) returns (UserNotificationState);
-  // UpdateUserNotificationState updates a user notification state.
+  // UpdateUserNotificationState updates a user notification state to record whether a user has clicked on or dismissed a notification.
   rpc UpdateUserNotificationState(UpdateUserNotificationStateRequest) returns (UserNotificationState);
-  // DeleteUserNotificationState deltes a user notification state.
+  // DeleteUserNotificationState deletes a user notification state object.
   rpc DeleteUserNotificationState(DeleteUserNotificationStateRequest) returns (google.protobuf.Empty);
   // ListUserNotificationStates returns a page of user notification states.
   rpc ListUserNotificationStates(ListUserNotificationStatesRequest) returns (ListUserNotificationStatesResponse);
