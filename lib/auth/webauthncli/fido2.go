@@ -680,8 +680,15 @@ func startDevices(
 
 		dev, err := fidoNewDevice(path)
 		if err != nil {
-			closeAll()
-			return nil, nil, trace.Wrap(err, "device open")
+			// Be resilient to open errors.
+			// This can happen to devices that failed to cancel (and thus are still
+			// asserting) when we run sequential operations. For example: registration
+			// immediately followed by assertion (in a single process).
+			// This is largely safe to ignore, as opening is fairly consistent in
+			// other situations and failures are likely from a non-chosen device in
+			// multi-device scenarios.
+			log.Debugf("FIDO2: Device %v failed to open, skipping: %v", path, err)
+			continue
 		}
 
 		fidoDevs = append(fidoDevs, dev)
@@ -689,6 +696,9 @@ func startDevices(
 			path: path,
 			dev:  dev,
 		})
+	}
+	if len(fidoDevs) == 0 {
+		return nil, nil, errors.New("failed to open security keys")
 	}
 
 	// Prompt touch, it's about to begin.
