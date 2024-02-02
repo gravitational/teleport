@@ -23,26 +23,6 @@ import {
   ProvisionTokenSpecV2GitHub,
 } from 'teleport/services/bot/types';
 
-export function makeBot(json: any): FlatBot {
-  json = json || {};
-
-  return {
-    kind: json.kind,
-    status: json.status,
-    subKind: json.subKind,
-    version: json.version,
-
-    name: json.metadata.name,
-    namespace: json.metadata.namespace,
-    description: json.metadata.description,
-    labels: json.metadata.labels,
-    revision: json.metadata.revision,
-
-    roles: json.spec.roles,
-    traits: json.spec.traits,
-  };
-}
-
 /**
  *
  * @param spec a ProvisionTokenSpecV2GitHub
@@ -87,7 +67,7 @@ export function toApiGitHubRule({
   };
 }
 
-export function makeListBot(bot: ApiBot): FlatBot {
+export function makeBot(bot: ApiBot): FlatBot {
   if (!bot?.metadata?.name) {
     return;
   }

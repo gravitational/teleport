@@ -19,11 +19,7 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import {
-  makeBot,
-  makeListBot,
-  toApiGitHubTokenSpec,
-} from 'teleport/services/bot/consts';
+import { makeBot, toApiGitHubTokenSpec } from 'teleport/services/bot/consts';
 
 import {
   BotList,
@@ -61,7 +57,7 @@ export function createBotToken(req: CreateBotJoinTokenRequest) {
 export function fetchBots(signal: AbortSignal): Promise<BotList> {
   return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
     const items = json?.items || [];
-    return { bots: items.map(makeListBot) };
+    return { bots: items.map(makeBot) };
   });
 }
 
