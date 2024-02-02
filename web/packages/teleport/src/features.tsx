@@ -223,8 +223,8 @@ export class FeatureBots implements TeleportFeature {
   };
 
   // todo (michellescripts) return flags.Bots once integrated with mcbattirola and feature is ready
-  hasAccess() {
-    return false;
+  hasAccess(flags: FeatureFlags) {
+    return flags.listBots;
   }
 
   navigationItem = {

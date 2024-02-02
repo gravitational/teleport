@@ -129,8 +129,8 @@ const cfg = {
     desktops: '/web/cluster/:clusterId/desktops',
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
-    bots: '/web/cluster/:clusterId/bots',
-    botsNew: '/web/cluster/:clusterId/bots/new/:type?',
+    bots: '/web/bots',
+    botsNew: '/web/bots/new/:type?',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -327,7 +327,6 @@ const cfg = {
 
     botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
-    botPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -494,13 +493,11 @@ const cfg = {
   },
 
   getBotsRoute() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.routes.bots, { clusterId });
+    return generatePath(cfg.routes.bots);
   },
 
   getBotsNewRoute(type?: string) {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.routes.botsNew, { clusterId, type });
+    return generatePath(cfg.routes.botsNew, { type });
   },
 
   getAppsRoute(clusterId: string) {
@@ -1046,7 +1043,7 @@ const cfg = {
 
   getBotUrlWithName(name: string) {
     const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botPath, { clusterId, name });
+    return generatePath(cfg.api.botsPath, { clusterId, name });
   },
 
   init(backendConfig = {}) {
