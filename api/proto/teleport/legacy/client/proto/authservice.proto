@@ -2507,11 +2507,10 @@ service AuthService {
   rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
   // GenerateHostCerts generates a set of host certificates.
   rpc GenerateHostCerts(HostCertsRequest) returns (Certs);
-  // GenerateUserSingleUseCerts generates a set of single-use user
-  // certificates.
-  //
   // Deprecated: Superseded by GenerateUserCerts.
-  rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest) returns (stream UserSingleUseCertsResponse);
+  rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest) returns (stream UserSingleUseCertsResponse) {
+    option deprecated = true;
+  }
   // GenerateOpenSSHCert signs a SSH certificate that can be used
   // to connect to Agentless nodes.
   rpc GenerateOpenSSHCert(OpenSSHCertRequest) returns (OpenSSHCert);
