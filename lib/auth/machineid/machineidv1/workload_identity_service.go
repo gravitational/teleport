@@ -198,7 +198,6 @@ func (wis *WorkloadIdentityService) signX509SVID(
 			},
 			UserMetadata:       authz.ClientUserMetadata(ctx),
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
-			SPIFFEID:           req.SpiffeIdPath,
 			Hint:               req.Hint,
 			SVIDType:           "x509",
 			DNSSANs:            req.DnsSans,
@@ -210,6 +209,9 @@ func (wis *WorkloadIdentityService) signX509SVID(
 		if serialNumber != nil {
 			// TODO: Convert serial number to a lovely hex string
 			evt.SerialNumber = serialNumber.String()
+		}
+		if spiffeID != nil {
+			evt.SPIFFEID = spiffeID.String()
 		}
 		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
 			wis.logger.WithError(emitErr).Warn(
