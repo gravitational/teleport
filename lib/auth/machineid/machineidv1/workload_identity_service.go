@@ -220,15 +220,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 		}
 	}()
 
-	// Perform authz checks. They must be allowed to issue the SPIFFE ID and
-	// any listed spans.
-	// TODO: IPSANS
-	if err := authCtx.Checker.CheckSPIFFESVID(req.SpiffeIdPath, req.DnsSans, []net.IP{}); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO: Validate req.SpiffeIDPath for any potential weirdness
-
+	// Parse and validate parameters
 	spiffeID = &url.URL{
 		Scheme: spiffeScheme,
 		Host:   clusterName,
@@ -252,6 +244,16 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	// NotBefore is one minute in the past to prevent "Not yet valid" errors on
 	// time skewed clusters.
 	notBefore := wis.clock.Now().UTC().Add(-1 * time.Minute)
+
+	// Perform authz checks. They must be allowed to issue the SPIFFE ID and
+	// any listed SANs.
+	if err := authCtx.Checker.CheckSPIFFESVID(
+		req.SpiffeIdPath,
+		req.DnsSans,
+		ipSans,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	var pemBytes []byte
 	pemBytes, serialNumber, err = signx509SVID(
