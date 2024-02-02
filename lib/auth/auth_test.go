@@ -45,6 +45,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1934,9 +1935,15 @@ func parseX509PEMAndIdentity(t *testing.T, rawPEM []byte) (*x509.Certificate, *t
 	return cert, identity
 }
 
+func contextWithGRPCClientUserAgent(ctx context.Context, userAgent string) context.Context {
+	return metadata.NewIncomingContext(ctx, metadata.MD{
+		"user-agent": []string{userAgent},
+	})
+}
+
 func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := contextWithGRPCClientUserAgent(context.Background(), "test-user-agent/1.0")
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
@@ -1967,7 +1974,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 		checker:   accessChecker,
 		publicKey: pub,
 	}
-	certs, err := p.a.generateUserCert(certReq)
+	certs, err := p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	key, err := sshutils.ParseCertificate(certs.SSH)
@@ -1976,6 +1983,31 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	val, ok := key.Extensions[extension.Name]
 	require.True(t, ok)
 	require.Equal(t, extension.Value, val)
+
+	// Validate audit event.
+	lastEvent := p.mockEmitter.LastEvent()
+	require.IsType(t, &apievents.CertificateCreate{}, lastEvent)
+	require.Empty(t, cmp.Diff(
+		&apievents.CertificateCreate{
+			Metadata: apievents.Metadata{
+				Type: events.CertificateCreateEvent,
+				Code: events.CertificateCreateCode,
+			},
+			Identity: &apievents.Identity{
+				User:             "test-user",
+				Roles:            []string{"user:test-user"},
+				RouteToCluster:   "test.localhost",
+				TeleportCluster:  "test.localhost",
+				PrivateKeyPolicy: "none",
+			},
+			CertificateType: events.CertificateTypeUser,
+			ClientMetadata: apievents.ClientMetadata{
+				UserAgent: "test-user-agent/1.0",
+			},
+		},
+		lastEvent.(*apievents.CertificateCreate),
+		cmpopts.IgnoreFields(apievents.Identity{}, "Logins", "Expires"),
+	))
 }
 
 func TestGenerateOpenSSHCert(t *testing.T) {
@@ -2062,7 +2094,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 			CredentialID: "credentialid1",
 		},
 	}
-	_, err = p.a.generateUserCert(certReq)
+	_, err = p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	testTargets := append(
@@ -2092,7 +2124,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 			case <-time.After(2 * time.Second):
 				t.Fatal("Timeout waiting for lock update.")
 			}
-			_, err = p.a.generateUserCert(certReq)
+			_, err = p.a.generateUserCert(ctx, certReq)
 			require.Error(t, err)
 			require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 		})
@@ -2163,7 +2195,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 		publicKey: pub,
 		traits:    accessChecker.Traits(),
 	}
-	resp, err := p.a.generateUserCert(certReq)
+	resp, err := p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	sshCert, err := sshutils.ParseCertificate(resp.SSH)
@@ -2221,7 +2253,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 		traits:    accessChecker.Traits(),
 	}
 
-	resp, err = p.a.generateUserCert(certReq)
+	resp, err = p.a.generateUserCert(ctx, certReq)
 	require.NoError(t, err)
 
 	sshCert, err = sshutils.ParseCertificate(resp.SSH)

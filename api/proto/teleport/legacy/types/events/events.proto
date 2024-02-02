@@ -3572,6 +3572,13 @@ message CertificateCreate {
 
   // Identity is the identity associated with the certificate, as interpreted by Teleport.
   Identity Identity = 3 [(gogoproto.jsontag) = "identity"];
+
+  // Client is the common client event metadata
+  ClientMetadata Client = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // RenewableCertificateGenerationMismatch is emitted when a renewable
