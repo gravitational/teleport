@@ -31,13 +31,12 @@ import {
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 import { DiscoveryConfig } from 'teleport/services/discovery';
-
 import {
   addIndexToViews,
   findViewAtIndex,
-  ResourceViewConfig,
-  View,
-} from './flow';
+} from 'teleport/components/Wizard/flow';
+
+import { ResourceViewConfig, View } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
 import { EViewConfigs } from './types';
 import { ServiceDeployMethod } from './Database/common';
@@ -295,7 +294,7 @@ export function DiscoverProvider({
     const currCfg = [...viewConfigs, ...eViewConfigs].find(
       r => r.kind === resource.kind
     );
-    let indexedViews = [];
+    let indexedViews: View[] = [];
     if (typeof currCfg.views === 'function') {
       indexedViews = addIndexToViews(currCfg.views(resource));
     } else {
