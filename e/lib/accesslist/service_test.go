@@ -292,7 +292,7 @@ func TestService_UpsertAccessList(t *testing.T) {
 	})
 
 	// Even RBAC users can't create Okta sourced lists.
-	_, err = c.svc.UpsertAccessList(c.userWhereCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a5)})
+	_, err = c.svc.UpsertAccessList(c.userCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a5)})
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Okta user can, though
@@ -309,7 +309,8 @@ func TestService_UpsertAccessList(t *testing.T) {
 	})
 
 	// RBAC users can't update Okta sourced lists either.
-	_, err = c.svc.UpsertAccessList(c.userWhereCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a5)})
+	a5.Spec.Grants.Roles = append(a5.Spec.Grants.Roles, "new-role")
+	_, err = c.svc.UpsertAccessList(c.userCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a5)})
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Okta user can do that too.
@@ -1833,6 +1834,15 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		membersA3 := listAllAccessListMembers(c.userCtx, t, c.svc, aOkta.GetName(), 3)
 		require.Len(t, membersA3, 3)
 	})
+
+	t.Run("user can modify membership requirements for Okta sourced access lists.", func(t *testing.T) {
+		aOkta.Spec.MembershipRequires.Roles = append(aOkta.Spec.MembershipRequires.Roles, "some-new-role")
+		upsertAccessListWithMembers(t, c.userCtx, aOkta, []*accesslist.AccessListMember{
+			newAccessListMember(t, aOkta.GetName(), member1, c.clock),
+			newAccessListMember(t, aOkta.GetName(), member2, c.clock),
+			newAccessListMember(t, aOkta.GetName(), member3, c.clock),
+		}, require.NoError)
+	})
 }
 
 func TestService_AuthOrIsOwner(t *testing.T) {
@@ -2079,7 +2089,7 @@ func TestService_CreateAccessListReview(t *testing.T) {
 
 	review1ForA3 := newAccessListReview(t, a3.GetName())
 
-	// User can review if no modifications are made to the access list itself. Membership modifications are okay.
+	// User is allowed to change the various fields that can be changed in an Okta sourced access list.
 	review1ForA3.Spec.Changes.RemovedMembers = []string{a3m1.GetName()}
 	_, err = c.svc.CreateAccessListReview(c.userCtx, &accesslistv1.CreateAccessListReviewRequest{
 		Review: conv.ToReviewProto(review1ForA3),
@@ -2094,18 +2104,23 @@ func TestService_CreateAccessListReview(t *testing.T) {
 		require.Equal(t, event.AccessListReviewCreate.Metadata.Id, a3.GetName())
 	})
 
-	// User can't change membership requirements, though
+	// User can change membership requirements.
 	review1ForA3.Spec.Changes.MembershipRequirementsChanged = &accesslist.Requires{
 		Roles: []string{"some-role"},
 	}
+	review1ForA3.Spec.Changes.RemovedMembers = nil
 
 	_, err = c.svc.CreateAccessListReview(c.userCtx, &accesslistv1.CreateAccessListReviewRequest{
 		Review: conv.ToReviewProto(review1ForA3),
 	})
-	require.True(t, trace.IsAccessDenied(err))
+	require.NoError(t, err)
 
-	expectEvent(t, events.AccessListReviewFailureCode, c.emitter, func(event *apievents.AccessListReview) {
-		require.False(t, event.Success)
+	expectEvent(t, events.AccessListReviewSuccessCode, c.emitter, func(event *apievents.AccessListReview) {
+		require.True(t, event.Success)
+	})
+
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListReviewCreate) {
+		require.Equal(t, event.AccessListReviewCreate.Metadata.Id, a3.GetName())
 	})
 }
 

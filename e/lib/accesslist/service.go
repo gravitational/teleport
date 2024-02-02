@@ -58,6 +58,12 @@ var (
 	reviewValidOwnerChanges = []cmp.Option{
 		cmpopts.IgnoreFields(accesslist.ReviewChanges{}, "RemovedMembers"),
 	}
+
+	// oktaValidModifications lists the fields that can be modified in an Okta sourced access list.
+	oktaValidModifications = []cmp.Option{
+		cmpopts.IgnoreFields(accesslist.Spec{}, "Owners", "MembershipRequires", "OwnershipRequires"),
+		ignoreIDAndRevision[0],
+	}
 )
 
 type UsersService interface {
@@ -1485,9 +1491,9 @@ func (s *Service) hasUserRBAC(ctx context.Context, authCtx *authz.Context, verbs
 
 // oktaModificationAllowed will return true if an Okta modification is allowed. If the access list is not an Okta object,
 // this will return true.
-func oktaModificationAllowed(authCtx authz.Context, accessLists ...*accesslist.AccessList) bool {
+func oktaModificationAllowed(authCtx authz.Context, oldAccessList, newAccessList *accesslist.AccessList) bool {
 	hasOktaOrigin := false
-	for _, accessList := range accessLists {
+	for _, accessList := range []*accesslist.AccessList{oldAccessList, newAccessList} {
 		if accessList != nil && accessList.Origin() == types.OriginOkta {
 			hasOktaOrigin = true
 			break
@@ -1498,7 +1504,11 @@ func oktaModificationAllowed(authCtx authz.Context, accessLists ...*accesslist.A
 		return true
 	}
 
-	return authz.HasBuiltinRole(authCtx, string(types.RoleOkta))
+	if authz.HasBuiltinRole(authCtx, string(types.RoleOkta)) {
+		return true
+	}
+
+	return cmp.Equal(oldAccessList, newAccessList, oktaValidModifications...)
 }
 
 // isOwnerOfAccessList checks if this user owns this access list.
@@ -1676,14 +1686,10 @@ func (s *Service) createAccessListReview(ctx context.Context, review *accesslist
 	accessListModified := !cmp.Equal(accesslist.ReviewChanges{}, review.Spec.Changes, reviewValidOwnerChanges...)
 
 	// Make sure the owner can't modify the access list.
-	if accessListModified {
-		if !hasRBAC {
-			return nil, review, trace.AccessDenied("user cannot modify the access list as part of the review")
-		}
-
-		if !oktaModificationAllowed(*authCtx, accessList) {
-			return nil, review, trace.AccessDenied(oktaErrorMsg)
-		}
+	// We don't need to do any Okta specific checks here, as the things that users can modify during a review are
+	// all things acceptable to Okta.
+	if accessListModified && !hasRBAC {
+		return nil, review, trace.AccessDenied("user cannot modify the access list as part of the review")
 	}
 
 	// Make sure the reviewers reflect the current user and the review date is recorded as now.

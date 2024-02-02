@@ -889,11 +889,20 @@ func (a *accessListSync) metadataToImportResources(irMetadata *importResourceMet
 		eteleport.OktaOrgURLLabel:          a.orgURL,
 	}
 
-	// If there's an existing access list, preserve the owners set.
+	// If there's an existing access list, preserve the following fields:
+	// - Owners
+	// - Owner Requirements
+	// - Member Requirements
+	// - Audit
 	owners := a.owners
+	var membershipRequires, ownershipRequires accesslist.Requires
+	var audit accesslist.Audit
 	a.importAccessListsMu.Lock()
 	if oldAccessList, ok := a.importAccessLists[irMetadata.name]; ok {
 		owners = oldAccessList.GetOwners()
+		membershipRequires = oldAccessList.Spec.MembershipRequires
+		ownershipRequires = oldAccessList.Spec.OwnershipRequires
+		audit = oldAccessList.Spec.Audit
 	}
 	a.importAccessListsMu.Unlock()
 
@@ -904,7 +913,10 @@ func (a *accessListSync) metadataToImportResources(irMetadata *importResourceMet
 		Name:   irMetadata.name,
 		Labels: labels,
 	}, accesslist.Spec{
-		Title: irMetadata.title,
+		Title:              irMetadata.title,
+		MembershipRequires: membershipRequires,
+		OwnershipRequires:  ownershipRequires,
+		Audit:              audit,
 		OwnerGrants: accesslist.Grants{
 			Roles: []string{reviewerRoleName},
 		},

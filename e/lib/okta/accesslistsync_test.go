@@ -362,7 +362,7 @@ func TestAccessListSync(t *testing.T) {
 		})
 	})
 
-	t.Run("previously existing apps and groups erased or updated, owners preserved", func(t *testing.T) {
+	t.Run("previously existing apps and groups erased or updated, existing fields preserved", func(t *testing.T) {
 		c := initAccessListSync(t)
 
 		// Let's set the app/groups counters to an arbitrary value. This should be reset.
@@ -370,7 +370,11 @@ func TestAccessListSync(t *testing.T) {
 		c.svc.groupsImported.Store(12)
 
 		// Create a bunch of resources that the reconciler should clean up.
-		_, err := c.ap.UpsertAccessList(ctx, newAccessList(t, "app1", "blah", []string{"some-role-reviewer"}, []string{"some-role"}, []string{"some-other-owner"}))
+		preserved := newAccessList(t, "app1", "blah", []string{"some-role-reviewer"}, []string{"some-role"}, []string{"some-other-owner"})
+		preserved.Spec.MembershipRequires = accesslist.Requires{Roles: []string{"another-role"}}
+		preserved.Spec.OwnershipRequires = accesslist.Requires{Roles: []string{"another-role"}}
+		preserved.Spec.Audit.NextAuditDate = c.clock.Now().Add(365 * 2 * 24 * time.Hour)
+		_, err := c.ap.UpsertAccessList(ctx, preserved)
 		require.NoError(t, err)
 		_, err = c.ap.UpsertAccessList(ctx, newAccessList(t, "app2", "blah", []string{"some-role-reviewer"}, []string{"some-role"}, owners))
 		require.NoError(t, err)
@@ -387,7 +391,7 @@ func TestAccessListSync(t *testing.T) {
 		require.NoError(t, c.svc.refreshCurrentImports(ctx))
 
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessList{
-			"app1":   newAccessList(t, "app1", "blah", []string{"some-role-reviewer"}, []string{"some-role"}, []string{"some-other-owner"}),
+			"app1":   preserved,
 			"app2":   newAccessList(t, "app2", "blah", []string{"some-role-reviewer"}, []string{"some-role"}, owners),
 			"group3": newAccessList(t, "group3", "blah", []string{"some-role-reviewer"}, []string{"some-role"}, owners),
 		}, c.svc.getImportAccessLists(), cmpOpts...))
@@ -413,8 +417,11 @@ func TestAccessListSync(t *testing.T) {
 
 		c.advanceAndWaitForSync()
 
+		preserved.Spec.Title = "app label"
+		preserved.Spec.Grants.Roles = []string{"app1"}
+		preserved.Spec.OwnerGrants.Roles = []string{"app1-reviewer"}
 		require.Empty(t, cmp.Diff(map[string]*accesslist.AccessList{
-			"app1":   newAccessList(t, "app1", "app label", []string{"app1-reviewer"}, []string{"app1"}, []string{"some-other-owner"}),
+			"app1":   preserved,
 			"app2":   newAccessList(t, "app2", "app label", []string{"app2-reviewer"}, []string{"app2"}, owners),
 			"group1": newAccessList(t, "group1", "group label", []string{"group1-reviewer"}, []string{"group1"}, owners),
 		}, c.svc.getImportAccessLists(), cmpOpts...))
