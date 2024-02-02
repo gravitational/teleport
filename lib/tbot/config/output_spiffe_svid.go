@@ -214,5 +214,5 @@ func (o *SPIFFESVIDOutput) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (o *SPIFFESVIDOutput) String() string {
-	return fmt.Sprintf("%s (%s)", SPIFFESVIDOutputType, o.GetDestination())
+	return fmt.Sprintf("%s (%s) (%s)", SPIFFESVIDOutputType, o.SVID.Path, o.GetDestination())
 }
