@@ -39,11 +39,12 @@ import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
 import { AgentStepProps } from 'teleport/Discover/types';
 import useTeleport from 'teleport/useTeleport';
 
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
+import { GenerateCmdProps } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 import { Kube } from 'teleport/services/kube';
 
-import { Header, ResourceKind } from '../../Shared';
+import { JoinToken } from 'teleport/services/joinToken';
+
+import { Header } from '../../Shared';
 
 import { ClustersList } from './EksClustersList';
 import { ManualHelmDialog } from './ManualHelmDialog';
@@ -97,13 +98,8 @@ export function EnrollEksCluster(props: AgentStepProps) {
     useState(false);
   const [isManualHelmDialogShown, setIsManualHelmDialogShown] = useState(false);
   const [waitingResourceId, setWaitingResourceId] = useState('');
+  const [joinToken, setJoinToken] = useState<JoinToken>(null);
   const ctx = useTeleport();
-
-  const { joinToken } = useJoinTokenSuspender([
-    ResourceKind.Kubernetes,
-    ResourceKind.Application,
-    ResourceKind.Discovery,
-  ]);
 
   function fetchClustersWithNewRegion(region: Regions) {
     setSelectedRegion(region);
@@ -205,8 +201,6 @@ export function EnrollEksCluster(props: AgentStepProps) {
         {
           region: selectedRegion,
           enableAppDiscovery: isAppDiscoveryEnabled,
-          joinToken: joinToken.id,
-          resourceId: joinToken.internalResourceId,
           clusterNames: [selectedCluster.name],
         }
       );
@@ -262,22 +256,22 @@ export function EnrollEksCluster(props: AgentStepProps) {
     !selectedCluster ||
     enrollmentState.status !== 'notStarted';
 
-  let command = '';
+  let manualCommandProps: GenerateCmdProps = null;
   if (selectedCluster) {
-    command = generateCmd({
+    manualCommandProps = {
       namespace: 'teleport-agent',
       clusterName: selectedCluster.name,
       proxyAddr: ctx.storeUser.state.cluster.publicURL,
-      tokenId: joinToken.id,
       clusterVersion: ctx.storeUser.state.cluster.authVersion,
-      resourceId: joinToken.internalResourceId,
+      tokenId: '', // Filled in by the ManualHelmDialog.
+      resourceId: '',
       isEnterprise: ctx.isEnterprise,
       isCloud: ctx.isCloud,
       automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
       automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
       joinLabels: [...selectedCluster.labels, ...selectedCluster.joinLabels],
       disableAppDiscovery: !isAppDiscoveryEnabled,
-    });
+    };
   }
 
   return (
@@ -366,7 +360,8 @@ export function EnrollEksCluster(props: AgentStepProps) {
       )}
       {isManualHelmDialogShown && (
         <ManualHelmDialog
-          command={command}
+          commandProps={manualCommandProps}
+          setJoinToken={setJoinToken}
           cancel={() => setIsManualHelmDialogShown(false)}
           confirmedCommands={() => {
             setEnrollmentState({ status: 'awaitingAgent' });
@@ -377,7 +372,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       )}
       {isAgentWaitingDialogShown && (
         <AgentWaitingDialog
-          joinResourceId={waitingResourceId || joinToken.internalResourceId}
+          joinResourceId={waitingResourceId || joinToken?.internalResourceId}
           status={enrollmentState.status}
           clusterName={selectedCluster.name}
           updateWaitingResult={(result: Kube) => {
