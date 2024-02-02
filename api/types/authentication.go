@@ -98,8 +98,14 @@ type AuthPreference interface {
 	GetRequireMFAType() RequireMFAType
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+
+	// GetHardwareKey returns the hardware key settings configured for the cluster.
+	GetHardwareKey() (*HardwareKey, error)
 	// GetPIVSlot returns the configured piv slot for the cluster.
 	GetPIVSlot() keys.PIVSlot
+	// GetHardwareKeySerialNumberValidation returns the cluster's hardware key
+	// serial number validation settings.
+	GetHardwareKeySerialNumberValidation() (*HardwareKeySerialNumberValidation, error)
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -406,9 +412,26 @@ func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	}
 }
 
+// GetHardwareKey returns the hardware key settings configured for the cluster.
+func (c *AuthPreferenceV2) GetHardwareKey() (*HardwareKey, error) {
+	if c.Spec.HardwareKey == nil {
+		return nil, trace.NotFound("Hardware key support is not configured in this cluster")
+	}
+	return c.Spec.HardwareKey, nil
+}
+
 // GetPIVSlot returns the configured piv slot for the cluster.
 func (c *AuthPreferenceV2) GetPIVSlot() keys.PIVSlot {
 	return keys.PIVSlot(c.Spec.PIVSlot)
+}
+
+// GetHardwareKeySerialNumberValidation returns the cluster's hardware key
+// serial number validation settings.
+func (c *AuthPreferenceV2) GetHardwareKeySerialNumberValidation() (*HardwareKeySerialNumberValidation, error) {
+	if c.Spec.HardwareKey == nil || c.Spec.HardwareKey.SerialNumberValidation == nil {
+		return nil, trace.NotFound("Hardware key serial number validation is not configured in this cluster")
+	}
+	return c.Spec.HardwareKey.SerialNumberValidation, nil
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
