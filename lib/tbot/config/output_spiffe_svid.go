@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -164,6 +165,14 @@ func (o *SPIFFESVIDOutput) CheckAndSetDefaults() error {
 		return trace.BadParameter("svid.path: should not be empty")
 	case !strings.HasPrefix(o.SVID.Path, "/"):
 		return trace.BadParameter("svid.path: should be prefixed with /")
+	}
+	for i, stringIP := range o.SVID.SANS.IP {
+		ip := net.ParseIP(stringIP)
+		if ip == nil {
+			return trace.BadParameter(
+				"ipSans[%d]: invalid IP address %q", i, stringIP,
+			)
+		}
 	}
 	if err := validateOutputDestination(o.Destination); err != nil {
 		return trace.Wrap(err)
