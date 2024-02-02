@@ -22,6 +22,7 @@
 package botfs
 
 import (
+	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -91,14 +92,14 @@ func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*o
 	switch symlinksMode {
 	case SymlinksSecure:
 		file, err = openSecure(path, mode)
-		if err == unix.ENOSYS {
+		if errors.Is(err, unix.ENOSYS) {
 			return nil, trace.Errorf("openSecure failed due to missing syscall; configure `symlinks: insecure` for %q", path)
 		} else if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case SymlinksTrySecure:
 		file, err = openSecure(path, mode)
-		if err == unix.ENOSYS {
+		if errors.Is(err, unix.ENOSYS) {
 			missingSyscallWarning.Do(func() {
 				log.Warnf("Failed to open file securely due to missing syscall; falling back to regular file handling. Configure `symlinks: insecure` for %q to disable this warning.", path)
 			})
@@ -138,7 +139,7 @@ func createSecure(path string, isDir bool) error {
 	}
 
 	f, err := openSecure(path, WriteMode)
-	if err == unix.ENOSYS {
+	if errors.Is(err, unix.ENOSYS) {
 		// bubble up the original error for comparison
 		return err
 	} else if err != nil {
@@ -165,7 +166,7 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 	switch symlinksMode {
 	case SymlinksSecure:
 		if err := createSecure(path, isDir); err != nil {
-			if err == unix.ENOSYS {
+			if errors.Is(err, unix.ENOSYS) {
 				return trace.Errorf("createSecure failed due to missing syscall; configure `symlinks: insecure` for %q", path)
 			}
 
@@ -178,7 +179,7 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 			return nil
 		}
 
-		if err != unix.ENOSYS {
+		if !errors.Is(err, unix.ENOSYS) {
 			// Something else went wrong, fail.
 			return trace.Wrap(err)
 		}

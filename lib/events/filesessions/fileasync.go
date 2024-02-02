@@ -236,7 +236,7 @@ func (u *Uploader) Serve(ctx context.Context) error {
 		case <-backoff.After():
 			var failed bool
 			if _, err := u.Scan(ctx); err != nil {
-				if trace.Unwrap(err) != errContext {
+				if !errors.Is(trace.Unwrap(err), errContext) {
 					failed = true
 					u.log.WithError(err).Warningf("Uploader scan failed.")
 				}
@@ -641,8 +641,8 @@ func (u *Uploader) emitEvent(e events.UploadEvent) {
 }
 
 func isSessionError(err error) bool {
-	_, ok := trace.Unwrap(err).(sessionError)
-	return ok
+	var sessionError sessionError
+	return errors.As(trace.Unwrap(err), &sessionError)
 }
 
 // sessionError highlights problems with session

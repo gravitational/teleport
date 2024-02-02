@@ -236,7 +236,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		return nil
 	}
 	// Don't show the error if the annotation is just missing.
-	if trace.Unwrap(notifyErr) == errMissingAnnotation {
+	if errors.Is(trace.Unwrap(notifyErr), errMissingAnnotation) {
 		notifyErr = nil
 	}
 

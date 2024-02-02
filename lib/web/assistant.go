@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"time"
@@ -731,7 +732,7 @@ func (h *Handler) preliminaryRateLimitGuard(onMessageFn func(kind assist.Message
 
 // wsIsClosed returns true if the error is caused by a closed websocket.
 func wsIsClosed(err error) bool {
-	return err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure,
+	return errors.Is(err, io.EOF) || websocket.IsCloseError(err, websocket.CloseAbnormalClosure,
 		websocket.CloseGoingAway, websocket.CloseNormalClosure)
 }
 
