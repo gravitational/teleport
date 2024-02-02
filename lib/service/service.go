@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -425,6 +426,10 @@ type TeleportProcess struct {
 
 	// SSHD is used to execute commands to update or validate OpenSSH config.
 	SSHD openssh.SSHD
+
+	// resolver is used to identify the reverse tunnel address when connecting via
+	// the proxy.
+	resolver reversetunnelclient.Resolver
 }
 
 type keyPairKey struct {
@@ -966,6 +971,27 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if err == nil {
 			process.Config.SetAuthServerAddress(utils.FromAddr(listener.Addr()))
 		}
+	}
+
+	var resolverAddr utils.NetAddr
+	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
+		resolverAddr = cfg.ProxyServer
+	} else {
+		resolverAddr = cfg.AuthServerAddresses()[0]
+	}
+
+	process.resolver, err = reversetunnelclient.CachingResolver(
+		process.ExitContext(),
+		reversetunnelclient.WebClientResolver(&webclient.Config{
+			Context:   process.ExitContext(),
+			ProxyAddr: resolverAddr.String(),
+			Insecure:  lib.IsInsecureDevMode(),
+			Timeout:   process.Config.Testing.ClientTimeout,
+		}),
+		process.Clock,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER")
