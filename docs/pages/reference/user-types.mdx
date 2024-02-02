@@ -8,7 +8,7 @@ tocDepth: 3
 This guide explains the different kinds of users in Teleport, how they are
 created, and their properties.
 
-## Local Users
+## Local users
 
 Local users are created directly in Teleport. They are not coming from an
 external system like an identity provider.
@@ -18,8 +18,8 @@ resource manifest (`tctl create -f user.yaml`) or via the web UI. Their roles
 and traits can be modified directly in Teleport.
 
 Those users can connect to Teleport directly via username/password and/or
-additional authentication factors such as webauthn physical tokens, passkeys or
-One Time Passwords.
+additional authentication factors such as WebAuthn physical tokens, passkeys, or
+one-time passwords.
 
 Local user login can be disabled via `cluster_auth_preference` or `teleport.yaml`.
 Disabling local authentication is required for [FIPS/FedRAMP compliance
@@ -32,17 +32,15 @@ Teleport cluster. This identity is known as a bot. Bots are represented in
 Teleport by a user and a role resource and can be created via the
 `tctl bots add` command.
 
-Bots are not logging in like human users with a password, MFA or SSO. They join
+Unlike human users, who use a password, MFA, or SSO, bot users join
 the cluster as Teleport services using [a join method](./join-methods.mdx). They
 can still join even if local auth is disabled. 
 
-<Admonition type="note" title="See also">
-The [Machine ID introduction](../machine-id/introduction.mdx).
-</Admonition>
+See the [Machine ID introduction](../machine-id/introduction.mdx) for more information.
 
 ## SSO users
 
-Those users are imported in Teleport from an external identity provider.
+Single Sign-On (SSO) users are imported in Teleport from an external identity provider.
 Teleport contains a user resource representing those users, but it's only a
 representation of a user of a remote system.
 
@@ -58,8 +56,8 @@ Users logging in via GitHub, SAML, or OIDC connectors are created in Teleport
 after a successful login. At that time, their roles and traits are computed
 according to the connector mappings.
 
-Those users are short-lived, they are created when a Teleport session is opened
-and automatically expires after a few days. Those users cannot be edited via
+Those users are short-lived: they are created when a Teleport session is opened
+and automatically expire after a few days. Those users cannot be edited via
 `tctl`, only deleted.
 
 <Admonition type="note" title="See also">
