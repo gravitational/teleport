@@ -179,7 +179,6 @@ func (r TeleportResourceReconciler[T, K]) Delete(ctx context.Context, obj kclien
 	_, isOwned := checkOwnership(resource)
 	if !isOwned {
 		// The resource doesn't belong to us, we bail out but unblock the CR deletion
-		// TODO: discuss with marco and tiago if this is OK or if we prefer to block CR deletion
 		return nil
 	}
 	// This GET->check->DELETE dance is race-prone, but it's good enough for what
