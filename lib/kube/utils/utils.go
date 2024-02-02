@@ -21,6 +21,7 @@ package utils
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -103,7 +104,7 @@ func GetKubeConfig(configPath string, allConfigEntries bool, clusterName string)
 	case configPath == "" && clusterName != "":
 		cfg, err := rest.InClusterConfig()
 		if err != nil {
-			if err == rest.ErrNotInCluster {
+			if errors.Is(err, rest.ErrNotInCluster) {
 				return nil, trace.NotFound("not running inside of a Kubernetes pod")
 			}
 			return nil, trace.Wrap(err)

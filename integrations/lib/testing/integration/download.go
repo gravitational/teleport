@@ -21,6 +21,7 @@ package integration
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -174,7 +175,7 @@ func getBinaries(ctx context.Context, distStr, outDir string, checksum lib.SHA25
 			// Once the file is closed it will be unlocked too.
 			break
 		}
-		if err != syscall.EWOULDBLOCK {
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
 			// Advisory lock is acquired by another process.
 			return BinPaths{}, trace.NewAggregate(trace.ConvertSystemError(err), outFile.Close())
 		}

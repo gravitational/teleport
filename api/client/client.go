@@ -978,7 +978,7 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 		return nil, trace.Wrap(err)
 	}
 	var roles []types.Role
-	for role, err := stream.Recv(); err != io.EOF; role, err = stream.Recv() {
+	for role, err := stream.Recv(); !errors.Is(err, io.EOF); role, err = stream.Recv() {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1002,7 +1002,7 @@ func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, 
 				return nil, trace.Wrap(err)
 			}
 			var users []types.User
-			for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+			for user, err := stream.Recv(); !errors.Is(err, io.EOF); user, err = stream.Recv() {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -2340,7 +2340,7 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, star
 		for {
 			oneOf, err := stream.Recv()
 			if err != nil {
-				if err != io.EOF {
+				if !errors.Is(err, io.EOF) {
 					e <- trace.Wrap(trace.Wrap(err))
 				} else {
 					close(ch)
@@ -2454,7 +2454,7 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 		for {
 			event, err := stream.Recv()
 			if err != nil {
-				if err != io.EOF {
+				if !errors.Is(err, io.EOF) {
 					// If the server does not support the unstructured events API, it will
 					// return an error with code Unimplemented. This error is received
 					// the first time the client calls Recv() on the stream.
@@ -2515,7 +2515,7 @@ func (c *Client) streamUnstructuredSessionEventsFallback(ctx context.Context, se
 		for {
 			oneOf, err := stream.Recv()
 			if err != nil {
-				if err != io.EOF {
+				if !errors.Is(err, io.EOF) {
 					e <- trace.Wrap(trace.Wrap(err))
 				} else {
 					close(ch)

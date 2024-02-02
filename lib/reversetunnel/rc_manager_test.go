@@ -167,7 +167,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				cmp.Comparer(func(a, b *AgentPool) bool {
 					aAddr, aMode, aErr := a.AgentPoolConfig.Resolver(context.Background())
 					bAddr, bMode, bErr := b.AgentPoolConfig.Resolver(context.Background())
-					if aAddr != bAddr && aMode != bMode && aErr != bErr {
+					if aAddr != bAddr && aMode != bMode && !errors.Is(bErr, aErr) {
 						return false
 					}
 

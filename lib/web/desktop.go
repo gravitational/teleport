@@ -558,14 +558,16 @@ func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
 		err := errs[0] // pop first error
 		errs = errs[1:]
 
-		switch err := err.(type) {
-		case trace.Aggregate:
-			errs = append(errs, err.Errors()...)
-		case *websocket.CloseError:
-			switch err.Code {
+		var aggregateErr trace.Aggregate
+		var closeErr *websocket.CloseError
+		switch {
+		case errors.As(err, &aggregateErr):
+			errs = append(errs, aggregateErr.Errors()...)
+		case errors.As(err, &closeErr):
+			switch closeErr.Code {
 			case websocket.CloseNormalClosure, // when the user hits "disconnect" from the menu
 				websocket.CloseGoingAway: // when the user closes the tab
-				log.Debugf("Web socket closed by client with code: %v", err.Code)
+				log.Debugf("Web socket closed by client with code: %v", closeErr.Code)
 				return
 			}
 			return
