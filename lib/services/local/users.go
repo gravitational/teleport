@@ -454,12 +454,12 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 	newWithoutSecrets, ok := new.WithoutSecrets().(types.User)
 	if !ok {
-		return trace.BadParameter("Invalid new user type %T (this is a bug).", new)
+		return trace.BadParameter("invalid new user type %T (this is a bug)", new)
 	}
 
 	existingWithoutSecrets, ok := existing.WithoutSecrets().(types.User)
 	if !ok {
-		return trace.BadParameter("Invalid existing user type %T (this is a bug).", existing)
+		return trace.BadParameter("invalid existing user type %T (this is a bug)", existing)
 	}
 
 	item := backend.Item{
