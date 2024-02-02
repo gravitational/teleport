@@ -8972,10 +8972,10 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 	env := newWebPack(t, 2)
 
 	// create a logged in user for proxy 1.
-	user := "llama"
+	const user = "llama"
 	pack := env.proxies[0].authPack(t, user, nil /* roles */)
 
-	samlSessionID := "saml_session_id"
+	const samlSessionID = "saml_session_id"
 	// manually add SAML IdP session. The actual SAML IdP session and session cookie is set
 	// by the SAML IdP and the code to do that is on teleport.e.
 	_, err := env.proxies[0].client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
@@ -8995,14 +8995,14 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 	// respond with SAML session cookie with empty value.
 	resp, err := pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
-	require.True(t, matchSAMLSessionCookie(resp.Cookies()))
+	require.True(t, hasEmptySAMLSessionCookieValue(resp.Cookies()))
 	_, err = env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
 		SessionID: samlSessionID,
 	})
 	require.ErrorContains(t, err, `key "/saml_idp/sessions/saml_session_id" is not found`)
 }
 
-func matchSAMLSessionCookie(cookies []*http.Cookie) bool {
+func hasEmptySAMLSessionCookieValue(cookies []*http.Cookie) bool {
 	samlCookie := &http.Cookie{
 		Name:     websession.SAMLSessionCookieName,
 		Value:    "",
