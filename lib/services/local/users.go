@@ -469,10 +469,12 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 		Revision: "",
 	}
 
-	const iterationLimit = 5
+	// one retry because ConditionalUpdate could occasionally spuriously fail,
+	// another retry because a single retry would be weird
+	const iterationLimit = 3
 	for i := 0; i < iterationLimit; i++ {
-		const notWithSecrets = false
-		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), notWithSecrets)
+		const withoutSecrets = false
+		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), withoutSecrets)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
@@ -494,8 +496,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 		item.Revision = currentWithoutSecrets.GetRevision()
 
-		_, err = s.Backend.ConditionalUpdate(ctx, item)
-		if err != nil {
+		if _, err = s.Backend.ConditionalUpdate(ctx, item); err != nil {
 			if trace.IsCompareFailed(err) {
 				continue
 			}
