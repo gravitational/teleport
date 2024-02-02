@@ -35,7 +35,7 @@ $ kubectl cluster-info
   ```
 </Admonition>
 
-## Step 1/2 - Install teleport-cluster Helm chart with the operator
+## Step 1/2. Install teleport-cluster Helm chart with the operator
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
@@ -86,7 +86,7 @@ $ helm install teleport-cluster teleport/teleport-cluster \
 This command installs the required Kubernetes CRDs and deploys the Teleport Kubernetes Operator next to the Teleport
 cluster. All resources (except CRDs, which are cluster-scoped) are created in the `teleport-cluster` namespace.
 
-## Step 2/2 - Validate the cluster and operator are running and healthy
+## Step 2/2. Validate the cluster and operator are running and healthy
 
 ```code
 $ kubectl get deployments -n <Var name="teleport-cluster"/>

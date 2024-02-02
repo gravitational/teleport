@@ -10,7 +10,7 @@ created, and their properties.
 
 ## Local users
 
-Local users are created directly in Teleport. They are not coming from an
+Local users are created in Teleport. They are not coming from an
 external system like an identity provider.
 
 Local users can be created via the CLI (`tctl users add`), by applying a user
@@ -44,11 +44,18 @@ Single Sign-On (SSO) users are imported in Teleport from an external identity pr
 Teleport contains a user resource representing those users, but it's only a
 representation of a user of a remote system.
 
-Remote users don't log in directly in Teleport, they are redirected to their
-identity provider to perform the login challenge.
+Remote users don't perform their login challenge in Teleport. They are redirected
+to their identity provider (IdP) to enter their password, MFA, or any
+authentication method required by the upstream SSO provider. Teleport is not
+aware of the authentication method not the user credentials, it trusts the IdP
+response.
 
-Those users cannot be edited via `tctl`, or via any other IaC tooling like
-Terraform or the Teleport Kubernetes Operator. They are managed by 
+If `teleport.auth_service.authentication.second_factor` is `webauthn`, Teleport
+might ask for an additional MFA for administrative actions. This protects
+against IdP compromise.
+
+SSO users cannot be edited via `tctl`, or via any other IaC tooling like
+Terraform or the Teleport Kubernetes Operator. They are managed by Teleport.
 
 ### Temporary users
 
@@ -57,12 +64,12 @@ after a successful login. At that time, their roles and traits are computed
 according to the connector mappings.
 
 Those users are short-lived: they are created when a Teleport session is opened
-and automatically expire after a few days. Those users cannot be edited via
-`tctl`, only deleted.
+and automatically expire. The expiry is dynamically computed based on the IdP
+answer validity, the max session duration allowed by the user roles, and cannot
+exceed 30 hours. Those users cannot be edited via `tctl`, only deleted.
 
-<Admonition type="note" title="See also">
-The [SSO setup guides](../access-controls/sso.mdx).
-</Admonition>
+See the [SSO setup guides](../access-controls/sso.mdx) to learn how to setup an
+authentication connector and allow user to log in via an IdP.
 
 ### Synced users
 

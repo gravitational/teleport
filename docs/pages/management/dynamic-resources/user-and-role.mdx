@@ -49,7 +49,7 @@ A functional Teleport Terraform provider by following [the Terraform provider gu
 </TabItem>
 </Tabs>
 
-## Step 1/4 - Write manifests
+## Step 1/4. Write manifests
 
 In this step, we'll write text files describing the resources we want in
 Teleport. Those files are called manifests and their syntax will vary based on
@@ -285,7 +285,7 @@ resource "teleport_user" "bob" {
 </TabItem>
 </Tabs>
 
-## Step 2/4 - Apply all manifests
+## Step 2/4. Apply all manifests
 
 <Tabs>
 <TabItem label="tctl">
@@ -321,7 +321,7 @@ teleportuser.resources.teleport.dev/bob created
 List the created Kubernetes resources:
 
 ```code
-$ kubectl get teleportroles -n "$OPERATOR_NAMESPACE"
+$ kubectl get teleportrolev7 -n "$OPERATOR_NAMESPACE"
 # NAME       AGE
 # engineer   10m
 # manager    10m
@@ -356,7 +356,7 @@ Apply complete! Resources: 4 added, 0 changed, 0 destroyed.
 </TabItem>
 </Tabs>
 
-## Step 3/4 - Validate users were created
+## Step 3/4. Validate users were created
 
 Now that the IaC tooling has run, we'll validate that the users were properly
 created and granted the correct roles.
@@ -411,21 +411,20 @@ version: v2
 </TabItem>
 </Tabs>
 
-## Step 4/4 - Create a password reset link
+## Step 4/4. Create a password reset link
 
 At this point, the local users have been created in Teleport. However, we never
-specified any password or additional authentications factors. You must issue a
+specified any password or additional authentication factors. You must issue a
 password reset link for the users to finish their Teleport registration and be
 able to log in Teleport.
 
 User reset links contain single-use expiring tokens. Because of this, you cannot
-follow the same descriptive approach as for other Teleport resources and
+follow the same declarative approach as for other Teleport resources and
 generate them via a manifest. You need to create those tokens once after the
 user creation, and securely send them to the end-user for them to register their
 password/MFA.
 
-<Tabs>
-<TabItem label="User reset via CLI">
+### Option 1: Reset via CLI
 You can manually reset a user password via `tctl` by doing:
 
 ```code
@@ -436,8 +435,7 @@ https://teleport.example.com:443/web/reset/05b420fdc784597cbbb1d2ba65697cd8
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
 ```
 
-</TabItem>
-<TabItem label="Automating user reset">
+### Option 2: Automating user reset
 
 If you have a way to securely send reset links to the users, you can build
 automation to fit your organization's specific needs. For example:
@@ -476,10 +474,8 @@ resource "teleport_user" "bob" {
 ```
 
 </Admonition>
-</TabItem>
-</Tabs>
 
-## Next Steps
+## Next steps
 
 - Allow users with the `manager` role to grant access to production servers to
   some `engineers` via Access Lists. Manager will need to justify and review
