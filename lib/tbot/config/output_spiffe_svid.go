@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -46,14 +47,28 @@ const (
 	svidTrustBundlePEMPath = "svid_bundle.pem"
 )
 
+type SVIDRequestSANs struct {
+	DNS []string `yaml:"dns,omitempty"`
+	IP  []string `yaml:"ip,omitempty"`
+}
+
+type SVIDRequest struct {
+	Path string          `yaml:"path,omitempty"`
+	Hint string          `yaml:"hint,omitempty"`
+	SANS SVIDRequestSANs `yaml:"sans,omitempty"`
+}
+
 // SPIFFESVIDOutput TODO
 // Emulates the output of https://github.com/spiffe/spiffe-helper
 type SPIFFESVIDOutput struct {
 	// Destination is where the credentials should be written to.
 	Destination bot.Destination `yaml:"destination"`
+	SVID        SVIDRequest     `yaml:"svid"`
 }
 
-func (o *SPIFFESVIDOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
+func (o *SPIFFESVIDOutput) Render(
+	ctx context.Context, p provider, _ *identity.Identity,
+) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"SPIFFESVIDOutput/Render",
@@ -90,11 +105,9 @@ func (o *SPIFFESVIDOutput) Render(ctx context.Context, p provider, ident *identi
 		Svids: []*machineidv1pb.SVIDRequest{
 			{
 				PublicKey:    pubPEM,
-				SpiffeIdPath: "/svc/foo",
-				DnsSans:      []string{"foo.example.com"},
-				IpSans: []string{
-					"10.0.0.1",
-				},
+				SpiffeIdPath: o.SVID.Path,
+				DnsSans:      o.SVID.SANS.DNS,
+				IpSans:       o.SVID.SANS.IP,
 			},
 		},
 	})
@@ -148,6 +161,12 @@ func (o *SPIFFESVIDOutput) GetRoles() []string {
 }
 
 func (o *SPIFFESVIDOutput) CheckAndSetDefaults() error {
+	switch {
+	case o.SVID.Path == "":
+		return trace.BadParameter("svid.path: should not be empty")
+	case !strings.HasPrefix(o.SVID.Path, "/"):
+		return trace.BadParameter("svid.path: should be prefixed with /")
+	}
 	if err := validateOutputDestination(o.Destination); err != nil {
 		return trace.Wrap(err)
 	}
