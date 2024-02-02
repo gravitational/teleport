@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,6 +48,7 @@ type Bot struct {
 	log        logrus.FieldLogger
 	reloadChan chan struct{}
 	modules    modules.Modules
+	resolver   reversetunnelclient.Resolver
 
 	// These are protected by getter/setters with mutex locks
 	mu         sync.Mutex
@@ -341,6 +343,17 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	}
 
 	var authClient auth.ClientI
+
+	b.resolver, err = reversetunnelclient.CachingResolver(
+		ctx,
+		reversetunnelclient.WebClientResolver(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: b.cfg.AuthServer,
+		}),
+		nil /* clock */)
+	if err != nil {
+		return unlock, trace.Wrap(err)
+	}
 
 	fetchNewIdentity := true
 	// First, attempt to load an identity from storage.

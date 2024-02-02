@@ -97,6 +97,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		SSH:         sshConfig,
 		AuthServers: []utils.NetAddr{*authAddr},
 		Log:         b.log,
+		Resolver:    b.resolver,
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)
