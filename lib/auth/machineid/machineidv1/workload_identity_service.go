@@ -99,6 +99,7 @@ func NewWorkloadIdentityService(
 		emitter:    cfg.Emitter,
 		reporter:   cfg.Reporter,
 		clock:      cfg.Clock,
+		keyStorer:  cfg.KeyStore,
 	}, nil
 }
 
@@ -121,11 +122,17 @@ func signx509SVID(
 	notBefore time.Time,
 	notAfter time.Time,
 	ca *tlsca.CertAuthority,
-	publicKey []byte,
+	publicKeyBytes []byte,
 	spiffeID *url.URL,
 	dnsSANs []string,
 	ipSANS []net.IP,
 ) (pemBytes []byte, serialNumber *big.Int, err error) {
+	block, _ := pem.Decode(publicKeyBytes)
+	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "parsing public key pkix")
+	}
+
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err = rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
@@ -163,7 +170,7 @@ func signx509SVID(
 	}
 
 	certBytes, err := x509.CreateCertificate(
-		rand.Reader, template, ca.Cert, publicKey, ca.Signer,
+		rand.Reader, template, ca.Cert, pubKey, ca.Signer,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -201,6 +208,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 			evt.Code = events.SPIFFESVIDIssuedFailureCode
 		}
 		if serialNumber != nil {
+			// TODO: Convert serial number to a lovely hex string
 			evt.SerialNumber = serialNumber.String()
 		}
 		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
@@ -212,9 +220,11 @@ func (wis *WorkloadIdentityService) signX509SVID(
 
 	// Perform authz checks. They must be allowed to issue the SPIFFE ID and
 	// any listed spans.
+	// TODO: IPSANS
+	if err := authCtx.Checker.CheckSPIFFESVID(req.SpiffeIdPath, req.DnsSans, []net.IP{}); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	// TODO: Authn/authz
-	// TODO: Ensure they can issue the IPs, SANs and SPIFFE ID
 	// TODO: Validate req.SpiffeIDPath for any potential weirdness
 
 	spiffeID = &url.URL{
