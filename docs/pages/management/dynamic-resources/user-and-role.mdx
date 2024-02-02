@@ -42,7 +42,7 @@ $ export OPERATOR_NAMESPACE="teleport-iac"
 ```
 
 </TabItem>
-<TabItem label="terraform">
+<TabItem label="Terraform">
 
 A functional Teleport Terraform provider by following [the Terraform provider guide](./terraform-provider.mdx).
 
@@ -98,7 +98,7 @@ spec:
 ```
 
 </TabItem>
-<TabItem label="operator">
+<TabItem label="Kubernetes Operator">
 
 Create the following `roles.yaml` file:
 
@@ -135,7 +135,7 @@ spec:
 </Admonition>
 
 </TabItem>
-<TabItem label="terraform">
+<TabItem label="Terraform">
 
 Create the following `roles.tf` file:
 
@@ -217,7 +217,7 @@ spec:
 ```
 
 </TabItem>
-<TabItem label="operator">
+<TabItem label="Kubernetes Operator">
 
 Create the file `users.yaml` with the following content:
 
@@ -246,7 +246,7 @@ spec:
 </Admonition>
 
 </TabItem>
-<TabItem label="terraform">
+<TabItem label="Terraform">
 
 Create the file `users.tf` with the following content:
 
@@ -306,7 +306,7 @@ with a non-existing role is invalid and might be rejected by Teleport.
 </Admonition>
 
 </TabItem>
-<TabItem label="operator">
+<TabItem label="Kubernetes Operator">
 
 ```code
 $ kubectl apply -n "$OPERATOR_NAMESPACE" -f roles.yaml
@@ -333,7 +333,7 @@ $ kubectl get teleportusers -n "$OPERATOR_NAMESPACE"
 ```
 
 </TabItem>
-<TabItem label="terraform">
+<TabItem label="Terraform">
 
 ```code
 $ terraform plan
@@ -425,7 +425,7 @@ user creation, and securely send them to the end-user for them to register their
 password/MFA.
 
 <Tabs>
-<TabItem label="user reset via CLI">
+<TabItem label="User reset via CLI">
 You can manually reset a user password via `tctl` by doing:
 
 ```code
@@ -437,7 +437,7 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users 
 ```
 
 </TabItem>
-<TabItem label="automating user reset">
+<TabItem label="Automating user reset">
 
 If you have a way to securely send reset links to the users, you can build
 automation to fit your organization's specific needs. For example:
