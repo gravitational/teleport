@@ -3,7 +3,7 @@ authors: Bartosz Leper (bartosz.leper@goteleport.com)
 state: draft
 ---
 
-# RFD 0159 - Password Status
+# RFD 0159 - Improving Password Management UX
 
 ## Required Approvers
 
@@ -37,21 +37,27 @@ Currently, it's impossible to tell whether a user has a password configured. Thi
 
 When the user wants to change their password, we need to first confirm their identity. Currently, we confirm the user's identity both by asking for the previous password, as well as performing a passkey/MFA token confirmation. To support adding a password where no password is configured, we propose to relax the confirmation conditions and allow setting password with _only_ passwordless token if such one has been used for confirming user's identity.
 
-Rationale: as there is no reliable way to verify that the user actually has a password configured, we _have to_ allow setting a password without providing the current password for those whose password status is unknown (unspecified). We could potentially require current password for those users whose password status is _known_ (see [Recognizing Users Who Configured Their Passwords](#recognizing-users-who-configured-their-passwords)). This, however, is not necessary: if a potential attacker is able to prove their identity using a passwordless key (as opposed to an MFA key or an app token), they already are able to sign in and perform _any_ other action, including adding their own passwordless keys, as well as removing existing passwordless keys of the user under attack. 
+Rationale: as there is no reliable way to verify that the user actually has a password configured, we _have to_ allow setting a password without providing the current password for those whose password state is unknown (unspecified). We could potentially require current password for those users whose password state is _known_ (see [Recognizing Users Who Configured Their Passwords](#recognizing-users-who-configured-their-passwords)). This, however, is not necessary: if a potential attacker is able to prove their identity using a passwordless key (as opposed to an MFA key or an app token), they already are able to sign in and perform _any_ other action, including adding their own passwordless keys, as well as removing existing passwordless keys of the user under attack. 
+
+The user will need to pick upfront whether they want to authenticate with a passwordless or an MFA device, even in case of hardware tokens. This is because in order to perform a WebAuthn authentication ceremony, we need to specify upfront whether we require [user verification](https://w3c.github.io/webauthn/#user-verification) or not using the [`PublicKeyCredentialRequestOptions.userVerification`](https://w3c.github.io/webauthn/#dom-publickeycredentialrequestoptions-userverification) field. The client (user agent) is not obliged to return an assertion that contains user verification if we didn't require it, and although the WebAuthn spec says it should do it ["if possible"](https://w3c.github.io/webauthn/#dom-userverificationrequirement-preferred), the exact details of what is considered "possible" are left to interpretation. The key question of whether we are guaranteed to receive user verification if a token capable of user verification has been used is left unanswered. Since user verification is required for changing password without giving the current one, we can't allow the user to perform it if the returned authenticator data contains flags with the [User Verified bit](https://w3c.github.io/webauthn/#authdata-flags-uv) set to 0. Thus, we need to specify user verification requirement when we create the authentication request.
 
 The following diagram sums up the modified process:
 
 ```mermaid
 flowchart TD
-Start([Start]) --> MFAAvail{MFA devices<br>available?}
+Start([Start]) --> MFAAvail{MFA or passkeys<br>available?}
 MFAAvail --> |Yes| ShowMFAOptions[Show available identity<br>confirmation options]
-ShowMFAOptions --> Confirm[Confirm user identity]
-Confirm --> Passwordless{Passwordless<br>key used?}
-Passwordless --> |Yes| NewPass[Ask for new password]
-Passwordless --> |No| OldAndNewPass[Ask for old and new password]
-NewPass --> ChangePass[Change password]
-OldAndNewPass --> ChangePass
-ChangePass --> End
+ShowMFAOptions --> Pick{Which<br>option?}
+Pick --> |Passwordless| WebAuthnVer[WebAuthn authentication,<br>verification required]
+Pick --> |MFA token| WebAuthnNoVer[WebAuthn authentication,<br>verification preferred]
+Pick --> |Authenticator app| AuthApp[Ask for code]
+WebAuthnVer --> NewPass[Ask for new password]
+WebAuthnNoVer --> OldAndNewPass[Ask for old and new password]
+AuthApp --> OldAndNewPass
+NewPass --> ChangePassVer[Change password,<br>require verification]
+OldAndNewPass --> ChangePassNoVer[Change password,<br>don't require verification]
+ChangePassVer --> End
+ChangePassNoVer --> End
 MFAAvail --> |No| MFAReq{MFA required?}
 MFAReq --> |No| OldAndNewPass
 MFAReq --> |Yes| ContactAdmin[Please contact the admin]
@@ -62,7 +68,7 @@ For clarity, error cases (such as password mismatch or inability to confirm user
 
 ### Recognizing Users Who Configured Their Passwords
 
-Ultimately, we would like to have information about password status for as many users as possible, for the following reasons:
+Ultimately, we would like to have information about password state for as many users as possible, for the following reasons:
 
 1. To explicitly tell the user that they have a password configured — for example, on the account settings page.
 2. To support any other future feature that might require knowing this information.
@@ -95,13 +101,23 @@ The state changes to `PASSWORD_STATE_UNSET` whenever another user (or cluster on
 The state changes to `PASSWORD_STATE_SET` whenever user sets/resets their password or successfully signs in using a password. The last scenario, in particular, will allow us to gradually fill in information about existing users that have passwords.
 
 > [!WARNING]
-> The PasswordState flag should _not_ be used for authentication itself. Attempting to shortcut password verification may open a timing attack vulnerability.
+> The `PasswordState` flag should _not_ be used for authentication itself. Attempting to shortcut password verification may open a timing attack vulnerability.
 
 ### Returning Password State to the Account Settings UI
 
 The old account settings page had separate paths for managing passwords and MFA devices, so there is no endpoint that would return information about all authentication methods specifically for this page. There is only an endpoint that returns a list of MFA devices.
 
-Since we already return `authType` in `/v1/webapi/sites/<site>/context`, it makes sense to extend the returned data structure with the `PasswordStatus` flag, thus making it appear in the `UserContext` structure on the frontend.
+Since we already return `authType` in `/v1/webapi/sites/<site>/context`, it makes sense to extend the returned data structure with the `PasswordState` flag, thus making it appear in the `UserContext` structure on the frontend. The flag itself will be fetched from the [`GetUser`](https://github.com/gravitational/teleport/blob/e8b84ae20d1cae273f7f39aa02bdaeb2358cd4e4/api/proto/teleport/users/v1/users_service.proto#L27) RPC call that is already performed by the endpoint. `GetUser` will return the flag in the `GetUserResponse.user.Spec.PasswordState` field.
+
+## Changes to the password reset flow
+
+During password reset (which, incidentally, also happens when we are creating a new account), we are setting user's password to a random, 16-character password. We propose to simply not create a password hash in this scenario at all and delete the existing one if present.
+
+The existing password validation code executed when user signs in is already prepared for a missing hash, although it recognizes it as a "missing user" scenario. The only change required is changing a debug message; the behavior of the algorithm remains the same.
+
+The proposed change is only to clean up our architecture and increase the level of protection of new passwordless accounts; it's better to have them protected by the fact that a password hash doesn't exist rather than by a hash for a random 16-byte password.
+
+Note that the password state flag is still relevant, as it helps us to understand the state of _existing_ password hashes.
 
 ## Alternatives Considered
 
@@ -118,8 +134,4 @@ We could have used a simple optional boolean value for the `LocalAuthSecrets.Pas
 
 ### Returning All Account Settings in One API Call
 
-Since the new account UI presents all information on a single screen, we could create an endpoint that returns both MFA devices and the `PasswordStatus` flag in one response. However, the existing structure of the frontend code (separate hooks for managing MFA devices) makes it not necessarily worth it at the moment. We may consider this if we find ourselves in a need of fetching more data points to the account settings page.
-
-### Refraining from Generating Random Passwords
-
-This strategy may be tempting for simplifying the architecture of storing the password configuration flag; however, it may also create a timing-based side channel for detecting user's authentication methods. It's hard to predict how all supported database backends would react to the fact that the password record is simply missing. Since timing may be out of our control, it's better to avoid this possibility and use the same flow all the time.
+Since the new account UI presents all information on a single screen, we could create an endpoint that returns both MFA devices and the `PasswordState` flag in one response. However, the existing structure of the frontend code (separate hooks for managing MFA devices) makes it not necessarily worth it at the moment. We may consider this if we find ourselves in a need of fetching more data points to the account settings page.
