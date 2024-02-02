@@ -130,11 +130,9 @@ func (o *SPIFFESVIDOutput) Render(
 	trustBundleBytes := &bytes.Buffer{}
 	for _, ca := range spiffeCAs {
 		for _, cert := range services.GetTLSCerts(ca) {
-			if err := pem.Encode(trustBundleBytes, &pem.Block{
-				Type:  "CERTIFICATE",
-				Bytes: cert,
-			}); err != nil {
-				return trace.Wrap(err, "encoding trust bundle")
+			// Values are already PEM encoded, so we just append to the buffer
+			if _, err := trustBundleBytes.Write(cert); err != nil {
+				return trace.Wrap(err, "writing trust bundle to buffer")
 			}
 		}
 	}
