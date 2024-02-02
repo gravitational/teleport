@@ -38,7 +38,7 @@ import useTeleport from 'teleport/useTeleport';
 
 export function Bots() {
   const ctx = useTeleport();
-  const addBotPermissions = ctx.getFeatureFlags().addBots;
+  const hasAddBotPermissions = ctx.getFeatureFlags().addBots;
 
   const [bots, setBots] = useState<FlatBot[]>();
   const [selectedBot, setSelectedBot] = useState<FlatBot>();
@@ -77,7 +77,7 @@ export function Bots() {
         <Box ml="auto">
           <HoverTooltip
             tipContent={
-              addBotPermissions
+              hasAddBotPermissions
                 ? ''
                 : `Insufficient permissions. Reach out to your Teleport administrator
     to request bot creation permissions.`
@@ -88,7 +88,7 @@ export function Bots() {
               width="240px"
               as={Link}
               to={cfg.getBotsNewRoute()}
-              disabled={!addBotPermissions}
+              disabled={!hasAddBotPermissions}
             >
               Enroll New Bot
             </ButtonPrimary>
