@@ -26,7 +26,7 @@ import React, {
 } from 'react';
 
 import { Author, ServerMessage } from 'teleport/Assist/types';
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import { getHostName } from 'teleport/services/api';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import {
@@ -72,7 +72,9 @@ export function TerminalAssistContextProvider(
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
-    let onmessage = (e: MessageEvent) => {
+    socketRef.current = new AuthenticatedWebSocket(socketUrl);
+
+    socketRef.current.onmessage = e => {
       const data = JSON.parse(e.data) as ServerMessage;
       const payload = JSON.parse(data.payload) as {
         action: string;
@@ -93,8 +95,6 @@ export function TerminalAssistContextProvider(
       setLoading(false);
       setMessages(m => [message, ...m]);
     };
-
-    socketRef.current = new AuthenticatedWebSocket(socketUrl, null, onmessage);
   }, []);
 
   function close() {
@@ -120,14 +120,15 @@ export function TerminalAssistContextProvider(
       'ssh-explain'
     );
 
+    const ws = new AuthenticatedWebSocket(socketUrl);
 
-
-    let onopen = () => {
-        ws.send(encodedOutput);
+    ws.onopen = () => {
+      ws.send(encodedOutput);
     };
 
-    let onmessage = (event: MessageEvent) => {
-      const msg = JSON.parse(event.data) as ServerMessage;
+    ws.onmessage = event => {
+      const message = event.data;
+      const msg = JSON.parse(message) as ServerMessage;
 
       const explanation: ExplanationMessage = {
         author: Author.Teleport,
@@ -140,7 +141,6 @@ export function TerminalAssistContextProvider(
 
       ws.close();
     };
-    const ws = new AuthenticatedWebSocket(socketUrl, onopen, onmessage);
   }
 
   function send(message: string) {
