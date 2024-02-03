@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
-	"io"
 	"log/slog"
 
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -15,34 +13,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
-func buildTcpAppHandlers(ctx context.Context, tc *client.TeleportClient) (map[tcpip.Address]tcpHandler, error) {
-	// TODO: dynamically update apps list
-	// TODO: get IPs from labels
-	apps, err := tc.ListApps(ctx, nil /*filters*/)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	handlers := make(map[tcpip.Address]tcpHandler)
-
-	fmt.Println("\nSetting up VNet IPs for all apps:")
-	fmt.Println("IP          	App")
-	var nextIp uint32 = 100<<24 + 64<<16 + 0<<8 + 2
-	for _, app := range apps {
-		addr := tcpip.AddrFrom4([4]byte{byte(nextIp >> 24), byte(nextIp >> 16), byte(nextIp >> 8), byte(nextIp)})
-		appName := app.GetName()
-		appPublicAddr := app.GetPublicAddr()
-		fmt.Printf("%s	%s\n", addr, appName)
-		handlers[addr] = proxyToApp(tc, appName, appPublicAddr)
-		nextIp += 1
-	}
-	return handlers, nil
-}
-
 func proxyToApp(tc *client.TeleportClient, appName, appPublicAddr string) tcpHandler {
-	return func(ctx context.Context, conn io.ReadWriteCloser) error {
+	return func(ctx context.Context, connector tcpConnector) error {
 		cert, err := appCert(ctx, tc, appName, appPublicAddr)
 		if err != nil {
 			return trace.Wrap(err, "getting cert for app %s", appName)
@@ -50,6 +24,10 @@ func proxyToApp(tc *client.TeleportClient, appName, appPublicAddr string) tcpHan
 		appConn, err := dialApp(ctx, tc, cert)
 		if err != nil {
 			return trace.Wrap(err, "dialing app %s", appName)
+		}
+		conn, err := connector()
+		if err != nil {
+			return trace.Wrap(err)
 		}
 		return trace.Wrap(utils.ProxyConn(ctx, conn, appConn))
 	}
