@@ -2146,7 +2146,7 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 	}
 }
 
-// deleteWebSession is called to sign out user
+// deleteWebSession is called to sign out user from web, app and SAML IdP session.
 //
 // DELETE /v1/webapi/sessions/:sid
 //
@@ -2154,7 +2154,16 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 //
 // {"message": "ok"}
 func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	err := h.logout(r.Context(), w, ctx)
+	samlSessionCookie, err := r.Cookie(websession.SAMLSessionCookieName)
+	if err != nil {
+		h.log.Debug("SAML IdP session not found for deletion for user: %s", ctx.GetUser())
+	} else if samlSessionCookie != nil && samlSessionCookie.Value != "" {
+		if ctx.cfg.Session.GetSAMLSession() == nil {
+			ctx.cfg.Session.SetSAMLSession(&types.SAMLSessionData{ID: samlSessionCookie.Value})
+		}
+	}
+
+	err = h.logout(r.Context(), w, ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4062,6 +4071,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	if err != nil {
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
+	// sshah
 	sctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
 		websession.ClearCookie(w, websession.CookieName)
