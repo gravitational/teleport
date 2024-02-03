@@ -8971,11 +8971,12 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 2)
 
-	// create a logged in user for proxy 1.
 	const user = "llama"
+	const samlSessionID = "saml_session_id"
+
+	// create logged in session
 	pack := env.proxies[0].authPack(t, user, nil /* roles */)
 
-	const samlSessionID = "saml_session_id"
 	// manually add SAML IdP session. The actual SAML IdP session and session cookie is set
 	// by the SAML IdP and the code to do that is on teleport.e.
 	_, err := env.proxies[0].client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
@@ -8984,6 +8985,19 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 		SAMLSession: &types.SAMLSessionData{ID: samlSessionID},
 	})
 	require.NoError(t, err)
+	// add SAML session session cookie to authenticated client pack.
+	jar, err := cookiejar.New(nil)
+	setSAMLCookie := &http.Cookie{
+		Name:     websession.SAMLSessionCookieName,
+		Value:    samlSessionID,
+		MaxAge:   int(time.Second) * 5,
+		HttpOnly: true,
+		Secure:   true,
+		Path:     "/",
+	}
+	jar.SetCookies(&env.proxies[0].webURL, append(pack.cookies, setSAMLCookie))
+	pack2 := env.proxies[0].newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
+
 	samlSession, err := env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
 		SessionID: samlSessionID,
 	})
@@ -8993,7 +9007,7 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 
 	// logout from web. The saml session needs to be deleted and the proxy should
 	// respond with SAML session cookie with empty value.
-	resp, err := pack.clt.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
+	resp, err := pack2.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 	require.True(t, hasEmptySAMLSessionCookieValue(resp.Cookies()))
 	_, err = env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
