@@ -550,9 +550,9 @@ $CA_CERT_YAML = $CA_CERT_PEM | ForEach-Object { "         " + $_  } | Out-String
 echo $CA_CERT_YAML
 ```
 
-You can add the certficate to your system's trusted repository
+You can add the certificate to your system's trusted repository
 or place the contents in the `ldap_ca_cert` entry in the configuration
-for the Windows Deskop Service.
+for the Windows Desktop Service.
 
 ## Step 6/7. Configure Teleport
 
