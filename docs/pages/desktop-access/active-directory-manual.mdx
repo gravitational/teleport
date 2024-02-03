@@ -532,20 +532,27 @@ If you are unable to acquire the LDAP CA certificate, you can skip
 TLS verification by setting `insecure_skip_verify: true`. However, you shouldn't
 skip TLS verification in production environments.
 
-To export a CA certificate:
+To export the LDAP CA certificate run these commands in PowerShell:
 
 {/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
 
-1. Click Start, Control Panel, and Administrative Tools to select **Certificate Authority**.
-1. Select your CA computer, right-click, then select **Properties**.
-1. One the General tab, click **View Certificate**.
-1. Select **Details**, then click **Copy to File**.
-1. Click *Next* in the Certificate Export Wizard, and ensure that **DER encoded binary X.509 (.CER)**
-   is selected.
-1. Select a name and location for the certificate and click through the wizard.
-1. Transfer the exported file to the system where you're running Teleport. You
-can either add this certificate to your system's trusted repository or provide
-the file path to the `der_ca_file` configuration variable.
+```powershell
+# Declare temp file paths
+$WindowsDERFile = $env:TEMP + "\windows.der"
+$WindowsPEMFile = $env:TEMP + "\windows.pem"
+# Export the LDAP certificate to a DER encoded binary X.509 file
+certutil "-ca.cert" $WindowsDERFile
+# Convert DER file to a PEM format
+certutil -encode $WindowsDERFile $WindowsPEMFile
+$CA_CERT_PEM = Get-Content -Path $WindowsPEMFile
+$CA_CERT_YAML = $CA_CERT_PEM | ForEach-Object { "         " + $_  } | Out-String
+# Display the LDAP CERT for using in the Teleport configuration file
+echo $CA_CERT_YAML
+```
+
+You can add the certficate to your system's trusted repository
+or place the contents in the `ldap_ca_cert` entry in the configuration
+for the Windows Deskop Service.
 
 ## Step 6/7. Configure Teleport
 
@@ -585,8 +592,8 @@ To configure Teleport to protect access to Windows desktops:
        domain: "$LDAP_DOMAIN_NAME"
        username: "$LDAP_USERNAME"
        sid: "$LDAP_USER_SID"
-       # Path to the certificate you exported.
-       der_ca_file: <Var name="path-to-exported-cert"/>
+       ldap_ca_cert: |
+         $CA_CERT_YAML
      discovery:
        base_dn: "*"
    auth_service:
