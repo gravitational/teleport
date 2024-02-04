@@ -538,16 +538,18 @@ To export the LDAP CA certificate run these commands in PowerShell:
 
 ```powershell
 # Declare temp file paths
-$WindowsDERFile = $env:TEMP + "\windows.der"
-$WindowsPEMFile = $env:TEMP + "\windows.pem"
+$WindowsDERFile = [System.IO.Path]::GetTempFileName() + "windows.der"
+$WindowsPEMFile = [System.IO.Path]::GetTempFileName() + "windows.pem"
 # Export the LDAP certificate to a DER encoded binary X.509 file
 certutil "-ca.cert" $WindowsDERFile
 # Convert DER file to a PEM format
 certutil -encode $WindowsDERFile $WindowsPEMFile
 $CA_CERT_PEM = Get-Content -Path $WindowsPEMFile
-$CA_CERT_YAML = $CA_CERT_PEM | ForEach-Object { "         " + $_  } | Out-String
+# Remove temporary files
+del $WindowsDERFile
+del $WindowsPEMFile
 # Display the LDAP CERT for using in the Teleport configuration file
-echo $CA_CERT_YAML
+echo $CA_CERT_PEM
 ```
 
 You can add the certificate to your system's trusted repository
@@ -593,7 +595,7 @@ To configure Teleport to protect access to Windows desktops:
        username: "$LDAP_USERNAME"
        sid: "$LDAP_USER_SID"
        ldap_ca_cert: |
-         $CA_CERT_YAML
+         $CA_CERT_PEM
      discovery:
        base_dn: "*"
    auth_service:
