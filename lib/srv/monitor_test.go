@@ -20,6 +20,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,6 +39,9 @@ import (
 )
 
 func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.ChannelEmitter, MonitorConfig) {
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+
 	conn := &mockTrackingConn{closedC: make(chan struct{})}
 	emitter := eventstest.NewChannelEmitter(1)
 	cfg := MonitorConfig{
@@ -230,6 +234,29 @@ func TestMonitorStaleLocks(t *testing.T) {
 		t.Fatal("Timeout waiting for connection close.")
 	}
 	require.Equal(t, services.StrictLockingModeAccessDenied.Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
+}
+
+func TestWritesDisconnectMessage(t *testing.T) {
+	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, asrv.Close()) })
+
+	var sw strings.Builder
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	conn, _, _ := newTestMonitor(ctx, t, asrv, func(cfg *MonitorConfig) {
+		cfg.ClientIdleTimeout = 1 * time.Second
+		cfg.Clock = clock
+		cfg.MessageWriter = &sw
+	})
+	clock.BlockUntil(1)
+	clock.Advance(2 * time.Second)
+	<-conn.closedC
+	require.Contains(t, sw.String(), "exceeded idle timeout")
 }
 
 type mockTrackingConn struct {
