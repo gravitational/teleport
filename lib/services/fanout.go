@@ -297,9 +297,11 @@ func (f *Fanout) removeWatcher(w *fanoutWatcher) {
 	for _, kind := range w.watch.Kinds {
 		entries := f.watchers[kind.Kind]
 	Inner:
-		for i, entry := range entries {
-			if entry.watcher == w {
-				entries = append(entries[:i], entries[i+1:]...)
+		for i := 0; i < len(entries); i++ {
+			if entries[i].watcher == w {
+				entries[i] = entries[len(entries)-1]
+				entries = entries[:len(entries)-1]
+
 				f.trySendEvent(FanoutEvent{Kind: EventWatcherRemoved})
 				break Inner
 			}
