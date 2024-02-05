@@ -114,6 +114,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -8988,7 +8989,7 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 	// add SAML session session cookie to authenticated client pack.
 	jar, err := cookiejar.New(nil)
 	setSAMLCookie := &http.Cookie{
-		Name:     websession.SAMLSessionCookieName,
+		Name:     samlidp.SAMLSessionCookieName,
 		Value:    samlSessionID,
 		MaxAge:   int(time.Second) * 5,
 		HttpOnly: true,
@@ -9018,7 +9019,7 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 
 func hasEmptySAMLSessionCookieValue(cookies []*http.Cookie) bool {
 	samlCookie := &http.Cookie{
-		Name:     websession.SAMLSessionCookieName,
+		Name:     samlidp.SAMLSessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
