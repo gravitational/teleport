@@ -3782,6 +3782,18 @@ func (h *Handler) writeErrToWS(ws *websocket.Conn, err error) {
 	}
 }
 
+// authnWsUpgrader is an upgrader that allows any origin to connect to the websocket.
+// This makes our lives easier in our automated tests. While ordinarily this would be
+// used to enforce the same-origin policy, we don't need to worry about that for authenticated
+// websockets, which also require a valid bearer token sent over the websocket after upgrade.
+// Therefore even if an attacker were to connect to the websocket and trick the browser into
+// sending the session cookie, they would still fail to send the bearer token needed to authenticate.
+var authnWsUpgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin:     func(r *http.Request) bool { return true },
+}
+
 // WithClusterAuthWS wraps a ClusterWebsocketHandler to ensure that a request is authenticated
 // to this proxy via websocket if websocketAuth is true, or via query parameter if false (the same as WithAuth), as
 // well as to grab the remoteSite (which can represent this local cluster or a remote trusted cluster)
@@ -3808,12 +3820,7 @@ func (h *Handler) WithClusterAuthWS(websocketAuth bool, fn ClusterWebsocketHandl
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		upgrader := websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-			CheckOrigin:     func(r *http.Request) bool { return true },
-		}
-		ws, err := upgrader.Upgrade(w, r, nil)
+		ws, err := authnWsUpgrader.Upgrade(w, r, nil)
 		if err != nil {
 			const errMsg = "Error upgrading to websocket"
 			h.log.WithError(err).Error(errMsg)
@@ -4272,13 +4279,7 @@ func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin:     func(r *http.Request) bool { return true },
-	}
-
-	ws, err := upgrader.Upgrade(w, r, nil)
+	ws, err := authnWsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return nil, nil, trace.ConnectionProblem(err, "Error upgrading to websocket: %v", err)
 	}
