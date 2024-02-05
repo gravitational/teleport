@@ -32,7 +32,7 @@ authentication:
 
 ```sql
 CREATE USER "teleport-admin" login createrole;
-GRANT rds_iam TO "teleport-admin";
+GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
 ```
 
 Note that the RDS database must have IAM authentication enabled.
@@ -97,11 +97,11 @@ Users created within the database will:
 ### User does not have CONNECT privilege error
 
 You may encounter the following error when the admin user or the roles assigned
-to the auto-provisioned user do not have the permission to connect to the target
+to the auto-provisioned user do not have permission to connect to the target
 database:
 
 ```shell
-> tsh db connect mysql --db-name <database> example
+$ tsh db connect --db-name <database> example
 ...
 FATAL: permission denied for database "<database>"
 DETAIL: User does not have CONNECT privilege.
@@ -118,21 +118,21 @@ GRANT CONNECT ON DATABASE <database> to "reader";
 You may encounter the following error when connecting to an AWS RDS Aurora
 reader endpoint:
 ```shell
-> tsh db connect mysql --db-name <database> example
+$ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
 ERROR: cannot execute CREATE ROLE in a read-only transaction (SQLSTATE 25006)
 ```
 
-Database auto-user provisioning is curerntly not compatible with RDS Aurora
-reader endpoints. Please use auto-user provisioning on the primary endpoints.
+Database auto-user provisioning is not compatible with RDS Aurora reader
+endpoints. Please use auto-user provisioning on the primary endpoints.
 
 ### No schema has been selected error
 
-You may encounter the following error when connecting when the admin user does not have `USAGE`
-permission on the schema:
+You may encounter the following error when connecting if the admin user does
+not have `USAGE` permission on the schema:
 ```shell
-> tsh db connect mysql --db-name <database> example
+$ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
 ERROR: no schema has been selected to create in (SQLSTATE 3F000)
@@ -149,17 +149,17 @@ GRANT CREATE ON SCHEMA public TO "teleport-admin";
 
 You may encounter the following error when connecting to an RDS database:
 ```shell
-> tsh db connect mysql --db-name <database> example
+$ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
 ERROR: permission denied to grant role "rds_iam" (SQLSTATE 42501)
 ```
 
-This happens when the admin user does not have enough permission to grant the
-role to the auto-provisioned the user. To fix this, grant the `ADMIN` option to
-the admin user:
+This happens when the admin user does not have permission to grant the
+"rds_iam" role to other users. To fix this, grant the "rds_iam" role with the
+`ADMIN` option to the admin user:
 ```sql
-GRANT rds_iam TO "teleport-admin" WITH ADMIN TRUE;
+GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
 ```
 
 ### Use your mapped remote username error

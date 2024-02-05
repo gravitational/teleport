@@ -113,7 +113,7 @@ granted through database-specific roles, such as `reader`.
 Otherwise you may see errors like the following:
 
 ```shell
-> tsh db connect mysql --db-name <database> example
+$ tsh db connect --db-name <database> example
 ERROR 1105 (HY000): ERROR 1044 (42000): Access denied for user '<your-teleport-username>'@'%' to database '<database>'
 ```
 
@@ -122,12 +122,12 @@ ERROR 1105 (HY000): ERROR 1044 (42000): Access denied for user '<your-teleport-u
 You may encounter the following error when connecting to an AWS RDS Aurora
 reader endpoint:
 ```shell
-> tsh db connect mysql --db-name <database> example
+$ tsh db connect --db-name <database> example
 ERROR 3501 (HY000): The ACL operation failed due to the following error from SE: errcode 165 - Table is read only
 ```
 
-Database auto-user provisioning is curerntly not compatible with RDS Aurora
-reader endpoints. Please use auto-user provisioning on the primary endpoints.
+Database auto-user provisioning is not compatible with RDS Aurora reader
+endpoints. Please use auto-user provisioning on the primary endpoints.
 
 ### Use your mapped remote username error
 
