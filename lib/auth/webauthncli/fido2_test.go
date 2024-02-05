@@ -18,6 +18,7 @@
 package webauthncli_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
@@ -1010,6 +1011,124 @@ func TestFIDO2Login_u2fDevice(t *testing.T) {
 	dev.setUP() // simulate touch
 	_, _, err = wancli.FIDO2Login(ctx, origin, assertion, dev /* prompt */, nil /* opts */)
 	assert.NoError(t, err, "FIDO2Login errored")
+}
+
+// TestFIDO2Login_u2fDeviceNotRegistered tests assertions with a non-registered
+// U2F device plugged.
+//
+// U2F devices error immediately when not registered, which makes their behavior
+// distinct from FIDO2 and requires additional logic to be correctly handled.
+//
+// This test captures an U2F assertion regression.
+func TestFIDO2Login_u2fDeviceNotRegistered(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	u2fDev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
+	u2fDev.u2fOnly = true
+
+	registeredDev := mustNewFIDO2Device("/dev2", "" /* pin */, &libfido2.DeviceInfo{
+		Options: bioOpts,
+	})
+
+	f2 := newFakeFIDO2(u2fDev, registeredDev)
+	f2.setCallbacks()
+
+	const rpID = "example.com"
+	const origin = "https://example.com"
+
+	// Set a ctx timeout in case something goes wrong.
+	// Under normal circumstances the test gets nowhere near this timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Register our "registeredDev".
+	cc := &wantypes.CredentialCreation{
+		Response: wantypes.PublicKeyCredentialCreationOptions{
+			Challenge: []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingParty: wantypes.RelyingPartyEntity{
+				ID: rpID,
+				CredentialEntity: wantypes.CredentialEntity{
+					Name: "rp name",
+				},
+			},
+			Parameters: []wantypes.CredentialParameter{
+				{
+					Type:      protocol.PublicKeyCredentialType,
+					Algorithm: webauthncose.AlgES256,
+				},
+			},
+			User: wantypes.UserEntity{
+				ID: []byte{1, 2, 3, 4, 1}, // arbitrary,
+				CredentialEntity: wantypes.CredentialEntity{
+					Name: "user name",
+				},
+				DisplayName: "user display name",
+			},
+			AuthenticatorSelection: wantypes.AuthenticatorSelection{
+				UserVerification: protocol.VerificationDiscouraged,
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+	registeredDev.setUP() // simulate touch
+	ccr, err := wancli.FIDO2Register(ctx, origin, cc, registeredDev /* prompt */)
+	require.NoError(t, err, "FIDO2Register errored")
+
+	assertion := &wantypes.CredentialAssertion{
+		Response: wantypes.PublicKeyCredentialRequestOptions{
+			Challenge:      []byte{1, 2, 3, 4, 5}, // arbitrary
+			RelyingPartyID: rpID,
+			AllowedCredentials: []wantypes.CredentialDescriptor{
+				{
+					Type:         protocol.PublicKeyCredentialType,
+					CredentialID: ccr.GetWebauthn().GetRawId(),
+				},
+			},
+			UserVerification: protocol.VerificationDiscouraged,
+		},
+	}
+
+	tests := []struct {
+		name    string
+		prompt  wancli.LoginPrompt
+		timeout time.Duration
+		wantErr error
+	}{
+		{
+			name:   "registered device touched",
+			prompt: &delayedPrompt{registeredDev}, // Give the U2F device time to fail.
+		},
+		{
+			name:    "no devices touched",
+			prompt:  noopPrompt{}, // `registered` not touched, U2F won't blink.
+			timeout: 10 * time.Millisecond,
+			wantErr: context.DeadlineExceeded,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Apply custom timeout.
+			ctx := ctx
+			if test.timeout > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(context.Background(), test.timeout)
+				defer cancel()
+			}
+
+			_, _, err := wancli.FIDO2Login(ctx, origin, assertion, test.prompt, nil /* opts */)
+			assert.ErrorIs(t, err, test.wantErr, "FIDO2Login error mismatch")
+		})
+	}
+}
+
+type delayedPrompt struct {
+	wancli.LoginPrompt
+}
+
+func (p *delayedPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
+	const delay = 100 * time.Millisecond
+	time.Sleep(delay)
+	return p.LoginPrompt.PromptTouch()
 }
 
 func TestFIDO2Login_bioErrorHandling(t *testing.T) {
@@ -2197,6 +2316,24 @@ func (f *fakeFIDO2Device) Assertion(
 			return nil, err
 		}
 		privilegedAccess = true
+	}
+
+	// U2F only: exit without user interaction if there are no credentials.
+	if f.u2fOnly {
+		found := false
+		for _, cid := range credentialIDs {
+			if bytes.Equal(cid, f.key.KeyHandle) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, libfido2.ErrNoCredentials
+		}
+
+		// TODO(codingllama): Verify f.wantRPID in here as well?
+		//  We don't exercise this particular scenario presently, so it's not coded
+		//  either.
 	}
 
 	// Block for user presence before accessing any credential data.
