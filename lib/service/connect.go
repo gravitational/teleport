@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
@@ -1122,7 +1121,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 		logger.Debug("Attempting to discover reverse tunnel address.")
 		logger.Debug("Attempting to connect to Auth Server through tunnel.")
 
-		tunnelClient, err := process.newClientThroughTunnel(authServers[0].String(), tlsConfig, sshClientConfig)
+		tunnelClient, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig)
 		if err != nil {
 			process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 			process.log.Errorf("- connecting to auth server directly: %v", directErr)
@@ -1148,7 +1147,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 			logger := process.log.WithField("proxy-server", proxyServer.String())
 			logger.Debug("Attempting to connect to Auth Server through tunnel.")
 
-			tunnelClient, err := process.newClientThroughTunnel(proxyServer.String(), tlsConfig, sshClientConfig)
+			tunnelClient, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig)
 			if err != nil {
 				return nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
 			}
@@ -1167,21 +1166,9 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	return nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(addr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
-	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
-		Context:   process.ExitContext(),
-		ProxyAddr: addr,
-		Insecure:  lib.IsInsecureDevMode(),
-		Timeout:   process.Config.Testing.ClientTimeout,
-	})
-
-	resolver, err := reversetunnelclient.CachingResolver(process.ExitContext(), resolver, process.Clock)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
-		Resolver:              resolver,
+		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
 		Log:                   process.log,
 		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),

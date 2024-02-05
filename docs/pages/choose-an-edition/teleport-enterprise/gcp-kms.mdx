@@ -20,13 +20,10 @@ In short, private key material will never leave Google Cloud KMS.
 
 If launching a new Teleport cluster this will all be handled during initial
 startup with no specific interventions required after configuration.
-For existing Teleport clusters that already have private key material on disk,
-a CA rotation must be performed. This ensures that the private key material
-only ever exists in KMS when this feature is enabled.
+For existing Teleport clusters that already have already generated software
+private keys, a CA rotation must be performed.
 Read on to [migrating an existing cluster](#migrating-an-existing-cluster) to
 learn more.
-
-(!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
 
@@ -244,6 +241,10 @@ them trusted by the rest of the cluster, you will need to rotate all of your
 Teleport CAs.
 
 `teleport start` will print a warning during startup if any CA needs to be rotated.
+Any users allowed the `update` verb for `cert_authority` resources in any of
+their Teleport roles will also see a cluster alert reminding them to rotate the
+CAs.
+
 CA rotation can be performed manually or semi-automatically, see our admin guide
 on [Certificate rotation](../../management/operations/ca-rotation.mdx).
 All CAs listed in the output of `tctl status` must be rotated.

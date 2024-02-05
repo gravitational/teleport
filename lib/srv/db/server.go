@@ -21,6 +21,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -893,16 +894,16 @@ func (s *Server) close(ctx context.Context) error {
 
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
-	var errors []error
+	var errs []error
 	for _, ctx := range []context.Context{s.closeContext, s.connContext} {
 		<-ctx.Done()
 
-		if err := ctx.Err(); err != nil && err != context.Canceled {
-			errors = append(errors, err)
+		if err := ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
+			errs = append(errs, err)
 		}
 	}
 
-	return trace.NewAggregate(errors...)
+	return trace.NewAggregate(errs...)
 }
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.

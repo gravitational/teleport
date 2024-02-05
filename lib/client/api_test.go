@@ -879,16 +879,15 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 				require.NoError(t, err)
 				return
 			}
-			traceErr, isTraceErr := err.(*trace.TraceErr)
-
-			if isTraceErr {
+			var traceErr *trace.TraceErr
+			if errors.As(err, &traceErr) {
 				require.EqualError(t, traceErr.OrigError(), tt.wantError)
 			} else {
 				require.EqualError(t, err, tt.wantError)
 			}
 
 			if tt.wantUserMessage != "" {
-				require.True(t, isTraceErr)
+				require.NotNil(t, traceErr)
 				require.Contains(t, traceErr.Messages, tt.wantUserMessage)
 			}
 		})
