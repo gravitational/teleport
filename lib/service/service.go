@@ -46,6 +46,7 @@ import (
 	"time"
 
 	awscredentials "github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -389,10 +390,9 @@ type TeleportProcess struct {
 	// closed all the listeners)
 	listenersClosed bool
 
-	// forkedPIDs is a collection of a teleport processes forked
-	// during restart used to collect their status in case if the
-	// child process crashed.
-	forkedPIDs []int
+	// forkedTeleportCount is the count of forked Teleport child processes
+	// currently active, as spawned by SIGHUP or SIGUSR2.
+	forkedTeleportCount atomic.Int32
 
 	// storage is a server local storage
 	storage *auth.ProcessStorage
@@ -738,6 +738,9 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 	}
 	newCfg := cfg
 	newCfg.FileDescriptors = fileDescriptors
+	// our PID hasn't changed as we reload in-process, and if we're no longer
+	// the "main" Teleport process we don't want to overwrite the PID file
+	newCfg.PIDFile = ""
 	newSrv, err := newTeleport(&newCfg)
 	if err != nil {
 		warnOnErr(srv.Close(), cfg.Log)
@@ -1252,13 +1255,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
-		if err != nil {
+		if err := renameio.WriteFile(cfg.PIDFile, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
 			return nil, trace.ConvertSystemError(err)
-		}
-		_, err = fmt.Fprintf(f, "%v", os.Getpid())
-		if err = trace.NewAggregate(err, f.Close()); err != nil {
-			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -5528,7 +5526,7 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	warnOnErr(process.stopListeners(), process.log)
 
 	// populate context values
-	if len(process.getForkedPIDs()) > 0 {
+	if process.forkedTeleportCount.Load() > 0 {
 		ctx = services.ProcessForkedContext(ctx)
 	}
 
