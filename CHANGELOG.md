@@ -6,6 +6,7 @@
 * Fixed memory leak in tbot caused by never closing reverse tunnel address resolvers. [#37718](https://github.com/gravitational/teleport/pull/37718)
 * Fixed conditional user modifications (used by certain Teleport subsystems such as Device Trust) on users that have previously been locked out due to repeated recovery attempts. [#37703](https://github.com/gravitational/teleport/pull/37703)
 * Added okta integration SCIM support for web UI. [#37697](https://github.com/gravitational/teleport/pull/37697)
+* Added SCIM support in Okta integration (cloud only). [#3341](https://github.com/gravitational/teleport.e/pull/3341)
 * Fixed usage data submission becoming stuck sending too many reports at once (Teleport Enterprise only). [#37687](https://github.com/gravitational/teleport/pull/37687)
 * Fixed cache init issue with access list members/reviews. [#37673](https://github.com/gravitational/teleport/pull/37673)
 * Fixed "failed to close stream" log messages. [#37662](https://github.com/gravitational/teleport/pull/37662)
