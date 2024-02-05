@@ -33,7 +33,7 @@ jobs:
   check-devbox:
     name: Check Devbox
     needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
+    if: ${{ needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-latest
 
     permissions:
