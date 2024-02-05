@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/permissions"
 )
 
 func (e *Engine) connectAsAdmin(ctx context.Context, sessionCtx *common.Session) (*pgx.Conn, error) {
@@ -75,8 +76,126 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		e.Log.Debugf("Call teleport_activate_user failed: %v", err)
 		return trace.Wrap(convertActivateError(sessionCtx, err))
 	}
-	return nil
 
+	if err != nil {
+		if strings.Contains(err.Error(), "already exists") {
+			return trace.AlreadyExists("user %q already exists in this PostgreSQL database and is not managed by Teleport", sessionCtx.DatabaseUser)
+		}
+		return trace.Wrap(err)
+	}
+
+	err = e.applyPermissions(ctx, sessionCtx, conn)
+	if err != nil {
+		e.Log.WithError(err).Warn("Failed to apply permissions.")
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+type TablePermission struct {
+	Privilege string `json:"privilege"`
+	Schema    string `json:"schema"`
+	Table     string `json:"table"`
+}
+
+type Permissions struct {
+	Tables []TablePermission `json:"tables"`
+}
+
+var pgPerms = map[string]struct{}{
+	"SELECT":     {},
+	"INSERT":     {},
+	"UPDATE":     {},
+	"DELETE":     {},
+	"TRUNCATE":   {},
+	"REFERENCES": {},
+}
+
+func checkPgPermission(objKind, perm string) error {
+	// for now, only tables are supported. ignore other kinds of objects.
+	if objKind != permissions.ObjectKindTable {
+		return nil
+	}
+
+	normalized := strings.ToUpper(strings.TrimSpace(perm))
+	_, found := pgPerms[normalized]
+	if !found {
+		return trace.BadParameter("unrecognized %q Postgres permission: %q", objKind, perm)
+	}
+	return nil
+}
+
+// convertPermissions converts the permissions into a stable format expected by the stored procedure. It also filters out any unsupported objects.
+func convertPermissions(perms permissions.PermissionSet) (*Permissions, error) {
+	var out Permissions
+	var errors []error
+	for permission, objects := range perms {
+		for _, obj := range objects {
+			if err := checkPgPermission(obj.GetSpec().ObjectKind, permission); err != nil {
+				errors = append(errors, err)
+				continue
+			}
+			if obj.GetSpec().ObjectKind == permissions.ObjectKindTable {
+				out.Tables = append(out.Tables, TablePermission{
+					Privilege: permission,
+					Schema:    obj.GetSpec().Schema,
+					Table:     obj.GetSpec().Name,
+				})
+			}
+		}
+	}
+	if len(errors) > 0 {
+		return nil, trace.NewAggregate(errors...)
+	}
+	return &out, nil
+}
+
+func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Session, conn *pgx.Conn) error {
+	allow, _ := sessionCtx.Checker.GetDatabasePermissions()
+	if len(allow) == 0 {
+		e.Log.Infof("Skipping applying fine-grained permissions: none to apply.")
+		return nil
+	}
+
+	if len(sessionCtx.DatabaseRoles) > 0 {
+		e.Log.Errorf("Cannot apply fine-grained permissions: non-empty list of database roles (%v).", sessionCtx.DatabaseRoles)
+		return trace.BadParameter("fine-grained database permissions and database roles are mutually exclusive, yet both were provided.")
+	}
+
+	rules, err := e.AuthClient.GetDatabaseObjectsImportRules(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	objsFetched, err := fetchDatabaseObjects(ctx, sessionCtx, conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	counts, _ := permissions.CountObjectKinds(objsFetched)
+	e.Log.Infof("Fetched %v objects from the database (%v).", len(objsFetched), counts)
+
+	objsTagged := permissions.ApplyDatabaseObjectImportRules(rules, sessionCtx.Database, objsFetched)
+	counts, _ = permissions.CountObjectKinds(objsTagged)
+	e.Log.Infof("Tagged %v database objects (%v).", len(objsTagged), counts)
+
+	permissionSet, err := permissions.CalculatePermissions(sessionCtx.Checker, objsTagged)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	summary, eventData := permissions.SummarizePermissions(permissionSet)
+	e.Log.Infof("Calculated database permissions for user %q: %v.", sessionCtx.DatabaseUser, summary)
+	e.auditUserPermissions(sessionCtx, eventData)
+
+	perms, err := convertPermissions(permissionSet)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = conn.Exec(ctx, updatePermissionsQuery, sessionCtx.DatabaseUser, perms)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // DeactivateUser disables the database user.
@@ -247,10 +366,15 @@ const (
 	// deactivateProcName is the name of the stored procedure Teleport will use
 	// to automatically deactivate database users after session ends.
 	deactivateProcName = "teleport_deactivate_user"
+	// updatePermissionsProcName is the name of the stored procedure Teleport will use
+	// to automatically update database permissions.
+	updatePermissionsProcName = "teleport_update_permissions"
+	// removePermissionsProcName is the name of the stored procedure Teleport will use
+	// to automatically remove all database permissions.
+	removePermissionsProcName = "teleport_remove_permissions"
 	// deleteProcName is the name of the stored procedure Teleport will use to
 	// automatically delete database users after session ends.
 	deleteProcName = "teleport_delete_user"
-
 	// teleportAutoUserRole is the name of a PostgreSQL role that all Teleport
 	// managed users will be a part of.
 	teleportAutoUserRole = "teleport-auto-user"
@@ -261,6 +385,14 @@ var (
 	activateProc string
 	// activateQuery is the query for calling user activation procedure.
 	activateQuery = fmt.Sprintf(`call %v($1, $2)`, activateProcName)
+
+	//go:embed sql/update-permissions.sql
+	updatePermissionsProc string
+	// updatePermissionsQuery is the query for calling update permissions procedure.
+	updatePermissionsQuery = fmt.Sprintf(`call %v($1, $2::jsonb)`, updatePermissionsProcName)
+
+	//go:embed sql/remove-permissions.sql
+	removePermissionsProc string
 
 	//go:embed sql/deactivate-user.sql
 	deactivateProc string
@@ -280,10 +412,13 @@ var (
 	redshiftDeleteProc string
 
 	procs = map[string]string{
-		activateProcName:   activateProc,
-		deactivateProcName: deactivateProc,
-		deleteProcName:     deleteProc,
+		activateProcName:          activateProc,
+		deactivateProcName:        deactivateProc,
+		updatePermissionsProcName: updatePermissionsProc,
+		removePermissionsProcName: removePermissionsProc,
+		deleteProcName:            deleteProc,
 	}
+
 	redshiftProcs = map[string]string{
 		activateProcName:   redshiftActivateProc,
 		deactivateProcName: redshiftDeactivateProc,

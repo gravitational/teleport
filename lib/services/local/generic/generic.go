@@ -37,12 +37,6 @@ type Resource interface {
 	GetName() string
 }
 
-// MarshalFunc is a type signature for a marshaling function.
-type MarshalFunc[T Resource] func(T, ...services.MarshalOption) ([]byte, error)
-
-// UnmarshalFunc is a type signature for an unmarshalling function.
-type UnmarshalFunc[T Resource] func([]byte, ...services.MarshalOption) (T, error)
-
 // ServiceConfig is the configuration for the service configuration.
 type ServiceConfig[T Resource] struct {
 	Backend       backend.Backend
@@ -52,6 +46,8 @@ type ServiceConfig[T Resource] struct {
 	MarshalFunc   MarshalFunc[T]
 	UnmarshalFunc UnmarshalFunc[T]
 }
+
+var _ ServiceCommon[types.User] = (*Service[types.User])(nil)
 
 func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 	if c.Backend == nil {
@@ -106,7 +102,7 @@ func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 }
 
 // WithPrefix will return a service with the given parts appended to the backend prefix.
-func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
+func (s *Service[T]) withPrefix(parts ...string) *Service[T] {
 	if len(parts) == 0 {
 		return s
 	}
@@ -119,6 +115,11 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 		marshalFunc:   s.marshalFunc,
 		unmarshalFunc: s.unmarshalFunc,
 	}
+}
+
+// WithPrefix will return a service with the given parts appended to the backend prefix.
+func (s *Service[T]) WithPrefix(parts ...string) ServiceCommon[T] {
+	return s.withPrefix(parts...)
 }
 
 // GetResources returns a list of all resources.
@@ -194,7 +195,7 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 
 // GetResource returns the specified resource.
 func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, err error) {
-	item, err := s.backend.Get(ctx, s.MakeKey(name))
+	item, err := s.backend.Get(ctx, s.makeKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return resource, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -213,7 +214,6 @@ func (s *Service[T]) CreateResource(ctx context.Context, resource T) (T, error) 
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
-
 	lease, err := s.backend.Create(ctx, item)
 	if trace.IsAlreadyExists(err) {
 		return t, trace.AlreadyExists("%s %q already exists", s.resourceKind, resource.GetName())
@@ -259,7 +259,7 @@ func (s *Service[T]) UpsertResource(ctx context.Context, resource T) (T, error) 
 
 // DeleteResource removes the specified resource.
 func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
-	err := s.backend.Delete(ctx, s.MakeKey(name))
+	err := s.backend.Delete(ctx, s.makeKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -278,7 +278,7 @@ func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
 // UpdateAndSwapResource will get the resource from the backend, modify it, and swap the new value into the backend.
 func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, modify func(T) error) (T, error) {
 	var t T
-	existingItem, err := s.backend.Get(ctx, s.MakeKey(name))
+	existingItem, err := s.backend.Get(ctx, s.makeKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -317,25 +317,35 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 		return backend.Item{}, trace.Wrap(err)
 	}
 
-	rev := types.GetRevision(resource)
+	rev, err := types.GetRevision(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
 	value, err := s.marshalFunc(resource)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
+
 	item := backend.Item{
-		Key:     s.MakeKey(name),
-		Value:   value,
-		Expires: types.GetExpiry(resource),
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		ID:       types.GetResourceID(resource),
+		Key:      s.makeKey(name),
+		Value:    value,
 		Revision: rev,
+	}
+	item.Expires, err = types.GetExpiry(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+	//nolint:staticcheck // SA1019. Added for backward compatibility.
+	item.ID, err = types.GetResourceID(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
 	}
 
 	return item, nil
 }
 
-// MakeKey will make a key for the service given a name.
-func (s *Service[T]) MakeKey(name string) []byte {
+// makeKey will make a key for the service given a name.
+func (s *Service[T]) makeKey(name string) []byte {
 	return backend.Key(s.backendPrefix, name)
 }
 

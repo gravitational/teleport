@@ -672,7 +672,6 @@ func FriendlyName(resource ResourceWithLabels) string {
 	if hn, ok := resource.(interface{ GetHostname() string }); ok {
 		return hn.GetHostname()
 	}
-
 	return ""
 }
 
@@ -680,77 +679,82 @@ func FriendlyName(resource ResourceWithLabels) string {
 // If the label is missing, an empty string is returned.
 //
 // Works for both [ResourceWithOrigin] and [ResourceMetadata] instances.
-func GetOrigin(v any) string {
+func GetOrigin(v any) (string, error) {
 	switch r := v.(type) {
 	case ResourceWithOrigin:
-		return r.Origin()
+		return r.Origin(), nil
 	case ResourceMetadata:
 		meta := r.GetMetadata()
 		if meta.Labels == nil {
-			return ""
+			return "", nil
 		}
-		return meta.Labels[OriginLabel]
+		return meta.Labels[OriginLabel], nil
 	}
-
-	return ""
+	return "", trace.BadParameter("type %T is neither Resource nor ResourceMetadata", v)
 }
 
 // GetKind returns the kind, if one can be obtained, otherwise
 // an empty string is returned.
 //
 // Works for both [Resource] and [ResourceMetadata] instances.
-func GetKind(v any) string {
+func GetKind(v any) (string, error) {
 	type kinder interface {
 		GetKind() string
 	}
-
 	if k, ok := v.(kinder); ok {
-		return k.GetKind()
+		return k.GetKind(), nil
 	}
-
-	return ""
+	return "", trace.BadParameter("type %T is neither Resource nor ResourceMetadata", v)
 }
 
 // GetRevision returns the revision, if one can be obtained, otherwise
 // an empty string is returned.
 //
 // Works for both [Resource] and [ResourceMetadata] instances.
-func GetRevision(v any) string {
+func GetRevision(v any) (string, error) {
 	switch r := v.(type) {
 	case Resource:
-		return r.GetRevision()
+		return r.GetRevision(), nil
 	case ResourceMetadata:
-		return r.GetMetadata().Revision
+		return r.GetMetadata().Revision, nil
 	}
-
-	return ""
+	return "", trace.BadParameter("type %T is neither Resource nor ResourceMetadata", v)
 }
 
 // SetRevision updates the revision if v supports the concept of revisions.
 //
 // Works for both [Resource] and [ResourceMetadata] instances.
-func SetRevision(v any, revision string) {
+func SetRevision(v any, revision string) error {
 	switch r := v.(type) {
 	case Resource:
 		r.SetRevision(revision)
 	case ResourceMetadata:
 		r.GetMetadata().Revision = revision
+	default:
+		return trace.BadParameter("type %T is neither Resource nor ResourceMetadata", v)
 	}
+	return nil
 }
 
 // GetExpiry returns the expiration, if one can be obtained, otherwise returns
 // an empty time.
 //
 // Works for both [Resource] and [ResourceMetadata] instances.
-func GetExpiry(v any) time.Time {
+func GetExpiry(v any) (time.Time, error) {
 	switch r := v.(type) {
 	case Resource:
-		return r.Expiry()
+		return r.Expiry(), nil
 	case ResourceMetadata:
-		return r.GetMetadata().Expires.AsTime()
+		// Resource 153 uses *timestamppb.Timestamp instead of time.Time. The zero value for this type is 01/01/1970.
+		// This is a problem for resources without explicit expiry set: they'd become obsolete on creation.
+		// For this reason, we check for nil expiry explicitly.
+		exp := r.GetMetadata().GetExpires()
+		if exp == nil {
+			return time.Time{}, nil
+		}
+		return exp.AsTime(), nil
 	}
-
-	return time.Time{}
+	return time.Time{}, trace.BadParameter("type %T is neither Resource nor ResourceMetadata", v)
 }
 
 // GetResourceID returns the id, if one can be obtained, otherwise returns
@@ -759,15 +763,14 @@ func GetExpiry(v any) time.Time {
 // Works for both [Resource] and [ResourceMetadata] instances.
 //
 // Deprecated: GetRevision should be used instead.
-func GetResourceID(v any) int64 {
+func GetResourceID(v any) (int64, error) {
 	switch r := v.(type) {
 	case Resource:
 		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		return r.GetResourceID()
+		return r.GetResourceID(), nil
 	case ResourceMetadata:
 		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		return r.GetMetadata().Id
+		return r.GetMetadata().Id, nil
 	}
-
-	return 0
+	return 0, trace.BadParameter("type %T is neither Resource nor ResourceMetadata", v)
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
@@ -246,6 +248,9 @@ type InitConfig struct {
 
 	// AccessLists is a service that manages access list resources.
 	AccessLists services.AccessLists
+
+	// DatabaseObjectImportRule is a service that manages database object import rules.
+	DatabaseObjectImportRule services.DatabaseObjectImportRule
 
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
@@ -1459,6 +1464,8 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
 			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
+		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:
+			err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

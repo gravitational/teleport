@@ -52,7 +52,10 @@ func newTestResource(name string) *testResource {
 		},
 	}
 
-	tr.CheckAndSetDefaults()
+	err := tr.CheckAndSetDefaults()
+	if err != nil {
+		panic(err)
+	}
 	return tr
 }
 
@@ -253,7 +256,7 @@ func TestGenericCRUD(t *testing.T) {
 
 	// Test running while locked.
 	err = service.RunWhileLocked(ctx, "test-lock", time.Second*5, func(ctx context.Context, backend backend.Backend) error {
-		item, err := backend.Get(ctx, service.MakeKey(r1.GetName()))
+		item, err := backend.Get(ctx, service.makeKey(r1.GetName()))
 		require.NoError(t, err)
 
 		r, err = unmarshalResource(item.Value, services.WithRevision(item.Revision))

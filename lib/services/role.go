@@ -484,6 +484,8 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
 		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
 
+		// todo: apply traits to database permissions?
+
 		for _, kind := range []string{
 			types.KindRemoteCluster,
 			types.KindNode,

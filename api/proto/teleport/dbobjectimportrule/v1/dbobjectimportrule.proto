@@ -1,0 +1,82 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.dbobjectimportrule.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1;dbobjectimportrulev1";
+
+// DatabaseObjectImportRule is the resource representing a global database object import rule.
+message DatabaseObjectImportRule {
+  // The kind of resource represented.
+  string kind = 1;
+  // Differentiates variations of the same kind. All resources should
+  // contain one, even if it is never populated.
+  string sub_kind = 2;
+  // The version of the resource being represented.
+  string version = 3;
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // spec represents the specifications for the database object import rule.
+  DatabaseObjectImportRuleSpec spec = 5;
+}
+
+// DatabaseObjectImportRuleSpec is the spec for database object import rule.
+message DatabaseObjectImportRuleSpec {
+  // priority represents the priority of the rule application. Rules with higher priorities override those with lower.
+  int32 priority = 1;
+
+  // db_labels is a set of labels matched against database labels.
+  map<string, string> db_labels = 2;
+
+  // Mappings is a list of matches that will map match conditions to labels.
+  repeated DatabaseObjectImportRuleMapping mappings = 4;
+}
+
+// DatabaseObjectImportRuleMapping is the mapping between object properties and labels that will be added to the object.
+message DatabaseObjectImportRuleMapping {
+  // Match specifies the matching rules.
+  DatabaseObjectImportMatch match = 1;
+
+  // Scope specifies the object scope.
+  DatabaseObjectImportScope scope = 2;
+
+  // AddLabels specifies which labels to add if the match succeeds.
+  map<string, string> add_labels = 3;
+}
+
+// DatabaseObjectImportMatch specifies the matching rules.
+message DatabaseObjectImportMatch {
+  // table_names specify the names of the tables to match.
+  repeated string table_names = 1;
+
+  // view_names specify the names of the views to match.
+  repeated string view_names = 2;
+
+  // procedure_names specify the names of the procedures to match.
+  repeated string procedure_names = 3;
+}
+
+// DatabaseObjectImportScope specifies the object scope.
+message DatabaseObjectImportScope {
+  // database_names specify the names of the databases to include in the scope.
+  repeated string database_names = 1;
+
+  // schema_names specify the names of the schemas to include in the scope.
+  repeated string schema_names = 2;
+}

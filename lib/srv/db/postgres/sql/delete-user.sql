@@ -9,6 +9,7 @@ BEGIN
         RAISE NOTICE 'User has active connections';
     ELSE
         BEGIN
+            CALL teleport_remove_permissions(username);
             EXECUTE FORMAT('DROP USER %I', username);
         EXCEPTION
             WHEN SQLSTATE '2BP01' THEN

@@ -67,6 +67,7 @@ export const eventCodes = {
   DATABASE_SESSION_STARTED_FAILURE: 'TDB00W',
   DATABASE_SESSION_STARTED: 'TDB00I',
   DATABASE_SESSION_MALFORMED_PACKET: 'TDB06I',
+  DATABASE_SESSION_PERMISSIONS_UPDATE: 'TDB07I',
   DATABASE_CREATED: 'TDB03I',
   DATABASE_UPDATED: 'TDB04I',
   DATABASE_DELETED: 'TDB05I',
@@ -762,6 +763,19 @@ export type RawEvents = {
       name: string;
       db_service: string;
       db_name: string;
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: RawEvent<
+    typeof eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      permission_summary: {
+        permission: string;
+        counts: { [key: string]: number };
+      }[];
     }
   >;
   [eventCodes.DATABASE_CREATED]: RawEvent<
