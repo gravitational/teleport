@@ -1936,9 +1936,12 @@ func parseX509PEMAndIdentity(t *testing.T, rawPEM []byte) (*x509.Certificate, *t
 }
 
 func contextWithGRPCClientUserAgent(ctx context.Context, userAgent string) context.Context {
-	return metadata.NewIncomingContext(ctx, metadata.MD{
-		"user-agent": []string{userAgent},
-	})
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		md = make(metadata.MD)
+	}
+	md["user-agent"] = append(md["user-agent"], userAgent)
+	return metadata.NewIncomingContext(ctx, md)
 }
 
 func TestGenerateUserCertWithCertExtension(t *testing.T) {

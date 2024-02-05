@@ -1845,7 +1845,7 @@ type certRequest struct {
 }
 
 // check verifies the cert request is valid.
-func (r *certRequest) check(ctx context.Context) error {
+func (r *certRequest) check() error {
 	if r.user == nil {
 		return trace.BadParameter("missing parameter user")
 	}
@@ -2425,7 +2425,7 @@ func (a *Server) generateOpenSSHCert(ctx context.Context, req certRequest) (*pro
 }
 
 func generateCert(ctx context.Context, a *Server, req certRequest, caType types.CertAuthType) (*proto.Certs, error) {
-	err := req.check(ctx)
+	err := req.check()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
