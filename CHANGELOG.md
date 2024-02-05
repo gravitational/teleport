@@ -1,5 +1,16 @@
 # Changelog
 
+## 15.0.1 (02/06/24)
+
+* Correctly handle non-registered U2F keys. [#37720](https://github.com/gravitational/teleport/pull/37720)
+* Fixed memory leak in tbot caused by never closing reverse tunnel address resolvers. [#37718](https://github.com/gravitational/teleport/pull/37718)
+* Fixed conditional user modifications (used by certain Teleport subsystems such as Device Trust) on users that have previously been locked out due to repeated recovery attempts. [#37703](https://github.com/gravitational/teleport/pull/37703)
+* Added okta integration SCIM support for web UI. [#37697](https://github.com/gravitational/teleport/pull/37697)
+* Fixed usage data submission becoming stuck sending too many reports at once (Teleport Enterprise only). [#37687](https://github.com/gravitational/teleport/pull/37687)
+* Fixed cache init issue with access list members/reviews. [#37673](https://github.com/gravitational/teleport/pull/37673)
+* Fixed "failed to close stream" log messages. [#37662](https://github.com/gravitational/teleport/pull/37662)
+* Skip tsh AppID pre-flight check whenever possible. [#37642](https://github.com/gravitational/teleport/pull/37642)
+
 ## 15.0.0 (01/31/24)
 
 Teleport 15 brings the following new major features and improvements:
