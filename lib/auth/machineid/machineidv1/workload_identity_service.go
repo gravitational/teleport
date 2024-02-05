@@ -47,6 +47,8 @@ import (
 
 const spiffeScheme = "spiffe"
 
+const workloadIdentityEnabled = false
+
 // WorkloadIdentityServiceConfig holds configuration options for
 // the WorkloadIdentity gRPC service.
 type WorkloadIdentityServiceConfig struct {
@@ -300,6 +302,10 @@ func (wis *WorkloadIdentityService) signX509SVID(
 }
 
 func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.SignX509SVIDsRequest) (*pb.SignX509SVIDsResponse, error) {
+	if !workloadIdentityEnabled {
+		return nil, trace.AccessDenied("workload identity has not been enabled for this build")
+	}
+
 	if len(req.Svids) == 0 {
 		return nil, trace.BadParameter("svids: must be non-empty")
 	}
