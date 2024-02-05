@@ -3305,6 +3305,23 @@ export const events = [
     uid: '0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab',
     user: 'noah',
   },
+  {
+    "addr.remote": "127.0.0.1:54378",
+    "cluster_name": "leaf.tele.ottr.sh",
+    "code": "TSPIFFE000I",
+    "dns_sans": null,
+    "ei": 0,
+    "event": "spiffe.svid.issued",
+    "hint": "",
+    "ip_sans": null,
+    "serial_number": "d1:e5:fc:bf:19:67:e7:8c:7a:21:37:b5:05:ea:77:41",
+    "spiffe_id": "spiffe://example.teleport.com/bar",
+    "svid_type": "x509",
+    "time": "2024-02-02T15:48:25.35Z",
+    "uid": "45e13afc-0890-4ffb-b125-99d93c26d7de",
+    "user": "bot-test12",
+    "user_kind": 2
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.
@@ -3400,23 +3417,6 @@ export const eventsSample = [
     time: '2023-10-26T22:10:50.076Z',
     uid: '0cb8a020-46ee-4938-833a-69bc03a7a831',
     user: 'moe',
-  },
-  {
-    "addr.remote": "127.0.0.1:54378",
-    "cluster_name": "leaf.tele.ottr.sh",
-    "code": "TSPIFFE000I",
-    "dns_sans": null,
-    "ei": 0,
-    "event": "spiffe.svid.issued",
-    "hint": "",
-    "ip_sans": null,
-    "serial_number": "d1:e5:fc:bf:19:67:e7:8c:7a:21:37:b5:05:ea:77:41",
-    "spiffe_id": "/bar",
-    "svid_type": "x509",
-    "time": "2024-02-02T15:48:25.35Z",
-    "uid": "45e13afc-0890-4ffb-b125-99d93c26d7de",
-    "user": "bot-test12",
-    "user_kind": 2
   },
 
   // Do not add new events to this array, add it to `events` list.
