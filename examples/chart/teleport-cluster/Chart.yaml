@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev.noah.tbotdocker.10"
+.version: &version "16.0.0-dev.noah.tbotimg.1"
 
 name: teleport-cluster
 apiVersion: v2
