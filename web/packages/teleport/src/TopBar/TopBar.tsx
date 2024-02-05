@@ -23,10 +23,15 @@ import { Flex, Image, Text, TopNav } from 'design';
 
 import { matchPath, useHistory } from 'react-router';
 
-import { BrainIcon } from 'design/SVGIcon';
 import { Theme } from 'design/theme/themes/types';
 
-import { ArrowLeft, Download, Server, SlidersVertical } from 'design/Icon';
+import {
+  ArrowLeft,
+  ChatCircleSparkle,
+  Download,
+  Server,
+  SlidersVertical,
+} from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import useTeleport from 'teleport/useTeleport';
@@ -74,7 +79,7 @@ export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
     feature =>
       feature.category === NavigationCategory.Resources && feature.topMenuItem
   );
-  const { hasDockedElement, currentWidth } = useLayout();
+  const { currentWidth } = useLayout();
   const theme: Theme = useTheme();
 
   const [previousManagementRoute, setPreviousManagementRoute] = useState('');
@@ -204,10 +209,26 @@ export function TopBar({ CustomLogo, assistProps }: TopBarProps) {
         </ButtonIconContainer>
       )}
       <Flex height="100%" alignItems="center">
-        {!hasDockedElement && assistProps?.assistEnabled && (
-          <ButtonIconContainer onClick={() => assistProps?.setShowAssist(true)}>
-            <BrainIcon size={iconSize} />
-          </ButtonIconContainer>
+        {assistProps?.assistEnabled && (
+          <HoverTooltip
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            tipContent="Teleport Assist"
+            css={`
+              height: 100%;
+            `}
+          >
+            <ButtonIconContainer
+              onClick={() =>
+                assistProps?.setShowAssist(!assistProps?.showAssist)
+              }
+            >
+              <ChatCircleSparkle
+                color={assistProps?.showAssist ? 'text.main' : 'text.muted'}
+                size={iconSize}
+              />
+            </ButtonIconContainer>
+          </HoverTooltip>
         )}
         <Notifications iconSize={iconSize} />
         <UserMenuNav username={ctx.storeUser.state.username} />
