@@ -934,6 +934,12 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	BotServiceClient() machineidv1pb.BotServiceClient
 
+	// WorkloadIdentityServiceClient returns a workload identity service client.
+	// Clients connecting to  older Teleport versions, still get a bot service client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
+
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client
 	// when calling this method, but all RPCs will return "not implemented" errors
