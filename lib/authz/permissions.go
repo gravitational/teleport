@@ -1376,7 +1376,7 @@ func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err err
 func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, resource types.Resource, verbs ...string) (*Context, error) {
 	authCtx, err := authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, ConvertAuthorizerError(ctx, log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	ruleCtx := &services.Context{
@@ -1391,7 +1391,7 @@ func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, aut
 func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, kind string, verbs ...string) (*Context, error) {
 	authCtx, err := authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, ConvertAuthorizerError(ctx, log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	ruleCtx := &services.Context{

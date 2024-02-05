@@ -329,7 +329,7 @@ func (s *Service) GenerateHostCert(
 	// resource type.
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, s.logger, err)
+		return nil, trace.Wrap(err)
 	}
 	ruleCtx := &services.Context{
 		User: authCtx.User,

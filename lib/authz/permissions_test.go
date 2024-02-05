@@ -977,7 +977,7 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 			ctx := context.Background()
 			log := logrus.New()
 			_, err = AuthorizeWithVerbs(ctx, log, test.delegate, true, test.kind, test.verbs...)
-			test.errAssertion(t, ConvertAuthorizerError(ctx, log, err))
+			test.errAssertion(t, err)
 		})
 	}
 }
