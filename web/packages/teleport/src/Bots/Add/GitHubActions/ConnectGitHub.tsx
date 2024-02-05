@@ -51,7 +51,7 @@ import {
 } from './useGitHubFlow';
 
 const MULTIPLE_HOSTS_ERROR =
-  'All repositories must be in the same host. Please createdifferent bots for each host.';
+  'All repositories must be in the same host. Please create different bots for each host.';
 const ENTERPRISE_HOST_ERROR = () => {
   return (
     <Box>
