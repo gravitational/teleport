@@ -27,7 +27,7 @@ on:
 
 env:
   TEST_KUBE: true
-  TEST_AWS_DB: false # Set to true to enable AWS RDS tests once the postgres issue is resolved
+  TEST_AWS_DB: true
   AWS_REGION: us-west-2
   GHA_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-aws-e2e-gha-role
   KUBERNETES_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-eks-discovery-ci-cluster-kubernetes-service-access-role
