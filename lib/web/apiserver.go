@@ -4279,7 +4279,7 @@ type wsStatus struct {
 	Message string `json:"message,omitempty"`
 }
 
-// wsIODeadline is used to set a deadline for recieving a message from
+// wsIODeadline is used to set a deadline for receiving a message from
 // an authenticated websocket so unauthenticated sockets dont get left
 // open.
 var wsIODeadline = time.Second * 4
