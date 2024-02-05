@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,31 +18,33 @@
 
 import React from 'react';
 
-import { State } from './useManageDevices';
-import { ManageDevices } from './ManageDevices';
+import { Account, AccountProps } from './Account';
 
 export default {
-  title: 'Teleport/Account/Manage Devices',
+  title: 'Teleport/Account (new)',
+  component: Account,
 };
 
-export const Loaded = () => <ManageDevices {...props} />;
+export const Loaded = () => <Account {...props} />;
 
-export const LoadedMfaOff = () => (
-  <ManageDevices {...props} mfaDisabled={true} />
+export const LoadedPasskeysOff = () => (
+  <Account {...props} canAddPasskeys={false} />
 );
 
-export const Processing = () => (
-  <ManageDevices
+export const LoadedMfaOff = () => <Account {...props} canAddMFA={false} />;
+
+export const LoadingDevices = () => (
+  <Account
     {...props}
-    fetchDevicesAttempt={{
-      status: 'processing',
-    }}
+    devices={[]}
+    fetchDevicesAttempt={{ status: 'processing' }}
   />
 );
 
-export const Failed = () => (
-  <ManageDevices
+export const LoadingDevicesFailed = () => (
+  <Account
     {...props}
+    devices={[]}
     fetchDevicesAttempt={{
       status: 'failed',
       statusText: 'failed to fetch devices',
@@ -51,7 +53,7 @@ export const Failed = () => (
 );
 
 export const RemoveDialog = () => (
-  <ManageDevices
+  <Account
     {...props}
     isRemoveDeviceVisible={true}
     token="123"
@@ -60,7 +62,7 @@ export const RemoveDialog = () => (
 );
 
 export const RemoveDialogFailed = () => (
-  <ManageDevices
+  <Account
     {...props}
     isRemoveDeviceVisible={true}
     token="123"
@@ -70,7 +72,7 @@ export const RemoveDialogFailed = () => (
 );
 
 export const RestrictedTokenCreateProcessing = () => (
-  <ManageDevices
+  <Account
     {...props}
     createRestrictedTokenAttempt={{
       status: 'processing',
@@ -79,7 +81,7 @@ export const RestrictedTokenCreateProcessing = () => (
 );
 
 export const RestrictedTokenCreateFailed = () => (
-  <ManageDevices
+  <Account
     {...props}
     createRestrictedTokenAttempt={{
       status: 'failed',
@@ -88,7 +90,7 @@ export const RestrictedTokenCreateFailed = () => (
   />
 );
 
-const props: State = {
+const props: AccountProps = {
   token: '',
   setToken: () => null,
   onAddDevice: () => null,
@@ -105,15 +107,18 @@ const props: State = {
   isReAuthenticateVisible: false,
   isAddDeviceVisible: false,
   isRemoveDeviceVisible: false,
+  isSso: false,
   restrictNewDeviceUsage: null,
+  canAddPasskeys: true,
+  canAddMFA: true,
   devices: [
     {
       id: '1',
-      description: 'Authenticator App',
-      name: 'iphone 12',
+      description: 'Hardware Key',
+      name: 'touch_id',
       registeredDate: new Date(1628799417000),
       lastUsedDate: new Date(1628799417000),
-      residentKey: false,
+      residentKey: true,
     },
     {
       id: '2',
@@ -121,7 +126,7 @@ const props: State = {
       name: 'solokey',
       registeredDate: new Date(1623722252000),
       lastUsedDate: new Date(1623981452000),
-      residentKey: false,
+      residentKey: true,
     },
     {
       id: '3',
@@ -129,7 +134,7 @@ const props: State = {
       name: 'backup yubikey',
       registeredDate: new Date(1618711052000),
       lastUsedDate: new Date(1626472652000),
-      residentKey: false,
+      residentKey: true,
     },
     {
       id: '4',
@@ -137,6 +142,22 @@ const props: State = {
       name: 'yubikey',
       registeredDate: new Date(1612493852000),
       lastUsedDate: new Date(1614481052000),
+      residentKey: true,
+    },
+    {
+      id: '5',
+      description: 'Hardware Key',
+      name: 'yubikey-mfa',
+      registeredDate: new Date(1612493852000),
+      lastUsedDate: new Date(1614481052000),
+      residentKey: false,
+    },
+    {
+      id: '6',
+      description: 'Authenticator App',
+      name: 'iphone 12',
+      registeredDate: new Date(1628799417000),
+      lastUsedDate: new Date(1628799417000),
       residentKey: false,
     },
   ],
