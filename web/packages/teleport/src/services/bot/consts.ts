@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,20 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ApiBot, FlatBot } from 'teleport/services/bot/types';
 
-import { State } from './useChangePassword';
-import { ChangePassword } from './ChangePassword';
+export function makeListBot(bot: ApiBot): FlatBot {
+  if (!bot?.metadata?.name) {
+    return;
+  }
 
-export default {
-  title: 'Teleport/Account/Change Password',
-};
+  return {
+    kind: bot?.kind || '',
+    status: bot?.status || '',
+    subKind: bot?.subKind || '',
+    version: bot?.version || '',
 
-export const Loaded = () => <ChangePassword {...props} />;
+    name: bot?.metadata?.name || '',
+    namespace: bot?.metadata?.namespace || '',
+    description: bot?.metadata?.description || '',
+    labels: bot?.metadata?.labels || new Map<string, string>(),
+    revision: bot?.metadata?.revision || '',
 
-const props: State = {
-  changePassword: () => null,
-  changePasswordWithWebauthn: () => null,
-  preferredMfaType: 'webauthn',
-  auth2faType: 'on',
-};
+    roles: bot?.spec?.roles || [],
+    traits: bot?.spec?.traits || [],
+  };
+}

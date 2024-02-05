@@ -29,10 +29,10 @@ import (
 // *************************************************************
 // These should match up when a feature branch is cut, but should be off by
 // one on master
-const branchMajorVersion int = 15
-const latestReleaseVersion int = 14
+const branchMajorVersion int = 16
+const latestReleaseVersion int = 15
 
-func buildPipelineVersions() (string, []string) {
+func buildPipelineVersions() string {
 	branchMajorSemver := fmt.Sprintf("v%d", branchMajorVersion)
 	// Note that this only matters in the context of the master branch
 	updateVersionCount := 3
@@ -41,19 +41,14 @@ func buildPipelineVersions() (string, []string) {
 		imageUpdateSemvers[i] = fmt.Sprintf("v%d", latestReleaseVersion-i)
 	}
 
-	return branchMajorSemver, imageUpdateSemvers
+	return branchMajorSemver
 }
 
 func buildContainerImagePipelines() []pipeline {
-	branchMajorSemver, imageUpdateSemvers := buildPipelineVersions()
+	branchMajorSemver := buildPipelineVersions()
 
 	triggers := []*TriggerInfo{
 		NewPromoteTrigger(branchMajorSemver),
-		NewCronTrigger(imageUpdateSemvers),
-	}
-
-	if configureForPRTestingOnly {
-		triggers = append(triggers, NewTestTrigger(prBranch, branchMajorSemver))
 	}
 
 	pipelines := make([]pipeline, 0, len(triggers))

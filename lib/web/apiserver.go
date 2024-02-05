@@ -938,10 +938,14 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// GET Machine ID bot by name
 	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
+	// GET Machine ID bots
+	h.GET("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.listBots))
 	// Create Machine ID bots
 	h.POST("/webapi/sites/:site/machine-id/bot", h.WithClusterAuth(h.createBot))
 	// Create bot join tokens
 	h.POST("/webapi/sites/:site/machine-id/token", h.WithClusterAuth(h.createBotJoinToken))
+	// Delete Machine ID bot
+	h.DELETE("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.deleteBot))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -4048,7 +4052,8 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 
 	err = limiter.RegisterRequest(remote, nil /* customRate */)
 	// MaxRateError doesn't play well with errors.Is, hence the type assertion.
-	if _, ok := err.(*ratelimit.MaxRateError); ok {
+	var maxRateError *ratelimit.MaxRateError
+	if errors.As(err, &maxRateError) {
 		return trace.LimitExceeded(err.Error())
 	}
 	return trace.Wrap(err)
