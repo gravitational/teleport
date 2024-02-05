@@ -110,7 +110,6 @@ type WorkloadIdentityService struct {
 	pb.UnimplementedWorkloadIdentityServiceServer
 
 	cache      WorkloadIdentityCacher
-	backend    Backend
 	authorizer authz.Authorizer
 	keyStorer  KeyStorer
 	logger     logrus.FieldLogger
