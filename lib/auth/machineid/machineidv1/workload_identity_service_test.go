@@ -45,6 +45,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	ctx := context.Background()
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
+	require.NoError(t, err)
 	role, err := types.NewRole("svid-issuer", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			SPIFFE: []*types.SPIFFERoleConditions{
@@ -158,13 +159,13 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 				// 4.1: leaf certificates MUST set the cA field to false.
 				require.False(t, cert.IsCA)
 				// 4.3: Leaf SVIDs MUST set digitalSignature.
-				require.True(t, cert.KeyUsage&x509.KeyUsageDigitalSignature > 0)
+				require.Greater(t, cert.KeyUsage&x509.KeyUsageDigitalSignature, 0)
 				// 4.3: They MAY set keyEncipherment and/or keyAgreement
-				require.True(t, cert.KeyUsage&x509.KeyUsageKeyEncipherment > 0)
-				require.True(t, cert.KeyUsage&x509.KeyUsageKeyAgreement > 0)
+				require.Greater(t, cert.KeyUsage&x509.KeyUsageKeyEncipherment, 0)
+				require.Greater(t, cert.KeyUsage&x509.KeyUsageKeyAgreement, 0)
 				// 4.3: Leaf SVIDs MUST NOT set keyCertSign or cRLSign
-				require.True(t, cert.KeyUsage&x509.KeyUsageCertSign == 0)
-				require.True(t, cert.KeyUsage&x509.KeyUsageCRLSign == 0)
+				require.Equal(t, cert.KeyUsage&x509.KeyUsageCertSign, 0)
+				require.Equal(t, cert.KeyUsage&x509.KeyUsageCRLSign, 0)
 				// 4.4: When included, fields id-kp-serverAuth and id-kp-clientAuth MUST be set.
 				require.Contains(t, cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
 				require.Contains(t, cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
