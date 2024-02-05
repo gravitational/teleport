@@ -2157,11 +2157,15 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 //
 // {"message": "ok"}
 func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	// samlSessionCookie will not be set for users who are not authenticated with SAML IdP.
 	// TODO(sshah): we can skip this step below once we have a mechanism to update websession
 	// with SAML details.
 	samlSessionCookie, err := r.Cookie(samlidp.SAMLSessionCookieName)
 	if err != nil {
-		h.log.Debug("SAML IdP session not found for deletion for user: %s", ctx.GetUser())
+		h.log.
+			WithError(err).
+			WithField("user", ctx.GetUser()).
+			Debug("SAML IdP session not found for deletion")
 	} else if samlSessionCookie != nil && samlSessionCookie.Value != "" {
 		if ctx.cfg.Session.GetSAMLSession() == nil {
 			ctx.cfg.Session.SetSAMLSession(&types.SAMLSessionData{ID: samlSessionCookie.Value})
@@ -2180,12 +2184,13 @@ func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *Sessi
 	if err := sctx.Invalidate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	clearSessionCookie(w)
+	clearSessionCookies(w)
 
 	return nil
 }
 
-func clearSessionCookie(w http.ResponseWriter) {
+// clearSessionCookies clears Web UI session and SAML session cookie.
+func clearSessionCookies(w http.ResponseWriter) {
 	// Clear Web UI session cookie
 	websession.ClearCookie(w)
 	// Clear SAML IdP session cookie
@@ -4080,10 +4085,9 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	if err != nil {
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
-	// sshah
 	sctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
-		clearSessionCookie((w))
+		clearSessionCookies((w))
 		return nil, trace.AccessDenied("need auth")
 	}
 	if checkBearerToken {

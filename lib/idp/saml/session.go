@@ -28,12 +28,12 @@ const (
 	SAMLSessionCookieName = "__Host-saml_session"
 )
 
-// SetCookie set's SAML session cookie named __Host-saml_session.
-func SetCookie(w http.ResponseWriter, sessionID string, maxAge int) {
+// SetCookie set's the SAML session cookie named by [SAMLSessionCookieName].
+func SetCookie(w http.ResponseWriter, sessionID string, maxAgeSeconds int) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SAMLSessionCookieName,
 		Value:    sessionID,
-		MaxAge:   maxAge,
+		MaxAge:   maxAgeSeconds,
 		HttpOnly: true,
 		Secure:   true,
 		Path:     "/",
