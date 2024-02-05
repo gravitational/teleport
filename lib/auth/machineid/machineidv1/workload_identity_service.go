@@ -47,7 +47,10 @@ import (
 
 const spiffeScheme = "spiffe"
 
-const workloadIdentityEnabled = false
+// WorkloadIdentityEnabled is a build-time flag that enables the workload
+// identity service. It is set to false by default and will switch to true after
+// all initial functionality is implemented.
+var WorkloadIdentityEnabled = false
 
 // WorkloadIdentityServiceConfig holds configuration options for
 // the WorkloadIdentity gRPC service.
@@ -245,6 +248,8 @@ func (wis *WorkloadIdentityService) signX509SVID(
 		return nil, trace.BadParameter("spiffeIdPath: must be non-empty")
 	case !strings.HasPrefix(req.SpiffeIdPath, "/"):
 		return nil, trace.BadParameter("spiffeIdPath: must start with '/'")
+	case len(req.PublicKey) == 0:
+		return nil, trace.BadParameter("publicKey: must be non-empty")
 	}
 	spiffeID = &url.URL{
 		Scheme: spiffeScheme,
@@ -302,7 +307,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 }
 
 func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.SignX509SVIDsRequest) (*pb.SignX509SVIDsResponse, error) {
-	if !workloadIdentityEnabled {
+	if !WorkloadIdentityEnabled {
 		return nil, trace.AccessDenied("workload identity has not been enabled for this build")
 	}
 
