@@ -1806,6 +1806,35 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 	return constants.SessionRecordingModeBestEffort
 }
 
+// globMatch performs simple a simple glob-style match test on a string.
+// - '*' matches zero or more characters.
+// - '?' matches any single character.
+// It returns true if a match is detected.
+func globMatch(pattern, str string) (bool, error) {
+	pattern = regexp.QuoteMeta(pattern)
+	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
+	pattern = strings.ReplaceAll(pattern, `\?`, ".")
+	pattern = "^" + pattern + "$"
+	matched, err := regexp.MatchString(pattern, str)
+	if err != nil {
+		return false, trace.Wrap(err, "compiling glob regex for %q", pattern)
+	}
+	return matched, nil
+}
+
+func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {
+	for i := range s {
+		match, err := f(s[i])
+		if err != nil {
+			return false, err
+		}
+		if match {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // matchSPIFFESVIDConditions compares a slice of SPIFFE Role Conditions against
 // a requested SPIFFE SVID generation. All fields within a condition must match,
 // but any condition in the slice can match for the function to return true.
@@ -1815,45 +1844,53 @@ func matchSPIFFESVIDConditions(
 	dnsSANs []string,
 	ipSANs []net.IP,
 ) (bool, error) {
-ConditionLoop:
-	for _, cond := range conds {
-		// Match SPIFFE ID path. TODO: Globby
-		if spiffeIDPath != cond.Path {
-			// No match - skip to next condition.
-			continue
+	return contains(conds, func(cond *types.SPIFFERoleConditions) (bool, error) {
+		// Match SPIFFE ID path.
+		match, err := globMatch(cond.Path, spiffeIDPath)
+		if err != nil {
+			return false, trace.Wrap(err)
 		}
+		if !match {
+			// No match - skip to next condition.
+			return false, nil
+		}
+
 		// All DNS SANs requested must match one of the DNS SAN matchers in the
 		// condition.
 		for _, dnsSAN := range dnsSANs {
-			matched := slices.ContainsFunc(cond.DNSSANs, func(s string) bool {
-				// TODO: Globby
-				if dnsSAN == s {
-					return true
-				}
-				return false
+			match, err := contains(cond.DNSSANs, func(s string) (bool, error) {
+				return globMatch(s, dnsSAN)
 			})
-			if !matched {
-				// The requested DNS SAN did not match any in the current
-				// condition, so this condition is not a match.
-				continue ConditionLoop
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if !match {
+				return false, nil
 			}
 		}
+
 		// All IP SANs requested must match one of the IP SAN matchers in the
 		// condition.
 		for _, ipSAN := range ipSANs {
-			matched := slices.ContainsFunc(cond.IPSANs, func(s string) bool {
-				// TODO: CIDR matching
-				log.Infof(ipSAN.String())
-				return true
+			match, err := contains(cond.IPSANs, func(s string) (bool, error) {
+				_, cidr, err := net.ParseCIDR(s)
+				if err != nil {
+					return false, trace.Wrap(err, "parsing cidr")
+				}
+
+				return cidr.Contains(ipSAN), nil
 			})
-			if !matched {
-				// The requested IP SAN did not match any in the current
-				// condition, so this condition is not a match.
-				continue ConditionLoop
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if !match {
+				return false, nil
 			}
 		}
-	}
-	return false, nil
+
+		// All condition fields matched.
+		return true, nil
+	})
 }
 
 // CheckSPIFFESVID checks if the role set has access to generating the
