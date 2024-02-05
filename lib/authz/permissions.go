@@ -1437,6 +1437,7 @@ func (c *Context) CheckAccessToResource(quiet bool, resource types.Resource, ver
 }
 
 // CheckAccessToRule will ensure that the user has access to the given verbs for the given [services.Context] and kind.
+// Prefer to use [Context.CheckAccessToKind] or [Context.CheckAccessToResource] for common checks.
 func (c *Context) CheckAccessToRule(quiet bool, ruleCtx *services.Context, kind string, verb string, additionalVerbs ...string) error {
 	var errs []error
 	for _, verb := range append(additionalVerbs, verb) {
