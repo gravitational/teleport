@@ -149,7 +149,7 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindCertAuthority, verbs...); err != nil {
+	if err := authCtx.CheckAccessToKind(false, types.KindCertAuthority, verbs[0], verbs[1:]...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

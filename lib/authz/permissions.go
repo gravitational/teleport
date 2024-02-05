@@ -1418,32 +1418,28 @@ func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 }
 
 // CheckAccessToKind will ensure that the user has access to the given verbs for the given kind.
-func (c *Context) CheckAccessToKind(quiet bool, kind string, verbs ...string) error {
+func (c *Context) CheckAccessToKind(quiet bool, kind string, verb string, additionalVerbs ...string) error {
 	ruleCtx := &services.Context{
 		User: c.User,
 	}
 
-	return c.CheckAccessToRule(quiet, ruleCtx, kind, verbs...)
+	return c.CheckAccessToRule(quiet, ruleCtx, kind, verb, additionalVerbs...)
 }
 
 // CheckAccessToResource will ensure that the user has access to the given verbs for the given resource.
-func (c *Context) CheckAccessToResource(quiet bool, resource types.Resource, verbs ...string) error {
+func (c *Context) CheckAccessToResource(quiet bool, resource types.Resource, verb string, additionalVerbs ...string) error {
 	ruleCtx := &services.Context{
 		User:     c.User,
 		Resource: resource,
 	}
 
-	return c.CheckAccessToRule(quiet, ruleCtx, resource.GetKind(), verbs...)
+	return c.CheckAccessToRule(quiet, ruleCtx, resource.GetKind(), verb, additionalVerbs...)
 }
 
 // CheckAccessToRule will ensure that the user has access to the given verbs for the given [services.Context] and kind.
-func (c *Context) CheckAccessToRule(quiet bool, ruleCtx *services.Context, kind string, verbs ...string) error {
-	if len(verbs) == 0 {
-		return trace.BadParameter("expected one or more verbs to be provided")
-	}
-
+func (c *Context) CheckAccessToRule(quiet bool, ruleCtx *services.Context, kind string, verb string, additionalVerbs ...string) error {
 	var errs []error
-	for _, verb := range verbs {
+	for _, verb := range append(additionalVerbs, verb) {
 		if err := c.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet); err != nil {
 			errs = append(errs, err)
 		}
