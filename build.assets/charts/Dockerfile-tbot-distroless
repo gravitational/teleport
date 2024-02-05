@@ -1,3 +1,5 @@
+ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
+
 FROM debian:12 AS teleport
 # Install the teleport binary from an architecture-specific debian package. Note
 # that we cannot simply pass a ready-made package filename in as a build-arg, as
