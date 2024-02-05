@@ -182,6 +182,22 @@ func signx509SVID(
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes}), serialNumber, nil
 }
 
+func serialString(serial *big.Int) string {
+	hex := serial.Text(16)
+	if len(hex)%2 == 1 {
+		hex = "0" + hex
+	}
+
+	out := strings.Builder{}
+	for i := 0; i < len(hex); i += 2 {
+		if i != 0 {
+			out.WriteString(":")
+		}
+		out.WriteString(hex[i : i+2])
+	}
+	return out.String()
+}
+
 func (wis *WorkloadIdentityService) signX509SVID(
 	ctx context.Context,
 	authCtx *authz.Context,
@@ -210,8 +226,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 			evt.Code = events.SPIFFESVIDIssuedFailureCode
 		}
 		if serialNumber != nil {
-			// TODO: Convert serial number to a lovely hex string??
-			evt.SerialNumber = serialNumber.String()
+			evt.SerialNumber = serialString(serialNumber)
 		}
 		if spiffeID != nil {
 			evt.SPIFFEID = spiffeID.String()
