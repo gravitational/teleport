@@ -63,7 +63,7 @@ describe('localStorage', () => {
     localStorage.setItem('key2', 'true');
 
     expect(ls.getParsedJSONValue('key1', null)).toEqual({ foo: 'bar' });
-    expect(ls.getParsedJSONValue('key2', null)).toEqual(true);
+    expect(ls.getParsedJSONValue('key2', null)).toBe(true);
     expect(ls.getParsedJSONValue('not-a-key', 'default')).toBe('default');
   });
 });
