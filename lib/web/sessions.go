@@ -855,9 +855,9 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 		return trace.Wrap(err)
 	}
 
-	if sctx.cfg.Session.GetSAMLSession() != nil {
+	if samlSession := sctx.cfg.Session.GetSAMLSession(); samlSession != nil && samlSession.ID != "" {
 		if err := clt.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
-			SessionID: sctx.cfg.Session.GetSAMLSession().ID,
+			SessionID: samlSession.ID,
 		}); err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}

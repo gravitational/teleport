@@ -9019,15 +9019,15 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 }
 
 func hasEmptySAMLSessionCookieValue(cookies []*http.Cookie) bool {
-	samlCookie := &http.Cookie{
+	samlCookieString := (&http.Cookie{
 		Name:     samlidp.SAMLSessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
-	}
+	}).String()
 	for _, cookie := range cookies {
-		if cookie.String() == samlCookie.String() {
+		if cookie.String() == samlCookieString {
 			return true
 		}
 	}
