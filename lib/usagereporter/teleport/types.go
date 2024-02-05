@@ -1031,6 +1031,26 @@ func (e *MFAAuthenticationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitE
 	}
 }
 
+// OktaAccessListSyncEvent is emitted when the Okta service syncs access lists from Okta.
+type OktaAccessListSyncEvent prehogv1a.OktaAccessListSyncEvent
+
+// Anonymize anonymizes the event.
+func (u *OktaAccessListSyncEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_OktaAccessListSyncEvent{
+			OktaAccessListSyncEvent: &prehogv1a.OktaAccessListSyncEvent{
+				NumAppFilters:        u.NumAppFilters,
+				NumGroupFilters:      u.NumGroupFilters,
+				NumApps:              u.NumApps,
+				NumGroups:            u.NumGroups,
+				NumRoles:             u.NumRoles,
+				NumAccessLists:       u.NumAccessLists,
+				NumAccessListMembers: u.NumAccessListMembers,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
