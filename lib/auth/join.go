@@ -267,6 +267,7 @@ func (a *Server) generateCertsBot(
 		BotName:   botName,
 		Method:    string(joinMethod),
 		TokenName: provisionToken.GetSafeName(),
+		UserName:  machineidv1.BotResourceName(botName),
 	}
 	if joinAttributeSrc != nil {
 		attributes, err := joinAttributeSrc.JoinAuditAttributes()

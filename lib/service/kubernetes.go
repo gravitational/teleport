@@ -19,6 +19,7 @@
 package service
 
 import (
+	"errors"
 	"net"
 	"net/http"
 
@@ -258,7 +259,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
 		err := kubeServer.Serve(listener)
 		if err != nil {
-			if err == http.ErrServerClosed {
+			if errors.Is(err, http.ErrServerClosed) {
 				return nil
 			}
 			return trace.Wrap(err)

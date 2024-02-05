@@ -3101,6 +3101,16 @@ export const events = [
     user: 'mike',
   },
   {
+    code: 'TOK006I',
+    event: 'okta.access_list.sync',
+    time: '2023-05-08T19:21:36.144Z',
+  },
+  {
+    code: 'TOK006E',
+    event: 'okta.access_list.sync',
+    time: '2023-05-08T19:21:36.144Z',
+  },
+  {
     code: 'TAL001I',
     event: 'access_list.create',
     time: '2023-05-08T19:21:36.144Z',

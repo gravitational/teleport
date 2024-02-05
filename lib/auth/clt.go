@@ -649,13 +649,6 @@ type IdentityService interface {
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
-	// GenerateUserSingleUseCerts is like GenerateUserCerts but issues a
-	// certificate for a single session
-	// (https://github.com/gravitational/teleport/blob/3a1cf9111c2698aede2056513337f32bfc16f1f1/rfd/0014-session-2FA.md#sessions).
-	//
-	// Deprecated: Use GenerateUserCerts instead.
-	GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error)
-
 	// IsMFARequired is a request to check whether MFA is required to
 	// access the Target.
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
@@ -666,13 +659,6 @@ type IdentityService interface {
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
-	// CreateBot creates a new certificate renewal bot and associated resources.
-	CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error)
-	// DeleteBot removes a certificate renewal bot and associated resources.
-	DeleteBot(ctx context.Context, botName string) error
-	// GetBotUsers gets all bot users.
-	GetBotUsers(ctx context.Context) ([]types.User, error)
-
 	// ChangeUserAuthentication allows a user with a reset or invite token to change their password and if enabled also adds a new mfa device.
 	// Upon success, creates new web session and creates new set of recovery codes (if user meets requirements).
 	ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error)
@@ -682,10 +668,6 @@ type IdentityService interface {
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
-	// Deprecated: Use AddMFADeviceSync instead.
-	AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error)
-	// Deprecated: Use DeleteMFADeviceSync instead.
-	DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error)
 	// AddMFADeviceSync adds a new MFA device (nonstream).
 	AddMFADeviceSync(ctx context.Context, req *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 	// DeleteMFADeviceSync deletes a users MFA device (nonstream).
@@ -997,6 +979,8 @@ type ClientI interface {
 	// but may result in confusing behavior if it is used outside of those contexts.
 	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
 
-	// PromptMFA prompts the user for MFA.
-	PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
+	// PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
+	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
+	// an MFA challenge response for the user.
+	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
 }

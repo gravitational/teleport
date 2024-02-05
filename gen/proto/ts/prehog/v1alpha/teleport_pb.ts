@@ -1159,6 +1159,12 @@ export interface BotJoinEvent {
      * @generated from protobuf field: string join_token_name = 3;
      */
     joinTokenName: string;
+    /**
+     * user_name is the anonymised name of the Bot user.
+     *
+     * @generated from protobuf field: string user_name = 4;
+     */
+    userName: string;
 }
 /**
  * UICreateNewRoleClickEvent is an event that can be triggered during custom role creation
@@ -2905,7 +2911,11 @@ export enum DiscoverResource {
     /**
      * @generated from protobuf enum value: DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39;
      */
-    DOC_WINDOWS_DESKTOP_NON_AD = 39
+    DOC_WINDOWS_DESKTOP_NON_AD = 39,
+    /**
+     * @generated from protobuf enum value: DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
+     */
+    KUBERNETES_EKS = 40
 }
 /**
  * DiscoverStatus represents a Discover Step outcome.
@@ -5815,7 +5825,8 @@ class BotJoinEvent$Type extends MessageType<BotJoinEvent> {
         super("prehog.v1alpha.BotJoinEvent", [
             { no: 1, name: "bot_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "join_method", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "join_token_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "join_token_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<BotJoinEvent>): BotJoinEvent {
@@ -5823,6 +5834,7 @@ class BotJoinEvent$Type extends MessageType<BotJoinEvent> {
         message.botName = "";
         message.joinMethod = "";
         message.joinTokenName = "";
+        message.userName = "";
         if (value !== undefined)
             reflectionMergePartial<BotJoinEvent>(this, message, value);
         return message;
@@ -5840,6 +5852,9 @@ class BotJoinEvent$Type extends MessageType<BotJoinEvent> {
                     break;
                 case /* string join_token_name */ 3:
                     message.joinTokenName = reader.string();
+                    break;
+                case /* string user_name */ 4:
+                    message.userName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -5862,6 +5877,9 @@ class BotJoinEvent$Type extends MessageType<BotJoinEvent> {
         /* string join_token_name = 3; */
         if (message.joinTokenName !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.joinTokenName);
+        /* string user_name = 4; */
+        if (message.userName !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.userName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

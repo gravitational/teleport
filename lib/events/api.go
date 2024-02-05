@@ -677,6 +677,9 @@ const (
 	// OktaAssignmentCleanupEvent is emitted when an assignment is cleaned up.
 	OktaAssignmentCleanupEvent = "okta.assignment.cleanup"
 
+	// OktaAccessListSyncEvent is emitted when an access list synchronization has completed.
+	OktaAccessListSyncEvent = "okta.access_list.sync"
+
 	// AccessListCreateEvent is emitted when an access list is created.
 	AccessListCreateEvent = "access_list.create"
 

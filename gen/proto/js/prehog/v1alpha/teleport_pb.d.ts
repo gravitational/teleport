@@ -1426,6 +1426,9 @@ export class BotJoinEvent extends jspb.Message {
     getJoinTokenName(): string;
     setJoinTokenName(value: string): BotJoinEvent;
 
+    getUserName(): string;
+    setUserName(value: string): BotJoinEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): BotJoinEvent.AsObject;
@@ -1442,6 +1445,7 @@ export namespace BotJoinEvent {
         botName: string,
         joinMethod: string,
         joinTokenName: string,
+        userName: string,
     }
 }
 
@@ -3447,6 +3451,7 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_SAML_APPLICATION = 37,
     DISCOVER_RESOURCE_EC2_INSTANCE = 38,
     DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39,
+    DISCOVER_RESOURCE_KUBERNETES_EKS = 40,
 }
 
 export enum DiscoverStatus {

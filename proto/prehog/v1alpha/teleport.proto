@@ -452,6 +452,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_EC2_INSTANCE = 38;
 
   DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39;
+
+  DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -682,6 +684,8 @@ message BotJoinEvent {
   // join_token_name is the anonymised name of the token used to join
   // the cluster.
   string join_token_name = 3;
+  // user_name is the anonymised name of the Bot user.
+  string user_name = 4;
 }
 
 // UICreateNewRoleClickEvent is an event that can be triggered during custom role creation

@@ -183,6 +183,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			BotName:       e.BotName,
 			JoinMethod:    e.Method,
 			JoinTokenName: e.TokenName,
+			UserName:      e.UserName,
 		}
 
 	case *apievents.DeviceEvent2:

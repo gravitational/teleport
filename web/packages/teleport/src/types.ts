@@ -36,6 +36,11 @@ export interface TeleportFeatureNavigationItem {
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
+  /*
+   * isSelected is an option function provided to allow more control over whether this feature is
+   * in the "selected" state in the navigation
+   */
+  isSelected?: (clusterId: string, pathname: string) => boolean;
 }
 
 export enum NavTitle {
@@ -51,6 +56,7 @@ export enum NavTitle {
 
   // Access Management
   Users = 'Users',
+  Bots = 'Bots',
   Roles = 'User Roles',
   AuthConnectors = 'Auth Connectors',
   Integrations = 'Integrations',

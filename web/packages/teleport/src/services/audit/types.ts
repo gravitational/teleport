@@ -260,6 +260,8 @@ export const eventCodes = {
   OKTA_ASSIGNMENT_PROCESS_FAILURE: 'TOK004E',
   OKTA_ASSIGNMENT_CLEANUP: 'TOK005I',
   OKTA_ASSIGNMENT_CLEANUP_FAILURE: 'TOK005E',
+  OKTA_ACCESS_LIST_SYNC: 'TOK006I',
+  OKTA_ACCESS_LIST_SYNC_FAILURE: 'TOK006E',
   ACCESS_LIST_CREATE: 'TAL001I',
   ACCESS_LIST_CREATE_FAILURE: 'TAL001E',
   ACCESS_LIST_UPDATE: 'TAL002I',
@@ -1390,6 +1392,12 @@ export type RawEvents = {
       source: string;
     }
   >;
+  [eventCodes.OKTA_ACCESS_LIST_SYNC]: RawEvent<
+    typeof eventCodes.OKTA_ACCESS_LIST_SYNC
+  >;
+  [eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE
+  >;
   [eventCodes.ACCESS_LIST_CREATE]: RawEvent<
     typeof eventCodes.ACCESS_LIST_CREATE,
     {
@@ -1521,19 +1529,19 @@ export type RawEvents = {
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: RawEvent<
     typeof eventCodes.CREATE_MFA_AUTH_CHALLENGE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: RawEvent<
     typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: RawEvent<
     typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
 };
