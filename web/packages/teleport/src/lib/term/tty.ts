@@ -20,8 +20,7 @@ import Logger from 'shared/libs/logger';
 
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
-
-import { AuthenticatedWebSocket } from '../AuthenticatedWebsoscket';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
 import { Protobuf, MessageTypeEnum } from './protobuf';
@@ -33,7 +32,7 @@ const defaultOptions = {
 };
 
 class Tty extends EventEmitterWebAuthnSender {
-  socket: AuthenticatedWebSocket = null;
+  socket = null;
 
   _buffered = true;
   _attachSocketBufferTimer;
@@ -64,13 +63,11 @@ class Tty extends EventEmitterWebAuthnSender {
 
   connect(w: number, h: number) {
     const connStr = this._addressResolver.getConnStr(w, h);
-    this.socket = new AuthenticatedWebSocket(
-      connStr,
-      this._onOpenConnection,
-      this._onMessage,
-      null,
-      this._onCloseConnection
-    );
+    this.socket = new AuthenticatedWebSocket(connStr);
+    this.socket.binaryType = 'arraybuffer';
+    this.socket.onopen = this._onOpenConnection;
+    this.socket.onmessage = this._onMessage;
+    this.socket.onclose = this._onCloseConnection;
   }
 
   send(data) {
@@ -173,6 +170,9 @@ class Tty extends EventEmitterWebAuthnSender {
   }
 
   _onCloseConnection(e) {
+    this.socket.onopen = null;
+    this.socket.onmessage = null;
+    this.socket.onclose = null;
     this.socket = null;
     this.emit(TermEvent.CONN_CLOSE, e);
     logger.info('websocket is closed');

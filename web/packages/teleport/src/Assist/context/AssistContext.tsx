@@ -31,9 +31,7 @@ import { AssistStateActionType, reducer } from 'teleport/Assist/context/state';
 import { convertServerMessages } from 'teleport/Assist/context/utils';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
-import { getAccessToken, getHostName } from 'teleport/services/api';
-
-import { WebsocketStatus } from 'teleport/types';
+import { getHostName } from 'teleport/services/api';
 
 import {
   AccessRequestClientMessage,
@@ -50,6 +48,7 @@ import {
   makeMfaAuthenticateChallenge,
   WebauthnAssertionResponse,
 } from 'teleport/services/auth';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import * as service from '../service';
 import {
@@ -65,7 +64,6 @@ import type {
   ServerMessage,
 } from 'teleport/Assist/types';
 import type { AssistState } from 'teleport/Assist/context/state';
-import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebsoscket';
 
 interface AssistContextValue {
   cancelMfaChallenge: () => void;
@@ -127,7 +125,13 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   }
 
   function setupWebSocket(conversationId: string, initialMessage?: string) {
-
+    activeWebSocket.current = new AuthenticatedWebSocket(
+      cfg.getAssistConversationWebSocketUrl(
+        getHostName(),
+        clusterId,
+        conversationId
+      )
+    );
 
     window.clearTimeout(refreshWebSocketTimeout.current);
 
@@ -137,21 +141,22 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       TEN_MINUTES * 0.8
     );
 
-	const onopen = () => {
+    activeWebSocket.current.onopen = () => {
       if (initialMessage) {
         activeWebSocket.current.send(initialMessage);
       }
-	}
+    };
 
-    const onclose = () => {
+    activeWebSocket.current.onclose = () => {
       dispatch({
         type: AssistStateActionType.SetStreaming,
         streaming: false,
       });
     };
 
-    const onmessage = event => {
+    activeWebSocket.current.onmessage = async event => {
       const data = JSON.parse(event.data) as ServerMessage;
+
       switch (data.type) {
         case ServerMessageType.Assist:
           dispatch({
@@ -245,14 +250,6 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
       }
     };
-
-    activeWebSocket.current = new AuthenticatedWebSocket(
-      cfg.getAssistConversationWebSocketUrl(
-        getHostName(),
-        clusterId,
-        conversationId
-      ), onopen, onmessage, null, onclose
-    );	
   }
 
   async function createConversation() {
@@ -353,7 +350,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     if (
       !activeWebSocket.current ||
-      activeWebSocket.current.readyState === WebSocket.CLOSED
+      activeWebSocket.current.readyState === AuthenticatedWebSocket.CLOSED
     ) {
       setupWebSocket(state.conversations.selectedId, data);
     } else {
@@ -383,7 +380,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   function sendMfaChallenge(data: WebauthnAssertionResponse) {
     if (
       !executeCommandWebSocket.current ||
-      executeCommandWebSocket.current.readyState !== WebSocket.OPEN ||
+      executeCommandWebSocket.current.readyState !==
+        AuthenticatedWebSocket.OPEN ||
       !data
     ) {
       console.warn(
@@ -455,8 +453,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     );
 
     const proto = new Protobuf();
-    const onmessage = (event: MessageEvent) => {
-      executeCommandWebSocket.current.binaryType = 'arraybuffer';
+    executeCommandWebSocket.current = new AuthenticatedWebSocket(url);
+    executeCommandWebSocket.current.binaryType = 'arraybuffer';
+
+    executeCommandWebSocket.current.onmessage = event => {
       const uintArray = new Uint8Array(event.data);
 
       const msg = proto.decode(uintArray);
@@ -533,8 +533,9 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       }
     };
 
-    const onclose = () => {
+    executeCommandWebSocket.current.onclose = () => {
       executeCommandWebSocket.current = null;
+
       // If the execution failed, we won't get a SESSION_END message, so we
       // need to mark all the results as finished here.
       for (const nodeId of nodeIdToResultId.keys()) {
@@ -546,8 +547,6 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       }
       nodeIdToResultId.clear();
     };
-
-    executeCommandWebSocket.current = new AuthenticatedWebSocket(url, null, onmessage, null, onclose);
   }
 
   async function deleteConversation(conversationId: string) {
