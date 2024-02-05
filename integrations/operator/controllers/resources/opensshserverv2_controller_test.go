@@ -20,7 +20,6 @@ package resources_test
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/defaults"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -28,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
