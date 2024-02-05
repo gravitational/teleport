@@ -4,6 +4,7 @@ package unit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -76,7 +77,8 @@ func runUpgrader(subcommand string, configDir string) (output, error) {
 
 	if err := cmd.Run(); err != nil {
 		// ExitError just means non-zero exit code... handled elsewhere.
-		if _, ok := err.(*exec.ExitError); !ok {
+		var exitError *exec.ExitError
+		if !errors.As(err, &exitError) {
 			return output{}, trace.Wrap(err)
 		}
 	}
