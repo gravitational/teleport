@@ -244,6 +244,7 @@ export function useNewRequest(ctx: Ctx) {
       try {
         const ugs = await ctx.userGroupService.fetchUserGroups(clusterId, {
           limit: 1,
+          searchAsRoles: 'yes',
           search: userGroupId,
         });
 
