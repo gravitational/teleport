@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -2156,7 +2157,9 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 //
 // {"message": "ok"}
 func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	samlSessionCookie, err := r.Cookie(websession.SAMLSessionCookieName)
+	// TODO(sshah): we can skip this step below once we have a mechanism to update websession
+	// with SAML details.
+	samlSessionCookie, err := r.Cookie(samlidp.SAMLSessionCookieName)
 	if err != nil {
 		h.log.Debug("SAML IdP session not found for deletion for user: %s", ctx.GetUser())
 	} else if samlSessionCookie != nil && samlSessionCookie.Value != "" {
@@ -2177,12 +2180,16 @@ func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *Sessi
 	if err := sctx.Invalidate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	// Clear Web UI session cookie
-	websession.ClearCookie(w, websession.CookieName)
-	// Clear SAML IdP session cookie
-	websession.ClearCookie(w, websession.SAMLSessionCookieName)
+	clearSessionCookie(w)
 
 	return nil
+}
+
+func clearSessionCookie(w http.ResponseWriter) {
+	// Clear Web UI session cookie
+	websession.ClearCookie(w)
+	// Clear SAML IdP session cookie
+	samlidp.ClearCookie(w)
 }
 
 type renewSessionRequest struct {
@@ -4076,8 +4083,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	// sshah
 	sctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
-		websession.ClearCookie(w, websession.CookieName)
-		websession.ClearCookie(w, websession.SAMLSessionCookieName)
+		clearSessionCookie((w))
 		return nil, trace.AccessDenied("need auth")
 	}
 	if checkBearerToken {
