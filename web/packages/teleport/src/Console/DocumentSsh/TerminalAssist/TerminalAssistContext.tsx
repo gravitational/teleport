@@ -36,7 +36,7 @@ import {
   SuggestedCommandMessage,
   UserMessage,
 } from 'teleport/Console/DocumentSsh/TerminalAssist/types';
-import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebsoscket';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 interface TerminalAssistContextValue {
   close: () => void;

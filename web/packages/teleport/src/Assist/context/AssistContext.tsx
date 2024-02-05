@@ -48,7 +48,7 @@ import {
   makeMfaAuthenticateChallenge,
   WebauthnAssertionResponse,
 } from 'teleport/services/auth';
-import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebsoscket';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import * as service from '../service';
 import {

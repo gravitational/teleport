@@ -25,7 +25,7 @@ import init, {
 
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
-import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebsoscket';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import Codec, {
   MessageType,
