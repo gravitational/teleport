@@ -855,15 +855,15 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 	// App session, SAML session and web session deletion should be treated as a single transaction.
 	// To avoid aborting deletion midpoint due to a failure in one of the session deletion,
 	// we use sessionDeletionErr below to join errors and return them at last.
-	var sessionDeletionErr error
+	var sessionDeletionErrs error
 	if err := clt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: sctx.GetUser()}); err != nil {
-		sessionDeletionErr = err
+		sessionDeletionErrs = err
 	}
 	if samlSession := sctx.cfg.Session.GetSAMLSession(); samlSession != nil && samlSession.ID != "" {
 		if err := clt.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
 			SessionID: samlSession.ID,
 		}); err != nil && !trace.IsNotFound(err) {
-			sessionDeletionErr = errors.Join(sessionDeletionErr, err)
+			sessionDeletionErrs = errors.Join(sessionDeletionErrs, err)
 		}
 	}
 	// Delete just the session - leave the bearer token to linger to avoid
@@ -872,11 +872,11 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 		User:      sctx.GetUser(),
 		SessionID: sctx.GetSessionID(),
 	}); err != nil && !trace.IsNotFound(err) {
-		sessionDeletionErr = errors.Join(sessionDeletionErr, err)
+		sessionDeletionErrs = errors.Join(sessionDeletionErrs, err)
 	}
 
-	if sessionDeletionErr != nil {
-		return trace.Wrap(sessionDeletionErr)
+	if sessionDeletionErrs != nil {
+		return trace.Wrap(sessionDeletionErrs)
 	}
 
 	if err := s.releaseResources(sctx.GetUser(), sctx.GetSessionID()); err != nil {

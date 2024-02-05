@@ -2159,12 +2159,7 @@ func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ htt
 	// TODO(sshah): we can skip this step below once we have a mechanism to update websession
 	// with SAML details.
 	samlSessionCookie, err := r.Cookie(samlidp.SAMLSessionCookieName)
-	if err != nil {
-		h.log.
-			WithError(err).
-			WithField("user", ctx.GetUser()).
-			Debug("SAML IdP session not found for deletion")
-	} else if samlSessionCookie != nil && samlSessionCookie.Value != "" {
+	if err == nil && samlSessionCookie != nil && samlSessionCookie.Value != "" {
 		if ctx.cfg.Session.GetSAMLSession() == nil {
 			ctx.cfg.Session.SetSAMLSession(&types.SAMLSessionData{ID: samlSessionCookie.Value})
 		}
