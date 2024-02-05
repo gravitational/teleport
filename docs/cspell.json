@@ -282,6 +282,7 @@
     "awscli",
     "awsconsole",
     "awsdatabases",
+    "awskms",
     "awsuser",
     "azblob",
     "azuread",

@@ -15,7 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { Dispatch, SetStateAction } from 'react';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import ChangePassword from './ChangePassword';
+import { FlatBot } from 'teleport/services/bot/types';
 
-export default ChangePassword;
+export type BotOptionsCellProps = {
+  bot: FlatBot;
+  onClickDelete: (bot: FlatBot) => void;
+};
+
+export type BotListProps = {
+  attempt: Attempt;
+  bots: FlatBot[];
+  onClose: () => void;
+  onDelete: () => void;
+  selectedBot: FlatBot;
+  setSelectedBot: Dispatch<SetStateAction<FlatBot>>;
+};
+
+export type DeleteBotProps = {
+  attempt: Attempt;
+  name: string;
+  onClose: () => void;
+  onDelete: () => void;
+};

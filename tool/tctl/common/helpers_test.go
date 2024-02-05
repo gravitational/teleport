@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -190,7 +191,7 @@ func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) error {
 		var entry T
 		if err := decoder.Decode(&entry); err != nil {
 			// Break when there are no more documents to decode
-			if err != io.EOF {
+			if !errors.Is(err, io.EOF) {
 				return err
 			}
 			break

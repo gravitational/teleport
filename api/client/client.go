@@ -978,7 +978,7 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 		return nil, trace.Wrap(err)
 	}
 	var roles []types.Role
-	for role, err := stream.Recv(); err != io.EOF; role, err = stream.Recv() {
+	for role, err := stream.Recv(); !errors.Is(err, io.EOF); role, err = stream.Recv() {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1002,7 +1002,7 @@ func (c *Client) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, 
 				return nil, trace.Wrap(err)
 			}
 			var users []types.User
-			for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
+			for user, err := stream.Recv(); !errors.Is(err, io.EOF); user, err = stream.Recv() {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -1125,52 +1125,6 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.Create
 	}
 
 	return token, nil
-}
-
-// CreateBot creates a new bot from the specified descriptor.
-//
-// TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1pb.BotServiceClient.CreateBot] instead.
-func (c *Client) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	response, err := c.grpc.CreateBot(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return response, nil
-}
-
-// DeleteBot deletes a bot and associated resources.
-//
-// TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1pb.BotServiceClient.DeleteBot] instead.
-func (c *Client) DeleteBot(ctx context.Context, botName string) error {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	_, err := c.grpc.DeleteBot(ctx, &proto.DeleteBotRequest{
-		Name: botName,
-	})
-	return trace.Wrap(err)
-}
-
-// GetBotUsers fetches all bot users.
-//
-// TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1pb.BotServiceClient.ListBots] instead.
-func (c *Client) GetBotUsers(ctx context.Context) ([]types.User, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	stream, err := c.grpc.GetBotUsers(ctx, &proto.GetBotUsersRequest{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var users []types.User
-	for user, err := stream.Recv(); err != io.EOF; user, err = stream.Recv() {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		users = append(users, user)
-	}
-	return users, nil
 }
 
 // GetAccessRequests retrieves a list of all access requests matching the provided filter.
@@ -1777,32 +1731,13 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// Deprecated: Use AddMFADeviceSync instead.
-func (c *Client) AddMFADevice(ctx context.Context) (proto.AuthService_AddMFADeviceClient, error) {
-	//nolint:staticcheck // SA1019. Kept for backward compatibility testing.
-	stream, err := c.grpc.AddMFADevice(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return stream, nil
-}
-
-// Deprecated: Use DeleteMFADeviceSync instead.
-func (c *Client) DeleteMFADevice(ctx context.Context) (proto.AuthService_DeleteMFADeviceClient, error) {
-	stream, err := c.grpc.DeleteMFADevice(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return stream, nil
-}
-
-// AddMFADeviceSync adds a new MFA device (nonstream).
+// AddMFADeviceSync adds a new MFA device.
 func (c *Client) AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error) {
 	res, err := c.grpc.AddMFADeviceSync(ctx, in)
 	return res, trace.Wrap(err)
 }
 
-// DeleteMFADeviceSync deletes a users MFA device (nonstream).
+// DeleteMFADeviceSync deletes a users MFA device.
 func (c *Client) DeleteMFADeviceSync(ctx context.Context, in *proto.DeleteMFADeviceSyncRequest) error {
 	_, err := c.grpc.DeleteMFADeviceSync(ctx, in)
 	return trace.Wrap(err)
@@ -1814,16 +1749,6 @@ func (c *Client) GetMFADevices(ctx context.Context, in *proto.GetMFADevicesReque
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
-}
-
-// Deprecated: Use GenerateUserCerts instead.
-func (c *Client) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
-	//nolint:staticcheck // SA1019. Kept for backwards compatibility.
-	stream, err := c.grpc.GenerateUserSingleUseCerts(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return stream, nil
 }
 
 func (c *Client) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
@@ -2415,7 +2340,7 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, star
 		for {
 			oneOf, err := stream.Recv()
 			if err != nil {
-				if err != io.EOF {
+				if !errors.Is(err, io.EOF) {
 					e <- trace.Wrap(trace.Wrap(err))
 				} else {
 					close(ch)
@@ -2512,14 +2437,38 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 
 	stream, err := c.grpc.StreamUnstructuredSessionEvents(ctx, request)
 	if err != nil {
-		e <- trace.Wrap(trace.Wrap(err))
+		if trace.IsNotImplemented(trace.Wrap(err)) {
+			// If the server does not support the unstructured events API,
+			// fallback to the legacy API.
+			// This code patch shouldn't be triggered because the server
+			// returns the error only if the client calls Recv() on the stream.
+			// However, we keep this code patch here just in case there is a bug
+			// on the client grpc side.
+			c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
+		} else {
+			e <- trace.Wrap(trace.Wrap(err))
+		}
 		return ch, e
 	}
 	go func() {
 		for {
 			event, err := stream.Recv()
 			if err != nil {
-				if err != io.EOF {
+				if !errors.Is(err, io.EOF) {
+					// If the server does not support the unstructured events API, it will
+					// return an error with code Unimplemented. This error is received
+					// the first time the client calls Recv() on the stream.
+					// If the client receives this error, it should fallback to the legacy
+					// API that spins another goroutine to convert the events to the
+					// unstructured format and sends them to the channel ch.
+					// Once we decide to spin the goroutine, we can leave this loop without
+					// reporting any error to the caller.
+					if trace.IsNotImplemented(trace.Wrap(err)) {
+						// If the server does not support the unstructured events API,
+						// fallback to the legacy API.
+						go c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
+						return
+					}
 					e <- trace.Wrap(trace.Wrap(err))
 				} else {
 					close(ch)
@@ -2537,6 +2486,64 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 	}()
 
 	return ch, e
+}
+
+// streamUnstructuredSessionEventsFallback is a fallback implementation of the
+// StreamUnstructuredSessionEvents method that is used when the server does not
+// support the unstructured events API. This method uses the old API to stream
+// events from the server and converts them to the unstructured format. This
+// method converts the events at event handler plugin side, which can cause
+// the plugin to miss some events if the plugin is not updated to the latest
+// version.
+// NOTE(tigrato): This code was reintroduced in 15.0.0 because the gRPC method was renamed
+// incorrectly in 13.1-14.3 which caused the server to return Unimplemented
+// error to the client and the client to fallback to the legacy API.
+// TODO(tigrato): DELETE IN 16.0.0
+func (c *Client) streamUnstructuredSessionEventsFallback(ctx context.Context, sessionID string, startIndex int64, ch chan *auditlogpb.EventUnstructured, e chan error) {
+	request := &proto.StreamSessionEventsRequest{
+		SessionID:  sessionID,
+		StartIndex: int32(startIndex),
+	}
+
+	stream, err := c.grpc.StreamSessionEvents(ctx, request)
+	if err != nil {
+		e <- trace.Wrap(err)
+		return
+	}
+
+	go func() {
+		for {
+			oneOf, err := stream.Recv()
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					e <- trace.Wrap(trace.Wrap(err))
+				} else {
+					close(ch)
+				}
+
+				return
+			}
+
+			event, err := events.FromOneOf(*oneOf)
+			if err != nil {
+				e <- trace.Wrap(trace.Wrap(err))
+				return
+			}
+
+			unstructedEvent, err := events.ToUnstructured(event)
+			if err != nil {
+				e <- trace.Wrap(err)
+				return
+			}
+
+			select {
+			case ch <- unstructedEvent:
+			case <-ctx.Done():
+				e <- trace.Wrap(ctx.Err())
+				return
+			}
+		}
+	}()
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.

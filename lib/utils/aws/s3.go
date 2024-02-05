@@ -41,11 +41,13 @@ func ConvertS3Error(err error, args ...interface{}) error {
 	}
 
 	// SDK v1 errors:
-	if rerr, ok := err.(awserr.RequestFailure); ok && rerr.StatusCode() == http.StatusForbidden {
+	var rerr awserr.RequestFailure
+	if errors.As(err, &rerr) && rerr.StatusCode() == http.StatusForbidden {
 		return trace.AccessDenied(rerr.Message())
 	}
 
-	if aerr, ok := err.(awserr.Error); ok {
+	var aerr awserr.Error
+	if errors.As(err, &aerr) {
 		switch aerr.Code() {
 		case s3.ErrCodeNoSuchKey, s3.ErrCodeNoSuchBucket, s3.ErrCodeNoSuchUpload, "NotFound":
 			return trace.NotFound(aerr.Error(), args...)

@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -199,6 +201,20 @@ func TryRun(commands []CLICommand, args []string) error {
 	}
 
 	ctx := context.Background()
+
+	clientConfig.Resolver, err = reversetunnelclient.CachingResolver(
+		ctx,
+		reversetunnelclient.WebClientResolver(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: clientConfig.AuthServers[0].String(),
+			Insecure:  clientConfig.Insecure,
+			Timeout:   clientConfig.DialTimeout,
+		}),
+		nil /* clock */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {

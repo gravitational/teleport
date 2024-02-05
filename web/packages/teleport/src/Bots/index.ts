@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,9 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
-
-func updateDocsPipeline() pipeline {
-	// TODO: migrate
-	return pipeline{}
-}
+// export as default for use with React.lazy
+export { Bots as default } from './List/Bots';

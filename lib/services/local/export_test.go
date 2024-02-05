@@ -31,3 +31,9 @@ func (l *globalSessionDataLimiter) Reset() {
 	l.lastReset = time.Time{}
 	l.mu.Unlock()
 }
+
+const (
+	WebPrefix    = webPrefix
+	UsersPrefix  = usersPrefix
+	ParamsPrefix = paramsPrefix
+)

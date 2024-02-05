@@ -16,6 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ManageDevices from './ManageDevices';
+import api from 'teleport/services/api';
+import cfg from 'teleport/config';
 
-export default ManageDevices;
+import { makeListBot } from 'teleport/services/bot/consts';
+
+import { BotList, BotResponse } from './types';
+
+export function fetchBots(signal: AbortSignal): Promise<BotList> {
+  return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
+    const items = json?.items || [];
+    return { bots: items.map(makeListBot) };
+  });
+}
+
+export function deleteBot(name: string) {
+  return api.delete(cfg.getBotUrlWithName(name));
+}
