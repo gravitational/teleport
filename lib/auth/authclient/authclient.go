@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -49,6 +48,11 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// DialTimeout determines how long to wait for dialing to succeed before aborting.
 	DialTimeout time.Duration
+	// Insecure turns off TLS certificate verification when enabled.
+	Insecure bool
+	// Resolver is used to identify the reverse tunnel address when connecting via
+	// the proxy.
+	Resolver reversetunnelclient.Resolver
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -108,25 +112,11 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 	// If direct dial failed, we may have a proxy address in
 	// cfg.AuthServers. Try connecting to the reverse tunnel
 	// endpoint and make a client over that.
-	//
-	// TODO(nic): this logic should be implemented once and reused in IoT
-	// nodes.
-	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: cfg.AuthServers[0].String(),
-		Insecure:  cfg.TLS.InsecureSkipVerify,
-		Timeout:   cfg.DialTimeout,
-	})
-
-	resolver, err := reversetunnelclient.CachingResolver(ctx, resolver, nil /* clock */)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// reversetunnelclient.TunnelAuthDialer will take care of creating a net.Conn
 	// within an SSH tunnel.
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
-		Resolver:              resolver,
+		Resolver:              cfg.Resolver,
 		ClientConfig:          cfg.SSH,
 		Log:                   cfg.Log,
 		InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
