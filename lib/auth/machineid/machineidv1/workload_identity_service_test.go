@@ -164,8 +164,8 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 				require.Greater(t, cert.KeyUsage&x509.KeyUsageKeyEncipherment, 0)
 				require.Greater(t, cert.KeyUsage&x509.KeyUsageKeyAgreement, 0)
 				// 4.3: Leaf SVIDs MUST NOT set keyCertSign or cRLSign
-				require.Equal(t, cert.KeyUsage&x509.KeyUsageCertSign, 0)
-				require.Equal(t, cert.KeyUsage&x509.KeyUsageCRLSign, 0)
+				require.EqualValues(t, 0, cert.KeyUsage&x509.KeyUsageCertSign)
+				require.EqualValues(t, 0, cert.KeyUsage&x509.KeyUsageCRLSign)
 				// 4.4: When included, fields id-kp-serverAuth and id-kp-clientAuth MUST be set.
 				require.Contains(t, cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
 				require.Contains(t, cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
