@@ -474,6 +474,36 @@ spec:
                           type: string
                       type: object
                     type: array
+                  spiffe:
+                    description: SPIFFE is used to allow or deny access to a role
+                      holder to generating a SPIFFE SVID.
+                    items:
+                      properties:
+                        dns_sans:
+                          description: 'DNS specifies a globby style matcher for the
+                            SPIFFE ID DNS SAN. Matching: - ''*'' matches zero or more
+                            characters. - ''?'' matches any single character.'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        ip_sans:
+                          description: IPSANs specifies a matcher IP SANs which have
+                            been requested in the SVID. It supports IPv4 and IPv6.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        path:
+                          description: 'Path specifies a globby style matcher for
+                            the SPIFFE ID path. It should not include the trust domain
+                            and should start with a leading slash. Matching: - ''*''
+                            matches zero or more characters. - ''?'' matches any single
+                            character. Example: /svc/foo/*/bar would match /svc/foo/baz/bar'
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                   windows_desktop_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -934,6 +964,36 @@ spec:
                           description: Where specifies optional advanced matcher
                           type: string
                       type: object
+                    type: array
+                  spiffe:
+                    description: SPIFFE is used to allow or deny access to a role
+                      holder to generating a SPIFFE SVID.
+                    items:
+                      properties:
+                        dns_sans:
+                          description: 'DNS specifies a globby style matcher for the
+                            SPIFFE ID DNS SAN. Matching: - ''*'' matches zero or more
+                            characters. - ''?'' matches any single character.'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        ip_sans:
+                          description: IPSANs specifies a matcher IP SANs which have
+                            been requested in the SVID. It supports IPv4 and IPv6.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        path:
+                          description: 'Path specifies a globby style matcher for
+                            the SPIFFE ID path. It should not include the trust domain
+                            and should start with a leading slash. Matching: - ''*''
+                            matches zero or more characters. - ''?'' matches any single
+                            character. Example: /svc/foo/*/bar would match /svc/foo/baz/bar'
+                          type: string
+                      type: object
+                    nullable: true
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
@@ -1672,6 +1732,36 @@ spec:
                           type: string
                       type: object
                     type: array
+                  spiffe:
+                    description: SPIFFE is used to allow or deny access to a role
+                      holder to generating a SPIFFE SVID.
+                    items:
+                      properties:
+                        dns_sans:
+                          description: 'DNS specifies a globby style matcher for the
+                            SPIFFE ID DNS SAN. Matching: - ''*'' matches zero or more
+                            characters. - ''?'' matches any single character.'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        ip_sans:
+                          description: IPSANs specifies a matcher IP SANs which have
+                            been requested in the SVID. It supports IPv4 and IPv6.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        path:
+                          description: 'Path specifies a globby style matcher for
+                            the SPIFFE ID path. It should not include the trust domain
+                            and should start with a leading slash. Matching: - ''*''
+                            matches zero or more characters. - ''?'' matches any single
+                            character. Example: /svc/foo/*/bar would match /svc/foo/baz/bar'
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                   windows_desktop_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -2132,6 +2222,36 @@ spec:
                           description: Where specifies optional advanced matcher
                           type: string
                       type: object
+                    type: array
+                  spiffe:
+                    description: SPIFFE is used to allow or deny access to a role
+                      holder to generating a SPIFFE SVID.
+                    items:
+                      properties:
+                        dns_sans:
+                          description: 'DNS specifies a globby style matcher for the
+                            SPIFFE ID DNS SAN. Matching: - ''*'' matches zero or more
+                            characters. - ''?'' matches any single character.'
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        ip_sans:
+                          description: IPSANs specifies a matcher IP SANs which have
+                            been requested in the SVID. It supports IPv4 and IPv6.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        path:
+                          description: 'Path specifies a globby style matcher for
+                            the SPIFFE ID path. It should not include the trust domain
+                            and should start with a leading slash. Matching: - ''*''
+                            matches zero or more characters. - ''?'' matches any single
+                            character. Example: /svc/foo/*/bar would match /svc/foo/baz/bar'
+                          type: string
+                      type: object
+                    nullable: true
                     type: array
                   windows_desktop_labels:
                     additionalProperties:
