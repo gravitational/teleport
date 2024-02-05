@@ -125,18 +125,5 @@ demo:
   - name: List nodes (tsh)
     # Enters a command from the cluster, in this case "tsh ls" using Machine
     # ID credentials to list remote SSH nodes.
-    run: tsh ls
-  # kubernetes access example
-  - name: Fetch kubectl
-    uses: azure/setup-kubectl@v3
-  - name: Fetch credentials using Machine ID
-    uses: teleport-actions/auth-k8s@v2
-    with:
-      proxy: ${proxyAddr}
-      token: ${tokenName}
-      # Use the name of your Kubernetes cluster
-      kubernetes-cluster: my-kubernetes-cluster
-      anonymous-telemetry: 1
-  - name: List pods
-    run: kubectl get pods -A`;
+    run: tsh ls`;
 }
