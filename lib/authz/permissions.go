@@ -1445,9 +1445,11 @@ func (c *Context) CheckAccessToRule(quiet bool, ruleCtx *services.Context, kind 
 		return trace.BadParameter("expected one or more verbs to be provided")
 	}
 
-	errs := make([]error, len(verbs))
-	for i, verb := range verbs {
-		errs[i] = c.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)
+	var errs []error
+	for _, verb := range verbs {
+		if err := c.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	return trace.NewAggregate(errs...)
