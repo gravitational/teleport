@@ -327,7 +327,7 @@ func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessS
 func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
 	defer func() {
 		if err != nil {
-			err = ConvertAuthorizerError(ctx, a.logger, err)
+			err = a.convertAuthorizerError(err)
 		}
 	}()
 
@@ -522,6 +522,35 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 	}
 
 	return nil
+}
+
+// convertAuthorizerError will take an authorizer error and convert it into an error easily
+// handled by gRPC services.
+func (a *authorizer) convertAuthorizerError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	// propagate connection problem error so we can differentiate
+	// between connection failed and access denied
+	case trace.IsConnectionProblem(err):
+		return trace.ConnectionProblem(err, "failed to connect to the database")
+	case trace.IsNotFound(err):
+		// user not found, wrap error with access denied
+		return trace.Wrap(err, "access denied")
+	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
+		a.logger.Warn(err)
+		return trace.Wrap(err)
+	case trace.IsAccessDenied(err):
+		// don't print stack trace, just log the warning
+		a.logger.Warn(err)
+	case keys.IsPrivateKeyPolicyError(err):
+		// private key policy errors should be returned to the client
+		// unaltered so that they know to reauthenticate with a valid key.
+		return trace.Unwrap(err)
+	default:
+		a.logger.WithError(err).Warn("Suppressing unknown authz error.")
+	}
+	return trace.AccessDenied("access denied")
 }
 
 // ErrIPPinningMissing is returned when user cert should be pinned but isn't.
@@ -1341,35 +1370,6 @@ func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.User
 	meta := ClientUserMetadata(ctx)
 	meta.User = user
 	return meta
-}
-
-// ConvertAuthorizerError will take an authorizer error and convert it into an error easily
-// handled by gRPC services.
-func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err error) error {
-	switch {
-	case err == nil:
-		return nil
-	// propagate connection problem error so we can differentiate
-	// between connection failed and access denied
-	case trace.IsConnectionProblem(err):
-		return trace.ConnectionProblem(err, "failed to connect to the database")
-	case trace.IsNotFound(err):
-		// user not found, wrap error with access denied
-		return trace.Wrap(err, "access denied")
-	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
-		log.Warn(err)
-		return trace.Wrap(err)
-	case trace.IsAccessDenied(err):
-		// don't print stack trace, just log the warning
-		log.Warn(err)
-	case keys.IsPrivateKeyPolicyError(err):
-		// private key policy errors should be returned to the client
-		// unaltered so that they know to reauthenticate with a valid key.
-		return trace.Unwrap(err)
-	default:
-		log.WithError(err).Warn("Suppressing unknown authz error.")
-	}
-	return trace.AccessDenied("access denied")
 }
 
 // AuthorizeResourceWithVerbs will ensure that the user has access to the given verbs for the given kind.
