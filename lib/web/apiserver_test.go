@@ -8988,6 +8988,7 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 	require.NoError(t, err)
 	// add SAML session session cookie to authenticated client pack.
 	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
 	setSAMLCookie := &http.Cookie{
 		Name:     samlidp.SAMLSessionCookieName,
 		Value:    samlSessionID,
@@ -9003,8 +9004,8 @@ func TestSAMlSessionClearedOnLogout(t *testing.T) {
 		SessionID: samlSessionID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, samlSession.GetUser(), user)
-	require.Equal(t, samlSession.GetSAMLSession().ID, samlSessionID)
+	require.Equal(t, user, samlSession.GetUser())
+	require.Equal(t, samlSessionID, samlSession.GetSAMLSession().ID)
 
 	// logout from web. The saml session needs to be deleted and the proxy should
 	// respond with SAML session cookie with empty value.
