@@ -8610,7 +8610,7 @@ func TestCheckSPIFFESVID(t *testing.T) {
 				"foo.example.net",
 			},
 			ipSANs: []net.IP{
-				net.IP{10, 0, 0, 32},
+				{10, 0, 0, 32},
 			},
 
 			roles: []types.Role{
@@ -8665,7 +8665,7 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			spiffeIDPath: "/foo/bar",
 			dnsSANs:      []string{},
 			ipSANs: []net.IP{
-				net.IP{10, 0, 0, 42},
+				{10, 0, 0, 42},
 			},
 
 			roles: []types.Role{

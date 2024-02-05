@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -952,6 +953,17 @@ func (r *RoleV6) SetGroupLabels(rct RoleConditionType, labels Labels) {
 	}
 }
 
+// CheckAndSetDefaults checks validity of all fields and sets defaults
+func (c *SPIFFERoleConditions) CheckAndSetDefaults() error {
+	if c.Path == "" {
+		return trace.BadParameter("path: should be non-empty")
+	}
+	if !strings.HasPrefix(c.Path, "/") {
+		return trace.BadParameter("path: should start with /")
+	}
+	return nil
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
 func (r *RoleV6) CheckAndSetDefaults() error {
 	r.setStaticFields()
@@ -1174,6 +1186,18 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 		if err := r.Spec.Deny.Impersonate.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+	for i := range r.Spec.Allow.SPIFFE {
+		err := r.Spec.Allow.SPIFFE[i].CheckAndSetDefaults()
+		if err != nil {
+			return trace.Wrap(err, "validating spec.allow.spiffe[%d]", i)
+		}
+	}
+	for i := range r.Spec.Deny.SPIFFE {
+		err := r.Spec.Deny.SPIFFE[i].CheckAndSetDefaults()
+		if err != nil {
+			return trace.Wrap(err, "validating spec.deny.spiffe[%d]", i)
 		}
 	}
 
