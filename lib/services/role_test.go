@@ -8677,7 +8677,7 @@ func TestCheckSPIFFESVID(t *testing.T) {
 					},
 				}, []*types.SPIFFERoleConditions{
 					{
-						Path: "*",
+						Path: "/*",
 						IPSANs: []string{
 							"10.0.0.42/32",
 						},
@@ -8707,7 +8707,7 @@ func TestCheckSPIFFESVID(t *testing.T) {
 					},
 				}, []*types.SPIFFERoleConditions{
 					{
-						Path: "*",
+						Path: "/*",
 						DNSSANs: []string{
 							"foo.example.com",
 						},
