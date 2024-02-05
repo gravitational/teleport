@@ -24,11 +24,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/trace"
 )
 
 // Testing requires a local psql backend to be set up, and for params to be passed via env. Ex:
