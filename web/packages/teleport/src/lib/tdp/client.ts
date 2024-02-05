@@ -86,7 +86,7 @@ export enum LogType {
 }
 
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
-// sending client commands, and recieving and processing server messages. Its creator is responsible for
+// sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
 export default class Client extends EventEmitterWebAuthnSender {
