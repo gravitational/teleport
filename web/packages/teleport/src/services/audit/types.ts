@@ -1515,16 +1515,16 @@ export type RawEvents = {
     }
   >;
   [eventCodes.SPIFFE_SVID_ISSUED]: RawEvent<
-      typeof eventCodes.SPIFFE_SVID_ISSUED,
-      {
-        spiffe_id: string;
-      }
+    typeof eventCodes.SPIFFE_SVID_ISSUED,
+    {
+      spiffe_id: string;
+    }
   >;
   [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: RawEvent<
-      typeof eventCodes.SPIFFE_SVID_ISSUED_FAILURE,
-      {
-        spiffe_id: string;
-      }
+    typeof eventCodes.SPIFFE_SVID_ISSUED_FAILURE,
+    {
+      spiffe_id: string;
+    }
   >;
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: RawEvent<
     typeof eventCodes.CREATE_MFA_AUTH_CHALLENGE,
