@@ -86,6 +86,7 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 	}
 
 	if cfg.ID != 0 {
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
 		r.Metadata.Id = cfg.ID
 	}
 	if cfg.Revision != "" {

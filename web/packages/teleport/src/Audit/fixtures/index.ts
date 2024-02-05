@@ -2057,8 +2057,8 @@ export const events = [
     uid: '503e310d-8d88-4bea-bbbb-a1b35456a03a',
     user: 'alice',
     permission_summary: [
-      { counts: { table: 1, view:2 }, permission: 'INSERT' },
-      { counts: { table: 2, view:4 }, permission: 'SELECT' },
+      { counts: { table: 1, view: 2 }, permission: 'INSERT' },
+      { counts: { table: 2, view: 4 }, permission: 'SELECT' },
       { counts: { table: 3 }, permission: 'UPDATE' },
     ],
   },

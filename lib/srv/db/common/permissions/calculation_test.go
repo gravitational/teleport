@@ -162,7 +162,7 @@ func TestCalculatePermissions(t *testing.T) {
 
 			summary, details := SummarizePermissions(perms)
 			require.Equal(t, tt.summary, summary)
-			require.Equal(t, tt.details, details)
+			require.ElementsMatch(t, tt.details, details)
 		})
 	}
 }

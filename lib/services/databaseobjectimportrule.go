@@ -59,6 +59,7 @@ func MarshalDatabaseObjectImportRule(rule *dbobjectimportrulev1.DatabaseObjectIm
 
 	if !cfg.PreserveResourceID {
 		rule = proto.Clone(rule).(*dbobjectimportrulev1.DatabaseObjectImportRule)
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
 		rule.Metadata.Id = 0
 		rule.Metadata.Revision = ""
 	}
