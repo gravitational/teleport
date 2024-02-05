@@ -5448,6 +5448,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
 
+	integrationAWSOIDCServiceServer, err := integrationService.NewAWSOIDCService(&integrationService.AWSOIDCServiceConfig{
+		Authorizer:         cfg.Authorizer,
+		IntegrationService: integrationServiceServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	integrationpb.RegisterAWSOIDCServiceServer(server, integrationAWSOIDCServiceServer)
+
 	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
