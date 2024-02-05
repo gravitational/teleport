@@ -203,5 +203,5 @@ export enum RecommendationStatus {
 export type WebsocketStatus = {
   type: string;
   status: string;
-  message: string;
+  message?: string;
 };
