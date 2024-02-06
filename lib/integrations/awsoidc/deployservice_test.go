@@ -21,11 +21,13 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 )
 
 func TestDeployServiceRequest(t *testing.T) {
@@ -43,6 +45,7 @@ func TestDeployServiceRequest(t *testing.T) {
 			IntegrationName:               "teleportdev",
 			DeploymentMode:                DatabaseServiceDeploymentMode,
 			DatabaseResourceMatcherLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DeployServiceConfigString:     deployserviceconfig.GenerateTeleportConfigString,
 		}
 	}
 
@@ -154,6 +157,7 @@ func TestDeployServiceRequest(t *testing.T) {
 				},
 				DeploymentMode:                DatabaseServiceDeploymentMode,
 				DatabaseResourceMatcherLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DeployServiceConfigString:     deployserviceconfig.GenerateTeleportConfigString,
 			},
 		},
 	} {
@@ -166,7 +170,7 @@ func TestDeployServiceRequest(t *testing.T) {
 				return
 			}
 
-			require.Empty(t, cmp.Diff(tt.reqWithDefaults, r))
+			require.Empty(t, cmp.Diff(tt.reqWithDefaults, r, cmpopts.IgnoreFields(DeployServiceRequest{}, "DeployServiceConfigString")))
 		})
 	}
 }

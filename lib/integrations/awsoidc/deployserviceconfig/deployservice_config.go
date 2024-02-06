@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package awsoidc
+package deployserviceconfig
 
 import (
 	"encoding/base64"
@@ -28,22 +28,15 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-type generateTeleportConfigParams struct {
-	ProxyServerHostPort           string
-	TeleportIAMTokenName          string
-	DeploymentMode                string
-	DatabaseResourceMatcherLabels types.Labels
-}
-
-// generateTeleportConfigString creates a teleport.yaml configuration that the agent
+// GenerateTeleportConfigString creates a teleport.yaml configuration that the agent
 // deployed in a ECS Cluster (using Fargate) will use.
 //
 // Returns config as base64-encoded string suitable for passing to teleport process
 // via --config-string flag.
-func generateTeleportConfigString(req generateTeleportConfigParams) (string, error) {
+func GenerateTeleportConfigString(proxyHostPort, iamTokenName string, resourceMatcherLabels types.Labels) (string, error) {
 	teleportConfig, err := config.MakeSampleFileConfig(config.SampleFlags{
 		Version:      defaults.TeleportConfigVersionV3,
-		ProxyAddress: req.ProxyServerHostPort,
+		ProxyAddress: proxyHostPort,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -69,20 +62,14 @@ func generateTeleportConfigString(req generateTeleportConfigParams) (string, err
 		}
 	*/
 	teleportConfig.JoinParams = config.JoinParams{
-		TokenName: req.TeleportIAMTokenName,
+		TokenName: iamTokenName,
 		Method:    types.JoinMethodIAM,
 	}
 
-	switch req.DeploymentMode {
-	case DatabaseServiceDeploymentMode:
-		teleportConfig.Databases.Service.EnabledFlag = "yes"
-		teleportConfig.Databases.ResourceMatchers = []config.ResourceMatcher{{
-			Labels: req.DatabaseResourceMatcherLabels,
-		}}
-
-	default:
-		return "", trace.BadParameter("invalid deployment mode %q, supported modes: %v", req.DeploymentMode, DeploymentModes)
-	}
+	teleportConfig.Databases.Service.EnabledFlag = "yes"
+	teleportConfig.Databases.ResourceMatchers = []config.ResourceMatcher{{
+		Labels: resourceMatcherLabels,
+	}}
 
 	teleportConfigYAMLBytes, err := yaml.Marshal(teleportConfig)
 	if err != nil {
