@@ -86,6 +86,28 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_permissions:
+                    description: DatabasePermission specifies a set of permissions
+                      that will be granted to the database user when using automatic
+                      database user provisioning.
+                    items:
+                      properties:
+                        match:
+                          additionalProperties:
+                            x-kubernetes-preserve-unknown-fields: true
+                          description: Match is a list of object labels that must
+                            be matched for the permission to be granted.
+                          type: object
+                        permissions:
+                          description: Permission is the list of string representations
+                            of the permission to be given, e.g. SELECT, INSERT, UPDATE,
+                            ...
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    type: array
                   db_roles:
                     description: DatabaseRoles is a list of databases roles for automatic
                       user creation.
@@ -546,6 +568,28 @@ spec:
                     items:
                       type: string
                     nullable: true
+                    type: array
+                  db_permissions:
+                    description: DatabasePermission specifies a set of permissions
+                      that will be granted to the database user when using automatic
+                      database user provisioning.
+                    items:
+                      properties:
+                        match:
+                          additionalProperties:
+                            x-kubernetes-preserve-unknown-fields: true
+                          description: Match is a list of object labels that must
+                            be matched for the permission to be granted.
+                          type: object
+                        permissions:
+                          description: Permission is the list of string representations
+                            of the permission to be given, e.g. SELECT, INSERT, UPDATE,
+                            ...
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
                     type: array
                   db_roles:
                     description: DatabaseRoles is a list of databases roles for automatic
@@ -1284,6 +1328,28 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_permissions:
+                    description: DatabasePermission specifies a set of permissions
+                      that will be granted to the database user when using automatic
+                      database user provisioning.
+                    items:
+                      properties:
+                        match:
+                          additionalProperties:
+                            x-kubernetes-preserve-unknown-fields: true
+                          description: Match is a list of object labels that must
+                            be matched for the permission to be granted.
+                          type: object
+                        permissions:
+                          description: Permission is the list of string representations
+                            of the permission to be given, e.g. SELECT, INSERT, UPDATE,
+                            ...
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
+                    type: array
                   db_roles:
                     description: DatabaseRoles is a list of databases roles for automatic
                       user creation.
@@ -1744,6 +1810,28 @@ spec:
                     items:
                       type: string
                     nullable: true
+                    type: array
+                  db_permissions:
+                    description: DatabasePermission specifies a set of permissions
+                      that will be granted to the database user when using automatic
+                      database user provisioning.
+                    items:
+                      properties:
+                        match:
+                          additionalProperties:
+                            x-kubernetes-preserve-unknown-fields: true
+                          description: Match is a list of object labels that must
+                            be matched for the permission to be granted.
+                          type: object
+                        permissions:
+                          description: Permission is the list of string representations
+                            of the permission to be given, e.g. SELECT, INSERT, UPDATE,
+                            ...
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
                     type: array
                   db_roles:
                     description: DatabaseRoles is a list of databases roles for automatic
