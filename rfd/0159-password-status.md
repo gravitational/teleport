@@ -54,8 +54,8 @@ Pick --> |Authenticator app| AuthApp[Ask for code]
 WebAuthnVer --> NewPass[Ask for new password]
 WebAuthnNoVer --> OldAndNewPass[Ask for old and new password]
 AuthApp --> OldAndNewPass
-NewPass --> ChangePassVer[Change password,<br>require verification]
-OldAndNewPass --> ChangePassNoVer[Change password,<br>don't require verification]
+NewPass --> ChangePassVer[Change password,<br>UV=1 required]
+OldAndNewPass --> ChangePassNoVer[Change password,<br>UV not required]
 ChangePassVer --> End
 ChangePassNoVer --> End
 MFAAvail --> |No| MFAReq{MFA required?}
@@ -73,13 +73,17 @@ Ultimately, we would like to have information about password state for as many u
 1. To explicitly tell the user that they have a password configured — for example, on the account settings page.
 2. To support any other future feature that might require knowing this information.
 
-To do this, we will extend the [`UserSpecV2`](https://github.com/gravitational/teleport/blob/6103a2b1eff2a6bece80ab138ebe68b4ba041a91/api/proto/teleport/legacy/types/types.proto#L3185) message by adding a `PasswordState` field:
+To do this, we will extend the [`UserV2`](https://github.com/gravitational/teleport/blob/6103a2b1eff2a6bece80ab138ebe68b4ba041a91/api/proto/teleport/legacy/types/types.proto#L3185) message by adding a  `PasswordState` field. This field will be inside a `Status` structure (per best practices outlined in RFD 0153):
 
 ```proto
-message UserSpecV2 {
+message UserV2 {
   // ...existing fields...
 
-  PasswordState PasswordState = 11 [(gogoproto.jsontag) = "password_state,omitempty"];
+  UserStatusV2 Status = 6 [(gogoproto.jsontag) = "status,omitempty"]
+}
+
+message UserStatusV2 {
+  PasswordState PasswordState = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
 }
 
 enum PasswordState {
@@ -92,7 +96,7 @@ enum PasswordState {
 }
 ```
 
-The flag will be stored under the `/web/users/<username>/params` key, along with the rest of `UserSpecV2` fields.
+The flag will be stored under the `/web/users/<username>/params` key, along with the rest of `UserV2` fields. Its main purpose is to describe the state of _existing_ password hashes.
 
 `PASSWORD_STATE_UNSPECIFIED` is deliberately set to 0, since this is the default value when there's no information about the password state in the database.
 
@@ -107,13 +111,13 @@ The state changes to `PASSWORD_STATE_SET` whenever user sets/resets their passwo
 
 The old account settings page had separate paths for managing passwords and MFA devices, so there is no endpoint that would return information about all authentication methods specifically for this page. There is only an endpoint that returns a list of MFA devices.
 
-Since we already return `authType` in `/v1/webapi/sites/<site>/context`, it makes sense to extend the returned data structure with the `PasswordState` flag, thus making it appear in the `UserContext` structure on the frontend. The flag itself will be fetched from the [`GetUser`](https://github.com/gravitational/teleport/blob/e8b84ae20d1cae273f7f39aa02bdaeb2358cd4e4/api/proto/teleport/users/v1/users_service.proto#L27) RPC call that is already performed by the endpoint. `GetUser` will return the flag in the `GetUserResponse.user.Spec.PasswordState` field.
+Since we already return `authType` in `/v1/webapi/sites/<site>/context`, it makes sense to extend the returned data structure with the `PasswordState` flag, thus making it appear in the `UserContext` structure on the frontend. The flag itself will be fetched from the [`GetUser`](https://github.com/gravitational/teleport/blob/53aafb44b584a41186822e802cf004d3fe4d2486/api/proto/teleport/users/v1/users_service.proto#L27) RPC call that is already performed by the endpoint. `GetUser` will return the flag in the `GetUserResponse.user.Status.PasswordState` field.
 
 ## Changes to the password reset flow
 
 During password reset (which, incidentally, also happens when we are creating a new account), we are setting user's password to a random, 16-character password. We propose to simply not create a password hash in this scenario at all and delete the existing one if present.
 
-The existing password validation code executed when user signs in is already prepared for a missing hash, although it recognizes it as a "missing user" scenario. The only change required is changing a debug message; the behavior of the algorithm remains the same.
+The existing password validation code executed when user signs in is already prepared for a missing hash, although it recognizes it as a "missing user" scenario. The only change required here is changing a debug message; the behavior of the algorithm remains the same. Another place where it should be addressed is the [`ValidateLocalAuthSecrets`](https://github.com/gravitational/teleport/blob/53aafb44b584a41186822e802cf004d3fe4d2486/lib/services/authentication.go#L36-L40) function, where we will need to prevent a timing attack by using a Cost operation on a fake hash. Note that it's unlikely for this part to be exploited, but it's a low-cost countermeasure that we can take.
 
 The proposed change is only to clean up our architecture and increase the level of protection of new passwordless accounts; it's better to have them protected by the fact that a password hash doesn't exist rather than by a hash for a random 16-byte password.
 
