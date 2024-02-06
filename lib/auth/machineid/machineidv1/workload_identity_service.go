@@ -309,7 +309,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 
 func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.SignX509SVIDsRequest) (*pb.SignX509SVIDsResponse, error) {
 	if !experiment.Enabled() {
-		return nil, trace.AccessDenied("workload identity has not been enabled for this build")
+		return nil, trace.AccessDenied("workload identity has not been enabled")
 	}
 
 	if len(req.Svids) == 0 {
