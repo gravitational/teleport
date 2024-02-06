@@ -50,34 +50,6 @@ import {
   useGitHubFlow,
 } from './useGitHubFlow';
 
-const MULTIPLE_HOSTS_ERROR =
-  'All repositories must be in the same host. Please create different bots for each host.';
-const ENTERPRISE_HOST_ERROR = () => {
-  return (
-    <Box>
-      GitHub Enterprise Server Host require Teleport Enterprise.Please use a
-      repository hosted at github.com or{' '}
-      <Link target="_blank" href="https://goteleport.com/signup/enterprise/">
-        contact us
-      </Link>
-      .
-    </Box>
-  );
-};
-const IVNALID_HOST_ERROR = ({
-  rule,
-  error,
-}: {
-  rule: string;
-  error: string;
-}) => {
-  return (
-    <Box>
-      Invalid address {rule}: {error}
-    </Box>
-  );
-};
-
 const refTypeOptions: RefTypeOption[] = [
   {
     label: 'any',
@@ -104,7 +76,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
   } = useGitHubFlow();
   const isLoading = attempt.status === 'processing';
 
-  const [hostError, setHostError] = useState<JSX.Element | string | null>(null);
+  const [hostError, setHostError] = useState<JSX.Element | null>(null);
 
   function handleNext(validator: Validator) {
     // clear errors
@@ -120,22 +92,20 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
         const { host } = parseRepoAddress(rule.repoAddress);
         hosts.add(host);
       } catch (err) {
-        setHostError(
-          IVNALID_HOST_ERROR({ rule: rule.repoAddress, error: err })
-        );
+        setHostError(InvalidHostError({ rule: rule.repoAddress, error: err }));
       }
     });
 
     // ensure all repositories have the same host
     if (hosts.size > 1) {
-      setHostError(MULTIPLE_HOSTS_ERROR);
+      setHostError(MultipleHostsError);
       return;
     }
 
     const isGitHubEnterpriseHost = [...hosts][0] !== GITHUB_HOST;
     // ensure only enterprise users can use GitHub Enterprise Server Host
     if (isGitHubEnterpriseHost && !cfg.isEnterprise) {
-      setHostError(ENTERPRISE_HOST_ERROR);
+      setHostError(EnterpriseHostError);
       return;
     }
 
@@ -370,4 +340,33 @@ const requireValidRepository = value => () => {
   } catch (e) {
     return { valid: false, message: e?.message };
   }
+};
+
+const MultipleHostsError = () => {
+  return (
+    <Text>
+      All repositories must be in the same host. Please create different bots
+      for each host.
+    </Text>
+  );
+};
+
+const EnterpriseHostError = () => {
+  return (
+    <Box>
+      GitHub Enterprise Server Host require Teleport Enterprise.Please use a
+      repository hosted at github.com or{' '}
+      <Link target="_blank" href="https://goteleport.com/signup/enterprise/">
+        contact us
+      </Link>
+      .
+    </Box>
+  );
+};
+const InvalidHostError = ({ rule, error }: { rule: string; error: string }) => {
+  return (
+    <Box>
+      Invalid address {rule}: {error}
+    </Box>
+  );
 };
