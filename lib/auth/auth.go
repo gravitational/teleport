@@ -2546,7 +2546,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			// serial number traits can be a comma seperated list, or a list of comma separated lists.
 			// e.g. [["12345678,87654321"], ["13572468"]].
 			if !slices.ContainsFunc(registeredSerialNumbers, func(s string) bool {
-				return strings.Contains(s, attestatedSerialNumber)
+				return slices.Contains(strings.Split(s, ","), attestatedSerialNumber)
 			}) {
 				log.Debugf("user %q tried to sign in with hardware key support with an unknown hardware key and was denied: YubiKey serial number %q", req.user.GetName(), attestatedSerialNumber)
 				return nil, trace.BadParameter("cannot generate certs for user with unknown hardware key: YubiKey serial number %q", attestatedSerialNumber)
