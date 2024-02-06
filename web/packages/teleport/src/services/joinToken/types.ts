@@ -55,6 +55,7 @@ export type JoinRole =
 //   presenting a secret token.
 // - 'ec2' is a method where node will join with the EC2 join method
 // - 'iam' is a method where node will join with the IAM join method
+// - 'github' is a method where node will join with the GitHub join method
 export type JoinMethod = 'token' | 'ec2' | 'iam' | 'github';
 
 // JoinRule is a rule that a joining node must match in order to use the

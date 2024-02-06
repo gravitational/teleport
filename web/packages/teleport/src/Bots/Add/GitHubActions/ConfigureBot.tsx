@@ -179,7 +179,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
             )}
 
             <FlowButtons
-              isFirst={true}
+              isFirstStep={true}
               nextStep={() => handleNext(validator)}
               prevStep={prevStep}
               nextButton={{

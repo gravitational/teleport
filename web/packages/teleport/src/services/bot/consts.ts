@@ -41,7 +41,7 @@ export function toApiGitHubTokenSpec(spec: ProvisionTokenSpecV2GitHub | null) {
 
 /**
  *
- * @param param0 a GitHubRepoRule
+ * @param {GitHubRepoRule} rule a GitHubRepoRule
  * @returns the server's teleport/api/types.ProvisionTokenSpecV2GitHub_Rule,
  * which has similar properties, but different casing
  */
@@ -54,15 +54,15 @@ export function toApiGitHubRule({
   actor,
   ref,
   refType,
-}: GitHubRepoRule | null) {
+}: GitHubRepoRule) {
   return {
-    sub: sub,
-    repository: repository,
+    sub,
+    repository,
     repository_owner: repositoryOwner,
-    workflow: workflow,
-    environment: environment,
-    actor: actor,
-    ref: ref,
+    workflow,
+    environment,
+    actor,
+    ref,
     ref_type: refType,
   };
 }

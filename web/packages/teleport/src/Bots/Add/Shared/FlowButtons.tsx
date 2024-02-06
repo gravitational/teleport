@@ -31,8 +31,8 @@ export type ButtonState = {
 };
 
 export type FlowButtonsProps = {
-  isLast?: boolean;
-  isFirst?: boolean;
+  isLastStep?: boolean;
+  isFirstStep?: boolean;
   nextButton?: ButtonState;
   backButton?: ButtonState;
 } & FlowStepProps;
@@ -40,8 +40,8 @@ export type FlowButtonsProps = {
 export function FlowButtons({
   nextStep,
   prevStep,
-  isFirst = false,
-  isLast = false,
+  isFirstStep = false,
+  isLastStep = false,
   nextButton,
   backButton,
 }: FlowButtonsProps) {
@@ -54,12 +54,12 @@ export function FlowButtons({
           mr="3"
           data-testid="button-next"
         >
-          {isLast ? 'Complete Integration' : 'Next'}
+          {isLastStep ? 'Complete Integration' : 'Next'}
         </ButtonPrimary>
       )}
       {!backButton?.hidden && (
         <BackButton
-          isFirst={isFirst}
+          isFirstStep={isFirstStep}
           disabled={backButton?.disabled}
           prevStep={prevStep}
         />
@@ -69,21 +69,21 @@ export function FlowButtons({
 }
 
 function BackButton({
-  isFirst,
+  isFirstStep,
   disabled,
   prevStep,
 }: {
-  isFirst: boolean;
+  isFirstStep: boolean;
   disabled: boolean;
   prevStep: () => void;
 }) {
-  if (isFirst) {
+  if (isFirstStep) {
     return (
       <ButtonSecondary
         disabled={disabled}
         as={Link}
         to={cfg.getBotsNewRoute()}
-        data-testid="button-back-integration"
+        data-testid="button-back-first-step"
       >
         Back
       </ButtonSecondary>

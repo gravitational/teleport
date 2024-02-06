@@ -75,7 +75,7 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
       <FlowButtons
         nextStep={nextStep}
         prevStep={prevStep}
-        isLast={true}
+        isLastStep={true}
         backButton={{
           hidden: true,
         }}

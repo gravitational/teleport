@@ -50,7 +50,7 @@ export function GuidedFlow({ name, title, views, icon }: FlowProps) {
 
   function handleNextStep() {
     if (currentStep < steps - 1) {
-      setCurrentStep((currentStep += 1));
+      setCurrentStep(currentStep += 1);
     }
   }
 
