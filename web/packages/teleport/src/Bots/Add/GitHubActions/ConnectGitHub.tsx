@@ -194,7 +194,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                       disabled={isLoading}
                       rule={requireValidRepository}
                       label=" "
-                      placeholder="ex. https://github.com/gravitational/teleport"
+                      placeholder="https://github.com/gravitational/teleport"
                       value={repoRules[i].repoAddress}
                       onChange={e =>
                         handleChange(i, 'repoAddress', e.target.value)
@@ -242,7 +242,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                     </Text>
                     <FieldInput
                       disabled={isLoading}
-                      placeholder="ex. cd"
+                      placeholder="cd"
                       value={repoRules[i].workflowName}
                       onChange={e =>
                         handleChange(i, 'workflowName', e.target.value)
@@ -256,7 +256,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                     </Text>
                     <Input
                       disabled={isLoading}
-                      placeholder="ex. development"
+                      placeholder="development"
                       value={repoRules[i].environment}
                       onChange={e =>
                         handleChange(i, 'environment', e.target.value)
@@ -271,7 +271,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                     </Text>
                     <Input
                       disabled={isLoading}
-                      placeholder="ex. octocat"
+                      placeholder="octocat"
                       value={repoRules[i].actor}
                       onChange={e => handleChange(i, 'actor', e.target.value)}
                     />

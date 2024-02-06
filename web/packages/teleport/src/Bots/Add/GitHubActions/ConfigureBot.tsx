@@ -122,7 +122,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               <FieldInput
                 rule={requiredField('Name for the Bot is required')}
                 mb={3}
-                placeholder="ex. github-actions-cd"
+                placeholder="github-actions-cd"
                 value={createBotRequest.botName}
                 onChange={e =>
                   setCreateBotRequest({
@@ -160,7 +160,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               </Text>
               <FieldInput
                 mb={3}
-                placeholder="ex. ubuntu"
+                placeholder="ubuntu"
                 value={createBotRequest.login}
                 onChange={e =>
                   setCreateBotRequest({

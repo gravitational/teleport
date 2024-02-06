@@ -111,7 +111,7 @@ describe('gitHub component', () => {
     ).toBeInTheDocument();
     // fill up the forms and go through the flow
     // step 1: Configure Bot Access
-    const botNameInput = screen.getByPlaceholderText('ex. github-actions-cd');
+    const botNameInput = screen.getByPlaceholderText('github-actions-cd');
     await userEvent.type(botNameInput, 'bot-name');
     await userEvent.click(screen.getByTestId('button-next'));
     // step 2: Connect GitHub
@@ -119,7 +119,7 @@ describe('gitHub component', () => {
       screen.getByText(/Step 2: Input Your GitHub Account Info/)
     ).toBeInTheDocument();
     const repositoryInput = screen.getByPlaceholderText(
-      'ex. https://github.com/gravitational/teleport'
+      'https://github.com/gravitational/teleport'
     );
     await userEvent.type(repositoryInput, 'https://github.com/owner/repo');
     await userEvent.click(screen.getByTestId('button-next'));

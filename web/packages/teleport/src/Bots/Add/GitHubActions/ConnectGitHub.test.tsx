@@ -64,7 +64,7 @@ describe('connectGitHub Component', () => {
     expect(screen.getByText('GitHub Repository Access:')).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText(
-        'ex. https://github.com/gravitational/teleport'
+        'https://github.com/gravitational/teleport'
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Git Ref')).toBeInTheDocument();
@@ -73,10 +73,10 @@ describe('connectGitHub Component', () => {
     expect(
       screen.getByText('Name of the GitHub Actions Workflow')
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('ex. cd')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('cd')).toBeInTheDocument();
     expect(screen.getByText('Environmnet')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('ex. development')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('development')).toBeInTheDocument();
     expect(screen.getByText('Restrict to a GitHub User')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('ex. octocat')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('octocat')).toBeInTheDocument();
   });
 });

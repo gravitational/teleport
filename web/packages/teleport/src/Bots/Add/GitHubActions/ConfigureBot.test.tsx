@@ -64,9 +64,9 @@ describe('configureBot Component', () => {
 
   it('renders the necessary input fields', () => {
     setup({});
-    expect(screen.getByPlaceholderText('ex. ubuntu')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('ubuntu')).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText('ex. github-actions-cd')
+      screen.getByPlaceholderText('github-actions-cd')
     ).toBeInTheDocument();
   });
 
@@ -116,7 +116,7 @@ describe('configureBot Component', () => {
       version: '',
     });
 
-    const botNameInput = screen.getByPlaceholderText('ex. github-actions-cd');
+    const botNameInput = screen.getByPlaceholderText('github-actions-cd');
     await userEvent.type(botNameInput, 'bot-name');
     await userEvent.click(screen.getByTestId('button-next'));
     expect(
