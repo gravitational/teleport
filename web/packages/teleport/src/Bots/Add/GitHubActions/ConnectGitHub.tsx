@@ -98,7 +98,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
   } = useGitHubFlow();
   const isLoading = attempt.status === 'processing';
 
-  const [hostError, setHostError] = useState<JSX.Element | string>(null);
+  const [hostError, setHostError] = useState<JSX.Element | string | null>(null);
 
   function handleNext(validator: Validator) {
     // clear errors
@@ -164,121 +164,119 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
             {repoRules.map((rule, i) => (
               <Card p="4" maxWidth="540px" key={i} mb="4">
                 <Box>
-                  <>
-                    <Flex alignItems="center" justifyContent="space-between">
-                      <Text bold>GitHub Repository Access:</Text>
-                      {i > 0 && (
-                        <ButtonIcon
-                          size={1}
-                          title="Remove Rule"
-                          onClick={() =>
-                            setRepoRules(
-                              repoRules.filter((r, index) => index !== i)
-                            )
-                          }
-                        >
-                          <Icons.Trash size="medium" />
-                        </ButtonIcon>
-                      )}
-                    </Flex>
-                    <FormItem>
-                      <Text mt="3">Full URL to Your Repository*</Text>
-                      <FieldInput
-                        disabled={isLoading}
-                        rule={requireValidRepository}
-                        label=" "
-                        placeholder="ex. https://github.com/gravitational/teleport"
-                        value={repoRules[i].repoAddress}
-                        onChange={e =>
-                          handleChange(i, 'repoAddress', e.target.value)
+                  <Flex alignItems="center" justifyContent="space-between">
+                    <Text bold>GitHub Repository Access:</Text>
+                    {i > 0 && (
+                      <ButtonIcon
+                        size={1}
+                        title="Remove Rule"
+                        onClick={() =>
+                          setRepoRules(
+                            repoRules.filter((r, index) => index !== i)
+                          )
                         }
-                      />
-                    </FormItem>
-
-                    <FormItem>
-                      <Flex>
-                        <Box width="100%">
-                          <Text>
-                            Git Ref <OptionalFieldText />
-                          </Text>
-                          <Input
-                            disabled={isLoading}
-                            label="Git Ref"
-                            placeholder="main"
-                            style={{ borderRadius: '4px 0 0 4px' }}
-                            value={repoRules[i].ref}
-                            onChange={e =>
-                              handleChange(i, 'ref', e.target.value)
-                            }
-                          />
-                        </Box>
-                        <Box minWidth="160px">
-                          <Text ml="1">Ref Type</Text>
-                          <RefTypeSelect>
-                            <ReactSelect
-                              disabled={isLoading}
-                              isMulti={false}
-                              value={repoRules[i].refType}
-                              onChange={o => handleChange(i, 'refType', o)}
-                              options={refTypeOptions}
-                              menuPlacement="auto"
-                              className="react-select-container"
-                              classNamePrefix="react-select"
-                            />
-                          </RefTypeSelect>
-                        </Box>
-                      </Flex>
-                    </FormItem>
-
-                    <FormItem>
-                      <Text>
-                        Name of the GitHub Actions Workflow
-                        <OptionalFieldText />
-                      </Text>
-                      <FieldInput
-                        disabled={isLoading}
-                        placeholder="ex. cd"
-                        value={repoRules[i].workflowName}
-                        onChange={e =>
-                          handleChange(i, 'workflowName', e.target.value)
-                        }
-                      />
-                    </FormItem>
-
-                    <FormItem>
-                      <Text>
-                        Environmnet <OptionalFieldText />
-                      </Text>
-                      <Input
-                        disabled={isLoading}
-                        placeholder="ex. development"
-                        value={repoRules[i].environment}
-                        onChange={e =>
-                          handleChange(i, 'environment', e.target.value)
-                        }
-                      />
-                    </FormItem>
-
-                    <Box>
-                      <Text>
-                        Restrict to a GitHub User
-                        <OptionalFieldText />{' '}
-                      </Text>
-                      <Input
-                        disabled={isLoading}
-                        placeholder="ex. octocat"
-                        value={repoRules[i].actor}
-                        onChange={e => handleChange(i, 'actor', e.target.value)}
-                      />
-                      <Text
-                        fontWeight="lighter"
-                        fontSize="1"
-                        style={{ fontStyle: 'italic' }}
                       >
-                        If left blank, any GitHub user can trigger the workflow
-                      </Text>
-                    </Box>
-                  </>
+                        <Icons.Trash size="medium" />
+                      </ButtonIcon>
+                    )}
+                  </Flex>
+                  <FormItem>
+                    <Text mt="3">Full URL to Your Repository*</Text>
+                    <FieldInput
+                      disabled={isLoading}
+                      rule={requireValidRepository}
+                      label=" "
+                      placeholder="ex. https://github.com/gravitational/teleport"
+                      value={repoRules[i].repoAddress}
+                      onChange={e =>
+                        handleChange(i, 'repoAddress', e.target.value)
+                      }
+                    />
+                  </FormItem>
+
+                  <FormItem>
+                    <Flex>
+                      <Box width="100%">
+                        <Text>
+                          Git Ref <OptionalFieldText />
+                        </Text>
+                        <Input
+                          disabled={isLoading}
+                          label="Git Ref"
+                          placeholder="main"
+                          style={{ borderRadius: '4px 0 0 4px' }}
+                          value={repoRules[i].ref}
+                          onChange={e =>
+                            handleChange(i, 'ref', e.target.value)
+                          }
+                        />
+                      </Box>
+                      <Box minWidth="160px">
+                        <Text ml="1">Ref Type</Text>
+                        <RefTypeSelect>
+                          <ReactSelect
+                            disabled={isLoading}
+                            isMulti={false}
+                            value={repoRules[i].refType}
+                            onChange={o => handleChange(i, 'refType', o)}
+                            options={refTypeOptions}
+                            menuPlacement="auto"
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                          />
+                        </RefTypeSelect>
+                      </Box>
+                    </Flex>
+                  </FormItem>
+
+                  <FormItem>
+                    <Text>
+                      Name of the GitHub Actions Workflow
+                      <OptionalFieldText />
+                    </Text>
+                    <FieldInput
+                      disabled={isLoading}
+                      placeholder="ex. cd"
+                      value={repoRules[i].workflowName}
+                      onChange={e =>
+                        handleChange(i, 'workflowName', e.target.value)
+                      }
+                    />
+                  </FormItem>
+
+                  <FormItem>
+                    <Text>
+                      Environmnet <OptionalFieldText />
+                    </Text>
+                    <Input
+                      disabled={isLoading}
+                      placeholder="ex. development"
+                      value={repoRules[i].environment}
+                      onChange={e =>
+                        handleChange(i, 'environment', e.target.value)
+                      }
+                    />
+                  </FormItem>
+
+                  <Box>
+                    <Text>
+                      Restrict to a GitHub User
+                      <OptionalFieldText />{' '}
+                    </Text>
+                    <Input
+                      disabled={isLoading}
+                      placeholder="ex. octocat"
+                      value={repoRules[i].actor}
+                      onChange={e => handleChange(i, 'actor', e.target.value)}
+                    />
+                    <Text
+                      fontWeight="lighter"
+                      fontSize="1"
+                      style={{ fontStyle: 'italic' }}
+                    >
+                      If left blank, any GitHub user can trigger the workflow
+                    </Text>
+                  </Box>
                 </Box>
               </Card>
             ))}

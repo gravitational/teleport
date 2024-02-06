@@ -93,6 +93,7 @@ describe('gitHub component', () => {
     setup({ hasAccess: false });
     expect(screen.getByText(/Insufficient permissions/)).toBeInTheDocument();
     expect(screen.getByTestId('button-next')).toBeDisabled();
+    expect(screen.getByTestId('button-back-first-step')).toBeEnabled();
   });
 
   it('renders initial state with no warnings if user the necessary access', () => {

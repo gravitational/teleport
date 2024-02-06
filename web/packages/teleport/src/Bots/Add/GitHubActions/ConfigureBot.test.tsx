@@ -77,6 +77,7 @@ describe('configureBot Component', () => {
         'Insufficient permissions. In order to create a bot, you need permissions to create roles, bots and join tokens.'
       )
     ).toBeInTheDocument();
+    expect(screen.getByTestId('button-next')).toBeDisabled();
   });
 
   it('shows an alert if the user lacks sufficient permissions tokens', () => {
@@ -86,6 +87,7 @@ describe('configureBot Component', () => {
         'Insufficient permissions. In order to create a bot, you need permissions to create roles, bots and join tokens.'
       )
     ).toBeInTheDocument();
+    expect(screen.getByTestId('button-next')).toBeDisabled();
   });
 
   it('shows an alert if the user lacks sufficient permissions roles', () => {
@@ -95,6 +97,7 @@ describe('configureBot Component', () => {
         'Insufficient permissions. In order to create a bot, you need permissions to create roles, bots and join tokens.'
       )
     ).toBeInTheDocument();
+    expect(screen.getByTestId('button-next')).toBeDisabled();
   });
 
   it('shows an error if the bot name already exists', async () => {
