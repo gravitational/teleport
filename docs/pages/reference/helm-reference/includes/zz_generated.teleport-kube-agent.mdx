@@ -1589,12 +1589,14 @@ for more details.
 
 | Type | Default |
 |------|---------|
-| `object` | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["all"]},"readOnlyRootFilesystem":true,"runAsNonRoot":true,"runAsUser":9807}` |
+| `object` | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsNonRoot":true,"runAsUser":9807,"seccompProfile":{"type":"RuntimeDefault"}}` |
 
 `initSecurityContext` sets the init container security context for any
 pods created by the chart.
 See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 for more details.
+
+The default value is compatible with [the restricted PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 
 To unset the security context, set it to `null` or `~`.
 
@@ -1602,11 +1604,13 @@ To unset the security context, set it to `null` or `~`.
 
 | Type | Default |
 |------|---------|
-| `object` | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["all"]},"readOnlyRootFilesystem":true,"runAsNonRoot":true,"runAsUser":9807}` |
+| `object` | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsNonRoot":true,"runAsUser":9807,"seccompProfile":{"type":"RuntimeDefault"}}` |
 
 `securityContext` sets the container security context for any pods created by the chart.
 See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 for more details.
+
+The default value is compatible with [the restricted PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 
 To unset the security context, set it to `null` or `~`.
 
