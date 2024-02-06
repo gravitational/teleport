@@ -331,7 +331,8 @@ func (s *Server) Start() error {
 			return trace.ConvertSystemError(err)
 		}
 
-		if err := s.SetListener(s.limiter.WrapListener(listener)); err != nil {
+		//if err := s.SetListener(s.limiter.WrapListener(listener)); err != nil {
+		if err := s.SetListener(listener); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -509,13 +510,14 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		defer s.trackUserConnections(-1)
 	}
 
-	user := sconn.User()
-	if err := s.limiter.RegisterRequest(user); err != nil {
-		s.log.Errorf(err.Error())
-		sconn.Close()
-		conn.Close()
-		return
-	}
+	//user := sconn.User()
+	//if err := s.limiter.RegisterRequest(user); err != nil {
+	//	s.log.Errorf(err.Error())
+	//	sconn.Close()
+	//	conn.Close()
+	//	return
+	//}
+
 	// Connection successfully initiated
 	s.log.Debugf("Incoming connection %v -> %v version: %v, certtype: %q",
 		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()), certType)
