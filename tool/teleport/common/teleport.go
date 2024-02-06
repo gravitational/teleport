@@ -1058,7 +1058,7 @@ func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabase
 	return nil
 }
 
-func onIntegrationConfExternalAuditCmd(params servicecfg.ExternalAuditStorageConfiguration) error {
+func onIntegrationConfExternalAuditCmd(params config.ExternalAuditStorageConfiguration) error {
 	ctx := context.Background()
 	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
 	if err != nil {
@@ -1088,5 +1088,17 @@ func onIntegrationConfExternalAuditCmd(params servicecfg.ExternalAuditStorageCon
 		Iam: iam.NewFromConfig(cfg),
 		Sts: sts.NewFromConfig(cfg),
 	}
-	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, &params))
+	confExternalAuditStorageParams := awsoidc.ExternalAuditStorageConfiguration{
+		Region:               params.Region,
+		Role:                 params.Role,
+		Policy:               params.Policy,
+		SessionRecordingsURI: params.SessionRecordingsURI,
+		AuditEventsURI:       params.AuditEventsURI,
+		AthenaResultsURI:     params.AthenaResultsURI,
+		AthenaWorkgroup:      params.AthenaWorkgroup,
+		GlueDatabase:         params.GlueDatabase,
+		GlueTable:            params.GlueTable,
+		Partition:            params.Partition,
+	}
+	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, confExternalAuditStorageParams))
 }
