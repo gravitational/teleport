@@ -2160,10 +2160,10 @@ func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ htt
 	// samlSessionCookie will not be set for users who are not authenticated with SAML IdP.
 	samlSessionCookie, err := r.Cookie(samlidp.SAMLSessionCookieName)
 	if err == nil && samlSessionCookie != nil && samlSessionCookie.Value != "" {
-		// TODO(sshah): Websession is not udpated with SAML session details after SAML auth
-		// so it begs to check for a nil value below and then set session with session ID retrieved
-		// from samlSessionCookie. We can skip this step below once we have
-		// a mechanism to update websession with SAML session value.
+		// TODO(sshah): Websession is not updated with SAML session details after SAML auth so
+		// it begs to check for a nil value below and then set a session with session ID
+		// retrieved from samlSessionCookie. We can skip this step below once we have a
+		// mechanism to update Websession with SAML session value.
 		if ctx.cfg.Session.GetSAMLSession() == nil {
 			ctx.cfg.Session.SetSAMLSession(&types.SAMLSessionData{ID: samlSessionCookie.Value})
 		}
