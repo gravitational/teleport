@@ -171,6 +171,37 @@ Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
 </TabItem>
 </Tabs>
 
+#### Interacting with Distroless Images
+
+Since version 15, Teleport images are based on Google's [Distroless](https://github.com/GoogleContainerTools/distroless) images.
+Those images don't contain any shell. Here are some on how to invoke commands in shell-less images if you are unfamiliar:
+
+```code
+# in docker
+$ docker run -i my-container tctl status
+
+# in Kubernetes
+$ kubectl exec -i my-pod -- tctl status
+
+# sending local files via stdin
+$ kubectl exec -i my-pod -- tctl create -f < my-local-file.yaml
+
+# retrieving output via stdout and tar
+$ kubectl exec -i my-pod -- tctl auth sign --user admin --format tls --ttl 10m --tar -o admin| tar xv -C local
+$ ls -l local
+total 24
+-rw-------  1 trent  staff  1318 Jul 24 15:52 admin.cas
+-rw-------  1 trent  staff  1895 Jul 24 15:52 admin.crt
+-rw-------  1 trent  staff  1679 Jul 24 15:52 admin.key
+```
+
+Alternatively, you can use the debug variant of the image, which contains [busybox](https://www.busybox.net/about.html) and a minimal shell invocable via busybox sh:
+
+```code
+$ docker run -it --entrypoint="" public.ecr.aws/gravitational/teleport-distroless -debug:(=teleport.latest_oss_docker_image=) busybox sh
+```
+
+
 ### Running Teleport on Docker
 
 When running a container from one of the images listed above, consider the
