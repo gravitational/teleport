@@ -11,19 +11,18 @@ state: draft
 
 ## What
 
-We discuss the creation of an in-memory cache of webassets in the auth server to
-provide a way for proxies to serve files from different versions of Teleport.
-Here is a quick PoC https://www.loom.com/share/9983cae0e8574149a92dcec623e07f10
+We discuss storing the webassets in an s3-compatible storage to allow different versioned proxies
+to fetch any file requested that may not already exist in their embedded filesystem.
 
 ## Why
 
 Up until now we've always thought of the 1-to-1 relationship of webasset bundle
 to proxy version was a given. In most cases, it still is. However, some
-customers may run multiple versions of the proxy behind a load balancer and this
+users may run multiple versions of the proxy behind a load balancer and this
 would cause the web browser to sometimes not be able to load the correct
-webasset.
+webasset due to that loadbalanced proxy being of a different verison.
 
-The way the frontend is bundle is by using code splitting. In a non-code split
+The way the frontend is bundled is by using code splitting. In a non-code split
 app, the entire react bundle would be compiled into a single javascript file and
 served with the index.html. This leads to some pretty large page loads so the
 solution is code splitting, which automatically splits the javascript bundle
@@ -34,75 +33,45 @@ web client receives an index.html that will request a file such as
 `index-123123.js` and then later on during the session requests
 `index-234234.js`, if the proxy that is hit when load balancing is of a
 different version than the original that served the `index.html`, that proxy
-will not have the file and return a `404`. Storing all the webassets in a cache
-on auth will allow the proxies to fallback to auth as a single source of truth
-and serve any file needed.
+will not have the file and return a `404`. Storing all the webassets in an s3-compatible
+bucket allows the proxies to fallback to single repository of every webasset in use.
 
 ## Details
 
 ### Webasset cache
 
-The webasset cache is a simple `map[string][]byte` that lives in the auth server.
+When the proxy comes online, we can start an (optional) service that will sync the webassets
+to a configured, s3-compatible storage. When a proxy comes online, it will start a heartbeat
+that first, checks if it's webassets have been loaded. It does this by first, listing the objects in
+the bucket using `ListObjectsV2`. As of right now, we have ~170 items in our webassets bundle. 
+`ListObjectsV2` will only list up to 1,000 items per page. This means that after 5 stored versions
+we will have to start iterating multiple pages to list all the keys. This is unlikely and can be mitigated by
+a implementing a decent retention policy (more on that later in the RFD).
 
+Once the keys have been listed, the service can walk through the embedded filesystem to find any files
+that have **not been synced** with the bucket and then batch upload them using the s3 sdk [`UploadWithIterator`](https://docs.aws.amazon.com/sdk-for-go/api/service/s3/s3manager/#Uploader.UploadWithIterator)
+to cut down on the amount of outgoing network requests. 
 
-```go
-type WebassetCache struct {
-	webassets map[string][]byte
-}
-```
+There isn't too much of a concern to have key collisions thanks to Vite's rollup hashing. A somewhat recent change
+has [moved their hashes to use base64](https://github.com/rollup/rollup/issues/4803) so the chances of the same
+split file having the same hash across multiple versions is very low.
 
-This cache gets populated when a proxy comes online. The proxy will initialize
-and register and then emit a message for each one of it's webasset files. This
-includes everything in the embedded filesystem such as javascript, css, fonts,
-images, etc. The total size, uncompressed, of the bundles are around ~11mb for
-enterprise and slightly less for oss, but for the sake of discussion we can
-average it at around 10mb. This means the cache should be roughly 10mb per
-version stored. As of now, we only know of customers running two versions
-simultaneously.
+#### File cleanup
+The first cause for concern is how to mitigate an s3 bucket filling up indefinitely with new versions of the webassets.
+Due to the chaotic nature of when/how often different users choose to upgrade, I believe it it out of scope for
+Teleport to have any control of bucket cleanup. However, we can provide some general suggestions and documentation
+that we think would work best. One of the things Teleport _can_ provide is a `TeleportVersion` tag for each webasset
+file (assuming the compatible storage supports tags). This will give the users some insight into which version a specific
+file is supporting.
 
-A simple example of the new grpc service would look like this
+The suggested way to cleanup files is to set a [lifecycle rule](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html) based on expiration. This will
+let files naturally cleanup themselves after a specified time. If a file is deleted due to this rule for a proxy version still
+in use, then the proxy will just reupload the file during the next heartbeat.
 
-```protobuf
-message GetWebassetRequest {
-  string name = 1;
-}
+According to AWS, the lifecycle rules are only checked [once per day](https://repost.aws/knowledge-center/s3-lifecycle-rule-delay), and are rounded to midnight UTC of the next day when an object would be "expired".  However, different storages may have different timings here, so it's best the heartbeat runs frequently. (every 10 minutes?)
 
-message GetWebassetResponse {
-  string name = 1;
-  bytes content = 2;
-}
+Ultimately, the user can setup their cleanup however they wish, and Teleport is responsible for filling up the bucket.
 
-service WebassetCacheService {
-  // GetWebasset
-  rpc GetWebasset(GetWebassetRequest) returns (GetWebassetResponse);
-}
-```
-
-Depending how we end up syncing the webassets to each available auth, we may
-also add another message of `SendWebasset` along the same lines as Get above.
-
-#### Syncing webassets to auth
-
-Because there can be multiple auth servers in a cluster, each proxy will need to
-report it's assets to every auth server in the cluster. We can do this by
-INSERT_HOW_TO_DO_THIS. 
-The proxy should listen to auth heartbeats and be able to ask "have I sent this file
-to this auth recently" and if not, send it over. These will be stored by fileName->fileBytes. If a file
-exists in the cache already when it's sent (two of the same version), we can
-check the bytes to see if they match. If they don't match, we should remove the
-file from the cache as we don't know which proxy is sending the correct file.
-Worst case scenario, the file isn't found and the proxy returns a `404` similar
-to what it does now. Best case scenario, we prevented some mismatch 
-file that would break code, or perhaps a malicious file from being stored in the cache. 
-We can store removed fileNames in a separate list to ensure a removed file isn't just 
-added again later after removal.
-
-#### Alternatives to syncing with auth
-An alternative that was suggested to store the web assets reported to auth in
-the backend. That way, if auth didn't have the asset the proxy was asking for
-(in a multi auth situation) then the backend could be the final fallback but
-some of the webassets are too large to store in the backend per item (400kb for
-dynamoDB for example). So we scrapped this idea.
 
 
 #### Serving the missing webassets
@@ -121,8 +90,7 @@ if strings.HasPrefix(r.URL.Path, "/web/app") {
 nothing too complicated besides setting some headers, compression, and then
 serving whatever file is requested. The change would be instead of serving,
 first check if the file exists in the embedded file system. If it does, send as usual.
-If it doesn't, we can fetch the requested file over gRPC and serve the file bytes 
-instead with something like this
+If it doesn't, we can download the file from the webasset bucket and serve
 ```go
 if strings.HasPrefix(r.URL.Path, "/web/app") {
 	// do everything the same if the file exists
@@ -135,30 +103,35 @@ if strings.HasPrefix(r.URL.Path, "/web/app") {
 		http.StripPrefix("/web", fs).ServeHTTP(w, r)
         return
 	}
-    res, err := h.auth.proxyClient.GetWebasset(cfg.Context, &webassetcache.GetWebassetRequest{
-		Name: r.URL.Path[len("/web/app/"):],
-	})
+	writer := &MemoryWriterAt{}
+	cfg.WebassetHandler.Download(cfg.Context, session.ID(fmt.Sprintf("%s/%s", teleport.Version, fileName)), writer)
+
 	// detect content type
 	// compress
-	// store the file in this proxy's webasset cache to prevent future requests
-	http.ServeContent(w, r, "example.txt", time.Now(), compressedFileHere)
+	http.ServeContent(w, r, fileNameToSkip, time.Now(), bytes.NewReader(writer.buffer.Bytes()))
 }
 ```
 
 
-### Security Concerns
-We aren't serving any files directly from a file system and only fetching from 
-a map so there shouldn't be any worry about retrieving files that aren't in the map.
-Additionally, only the internal proxy role should be able to set/get these files
-in the map and if a proxy has been compromised, this webasset cache is the least
-of our concerns.
-
+### Security
 This feature should be **opt in only** via configuration. 
 
-Another thing to consider is not allowing this cache to blow up and run OOM. I
-don't currently see any non-arbitrary solution to this. For example, we could
-store the webassets by _version_ rather than just file and limit it, for
-example, to two versions. But then what happens if a customer wants to run 3
-versions? How many versions do we allow? I think making this an explicit choice
-by the customer to turn on should prevent any sort of "accidental" misuse enough
-for now.
+As of now, only the Auth talks to s3/aws. This means that the proxy would also have to have access to some credentials
+that write/read access to the user's chosen storage. This increases the risk surface area by having two susceptible services. 
+
+If someone has gained access to the bucket, they could potentially overwrite files with their own code that the
+browser will then try to download. We may be able to get around this by implementing some sort of signing to
+our webasset bundles but would not be part of phase1 of this project.
+
+#### Alternative approaches
+Another approach that was discussed that didn't involve an s3 bucket was storing all the webassets in an in-memory
+cache in the auth server. This would allow any proxy to reach out on start and transfer it's webassets over (if the version
+was different) and then any other proxy could reach out to auth to download the missing files.
+
+This had a bit more complexity because it would mean that _all_ auths would have to have _all_ in-use versions of the
+webassets to ensure any proxy could hit any auth for the missing files. The benefit of approach is everything would be
+self-contained and not rely on external storage. However, being much more complex, with many different listeners/watchers, it could lead to more issues down the road.
+
+#### Cloud
+This feature will eventually be integrated by the cloud team as well. More
+details to come
