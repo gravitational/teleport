@@ -64,7 +64,7 @@ export function GitHubFlowProvider({
   bot = initialBotState,
 }: React.PropsWithChildren<{ bot?: CreateBotRequest }>) {
   const { resourceService } = useTeleport();
-  const { attempt, run } = useAttempt();
+  const { attempt, run, setAttempt } = useAttempt();
   const [createBotRequest, setCreateBotRequest] =
     useState<CreateBotRequest>(bot);
   const [repoRules, setRepoRules] = useState<Rule[]>([defaultRule]);
@@ -76,7 +76,7 @@ export function GitHubFlowProvider({
 
   function resetAttempt() {
     if (attempt.status !== 'processing') {
-      attempt.status = '';
+      setAttempt({ status: '' })
     }
   }
 
