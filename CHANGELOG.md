@@ -1,5 +1,22 @@
 # Changelog
 
+## 12.4.34
+
+Note: This is expected to be the last release in the v12 line. Users are
+encouraged to upgrade to a supported version.
+
+* Fixed usage data submission becoming stuck sending too many reports at once (Teleport Enterprise only). [#37690](https://github.com/gravitational/teleport/pull/37690)
+* Update OpenSSL to 3.0.13. [#37554](https://github.com/gravitational/teleport/pull/37554)
+* Fixed CA key generation when two auth servers share a single YubiHSM2. [#37305](https://github.com/gravitational/teleport/pull/37305)
+* Fixed an issue selecting MySQL database is not reflected in the audit logs. [#37259](https://github.com/gravitational/teleport/pull/37259)
+* Ensure that moderated sessions do not get stuck in the event of an unexpected drop in the moderator's connection. [#36919](https://github.com/gravitational/teleport/pull/36919)
+* Ensure that any opened app session is always closed on completion. [#36888](https://github.com/gravitational/teleport/pull/36888)
+* Fixed tsh panic on Windows if WebAuthn.dll is missing. [#36870](https://github.com/gravitational/teleport/pull/36870)
+* Ensure connect_to_node_attempts_total is always incremented when dialing hosts. [#36737](https://github.com/gravitational/teleport/pull/36737)
+* Prevent a goroutine leak caused by app sessions not cleaning up resources properly. [#36670](https://github.com/gravitational/teleport/pull/36670)
+* Verify MFA device locks during user authentication. [#36629](https://github.com/gravitational/teleport/pull/36629)
+* Fixed goroutine leak per ssh session. [#36513](https://github.com/gravitational/teleport/pull/36513)
+
 ## 12.4.33
 
 * Updated Go to 1.20.13. [#36480](https://github.com/gravitational/teleport/pull/36480)
