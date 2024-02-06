@@ -308,7 +308,6 @@ const RefTypeSelect = styled(StyledSelect)`
   }
 
   .react-select__control:hover {
-    border: 1px solid rgba(0, 0, 0, 0.54);
     border-left: none;
   }
 `;
