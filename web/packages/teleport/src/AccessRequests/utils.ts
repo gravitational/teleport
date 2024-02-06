@@ -44,6 +44,17 @@ export function roundToNearestTenMinutes(date: Duration): Duration {
     // Do not round down to 0. This
     roundedMinutes = 10;
   }
+
+  // 60 minutes == 1 hour
+  // Prevent displaying time as eg: `5 hrs and 60 mins`
+  // to `6 hrs`.
+  if (roundedMinutes === 60) {
+    if (!date.hours) {
+      date.hours = 0;
+    }
+    date.hours += 1;
+    roundedMinutes = 0;
+  }
   date.minutes = roundedMinutes;
   date.seconds = 0;
 

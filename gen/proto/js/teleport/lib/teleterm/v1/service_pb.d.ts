@@ -1550,48 +1550,6 @@ export namespace CreateConnectMyComputerNodeTokenResponse {
     }
 }
 
-export class DeleteConnectMyComputerTokenRequest extends jspb.Message { 
-    getRootClusterUri(): string;
-    setRootClusterUri(value: string): DeleteConnectMyComputerTokenRequest;
-
-    getToken(): string;
-    setToken(value: string): DeleteConnectMyComputerTokenRequest;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): DeleteConnectMyComputerTokenRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerTokenRequest): DeleteConnectMyComputerTokenRequest.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: DeleteConnectMyComputerTokenRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerTokenRequest;
-    static deserializeBinaryFromReader(message: DeleteConnectMyComputerTokenRequest, reader: jspb.BinaryReader): DeleteConnectMyComputerTokenRequest;
-}
-
-export namespace DeleteConnectMyComputerTokenRequest {
-    export type AsObject = {
-        rootClusterUri: string,
-        token: string,
-    }
-}
-
-export class DeleteConnectMyComputerTokenResponse extends jspb.Message { 
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): DeleteConnectMyComputerTokenResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerTokenResponse): DeleteConnectMyComputerTokenResponse.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: DeleteConnectMyComputerTokenResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerTokenResponse;
-    static deserializeBinaryFromReader(message: DeleteConnectMyComputerTokenResponse, reader: jspb.BinaryReader): DeleteConnectMyComputerTokenResponse;
-}
-
-export namespace DeleteConnectMyComputerTokenResponse {
-    export type AsObject = {
-    }
-}
-
 export class WaitForConnectMyComputerNodeJoinRequest extends jspb.Message { 
     getRootClusterUri(): string;
     setRootClusterUri(value: string): WaitForConnectMyComputerNodeJoinRequest;

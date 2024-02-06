@@ -861,6 +861,14 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
+	proxyServer, err := types.NewServer("proxy-hostname", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{"http://localhost:8080"},
+	})
+	require.NoError(t, err)
+
+	err = clt.UpsertProxy(ctx, proxyServer)
+	require.NoError(t, err)
+
 	user1, _, err := CreateUserAndRole(clt, "user1", nil, []types.Rule{
 		types.NewRule(types.KindIntegration, []string{types.VerbUse}),
 	})
@@ -871,11 +879,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 
 	// Create a JWT using the current CA, this will become the "old" CA during
 	// rotation.
-	oldJWT, err := client.GenerateAWSOIDCToken(ctx,
-		types.GenerateAWSOIDCTokenRequest{
-			Issuer: "http://localhost:8080",
-		},
-	)
+	oldJWT, err := client.GenerateAWSOIDCToken(ctx)
 	require.NoError(t, err)
 
 	// Check that the "old" CA can be used to verify tokens.
@@ -925,11 +929,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// New tokens should now fail to validate with the old key.
-	newJWT, err := client.GenerateAWSOIDCToken(ctx,
-		types.GenerateAWSOIDCTokenRequest{
-			Issuer: "http://localhost:8080",
-		},
-	)
+	newJWT, err := client.GenerateAWSOIDCToken(ctx)
 	require.NoError(t, err)
 
 	// New tokens will validate with the new key.
@@ -2318,7 +2318,7 @@ func TestGenerateCerts(t *testing.T) {
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
-		require.IsType(t, &trace.AccessDeniedError{}, trace.Unwrap(err))
+		require.True(t, trace.IsAccessDenied(err), "trace.IsAccessDenied failed: err=%v (%T)", err, trace.Unwrap(err))
 
 		_, privateKeyPEM, err := utils.MarshalPrivateKey(privateKey.(crypto.Signer))
 		require.NoError(t, err)
@@ -2336,7 +2336,7 @@ func TestGenerateCerts(t *testing.T) {
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
-		require.IsType(t, &trace.AccessDeniedError{}, trace.Unwrap(err))
+		require.True(t, trace.IsAccessDenied(err), "trace.IsAccessDenied failed: err=%v (%T)", err, trace.Unwrap(err))
 		require.Contains(t, err.Error(), "impersonated user can not impersonate anyone else")
 
 		// but can renew their own cert, for example set route to cluster

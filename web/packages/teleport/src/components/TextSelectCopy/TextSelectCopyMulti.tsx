@@ -13,17 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 import React, { useRef } from 'react';
 import styled from 'styled-components';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 import { ButtonSecondary, Box, Flex } from 'design';
-import { Copy, Check } from 'design/Icon';
+import { Copy, Check, Download } from 'design/Icon';
+import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
 const ONE_SECOND_IN_MS = 1000;
 
-export function TextSelectCopyMulti({ lines, bash = true }: Props) {
+export function TextSelectCopyMulti({
+  lines,
+  bash = true,
+  maxHeight = 'none',
+  saveContent = { save: false, filename: '' },
+}: Props) {
   const refs = useRef<HTMLElement[]>([]);
 
   function onCopyClick(index) {
@@ -51,14 +56,17 @@ export function TextSelectCopyMulti({ lines, bash = true }: Props) {
       bg="bgTerminal"
       pl={3}
       pt={2}
-      pr={7}
+      pr={saveContent.save ? 10 : 6}
       borderRadius={2}
+      minHeight="50px"
       // Firefox does not add space for visible scrollbars
       // like it does for chrome and safari.
-      pb={isFirefox ? 3 : 2}
+      pb={isFirefox ? 3 : 0}
       css={{
         position: 'relative',
+        overflow: 'scroll',
       }}
+      maxHeight={maxHeight}
     >
       <Lines mr={1}>
         {lines.map((line, index) => {
@@ -79,18 +87,36 @@ export function TextSelectCopyMulti({ lines, bash = true }: Props) {
                   </div>
                 </Flex>
                 <Box
-                  pr={3}
+                  pr={2}
                   css={`
                     position: absolute;
                     right: 0px;
                   `}
                 >
-                  <ButtonCopyCheck onClick={() => onCopyClick(index)}>
+                  <StyledButtonSecondary onClick={() => onCopyClick(index)}>
                     <Icon className="icon-container">
                       <Copy data-testid="btn-copy" color="light" size={16} />
                       <Check data-testid="btn-check" color="light" size={16} />
                     </Icon>
-                  </ButtonCopyCheck>
+                  </StyledButtonSecondary>
+                  {saveContent.save && (
+                    <StyledButtonSecondary
+                      ml={2}
+                      onClick={() =>
+                        saveOnDisk(
+                          line.text,
+                          saveContent.filename,
+                          'plain/text'
+                        )
+                      }
+                    >
+                      <Download
+                        data-testid="btn-download"
+                        color="light"
+                        size={16}
+                      />
+                    </StyledButtonSecondary>
+                  )}
                 </Box>
               </Flex>
             </Box>
@@ -124,7 +150,7 @@ const Comment = styled.div`
   color: rgb(117 113 94 / 80%);
 `;
 
-const ButtonCopyCheck = styled(ButtonSecondary)`
+const StyledButtonSecondary = styled(ButtonSecondary)`
   height: 28px;
   width: 28px;
   border-radius: 20px;
@@ -161,4 +187,11 @@ export type Props = {
   // bash is a flag that when true will append a
   // `$` sign in front of the lines text.
   bash?: boolean;
+  saveContent?: saveContent;
+  maxHeight?: string;
+};
+
+type saveContent = {
+  save: boolean;
+  filename: string;
 };

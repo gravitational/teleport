@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -95,11 +96,11 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	}
 
 	// Create services.WebSession for this session.
-	sessionID, err := utils.CryptoRandomHex(SessionTokenBytes)
+	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearer, err := utils.CryptoRandomHex(SessionTokenBytes)
+	bearer, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -322,7 +323,7 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	ttl := checker.AdjustSessionTTL(identity.Expires.Sub(a.clock.Now()))
 
 	// Create services.WebSession for this session.
-	sessionID, err := utils.CryptoRandomHex(SessionTokenBytes)
+	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

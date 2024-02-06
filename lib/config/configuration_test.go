@@ -904,6 +904,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, cfg.Okta.APIEndpoint, "https://some-endpoint")
 	require.Equal(t, cfg.Okta.APITokenPath, oktaAPITokenPath)
 	require.Equal(t, cfg.Okta.SyncPeriod, time.Second*300)
+	require.True(t, cfg.Okta.SyncSettings.SyncAccessLists)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -3842,7 +3843,7 @@ func TestApplyOktaConfig(t *testing.T) {
 		errAssertionFunc require.ErrorAssertionFunc
 	}{
 		{
-			desc:            "valid config",
+			desc:            "valid config (import defaults to false)",
 			createTokenFile: true,
 			oktaConfig: Okta{
 				Service: Service{
@@ -3853,6 +3854,32 @@ func TestApplyOktaConfig(t *testing.T) {
 			expectedOkta: servicecfg.OktaConfig{
 				Enabled:     true,
 				APIEndpoint: "https://test-endpoint",
+				SyncSettings: servicecfg.OktaSyncSettings{
+					SyncAccessLists: false,
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:            "valid config (import enabled)",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+					DefaultOwners:       []string{"owner1"},
+				},
+			},
+			expectedOkta: servicecfg.OktaConfig{
+				Enabled:     true,
+				APIEndpoint: "https://test-endpoint",
+				SyncSettings: servicecfg.OktaSyncSettings{
+					SyncAccessLists: true,
+					DefaultOwners:   []string{"owner1"},
+				},
 			},
 			errAssertionFunc: require.NoError,
 		},
@@ -3930,6 +3957,22 @@ func TestApplyOktaConfig(t *testing.T) {
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter(`error trying to find file %s`, i...))
+			},
+		},
+		{
+			desc:            "no default owners",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+				},
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("default owners must be set when access list import is enabled"))
 			},
 		},
 	}
@@ -4319,6 +4362,11 @@ func TestDiscoveryConfig(t *testing.T) {
 						"service_accounts": []string{"a@example.com", "b@example.com"},
 					},
 				}
+				cfg["version"] = "v3"
+				cfg["teleport"].(cfgMap)["proxy_server"] = "example.com"
+				cfg["proxy_service"] = cfgMap{
+					"enabled": "no",
+				}
 			},
 			expectedGCPMatchers: []types.GCPMatcher{{
 				Types:     []string{"gce"},
@@ -4332,9 +4380,10 @@ func TestDiscoveryConfig(t *testing.T) {
 				ProjectIDs:      []string{"p1", "p2"},
 				ServiceAccounts: []string{"a@example.com", "b@example.com"},
 				Params: &types.InstallerParams{
-					JoinMethod: types.JoinMethodGCP,
-					JoinToken:  types.GCPInviteTokenName,
-					ScriptName: installers.InstallerScriptName,
+					JoinMethod:      types.JoinMethodGCP,
+					JoinToken:       types.GCPInviteTokenName,
+					ScriptName:      installers.InstallerScriptName,
+					PublicProxyAddr: "example.com",
 				},
 			}},
 		},
@@ -4647,6 +4696,11 @@ func TestDiscoveryConfig(t *testing.T) {
 						},
 					},
 				}
+				cfg["version"] = "v3"
+				cfg["teleport"].(cfgMap)["proxy_server"] = "example.com"
+				cfg["proxy_service"] = cfgMap{
+					"enabled": "no",
+				}
 			},
 			expectedAzureMatchers: []types.AzureMatcher{{
 				Types:          []string{"vm"},
@@ -4657,10 +4711,11 @@ func TestDiscoveryConfig(t *testing.T) {
 					"discover_teleport": []string{"yes"},
 				},
 				Params: &types.InstallerParams{
-					JoinMethod: "azure",
-					JoinToken:  "azure-discovery-token",
-					ScriptName: "default-installer",
-					Azure:      &types.AzureInstallerParams{},
+					JoinMethod:      "azure",
+					JoinToken:       "azure-discovery-token",
+					ScriptName:      "default-installer",
+					PublicProxyAddr: "example.com",
+					Azure:           &types.AzureInstallerParams{},
 				},
 			}},
 		},

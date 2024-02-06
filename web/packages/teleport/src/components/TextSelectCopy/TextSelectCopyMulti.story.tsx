@@ -104,3 +104,61 @@ export const NonBash = () => {
     />
   );
 };
+
+export const CopyAndDownload = () => {
+  return (
+    <>
+      <Component
+        lines={[
+          {
+            text: 'Click download icon to save this content as a file',
+          },
+        ]}
+        bash={false}
+        saveContent={{ save: true, filename: 'testfile.txt' }}
+      />
+      <br />
+      <Component
+        lines={[
+          {
+            comment: 'Long text with horizontal scrolling',
+            text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+          },
+        ]}
+        bash={false}
+        saveContent={{ save: true, filename: 'testfile.txt' }}
+      />
+      <br />
+      <Component
+        lines={[
+          {
+            comment: 'Long text with vertical scrolling',
+            text: 'Lorem ipsum dolor sit amet, \nconsectetur adipiscing elit, \nsed do eiusmod tempor incididunt ut labore et dolore magna aliqua. \nconsectetur adipiscing elit, sed do eiusmod \ntempor incididunt \nut labore et dolore magna aliqua\nLorem ipsum dolor sit amet, \nconsectetur adipiscing elit, \nsed do eiusmod tempor incididunt ut labore et',
+          },
+        ]}
+        bash={false}
+        saveContent={{ save: true, filename: 'testfile.txt' }}
+        maxHeight="150px"
+      />
+      <br />
+      <Component
+        lines={[
+          {
+            comment: 'Long text with both horizontal and vertical scrolling',
+            text: LoremIpsum,
+          },
+          {
+            comment: 'Long text with both horizontal and vertical scrolling',
+            text: LoremIpsum,
+          },
+        ]}
+        bash={false}
+        saveContent={{ save: true, filename: 'testfile.txt' }}
+        maxHeight="200px"
+      />
+    </>
+  );
+};
+
+const LoremIpsum =
+  'Lorem ipsum dolor sit amet, consectetur adipiscing elit, \nsed do eiusmod tempor incididunt ut labore et dolore magna aliqua. consectetur adipiscing elit, s\ned do eiusmod tempor incididunt ut labore et dolore magna aliqua.\nLorem ipsum dolor sit amet, \nlong text with both horizontal and vertical scrolling: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\nLorem ipsum dolor sit amet, consectetur adipiscing elit, \nsed do eiusmod tempor incididunt ut labore et dolore magna aliqua. \nconsectetur adipiscing elit, sed do eiusmod \ntempor incididunt \nut labore et dolore magna aliqua\nLorem ipsum dolor sit amet, \nconsectetur adipiscing elit, \nsed do eiusmod tempor incididunt ut labore et';

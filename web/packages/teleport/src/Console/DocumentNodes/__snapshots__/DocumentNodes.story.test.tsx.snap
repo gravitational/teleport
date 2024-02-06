@@ -254,44 +254,69 @@ exports[`render DocumentNodes 1`] = `
 
 .c21 {
   width: 32px;
-  height: 12px;
-  border-radius: 12px;
-  background: #222C59;
+  height: 16px;
+  border-radius: 10px;
   cursor: inherit;
   flex-shrink: 0;
+  background: rgba(255,255,255,0.07);
+  transition: background 0.15s ease-in-out;
+}
+
+.c21:hover {
+  background: rgba(255,255,255,0.13);
+}
+
+.c21:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c21:before {
   content: '';
   position: absolute;
   top: 50%;
-  transform: translate(0,-50%);
-  width: 16px;
-  height: 16px;
-  border-radius: 16px;
-  background: #9F85FF;
+  width: 12px;
+  height: 12px;
+  transform: translate(2px,-50%);
+  border-radius: 14px;
+  background: #FFFFFF;
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  transition: transform 0.05s ease-in;
 }
 
 .c19 {
   opacity: 0;
   position: absolute;
   cursor: inherit;
-}
-
-.c19:checked + .c20 {
-  background: rgba(255,255,255,0.13);
+  z-index: -1;
 }
 
 .c19:checked + .c20:before {
-  transform: translate(16px,-50%);
+  transform: translate(18px,-50%);
+}
+
+.c19:enabled:checked + .c20 {
+  background: #00BFA6;
+}
+
+.c19:enabled:checked + .c20:hover {
+  background: #33CCB8;
+}
+
+.c19:enabled:checked + .c20:active {
+  background: #66D9CA;
 }
 
 .c19:disabled + .c20 {
-  background: #222C59;
+  background: rgba(255,255,255,0.07);
 }
 
 .c19:disabled + .c20:before {
-  background: #455a64;
+  opacity: 0.36;
+  box-shadow: none;
+}
+
+.c19:disabled:checked + .c20 {
+  background: rgba(0,191,166,0.25);
 }
 
 .c28 {
@@ -647,20 +672,16 @@ exports[`render DocumentNodes 1`] = `
   display: none;
 }
 
-.c6 .react-select--is-disabled,
 .c6 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c6 .react-select--is-disabled .react-select__single-value,
 .c6 .react-select__control--is-disabled .react-select__single-value,
-.c6 .react-select--is-disabled .react-select__placeholder,
 .c6 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c6 .react-select--is-disabled .react-select__indicator,
 .c6 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }

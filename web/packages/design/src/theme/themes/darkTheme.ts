@@ -93,6 +93,11 @@ const colors: ThemeColors = {
         'rgba(159,133,255, 0.18)',
         'rgba(159,133,255, 0.25)',
       ],
+      success: [
+        'rgba(0, 191, 166, 0.1)',
+        'rgba(0, 191, 166, 0.18)',
+        'rgba(0, 191, 166, 0.25)',
+      ],
     },
   },
 
@@ -164,6 +169,12 @@ const colors: ThemeColors = {
     main: '#FFAB00',
     hover: '#FFBC33',
     active: '#FFCD66',
+  },
+
+  success: {
+    main: '#00BFA6',
+    hover: '#33CCB8',
+    active: '#66D9CA',
   },
 
   notice: {
@@ -429,7 +440,6 @@ const colors: ThemeColors = {
   },
 
   link: '#009EFF',
-  success: '#00BFA5',
 
   dataVisualisation: dataVisualisationColors,
 };

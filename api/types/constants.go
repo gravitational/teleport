@@ -693,6 +693,10 @@ const (
 	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
 	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
 	DiscoveryAppNameLabel = TeleportNamespace + "/name"
+	// DiscoveryAppInsecureSkipVerify specifies the TLS verification enforcement for a discovered app created from Kubernetes service.
+	DiscoveryAppInsecureSkipVerify = TeleportNamespace + "/insecure-skip-verify"
+	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.
+	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
 
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
@@ -816,9 +820,11 @@ const (
 	DiscoveryLabelLDAPPrefix = "ldap/"
 )
 
-// CloudLabelPrefixes are prefixes used by cloud labels, generally added when
-// using automatic discovery
-var CloudLabelPrefixes = []string{CloudAWS, CloudAzure, CloudGCP, DiscoveryLabelLDAPPrefix}
+// BackSortedLabelPrefixes are label names that we want to always be at the end of
+// the sorted labels list to reduce visual clutter. This will generally be automatically
+// discovered cloud provider labels such as azure/aks-managed-createOperationID=123123123123
+// or internal labels
+var BackSortedLabelPrefixes = []string{CloudAWS, CloudAzure, CloudGCP, DiscoveryLabelLDAPPrefix, TeleportNamespace}
 
 const (
 	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels. Those labels

@@ -248,7 +248,7 @@ const StyledStatus = styled(Box)`
     }
 
     if (status === 'processing' || status === 'success') {
-      return { backgroundColor: theme.colors.success };
+      return { backgroundColor: theme.colors.success.main };
     }
 
     // 'error' status can be ignored as it's handled outside of StyledStatus.

@@ -101,7 +101,7 @@ export class TrackedConnectionOperationsFactory {
   private getConnectionGatewayOperations(
     connection: TrackedGatewayConnection
   ): TrackedConnectionOperations {
-    const { rootClusterId, leafClusterId } = routing.parseDbUri(
+    const { rootClusterId, leafClusterId } = routing.parseClusterUri(
       connection.targetUri
     ).params;
     const { rootClusterUri, leafClusterUri } = this.getClusterUris({

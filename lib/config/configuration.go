@@ -217,7 +217,7 @@ type CommandLineFlags struct {
 
 	// IntegrationConfExternalAuditStorageArguments contains the arguments of the
 	// `teleport integration configure externalauditstorage` command
-	IntegrationConfExternalAuditStorageArguments IntegrationConfExternalAuditStorage
+	IntegrationConfExternalAuditStorageArguments servicecfg.ExternalAuditStorageConfiguration
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -265,33 +265,6 @@ type IntegrationConfListDatabasesIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
-}
-
-// IntegrationConfExternalAuditStorage contains the arguments of the
-// `teleport integration configure externalauditstorage` command
-type IntegrationConfExternalAuditStorage struct {
-	// Bootstrap is whether to bootstrap infrastructure (default: false).
-	Bootstrap bool
-	// Region is the AWS Region used.
-	Region string
-	// Role is the AWS IAM Role associated with the OIDC integration.
-	Role string
-	// Policy is the name to use for the IAM policy.
-	Policy string
-	// SessionRecordingsURI is the S3 URI where session recordings are stored.
-	SessionRecordingsURI string
-	// AuditEventsURI is the S3 URI where audit events are stored.
-	AuditEventsURI string
-	// AthenaResultsURI is the S3 URI where temporary Athena results are stored.
-	AthenaResultsURI string
-	// AthenaWorkgroup is the name of the Athena workgroup used.
-	AthenaWorkgroup string
-	// GlueDatabase is the name of the Glue database used.
-	GlueDatabase string
-	// GlueTable is the name of the Glue table used.
-	GlueTable string
-	// Partition is the AWS partition to use (default: aws).
-	Partition string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -1460,16 +1433,18 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
 		var installerParams *types.InstallerParams
-		if matcher.InstallParams != nil {
+		if slices.Contains(matcher.Types, types.AzureMatcherVM) {
 			installerParams = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
-			if matcher.InstallParams.Azure != nil {
-				installerParams.Azure = &types.AzureInstallerParams{
-					ClientID: matcher.InstallParams.Azure.ClientID,
+			if matcher.InstallParams != nil {
+				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
+				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
+				installerParams.ScriptName = matcher.InstallParams.ScriptName
+				if matcher.InstallParams.Azure != nil {
+					installerParams.Azure = &types.AzureInstallerParams{
+						ClientID: matcher.InstallParams.Azure.ClientID,
+					}
 				}
 			}
 		}
@@ -1491,14 +1466,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
 		var installerParams *types.InstallerParams
-		if matcher.InstallParams != nil {
+		if slices.Contains(matcher.Types, types.GCPMatcherCompute) {
 			installerParams = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
+			if matcher.InstallParams != nil {
+				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
+				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
+				installerParams.ScriptName = matcher.InstallParams.ScriptName
+			}
 		}
+
 		serviceMatcher := types.GCPMatcher{
 			Types:           matcher.Types,
 			Locations:       matcher.Locations,
@@ -2728,10 +2706,21 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.NewAggregate(trace.BadParameter("error trying to find file %s", fc.Okta.APITokenPath), err)
 	}
 
+	syncSettings, err := fc.Okta.Sync.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// For backwards compatibility, if SyncPeriod is specified, use that in the sync settings.
+	if syncSettings.AppGroupSyncPeriod == 0 {
+		syncSettings.AppGroupSyncPeriod = fc.Okta.SyncPeriod
+	}
+
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
 	cfg.Okta.SyncPeriod = fc.Okta.SyncPeriod
+	cfg.Okta.SyncSettings = *syncSettings
 	return nil
 }
 

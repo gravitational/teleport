@@ -39,11 +39,32 @@ function getDbAccessDocLink(guide: string) {
 export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
-    name: 'RDS Proxy',
-    keywords: awsKeywords + 'rds proxy',
+    name: 'RDS Proxy PostgreSQL',
+    keywords: awsKeywords + 'rds proxy postgresql',
     kind: ResourceKind.Database,
     icon: 'Aws',
-    unguidedLink: getDbAccessDocLink('rds-proxy'),
+    unguidedLink: getDbAccessDocLink('rds-proxy-postgres'),
+    // TODO(lisa): add a new usage event
+    event: DiscoverEventResource.DatabaseDocRdsProxy,
+  },
+  {
+    dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
+    name: 'RDS Proxy SQL Server',
+    keywords: awsKeywords + 'rds proxy sql server sqlserver',
+    kind: ResourceKind.Database,
+    icon: 'Aws',
+    unguidedLink: getDbAccessDocLink('rds-proxy-sqlserver'),
+    // TODO(lisa): add a new usage event
+    event: DiscoverEventResource.DatabaseDocRdsProxy,
+  },
+  {
+    dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
+    name: 'RDS Proxy MariaDB/MySQL',
+    keywords: awsKeywords + 'rds proxy mariadb mysql',
+    kind: ResourceKind.Database,
+    icon: 'Aws',
+    unguidedLink: getDbAccessDocLink('rds-proxy-mysql'),
+    // TODO(lisa): add a new usage event
     event: DiscoverEventResource.DatabaseDocRdsProxy,
   },
   {
@@ -150,7 +171,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       location: DatabaseLocation.Azure,
       engine: DatabaseEngine.SqlServer,
     },
-    name: 'SQL Server (Preview)',
+    name: 'SQL Server',
     keywords:
       azureKeywords + 'active directory ad sql server sqlserver preview',
     kind: ResourceKind.Database,
@@ -164,7 +185,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       location: DatabaseLocation.Microsoft,
       engine: DatabaseEngine.SqlServer,
     },
-    name: 'SQL Server (Preview)',
+    name: 'SQL Server',
     keywords:
       baseDatabaseKeywords +
       'microsoft active directory ad sql server sqlserver preview',
@@ -281,7 +302,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       location: DatabaseLocation.TODO,
       engine: DatabaseEngine.Snowflake,
     },
-    name: 'Snowflake (Preview)',
+    name: 'Snowflake',
     keywords: baseDatabaseKeywords + 'snowflake preview',
     kind: ResourceKind.Database,
     icon: 'Snowflake',

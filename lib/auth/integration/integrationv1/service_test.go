@@ -38,9 +38,10 @@ import (
 func TestIntegrationCRUD(t *testing.T) {
 	t.Parallel()
 	clusterName := "test-cluster"
+	proxyPublicAddr := "127.0.0.1.nip.io"
 
 	ca := newCertAuthority(t, types.HostCA, clusterName)
-	ctx, localClient, resourceSvc := initSvc(t, types.KindIntegration, ca, clusterName)
+	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
 
 	noError := func(err error) bool {
 		return err == nil
@@ -321,7 +322,7 @@ type localClient interface {
 	CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
 }
 
-func initSvc(t *testing.T, kind string, ca types.CertAuthority, clusterName string) (context.Context, localClient, *Service) {
+func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPublicAddr string) (context.Context, localClient, *Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -377,17 +378,22 @@ func initSvc(t *testing.T, kind string, ca types.CertAuthority, clusterName stri
 	})
 	require.NoError(t, err)
 
-	caGetter := &mockCAGetter{
+	cache := &mockCache{
 		domainName: clusterName,
 		ca:         ca,
-		keystore:   keystoreManager,
+		proxies: []types.Server{
+			&types.ServerV2{Spec: types.ServerSpecV2{
+				PublicAddrs: []string{proxyPublicAddr},
+			}},
+		},
+		IntegrationsService: *localResourceService,
 	}
 
 	resourceSvc, err := NewService(&ServiceConfig{
-		Backend:    localResourceService,
-		Authorizer: authorizer,
-		Cache:      localResourceService,
-		CAGetter:   caGetter,
+		Backend:         localResourceService,
+		Authorizer:      authorizer,
+		Cache:           cache,
+		KeyStoreManager: keystoreManager,
 	})
 	require.NoError(t, err)
 
@@ -402,27 +408,36 @@ func initSvc(t *testing.T, kind string, ca types.CertAuthority, clusterName stri
 	}, resourceSvc
 }
 
-// mockCAGetter implements CAGetter.
-type mockCAGetter struct {
+type mockCache struct {
 	domainName string
 	ca         types.CertAuthority
-	keystore   *keystore.Manager
+
+	proxies   []types.Server
+	returnErr error
+
+	local.IntegrationsService
 }
 
-// GetDomainName returns local auth domain of the current auth server
-func (m *mockCAGetter) GetDomainName() (string, error) {
-	return m.domainName, nil
+func (m *mockCache) GetProxies() ([]types.Server, error) {
+	if m.returnErr != nil {
+		return nil, m.returnErr
+	}
+	return m.proxies, nil
+}
+
+// GetClusterName returns local auth domain of the current auth server
+func (m *mockCache) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
+	return &types.ClusterNameV2{
+		Spec: types.ClusterNameSpecV2{
+			ClusterName: m.domainName,
+		},
+	}, nil
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (m *mockCAGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+func (m *mockCache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
 	return m.ca, nil
-}
-
-// GetKeyStore returns the KeyStore used by the auth server
-func (m *mockCAGetter) GetKeyStore() *keystore.Manager {
-	return m.keystore
 }
 
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {

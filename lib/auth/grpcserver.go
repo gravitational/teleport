@@ -4445,7 +4445,6 @@ func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListU
 	}
 
 	return auth.ListUnifiedResources(ctx, req)
-
 }
 
 // ListResources retrieves a paginated list of resources.
@@ -5438,11 +5437,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	oktapb.RegisterOktaServiceServer(server, oktaServiceServer)
 
 	integrationServiceServer, err := integrationService.NewService(&integrationService.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
-		Cache:      cfg.AuthServer.Cache,
-		Clock:      cfg.AuthServer.clock,
-		CAGetter:   cfg.AuthServer,
+		Authorizer:      cfg.Authorizer,
+		Backend:         cfg.AuthServer.Services,
+		Cache:           cfg.AuthServer.Cache,
+		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
+		Clock:           cfg.AuthServer.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5575,8 +5574,8 @@ func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.
 	}, nil
 }
 
-// StreamUnstructuredSessionEventsServer streams all events from a given session recording as an unstructured format.
-func (g *GRPCServer) StreamUnstructuredSessionEventsServer(req *auditlogpb.StreamUnstructuredSessionEventsRequest, stream auditlogpb.AuditLogService_StreamUnstructuredSessionEventsServer) error {
+// StreamUnstructuredSessionEvents streams all events from a given session recording as an unstructured format.
+func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstructuredSessionEventsRequest, stream auditlogpb.AuditLogService_StreamUnstructuredSessionEventsServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)

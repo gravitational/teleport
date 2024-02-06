@@ -95,6 +95,28 @@ Controls resulting app name. If present it will override default app name patter
 as a suffix to the annotation value, as `$APP_NAME-$PORT1_NAME`, `$APP_NAME-$PORT2_NAME` etc, where `$APP_NAME` is the name
 set by the annotation.
 
+### `teleport.dev/insecure-skip-verify`
+
+Controls whether TLS certificate verification should be skipped for this app.
+If present and set to `true`, TLS certificate verification will be skipped.
+
+```yaml
+annotations:
+  teleport.dev/insecure-skip-verify: "true"
+```
+
+### `teleport.dev/ignore`
+
+Controls whether this service should be ignored by the Discovery Service.
+This annotation is useful when you want to exclude a service from being imported as an app
+when it matches the Discovery Service config. For example, you may want to exclude a service
+that shares the same labels as another services that you want to import as apps.
+
+```yaml
+annotations:
+  teleport.dev/ignore: "true"
+```
+
 ### `teleport.dev/app-rewrite`
 
 Controls rewrite configuration for Teleport app, if needed. It should

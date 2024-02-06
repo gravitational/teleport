@@ -1720,8 +1720,8 @@ type Node interface {
 	GetTeleportVersion() string
 	// GetAddr return server address
 	GetAddr() string
-	// GetPublicAddr returns a public address where this server can be reached.
-	GetPublicAddr() string
+	// GetPublicAddrs returns all public addresses where this server can be reached.
+	GetPublicAddrs() []string
 	// GetHostname returns server hostname
 	GetHostname() string
 	// GetNamespace returns server namespace
@@ -1732,7 +1732,7 @@ type Node interface {
 	GetRotation() types.Rotation
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
 	GetUseTunnel() bool
-	// GetProxyID returns a list of proxy ids this server is connected to.
+	// GetProxyIDs returns a list of proxy ids this server is connected to.
 	GetProxyIDs() []string
 }
 

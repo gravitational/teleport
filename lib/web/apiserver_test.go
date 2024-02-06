@@ -5353,7 +5353,7 @@ func TestWebSessionsRenewDoesNotBreakExistingTerminalSession(t *testing.T) {
 	// This will allow the new session to have a more plausible
 	// expiration
 	const delta = 30 * time.Second
-	env.clock.Advance(auth.BearerTokenTTL - delta)
+	env.clock.Advance(defaults.BearerTokenTTL - delta)
 
 	// Renew the session using the 1st proxy
 	resp := pack1.renewSession(context.Background(), t)
@@ -5387,7 +5387,7 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 	// Advance the time before renewing the session.
 	// This will allow the new session to have a more plausible
 	// expiration
-	env.clock.Advance(auth.BearerTokenTTL - delta)
+	env.clock.Advance(defaults.BearerTokenTTL - delta)
 
 	// make sure we can use client to make authenticated requests
 	// before we issue this request, we will recover session id and bearer token

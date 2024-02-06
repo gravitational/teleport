@@ -2210,7 +2210,18 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
 	case r.Name == teleport.SFTPSubsystem:
-		if err := ctx.CheckSFTPAllowed(s.reg); err != nil {
+		err := ctx.CheckSFTPAllowed(s.reg)
+		if err != nil {
+			s.EmitAuditEvent(context.Background(), &apievents.SFTP{
+				Metadata: apievents.Metadata{
+					Code: events.SFTPDisallowedCode,
+					Type: events.SFTPEvent,
+					Time: time.Now(),
+				},
+				UserMetadata:   ctx.Identity.GetUserMetadata(),
+				ServerMetadata: ctx.GetServerMetadata(),
+				Error:          err.Error(),
+			})
 			return nil, trace.Wrap(err)
 		}
 

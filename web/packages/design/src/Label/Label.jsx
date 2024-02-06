@@ -46,7 +46,7 @@ const kind = ({ kind, theme }) => {
 
   if (kind === 'success') {
     return {
-      backgroundColor: theme.colors.success,
+      backgroundColor: theme.colors.success.main,
       color: theme.colors.text.primaryInverse,
     };
   }

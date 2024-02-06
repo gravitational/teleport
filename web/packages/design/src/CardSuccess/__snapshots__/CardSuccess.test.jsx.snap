@@ -19,7 +19,7 @@ exports[`rendering of CardSuccess components 1`] = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #00BFA5;
+  color: #00BFA6;
   margin-bottom: 16px;
 }
 
@@ -29,7 +29,7 @@ exports[`rendering of CardSuccess components 1`] = `
 >
   <span
     class="c1 icon icon-circlecheck"
-    color="success"
+    color="success.main"
   >
     <svg
       fill="currentColor"

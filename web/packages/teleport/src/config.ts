@@ -149,6 +149,8 @@ const cfg = {
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
 
+    downloadCenter: '/web/downloads',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',

@@ -110,7 +110,7 @@ type mockRouteableServer struct {
 	hostname   string
 	addr       string
 	useTunnel  bool
-	publicAddr string
+	publicAddr []string
 }
 
 func (m mockRouteableServer) GetName() string {
@@ -129,7 +129,7 @@ func (m mockRouteableServer) GetUseTunnel() bool {
 	return m.useTunnel
 }
 
-func (m mockRouteableServer) GetPublicAddr() string {
+func (m mockRouteableServer) GetPublicAddrs() []string {
 	return m.publicAddr
 }
 
@@ -140,7 +140,7 @@ func TestRouteToServer(t *testing.T) {
 	matchAddrServer := mockRouteableServer{
 		name:       "test",
 		addr:       "example.com:1111",
-		publicAddr: "public.example.com:1111",
+		publicAddr: []string{"node:1234", "public.example.com:1111"},
 	}
 
 	tests := []struct {
@@ -156,7 +156,7 @@ func TestRouteToServer(t *testing.T) {
 				name:       "test",
 				addr:       "localhost",
 				hostname:   "example.com",
-				publicAddr: "example.com",
+				publicAddr: []string{"example.com"},
 			},
 			assert: require.False,
 		},
@@ -167,7 +167,7 @@ func TestRouteToServer(t *testing.T) {
 				name:       testUUID,
 				addr:       "localhost",
 				hostname:   "example.com",
-				publicAddr: "example.com",
+				publicAddr: []string{"example.com"},
 			},
 			assert: require.True,
 		},
@@ -178,7 +178,7 @@ func TestRouteToServer(t *testing.T) {
 				name:       testUUID,
 				addr:       "addr.example.com",
 				hostname:   "example.com",
-				publicAddr: "public.example.com",
+				publicAddr: []string{"public.example.com"},
 				useTunnel:  true,
 			},
 			assert: require.True,
@@ -190,7 +190,7 @@ func TestRouteToServer(t *testing.T) {
 				name:       testUUID,
 				addr:       "example.com",
 				hostname:   "fake.example.com",
-				publicAddr: "example.com",
+				publicAddr: []string{"example.com"},
 				useTunnel:  true,
 			},
 			assert: require.False,
@@ -214,7 +214,13 @@ func TestRouteToServer(t *testing.T) {
 			assert:  require.False,
 		},
 		{
-			name:    "match public addr",
+			name:    "match first public addr",
+			matcher: NewSSHRouteMatcher("node", "1234", true),
+			server:  matchAddrServer,
+			assert:  require.True,
+		},
+		{
+			name:    "match second public addr",
 			matcher: NewSSHRouteMatcher("public.example.com", "1111", true),
 			server:  matchAddrServer,
 			assert:  require.True,

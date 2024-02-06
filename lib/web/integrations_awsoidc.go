@@ -98,14 +98,7 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	issuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := clt.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: issuer,
-	})
+	token, err := clt.GenerateAWSOIDCToken(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -566,11 +559,16 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	vpcIds := req.VPCIDs
+	if len(vpcIds) == 0 {
+		vpcIds = []string{req.VPCID}
+	}
+
 	resp, err := awsoidc.ListEC2ICE(ctx,
 		listEC2ICEClient,
 		awsoidc.ListEC2ICERequest{
 			Region:    req.Region,
-			VPCID:     req.VPCID,
+			VPCIDs:    vpcIds,
 			NextToken: req.NextToken,
 		},
 	)
@@ -579,8 +577,9 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	return ui.AWSOIDCListEC2ICEResponse{
-		NextToken: resp.NextToken,
-		EC2ICEs:   resp.EC2ICEs,
+		NextToken:     resp.NextToken,
+		DashboardLink: resp.DashboardLink,
+		EC2ICEs:       resp.EC2ICEs,
 	}, nil
 }
 
@@ -603,21 +602,46 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
+	endpoints := make([]awsoidc.EC2ICEEndpoint, 0, len(req.Endpoints))
+
+	for _, endpoint := range req.Endpoints {
+		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
+			SubnetID:         endpoint.SubnetID,
+			SecurityGroupIDs: endpoint.SecurityGroupIDs,
+		})
+	}
+
+	// Backwards compatible: get the endpoint from the deprecated fields.
+	if len(endpoints) == 0 {
+		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
+			SubnetID:         req.SubnetID,
+			SecurityGroupIDs: req.SecurityGroupIDs,
+		})
+	}
+
 	resp, err := awsoidc.CreateEC2ICE(ctx,
 		createEC2ICEClient,
 		awsoidc.CreateEC2ICERequest{
-			Cluster:          h.auth.clusterName,
-			IntegrationName:  awsClientReq.IntegrationName,
-			SubnetID:         req.SubnetID,
-			SecurityGroupIDs: req.SecurityGroupIDs,
+			Cluster:         h.auth.clusterName,
+			IntegrationName: awsClientReq.IntegrationName,
+			Endpoints:       endpoints,
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	respEndpoints := make([]ui.AWSOIDCDeployEC2ICEResponseEndpoint, 0, len(resp.CreatedEndpoints))
+	for _, endpoint := range resp.CreatedEndpoints {
+		respEndpoints = append(respEndpoints, ui.AWSOIDCDeployEC2ICEResponseEndpoint{
+			Name:     endpoint.Name,
+			SubnetID: endpoint.SubnetID,
+		})
+	}
+
 	return ui.AWSOIDCDeployEC2ICEResponse{
-		Name: resp.Name,
+		Name:      resp.Name,
+		Endpoints: respEndpoints,
 	}, nil
 }
 

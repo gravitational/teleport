@@ -402,20 +402,16 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   display: none;
 }
 
-.c13 .react-select--is-disabled,
 .c13 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c13 .react-select--is-disabled .react-select__single-value,
 .c13 .react-select__control--is-disabled .react-select__single-value,
-.c13 .react-select--is-disabled .react-select__placeholder,
 .c13 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c13 .react-select--is-disabled .react-select__indicator,
 .c13 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -1088,20 +1084,16 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   display: none;
 }
 
-.c14 .react-select--is-disabled,
 .c14 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__single-value,
 .c14 .react-select__control--is-disabled .react-select__single-value,
-.c14 .react-select--is-disabled .react-select__placeholder,
 .c14 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c14 .react-select--is-disabled .react-select__indicator,
 .c14 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -1800,20 +1792,16 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   display: none;
 }
 
-.c16 .react-select--is-disabled,
 .c16 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c16 .react-select--is-disabled .react-select__single-value,
 .c16 .react-select__control--is-disabled .react-select__single-value,
-.c16 .react-select--is-disabled .react-select__placeholder,
 .c16 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c16 .react-select--is-disabled .react-select__indicator,
 .c16 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }

@@ -16,7 +16,6 @@ package hsm
 
 import (
 	"context"
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -57,16 +56,8 @@ func TestMain(m *testing.M) {
 
 func newHSMAuthConfig(t *testing.T, storageConfig *backend.Config, log utils.Logger) *servicecfg.Config {
 	config := newAuthConfig(t, log)
-
 	config.Auth.StorageConfig = *storageConfig
-
-	if gcpKeyring := os.Getenv("TEST_GCP_KMS_KEYRING"); gcpKeyring != "" {
-		config.Auth.KeyStore.GCPKMS.KeyRing = gcpKeyring
-		config.Auth.KeyStore.GCPKMS.ProtectionLevel = "HSM"
-	} else {
-		config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
-	}
-
+	config.Auth.KeyStore = keystore.HSMTestConfig(t)
 	return config
 }
 
@@ -114,12 +105,6 @@ func liteBackendConfig(t *testing.T) *backend.Config {
 	}
 }
 
-func requireHSMAvailable(t *testing.T) {
-	if os.Getenv("SOFTHSM2_PATH") == "" && os.Getenv("TEST_GCP_KMS_KEYRING") == "" {
-		t.Skip("Skipping test because neither SOFTHSM2_PATH or TEST_GCP_KMS_KEYRING are set")
-	}
-}
-
 func requireETCDAvailable(t *testing.T) {
 	if os.Getenv("TELEPORT_ETCD_TEST") == "" {
 		t.Skip("Skipping test because TELEPORT_ETCD_TEST is not set")
@@ -128,10 +113,7 @@ func requireETCDAvailable(t *testing.T) {
 
 // Tests a single CA rotation with a single HSM auth server
 func TestHSMRotation(t *testing.T) {
-	requireHSMAvailable(t)
-
-	// pick a conservative timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := utils.NewLoggerForTests()
 
@@ -235,11 +217,9 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	// https://github.com/gravitational/teleport/issues/20217
 	t.Skip("TestHSMDualAuthRotation is temporarily disabled due to flakiness")
 
-	requireHSMAvailable(t)
 	requireETCDAvailable(t)
 
-	// pick a global timeout for the test
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := utils.NewLoggerForTests()
 	storageConfig := etcdBackendConfig(t)
@@ -257,11 +237,9 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	require.NoError(t, authServices.start(ctx), "auth service failed initial startup")
 
 	log.Debug("TestHSMDualAuthRotation: Starting load balancer")
-	hostName, err := os.Hostname()
-	require.NoError(t, err)
 	lb, err := utils.NewLoadBalancer(
 		ctx,
-		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		*utils.MustParseAddr("localhost:0"),
 		auth1.authAddr(t),
 	)
 	require.NoError(t, err)
@@ -463,11 +441,9 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 // Tests a dual-auth server migration from raw keys to HSM keys
 func TestHSMMigrate(t *testing.T) {
-	requireHSMAvailable(t)
 	requireETCDAvailable(t)
 
-	// pick a global timeout for the test
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := utils.NewLoggerForTests()
 	storageConfig := etcdBackendConfig(t)
@@ -484,11 +460,9 @@ func TestHSMMigrate(t *testing.T) {
 	require.NoError(t, auth2.start(ctx))
 
 	log.Debug("TestHSMMigrate: Starting load balancer")
-	hostName, err := os.Hostname()
-	require.NoError(t, err)
 	lb, err := utils.NewLoadBalancer(
 		ctx,
-		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		*utils.MustParseAddr("localhost:0"),
 		auth1.authAddr(t),
 		auth2.authAddr(t),
 	)
@@ -512,7 +486,7 @@ func TestHSMMigrate(t *testing.T) {
 	lb.RemoveBackend(auth1.authAddr(t))
 	auth1.process.Close()
 	require.NoError(t, auth1.waitForShutdown(ctx))
-	auth1Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
+	auth1Config.Auth.KeyStore = keystore.HSMTestConfig(t)
 	auth1 = newTeleportService(t, auth1Config, "auth1")
 	require.NoError(t, auth1.start(ctx))
 
@@ -574,7 +548,7 @@ func TestHSMMigrate(t *testing.T) {
 	lb.RemoveBackend(auth2.authAddr(t))
 	auth2.process.Close()
 	require.NoError(t, auth2.waitForShutdown(ctx))
-	auth2Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
+	auth2Config.Auth.KeyStore = keystore.HSMTestConfig(t)
 	auth2 = newTeleportService(t, auth2Config, "auth2")
 	require.NoError(t, auth2.start(ctx))
 

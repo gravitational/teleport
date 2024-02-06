@@ -85,17 +85,6 @@ Currently supported distributions (and `ID`) are:
 <Tabs>
 <TabItem scope="oss" label="Teleport Community Edition">
 
-<Details title="Using APT or YUM for versions prior to Teleport 10?" scopeOnly={false}>
-
-If you've previously installed Teleport via the APT
-repo at `https://deb.releases.teleport.dev/`, you can upgrade by
-re-running the "Debian/Ubuntu (DEB)" install instructions above.
-
-The legacy APT repo at `https://deb.releases.teleport.dev/` will not receive updates
-past Teleport 14 and will be turned off after Teleport 14 is no longer supported.
-
-</Details>
-
 Check the [Downloads](https://goteleport.com/download/) page for the most
 up-to-date information.
 
@@ -515,7 +504,7 @@ $ export version=v(=teleport.version=)
 $ export os=linux
 # '386' 'arm' on linux or 'amd64' for all distros
 $ export arch=amd64
-$ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha256
+$ curl https://cdn.teleport.dev/teleport-$version-$os-$arch-bin.tar.gz.sha256
 # <checksum> <filename>
 ```
 
