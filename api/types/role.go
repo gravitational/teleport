@@ -1153,12 +1153,12 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 
 	for i, perm := range r.Spec.Allow.DatabasePermissions {
 		if err := perm.CheckAndSetDefaults(); err != nil {
-			return trace.BadParameter("failed to process 'allow' db_permission no. %v: %v", i+1, err)
+			return trace.BadParameter("failed to process 'allow' db_permission #%v: %v", i+1, err)
 		}
 	}
 	for i, perm := range r.Spec.Deny.DatabasePermissions {
 		if err := perm.CheckAndSetDefaults(); err != nil {
-			return trace.BadParameter("failed to process 'allow' db_permission no. %v: %v", i+1, err)
+			return trace.BadParameter("failed to process 'allow' db_permission #%v: %v", i+1, err)
 		}
 	}
 
