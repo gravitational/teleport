@@ -389,11 +389,15 @@ func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]
 		return nil, "", trace.Wrap(err)
 	}
 
-	q.logger.WithField("query", query).
-		WithField("params", params).
-		WithField("startKey", req.startKey).
-		Debug("Executing events query on Athena")
-
+	startTime := time.Now()
+	defer func() {
+		q.logger.WithFields(log.Fields{
+			"query":    query,
+			"params":   params,
+			"startKey": req.startKey,
+			"duration": time.Since(startTime),
+		}).Debug("Executed events query on Athena")
+	}()
 	queryId, err := q.startQueryExecution(ctx, query, params)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
