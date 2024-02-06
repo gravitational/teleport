@@ -44,7 +44,7 @@ func (r opensshEICEServerClient) Get(ctx context.Context, name string) (types.Se
 	if subKind := server.GetSubKind(); subKind != types.SubKindOpenSSHEICENode {
 		return nil, trace.CompareFailed(
 			"Wrong server subKind, was expecting %q, got %q",
-			types.SubKindOpenSSHNode,
+			types.SubKindOpenSSHEICENode,
 			subKind,
 		)
 	}
