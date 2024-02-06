@@ -74,29 +74,6 @@ spec:
                         type: string
                     type: object
                 type: object
-              cmd_labels:
-                description: CmdLabels is server dynamic labels
-                properties:
-                  key:
-                    type: string
-                  value:
-                    nullable: true
-                    properties:
-                      command:
-                        description: Command is a command to run
-                        items:
-                          type: string
-                        nullable: true
-                        type: array
-                      period:
-                        description: Period is a time between command runs
-                        format: duration
-                        type: string
-                      result:
-                        description: Result captures standard output
-                        type: string
-                    type: object
-                type: object
               hostname:
                 description: Hostname is server hostname
                 type: string
