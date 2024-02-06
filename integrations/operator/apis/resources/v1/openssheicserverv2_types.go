@@ -26,34 +26,34 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&TeleportOpensshEICEServerV2{}, &TeleportOpensshEICEServerV2List{})
+	SchemeBuilder.Register(&TeleportOpenSSHEICEServerV2{}, &TeleportOpenSSHEICEServerV2List{})
 }
 
-// TeleportOpensshEICEServerV2Spec defines the desired state of TeleportOpensshEICEServerV2
-type TeleportOpensshEICEServerV2Spec types.ServerSpecV2
+// TeleportOpenSSHEICEServerV2Spec defines the desired state of TeleportOpenSSHEICEServerV2
+type TeleportOpenSSHEICEServerV2Spec types.ServerSpecV2
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// TeleportOpensshEICEServerV2 is the Schema for the roles API
-type TeleportOpensshEICEServerV2 struct {
+// TeleportOpenSSHEICEServerV2 is the Schema for the roles API
+type TeleportOpenSSHEICEServerV2 struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportOpensshEICEServerV2Spec `json:"spec,omitempty"`
+	Spec   TeleportOpenSSHEICEServerV2Spec `json:"spec,omitempty"`
 	Status resources.Status                `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// TeleportOpensshEICEServerV2List contains a list of TeleportOpensshEICEServerV2
-type TeleportOpensshEICEServerV2List struct {
+// TeleportOpenSSHEICEServerV2List contains a list of TeleportOpenSSHEICEServerV2
+type TeleportOpenSSHEICEServerV2List struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []TeleportOpensshEICEServerV2 `json:"items"`
+	Items           []TeleportOpenSSHEICEServerV2 `json:"items"`
 }
 
-func (r TeleportOpensshEICEServerV2) ToTeleport() types.Server {
+func (r TeleportOpenSSHEICEServerV2) ToTeleport() types.Server {
 	return &types.ServerV2{
 		Kind:    types.KindNode,
 		SubKind: types.SubKindOpenSSHEICENode,
@@ -68,29 +68,29 @@ func (r TeleportOpensshEICEServerV2) ToTeleport() types.Server {
 }
 
 // Marshal serializes a spec into binary data.
-func (spec *TeleportOpensshEICEServerV2Spec) Marshal() ([]byte, error) {
+func (spec *TeleportOpenSSHEICEServerV2Spec) Marshal() ([]byte, error) {
 	return (*types.ServerSpecV2)(spec).Marshal()
 }
 
 // Unmarshal deserializes a spec from binary data.
-func (spec *TeleportOpensshEICEServerV2Spec) Unmarshal(data []byte) error {
+func (spec *TeleportOpenSSHEICEServerV2Spec) Unmarshal(data []byte) error {
 	return (*types.ServerSpecV2)(spec).Unmarshal(data)
 }
 
 // DeepCopyInto deep-copies one role spec into another.
 // Required to satisfy runtime.Object interface.
-func (spec *TeleportOpensshEICEServerV2Spec) DeepCopyInto(out *TeleportOpensshEICEServerV2Spec) {
+func (spec *TeleportOpenSSHEICEServerV2Spec) DeepCopyInto(out *TeleportOpenSSHEICEServerV2Spec) {
 	data, err := spec.Marshal()
 	if err != nil {
 		panic(err)
 	}
-	*out = TeleportOpensshEICEServerV2Spec{}
+	*out = TeleportOpenSSHEICEServerV2Spec{}
 	if err = out.Unmarshal(data); err != nil {
 		panic(err)
 	}
 }
 
 // StatusConditions returns a pointer to Status.Conditions slice.
-func (r *TeleportOpensshEICEServerV2) StatusConditions() *[]metav1.Condition {
+func (r *TeleportOpenSSHEICEServerV2) StatusConditions() *[]metav1.Condition {
 	return &r.Status.Conditions
 }

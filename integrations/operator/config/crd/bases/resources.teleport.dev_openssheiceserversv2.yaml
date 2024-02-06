@@ -6,8 +6,8 @@ metadata:
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportOpensshEICEServerV2
-    listKind: TeleportOpensshEICEServerV2List
+    kind: TeleportOpenSSHEICEServerV2
+    listKind: TeleportOpenSSHEICEServerV2List
     plural: teleportopenssheiceserversv2
     shortNames:
     - openssheiceserverv2
@@ -18,7 +18,7 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: OpensshEICEServerV2 is the Schema for the openssheiceserversv2
+        description: OpenSSHEICEServerV2 is the Schema for the openssheiceserversv2
           API
         properties:
           apiVersion:
@@ -34,7 +34,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: OpensshEICEServer resource definition v2 from Teleport
+            description: OpenSSHEICEServer resource definition v2 from Teleport
             properties:
               addr:
                 description: Addr is a host:port address where this server can be

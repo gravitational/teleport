@@ -145,14 +145,14 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 			name: "ServerV2",
 			opts: []resourceSchemaOption{
 				withVersionInKindOverride(),
-				withNameOverride("OpensshServer"),
+				withNameOverride("OpenSSHServer"),
 			},
 		},
 		{
 			name: "ServerV2",
 			opts: []resourceSchemaOption{
 				withVersionInKindOverride(),
-				withNameOverride("OpensshEICEServer"),
+				withNameOverride("OpenSSHEICEServer"),
 			},
 		},
 	}

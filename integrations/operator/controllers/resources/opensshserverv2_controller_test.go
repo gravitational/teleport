@@ -69,18 +69,18 @@ func (g *opensshServerV2TestingPrimitives) DeleteTeleportResource(ctx context.Co
 }
 
 func (g *opensshServerV2TestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
-	node := &resourcesv1.TeleportOpensshServerV2{
+	node := &resourcesv1.TeleportOpenSSHServerV2{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Spec: resourcesv1.TeleportOpensshServerV2Spec(opensshServerV2Spec),
+		Spec: resourcesv1.TeleportOpenSSHServerV2Spec(opensshServerV2Spec),
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, node))
 }
 
 func (g *opensshServerV2TestingPrimitives) DeleteKubernetesResource(ctx context.Context, name string) error {
-	node := &resourcesv1.TeleportOpensshServerV2{
+	node := &resourcesv1.TeleportOpenSSHServerV2{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
@@ -89,8 +89,8 @@ func (g *opensshServerV2TestingPrimitives) DeleteKubernetesResource(ctx context.
 	return trace.Wrap(g.setup.K8sClient.Delete(ctx, node))
 }
 
-func (g *opensshServerV2TestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv1.TeleportOpensshServerV2, error) {
-	node := &resourcesv1.TeleportOpensshServerV2{}
+func (g *opensshServerV2TestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv1.TeleportOpenSSHServerV2, error) {
+	node := &resourcesv1.TeleportOpenSSHServerV2{}
 	obj := kclient.ObjectKey{
 		Name:      name,
 		Namespace: g.setup.Namespace.Name,
@@ -108,22 +108,22 @@ func (g *opensshServerV2TestingPrimitives) ModifyKubernetesResource(ctx context.
 	return g.setup.K8sClient.Update(ctx, node)
 }
 
-func (g *opensshServerV2TestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.Server, kubeResource *resourcesv1.TeleportOpensshServerV2) (bool, string) {
+func (g *opensshServerV2TestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.Server, kubeResource *resourcesv1.TeleportOpenSSHServerV2) (bool, string) {
 	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), testlib.CompareOptions()...)
 	return diff == "", diff
 }
 
 func TestTeleportOpensshServerV2Creation(t *testing.T) {
 	test := &opensshServerV2TestingPrimitives{}
-	testlib.ResourceCreationTest[types.Server, *resourcesv1.TeleportOpensshServerV2](t, test)
+	testlib.ResourceCreationTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, test)
 }
 
 func TestTeleportOpensshServerV2DeletionDrift(t *testing.T) {
 	test := &opensshServerV2TestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.Server, *resourcesv1.TeleportOpensshServerV2](t, test)
+	testlib.ResourceDeletionDriftTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, test)
 }
 
 func TestTeleportOpensshServerV2Update(t *testing.T) {
 	test := &opensshServerV2TestingPrimitives{}
-	testlib.ResourceUpdateTest[types.Server, *resourcesv1.TeleportOpensshServerV2](t, test)
+	testlib.ResourceUpdateTest[types.Server, *resourcesv1.TeleportOpenSSHServerV2](t, test)
 }

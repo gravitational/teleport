@@ -26,34 +26,34 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&TeleportOpensshServerV2{}, &TeleportOpensshServerV2List{})
+	SchemeBuilder.Register(&TeleportOpenSSHServerV2{}, &TeleportOpenSSHServerV2List{})
 }
 
-// TeleportOpensshServerV2Spec defines the desired state of TeleportOpensshServerV2
-type TeleportOpensshServerV2Spec types.ServerSpecV2
+// TeleportOpenSSHServerV2Spec defines the desired state of TeleportOpenSSHServerV2
+type TeleportOpenSSHServerV2Spec types.ServerSpecV2
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// TeleportOpensshServerV2 is the Schema for the roles API
-type TeleportOpensshServerV2 struct {
+// TeleportOpenSSHServerV2 is the Schema for the roles API
+type TeleportOpenSSHServerV2 struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportOpensshServerV2Spec `json:"spec,omitempty"`
+	Spec   TeleportOpenSSHServerV2Spec `json:"spec,omitempty"`
 	Status resources.Status            `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// TeleportOpensshServerV2List contains a list of TeleportOpensshServerV2
-type TeleportOpensshServerV2List struct {
+// TeleportOpenSSHServerV2List contains a list of TeleportOpenSSHServerV2
+type TeleportOpenSSHServerV2List struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []TeleportOpensshServerV2 `json:"items"`
+	Items           []TeleportOpenSSHServerV2 `json:"items"`
 }
 
-func (r TeleportOpensshServerV2) ToTeleport() types.Server {
+func (r TeleportOpenSSHServerV2) ToTeleport() types.Server {
 	return &types.ServerV2{
 		Kind:    types.KindNode,
 		SubKind: types.SubKindOpenSSHNode,
@@ -68,29 +68,29 @@ func (r TeleportOpensshServerV2) ToTeleport() types.Server {
 }
 
 // Marshal serializes a spec into binary data.
-func (spec *TeleportOpensshServerV2Spec) Marshal() ([]byte, error) {
+func (spec *TeleportOpenSSHServerV2Spec) Marshal() ([]byte, error) {
 	return (*types.ServerSpecV2)(spec).Marshal()
 }
 
 // Unmarshal deserializes a spec from binary data.
-func (spec *TeleportOpensshServerV2Spec) Unmarshal(data []byte) error {
+func (spec *TeleportOpenSSHServerV2Spec) Unmarshal(data []byte) error {
 	return (*types.ServerSpecV2)(spec).Unmarshal(data)
 }
 
 // DeepCopyInto deep-copies one role spec into another.
 // Required to satisfy runtime.Object interface.
-func (spec *TeleportOpensshServerV2Spec) DeepCopyInto(out *TeleportOpensshServerV2Spec) {
+func (spec *TeleportOpenSSHServerV2Spec) DeepCopyInto(out *TeleportOpenSSHServerV2Spec) {
 	data, err := spec.Marshal()
 	if err != nil {
 		panic(err)
 	}
-	*out = TeleportOpensshServerV2Spec{}
+	*out = TeleportOpenSSHServerV2Spec{}
 	if err = out.Unmarshal(data); err != nil {
 		panic(err)
 	}
 }
 
 // StatusConditions returns a pointer to Status.Conditions slice.
-func (r *TeleportOpensshServerV2) StatusConditions() *[]metav1.Condition {
+func (r *TeleportOpenSSHServerV2) StatusConditions() *[]metav1.Condition {
 	return &r.Status.Conditions
 }
