@@ -244,7 +244,7 @@ func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 		}
 		return dev, nil
 	}
-	return nil, trace.AccessDenied("invalid totp token")
+	return nil, trace.AccessDenied("invalid authenticator code")
 }
 
 // checkTOTP checks if the TOTP token is valid.

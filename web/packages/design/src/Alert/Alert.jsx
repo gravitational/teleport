@@ -46,6 +46,14 @@ const kind = props => {
         background: theme.colors.success.main,
         color: theme.colors.text.primaryInverse,
       };
+    case 'outline-danger':
+      return {
+        background: fade(theme.colors.error.main, 0.1),
+        border: `${theme.radii[1]}px solid ${theme.colors.error.main}`,
+        borderRadius: `${theme.radii[3]}px`,
+        boxShadow: 'none',
+        justifyContent: 'normal',
+      };
     case 'outline-info':
       return {
         background: fade(theme.colors.link, 0.1),
@@ -90,6 +98,7 @@ Alert.propTypes = {
     'info',
     'warning',
     'success',
+    'outline-danger',
     'outline-info',
   ]),
   ...color.propTypes,
@@ -108,4 +117,7 @@ export const Danger = props => <Alert kind="danger" {...props} />;
 export const Info = props => <Alert kind="info" {...props} />;
 export const Warning = props => <Alert kind="warning" {...props} />;
 export const Success = props => <Alert kind="success" {...props} />;
+export const OutlineDanger = props => (
+  <Alert kind="outline-danger" {...props} />
+);
 export const OutlineInfo = props => <Alert kind="outline-info" {...props} />;
