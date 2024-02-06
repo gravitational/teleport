@@ -98,7 +98,7 @@ access_graph:
   enabled: true
   # host:port where the TAG service is listening
   endpoint: access-graph.example.com:50051
-  # Optionally, specify a trusted CA we expect the TAG service certificate to be signed by.
+  # Specify a trusted CA we expect the TAG server certificate to be signed by.
   # If not specified, the system trust store will be used.
   ca: /etc/access_graph_ca.pem
 ```
@@ -114,7 +114,7 @@ To access the interface, your user must have a role that allows `list` and `read
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: my-role
 spec:
