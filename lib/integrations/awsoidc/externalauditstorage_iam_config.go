@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // ConfigureExternalAuditStorageClient is an interface for the AWS client methods
@@ -57,13 +56,38 @@ func (d *DefaultConfigureExternalAuditStorageClient) GetCallerIdentity(ctx conte
 	return d.Sts.GetCallerIdentity(ctx, input, opts...)
 }
 
+// ExternalAuditStorageConfiguration contains the arguments to configure the
+// External Audit Storage.
+type ExternalAuditStorageConfiguration struct {
+	// Region is the AWS Region used.
+	Region string
+	// Role is the AWS IAM Role associated with the OIDC integration.
+	Role string
+	// Policy is the name to use for the IAM policy.
+	Policy string
+	// SessionRecordingsURI is the S3 URI where session recordings are stored.
+	SessionRecordingsURI string
+	// AuditEventsURI is the S3 URI where audit events are stored.
+	AuditEventsURI string
+	// AthenaResultsURI is the S3 URI where temporary Athena results are stored.
+	AthenaResultsURI string
+	// AthenaWorkgroup is the name of the Athena workgroup used.
+	AthenaWorkgroup string
+	// GlueDatabase is the name of the Glue database used.
+	GlueDatabase string
+	// GlueTable is the name of the Glue table used.
+	GlueTable string
+	// Partition is the AWS partition to use (default: aws).
+	Partition string
+}
+
 // ConfigureExternalAuditStorage attaches an IAM policy with necessary permissions
 // for the ExternalAuditStorage feature to an existing IAM role associated with an
 // AWS OIDC integration.
 func ConfigureExternalAuditStorage(
 	ctx context.Context,
 	clt ConfigureExternalAuditStorageClient,
-	params *servicecfg.ExternalAuditStorageConfiguration,
+	params ExternalAuditStorageConfiguration,
 ) error {
 	fmt.Println("\nConfiguring necessary IAM permissions for External Audit Storage")
 
