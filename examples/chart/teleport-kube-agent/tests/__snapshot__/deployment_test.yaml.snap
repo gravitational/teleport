@@ -57,10 +57,12 @@ sets Deployment annotations when specified if action is Upgrade:
               allowPrivilegeEscalation: false
               capabilities:
                 drop:
-                - all
+                - ALL
               readOnlyRootFilesystem: true
               runAsNonRoot: true
               runAsUser: 9807
+              seccompProfile:
+                type: RuntimeDefault
             volumeMounts:
             - mountPath: /etc/teleport
               name: config
@@ -130,10 +132,12 @@ sets Deployment labels when specified if action is Upgrade:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
-              - all
+              - ALL
             readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 9807
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
           - mountPath: /etc/teleport
             name: config
@@ -190,10 +194,12 @@ sets Pod annotations when specified if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -250,10 +256,12 @@ sets Pod labels when specified if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -280,18 +288,22 @@ sets by default a container security context if action is Upgrade:
     allowPrivilegeEscalation: false
     capabilities:
       drop:
-      - all
+      - ALL
     readOnlyRootFilesystem: true
     runAsNonRoot: true
     runAsUser: 9807
+    seccompProfile:
+      type: RuntimeDefault
   2: |
     allowPrivilegeEscalation: false
     capabilities:
       drop:
-      - all
+      - ALL
     readOnlyRootFilesystem: true
     runAsNonRoot: true
     runAsUser: 9807
+    seccompProfile:
+      type: RuntimeDefault
 should add emptyDir for data when existingDataVolume is not set if action is Upgrade:
   1: |
     containers:
@@ -327,10 +339,12 @@ should add emptyDir for data when existingDataVolume is not set if action is Upg
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -388,10 +402,12 @@ should add insecureSkipProxyTLSVerify to args when set in values if action is Up
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -448,10 +464,12 @@ should correctly configure existingDataVolume when set if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -506,10 +524,12 @@ should expose diag port if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -578,10 +598,12 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -650,10 +672,12 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -710,10 +734,12 @@ should have one replica when replicaCount is not set if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -770,10 +796,12 @@ should mount extraVolumes and extraVolumeMounts if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -837,10 +865,12 @@ should mount tls.existingCASecretName and set environment when set in values if 
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -907,10 +937,12 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -980,10 +1012,12 @@ should provision initContainer correctly when set in values if action is Upgrade
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1009,70 +1043,12 @@ should provision initContainer correctly when set in values if action is Upgrade
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
-      volumeMounts:
-      - mountPath: /etc/teleport
-        name: config
-        readOnly: true
-      - mountPath: /etc/teleport-secrets
-        name: auth-token
-        readOnly: true
-      - mountPath: /var/lib/teleport
-        name: data
-    securityContext:
-      fsGroup: 9807
-    serviceAccountName: RELEASE-NAME
-    volumes:
-    - configMap:
-        name: RELEASE-NAME
-      name: config
-    - name: auth-token
-      secret:
-        secretName: teleport-kube-agent-join-token
-    - emptyDir: {}
-      name: data
-should set SecurityContext if action is Upgrade:
-  1: |
-    containers:
-    - args:
-      - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      image: public.ecr.aws/gravitational/teleport-distroless:16.0.0-dev
-      imagePullPolicy: IfNotPresent
-      livenessProbe:
-        failureThreshold: 6
-        httpGet:
-          path: /healthz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      name: teleport
-      ports:
-      - containerPort: 3000
-        name: diag
-        protocol: TCP
-      readinessProbe:
-        failureThreshold: 12
-        httpGet:
-          path: /readyz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop:
-          - all
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1149,10 +1125,12 @@ should set affinity when set in values if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1209,10 +1187,12 @@ should set default serviceAccountName when not set in values if action is Upgrad
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1282,10 +1262,12 @@ should set environment when extraEnv set in values if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1342,10 +1324,12 @@ should set image and tag correctly if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1402,10 +1386,12 @@ should set imagePullPolicy when set in values if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1462,10 +1448,12 @@ should set nodeSelector if set in values if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1524,10 +1512,12 @@ should set not set priorityClassName when not set in values if action is Upgrade
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1596,10 +1586,12 @@ should set preferred affinity when more than one replica is used if action is Up
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1656,10 +1648,12 @@ should set priorityClassName when set in values if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1717,10 +1711,12 @@ should set probeTimeoutSeconds when set in values if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1787,10 +1783,12 @@ should set required affinity when highAvailability.requireAntiAffinity is set if
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1854,10 +1852,12 @@ should set resources when set in values if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1914,10 +1914,12 @@ should set serviceAccountName when set in values if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -1974,10 +1976,12 @@ should set tolerations when set in values if action is Upgrade:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
