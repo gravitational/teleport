@@ -1,5 +1,40 @@
 # Changelog
 
+## 13.4.16
+
+* Fixed incorrect resizing of CLI apps in Teleport Connect on Windows. [#37800](https://github.com/gravitational/teleport/pull/37800)
+* Fixed memory leak in tbot caused by never closing reverse tunnel address resolvers. [#37723](https://github.com/gravitational/teleport/pull/37723)
+* Correctly handle non-registered U2F keys. [#37721](https://github.com/gravitational/teleport/pull/37721)
+* Fixed usage data submission becoming stuck sending too many reports at once (Teleport Enterprise only). [#37689](https://github.com/gravitational/teleport/pull/37689)
+* Fixed cache init issue with access list members/reviews. [#37675](https://github.com/gravitational/teleport/pull/37675)
+* Skip tsh AppID pre-flight check whenever possible. [#37644](https://github.com/gravitational/teleport/pull/37644)
+* Updated Go to 1.21.6. [#37561](https://github.com/gravitational/teleport/pull/37561)
+* Updated OpenSSL to 3.0.13. [#37553](https://github.com/gravitational/teleport/pull/37553)
+* tsh FIDO2 backend re-written for improved responsiveness and reliability. [#37539](https://github.com/gravitational/teleport/pull/37539)
+* Do not add alphabetically first Kube cluster's name to a user certificate on login. [#37503](https://github.com/gravitational/teleport/pull/37503)
+* Allow to replicate proxy pods when using an ingress in the `teleport-cluster` Helm chart. [#37481](https://github.com/gravitational/teleport/pull/37481)
+* tbot now correctly uses the last good persisted identity if `--join-token` has not been specified. [#37448](https://github.com/gravitational/teleport/pull/37448)
+* Prevent backend throttling caused by a large number of app sessions. [#37392](https://github.com/gravitational/teleport/pull/37392)
+* Fixed querying of large audit events with Athena backend and added prometheus metrics for audit event sizes. [#37350](https://github.com/gravitational/teleport/pull/37350)
+* Fixed CA key generation when two auth servers share a single YubiHSM2. [#37301](https://github.com/gravitational/teleport/pull/37301)
+* Fixed an issue selecting MySQL database is not reflected in the audit logs. [#37258](https://github.com/gravitational/teleport/pull/37258)
+* Fixed missing proxy address in GCP and Azure VM auto-discovery. [#37216](https://github.com/gravitational/teleport/pull/37216)
+* Reduced logging level for services that reconcile resources. [#37141](https://github.com/gravitational/teleport/pull/37141)
+* Fixed webUI if automatic upgrades are misconfigured. [#37131](https://github.com/gravitational/teleport/pull/37131)
+* Improved styling of the login form in Connect and Web UI. [#37004](https://github.com/gravitational/teleport/pull/37004)
+* Fixed tsh trying to relogin on fatal errors. [#36925](https://github.com/gravitational/teleport/pull/36925)
+* Ensure that moderated sessions do not get stuck in the event of an unexpected drop in the moderator's connection. [#36918](https://github.com/gravitational/teleport/pull/36918)
+* The web terminal now properly displays underscores on Linux. [#36891](https://github.com/gravitational/teleport/pull/36891)
+* Ensure that any opened app session is always closed on completion. [#36887](https://github.com/gravitational/teleport/pull/36887)
+* Fixed tsh panic on Windows if WebAuthn.dll is missing. [#36869](https://github.com/gravitational/teleport/pull/36869)
+* Fixed a potential crash in Teleport Connect after downgrading the app from v15+. [#36798](https://github.com/gravitational/teleport/pull/36798)
+* Ensure connect_to_node_attempts_total is always incremented when dialing hosts. [#36738](https://github.com/gravitational/teleport/pull/36738)
+* Added missing create/update messages for some `tctl create` commands. [#36702](https://github.com/gravitational/teleport/pull/36702)
+* Prevent a goroutine leak caused by app sessions not cleaning up resources properly. [#36669](https://github.com/gravitational/teleport/pull/36669)
+* Fixed an issue where valid saml entity descriptors could be rejected. [#36659](https://github.com/gravitational/teleport/pull/36659)
+* Verify MFA device locks during user authentication. [#36627](https://github.com/gravitational/teleport/pull/36627)
+* Teleport updater now reloads systems units after an upgrade. [#3228](https://github.com/gravitational/teleport.e/pull/3228)
+
 ## 13.4.15
 
 * Fixed goroutine leak per ssh session. [#36512](https://github.com/gravitational/teleport/pull/36512)
