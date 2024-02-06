@@ -2158,10 +2158,12 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 // {"message": "ok"}
 func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	// samlSessionCookie will not be set for users who are not authenticated with SAML IdP.
-	// TODO(sshah): we can skip this step below once we have a mechanism to update websession
-	// with SAML details.
 	samlSessionCookie, err := r.Cookie(samlidp.SAMLSessionCookieName)
 	if err == nil && samlSessionCookie != nil && samlSessionCookie.Value != "" {
+		// TODO(sshah): Websession is not udpated with SAML session details after SAML auth
+		// so it begs to check for a nil value below and then set session with session ID retrieved
+		// from samlSessionCookie. We can skip this step below once we have
+		// a mechanism to update websession with SAML session value.
 		if ctx.cfg.Session.GetSAMLSession() == nil {
 			ctx.cfg.Session.SetSAMLSession(&types.SAMLSessionData{ID: samlSessionCookie.Value})
 		}
