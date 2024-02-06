@@ -3068,6 +3068,13 @@ message AccessRequestConditions {
     (gogoproto.jsontag) = "max_duration,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // MaxDelayedStart is the maximum amount of time after the request creation
+  // that an access request can remain usable.
+  int64 MaxDelayedStart = 8 [
+    (gogoproto.jsontag) = "max_delayed_start,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on

@@ -416,9 +416,17 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 
 	req.SetReviews(append(req.GetReviews(), rev))
 
-	if rev.AssumeStartTime != nil {
+	if rev.AssumeStartTime != nil && !rev.AssumeStartTime.IsZero() {
 		if rev.AssumeStartTime.After(req.GetAccessExpiry()) {
 			return trace.BadParameter("request start time is after expiry")
+		}
+		// Reviewers should only be able to reduce time scope.
+		// AssumeStartTime can only be pushed further into the future
+		// if already set.
+		if req.GetAssumeStartTime() != nil && !req.GetAssumeStartTime().IsZero() {
+			if !req.GetAssumeStartTime().Before(*rev.AssumeStartTime) {
+				return trace.BadParameter("new value for assume-start-time set before existing: time scope can only be reduced")
+			}
 		}
 		req.SetAssumeStartTime(*rev.AssumeStartTime)
 	}
@@ -1042,6 +1050,10 @@ type RequestValidator struct {
 		Matchers    []parse.Matcher
 		MaxDuration time.Duration
 	}
+	MaxDelayedStartMatchers []struct {
+		Matchers        []parse.Matcher
+		MaxDelayedStart time.Duration
+	}
 }
 
 // NewRequestValidator configures a new RequestValidator for the specified user.
@@ -1220,7 +1232,9 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 // calculateMaxAccessDuration calculates the maximum time for the access request.
 // The max duration time is the minimum of the max_duration time set on the request
-// and the max_duration time set on the request role.
+// and the max_duration time set on the request role. If assume_start_time is set
+// max duration time will be based from the assume_start_time instead of the creation
+// time.
 func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (time.Duration, error) {
 	// Check if the maxDuration time is set.
 	maxDurationTime := req.GetMaxDuration()
@@ -1262,6 +1276,28 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 		}
 	}
 
+	// If assume start time is set max duration should be from earliest assume time.
+	if req.GetAssumeStartTime() != nil {
+		duationUntilAssumeStart := time.Until(*req.GetAssumeStartTime())
+		// If there is a more restrictive delayed start use that instead.
+		minDelayedStart := duationUntilAssumeStart
+		for _, roleName := range req.GetRoles() {
+			var maxDelayedStartForRole time.Duration
+			for _, tms := range m.MaxDelayedStartMatchers {
+				for _, matcher := range tms.Matchers {
+					if matcher.Match(roleName) {
+						if tms.MaxDelayedStart > maxDelayedStartForRole {
+							maxDelayedStartForRole = tms.MaxDelayedStart
+						}
+					}
+				}
+			}
+			if maxDelayedStartForRole < minDelayedStart {
+				minDelayedStart = maxDelayedStartForRole
+			}
+		}
+		minAdjDuration += minDelayedStart
+	}
 	return minAdjDuration, nil
 }
 
@@ -1424,6 +1460,15 @@ func (m *RequestValidator) push(role types.Role) error {
 			}{
 				Matchers:    newMatchers,
 				MaxDuration: allow.MaxDuration.Duration(),
+			})
+		}
+		if allow.MaxDelayedStart != 0 {
+			m.MaxDelayedStartMatchers = append(m.MaxDelayedStartMatchers, struct {
+				Matchers        []parse.Matcher
+				MaxDelayedStart time.Duration
+			}{
+				Matchers:        newMatchers,
+				MaxDelayedStart: allow.MaxDelayedStart.Duration(),
 			})
 		}
 
