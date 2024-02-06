@@ -157,6 +157,10 @@ type DeployServiceRequest struct {
 	// Eg, 13.2.0
 	// Optional. Defaults to the current version.
 	TeleportVersionTag string
+
+	// DeployServiceConfigString creates a teleport.yaml configuration that the agent
+	// deployed in a ECS Cluster (using Fargate) will use.
+	DeployServiceConfigString func(proxyHostPort, iamToken string, resourceMatcherLabels types.Labels) (string, error)
 }
 
 // normalizeECSResourceName converts a name into a valid ECS Resource Name.
@@ -260,6 +264,10 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 
 	if len(r.DatabaseResourceMatcherLabels) == 0 {
 		return trace.BadParameter("at least one agent matcher label is required")
+	}
+
+	if r.DeployServiceConfigString == nil {
+		return trace.BadParameter("deploy service config is required")
 	}
 
 	return nil
@@ -427,12 +435,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		return nil, trace.Wrap(err)
 	}
 
-	teleportConfigString, err := generateTeleportConfigString(generateTeleportConfigParams{
-		ProxyServerHostPort:           req.ProxyServerHostPort,
-		TeleportIAMTokenName:          req.TeleportIAMTokenName,
-		DeploymentMode:                req.DeploymentMode,
-		DatabaseResourceMatcherLabels: req.DatabaseResourceMatcherLabels,
-	})
+	teleportConfigString, err := req.DeployServiceConfigString(req.ProxyServerHostPort, req.TeleportIAMTokenName, req.DatabaseResourceMatcherLabels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
