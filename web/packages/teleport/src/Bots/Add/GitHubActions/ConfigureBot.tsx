@@ -203,15 +203,18 @@ const FormItem = styled(Box)`
   max-width: 500px;
 `;
 
+const validBotNameRegExp = new RegExp('^[0-9A-Za-z./+-]*$');
+
 const requireValidBotName = (value: string) => () => {
   if (!value || !value.trim()) {
     return { valid: false, message: 'Name for the Bot Workflow is required' };
   }
 
-  if (value.includes(' ')) {
+  if (!validBotNameRegExp.test(value)) {
     return {
       valid: false,
-      message: 'Bot Workflow name cannot have whitespaces',
+      message:
+        'Special characters are not allowed in the workflow name, please use name composed only from characters, hyphens, dots, and plus signs',
     };
   }
 

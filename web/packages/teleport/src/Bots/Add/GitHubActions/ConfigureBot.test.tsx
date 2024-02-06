@@ -142,7 +142,9 @@ describe('configureBot Component', () => {
     await userEvent.type(botNameInput, 'my bot');
     await userEvent.click(screen.getByTestId('button-next'));
     expect(
-      screen.getByText('Bot Workflow name cannot have whitespaces')
+      screen.getByText(
+        'Special characters are not allowed in the workflow name, please use name composed only from characters, hyphens, dots, and plus signs'
+      )
     ).toBeInTheDocument();
   });
 });
