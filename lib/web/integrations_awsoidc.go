@@ -243,7 +243,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 		TeleportVersionTag:        teleportVersionTag,
 		IntegrationName:           awsClientReq.IntegrationName,
 		Deployments:               deployments,
-		DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
+		CreateDeployServiceConfig: deployserviceconfig.GenerateTeleportConfigString,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

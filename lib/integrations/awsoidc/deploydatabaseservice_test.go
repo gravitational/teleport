@@ -59,7 +59,7 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				SubnetIDs:        []string{"subnet-1", "subnet-2"},
 				SecurityGroupIDs: []string{"sg-1", "sg-2"},
 			}},
-			DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
+			CreateDeployServiceConfig: deployserviceconfig.GenerateTeleportConfigString,
 		}
 	}
 
@@ -162,7 +162,7 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				}},
 				ecsClusterName:              "mycluster-teleport",
 				teleportIAMTokenNameForTask: "discover-aws-oidc-iam-token",
-				DeployServiceConfigString:   deployserviceconfig.GenerateTeleportConfigString,
+				CreateDeployServiceConfig:   deployserviceconfig.GenerateTeleportConfigString,
 			},
 		},
 	} {
@@ -178,7 +178,7 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					*tt.expected,
 					r,
-					cmpopts.IgnoreFields(DeployDatabaseServiceRequest{}, "DeployServiceConfigString"),
+					cmpopts.IgnoreFields(DeployDatabaseServiceRequest{}, "CreateDeployServiceConfig"),
 					cmpopts.IgnoreUnexported(DeployDatabaseServiceRequest{}),
 				))
 			}
@@ -403,7 +403,7 @@ func TestDeployDatabaseService(t *testing.T) {
 					SubnetIDs: []string{"subnet-1", "subnet-2"},
 				},
 			},
-			DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
+			CreateDeployServiceConfig: deployserviceconfig.GenerateTeleportConfigString,
 		})
 		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %+v", err)
 	})
@@ -429,7 +429,7 @@ func TestDeployDatabaseService(t *testing.T) {
 						SubnetIDs: []string{"subnet-1", "subnet-2"},
 					},
 				},
-				DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
+				CreateDeployServiceConfig: deployserviceconfig.GenerateTeleportConfigString,
 			},
 		)
 		require.NoError(t, err)
@@ -474,7 +474,7 @@ func TestDeployDatabaseService(t *testing.T) {
 						SubnetIDs: []string{"subnet-1", "subnet-2"},
 					},
 				},
-				DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
+				CreateDeployServiceConfig: deployserviceconfig.GenerateTeleportConfigString,
 			},
 		)
 		require.NoError(t, err)
@@ -537,7 +537,7 @@ func TestDeployDatabaseService(t *testing.T) {
 						SubnetIDs: []string{"subnet-1", "subnet-2"},
 					},
 				},
-				DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
+				CreateDeployServiceConfig: deployserviceconfig.GenerateTeleportConfigString,
 			},
 		)
 		require.NoError(t, err)
