@@ -29,15 +29,23 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
+func init() {
+	// Override maxS3BasedSize so we don't have to allocate 2GiB to test it.
+	// Do this in init to avoid any race.
+	maxS3BasedSize = maxSNSMessageSize * 4
+}
+
 // TODO(tobiaszheller): Those UT just cover basic stuff. When we will have consumer
 // there will be UT which will cover whole flow of message with encoding/decoding.
 func Test_EmitAuditEvent(t *testing.T) {
+	veryLongString := strings.Repeat("t", maxS3BasedSize+1)
 	tests := []struct {
 		name          string
 		in            apievents.AuditEvent
 		publishErrors []error
 		uploader      s3uploader
 		wantCheck     func(t *testing.T, out []fakeQueueMessage)
+		wantErrorMsg  string
 	}{
 		{
 			name: "valid publish",
@@ -83,6 +91,33 @@ func Test_EmitAuditEvent(t *testing.T) {
 				require.Contains(t, *out[0].attributes[payloadTypeAttr].StringValue, payloadTypeS3Based)
 			},
 		},
+		{
+			name: "very big untrimmable event",
+			in: &apievents.AppCreate{
+				Metadata: apievents.Metadata{
+					ID:   uuid.NewString(),
+					Time: time.Now().UTC(),
+					Code: veryLongString,
+				},
+			},
+			uploader:     mockUploader{},
+			wantErrorMsg: "message too large to publish",
+		},
+		{
+			name: "very big trimmable event",
+			in: &apievents.DatabaseSessionQuery{
+				Metadata: apievents.Metadata{
+					ID:   uuid.NewString(),
+					Time: time.Now().UTC(),
+				},
+				DatabaseQuery: veryLongString,
+			},
+			uploader: mockUploader{},
+			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
+				require.Len(t, out, 1)
+				require.Contains(t, *out[0].attributes[payloadTypeAttr].StringValue, payloadTypeS3Based)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -94,6 +129,10 @@ func Test_EmitAuditEvent(t *testing.T) {
 				},
 			}
 			err := p.EmitAuditEvent(context.Background(), tt.in)
+			if tt.wantErrorMsg != "" {
+				require.ErrorContains(t, err, tt.wantErrorMsg)
+				return
+			}
 			require.NoError(t, err)
 			out := fq.dequeue()
 			tt.wantCheck(t, out)

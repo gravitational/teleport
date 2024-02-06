@@ -551,3 +551,7 @@ var (
 		consumerNumberOfErrorsFromSQSCollect,
 	}
 )
+
+type trimmableEvent interface {
+	TrimToMaxSize(int) apievents.AuditEvent
+}

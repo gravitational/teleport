@@ -1,7 +1,7 @@
 # Keep all tool versions in one place.
 # This file can be included in other Makefiles to avoid duplication.
 
-GOLANG_VERSION ?= go1.20.13
+GOLANG_VERSION ?= go1.21.6
 
 NODE_VERSION ?= 18.18.2
 
@@ -13,7 +13,7 @@ LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 DEVTOOLSET ?= devtoolset-12
 
 # Protogen related versions.
-BUF_VERSION ?= v1.28.0
+BUF_VERSION ?= v1.29.0
 # Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4

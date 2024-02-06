@@ -364,20 +364,16 @@ exports[`render failed state for re-authentication dialog 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
@@ -871,20 +867,16 @@ exports[`render re-authentication dialog 1`] = `
   display: none;
 }
 
-.c11 .react-select--is-disabled,
 .c11 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c11 .react-select--is-disabled .react-select__single-value,
 .c11 .react-select__control--is-disabled .react-select__single-value,
-.c11 .react-select--is-disabled .react-select__placeholder,
 .c11 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c11 .react-select--is-disabled .react-select__indicator,
 .c11 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }

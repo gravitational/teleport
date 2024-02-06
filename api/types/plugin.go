@@ -416,6 +416,27 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("org_url must be set")
 	}
 
+	// If sync settings is not set, default to an empty config.
+	if s.SyncSettings == nil {
+		s.SyncSettings = &PluginOktaSyncSettings{}
+	}
+
+	if s.SyncSettings.SyncUsers && s.SyncSettings.SsoConnectorId == "" {
+		return trace.BadParameter("sso_connector_id must be set when user sync enabled")
+	}
+
+	if s.SyncSettings.SyncAccessLists && len(s.SyncSettings.DefaultOwners) == 0 {
+		return trace.BadParameter("default owners must be set when access list import is enabled")
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values
+func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
+	if s.ApiEndpoint == "" {
+		return trace.BadParameter("opsgenie api endpoint url must be set")
+	}
 	return nil
 }
 
@@ -441,14 +462,6 @@ func (s *PluginJiraSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("Jira issue type must be set")
 	}
 
-	return nil
-}
-
-// CheckAndSetDefaults validates and set the default values
-func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
-	if s.ApiEndpoint == "" {
-		return trace.BadParameter("opsgenie api endpoint url must be set")
-	}
 	return nil
 }
 

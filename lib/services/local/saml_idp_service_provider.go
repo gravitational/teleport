@@ -22,6 +22,7 @@ import (
 
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -72,8 +73,18 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := validateSAMLIdPServiceProvider(sp); err != nil {
-		return trace.Wrap(err)
+	// verify that entity descriptor parses
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
+	}
+
+	if ed.EntityID != sp.GetEntityID() {
+		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
+	}
+
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+		logrus.Warnf("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
 	}
 
 	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
@@ -97,8 +108,19 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := validateSAMLIdPServiceProvider(sp); err != nil {
-		return trace.Wrap(err)
+	// verify that entity descriptor parses
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
+	}
+
+	if ed.EntityID != sp.GetEntityID() {
+		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
+	}
+
+	// ensure any filtering related issues get logged
+	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+		logrus.Warnf("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
 	}
 
 	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
@@ -153,29 +175,6 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 		}
 		if nextToken == "" {
 			break
-		}
-	}
-
-	return nil
-}
-
-// validateSAMLIdPServiceProvider ensures that the entity ID in the entity descriptor is the same as the entity ID
-// in the [types.SAMLIdPServiceProvider] and that all AssertionConsumerServices defined are valid HTTPS endpoints.
-func validateSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
-	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
-	if err != nil {
-		return trace.BadParameter(err.Error())
-	}
-
-	if ed.EntityID != sp.GetEntityID() {
-		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
-	}
-
-	for _, descriptor := range ed.SPSSODescriptors {
-		for _, acs := range descriptor.AssertionConsumerServices {
-			if err := services.ValidateAssertionConsumerServicesEndpoint(acs.Location); err != nil {
-				return trace.Wrap(err)
-			}
 		}
 	}
 

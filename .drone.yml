@@ -401,7 +401,7 @@ kind: pipeline
 type: kubernetes
 name: clean-up-previous-build
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:prod-7680ffb-20240117T224722
 trigger:
   event:
     include:
@@ -11382,7 +11382,7 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:prod-7680ffb-20240117T224722
 trigger:
   event:
     include:
@@ -11510,6 +11510,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 2673652d2e8090f70218fba484a2d321650572b9d5d3762bc6e306f4dad12da4
+hmac: c0687ea66a392376b63e5bf32b313b16a6493dbc2d2ed6041960f3f12b83b55e
 
 ...

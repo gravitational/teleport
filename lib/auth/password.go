@@ -136,7 +136,12 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 			Token:    req.SecondFactorToken,
 		}
 	}
-	if _, _, err := a.authenticateUser(ctx, authReq); err != nil {
+	verifyMFALocks, _, _, err := a.authenticateUser(ctx, authReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Verify if the MFA device used is locked.
+	if err := verifyMFALocks(verifyMFADeviceLocksParams{}); err != nil {
 		return trace.Wrap(err)
 	}
 

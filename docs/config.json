@@ -1880,7 +1880,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "14.3.0",
+      "version": "14.3.3",
       "major_version": "14",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1925,7 +1925,7 @@
     "teleport": {
       "major_version": "13",
       "version": "13.4.15",
-      "golang": "1.20",
+      "golang": "1.21",
       "plugin": {
         "version": "13.4.15"
       },

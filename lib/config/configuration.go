@@ -1375,13 +1375,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Regions:        matcher.Regions,
 			ResourceTags:   matcher.ResourceTags,
 		}
-
-		if matcher.InstallParams != nil {
+		if slices.Contains(matcher.Types, services.AzureMatcherVM) {
 			m.Params = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+			}
+			if matcher.InstallParams != nil {
+				m.Params.JoinMethod = matcher.InstallParams.JoinParams.Method
+				m.Params.JoinToken = matcher.InstallParams.JoinParams.TokenName
+				m.Params.ScriptName = matcher.InstallParams.ScriptName
 			}
 		}
 		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
@@ -1396,12 +1397,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			ProjectIDs:      matcher.ProjectIDs,
 			ServiceAccounts: matcher.ServiceAccounts,
 		}
-		if matcher.InstallParams != nil {
+		if slices.Contains(matcher.Types, services.GCPMatcherCompute) {
 			m.Params = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+			}
+			if matcher.InstallParams != nil {
+				m.Params.JoinMethod = matcher.InstallParams.JoinParams.Method
+				m.Params.JoinToken = matcher.InstallParams.JoinParams.TokenName
+				m.Params.ScriptName = matcher.InstallParams.ScriptName
 			}
 		}
 		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, m)
@@ -2549,10 +2552,21 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.NewAggregate(trace.BadParameter("error trying to find file %s", fc.Okta.APITokenPath), err)
 	}
 
+	syncSettings, err := fc.Okta.Sync.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// For backwards compatibility, if SyncPeriod is specified, use that in the sync settings.
+	if syncSettings.AppGroupSyncPeriod == 0 {
+		syncSettings.AppGroupSyncPeriod = fc.Okta.SyncPeriod
+	}
+
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
 	cfg.Okta.SyncPeriod = fc.Okta.SyncPeriod
+	cfg.Okta.SyncSettings = *syncSettings
 	return nil
 }
 

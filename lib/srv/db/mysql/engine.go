@@ -319,6 +319,12 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			return
 
 		case *protocol.InitDB:
+			// Update DatabaseName when switching to another so the audit logs
+			// are up to date. E.g.:
+			// mysql> use foo;
+			// mysql> select * from users;
+			sessionCtx.DatabaseName = pkt.SchemaName()
+
 			e.Audit.EmitEvent(e.Context, makeInitDBEvent(sessionCtx, pkt))
 		case *protocol.CreateDB:
 			e.Audit.EmitEvent(e.Context, makeCreateDBEvent(sessionCtx, pkt))

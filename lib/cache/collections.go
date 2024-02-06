@@ -1427,6 +1427,7 @@ func (appSessionExecutor) getReader(cache *Cache, cacheOK bool) appSessionGetter
 
 type appSessionGetter interface {
 	GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error)
+	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
 }
 
 var _ executor[types.WebSession, appSessionGetter] = appSessionExecutor{}

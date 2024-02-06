@@ -8505,20 +8505,16 @@ exports[`loaded audit log screen 1`] = `
   display: none;
 }
 
-.c4 .react-select--is-disabled,
 .c4 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c4 .react-select--is-disabled .react-select__single-value,
 .c4 .react-select__control--is-disabled .react-select__single-value,
-.c4 .react-select--is-disabled .react-select__placeholder,
 .c4 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c4 .react-select--is-disabled .react-select__indicator,
 .c4 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }

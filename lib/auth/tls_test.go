@@ -445,7 +445,7 @@ func TestAutoRotation(t *testing.T) {
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
 	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	require.ErrorContains(t, err, "certificate")
 
 	// new clients work
 	_, err = tt.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -617,7 +617,7 @@ func TestManualRotation(t *testing.T) {
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
 	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	require.ErrorContains(t, err, "certificate")
 
 	// new clients work
 	_, err = tt.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -712,7 +712,7 @@ func TestRollback(t *testing.T) {
 
 	// clients with new creds will no longer work
 	_, err = tt.server.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	require.ErrorContains(t, err, "certificate")
 
 	// clients with old creds will still work
 	_, err = tt.server.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
@@ -2334,7 +2334,7 @@ func TestGenerateCerts(t *testing.T) {
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
-		require.IsType(t, &trace.AccessDeniedError{}, trace.Unwrap(err))
+		require.True(t, trace.IsAccessDenied(err), "trace.IsAccessDenied failed: err=%v (%T)", err, trace.Unwrap(err))
 
 		_, privateKeyPEM, err := utils.MarshalPrivateKey(privateKey.(crypto.Signer))
 		require.NoError(t, err)
@@ -2352,7 +2352,7 @@ func TestGenerateCerts(t *testing.T) {
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
-		require.IsType(t, &trace.AccessDeniedError{}, trace.Unwrap(err))
+		require.True(t, trace.IsAccessDenied(err), "trace.IsAccessDenied failed: err=%v (%T)", err, trace.Unwrap(err))
 		require.Contains(t, err.Error(), "impersonated user can not impersonate anyone else")
 
 		// but can renew their own cert, for example set route to cluster
