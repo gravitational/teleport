@@ -1075,7 +1075,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
-	// TODO(Joerger): Delete in 17.0.0
+	// TODO(Joerger): DELETE IN 17.0.0
 	if a.PIVSlot != "" {
 		log.Warn(`The "piv_slot" setting will be removed in 17.0.0, please set "hardware_key.piv_slot" instead.`)
 		if err = a.PIVSlot.Validate(); err != nil {
@@ -1259,6 +1259,8 @@ func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
 	return hk, nil
 }
 
+// HardwareKeySerialNumberValidation holds settings related to hardware key serial number validation.
+// Requires Teleport Enterprise.
 type HardwareKeySerialNumberValidation struct {
 	// Enabled indicates whether hardware key serial number validation is enabled.
 	Enabled string `yaml:"enabled"`

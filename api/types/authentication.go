@@ -684,7 +684,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	}
 
-	// DELETE IN 17.0.0
+	// TODO(Joerger): DELETE IN 17.0.0
 	c.CheckSetPIVSlot()
 
 	if hk, err := c.GetHardwareKey(); err == nil {
@@ -717,8 +717,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// PIVSlot must be checked/set when communicating with an old server or client.
-// DELETE IN 17.0.0
+// CheckSetPIVSlot ensures that the PIVSlot and Hardwarekey.PIVSlot stay in sync so that
+// older versions of Teleport that do not know about Hardwarekey.PIVSlot are able to keep
+// using PIVSlot and newer versions of Teleport can rely solely on Hardwarekey.PIVSlot
+// without causing any service degradation.
+// TODO(Joerger): DELETE IN 17.0.0
 func (c *AuthPreferenceV2) CheckSetPIVSlot() {
 	if c.Spec.PIVSlot != "" {
 		if c.Spec.HardwareKey == nil {
