@@ -65,9 +65,9 @@ type DeployDatabaseServiceRequest struct {
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
 	ResourceCreationTags AWSTags
 
-	// DeployServiceConfigString creates a teleport.yaml configuration that the agent
+	// CreateDeployServiceConfig creates a teleport.yaml configuration that the agent
 	// deployed in a ECS Cluster (using Fargate) will use.
-	DeployServiceConfigString func(proxyHostPort, iamToken string, resourceMatcherLabels types.Labels) (string, error)
+	CreateDeployServiceConfig func(proxyHostPort, iamToken string, resourceMatcherLabels types.Labels) (string, error)
 
 	// ecsClusterName is the ECS Cluster Name to be used.
 	// It is based on the Teleport Cluster's Name.
@@ -123,8 +123,8 @@ func (r *DeployDatabaseServiceRequest) CheckAndSetDefaults() error {
 		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
-	if r.DeployServiceConfigString == nil {
-		return trace.BadParameter("deploy service config is required")
+	if r.CreateDeployServiceConfig == nil {
+		return trace.BadParameter("create deploy service config is required")
 	}
 
 	r.ecsClusterName = normalizeECSClusterName(r.TeleportClusterName)
@@ -226,7 +226,7 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 	}
 
 	for _, deployment := range req.Deployments {
-		teleportConfigString, err := req.DeployServiceConfigString(
+		teleportConfigString, err := req.CreateDeployServiceConfig(
 			req.ProxyServerHostPort,
 			req.teleportIAMTokenNameForTask,
 			types.Labels{
