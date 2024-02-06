@@ -7,21 +7,19 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	// sessionCookieName is the name of the session cookie set by and read by the IdP.
-	sessionCookieName = "__Host-saml_session"
 )
 
 // getExistingSession will get an existing session if possible.
 func (s *Service) getExistingSession(r *http.Request, identity *tlsca.Identity) (*saml.Session, error) {
 	// Look for the session ID from the session cookie.
-	sessionCookie, err := r.Cookie(sessionCookieName)
-	if err != nil {
-		return nil, trace.NotFound("session cookie not found")
+	sessionCookie, err := r.Cookie(samlidp.SAMLSessionCookieName)
+	// sessionCookie value is cleared on logout. So a cookie
+	// may exist but an empty value mean non-existing session.
+	if err != nil || sessionCookie.Value == "" {
+		return nil, trace.NotFound("session not found")
 	}
 	webSession, err := s.accessPoint.GetSAMLIdPSession(r.Context(), types.GetSAMLIdPSessionRequest{
 		SessionID: sessionCookie.Value,

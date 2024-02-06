@@ -8,6 +8,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 )
 
 func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, req *saml.IdpAuthnRequest) *saml.Session {
@@ -72,14 +73,9 @@ func (s *Service) getSession(w http.ResponseWriter, r *http.Request) (*saml.Sess
 
 	// MaxAge is in seconds, so we'll calculate the delta between now and the expire time.
 	maxAge := identity.Expires.Sub(s.clock.Now())
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    session.ID,
-		MaxAge:   int(maxAge.Seconds()),
-		HttpOnly: true,
-		Secure:   true,
-		Path:     "/",
-	})
+	// Set SAML session cookie
+	samlidp.SetCookie(w, session.ID, int(maxAge.Seconds()))
+
 	return session, nil
 }
 

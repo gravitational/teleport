@@ -19,6 +19,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -94,7 +95,7 @@ func TestGetSession(t *testing.T) {
 	require.NoError(t, result.Body.Close())
 	require.Len(t, result.Cookies(), 1)
 	require.Empty(t, cmp.Diff(&http.Cookie{
-		Name:     sessionCookieName,
+		Name:     samlidp.SAMLSessionCookieName,
 		Value:    firstSession.ID,
 		MaxAge:   3600, // This should be 1 hour in seconds.
 		HttpOnly: true,
@@ -106,7 +107,7 @@ func TestGetSession(t *testing.T) {
 	rw = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "http://test-url/", bytes.NewBuffer([]byte{})).WithContext(localUserCtx)
 	req.AddCookie(&http.Cookie{
-		Name:  sessionCookieName,
+		Name:  samlidp.SAMLSessionCookieName,
 		Value: firstSession.ID,
 	})
 
@@ -127,7 +128,7 @@ func TestGetSession(t *testing.T) {
 	mismatchedUserCtx := context.WithValue(ctx, identityContextKey, mismatchedUserIdentity)
 	req = httptest.NewRequest(http.MethodGet, "http://test-url/", bytes.NewBuffer([]byte{})).WithContext(mismatchedUserCtx)
 	req.AddCookie(&http.Cookie{
-		Name:  sessionCookieName,
+		Name:  samlidp.SAMLSessionCookieName,
 		Value: firstSession.ID,
 	})
 
@@ -147,7 +148,7 @@ func TestGetSession(t *testing.T) {
 	rw = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "http://test-url/", bytes.NewBuffer([]byte{})).WithContext(localUserCtx)
 	req.AddCookie(&http.Cookie{
-		Name:  sessionCookieName,
+		Name:  samlidp.SAMLSessionCookieName,
 		Value: "non-existent-ID",
 	})
 	authnReq = newAuthnReq(&idp, req, entityID)
@@ -169,7 +170,7 @@ func TestGetSession(t *testing.T) {
 	localUserCtx = context.WithValue(ctx, identityContextKey, localUserIdentity)
 	req = httptest.NewRequest(http.MethodGet, "http://test-url/", bytes.NewBuffer([]byte{})).WithContext(localUserCtx)
 	req.AddCookie(&http.Cookie{
-		Name:  sessionCookieName,
+		Name:  samlidp.SAMLSessionCookieName,
 		Value: firstSession.ID,
 	})
 	authnReq = newAuthnReq(&idp, req, entityID)
