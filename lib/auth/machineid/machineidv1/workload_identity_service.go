@@ -37,6 +37,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -307,7 +308,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 }
 
 func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.SignX509SVIDsRequest) (*pb.SignX509SVIDsResponse, error) {
-	if !WorkloadIdentityEnabled {
+	if !experiment.Enabled() {
 		return nil, trace.AccessDenied("workload identity has not been enabled for this build")
 	}
 
