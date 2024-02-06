@@ -51,7 +51,7 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
       <Text fontSize={3} mb="3">
         Teleport has created a role, a bot, and a join token. Below is an
         example GitHub Actions workflow to help you get started. You can
-        find this again from the bot’s options dropdown
+        find this again from the bot’s options dropdown.
       </Text>
       <Flex
         flex="1"

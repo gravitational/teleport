@@ -55,8 +55,8 @@ export function Finish() {
         page and you can always find the sample GitHub Actions workflow again
         from the bot's options.
       </Text>
-      <Flex>
-        <ButtonPrimary mr="4" as={Link} to={cfg.getBotsRoute()} size="large">
+      <Flex gap="4">
+        <ButtonPrimary as={Link} to={cfg.getBotsRoute()} size="large">
           View Bots
         </ButtonPrimary>
         <ButtonSecondary as={Link} to={cfg.getBotsNewRoute()} size="large">
