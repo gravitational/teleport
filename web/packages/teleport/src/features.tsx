@@ -222,7 +222,7 @@ export class FeatureBots implements TeleportFeature {
     component: Bots,
   };
 
-  // todo (michellescripts) return flags.Bots once integrated with mcbattirola and feature is ready
+  // todo (michellescripts) return flags.Users once integrated with mcbattirola and feature is ready
   hasAccess() {
     return false;
   }
