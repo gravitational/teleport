@@ -42,7 +42,7 @@ bucket allows the proxies to fallback to single repository of every webasset in 
 
 When the proxy comes online, we can start an (optional) service that will sync the webassets
 to a configured, s3-compatible storage. When a proxy comes online, it will start a heartbeat
-that first, checks if it's webassets have been loaded. It does this by first, listing the objects in
+that first, checks if its webassets have been loaded. It does this by first, listing the objects in
 the bucket using `ListObjectsV2`. As of right now, we have ~170 items in our webassets bundle. 
 `ListObjectsV2` will only list up to 1,000 items per page. This means that after 5 stored versions
 we will have to start iterating multiple pages to list all the keys. This is unlikely and can be mitigated by
@@ -104,7 +104,7 @@ if strings.HasPrefix(r.URL.Path, "/web/app") {
         return
 	}
 	writer := &MemoryWriterAt{}
-	cfg.WebassetHandler.Download(cfg.Context, session.ID(fmt.Sprintf("%s/%s", teleport.Version, fileName)), writer)
+	cfg.WebassetHandler.Download(cfg.Context, fileName, writer)
 
 	// detect content type
 	// compress
@@ -116,7 +116,7 @@ if strings.HasPrefix(r.URL.Path, "/web/app") {
 ### Security
 This feature should be **opt in only** via configuration. 
 
-As of now, only the Auth talks to s3/aws. This means that the proxy would also have to have access to some credentials
+As of now, only the Auth talks to s3/AWS. This means that the proxy would also have to have access to some credentials
 that write/read access to the user's chosen storage. This increases the risk surface area by having two susceptible services. 
 
 If someone has gained access to the bucket, they could potentially overwrite files with their own code that the
