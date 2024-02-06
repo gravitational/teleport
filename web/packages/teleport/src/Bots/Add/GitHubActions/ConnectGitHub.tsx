@@ -64,6 +64,13 @@ const ENTERPRISE_HOST_ERROR = () => {
     </Box>
   );
 };
+const IVNALID_HOST_ERROR = ({ rule, error }: { rule: string, error: string }) => {
+  return (
+    <Box>
+      Invalid address {rule}: {error}
+    </Box>
+  )
+}
 
 const refTypeOptions: RefTypeOption[] = [
   {
@@ -103,8 +110,12 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
 
     const hosts = new Set<string>();
     repoRules.forEach(rule => {
-      const { host } = parseRepoAddress(rule.repoAddress);
-      hosts.add(host);
+      try {
+        const { host } = parseRepoAddress(rule.repoAddress);
+        hosts.add(host);
+      } catch (err) {
+        setHostError(() => IVNALID_HOST_ERROR({ rule: rule.repoAddress, error: err }))
+      }
     });
 
     // ensure all repositories have the same host
