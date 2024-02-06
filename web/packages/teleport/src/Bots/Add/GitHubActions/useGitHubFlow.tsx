@@ -76,7 +76,7 @@ export function GitHubFlowProvider({
 
   function resetAttempt() {
     if (attempt.status !== 'processing') {
-      setAttempt({ status: '' })
+      setAttempt({ status: '' });
     }
   }
 

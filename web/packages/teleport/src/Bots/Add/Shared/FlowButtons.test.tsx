@@ -33,8 +33,8 @@ describe('flowButtons component', () => {
         disabled: false,
         hidden: false,
       },
-      nextStep: () => { },
-      prevStep: () => { },
+      nextStep: () => {},
+      prevStep: () => {},
       isFirstStep: false,
       isLastStep: false,
     };

@@ -64,13 +64,19 @@ const ENTERPRISE_HOST_ERROR = () => {
     </Box>
   );
 };
-const IVNALID_HOST_ERROR = ({ rule, error }: { rule: string, error: string }) => {
+const IVNALID_HOST_ERROR = ({
+  rule,
+  error,
+}: {
+  rule: string;
+  error: string;
+}) => {
   return (
     <Box>
       Invalid address {rule}: {error}
     </Box>
-  )
-}
+  );
+};
 
 const refTypeOptions: RefTypeOption[] = [
   {
@@ -114,7 +120,9 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
         const { host } = parseRepoAddress(rule.repoAddress);
         hosts.add(host);
       } catch (err) {
-        setHostError(() => IVNALID_HOST_ERROR({ rule: rule.repoAddress, error: err }))
+        setHostError(() =>
+          IVNALID_HOST_ERROR({ rule: rule.repoAddress, error: err })
+        );
       }
     });
 
@@ -206,9 +214,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                           placeholder="main"
                           style={{ borderRadius: '4px 0 0 4px' }}
                           value={repoRules[i].ref}
-                          onChange={e =>
-                            handleChange(i, 'ref', e.target.value)
-                          }
+                          onChange={e => handleChange(i, 'ref', e.target.value)}
                         />
                       </Box>
                       <Box minWidth="160px">
