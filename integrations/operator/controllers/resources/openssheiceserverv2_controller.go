@@ -30,13 +30,14 @@ import (
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 )
 
-// opensshEICEServerClient implements TeleportResourceClient and offers CRUD methods needed to reconcile provision tokens
-type opensshEICEServerClient struct {
+// openSSHEICEServerClient implements TeleportResourceClient and offers CRUD
+// methods needed to reconcile OpenSSH EC2 ICE servers.
+type openSSHEICEServerClient struct {
 	teleportClient *client.Client
 }
 
-// Get gets the Teleport provision token of a given name
-func (r opensshEICEServerClient) Get(ctx context.Context, name string) (types.Server, error) {
+// Get gets the Teleport OpenSSHEICE server of a given name.
+func (r openSSHEICEServerClient) Get(ctx context.Context, name string) (types.Server, error) {
 	server, err := r.teleportClient.GetNode(ctx, defaults.Namespace, name)
 	if err != nil {
 		return server, trace.Wrap(err)
@@ -51,30 +52,31 @@ func (r opensshEICEServerClient) Get(ctx context.Context, name string) (types.Se
 	return server, nil
 }
 
-// Create creates a Teleport provision token
-func (r opensshEICEServerClient) Create(ctx context.Context, server types.Server) error {
+// Create creates a Teleport OpenSSHEICE server.
+func (r openSSHEICEServerClient) Create(ctx context.Context, server types.Server) error {
 	_, err := r.teleportClient.UpsertNode(ctx, server)
 	return trace.Wrap(err)
 }
 
-// Update updates a Teleport provision token
-func (r opensshEICEServerClient) Update(ctx context.Context, server types.Server) error {
+// Update updates a Teleport OpenSSHEICE server.
+func (r openSSHEICEServerClient) Update(ctx context.Context, server types.Server) error {
 	_, err := r.teleportClient.UpsertNode(ctx, server)
 	return trace.Wrap(err)
 }
 
-// Delete deletes a Teleport provision token
-func (r opensshEICEServerClient) Delete(ctx context.Context, name string) error {
+// Delete deletes a Teleport OpenSSHEICE server.
+func (r openSSHEICEServerClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(r.teleportClient.DeleteNode(ctx, defaults.Namespace, name))
 }
 
-// NewOpensshEICEServerV2Reconciler instantiates a new Kubernetes controller reconciling provision token resources
-func NewOpensshEICEServerV2Reconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
-	serverClient := &opensshEICEServerClient{
+// NewOpenSSHEICEServerV2Reconciler instantiates a new Kubernetes controller
+// reconciling OpenSSHEICE server resources.
+func NewOpenSSHEICEServerV2Reconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+	serverClient := &openSSHEICEServerClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := NewTeleportResourceReconciler[types.Server, *resourcesv1.TeleportOpensshEICEServerV2](
+	resourceReconciler, err := NewTeleportResourceReconciler[types.Server, *resourcesv1.TeleportOpenSSHEICEServerV2](
 		client,
 		serverClient,
 	)

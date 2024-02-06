@@ -30,13 +30,14 @@ import (
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 )
 
-// opensshServerClient implements TeleportResourceClient and offers CRUD methods needed to reconcile provision tokens
-type opensshServerClient struct {
+// openSSHServerClient implements TeleportResourceClient and offers CRUD methods
+// needed to reconcile OpenSSH servers.
+type openSSHServerClient struct {
 	teleportClient *client.Client
 }
 
-// Get gets the Teleport provision token of a given name
-func (r opensshServerClient) Get(ctx context.Context, name string) (types.Server, error) {
+// Get gets the Teleport OpenSSH server of a given name.
+func (r openSSHServerClient) Get(ctx context.Context, name string) (types.Server, error) {
 	server, err := r.teleportClient.GetNode(ctx, defaults.Namespace, name)
 	if err != nil {
 		return server, trace.Wrap(err)
@@ -51,30 +52,31 @@ func (r opensshServerClient) Get(ctx context.Context, name string) (types.Server
 	return server, nil
 }
 
-// Create creates a Teleport provision token
-func (r opensshServerClient) Create(ctx context.Context, server types.Server) error {
+// Create creates a Teleport OpenSSH server.
+func (r openSSHServerClient) Create(ctx context.Context, server types.Server) error {
 	_, err := r.teleportClient.UpsertNode(ctx, server)
 	return trace.Wrap(err)
 }
 
-// Update updates a Teleport provision token
-func (r opensshServerClient) Update(ctx context.Context, server types.Server) error {
+// Update updates a Teleport OpenSSH server.
+func (r openSSHServerClient) Update(ctx context.Context, server types.Server) error {
 	_, err := r.teleportClient.UpsertNode(ctx, server)
 	return trace.Wrap(err)
 }
 
-// Delete deletes a Teleport provision token
-func (r opensshServerClient) Delete(ctx context.Context, name string) error {
+// Delete deletes a Teleport OpenSSH server.
+func (r openSSHServerClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(r.teleportClient.DeleteNode(ctx, defaults.Namespace, name))
 }
 
-// NewOpensshServerV2Reconciler instantiates a new Kubernetes controller reconciling provision token resources
-func NewOpensshServerV2Reconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
-	serverClient := &opensshServerClient{
+// NewOpenSSHServerV2Reconciler instantiates a new Kubernetes controller
+// reconciling OpenSSH server resources.
+func NewOpenSSHServerV2Reconciler(client kclient.Client, tClient *client.Client) (Reconciler, error) {
+	serverClient := &openSSHServerClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := NewTeleportResourceReconciler[types.Server, *resourcesv1.TeleportOpensshServerV2](
+	resourceReconciler, err := NewTeleportResourceReconciler[types.Server, *resourcesv1.TeleportOpenSSHServerV2](
 		client,
 		serverClient,
 	)

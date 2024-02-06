@@ -6,8 +6,8 @@ metadata:
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportOpensshServerV2
-    listKind: TeleportOpensshServerV2List
+    kind: TeleportOpenSSHServerV2
+    listKind: TeleportOpenSSHServerV2List
     plural: teleportopensshserversv2
     shortNames:
     - opensshserverv2
@@ -18,7 +18,7 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: OpensshServerV2 is the Schema for the opensshserversv2 API
+        description: OpenSSHServerV2 is the Schema for the opensshserversv2 API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,7 +33,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: OpensshServer resource definition v2 from Teleport
+            description: OpenSSHServer resource definition v2 from Teleport
             properties:
               addr:
                 description: Addr is a host:port address where this server can be

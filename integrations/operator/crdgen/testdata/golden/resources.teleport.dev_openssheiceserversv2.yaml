@@ -2,23 +2,23 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
-  name: teleportopenssheicserversv2.resources.teleport.dev
+  name: teleportopenssheiceserversv2.resources.teleport.dev
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportOpensshEICServerV2
-    listKind: TeleportOpensshEICServerV2List
-    plural: teleportopenssheicserversv2
+    kind: TeleportOpenSSHEICEServerV2
+    listKind: TeleportOpenSSHEICEServerV2List
+    plural: teleportopenssheiceserversv2
     shortNames:
-    - openssheicserverv2
-    - openssheicserversv2
-    singular: teleportopenssheicserverv2
+    - openssheiceserverv2
+    - openssheiceserversv2
+    singular: teleportopenssheiceserverv2
   scope: Namespaced
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: OpensshEICServerV2 is the Schema for the openssheicserversv2
+        description: OpenSSHEICEServerV2 is the Schema for the openssheiceserversv2
           API
         properties:
           apiVersion:
@@ -34,7 +34,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: OpensshEICServer resource definition v2 from Teleport
+            description: OpenSSHEICEServer resource definition v2 from Teleport
             properties:
               addr:
                 description: Addr is a host:port address where this server can be
