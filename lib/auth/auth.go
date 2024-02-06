@@ -2526,8 +2526,9 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			// Note: currently only yubikeys are supported as hardware keys. If we extend
 			// support to more hardware keys, we can add prefixes to serial numbers.
 			// Ex: solokey_12345678 or s_12345678.
-			// We can default to assuming the serial number is a yubikey, so adding this
-			// prefix logic is not needed at this time.
+			// When prefixes are added, we can default to assuming that serial numbers
+			// without prefixes are for yubikeys, meaning there will be no backwards
+			// compatibility issues.
 			serialNumberTraitName := hksn.SerialNumberTraitName
 			if serialNumberTraitName == "" {
 				serialNumberTraitName = defaultSerialNumberTraitName
@@ -2537,14 +2538,16 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			// a serial number in the user's traits, if any are set.
 			registeredSerialNumbers, ok := req.checker.Traits()[serialNumberTraitName]
 			if !ok || len(registeredSerialNumbers) == 0 {
-				log.Debugf("user %q tried to sign in with hardware key support, but has no known hardware keys. A user's known hardware key serial numbers should be set in %q", req.user.GetName(), serialNumberTraitName)
+				log.Debugf("user %q tried to sign in with hardware key support, but has no known hardware keys. A user's known hardware key serial numbers should be set \"in user.traits.%v\"", req.user.GetName(), serialNumberTraitName)
 				return nil, trace.BadParameter("cannot generate certs for user with no known hardware keys")
 			}
 
 			attestatedSerialNumber := strconv.Itoa(int(attestationData.SerialNumber))
 			// serial number traits can be a comma seperated list, or a list of comma separated lists.
 			// e.g. [["12345678,87654321"], ["13572468"]].
-			if !slices.Contains(registeredSerialNumbers, attestatedSerialNumber) {
+			if !slices.ContainsFunc(registeredSerialNumbers, func(s string) bool {
+				return strings.Contains(s, attestatedSerialNumber)
+			}) {
 				log.Debugf("user %q tried to sign in with hardware key support with an unknown hardware key and was denied: YubiKey serial number %q", req.user.GetName(), attestatedSerialNumber)
 				return nil, trace.BadParameter("cannot generate certs for user with unknown hardware key: YubiKey serial number %q", attestatedSerialNumber)
 			}

@@ -2284,7 +2284,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 	require.NoError(t, err)
 	user.SetTraits(map[string][]string{
 		// add in other random serial numbers to test comparison logic.
-		"hardware_key_serial_numbers": {"other1", "other2,1234678,other3"},
+		"hardware_key_serial_numbers": {"other1", "other2,12345678,other3"},
 		// custom trait name
 		"known_yubikeys": {"13572468"},
 	})
@@ -2338,7 +2338,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 			},
 			mockAttestationData: &keys.AttestationData{
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
-				SerialNumber:     1234678,
+				SerialNumber:     12345678,
 			},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err, "expected private key policy error but got %v", err)
@@ -2358,10 +2358,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 				SerialNumber:     12345678,
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
-				require.ErrorContains(t, err, "unknown hardware key")
-			},
+			assertErr: require.NoError,
 		}, {
 			name: "known hardware key custom trait name",
 			cap: types.AuthPreferenceSpecV2{
