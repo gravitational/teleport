@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -2124,7 +2125,7 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 	}
 }
 
-// deleteWebSession is called to sign out user
+// deleteWebSession is called to sign out user from web, app and SAML IdP session.
 //
 // DELETE /v1/webapi/sessions/:sid
 //
@@ -2132,7 +2133,19 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 //
 // {"message": "ok"}
 func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	err := h.logout(r.Context(), w, ctx)
+	// samlSessionCookie will not be set for users who are not authenticated with SAML IdP.
+	samlSessionCookie, err := r.Cookie(samlidp.SAMLSessionCookieName)
+	if err == nil && samlSessionCookie != nil && samlSessionCookie.Value != "" {
+		// TODO(sshah): Websession is not updated with SAML session details after SAML auth so
+		// it begs to check for a nil value below and then set a session with session ID
+		// retrieved from samlSessionCookie. We can skip this step below once we have a
+		// mechanism to update Websession with SAML session value.
+		if ctx.cfg.Session.GetSAMLSession() == nil {
+			ctx.cfg.Session.SetSAMLSession(&types.SAMLSessionData{ID: samlSessionCookie.Value})
+		}
+	}
+
+	err = h.logout(r.Context(), w, ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2144,9 +2157,17 @@ func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *Sessi
 	if err := sctx.Invalidate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	websession.ClearCookie(w)
+	clearSessionCookies(w)
 
 	return nil
+}
+
+// clearSessionCookies clears Web UI session and SAML session cookie.
+func clearSessionCookies(w http.ResponseWriter) {
+	// Clear Web UI session cookie
+	websession.ClearCookie(w)
+	// Clear SAML IdP session cookie
+	samlidp.ClearCookie(w)
 }
 
 type renewSessionRequest struct {
@@ -4103,7 +4124,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 	}
 	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
-		websession.ClearCookie(w)
+		clearSessionCookies((w))
 		return nil, trace.AccessDenied("need auth")
 	}
 	if checkBearerToken {
