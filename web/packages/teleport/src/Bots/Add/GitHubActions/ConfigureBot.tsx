@@ -129,7 +129,13 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                     botName: e.target.value,
                   })
                 }
+                css={`
+                  margin-bottom: 0;
+                `}
               />
+              <Text color="text.slightlyMuted" fontSize="small">
+                Allowed characters: A-z, 0-9, and -.+
+              </Text>
             </FormItem>
 
             <Box mb="4">
