@@ -557,7 +557,8 @@ func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type logYAML Log
 	log := (*logYAML)(l)
 	if err := unmarshal(log); err != nil {
-		if _, ok := err.(*yaml.TypeError); !ok {
+		var typeError *yaml.TypeError
+		if !errors.As(err, &typeError) {
 			return err
 		}
 
@@ -1159,11 +1160,11 @@ func getCertificatePEM(certOrPath string) (string, error) {
 	data, err := os.ReadFile(certOrPath)
 	if err != nil {
 		// Don't use trace in order to keep a clean error message.
-		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
+		return "", fmt.Errorf("%q is not a valid x509 certificate (%w) and can't be read as a file (%w)", certOrPath, parseErr, err)
 	}
 	if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
 		// Don't use trace in order to keep a clean error message.
-		return "", fmt.Errorf("file %q contains an invalid x509 certificate: %v", certOrPath, err)
+		return "", fmt.Errorf("file %q contains an invalid x509 certificate: %w", certOrPath, err)
 	}
 
 	return string(data), nil // OK, valid PEM file

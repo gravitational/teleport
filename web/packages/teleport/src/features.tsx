@@ -52,7 +52,7 @@ import type { FeatureFlags, TeleportFeature } from './types';
 const Audit = lazy(() => import('./Audit'));
 const Sessions = lazy(() => import('./Sessions'));
 const UnifiedResources = lazy(() => import('./UnifiedResources'));
-const Account = lazy(() => import('./Account/AccountNew'));
+const Account = lazy(() => import('./Account'));
 const Support = lazy(() => import('./Support'));
 const Clusters = lazy(() => import('./Clusters'));
 const Nodes = lazy(() => import('./Nodes'));
