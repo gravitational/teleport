@@ -120,7 +120,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
         const { host } = parseRepoAddress(rule.repoAddress);
         hosts.add(host);
       } catch (err) {
-        setHostError(() =>
+        setHostError(
           IVNALID_HOST_ERROR({ rule: rule.repoAddress, error: err })
         );
       }
