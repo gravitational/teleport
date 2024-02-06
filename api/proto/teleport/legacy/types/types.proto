@@ -2964,7 +2964,7 @@ message RoleConditions {
   // GroupLabelsExpression is a predicate expression used to allow/deny
   // access to user groups.
   string GroupLabelsExpression = 37 [(gogoproto.jsontag) = "group_labels_expression,omitempty"];
-  // DatabasePermission specifies a set of permissions that will be granted
+  // DatabasePermissions specifies a set of permissions that will be granted
   // to the database user when using automatic database user provisioning.
   repeated DatabasePermission DatabasePermissions = 38 [
     (gogoproto.nullable) = false,
