@@ -21,15 +21,19 @@ import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { allAccessAcl, createTeleportContext } from 'teleport/mocks/contexts';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
 
 import { ConfigureBot } from './ConfigureBot';
 import { GitHubFlowProvider } from './useGitHubFlow';
 
-const Provider = ({ children }) => {
+const Provider = ({ children, access = allAccessAcl }) => {
   const ctx = createTeleportContext();
+  ctx.storeUser.setState({
+    username: 'joe@example.com',
+    acl: access,
+  });
 
   return (
     <MemoryRouter>
@@ -41,11 +45,28 @@ const Provider = ({ children }) => {
 };
 
 export default {
-  title: 'Teleport/Bots/Add/GitHubActions',
+  title: 'Teleport/Bots/Add/GitHubActions/Permissions',
 };
 
-export const Permissions = () => (
+export const Loaded = () => (
   <Provider>
+    <ConfigureBot {...props} />
+  </Provider>
+);
+
+export const NoCreatePermission = () => (
+  <Provider
+    access={{
+      ...allAccessAcl,
+      bots: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+    }}
+  >
     <ConfigureBot {...props} />
   </Provider>
 );

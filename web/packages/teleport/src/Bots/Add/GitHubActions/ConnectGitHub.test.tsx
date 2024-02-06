@@ -63,9 +63,7 @@ describe('connectGitHub Component', () => {
     // rule form
     expect(screen.getByText('GitHub Repository Access:')).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText(
-        'https://github.com/gravitational/teleport'
-      )
+      screen.getByPlaceholderText('https://github.com/gravitational/teleport')
     ).toBeInTheDocument();
     expect(screen.getByText('Git Ref')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('main')).toBeInTheDocument();

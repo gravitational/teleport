@@ -27,8 +27,6 @@ import Text from 'design/Text';
 
 import FieldInput from 'shared/components/FieldInput';
 
-import { requiredField } from 'shared/components/Validation/rules';
-
 import Alert from 'design/Alert';
 
 import { getBot } from 'teleport/services/bot';
@@ -118,10 +116,11 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
             </Box>
 
             <FormItem>
-              <Text>Create a Name for Your Bot Integration *</Text>
+              <Text>Create a Name for Your Bot Integration*</Text>
               <FieldInput
-                rule={requiredField('Name for the Bot is required')}
+                rule={requireValidBotName}
                 mb={3}
+                label=" "
                 placeholder="github-actions-cd"
                 value={createBotRequest.botName}
                 onChange={e =>
@@ -197,3 +196,18 @@ const FormItem = styled(Box)`
   margin-bottom: ${props => props.theme.space[4]}px;
   max-width: 500px;
 `;
+
+const requireValidBotName = (value: string) => () => {
+  if (!value || !value.trim()) {
+    return { valid: false, message: 'Name for the Bot Workflow is required' };
+  }
+
+  if (value.includes(' ')) {
+    return {
+      valid: false,
+      message: 'Bot Workflow name cannot have whitespaces',
+    };
+  }
+
+  return { valid: true };
+};

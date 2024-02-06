@@ -125,4 +125,24 @@ describe('configureBot Component', () => {
       )
     ).toBeInTheDocument();
   });
+
+  it('shows an error if the bot name is empty or contains whitespaces', async () => {
+    setup({});
+
+    const botNameInput = screen.getByPlaceholderText('github-actions-cd');
+
+    // empty
+    await userEvent.type(botNameInput, ' ');
+    await userEvent.click(screen.getByTestId('button-next'));
+    expect(
+      screen.getByText('Name for the Bot Workflow is required')
+    ).toBeInTheDocument();
+
+    // whitespaces
+    await userEvent.type(botNameInput, 'my bot');
+    await userEvent.click(screen.getByTestId('button-next'));
+    expect(
+      screen.getByText('Bot Workflow name cannot have whitespaces')
+    ).toBeInTheDocument();
+  });
 });
