@@ -16,22 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package awsoidc
+package deployserviceconfig
 
 import (
 	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestDeployServiceConfig(t *testing.T) {
 	t.Run("ensure log level is set to debug", func(t *testing.T) {
-		base64Config, err := generateTeleportConfigString(generateTeleportConfigParams{
-			ProxyServerHostPort:  "host:port",
-			TeleportIAMTokenName: "iam-token",
-			DeploymentMode:       DatabaseServiceDeploymentMode,
-		})
+		base64Config, err := GenerateTeleportConfigString("host:port", "iam-token", types.Labels{})
 		require.NoError(t, err)
 
 		// Config must have the following string:
