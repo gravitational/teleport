@@ -483,10 +483,12 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	// Verify changes to access list.
 	accessList1Updated, err := service.GetAccessList(ctx, accessList1.GetName())
 	require.NoError(t, err)
-	require.Equal(t, accessList1Updated.Spec.Audit.NextAuditDate,
+	require.Equal(t,
 		time.Date(accessList1OrigDate.Year(),
 			accessList1OrigDate.Month()+time.Month(accessList1Updated.Spec.Audit.Recurrence.Frequency),
-			int(accessList1Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC))
+			int(accessList1Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC),
+		accessList1Updated.Spec.Audit.NextAuditDate,
+	)
 	require.Empty(t, cmp.Diff(*(accessList1Review1.Spec.Changes.MembershipRequirementsChanged), accessList1Updated.Spec.MembershipRequires))
 	require.Equal(t, accessList1Review1.Spec.Changes.ReviewFrequencyChanged, accessList1Updated.Spec.Audit.Recurrence.Frequency)
 	require.Equal(t, accessList1Review1.Spec.Changes.ReviewDayOfMonthChanged, accessList1Updated.Spec.Audit.Recurrence.DayOfMonth)
@@ -505,10 +507,12 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	// Verify changes to the access list again.
 	accessList1Updated, err = service.GetAccessList(ctx, accessList1.GetName())
 	require.NoError(t, err)
-	require.Equal(t, accessList1Updated.Spec.Audit.NextAuditDate,
+	require.Equal(t,
 		time.Date(accessList1OrigDate.Year(),
 			accessList1OrigDate.Month()+time.Month(accessList1Updated.Spec.Audit.Recurrence.Frequency)*2,
-			int(accessList1Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC))
+			int(accessList1Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC),
+		accessList1Updated.Spec.Audit.NextAuditDate,
+	)
 
 	// Attempting to apply changes already reflected in the access list should modify the original review.
 	require.Nil(t, accessList1Review2.Spec.Changes.MembershipRequirementsChanged)
@@ -527,10 +531,12 @@ func TestAccessListReviewCRUD(t *testing.T) {
 
 	accessList2Updated, err := service.GetAccessList(ctx, accessList2.GetName())
 	require.NoError(t, err)
-	require.Equal(t, accessList2Updated.Spec.Audit.NextAuditDate,
+	require.Equal(t,
 		time.Date(accessList2OrigDate.Year(),
 			accessList2OrigDate.Month()+time.Month(accessList2Updated.Spec.Audit.Recurrence.Frequency),
-			int(accessList2Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC))
+			int(accessList2Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC),
+		accessList2Updated.Spec.Audit.NextAuditDate,
+	)
 	require.Empty(t, cmp.Diff(accessList2.Spec.MembershipRequires, accessList2Updated.Spec.MembershipRequires))
 	require.Equal(t, accessList2.Spec.Audit.Recurrence.Frequency, accessList2Updated.Spec.Audit.Recurrence.Frequency)
 	require.Equal(t, accessList2.Spec.Audit.Recurrence.DayOfMonth, accessList2Updated.Spec.Audit.Recurrence.DayOfMonth)

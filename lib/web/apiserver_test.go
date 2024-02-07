@@ -6711,9 +6711,9 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 					}
 
 					foundTrace = true
-					require.Equal(t, returnedTrace.Status, expectedTrace.Status.String())
-					require.Equal(t, returnedTrace.Details, expectedTrace.Details)
-					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
+					require.Equal(t, expectedTrace.Status.String(), returnedTrace.Status)
+					require.Equal(t, expectedTrace.Details, returnedTrace.Details)
+					require.Contains(t, expectedTrace.Error, returnedTrace.Error)
 				}
 
 				require.True(t, foundTrace, expectedTrace)
