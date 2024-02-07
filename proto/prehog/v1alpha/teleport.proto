@@ -1371,7 +1371,7 @@ message SubmitEventRequest {
 
     SPIFFESVIDIssuedEvent spiffe_svid_issued = 79;
 
-    OktaAccessListSyncEvent okta_access_list_sync_event = 80;
+    OktaAccessListSyncEvent okta_access_list_sync = 80;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

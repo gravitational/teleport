@@ -19286,7 +19286,7 @@ proto.prehog.v1alpha.SubmitEventRequest.EventCase = {
   ACCESS_LIST_REVIEW_COMPLIANCE: 77,
   MFA_AUTHENTICATION_EVENT: 78,
   SPIFFE_SVID_ISSUED: 79,
-  OKTA_ACCESS_LIST_SYNC_EVENT: 80
+  OKTA_ACCESS_LIST_SYNC: 80
 };
 
 /**
@@ -19405,7 +19405,7 @@ proto.prehog.v1alpha.SubmitEventRequest.toObject = function(includeInstance, msg
     accessListReviewCompliance: (f = msg.getAccessListReviewCompliance()) && proto.prehog.v1alpha.AccessListReviewComplianceEvent.toObject(includeInstance, f),
     mfaAuthenticationEvent: (f = msg.getMfaAuthenticationEvent()) && proto.prehog.v1alpha.MFAAuthenticationEvent.toObject(includeInstance, f),
     spiffeSvidIssued: (f = msg.getSpiffeSvidIssued()) && proto.prehog.v1alpha.SPIFFESVIDIssuedEvent.toObject(includeInstance, f),
-    oktaAccessListSyncEvent: (f = msg.getOktaAccessListSyncEvent()) && proto.prehog.v1alpha.OktaAccessListSyncEvent.toObject(includeInstance, f)
+    oktaAccessListSync: (f = msg.getOktaAccessListSync()) && proto.prehog.v1alpha.OktaAccessListSyncEvent.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -19834,7 +19834,7 @@ proto.prehog.v1alpha.SubmitEventRequest.deserializeBinaryFromReader = function(m
     case 80:
       var value = new proto.prehog.v1alpha.OktaAccessListSyncEvent;
       reader.readMessage(value,proto.prehog.v1alpha.OktaAccessListSyncEvent.deserializeBinaryFromReader);
-      msg.setOktaAccessListSyncEvent(value);
+      msg.setOktaAccessListSync(value);
       break;
     default:
       reader.skipField();
@@ -20488,7 +20488,7 @@ proto.prehog.v1alpha.SubmitEventRequest.serializeBinaryToWriter = function(messa
       proto.prehog.v1alpha.SPIFFESVIDIssuedEvent.serializeBinaryToWriter
     );
   }
-  f = message.getOktaAccessListSyncEvent();
+  f = message.getOktaAccessListSync();
   if (f != null) {
     writer.writeMessage(
       80,
@@ -23367,10 +23367,10 @@ proto.prehog.v1alpha.SubmitEventRequest.prototype.hasSpiffeSvidIssued = function
 
 
 /**
- * optional OktaAccessListSyncEvent okta_access_list_sync_event = 80;
+ * optional OktaAccessListSyncEvent okta_access_list_sync = 80;
  * @return {?proto.prehog.v1alpha.OktaAccessListSyncEvent}
  */
-proto.prehog.v1alpha.SubmitEventRequest.prototype.getOktaAccessListSyncEvent = function() {
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getOktaAccessListSync = function() {
   return /** @type{?proto.prehog.v1alpha.OktaAccessListSyncEvent} */ (
     jspb.Message.getWrapperField(this, proto.prehog.v1alpha.OktaAccessListSyncEvent, 80));
 };
@@ -23380,7 +23380,7 @@ proto.prehog.v1alpha.SubmitEventRequest.prototype.getOktaAccessListSyncEvent = f
  * @param {?proto.prehog.v1alpha.OktaAccessListSyncEvent|undefined} value
  * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
 */
-proto.prehog.v1alpha.SubmitEventRequest.prototype.setOktaAccessListSyncEvent = function(value) {
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setOktaAccessListSync = function(value) {
   return jspb.Message.setOneofWrapperField(this, 80, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
 };
 
@@ -23389,8 +23389,8 @@ proto.prehog.v1alpha.SubmitEventRequest.prototype.setOktaAccessListSyncEvent = f
  * Clears the message field making it undefined.
  * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
  */
-proto.prehog.v1alpha.SubmitEventRequest.prototype.clearOktaAccessListSyncEvent = function() {
-  return this.setOktaAccessListSyncEvent(undefined);
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearOktaAccessListSync = function() {
+  return this.setOktaAccessListSync(undefined);
 };
 
 
@@ -23398,7 +23398,7 @@ proto.prehog.v1alpha.SubmitEventRequest.prototype.clearOktaAccessListSyncEvent =
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.prehog.v1alpha.SubmitEventRequest.prototype.hasOktaAccessListSyncEvent = function() {
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasOktaAccessListSync = function() {
   return jspb.Message.getField(this, 80) != null;
 };
 

@@ -3094,10 +3094,10 @@ export class SubmitEventRequest extends jspb.Message {
     setSpiffeSvidIssued(value?: SPIFFESVIDIssuedEvent): SubmitEventRequest;
 
 
-    hasOktaAccessListSyncEvent(): boolean;
-    clearOktaAccessListSyncEvent(): void;
-    getOktaAccessListSyncEvent(): OktaAccessListSyncEvent | undefined;
-    setOktaAccessListSyncEvent(value?: OktaAccessListSyncEvent): SubmitEventRequest;
+    hasOktaAccessListSync(): boolean;
+    clearOktaAccessListSync(): void;
+    getOktaAccessListSync(): OktaAccessListSyncEvent | undefined;
+    setOktaAccessListSync(value?: OktaAccessListSyncEvent): SubmitEventRequest;
 
 
     getEventCase(): SubmitEventRequest.EventCase;
@@ -3192,7 +3192,7 @@ export namespace SubmitEventRequest {
         accessListReviewCompliance?: AccessListReviewComplianceEvent.AsObject,
         mfaAuthenticationEvent?: MFAAuthenticationEvent.AsObject,
         spiffeSvidIssued?: SPIFFESVIDIssuedEvent.AsObject,
-        oktaAccessListSyncEvent?: OktaAccessListSyncEvent.AsObject,
+        oktaAccessListSync?: OktaAccessListSyncEvent.AsObject,
     }
 
     export enum EventCase {
@@ -3350,7 +3350,7 @@ export namespace SubmitEventRequest {
 
     SPIFFE_SVID_ISSUED = 79,
 
-    OKTA_ACCESS_LIST_SYNC_EVENT = 80,
+    OKTA_ACCESS_LIST_SYNC = 80,
 
     }
 

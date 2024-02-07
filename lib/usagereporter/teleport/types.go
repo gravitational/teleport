@@ -1037,8 +1037,8 @@ type OktaAccessListSyncEvent prehogv1a.OktaAccessListSyncEvent
 // Anonymize anonymizes the event.
 func (u *OktaAccessListSyncEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
-		Event: &prehogv1a.SubmitEventRequest_OktaAccessListSyncEvent{
-			OktaAccessListSyncEvent: &prehogv1a.OktaAccessListSyncEvent{
+		Event: &prehogv1a.SubmitEventRequest_OktaAccessListSync{
+			OktaAccessListSync: &prehogv1a.OktaAccessListSyncEvent{
 				NumAppFilters:        u.NumAppFilters,
 				NumGroupFilters:      u.NumGroupFilters,
 				NumApps:              u.NumApps,

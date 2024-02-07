@@ -2660,11 +2660,11 @@ export interface SubmitEventRequest {
          */
         spiffeSvidIssued: SPIFFESVIDIssuedEvent;
     } | {
-        oneofKind: "oktaAccessListSyncEvent";
+        oneofKind: "oktaAccessListSync";
         /**
-         * @generated from protobuf field: prehog.v1alpha.OktaAccessListSyncEvent okta_access_list_sync_event = 80;
+         * @generated from protobuf field: prehog.v1alpha.OktaAccessListSyncEvent okta_access_list_sync = 80;
          */
-        oktaAccessListSyncEvent: OktaAccessListSyncEvent;
+        oktaAccessListSync: OktaAccessListSyncEvent;
     } | {
         oneofKind: undefined;
     };
@@ -8492,7 +8492,7 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 77, name: "access_list_review_compliance", kind: "message", oneof: "event", T: () => AccessListReviewComplianceEvent },
             { no: 78, name: "mfa_authentication_event", kind: "message", oneof: "event", T: () => MFAAuthenticationEvent },
             { no: 79, name: "spiffe_svid_issued", kind: "message", oneof: "event", T: () => SPIFFESVIDIssuedEvent },
-            { no: 80, name: "okta_access_list_sync_event", kind: "message", oneof: "event", T: () => OktaAccessListSyncEvent }
+            { no: 80, name: "okta_access_list_sync", kind: "message", oneof: "event", T: () => OktaAccessListSyncEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -8970,10 +8970,10 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         spiffeSvidIssued: SPIFFESVIDIssuedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).spiffeSvidIssued)
                     };
                     break;
-                case /* prehog.v1alpha.OktaAccessListSyncEvent okta_access_list_sync_event */ 80:
+                case /* prehog.v1alpha.OktaAccessListSyncEvent okta_access_list_sync */ 80:
                     message.event = {
-                        oneofKind: "oktaAccessListSyncEvent",
-                        oktaAccessListSyncEvent: OktaAccessListSyncEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).oktaAccessListSyncEvent)
+                        oneofKind: "oktaAccessListSync",
+                        oktaAccessListSync: OktaAccessListSyncEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).oktaAccessListSync)
                     };
                     break;
                 default:
@@ -9222,9 +9222,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.SPIFFESVIDIssuedEvent spiffe_svid_issued = 79; */
         if (message.event.oneofKind === "spiffeSvidIssued")
             SPIFFESVIDIssuedEvent.internalBinaryWrite(message.event.spiffeSvidIssued, writer.tag(79, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.OktaAccessListSyncEvent okta_access_list_sync_event = 80; */
-        if (message.event.oneofKind === "oktaAccessListSyncEvent")
-            OktaAccessListSyncEvent.internalBinaryWrite(message.event.oktaAccessListSyncEvent, writer.tag(80, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.OktaAccessListSyncEvent okta_access_list_sync = 80; */
+        if (message.event.oneofKind === "oktaAccessListSync")
+            OktaAccessListSyncEvent.internalBinaryWrite(message.event.oktaAccessListSync, writer.tag(80, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
