@@ -1,0 +1,55 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.integration.v1;
+
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1";
+
+// AWSOIDCService provides access to AWS APIs using the AWS OIDC Integration.
+service AWSOIDCService {
+  // ListDatabases calls the following AWS API:
+  // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
+  // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
+  // It returns a list of Databases and an optional NextToken that can be used to fetch the next page
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+}
+
+// ListDatabasesRequest is a request for a paginated list of AWS Databases.
+message ListDatabasesRequest {
+  // Integration is the AWS OIDC Integration name.
+  string integration = 1;
+  // Region is the AWS Region
+  string region = 2;
+  // RDSType is either instance or cluster (for Aurora DBs).
+  string rds_type = 3;
+  // Engines filters the returned Databases based on their engine.
+  // Eg, mysql, postgres, mariadb, aurora, aurora-mysql, aurora-postgresql
+  repeated string engines = 4;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 5;
+}
+
+// ListDatabasesResponse contains a page of AWS Databases.
+message ListDatabasesResponse {
+  // Databases contains the page of Databases.
+  repeated types.DatabaseV3 databases = 1;
+  // NextToken is used for pagination.
+  // If non-empty, it can be used to request the next page.
+  string next_token = 2;
+}
