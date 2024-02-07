@@ -475,7 +475,7 @@
         },
         {
           "title": "Access Graph",
-          "slug": "/access-graph/",
+          "slug": "/access-controls/access-graph/",
           "forScopes": [
             "team",
             "enterprise"
@@ -483,7 +483,7 @@
           "entries": [
             {
               "title": "Getting Started On-Premises",
-              "slug": "/access-graph/getting-started-on-prem/",
+              "slug": "/access-controls/access-graph/getting-started-on-prem/",
               "forScopes": [
                 "enterprise"
               ]
@@ -3078,6 +3078,11 @@
     {
       "source": "/server-access/guides/restricted-session/",
       "destination": "/server-access/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/access-graph/",
+      "destination": "/access-controls/access-graph/",
       "permanent": true
     }
   ]
