@@ -88,30 +88,12 @@ PULL_ON_CI = $(if $(filter $(CI),true),docker inspect --type=image $(1) >/dev/nu
 # more details.
 RELEASE_TARGET ?= release
 
-# This variable extracts the name of the Docker buildx builder that uses the Docker driver.
+# DOCKER_BUILDER_NAME extracts the name of the buildx builder that uses the "docker" driver.
 #
-# The awk command looks for the first line that has "docker" in the second or third column.
-# We check both columns to account for the possibility that the builder is "selected", in which
-# case the second column will be a * and the third column will be "docker".
-#
-# Second column match:
-#
-# $ docker buildx ls
-# NAME/NODE           DRIVER/ENDPOINT             STATUS   BUILDKIT PLATFORMS
-# container-driver *  docker-container
-#   container-driver0 unix:///var/run/docker.sock inactive
-# default             docker
-#   default           default                     running  20.10.23 linux/arm64, linux/arm/v7, linux/arm/v6
-#
-# Third column match:
-#
-# $ docker buildx ls
-# NAME/NODE           DRIVER/ENDPOINT             STATUS   BUILDKIT PLATFORMS
-# container-driver    docker-container
-#   container-driver0 unix:///var/run/docker.sock inactive
-# default *           docker
-#   default           default                     running  20.10.23 linux/arm64, linux/arm/v7, linux/arm/v6
-DOCKER_BUILDER_NAME=$(shell docker buildx ls 2>/dev/null | awk '$$2 == "docker" || $$3 == "docker" {print $$1}')
+# The awk command looks for the first line that has "docker" in the second (DRIVER) column.
+# -F '[ *]+': there may be an asterisk between the first and second column if that record is the default,
+# so just subsume the asterisk into the field separator.
+DOCKER_BUILDER_NAME = $(shell docker buildx ls 2>/dev/null | awk -F '[ *]+' '$$2 == "docker" {print $$1}')
 
 .PHONY:print-docker-builder-name
 print-docker-builder-name:
