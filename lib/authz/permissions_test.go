@@ -331,7 +331,7 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			name:       "nok: user without extensions and mode=required",
 			deviceMode: constants.DeviceTrustModeRequired,
 			user:       userWithoutExtensions,
-			wantErr:    "trusted device",
+			wantErr:    "access denied",
 		},
 		{
 			name:       "global mode disabled only",
@@ -580,7 +580,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 				},
 			},
 			withMFA:                   invalidMFA,
-			wantErrContains:           "invalid MFA",
+			wantErrContains:           "access denied",
 			wantAdminActionAuthorized: true,
 		}, {
 			name: "NOK local user reused mfa with reuse not allowed",
