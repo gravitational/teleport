@@ -87,7 +87,7 @@ spec:
                     nullable: true
                     type: array
                   db_permissions:
-                    description: DatabasePermission specifies a set of permissions
+                    description: DatabasePermissions specifies a set of permissions
                       that will be granted to the database user when using automatic
                       database user provisioning.
                     items:
@@ -570,7 +570,7 @@ spec:
                     nullable: true
                     type: array
                   db_permissions:
-                    description: DatabasePermission specifies a set of permissions
+                    description: DatabasePermissions specifies a set of permissions
                       that will be granted to the database user when using automatic
                       database user provisioning.
                     items:
@@ -1329,7 +1329,7 @@ spec:
                     nullable: true
                     type: array
                   db_permissions:
-                    description: DatabasePermission specifies a set of permissions
+                    description: DatabasePermissions specifies a set of permissions
                       that will be granted to the database user when using automatic
                       database user provisioning.
                     items:
@@ -1812,7 +1812,7 @@ spec:
                     nullable: true
                     type: array
                   db_permissions:
-                    description: DatabasePermission specifies a set of permissions
+                    description: DatabasePermissions specifies a set of permissions
                       that will be granted to the database user when using automatic
                       database user provisioning.
                     items:
