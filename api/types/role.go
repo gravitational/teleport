@@ -1155,6 +1155,14 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		if err := perm.CheckAndSetDefaults(); err != nil {
 			return trace.BadParameter("failed to process 'allow' db_permission #%v: %v", i+1, err)
 		}
+		// Wildcards permissions are disallowed. Even though this should never pass the db-specific driver,
+		// it doesn't hurt to check it here. Wildcards *are* allowed on deny side,
+		// which is why this check is here and not in CheckAndSetDefaults().
+		for _, permission := range perm.Permissions {
+			if permission == Wildcard {
+				return trace.BadParameter("individual database permissions cannot be wildcards strings")
+			}
+		}
 	}
 	for i, perm := range r.Spec.Deny.DatabasePermissions {
 		if err := perm.CheckAndSetDefaults(); err != nil {
