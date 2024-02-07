@@ -357,9 +357,9 @@ ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
 ifneq ("$(FIPS)","")
-	cargo build -p rdp-client --features=fips --release $(CARGO_TARGET)
+	cargo build -p rdp-client --features=fips --release --locked $(CARGO_TARGET)
 else
-	cargo build -p rdp-client --release $(CARGO_TARGET)
+	cargo build -p rdp-client --release --locked $(CARGO_TARGET)
 endif
 else
 .PHONY: rdpclient
