@@ -43,8 +43,14 @@ var (
 	// requiredCapacityProviders contains the FARGATE type which is required to deploy a Teleport Service.
 	requiredCapacityProviders = []string{launchTypeFargateString}
 
-	// oneAgent is used to define the desired agent count when creating a service.
-	oneAgent = int32(1)
+	// twoAgents is used to define the desired agent count when creating a service.
+	// Deploying two agents in a FARGATE LaunchType Service, will most likely deploy
+	// each one in a different AZ, as long as the Subnets include mustiple AZs.
+	// From AWS Docs:
+	// > Task placement strategies and constraints aren't supported for tasks using the Fargate launch type.
+	// > Fargate will try its best to spread tasks across accessible Availability Zones.
+	// > https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-placement.html#fargate-launch-type
+	twoAgents = int32(2)
 )
 
 const (
@@ -157,6 +163,10 @@ type DeployServiceRequest struct {
 	// Eg, 13.2.0
 	// Optional. Defaults to the current version.
 	TeleportVersionTag string
+
+	// DeployServiceConfigString creates a teleport.yaml configuration that the agent
+	// deployed in a ECS Cluster (using Fargate) will use.
+	DeployServiceConfigString func(proxyHostPort, iamToken string, resourceMatcherLabels types.Labels) (string, error)
 }
 
 // normalizeECSResourceName converts a name into a valid ECS Resource Name.
@@ -260,6 +270,10 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 
 	if len(r.DatabaseResourceMatcherLabels) == 0 {
 		return trace.BadParameter("at least one agent matcher label is required")
+	}
+
+	if r.DeployServiceConfigString == nil {
+		return trace.BadParameter("deploy service config is required")
 	}
 
 	return nil
@@ -427,12 +441,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		return nil, trace.Wrap(err)
 	}
 
-	teleportConfigString, err := generateTeleportConfigString(generateTeleportConfigParams{
-		ProxyServerHostPort:           req.ProxyServerHostPort,
-		TeleportIAMTokenName:          req.TeleportIAMTokenName,
-		DeploymentMode:                req.DeploymentMode,
-		DatabaseResourceMatcherLabels: req.DatabaseResourceMatcherLabels,
-	})
+	teleportConfigString, err := req.DeployServiceConfigString(req.ProxyServerHostPort, req.TeleportIAMTokenName, req.DatabaseResourceMatcherLabels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -722,7 +731,7 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req upsertServi
 
 			updateServiceResp, err := clt.UpdateService(ctx, &ecs.UpdateServiceInput{
 				Service:              aws.String(req.ServiceName),
-				DesiredCount:         &oneAgent,
+				DesiredCount:         &twoAgents,
 				TaskDefinition:       &taskARN,
 				Cluster:              aws.String(req.ClusterName),
 				NetworkConfiguration: deployServiceNetworkConfiguration(req.SubnetIDs, req.SecurityGroups),
@@ -739,7 +748,7 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req upsertServi
 
 	createServiceOut, err := clt.CreateService(ctx, &ecs.CreateServiceInput{
 		ServiceName:          aws.String(req.ServiceName),
-		DesiredCount:         &oneAgent,
+		DesiredCount:         &twoAgents,
 		LaunchType:           ecsTypes.LaunchTypeFargate,
 		TaskDefinition:       &taskARN,
 		Cluster:              aws.String(req.ClusterName),
