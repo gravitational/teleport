@@ -32,7 +32,9 @@ func TestRejectsInvalidPEMData(t *testing.T) {
 	t.Parallel()
 
 	_, err := ReadCertificates([]byte("no data"))
-	require.IsType(t, trace.Unwrap(err), &trace.NotFoundError{})
+	require.True(t,
+		trace.IsNotFound(err),
+		"want trace.NotFoundError, got %v (%T)", err, trace.Unwrap(err))
 }
 
 func TestRejectsSelfSignedCertificate(t *testing.T) {

@@ -843,11 +843,11 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 				}
 
 				require.NoError(t, err)
-				require.Equal(t, loginData, &wanlib.LoginData{
+				require.Equal(t, &wanlib.LoginData{
 					Device:     device,
 					User:       user,
 					AllowReuse: loginData.AllowReuse,
-				})
+				}, loginData)
 
 				// Session data should only be deleted if reuse was not requested on begin.
 				if test.challengeExt.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
