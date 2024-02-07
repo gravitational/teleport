@@ -14,15 +14,16 @@ boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363
 byteorder = "1.5.0"
 bytes = "1.4.0"
 env_logger = "0.11.1"
-ironrdp-cliprdr.workspace = true
-ironrdp-connector.workspace = true
-ironrdp-pdu.workspace = true
-ironrdp-rdpdr.workspace = true
-ironrdp-rdpsnd.workspace = true
-ironrdp-session.workspace = true
-ironrdp-svc.workspace = true
-ironrdp-tls.workspace = true
-ironrdp-tokio.workspace = true
+ironrdp-cliprdr = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-cliprdr"}
+ironrdp-connector = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-connector"}
+ironrdp-pdu = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-pdu"}
+ironrdp-rdpdr = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-rdpdr"}
+ironrdp-rdpsnd = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-rdpsnd"}
+ironrdp-session = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-session"}
+ironrdp-svc = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-svc"}
+ironrdp-tls = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-tls", features = ["rustls"]}
+ironrdp-tokio = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-tokio"}
+ironrdp-dvc = { path = "/Users/hesperus/work/IronRDP/crates/ironrdp-dvc"}
 iso7816 = "0.1.2"
 iso7816-tlv = "0.4.3"
 log = "0.4.20"
@@ -36,6 +37,8 @@ tokio = { version = "1.36", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev="605253d99d5e363e178bcf97e1d4622e33844cd5", optional = true }
 utf16string = "0.2.0"
 uuid = { version = "1.7.0", features = ["v4"] }
+tracing-subscriber = "0.3.17"
+tracing = { version = "0.1", features = ["log-always" ] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
