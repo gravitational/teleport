@@ -174,7 +174,9 @@ Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
 #### Interacting with Distroless Images
 
 Since version 15, Teleport images are based on Google's [Distroless](https://github.com/GoogleContainerTools/distroless) images.
-Those images don't contain any shell. Here are some on how to invoke commands in shell-less images if you are unfamiliar:
+Those images don't contain any shell. 
+
+To execute Teleport commands on containers based on these images, run commands similar to the following:
 
 ```code
 # in docker
