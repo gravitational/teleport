@@ -314,7 +314,7 @@ func (a *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 	}
 
 	// create a new random dynamic token
-	tokenName, err := utils.CryptoRandomHex(TokenLenBytes)
+	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
