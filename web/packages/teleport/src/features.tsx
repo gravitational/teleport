@@ -20,6 +20,7 @@ import React, { lazy } from 'react';
 
 import {
   AddCircle,
+  Bots as BotsIcon,
   CirclePlay,
   ClipboardUser,
   Cluster,
@@ -51,7 +52,7 @@ import type { FeatureFlags, TeleportFeature } from './types';
 const Audit = lazy(() => import('./Audit'));
 const Sessions = lazy(() => import('./Sessions'));
 const UnifiedResources = lazy(() => import('./UnifiedResources'));
-const Account = lazy(() => import('./Account/AccountNew'));
+const Account = lazy(() => import('./Account'));
 const Support = lazy(() => import('./Support'));
 const Clusters = lazy(() => import('./Clusters'));
 const Nodes = lazy(() => import('./Nodes'));
@@ -69,6 +70,7 @@ const Integrations = lazy(() => import('./Integrations'));
 const IntegrationEnroll = lazy(
   () => import('@gravitational/teleport/src/Integrations/Enroll')
 );
+const Bots = lazy(() => import('./Bots'));
 
 // ****************************
 // Resource Features
@@ -200,6 +202,36 @@ export class FeatureUsers implements TeleportFeature {
     exact: true,
     getLink() {
       return cfg.getUsersRoute();
+    },
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
+export class FeatureBots implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  route = {
+    title: 'Manage Bots',
+    path: cfg.routes.bots,
+    exact: true,
+    component: Bots,
+  };
+
+  // todo (michellescripts) return flags.Bots once integrated with mcbattirola and feature is ready
+  hasAccess() {
+    return false;
+  }
+
+  navigationItem = {
+    title: NavTitle.Bots,
+    icon: BotsIcon,
+    exact: true,
+    getLink() {
+      return cfg.getBotsRoute();
     },
   };
 
@@ -571,6 +603,7 @@ export function getOSSFeatures(): TeleportFeature[] {
 
     // - Access
     new FeatureUsers(),
+    new FeatureBots(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureDiscover(),

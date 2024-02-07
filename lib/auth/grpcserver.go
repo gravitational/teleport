@@ -1200,44 +1200,6 @@ func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *authpb.GetR
 	return r, nil
 }
 
-// CreateBot creates a new bot and an optional join token.
-// TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1.BotService.CreateBot] instead.
-func (g *GRPCServer) CreateBot(ctx context.Context, req *authpb.CreateBotRequest) (*authpb.CreateBotResponse, error) {
-	return g.botService.CreateBotLegacy(ctx, req)
-}
-
-// DeleteBot removes a bot and its associated resources.
-// TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1.BotService.DeleteBot] instead.
-func (g *GRPCServer) DeleteBot(ctx context.Context, req *authpb.DeleteBotRequest) (*emptypb.Empty, error) {
-	return g.botService.DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
-		BotName: req.Name,
-	})
-}
-
-// GetBotUsers lists all users with a bot label
-// TODO(noah): DELETE IN 16.0.0
-// Deprecated: use [machineidv1.BotService.ListBots] instead.
-func (g *GRPCServer) GetBotUsers(_ *authpb.GetBotUsersRequest, stream authpb.AuthService_GetBotUsersServer) error {
-	users, err := g.botService.GetBotUsersLegacy(stream.Context())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, user := range users {
-		v2, ok := user.(*types.UserV2)
-		if !ok {
-			log.Warnf("expected type services.UserV2, got %T for user %q", user, user.GetName())
-			return trace.Errorf("encountered unexpected user type")
-		}
-		if err := stream.Send(v2); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
 // GetPluginData loads all plugin data matching the supplied filter.
 func (g *GRPCServer) GetPluginData(ctx context.Context, filter *types.PluginDataFilter) (*authpb.PluginDataSeq, error) {
 	// TODO(fspmarshall): Implement rate-limiting to prevent misbehaving plugins from
@@ -5322,6 +5284,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
+
+	integrationAWSOIDCServiceServer, err := integrationService.NewAWSOIDCService(&integrationService.AWSOIDCServiceConfig{
+		Authorizer:         cfg.Authorizer,
+		IntegrationService: integrationServiceServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	integrationpb.RegisterAWSOIDCServiceServer(server, integrationAWSOIDCServiceServer)
 
 	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,

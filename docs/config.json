@@ -280,6 +280,10 @@
               "slug": "/access-controls/guides/per-session-mfa/"
             },
             {
+              "title": "MFA for Administrative Actions",
+              "slug": "/access-controls/guides/mfa-for-admin-actions/"
+            },
+            {
               "title": "Dual Authorization",
               "slug": "/access-controls/guides/dual-authz/",
               "forScopes": ["enterprise", "cloud"]
@@ -1840,7 +1844,7 @@
       "major_version": "16",
       "version": "16.0.0-dev",
       "url": "teleport.example.com",
-      "golang": "1.21",
+      "golang": "1.22",
       "plugin": {
         "version": "13.3.7"
       },

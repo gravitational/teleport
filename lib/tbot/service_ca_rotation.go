@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -131,6 +132,7 @@ type caRotationService struct {
 	reloadBroadcaster *channelBroadcaster
 	cfg               *config.BotConfig
 	botIdentitySrc    botIdentitySrc
+	resolver          reversetunnelclient.Resolver
 }
 
 func (s *caRotationService) String() string {
@@ -188,7 +190,7 @@ func (s *caRotationService) watchCARotations(ctx context.Context, queueReload fu
 	s.log.Debugf("Attempting to establish watch for CA events")
 
 	ident := s.botIdentitySrc.BotIdentity()
-	client, err := clientForIdentity(ctx, s.log, s.cfg, ident)
+	client, err := clientForIdentity(ctx, s.log, s.cfg, ident, s.resolver)
 	if err != nil {
 		return trace.Wrap(err, "creating client for ca watcher")
 	}
