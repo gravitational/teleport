@@ -57,12 +57,15 @@ has [moved their hashes to use base64](https://github.com/rollup/rollup/issues/4
 split file having the same hash across multiple versions is very low.
 
 #### File cleanup
-The first cause for concern is how to mitigate an s3 bucket filling up indefinitely with new versions of the webassets.
-Due to the chaotic nature of when/how often different users choose to upgrade, I believe it it out of scope for
-Teleport to have any control of bucket cleanup. However, we can provide some general suggestions and documentation
-that we think would work best. One of the things Teleport _can_ provide is a `TeleportVersion` tag for each webasset
-file (assuming the compatible storage supports tags). This will give the users some insight into which version a specific
-file is supporting.
+Our current webasset bundle is ~7mb The first cause for concern is how to
+mitigate an s3 bucket filling up indefinitely with new versions of the
+webassets. Due to the chaotic nature of when/how often different users choose to
+upgrade, I believe it it out of scope for Teleport to have any control of bucket
+cleanup. However, we can provide some general suggestions and documentation that
+we think would work best. One of the things Teleport _can_ provide is a
+`TeleportVersion` tag for each webasset file (assuming the compatible storage
+supports tags). This will give the users some insight into which version a
+specific file is supporting.
 
 The suggested way to cleanup files is to set a [lifecycle rule](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html) based on expiration. This will
 let files naturally cleanup themselves after a specified time. If a file is deleted due to this rule for a proxy version still
