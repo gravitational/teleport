@@ -133,7 +133,7 @@ func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListI
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead, types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -164,7 +164,7 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	integration, err := s.cache.GetIntegration(ctx, req.GetName())
@@ -187,7 +187,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -211,7 +211,7 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -235,7 +235,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -253,7 +253,7 @@ func (s *Service) DeleteAllIntegrations(ctx context.Context, _ *integrationpb.De
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
