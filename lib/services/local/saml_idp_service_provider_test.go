@@ -638,7 +638,7 @@ func TestEntityDescriptorConfiguredPerServiceProviderSubkind(t *testing.T) {
 			require.NoError(t, err)
 			sp.SetSubKind(test.subkind)
 
-			err = service.configureEntityDescriptorByAppType(sp)
+			err = service.configureEntityDescriptorPerSubkind(sp)
 			require.NoError(t, err)
 			ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 			require.NoError(t, err)

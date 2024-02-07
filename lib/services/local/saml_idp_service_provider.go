@@ -113,7 +113,7 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if sp.GetEntityDescriptor() == "" {
-		if err := s.configureEntityDescriptorByAppType(sp); err != nil {
+		if err := s.configureEntityDescriptorPerSubkind(sp); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -237,8 +237,8 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 	return nil
 }
 
-// configureEntityDescriptorByAppType configures entity descriptor based on SAML app type.
-func (s *SAMLIdPServiceProviderService) configureEntityDescriptorByAppType(sp types.SAMLIdPServiceProvider) error {
+// configureEntityDescriptorPerSubkind configures entity descriptor based on SAML service provider subkind.
+func (s *SAMLIdPServiceProviderService) configureEntityDescriptorPerSubkind(sp types.SAMLIdPServiceProvider) error {
 	switch sp.GetSubKind() {
 	case samlserviceprovider.GoogleWorkspace:
 		return s.generateAndSetEntityDescriptor(sp, types.SAMLEmailAddressNameIDFormat)
