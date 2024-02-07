@@ -254,7 +254,8 @@ USER ci
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
     rustup --version && \
     cargo --version && \
-    rustc --version
+    rustc --version && \
+    rustup target add wasm32-unknown-unknown
 
 # Install wasm-pack for targeting WebAssembly from Rust.
 ARG WASM_PACK_VERSION

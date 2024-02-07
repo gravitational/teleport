@@ -43,8 +43,14 @@ var (
 	// requiredCapacityProviders contains the FARGATE type which is required to deploy a Teleport Service.
 	requiredCapacityProviders = []string{launchTypeFargateString}
 
-	// oneAgent is used to define the desired agent count when creating a service.
-	oneAgent = int32(1)
+	// twoAgents is used to define the desired agent count when creating a service.
+	// Deploying two agents in a FARGATE LaunchType Service, will most likely deploy
+	// each one in a different AZ, as long as the Subnets include mustiple AZs.
+	// From AWS Docs:
+	// > Task placement strategies and constraints aren't supported for tasks using the Fargate launch type.
+	// > Fargate will try its best to spread tasks across accessible Availability Zones.
+	// > https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-placement.html#fargate-launch-type
+	twoAgents = int32(2)
 )
 
 const (
@@ -725,7 +731,7 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req upsertServi
 
 			updateServiceResp, err := clt.UpdateService(ctx, &ecs.UpdateServiceInput{
 				Service:              aws.String(req.ServiceName),
-				DesiredCount:         &oneAgent,
+				DesiredCount:         &twoAgents,
 				TaskDefinition:       &taskARN,
 				Cluster:              aws.String(req.ClusterName),
 				NetworkConfiguration: deployServiceNetworkConfiguration(req.SubnetIDs, req.SecurityGroups),
@@ -742,7 +748,7 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req upsertServi
 
 	createServiceOut, err := clt.CreateService(ctx, &ecs.CreateServiceInput{
 		ServiceName:          aws.String(req.ServiceName),
-		DesiredCount:         &oneAgent,
+		DesiredCount:         &twoAgents,
 		LaunchType:           ecsTypes.LaunchTypeFargate,
 		TaskDefinition:       &taskARN,
 		Cluster:              aws.String(req.ClusterName),
