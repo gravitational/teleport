@@ -26,6 +26,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 )
 
 // TestConfigureExternalAuditStorage tests that ConfigureExternalAuditStorage
@@ -36,7 +38,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 
 	for _, tc := range []struct {
 		desc                 string
-		params               ExternalAuditStorageConfiguration
+		params               *easconfig.ExternalAuditStorageConfiguration
 		stsAccount           string
 		existingRolePolicies map[string]map[string]string
 		expectedRolePolicies map[string]map[string]string
@@ -45,7 +47,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		{
 			// A passing case with the account from sts:GetCallerIdentity
 			desc: "passing",
-			params: ExternalAuditStorageConfiguration{
+			params: &easconfig.ExternalAuditStorageConfiguration{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "test-role",
@@ -125,7 +127,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		},
 		{
 			desc: "alternate partition and region",
-			params: ExternalAuditStorageConfiguration{
+			params: &easconfig.ExternalAuditStorageConfiguration{
 				Partition:            "aws-cn",
 				Region:               "cn-north-1",
 				Role:                 "test-role",
@@ -205,7 +207,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		},
 		{
 			desc: "bad uri",
-			params: ExternalAuditStorageConfiguration{
+			params: &easconfig.ExternalAuditStorageConfiguration{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "test-role",
@@ -227,7 +229,7 @@ func TestConfigureExternalAuditStorage(t *testing.T) {
 		},
 		{
 			desc: "role not found",
-			params: ExternalAuditStorageConfiguration{
+			params: &easconfig.ExternalAuditStorageConfiguration{
 				Partition:            "aws",
 				Region:               "us-west-2",
 				Role:                 "bad-role",

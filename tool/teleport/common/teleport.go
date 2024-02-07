@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -1028,7 +1029,7 @@ func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabase
 	return nil
 }
 
-func onIntegrationConfExternalAuditCmd(params config.ExternalAuditStorageConfiguration) error {
+func onIntegrationConfExternalAuditCmd(params easconfig.ExternalAuditStorageConfiguration) error {
 	ctx := context.Background()
 	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
 	if err != nil {
@@ -1058,17 +1059,5 @@ func onIntegrationConfExternalAuditCmd(params config.ExternalAuditStorageConfigu
 		Iam: iam.NewFromConfig(cfg),
 		Sts: sts.NewFromConfig(cfg),
 	}
-	confExternalAuditStorageParams := awsoidc.ExternalAuditStorageConfiguration{
-		Region:               params.Region,
-		Role:                 params.Role,
-		Policy:               params.Policy,
-		SessionRecordingsURI: params.SessionRecordingsURI,
-		AuditEventsURI:       params.AuditEventsURI,
-		AthenaResultsURI:     params.AthenaResultsURI,
-		AthenaWorkgroup:      params.AthenaWorkgroup,
-		GlueDatabase:         params.GlueDatabase,
-		GlueTable:            params.GlueTable,
-		Partition:            params.Partition,
-	}
-	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, confExternalAuditStorageParams))
+	return trace.Wrap(awsoidc.ConfigureExternalAuditStorage(ctx, clt, &params))
 }
