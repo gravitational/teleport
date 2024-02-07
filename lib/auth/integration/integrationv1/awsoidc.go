@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -89,4 +90,63 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.Gen
 	return &integrationpb.GenerateAWSOIDCTokenResponse{
 		Token: token,
 	}, nil
+}
+
+// AWSOIDCServiceConfig holds configuration options for the AWSOIDC Integration gRPC service.
+type AWSOIDCServiceConfig struct {
+	IntegrationService *Service
+	Authorizer         authz.Authorizer
+	Logger             *logrus.Entry
+}
+
+// CheckAndSetDefaults checks the AWSOIDCServiceConfig fields and returns an error if a required param is not provided.
+// Authorizer and IntegrationService are required params.
+func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
+	if s.Authorizer == nil {
+		return trace.BadParameter("authorizer is required")
+	}
+
+	if s.IntegrationService == nil {
+		return trace.BadParameter("integration service is required")
+	}
+
+	if s.Logger == nil {
+		s.Logger = logrus.WithField(trace.Component, "integrations.awsoidc.service")
+	}
+
+	return nil
+}
+
+// AWSOIDCService implements the teleport.integration.v1.AWSOIDCService RPC service.
+type AWSOIDCService struct {
+	integrationpb.UnimplementedAWSOIDCServiceServer
+
+	integrationService *Service
+	authorizer         authz.Authorizer
+	logger             *logrus.Entry
+}
+
+// NewAWSOIDCService returns a new AWSOIDCService.
+func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &AWSOIDCService{
+		integrationService: cfg.IntegrationService,
+		logger:             cfg.Logger,
+		authorizer:         cfg.Authorizer,
+	}, nil
+}
+
+var _ integrationpb.AWSOIDCServiceServer = (*AWSOIDCService)(nil)
+
+// ListIntegrations returns a paginated list of Databases.
+func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.ListDatabasesRequest) (*integrationpb.ListDatabasesResponse, error) {
+	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbUse)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, trace.NotImplemented("not implemented")
 }
