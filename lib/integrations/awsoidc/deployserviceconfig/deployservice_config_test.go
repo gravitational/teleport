@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,6 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ManageDevices from './ManageDevices';
+package deployserviceconfig
 
-export default ManageDevices;
+import (
+	"encoding/base64"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+)
+
+func TestDeployServiceConfig(t *testing.T) {
+	t.Run("ensure log level is set to debug", func(t *testing.T) {
+		base64Config, err := GenerateTeleportConfigString("host:port", "iam-token", types.Labels{})
+		require.NoError(t, err)
+
+		// Config must have the following string:
+		// severity: debug
+
+		base64SeverityDebug := base64.StdEncoding.EncodeToString([]byte("severity: debug"))
+		require.Contains(t, base64Config, base64SeverityDebug)
+	})
+}

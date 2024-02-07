@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,28 +16,41 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package awsoidc
+export type ApiBotMetadata = {
+  description: string;
+  labels: Map<string, string>;
+  name: string;
+  namespace: string;
+  revision: string;
+};
 
-import (
-	"encoding/base64"
-	"testing"
+export type ApiBotSpec = {
+  roles: string[];
+  traits: ApiBotTrait[];
+};
 
-	"github.com/stretchr/testify/require"
-)
+export type ApiBotTrait = {
+  name: string;
+  values: string[];
+};
 
-func TestDeployServiceConfig(t *testing.T) {
-	t.Run("ensure log level is set to debug", func(t *testing.T) {
-		base64Config, err := generateTeleportConfigString(generateTeleportConfigParams{
-			ProxyServerHostPort:  "host:port",
-			TeleportIAMTokenName: "iam-token",
-			DeploymentMode:       DatabaseServiceDeploymentMode,
-		})
-		require.NoError(t, err)
+export type ApiBot = {
+  kind: string;
+  metadata: ApiBotMetadata;
+  spec: ApiBotSpec;
+  status: string;
+  subKind: string;
+  version: string;
+};
 
-		// Config must have the following string:
-		// severity: debug
+export type BotList = {
+  bots: FlatBot[];
+};
 
-		base64SeverityDebug := base64.StdEncoding.EncodeToString([]byte("severity: debug"))
-		require.Contains(t, base64Config, base64SeverityDebug)
-	})
-}
+export type FlatBot = Omit<ApiBot, 'metadata' | 'spec'> &
+  ApiBotMetadata &
+  ApiBotSpec;
+
+export type BotResponse = {
+  items: ApiBot[];
+};

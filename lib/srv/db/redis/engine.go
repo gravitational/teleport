@@ -526,14 +526,14 @@ func (e *Engine) isIAMAuthError(err error) bool {
 
 // isRedisError returns true is error comes from Redis, ex, nil, bad command, etc.
 func isRedisError(err error) bool {
-	_, ok := err.(redis.RedisError)
-	return ok
+	var redisError redis.RedisError
+	return errors.As(err, &redisError)
 }
 
 // isTeleportErr returns true if error comes from Teleport itself.
 func isTeleportErr(err error) bool {
-	_, ok := err.(trace.Error)
-	return ok
+	var error trace.Error
+	return errors.As(err, &error)
 }
 
 // driverLogger implements go-redis driver's internal logger using logrus and

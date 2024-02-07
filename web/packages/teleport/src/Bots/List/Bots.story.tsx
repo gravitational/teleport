@@ -18,18 +18,22 @@
 
 import React from 'react';
 
-import { State } from './useChangePassword';
-import { ChangePassword } from './ChangePassword';
+import { botsFixture } from 'teleport/Bots/fixtures';
+import { BotList } from 'teleport/Bots/List/BotList';
 
 export default {
-  title: 'Teleport/Account/Change Password',
+  title: 'Teleport/Bots',
 };
 
-export const Loaded = () => <ChangePassword {...props} />;
-
-const props: State = {
-  changePassword: () => null,
-  changePasswordWithWebauthn: () => null,
-  preferredMfaType: 'webauthn',
-  auth2faType: 'on',
+export const List = () => {
+  return (
+    <BotList
+      attempt={{ status: '' }}
+      bots={botsFixture}
+      onDelete={() => {}}
+      onClose={() => {}}
+      selectedBot={null}
+      setSelectedBot={() => {}}
+    />
+  );
 };

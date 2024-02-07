@@ -193,5 +193,5 @@ updates:
       - camscale
     labels:
       - "dependencies"
-      - "github_actions"
+      - "github-actions"
       - "no-changelog"

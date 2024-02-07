@@ -15,30 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { Dispatch, SetStateAction } from 'react';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import React from 'react';
-import { render } from 'design/utils/testing';
+import { FlatBot } from 'teleport/services/bot/types';
 
-import {
-  Loaded,
-  Failed,
-  RestrictedTokenCreateFailed,
-} from './ManageDevices.story';
+export type BotOptionsCellProps = {
+  bot: FlatBot;
+  onClickDelete: (bot: FlatBot) => void;
+};
 
-test('render device dashboard', () => {
-  const { container } = render(<Loaded />);
+export type BotListProps = {
+  attempt: Attempt;
+  bots: FlatBot[];
+  onClose: () => void;
+  onDelete: () => void;
+  selectedBot: FlatBot;
+  setSelectedBot: Dispatch<SetStateAction<FlatBot>>;
+};
 
-  expect(container.firstChild).toMatchSnapshot();
-});
-
-test('render failed state for fetching devices', () => {
-  const { container } = render(<Failed />);
-
-  expect(container.firstChild).toMatchSnapshot();
-});
-
-test('render failed state for creating restricted privilege token', () => {
-  const { container } = render(<RestrictedTokenCreateFailed />);
-
-  expect(container.firstChild).toMatchSnapshot();
-});
+export type DeleteBotProps = {
+  attempt: Attempt;
+  name: string;
+  onClose: () => void;
+  onDelete: () => void;
+};

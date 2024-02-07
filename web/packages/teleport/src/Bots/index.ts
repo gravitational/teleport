@@ -16,6 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ChangePassword from './ChangePassword';
-
-export default ChangePassword;
+// export as default for use with React.lazy
+export { Bots as default } from './List/Bots';
