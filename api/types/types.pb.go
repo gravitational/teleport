@@ -7276,7 +7276,7 @@ type RoleConditions struct {
 	// GroupLabelsExpression is a predicate expression used to allow/deny
 	// access to user groups.
 	GroupLabelsExpression string `protobuf:"bytes,37,opt,name=GroupLabelsExpression,proto3" json:"group_labels_expression,omitempty"`
-	// DatabasePermission specifies a set of permissions that will be granted
+	// DatabasePermissions specifies a set of permissions that will be granted
 	// to the database user when using automatic database user provisioning.
 	DatabasePermissions  []DatabasePermission `protobuf:"bytes,38,rep,name=DatabasePermissions,proto3" json:"db_permissions,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
