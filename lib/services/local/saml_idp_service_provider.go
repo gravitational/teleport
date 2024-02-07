@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/samlserviceprovider"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -112,14 +113,8 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if sp.GetEntityDescriptor() == "" {
-		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
-			// We aren't interested in checking error type as any occurrence of error mean entity descriptor was not set.
-			// But a debug log should be helpful to indicate source of error.
-			s.log.Debugf("Failed to fetch entity descriptor from %s. %s.", sp.GetEntityID(), err.Error())
-
-			if err := s.generateAndSetEntityDescriptor(sp); err != nil {
-				return trace.BadParameter("could not generate entity descriptor with given entity_id and acs_url.")
-			}
+		if err := s.configureEntityDescriptorByAppType(sp); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -242,6 +237,26 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 	return nil
 }
 
+// configureEntityDescriptorByAppType configures entity descriptor based on SAML app type.
+func (s *SAMLIdPServiceProviderService) configureEntityDescriptorByAppType(sp types.SAMLIdPServiceProvider) error {
+	switch sp.GetSubKind() {
+	case samlserviceprovider.GoogleWorkspace:
+		return s.generateAndSetEntityDescriptor(sp, types.SAMLEmailAddressNameIDFormat)
+	default:
+		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
+			// We aren't interested in checking error type as any occurrence of error mean entity descriptor was not set.
+			// But a debug log should be helpful to indicate source of error.
+			s.log.Debugf("Failed to fetch entity descriptor from %s. %s.", sp.GetEntityID(), err.Error())
+
+			if err := s.generateAndSetEntityDescriptor(sp, types.SAMLUnspecifiedNameIDFormat); err != nil {
+				return trace.BadParameter("could not generate entity descriptor with given entity_id and acs_url.")
+			}
+		}
+	}
+
+	return nil
+}
+
 // fetchAndSetEntityDescriptor fetches Service Provider entity descriptor (aka SP metadata)
 // from remote metadata endpoint (Entity ID) and sets it to sp if the xml format
 // is a valid Service Provider metadata format.
@@ -276,7 +291,7 @@ func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAM
 
 // generateAndSetEntityDescriptor generates and sets Service Provider entity descriptor
 // with ACS URL, Entity ID and unspecified NameID format.
-func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.SAMLIdPServiceProvider) error {
+func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.SAMLIdPServiceProvider, nameIDFormat saml.NameIDFormat) error {
 	s.log.Infof("Generating a default entity_descriptor with entity_id %s and acs_url %s.", sp.GetEntityID(), sp.GetACSURL())
 
 	acsURL, err := url.Parse(sp.GetACSURL())
@@ -287,7 +302,7 @@ func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.
 	newServiceProvider := saml.ServiceProvider{
 		EntityID:          sp.GetEntityID(),
 		AcsURL:            *acsURL,
-		AuthnNameIDFormat: saml.UnspecifiedNameIDFormat,
+		AuthnNameIDFormat: nameIDFormat,
 	}
 
 	ed := newServiceProvider.Metadata()
@@ -299,7 +314,7 @@ func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.
 	services.FilterSAMLEntityDescriptor(ed, true /* quiet */)
 	edXMLBytes, err := xml.MarshalIndent(ed, "", "  ")
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "could not generate entity descriptor with given entity_id and acs_url:")
 	}
 
 	sp.SetEntityDescriptor(string(edXMLBytes))
