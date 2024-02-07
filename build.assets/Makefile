@@ -88,6 +88,35 @@ PULL_ON_CI = $(if $(filter $(CI),true),docker inspect --type=image $(1) >/dev/nu
 # more details.
 RELEASE_TARGET ?= release
 
+# This variable extracts the name of the Docker buildx builder that uses the Docker driver.
+#
+# The awk command looks for the first line that has "docker" in the second or third column.
+# We check both columns to account for the possibility that the builder is "selected", in which
+# case the second column will be a * and the third column will be "docker".
+#
+# Second column match:
+#
+# $ docker buildx ls
+# NAME/NODE           DRIVER/ENDPOINT             STATUS   BUILDKIT PLATFORMS
+# container-driver *  docker-container
+#   container-driver0 unix:///var/run/docker.sock inactive
+# default             docker
+#   default           default                     running  20.10.23 linux/arm64, linux/arm/v7, linux/arm/v6
+#
+# Third column match:
+#
+# $ docker buildx ls
+# NAME/NODE           DRIVER/ENDPOINT             STATUS   BUILDKIT PLATFORMS
+# container-driver    docker-container
+#   container-driver0 unix:///var/run/docker.sock inactive
+# default *           docker
+#   default           default                     running  20.10.23 linux/arm64, linux/arm/v7, linux/arm/v6
+DOCKER_BUILDER_NAME=$(shell docker buildx ls 2>/dev/null | awk '$$2 == "docker" || $$3 == "docker" {print $$1}')
+
+.PHONY:print-docker-builder-name
+print-docker-builder-name:
+	@echo $(DOCKER_BUILDER_NAME)
+
 #
 # Build 'teleport' release inside a docker container
 #
@@ -132,6 +161,7 @@ build-binaries-fips: buildbox-centos7-fips webassets
 buildbox:
 	$(call PULL_ON_CI,$(BUILDBOX))
 	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -171,6 +201,7 @@ buildbox-centos7:
 	$(REQUIRE_HOST_ARCH)
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH))
 	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
@@ -201,6 +232,7 @@ buildbox-centos7:
 buildbox-centos7-fips: buildbox-centos7
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH))
 	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
@@ -216,6 +248,7 @@ buildbox-centos7-fips: buildbox-centos7
 buildbox-arm:
 	$(call PULL_ON_CI,$(BUILDBOX_ARM))
 	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -239,6 +272,7 @@ endif
 buildbox-node:
 	$(call PULL_ON_CI,$(BUILDBOX_NODE))
 	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
@@ -611,6 +645,7 @@ print-buildbox-version:
 .PHONY:build-centos7-assets
 build-centos7-assets:
 	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg BUILDARCH=$(HOST_ARCH) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
