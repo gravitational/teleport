@@ -41,13 +41,16 @@ import (
 
 // printShutdownStatus prints running services until shut down
 func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
-	t := time.NewTicker(defaults.HighResReportingPeriod)
+	statusInterval := defaults.HighResPollingPeriod
+	t := time.NewTimer(statusInterval)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			statusInterval = min(statusInterval*2, defaults.LowResPollingPeriod)
+			t.Reset(statusInterval)
 			process.log.Infof("Waiting for services: %v to finish.", process.Supervisor.Services())
 		}
 	}
