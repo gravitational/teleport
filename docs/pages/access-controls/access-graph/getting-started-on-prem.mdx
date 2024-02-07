@@ -2,17 +2,11 @@
 title: Run Teleport Access Graph on Self-Hosted Clusters
 ---
 
-<Notice type="note">
 Teleport Access Graph is enabled by default for Teleport Team users.
 You can skip the setup process here and start using Access Graph right away
 by signing up for a [Teleport Team trial](https://goteleport.com/signup/).
-</Notice>
 
 ## Prerequisites
-
-<Tabs>
-<TabItem
-  scope={["enterprise"]} label="Self-Hosted Enterprise">
 
 - A running Teleport Enterprise cluster v14.3.4 or later.
 - An updated `license.pem` with Teleport Policy enabled.
@@ -26,9 +20,6 @@ by signing up for a [Teleport Team trial](https://goteleport.com/signup/).
   - The TLS certificate must be issued for "server authentication" key usage,
     and must list the IP or DNS name of the TAG service in an X.509 v3 `subjectAltName` extension.
 - The node running the Access Graph service must be reachable from Teleport Auth and Proxy services.
-
-</TabItem>
-</Tabs>
 
 ## Step 1/3. Set up the Teleport Access Graph service
 
