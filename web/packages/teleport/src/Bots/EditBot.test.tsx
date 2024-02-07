@@ -21,7 +21,7 @@ import { render, screen, userEvent } from 'design/utils/testing';
 import { EditBot } from 'teleport/Bots/EditBot';
 import { EditBotProps } from 'teleport/Bots/types';
 
-const makeProps = (): EditBotProps => ({
+const makeProps = (overrides: Partial<EditBotProps> = {}): EditBotProps => ({
   allRoles: [],
   attempt: { status: '' },
   name: 'bot-007',
@@ -29,11 +29,11 @@ const makeProps = (): EditBotProps => ({
   onEdit: () => {},
   selectedRoles: [],
   setSelectedRoles: () => {},
+  ...overrides,
 });
 
 test('renders', async () => {
-  const props = makeProps();
-  props.selectedRoles = ['foo-role'];
+  const props = makeProps({ selectedRoles: ['foo-role'] });
   render(<EditBot {...props} />);
 
   expect(screen.getByText('Edit Bot')).toBeInTheDocument();
@@ -50,9 +50,8 @@ test('renders', async () => {
 });
 
 test('cancel calls onclose cb', async () => {
-  const props = makeProps();
   const mockClose = jest.fn();
-  props.onClose = mockClose;
+  const props = makeProps({ onClose: mockClose });
   render(<EditBot {...props} />);
 
   expect(mockClose).not.toHaveBeenCalled();
@@ -61,9 +60,8 @@ test('cancel calls onclose cb', async () => {
 });
 
 test('edit calls onedit cb', async () => {
-  const props = makeProps();
   const mockEdit = jest.fn();
-  props.onEdit = mockEdit;
+  const props = makeProps({ onEdit: mockEdit });
   render(<EditBot {...props} />);
 
   expect(mockEdit).not.toHaveBeenCalled();
@@ -72,8 +70,7 @@ test('edit calls onedit cb', async () => {
 });
 
 test('disables buttons when processing', async () => {
-  const props = makeProps();
-  props.attempt = { status: 'processing' };
+  const props = makeProps({ attempt: { status: 'processing' } });
   render(<EditBot {...props} />);
 
   expect(screen.queryByRole('button', { name: 'Save' })).toBeDisabled();
@@ -81,8 +78,9 @@ test('disables buttons when processing', async () => {
 });
 
 test('displays error text', async () => {
-  const props = makeProps();
-  props.attempt = { status: 'failed', statusText: 'error editing' };
+  const props = makeProps({
+    attempt: { status: 'failed', statusText: 'error editing' },
+  });
   render(<EditBot {...props} />);
 
   expect(screen.getByText('error editing')).toBeInTheDocument();

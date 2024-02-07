@@ -229,13 +229,6 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 		return nil, trace.Wrap(err)
 	}
 
-	bot, err := clt.BotServiceClient().GetBot(r.Context(), &machineidv1.GetBotRequest{
-		BotName: botName,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "unable to find existing bot")
-	}
-
 	mask, err := fieldmaskpb.New(&machineidv1.Bot{}, "spec.roles")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -244,15 +237,12 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
 		UpdateMask: mask,
 		Bot: &machineidv1.Bot{
-			Kind:     bot.Kind,
-			SubKind:  bot.SubKind,
-			Version:  bot.Version,
-			Metadata: bot.Metadata,
-			Spec: &machineidv1.BotSpec{
-				Roles:  request.Roles,
-				Traits: bot.Spec.Traits,
+			Metadata: &headerv1.Metadata{
+				Name: botName,
 			},
-			Status: bot.Status,
+			Spec: &machineidv1.BotSpec{
+				Roles: request.Roles,
+			},
 		},
 	})
 	if err != nil {
