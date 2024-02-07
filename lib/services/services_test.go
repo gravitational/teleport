@@ -141,7 +141,7 @@ func TestServerDeepCopy(t *testing.T) {
 
 	// verify
 	require.Empty(t, cmp.Diff(srv, srv2))
-	require.IsType(t, srv2, &types.ServerV2{})
+	require.IsType(t, &types.ServerV2{}, srv2)
 
 	// Mutate the second value but expect the original to be unaffected
 	srv2.(*types.ServerV2).Metadata.Labels["foo"] = "bar"

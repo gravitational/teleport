@@ -2265,7 +2265,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, len(servers))
+	require.Len(t, servers, 1)
 	require.Empty(t, cmp.Diff(testServers[0:1], servers))
 	resp, err := clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -2332,7 +2332,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, len(servers))
+	require.Empty(t, servers)
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Empty(t, resp.Resources)
@@ -2427,7 +2427,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, 1, len(servers))
+	require.Len(t, servers, 1)
 	require.Empty(t, cmp.Diff(testAppServers[0:1], servers))
 	resp, err := clt.ListResources(ctx, listRequestAppsOnly)
 	require.NoError(t, err)
@@ -2506,7 +2506,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, 0, len(servers))
+	require.Empty(t, servers)
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Empty(t, resp.Resources)
@@ -3441,7 +3441,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	desktops, err := clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.EqualValues(t, 1, len(desktops))
+	require.Len(t, desktops, 1)
 	require.Empty(t, cmp.Diff(testDesktops[0:1], desktops))
 
 	resp, err := clt.ListResources(ctx, listRequest)
@@ -3524,7 +3524,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.EqualValues(t, 0, len(desktops))
+	require.Empty(t, desktops)
 	require.Empty(t, cmp.Diff([]types.WindowsDesktop{}, desktops))
 
 	resp, err = clt.ListResources(ctx, listRequest)

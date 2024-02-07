@@ -754,7 +754,7 @@ func TestRoleParse(t *testing.T) {
 
 				role2, err := UnmarshalRole(out)
 				require.NoError(t, err)
-				require.Equal(t, role2, &tc.role)
+				require.Equal(t, &tc.role, role2)
 			}
 		})
 	}
