@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package vnet
 
 import (
@@ -14,13 +30,8 @@ import (
 	"syscall"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/vnet/dns"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 	"gvisor.dev/gvisor/pkg/buffer"
@@ -33,25 +44,63 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 const (
-	// TODO: Find optimal MTU.
-	mtu              = 1500
 	nicID            = 1
-	privateDNSSuffix = ".teleport.private."
+	mtu              = 1500 // TODO: Find optimal MTU.
+	defaultDNSSuffix = ".teleport.private."
 )
 
 var (
-	dnsAddr = tcpip.AddrFrom4([4]byte{100, 127, 100, 127})
+	defaultDNSAddress = tcpip.AddrFrom4([4]byte{100, 127, 100, 127})
 )
 
+// Config holds configuration parameters for the VNet.
+type Config struct {
+	Client     *client.TeleportClient
+	TunDevice  tun.Device
+	DNSAddress tcpip.Address
+	DNSSuffix  string
+}
+
+// CheckAndSetDefaults checks the config and sets defaults.
+func (c *Config) CheckAndSetDefaults() error {
+	if c.Client == nil {
+		return trace.BadParameter("client is required")
+	}
+	if c.TunDevice == nil {
+		return trace.BadParameter("TUN device is required")
+	}
+	if c.DNSAddress == (tcpip.Address{}) {
+		c.DNSAddress = defaultDNSAddress
+	}
+	if c.DNSSuffix == "" {
+		c.DNSSuffix = defaultDNSSuffix
+	}
+	return nil
+}
+
+// Run is a blocking call to create and start Teleport VNet.
 func Run(ctx context.Context, tc *client.TeleportClient) error {
-	manager, err := newManager(ctx, tc)
+	tun, err := SetupAsAdmin()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := manager.run(); err != nil {
+
+	manager, err := NewManager(ctx, &Config{
+		Client:    tc,
+		TunDevice: tun,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := manager.Run(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -72,8 +121,12 @@ type state struct {
 	ips         map[string]tcpip.Address
 }
 
-type manager struct {
+// Manager holds configuration and state for the VNet.
+type Manager struct {
 	tc            *client.TeleportClient
+	tun           tun.Device
+	dnsSuffix     string
+	dnsAddress    tcpip.Address
 	stack         *stack.Stack
 	rootCtx       context.Context
 	rootCtxCancel context.CancelFunc
@@ -83,7 +136,12 @@ type manager struct {
 	mu            sync.RWMutex
 }
 
-func newManager(ctx context.Context, tc *client.TeleportClient) (m *manager, err error) {
+// NewManager creates a new VNet manager with the given configuration and root
+// context. Call Run() on the returned manager to start the VNet.
+func NewManager(ctx context.Context, cfg *Config) (m *Manager, err error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	stack, err := createStack()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,8 +149,11 @@ func newManager(ctx context.Context, tc *client.TeleportClient) (m *manager, err
 	slog := slog.With(trace.Component, "VNet")
 	dnsServer := dns.NewServer(slog)
 	ctx, cancel := context.WithCancel(ctx)
-	return &manager{
-		tc:            tc,
+	return &Manager{
+		tc:            cfg.Client,
+		tun:           cfg.TunDevice,
+		dnsSuffix:     cfg.DNSSuffix,
+		dnsAddress:    cfg.DNSAddress,
 		stack:         stack,
 		rootCtx:       ctx,
 		rootCtxCancel: cancel,
@@ -101,20 +162,9 @@ func newManager(ctx context.Context, tc *client.TeleportClient) (m *manager, err
 	}, nil
 }
 
-func (m *manager) run() error {
+// Run starts the VNet.
+func (m *Manager) Run() error {
 	defer m.rootCtxCancel()
-
-	tun, tunName, err := createTunDevice()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	go func() {
-		<-m.rootCtx.Done()
-		if err := tun.Close(); err != nil {
-			m.slog.Debug("Closing TUN device.", "err", err)
-		}
-	}()
-	m.slog.Info("Created TUN device.", "dev", tunName)
 
 	const (
 		// TODO: Figure out optimal values for these.
@@ -125,7 +175,6 @@ func (m *manager) run() error {
 	udpForwarder := udp.NewForwarder(m.stack, m.handleUDP)
 	m.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
 	m.stack.SetTransportProtocolHandler(udp.ProtocolNumber, udpForwarder.HandlePacket)
-
 	const (
 		size     = 512
 		linkAddr = ""
@@ -137,10 +186,6 @@ func (m *manager) run() error {
 	// Make the NIC accept all IP packets on the VNet, regardless of destination
 	// address.
 	m.stack.SetPromiscuousMode(nicID, true)
-
-	if err := setupHostIPRoutes(tunName); err != nil {
-		return trace.Wrap(err, "setting up host IP routes")
-	}
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGUSR1)
@@ -160,24 +205,24 @@ func (m *manager) run() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(forwardBetweenOsAndVnet(m.rootCtx, tun, linkEndpoint))
+	return trace.Wrap(forwardBetweenOsAndVnet(m.rootCtx, m.tun, linkEndpoint))
 }
 
-func (m *manager) tcpHandler(addr tcpip.Address) (tcpHandler, bool) {
+func (m *Manager) tcpHandler(addr tcpip.Address) (tcpHandler, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	handler, ok := m.state.tcpHandlers[addr]
 	return handler, ok
 }
 
-func (m *manager) udpHandler(addr tcpip.Address) (udpHandler, bool) {
+func (m *Manager) udpHandler(addr tcpip.Address) (udpHandler, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	handler, ok := m.state.udpHandlers[addr]
 	return handler, ok
 }
 
-func (m *manager) handleTCP(req *tcp.ForwarderRequest) {
+func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	ctx, cancel := context.WithCancel(m.rootCtx)
 	defer cancel()
 	slog := m.slog.With("request_id", req.ID())
@@ -234,7 +279,7 @@ func (m *manager) handleTCP(req *tcp.ForwarderRequest) {
 	}
 }
 
-func (m *manager) handleUDP(req *udp.ForwarderRequest) {
+func (m *Manager) handleUDP(req *udp.ForwarderRequest) {
 	ctx, cancel := context.WithCancel(m.rootCtx)
 	defer cancel()
 	slog := m.slog.With("request_id", req.ID())
@@ -272,7 +317,7 @@ func (m *manager) handleUDP(req *udp.ForwarderRequest) {
 	}
 }
 
-func (m *manager) refreshState(ctx context.Context) error {
+func (m *Manager) refreshState(ctx context.Context) error {
 	apps, err := m.tc.ListApps(ctx, nil /*filters*/)
 	if err != nil {
 		return trace.Wrap(err)
@@ -288,7 +333,7 @@ func (m *manager) refreshState(ctx context.Context) error {
 		addr := tcpip.AddrFrom4([4]byte{byte(nextIp >> 24), byte(nextIp >> 16), byte(nextIp >> 8), byte(nextIp)})
 		appName := app.GetName()
 		appPublicAddr := app.GetPublicAddr()
-		fqdn := appName + privateDNSSuffix
+		fqdn := appName + m.dnsSuffix
 		table.AddRow([]string{appName, fqdn, addr.String()})
 		tcpHandlers[addr] = proxyToApp(m.tc, appName, appPublicAddr)
 		catalog.PushAddress(fqdn, addr)
@@ -299,9 +344,9 @@ func (m *manager) refreshState(ctx context.Context) error {
 	m.dnsServer.UpdateCatalog(catalog)
 
 	udpHandlers := map[tcpip.Address]udpHandler{
-		dnsAddr: m.dnsServer.HandleUDPConn,
+		m.dnsAddress: m.dnsServer.HandleUDPConn,
 	}
-	fmt.Println("\nHosting DNS at", dnsAddr)
+	fmt.Println("\nHosting DNS at", m.dnsAddress)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -309,19 +354,6 @@ func (m *manager) refreshState(ctx context.Context) error {
 	m.state.tcpHandlers = tcpHandlers
 	m.state.udpHandlers = udpHandlers
 	return nil
-}
-
-func createTunDevice() (tun.Device, string, error) {
-	slog.Debug("Creating TUN device.")
-	dev, err := tun.CreateTUN("utun", mtu)
-	if err != nil {
-		return nil, "", trace.Wrap(err, "creating TUN device")
-	}
-	name, err := dev.Name()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "getting TUN device name")
-	}
-	return dev, name, nil
 }
 
 func createStack() (*stack.Stack, error) {
@@ -349,6 +381,12 @@ func forwardBetweenOsAndVnet(ctx context.Context, osTun tun.Device, vnetEndpoint
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return forwardVnetEndpointToOsTun(ctx, vnetEndpoint, osTun) })
 	g.Go(func() error { return forwardOsTunToVnetEndpoint(ctx, osTun, vnetEndpoint) })
+	g.Go(func() error {
+		<-ctx.Done()
+		osTun.Close()
+		vnetEndpoint.Close()
+		return nil
+	})
 	return trace.Wrap(g.Wait())
 }
 
@@ -399,6 +437,34 @@ func forwardOsTunToVnetEndpoint(ctx context.Context, tun tun.Device, dstEndpoint
 	}
 }
 
+// SetupAsAdmin handles the OS setup that needs to run with admin rights,
+// including creating the TUN device and setting up IP routes.
+func SetupAsAdmin() (tun.Device, error) {
+	tun, tunName, err := createTunDevice()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	slog.Info("Created TUN device.", "dev", tunName)
+
+	if err := setupHostIPRoutes(tunName); err != nil {
+		return nil, trace.Wrap(err, "setting up host IP routes")
+	}
+	return tun, nil
+}
+
+func createTunDevice() (tun.Device, string, error) {
+	slog.Debug("Creating TUN device.")
+	dev, err := tun.CreateTUN("utun", mtu)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "creating TUN device")
+	}
+	name, err := dev.Name()
+	if err != nil {
+		return nil, "", trace.Wrap(err, "getting TUN device name")
+	}
+	return dev, name, nil
+}
+
 // TODO: something better than this.
 func setupHostIPRoutes(tunName string) error {
 	const (
@@ -429,26 +495,4 @@ func getenvInt(envVar string) (int, error) {
 	i, err := strconv.Atoi(s)
 	return i, trace.Wrap(err)
 
-}
-
-func dropSudo() error {
-	ouid, err := getenvInt("SUDO_UID")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	ogid, err := getenvInt("SUDO_GID")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("Dropping sudo rights:")
-	fmt.Println("\tsetgid", ogid)
-	if err := syscall.Setgid(ogid); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Println("\tsetuid", ouid)
-	if err := syscall.Setuid(ouid); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
