@@ -93,7 +93,6 @@ export function makeBot(bot: ApiBot): FlatBot {
 }
 
 export function getBotType(labels: Map<string, string>): BotType {
-  labels = new Map();
   if (!labels) {
     return null;
   }
