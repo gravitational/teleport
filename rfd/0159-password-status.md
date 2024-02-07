@@ -49,7 +49,7 @@ Start([Start]) --> MFAAvail{MFA or passkeys<br>available?}
 MFAAvail --> |Yes| ShowMFAOptions[Show available identity<br>confirmation options]
 ShowMFAOptions --> Pick{Which<br>option?}
 Pick --> |Passwordless| WebAuthnVer[WebAuthn authentication,<br>verification required]
-Pick --> |MFA token| WebAuthnNoVer[WebAuthn authentication,<br>verification preferred]
+Pick --> |MFA token| WebAuthnNoVer[WebAuthn authentication,<br>verification discouraged]
 Pick --> |Authenticator app| AuthApp[Ask for code]
 WebAuthnVer --> NewPass[Ask for new password]
 WebAuthnNoVer --> OldAndNewPass[Ask for old and new password]
@@ -83,7 +83,7 @@ message UserV2 {
 }
 
 message UserStatusV2 {
-  PasswordState PasswordState = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
+  PasswordState password_state = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
 }
 
 enum PasswordState {
