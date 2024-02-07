@@ -145,7 +145,7 @@ buildbox:
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
 		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
-		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX) .
@@ -182,7 +182,7 @@ buildbox-centos7:
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
-		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) -f Dockerfile-centos7 .
@@ -202,7 +202,7 @@ buildbox-centos7-fips: buildbox-centos7
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH))
 	docker buildx build \
 		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
-		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) -f Dockerfile-centos7-fips .
@@ -221,7 +221,7 @@ buildbox-arm:
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_ARM) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
@@ -245,7 +245,7 @@ buildbox-node:
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
-		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_NODE) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_NODE) -f Dockerfile-node .
@@ -614,7 +614,7 @@ build-centos7-assets:
 		--build-arg BUILDARCH=$(HOST_ARCH) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
-		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
