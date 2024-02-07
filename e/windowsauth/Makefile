@@ -46,7 +46,7 @@ clean:
 
 .PHONY: $(DLL)
 $(DLL):
-	cargo build --target=x86_64-pc-windows-gnu --release
+	cargo build --target=x86_64-pc-windows-gnu --release --locked
 
 installer/resources.syso: installer/resources.rc installer/teleport.ico installer/manifest.xml
 	$(WINDRES) -D VERSION="$(VERSION_FULL)" -D VERSION_COMMA="$(VERSION_COMMA)" -i installer/resources.rc -o installer/resources.syso --use-temp-file -O coff
