@@ -34,6 +34,7 @@ export const List = () => {
       onClose={() => {}}
       selectedBot={null}
       setSelectedBot={() => {}}
+      onView={() => {}}
     />
   );
 };

@@ -36,12 +36,20 @@ import { FlatBot } from 'teleport/services/bot/types';
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
 
+import { ViewBot } from '../ViewBot';
+
+type Operation = {
+  type: 'edit' | 'view';
+  bot?: FlatBot;
+};
+
 export function Bots() {
   const ctx = useTeleport();
   const hasAddBotPermissions = ctx.getFeatureFlags().addBots;
 
   const [bots, setBots] = useState<FlatBot[]>();
   const [selectedBot, setSelectedBot] = useState<FlatBot>();
+  const [operation, setOperation] = useState<Operation>();
   const { attempt: deleteAttempt, run: deleteRun } = useAttemptNext();
   const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext('processing');
 
@@ -68,6 +76,15 @@ export function Bots() {
 
   function onClose() {
     setSelectedBot(null);
+  }
+
+  function onView(bot: FlatBot) {
+    console.log('bot', bot);
+    setOperation({ type: 'view', bot });
+  }
+
+  function onCloseView() {
+    setOperation(null);
   }
 
   return (
@@ -111,7 +128,11 @@ export function Bots() {
           onDelete={onDelete}
           selectedBot={selectedBot}
           setSelectedBot={setSelectedBot}
+          onView={onView}
         />
+      )}
+      {operation?.type === 'view' && (
+        <ViewBot bot={operation.bot} onClose={onCloseView} />
       )}
     </FeatureBox>
   );

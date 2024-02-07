@@ -84,7 +84,7 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
   );
 }
 
-function getWorkflowExampleYaml(
+export function getWorkflowExampleYaml(
   botName: string,
   version: string,
   proxyAddr: string,

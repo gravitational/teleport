@@ -32,6 +32,7 @@ export function BotList({
   onDelete,
   selectedBot,
   setSelectedBot,
+  onView,
 }: BotListProps) {
   return (
     <>
@@ -57,6 +58,7 @@ export function BotList({
               <BotOptionsCell
                 bot={bot}
                 onClickDelete={() => setSelectedBot(bot)}
+                onClickView={() => onView(bot)}
               />
             ),
           },

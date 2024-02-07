@@ -29,6 +29,7 @@ const makeProps = (): BotListProps => ({
   onDelete: () => {},
   selectedBot: null,
   setSelectedBot: () => {},
+  onView: () => {},
 });
 
 test('renders table with bots', () => {
