@@ -9171,14 +9171,13 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 	}, nil
 }
 
-func TestWSAuthenticateRequest(t *testing.T) {
+func TestWebSocketAuthenticateRequest(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
+	proxy.handler.handler.wsIODeadline = time.Second
 	pack := proxy.authPack(t, "test-user@example.com", nil)
-	wsIODeadline = time.Second
-
 	for _, tc := range []struct {
 		name              string
 		serverExpectError string
@@ -9220,13 +9219,16 @@ func TestWSAuthenticateRequest(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				sctx, ws, err := proxy.handler.handler.AuthenticateRequestWS(w, r)
 				if err != nil {
+					if tc.serverExpectError == "" {
+						t.Errorf("unexpected error: %v", err)
+					}
 					if !strings.Contains(err.Error(), tc.serverExpectError) {
 						t.Errorf("unexpected error: %v", err)
 						return
 					}
 					return
 				}
-				defer ws.Close()
+				t.Cleanup(func() { ws.Close() })
 				if err == nil && tc.serverExpectError != "" {
 					t.Errorf("expected error, got nil")
 					return
@@ -9252,8 +9254,8 @@ func TestWSAuthenticateRequest(t *testing.T) {
 			u := strings.Replace(server.URL, "http:", "ws:", 1)
 			conn, resp, err := websocket.DefaultDialer.Dial(u, header)
 			require.NoError(t, err)
-			defer conn.Close()
-			defer resp.Body.Close()
+			t.Cleanup(func() { conn.Close() })
+			t.Cleanup(func() { resp.Body.Close() })
 
 			if tc.readTimeout != nil {
 				tc.readTimeout()
