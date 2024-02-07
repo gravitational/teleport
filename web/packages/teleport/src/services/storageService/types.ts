@@ -17,6 +17,7 @@
  */
 
 export const KeysEnum = {
+  NEW_USER: `grv_teleport_new_user`,
   TOKEN: 'grv_teleport_token',
   TOKEN_RENEW: 'grv_teleport_token_renew',
   LAST_ACTIVE: 'grv_teleport_last_active',

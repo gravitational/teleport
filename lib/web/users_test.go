@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -106,7 +107,7 @@ func TestCRUDs(t *testing.T) {
 	require.Contains(t, user.Roles, "newrole")
 
 	// test list
-	users, err := getUsers(context.Background(), m)
+	users, err := getUsers(context.Background(), m, url.Values{})
 	require.NoError(t, err)
 	require.Len(t, users, 1)
 	require.Equal(t, "testname", users[0].Name)
@@ -118,6 +119,32 @@ func TestCRUDs(t *testing.T) {
 
 	err = deleteUser(req, param, m, "self")
 	require.NoError(t, err)
+}
+
+func TestGetUserWithLimit(t *testing.T) {
+	m := &mockedUserAPIGetter{}
+	m.mockListUsers = func(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+		user1, err := types.NewUser("user-1")
+		if err != nil {
+			return nil, "", err
+		}
+		user2, err := types.NewUser("user-2")
+		if err != nil {
+			return nil, "", err
+		}
+		return []types.User{user1, user2}, "", nil
+	}
+
+	m.mockGetUsers = func(ctx context.Context, withSecrets bool) ([]types.User, error) {
+		return nil, trace.NotImplemented("called the fallback get user when not supposed to")
+	}
+
+	// test list
+	users, err := getUsers(context.Background(), m, url.Values{"limit": {"2"}})
+	require.NoError(t, err)
+	require.Len(t, users, 2)
+	require.Equal(t, "user-1", users[0].Name)
+	require.Equal(t, "user-2", users[1].Name)
 }
 
 func TestUpdateUser_setTraits(t *testing.T) {
@@ -306,7 +333,7 @@ func TestCRUDErrors(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 	require.Nil(t, user)
 
-	users, err := getUsers(context.Background(), m)
+	users, err := getUsers(context.Background(), m, url.Values{})
 	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, users)
 
@@ -345,6 +372,7 @@ type mockedUserAPIGetter struct {
 	mockUpdateUser func(ctx context.Context, user types.User) (types.User, error)
 	mockGetUsers   func(ctx context.Context, withSecrets bool) ([]types.User, error)
 	mockDeleteUser func(ctx context.Context, user string) error
+	mockListUsers  func(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
 }
 
 func (m *mockedUserAPIGetter) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
@@ -381,4 +409,12 @@ func (m *mockedUserAPIGetter) DeleteUser(ctx context.Context, name string) error
 	}
 
 	return trace.NotImplemented("mockDeleteUser not implemented")
+}
+
+func (m *mockedUserAPIGetter) ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error) {
+	if m.mockListUsers != nil {
+		return m.mockListUsers(ctx, pageSize, nextToken, withSecrets)
+	}
+
+	return nil, "", trace.NotImplemented("mockListUsers not implemented")
 }

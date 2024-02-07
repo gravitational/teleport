@@ -212,7 +212,7 @@ const cfg = {
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
-    usersPath: '/v1/webapi/users',
+    usersPath: '/v1/webapi/users?limit=:limit?',
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
@@ -614,8 +614,8 @@ const cfg = {
     return generatePath(cfg.routes.kubernetes, { clusterId });
   },
 
-  getUsersUrl() {
-    return cfg.api.usersPath;
+  getUsersUrl(params?: UrlUsersParams) {
+    return generatePath(cfg.api.usersPath, { ...params });
   },
 
   getUserWithUsernameUrl(username: string) {
@@ -1111,6 +1111,10 @@ export interface UrlDesktopParams {
   username?: string;
   desktopName?: string;
   clusterId: string;
+}
+
+export interface UrlUsersParams {
+  limit?: number;
 }
 
 export interface UrlResourcesParams {

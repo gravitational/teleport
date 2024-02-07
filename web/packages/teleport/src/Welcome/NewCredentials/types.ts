@@ -80,9 +80,7 @@ export type RegisterSuccessProps = {
   redirect(): void;
   resetMode: boolean;
   username?: string;
-  version?: string;
   isDashboard: boolean;
-  isEnterprise?: boolean;
 };
 
 export type LoginFlow = Extract<PrimaryAuthType, 'passwordless' | 'local'>;

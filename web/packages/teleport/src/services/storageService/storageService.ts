@@ -110,6 +110,19 @@ export const storageService = {
     return null;
   },
 
+  setNewUserMarker() {
+    window.localStorage.setItem(KeysEnum.NEW_USER, 'true');
+  },
+
+  getNewUserMarker(): boolean {
+    const val = window.localStorage.getItem(KeysEnum.NEW_USER);
+    return Boolean(val);
+  },
+
+  removeNewUserMarker() {
+    window.localStorage.removeItem(KeysEnum.NEW_USER);
+  },
+
   getUserPreferences(): UserPreferences {
     const preferences = window.localStorage.getItem(KeysEnum.USER_PREFERENCES);
     if (preferences) {

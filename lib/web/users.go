@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -58,7 +60,7 @@ func (h *Handler) getUsersHandle(w http.ResponseWriter, r *http.Request, params 
 		return nil, trace.Wrap(err)
 	}
 
-	return getUsers(r.Context(), clt)
+	return getUsers(r.Context(), clt, r.URL.Query())
 }
 
 func (h *Handler) getUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -179,10 +181,30 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	return ui.NewUser(updated)
 }
 
-func getUsers(ctx context.Context, m userAPIGetter) ([]ui.UserListEntry, error) {
-	users, err := m.GetUsers(ctx, false)
+func getUsers(ctx context.Context, m userAPIGetter, urlVals url.Values) ([]ui.UserListEntry, error) {
+	limit, err := queryLimitAsInt32(urlVals, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var users []types.User
+	if limit > 0 {
+		// Use the new list user with pagination support api
+		users, _, err = m.ListUsers(ctx, int(limit), "" /* nextToken */, false /* withSecrets*/)
+		switch {
+		case trace.IsNotImplemented(err):
+			users, err = m.GetUsers(ctx, false /* withSecrets*/)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case err != nil:
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		users, err = m.GetUsers(ctx, false /* withSecrets*/)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	var uiUsers []ui.UserListEntry
@@ -285,6 +307,8 @@ type userAPIGetter interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// DeleteUser deletes a user by name.
 	DeleteUser(ctx context.Context, user string) error
+	// ListUsers returns a page of users.
+	ListUsers(ctx context.Context, pageSize int, nextToken string, withSecrets bool) ([]types.User, string, error)
 }
 
 type userTraits struct {

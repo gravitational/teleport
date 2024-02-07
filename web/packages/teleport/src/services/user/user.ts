@@ -17,7 +17,7 @@
  */
 
 import api from 'teleport/services/api';
-import cfg from 'teleport/config';
+import cfg, { UrlUsersParams } from 'teleport/config';
 import session from 'teleport/services/websession';
 
 import { WebauthnAssertionResponse } from '../auth';
@@ -54,8 +54,8 @@ const service = {
     return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
 
-  fetchUsers() {
-    return api.get(cfg.getUsersUrl()).then(makeUsers);
+  fetchUsers(params?: UrlUsersParams) {
+    return api.get(cfg.getUsersUrl(params)).then(makeUsers);
   },
 
   updateUser(user: User) {

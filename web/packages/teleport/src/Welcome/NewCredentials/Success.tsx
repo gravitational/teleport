@@ -23,8 +23,8 @@ import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import shieldCheck from 'teleport/assets/shield-check.png';
-
-import useTeleport from 'teleport/useTeleport';
+import cfg from 'teleport/config';
+import { storageService } from 'teleport/services/storageService';
 
 import { RegisterSuccessProps } from './types';
 
@@ -32,13 +32,9 @@ export function RegisterSuccess({
   redirect,
   resetMode = false,
   username = '',
-  version = '',
-  isEnterprise,
   isDashboard,
 }: RegisterSuccessProps) {
   const actionTxt = resetMode ? 'reset' : 'registration';
-  const ctx = useTeleport();
-  version = ctx.storeUser.state.cluster.authVersion;
 
   const handleRedirect = () => {
     if (username) {
@@ -46,12 +42,10 @@ export function RegisterSuccess({
         event: CaptureEvent.PreUserCompleteGoToDashboardClickEvent,
         username: username,
       });
-      // If not in reset mode, open a new tab to Teleport Registration page
-      // before redirecting to dashboard.
-      // next only do this for OSS
-      isEnterprise = false;
-      if (!isEnterprise && !resetMode) {
-        window.open(`https://goteleport.com/r/product-registration?${version}`, '_blank');
+      // The storage flag will be used later to determine if the user should
+      // also be directed to the teleport register page.
+      if (!cfg.isEnterprise && !resetMode) {
+        storageService.setNewUserMarker();
       }
     }
     redirect();

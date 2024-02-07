@@ -94,6 +94,28 @@ class TeleportContext implements types.Context {
     const user = await userService.fetchUserContext();
     this.storeUser.setState(user);
 
+    if (storageService.getNewUserMarker()) {
+      userService
+        .fetchUsers({ limit: 2 })
+        .then(users => {
+          // Only one means the current user is the only user existing
+          // in cluster.
+          if (users.length === 1) {
+            // Opens a new tab to the teleport register page.
+            window.open(
+              `https://goteleport.com/r/product-registration?${user.cluster.authVersion}`,
+              '_blank',
+              'noreferrer,noopener'
+            );
+          }
+        })
+        // Ignore any error.
+        .catch();
+
+      // Checking only once is required.
+      storageService.removeNewUserMarker();
+    }
+
     if (
       this.storeUser.hasPrereqAccessToAddAgents() &&
       this.storeUser.hasAccessToQueryAgent() &&
