@@ -714,13 +714,13 @@ To make changes to your Teleport cluster after deployment, you can use `helm upg
 Helm defaults to using the latest version of the chart available in the repo, which will also correspond to the latest
 version of Teleport. You can make sure that the repo is up to date by running `helm repo update`.
 
-Here's an example where we set the chart to use 3 replicas:
+Here's an example where we set the chart to use 2 replicas:
 
 Edit your `aws-values.yaml` file from above and make the appropriate changes:
 
 ```yaml
 highAvailability:
-  replicaCount: 3
+  replicaCount: 2
 ```
 
 Upgrade the deployment with the values from your `aws-values.yaml` file using this command:
@@ -734,33 +734,6 @@ $ helm upgrade <Var name="release-name" /> teleport/teleport-cluster \
 <Admonition type="note">
   To change `chartMode`, `clusterName`, or any `aws` settings, you must first uninstall the existing chart and then install a new version with the appropriate values.
 </Admonition>
-
-### Autoscaling
-
-In order to reduce DynamoDB costs you might want to enable DynamoDB autoscaling.
-This step is usually done after a successful Teleport deployment, once you have gathered some data
-about Teleport's DynamoDB usage and know what regular usage looks like and how autoscaling should be tuned.
-You must know the desired read/write minimum, maximum and target capacity for your DynamoDB instance in order to enable autoscaling.
-
-You can delegate your autoscaling configuration to Teleport or manage it by creating an AWS Application Auto Scaling policy.
-The following steps will set up Teleport-configured DynamoDB autoscaling.
-
-You must grant autoscaling configuration rights to Teleport, as documented in
-[the DynamoDB autoscaling section](../../reference/backends.mdx#dynamodb-autoscaling).
-
-Set the following fields in your existing `aws-values.yaml` file and replace the numeric values with yours:
-
-```yaml
-aws:
-  # [...] already present values under `aws`
-  dynamoAutoScaling: true
-  readMinCapacity: 5     # integer
-  readMaxCapacity: 100   # integer
-  readTargetValue: 50.0  # float
-  writeMinCapacity: 5    # integer
-  writeMaxCapacity: 100  # integer
-  writeTargetValue: 50.0 # float
-```
 
 Then perform a cluster upgrade with the new values:
 
