@@ -695,6 +695,10 @@
               "slug": "/management/operations/ca-rotation/"
             },
             {
+              "title": "Database Cert Authority Rotation",
+              "slug": "/management/operations/db-ca-rotation/"
+            },
+            {
               "title": "TLS Routing Migration",
               "slug": "/management/operations/tls-routing/",
               "forScopes": ["oss", "enterprise"]
@@ -703,6 +707,10 @@
               "title": "Proxy Peering Migration",
               "slug": "/management/operations/proxy-peering/",
               "forScopes": ["enterprise"]
+            },
+            {
+              "title": "Database CA Migrations",
+              "slug": "/management/operations/db-ca-migrations/"
             }
           ]
         },
