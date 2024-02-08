@@ -1,0 +1,88 @@
+---
+name: Publish helm charts
+on:
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        description: |
+          The name of the OSS teleport repo to checkout
+        type: string
+        default: "gravitational/teleport"
+
+      oss-teleport-ref:
+        description: |
+          Git SHA, tag or branch of the revision of OSS teleport to build
+        required: true
+        type: string
+
+      environment:
+        description: GitHub environment to publish to.
+        type: string
+        default: publish-prod
+
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: oss
+          path: teleport
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Assume helm chart publishing role
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.HELM_PUBLISHING_SYNC_AWS_ROLE }}
+          role-session-name: "gha-publish-helm-${{ github.run_attempt }}"
+          role-duration-seconds: 3600
+
+      - name: Create charts directory
+        run: |
+          mkdir charts
+
+      - name: Download helm chart repository
+        working-directory: charts
+        env:
+          S3_PATH: s3://${{ vars.HELM_REPO_BUCKET }}/
+        run: |
+          aws s3 sync "${S3_PATH}" .
+
+      - name: Package chart repository
+        working-directory: charts
+        env:
+          CHART_SRC: ${{ github.workspace }}/teleport/examples/chart
+        run: |
+          helm package "${CHART_SRC}/teleport-cluster"
+          helm package "${CHART_SRC}/teleport-kube-agent"
+          helm package "${CHART_SRC}/teleport-cluster/charts/teleport-operator"
+          cp "${CHART_SRC}/index.html" .
+          helm repo index .
+          ls -l
+
+      - name: Publish chart repository to S3
+        working-directory: charts
+        env:
+          S3_PATH: s3://${{ vars.HELM_REPO_BUCKET }}/
+        run: |
+          aws s3 sync . "${S3_PATH}"
+
+      # Required for gh-trigger-workflow to find dispatched workflow.
+      - name: ${{ inputs.workflow-tag }}
+        if: inputs.workflow-tag != ''
+        run: |
+          # Do nothing
