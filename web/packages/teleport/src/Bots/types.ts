@@ -38,7 +38,6 @@ export type BotListProps = {
   onEdit: () => void;
   selectedBot: FlatBot;
   setSelectedBot: Dispatch<SetStateAction<FlatBot>>;
-  onView: (bot: FlatBot) => void;
   selectedRoles: string[];
   setSelectedRoles: Dispatch<SetStateAction<string[]>>;
 };

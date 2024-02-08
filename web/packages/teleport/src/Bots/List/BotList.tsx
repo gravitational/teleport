@@ -26,7 +26,10 @@ import { BotListProps } from 'teleport/Bots/types';
 import { DeleteBot } from 'teleport/Bots/DeleteBot';
 import { EditBot } from 'teleport/Bots/EditBot';
 
+import { ViewBot } from '../ViewBot';
+
 enum Interaction {
+  VIEW,
   EDIT,
   DELETE,
   NONE,
@@ -42,7 +45,6 @@ export function BotList({
   onEdit,
   selectedBot,
   setSelectedBot,
-  onView,
   selectedRoles,
   setSelectedRoles,
 }: BotListProps) {
@@ -71,7 +73,10 @@ export function BotList({
             render: bot => (
               <BotOptionsCell
                 bot={bot}
-                onClickView={() => onView(bot)}
+                onClickView={() => {
+                  setSelectedBot(bot);
+                  setInteraction(Interaction.VIEW);
+                }}
                 disabledEdit={disabledEdit}
                 onClickEdit={() => {
                   setSelectedBot(bot);
@@ -108,6 +113,9 @@ export function BotList({
           selectedRoles={selectedRoles}
           setSelectedRoles={setSelectedRoles}
         />
+      )}
+      {selectedBot && interaction === Interaction.VIEW && (
+        <ViewBot onClose={onClose} bot={selectedBot} />
       )}
     </>
   );

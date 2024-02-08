@@ -41,10 +41,9 @@ export function ViewBot({ bot, onClose }: ViewBotProps) {
     bot.name,
     cluster.authVersion,
     cluster.publicURL,
-    bot.name
+    bot.name,
+    false
   );
-
-  console.log('yaml', yaml);
 
   return (
     <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>

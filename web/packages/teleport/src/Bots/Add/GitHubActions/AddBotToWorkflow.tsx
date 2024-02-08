@@ -88,7 +88,8 @@ export function getWorkflowExampleYaml(
   botName: string,
   version: string,
   proxyAddr: string,
-  tokenName: string
+  tokenName: string,
+  includeNameComment: boolean = true
 ): string {
   return `on:
 push:
@@ -101,7 +102,7 @@ demo:
     # able to authenticate with the cluster.
     id-token: write
     contents: read
-  # if you added a workflow name in the previous step, make sure you use the same value here
+  ${includeNameComment && '# if you added a workflow name in the previous step, make sure you use the same value here'}
   name: ${botName}-example
   runs-on: ubuntu-latest
   steps:

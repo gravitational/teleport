@@ -31,15 +31,14 @@ export const List = () => {
       attempt={{ status: '' }}
       bots={botsFixture}
       disabledEdit={false}
-      onClose={() => { }}
-      onDelete={() => { }}
-      onEdit={() => { }}
+      onClose={() => {}}
+      onDelete={() => {}}
+      onEdit={() => {}}
       roles={[]}
       selectedBot={null}
       selectedRoles={[]}
-      setSelectedBot={() => { }}
-      onView={() => { }}
-      setSelectedRoles={() => { }}
+      setSelectedBot={() => {}}
+      setSelectedRoles={() => {}}
     />
   );
 };
