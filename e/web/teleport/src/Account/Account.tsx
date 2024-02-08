@@ -1,5 +1,5 @@
 import React from 'react';
-import AccountPage from 'teleport/Account/AccountNew';
+import AccountPage from 'teleport/Account';
 
 import cfg from 'e-teleport/config';
 

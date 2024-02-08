@@ -5,7 +5,7 @@ import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
 import { Header } from 'teleport/Account/Header';
 import * as Icon from 'design/Icon';
-import { EnterpriseComponentProps } from 'teleport/Account/AccountNew';
+import { EnterpriseComponentProps } from 'teleport/Account/Account';
 
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
