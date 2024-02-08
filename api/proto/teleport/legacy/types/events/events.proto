@@ -3089,7 +3089,7 @@ message DatabasePermissionUpdate {
   ];
 }
 
-// DatabasePermissionSummary is a summary of permissions for particular kind of object.
+// DatabasePermissionEntry is a summary of permissions, scoped to a particular permission.
 message DatabasePermissionEntry {
   // Permission is a particular database-level permission, e.g. "SELECT".
   string Permission = 1 [(gogoproto.jsontag) = "permission"];

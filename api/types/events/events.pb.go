@@ -5236,7 +5236,7 @@ func (m *DatabasePermissionUpdate) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_DatabasePermissionUpdate proto.InternalMessageInfo
 
-// DatabasePermissionSummary is a summary of permissions for particular kind of object.
+// DatabasePermissionEntry is a summary of permissions, scoped to a particular permission.
 type DatabasePermissionEntry struct {
 	// Permission is a particular database-level permission, e.g. "SELECT".
 	Permission string `protobuf:"bytes,1,opt,name=Permission,proto3" json:"permission"`
