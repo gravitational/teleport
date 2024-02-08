@@ -153,6 +153,9 @@ type AccessChecker interface {
 	// allowed roles are returned.
 	CheckDatabaseRoles(database types.Database, userRequestedRoles []string) (roles []string, err error)
 
+	// GetDatabasePermissions returns a set of database permissions applicable for the user.
+	GetDatabasePermissions() (allow types.DatabasePermissions, deny types.DatabasePermissions)
+
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
 	CheckImpersonate(currentUser, impersonateUser types.User, impersonateRoles []types.Role) error
@@ -603,6 +606,17 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (types.Creat
 	// leave the behavior of what happens when a user is created with default
 	// "no roles" configuration up to the target database.
 	return allowedRoleSet.GetCreateDatabaseUserMode(), utils.StringsSliceFromSet(rolesMap), nil
+}
+
+// GetDatabasePermissions returns a set of database permissions applicable for the user.
+func (a *accessChecker) GetDatabasePermissions() (allow types.DatabasePermissions, deny types.DatabasePermissions) {
+	for _, role := range a.RoleSet {
+		allow = append(allow, role.GetDatabasePermissions(types.Allow)...)
+	}
+	for _, role := range a.RoleSet {
+		deny = append(deny, role.GetDatabasePermissions(types.Deny)...)
+	}
+	return allow, deny
 }
 
 // EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
