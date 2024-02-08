@@ -1,0 +1,78 @@
+# Test for parse-version action.
+name: Test Parse Version
+description: Unit test parse version action
+inputs:
+  name:
+    description: Test name
+  ref:
+    description: parse-action `ref` input
+  version:
+    description: parse-action `version` input
+  expect-full:
+    description: expected value for `full` output
+  expect-major:
+    description: expected value for `major` output
+  expect-minor:
+    description: expected value for `minor` output
+  expect-patch:
+    description: expected value for `patch` output
+  expect-pre-release:
+    description: expected value for `pre-release` output
+  expect-build:
+    description: expected value for `build` output
+  expect-labels:
+    description: expected value for `labels` output
+  expect-failure:
+    description: non-empty if parse-version is expected to fail
+runs:
+  using: composite
+  steps:
+    - name: Run
+      id: run
+      uses: ./.github/actions/parse-version
+      with:
+        ref: ${{ inputs.ref }}
+        version: ${{ inputs.version }}
+    - name: Check expected failure
+      if: failure() && inputs.expect-failure != ''
+      continue-on-error: true
+      shell: bash
+      run: |
+        echo '${{ inputs.name }}: Failure expected: PASS' >> "$GITHUB_STEP_SUMMARY"
+    - name: Check unexpected failure
+      if: failure() && inputs.expect-failure == ''
+      shell: bash
+      run: |
+        echo '${{ inputs.name }}: FAIL' >> "$GITHUB_STEP_SUMMARY"
+        exit 1
+    - name: Check
+      if: success()
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        EXPECT_FULL: ${{ inputs.expect-full }}
+        EXPECT_MAJOR: ${{ inputs.expect-major }}
+        EXPECT_MINOR: ${{ inputs.expect-minor }}
+        EXPECT_PATCH: ${{ inputs.expect-patch }}
+        EXPECT_PRE_RELEASE: ${{ inputs.expect-pre-release }}
+        EXPECT_BUILD: ${{ inputs.expect-build }}
+        EXPECT_LABELS: ${{ inputs.expect-labels }}
+        ACTUAL_FULL: ${{ steps.run.outputs.full }}
+        ACTUAL_MAJOR: ${{ steps.run.outputs.major }}
+        ACTUAL_MINOR: ${{ steps.run.outputs.minor }}
+        ACTUAL_PATCH: ${{ steps.run.outputs.patch }}
+        ACTUAL_PRE_RELEASE: ${{ steps.run.outputs.pre-release }}
+        ACTUAL_BUILD: ${{ steps.run.outputs.build }}
+        ACTUAL_LABELS: ${{ steps.run.outputs.labels }}
+      run: |
+        for var in FULL MAJOR MINOR PATCH PRE_RELEASE BUILD LABELS; do
+          actual_var=ACTUAL_${var}
+          expect_var=EXPECT_${var}
+          actual=${!actual_var}
+          expect=${!expect_var}
+          if [[ "${actual}" != "${expect}" ]]; then
+            echo "${NAME}: FAIL (${var,,}: expected ${expect}, actual ${actual}" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+        done
+        echo "${NAME}: PASS" >> "$GITHUB_STEP_SUMMARY"
