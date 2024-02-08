@@ -42,6 +42,7 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	helmCli "helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 
@@ -467,14 +468,25 @@ func getHelmSettings() (*helmCli.EnvSettings, error) {
 
 // checkAgentAlreadyInstalled checks through the Helm if teleport-kube-agent chart was already installed in the EKS cluster.
 func checkAgentAlreadyInstalled(actionConfig *action.Configuration) (bool, error) {
-	listCmd := action.NewList(actionConfig)
-
-	releases, err := listCmd.Run()
+	var releases []*release.Release
+	var err error
+	// We setup a little backoff loop because sometimes access entry auth needs a bit more time to propagate and take
+	// effect, so we could get errors when trying to access cluster right after giving us permissions to do so.
+	for attempt := 1; attempt <= 3; attempt++ {
+		listCmd := action.NewList(actionConfig)
+		releases, err = listCmd.Run()
+		if err != nil {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		} else {
+			break
+		}
+	}
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, release := range releases {
-		if release.Name == agentName {
+
+	for _, r := range releases {
+		if r.Name == agentName {
 			return true, nil
 		}
 	}
