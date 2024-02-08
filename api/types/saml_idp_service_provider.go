@@ -265,11 +265,8 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		attrNames[attributeMap.Name] = struct{}{}
 	}
 
-	if preset := s.Spec.Preset; preset != "" {
-		// check if preset value is supported
-		if ok := validatePreset(preset); !ok {
-			return trace.Wrap(ErrUnsupportedPresetName)
-		}
+	if ok := validatePreset(s.Spec.Preset); !ok {
+		return trace.Wrap(ErrUnsupportedPresetName)
 	}
 
 	return nil
@@ -320,9 +317,11 @@ func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
 	return nil
 }
 
+// validatePreset validates SAMLIdPServiceProviderV1 preset field.
+// preset can be either empty or one of the supported type.
 func validatePreset(preset string) bool {
 	switch preset {
-	case samlsp.GCP:
+	case "", samlsp.GCP:
 		return true
 	default:
 		return false
