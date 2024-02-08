@@ -8,9 +8,9 @@ import { wait } from 'shared/utils/wait';
 
 import cfg from 'teleport/config';
 
-import TeleportContextE from 'e-teleport/teleportContextE';
+import { downloadObject } from 'shared/utils/download';
 
-import { downloadObject } from 'e-teleport/services/downloads/downloads';
+import TeleportContextE from 'e-teleport/teleportContextE';
 
 import { License } from 'e-teleport/services/downloads/types';
 
