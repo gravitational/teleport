@@ -413,11 +413,12 @@ func (a *TestAuthServer) Close() error {
 // plain text format, signs it using User Certificate Authority signing key and returns the
 // resulting certificate.
 func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.Duration, compatibility string) ([]byte, error) {
+	ctx := context.Background()
 	user, err := a.AuthServer.GetUser(username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userState, err := a.AuthServer.GetUserOrLoginState(context.Background(), user.GetName())
+	userState, err := a.AuthServer.GetUserOrLoginState(ctx, user.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -426,7 +427,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := a.AuthServer.generateUserCert(certRequest{
+	certs, err := a.AuthServer.generateUserCert(ctx, certRequest{
 		user:          userState,
 		ttl:           ttl,
 		compatibility: compatibility,
@@ -458,6 +459,7 @@ func PrivateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error
 // generateCertificate generates certificate for identity,
 // returns private public key pair
 func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
+	ctx := context.Background()
 	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -479,7 +481,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		userState, err := authServer.GetUserOrLoginState(context.Background(), user.GetName())
+		userState, err := authServer.GetUserOrLoginState(ctx, user.GetName())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -492,7 +494,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			identity.TTL = time.Hour
 		}
 
-		certs, err := authServer.generateUserCert(certRequest{
+		certs, err := authServer.generateUserCert(ctx, certRequest{
 			publicKey:        pub,
 			user:             userState,
 			ttl:              identity.TTL,

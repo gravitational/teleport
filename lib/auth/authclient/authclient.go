@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -48,6 +49,8 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// DialTimeout determines how long to wait for dialing to succeed before aborting.
 	DialTimeout time.Duration
+	// DialOpts define options for dialing the client connection.
+	DialOpts []grpc.DialOption
 	// Insecure turns off TLS certificate verification when enabled.
 	Insecure bool
 	// Resolver is used to identify the reverse tunnel address when connecting via
@@ -93,6 +96,7 @@ func connectViaAuthDirect(cfg *Config) (auth.ClientI, error) {
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
 		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
 		DialTimeout:              cfg.DialTimeout,
+		DialOpts:                 cfg.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -130,6 +134,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
+		DialOpts: cfg.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
