@@ -374,6 +374,7 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 			ALPNSNIAuthDialClusterName: cluster,
 			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 			ALPNConnUpgradeRequired:    c.cfg.ALPNConnUpgradeRequired,
+			DialOpts:                   c.cfg.DialOpts,
 		}
 	}
 
@@ -397,6 +398,7 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 			conn, err := c.transport.DialCluster(connContext, cluster, nil)
 			return conn, trace.Wrap(err)
 		}),
+		DialOpts: c.cfg.DialOpts,
 	}
 
 }
