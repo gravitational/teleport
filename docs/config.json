@@ -130,6 +130,11 @@
               "forScopes": ["enterprise"]
             },
             {
+              "title": "AWS KMS",
+              "slug": "/choose-an-edition/teleport-enterprise/aws-kms/",
+              "forScopes": ["enterprise"]
+            },
+            {
               "title": "Google Cloud KMS",
               "slug": "/choose-an-edition/teleport-enterprise/gcp-kms/",
               "forScopes": ["enterprise"]
@@ -273,6 +278,10 @@
             {
               "title": "Per-session MFA",
               "slug": "/access-controls/guides/per-session-mfa/"
+            },
+            {
+              "title": "MFA for Administrative Actions",
+              "slug": "/access-controls/guides/mfa-for-admin-actions/"
             },
             {
               "title": "Dual Authorization",
@@ -1788,7 +1797,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "14.3.3",
+      "version": "14.3.4",
       "major_version": "14",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1835,7 +1844,7 @@
       "major_version": "16",
       "version": "16.0.0-dev",
       "url": "teleport.example.com",
-      "golang": "1.21",
+      "golang": "1.22",
       "plugin": {
         "version": "13.3.7"
       },

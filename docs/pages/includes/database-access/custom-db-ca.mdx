@@ -1,0 +1,15 @@
+{{ scheme="" query="" }}
+Modify the Teleport Database Service to trust your {{ db }} CA:
+  ```yaml
+    databases:
+    - name: "example-{{ protocol }}"
+      protocol: "{{ protocol }}"
+      uri: "{{ scheme }}{{ protocol }}.example.com:{{ port }}{{ query }}"
+      static_labels:
+        "env": "example"
+      tls:
+        ca_cert_file: "<Var name='/path/to/your/ca.crt' />"
+  ```
+
+Now the Teleport Database Service will trust certificates presented by your
+{{ db }}.

@@ -54,7 +54,7 @@ export interface GetConversationsResponse {
       id: string;
       title?: string;
       created_time: string;
-    }
+    },
   ];
 }
 

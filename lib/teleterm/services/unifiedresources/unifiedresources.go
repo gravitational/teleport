@@ -86,9 +86,10 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 
 			response.Resources = append(response.Resources, UnifiedResource{
 				App: &clusters.App{
-					URI:  cluster.URI.AppendApp(app.GetName()),
-					FQDN: cluster.AssembleAppFQDN(app),
-					App:  app,
+					URI:      cluster.URI.AppendApp(app.GetName()),
+					FQDN:     cluster.AssembleAppFQDN(app),
+					AWSRoles: cluster.GetAWSRoles(app),
+					App:      app,
 				},
 			})
 		case *proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider:
@@ -96,9 +97,10 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 				app := e.AppServerOrSAMLIdPServiceProvider.GetAppServer().GetApp()
 				response.Resources = append(response.Resources, UnifiedResource{
 					App: &clusters.App{
-						URI:  cluster.URI.AppendApp(app.GetName()),
-						FQDN: cluster.AssembleAppFQDN(app),
-						App:  app,
+						URI:      cluster.URI.AppendApp(app.GetName()),
+						FQDN:     cluster.AssembleAppFQDN(app),
+						AWSRoles: cluster.GetAWSRoles(app),
+						App:      app,
 					},
 				})
 			} else {

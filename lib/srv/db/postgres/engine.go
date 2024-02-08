@@ -225,14 +225,8 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 }
 
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
-	// When using auto-provisioning, force the database username to be same
-	// as Teleport username. If it's not provided explicitly, some database
-	// clients (e.g. psql) get confused and display incorrect username.
-	if sessionCtx.AutoCreateUserMode.IsEnabled() {
-		if sessionCtx.DatabaseUser != sessionCtx.Identity.Username {
-			return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
-				sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
-		}
+	if err := sessionCtx.CheckUsernameForAutoUserProvisioning(); err != nil {
+		return trace.Wrap(err)
 	}
 	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
@@ -579,7 +573,7 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 		return trace.Wrap(err)
 	}
 	response := make([]byte, 1)
-	if _, err := tlsConn.Read(response); err != io.EOF {
+	if _, err := tlsConn.Read(response); !errors.Is(err, io.EOF) {
 		// server should close the connection after receiving cancel request.
 		return trace.Wrap(err)
 	}

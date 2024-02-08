@@ -43,20 +43,24 @@ const api = {
     );
   },
 
-  postFormData(url, formData) {
+  postFormData(url, formData, webauthnResponse?: WebauthnAssertionResponse) {
     if (formData instanceof FormData) {
-      return api.fetchJsonWithMfaAuthnRetry(url, {
-        body: formData,
-        method: 'POST',
-        // Overrides the default header from `defaultRequestOptions`.
-        headers: {
-          Accept: 'application/json',
-          // Let the browser infer the content-type for FormData types
-          // to set the correct boundary:
-          // 1) https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects#sending_files_using_a_formdata_object
-          // 2) https://stackoverflow.com/a/64653976
+      return api.fetchJsonWithMfaAuthnRetry(
+        url,
+        {
+          body: formData,
+          method: 'POST',
+          // Overrides the default header from `defaultRequestOptions`.
+          headers: {
+            Accept: 'application/json',
+            // Let the browser infer the content-type for FormData types
+            // to set the correct boundary:
+            // 1) https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects#sending_files_using_a_formdata_object
+            // 2) https://stackoverflow.com/a/64653976
+          },
         },
-      });
+        webauthnResponse
+      );
     }
 
     throw new Error('data for body is not a type of FormData');

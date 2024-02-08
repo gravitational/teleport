@@ -20,6 +20,7 @@ import React, {
   ReactNode,
   Suspense,
   useEffect,
+  useLayoutEffect,
   useMemo,
   lazy,
   useState,
@@ -178,6 +179,9 @@ export function Main(props: MainProps) {
   const requiresOnboarding =
     onboard && !onboard.hasResource && !onboard.notified;
   const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;
+  const hasSidebar =
+    feature?.category === NavigationCategory.Management &&
+    !feature?.hideNavigation;
 
   return (
     <FeaturesContextProvider value={features}>
@@ -198,7 +202,7 @@ export function Main(props: MainProps) {
           <Navigation />
           <HorizontalSplit
             dockedView={showAssist && viewMode === AssistViewMode.DOCKED}
-            hasSidebar={feature?.category === NavigationCategory.Management}
+            hasSidebar={hasSidebar}
           >
             <ContentMinWidth>
               <BannerList
@@ -306,8 +310,23 @@ type MinWidthContextState = {
 
 const ContentMinWidthContext = createContext<MinWidthContextState>(null);
 
+/**
+ * @deprecated Use useNoMinWidth instead.
+ */
 export const useContentMinWidthContext = () =>
   useContext(ContentMinWidthContext);
+
+export const useNoMinWidth = () => {
+  const { setEnforceMinWidth } = useContext(ContentMinWidthContext);
+
+  useLayoutEffect(() => {
+    setEnforceMinWidth(false);
+
+    return () => {
+      setEnforceMinWidth(true);
+    };
+  }, []);
+};
 
 const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
@@ -353,6 +372,10 @@ export const HorizontalSplit = styled.div`
 export const StyledIndicator = styled(HorizontalSplit)`
   align-items: center;
   justify-content: center;
+  position: absolute;
+  overflow: hidden;
+  top: 50%;
+  left: 50%;
 `;
 
 const Wrapper = styled(Box)<{ hasDockedElement: boolean }>`

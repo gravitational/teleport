@@ -96,9 +96,8 @@ export function AppGateway(props: {
       <Text>
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}
-        {/*TODO(gzdunek): Replace with Teleport Connect App access docs.*/}
         <Link
-          href="https://goteleport.com/docs/application-access/guides/tcp/#step-34-start-app-proxy"
+          href="https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-an-application"
           target="_blank"
         >
           the documentation

@@ -56,7 +56,7 @@ import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalCont
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { resolveNetworkAddress } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
-import { downloadAgent, FileDownloader } from './agentDownloader';
+import { downloadAgent, verifyAgent, FileDownloader } from './agentDownloader';
 import {
   createAgentConfigFile,
   isAgentConfigFileCreated,
@@ -320,9 +320,13 @@ export default class MainProcess {
       return path;
     });
 
-    ipcMain.handle('main-process-connect-my-computer-download-agent', () =>
+    ipcMain.handle(MainProcessIpc.DownloadConnectMyComputerAgent, () =>
       this.downloadAgentShared()
     );
+
+    ipcMain.handle(MainProcessIpc.VerifyConnectMyComputerAgent, async () => {
+      await verifyAgent(this.settings.agentBinaryPath);
+    });
 
     ipcMain.handle(
       'main-process-connect-my-computer-create-agent-config-file',

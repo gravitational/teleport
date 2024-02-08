@@ -18,7 +18,7 @@
 
 import { App, Cluster } from 'teleterm/services/tshd/types';
 
-/** Returns a URL that can be used to open the app in the browser. */
+/** Returns a URL that opens the web app in the browser. */
 export function getWebAppLaunchUrl({
   app,
   cluster,
@@ -34,6 +34,44 @@ export function getWebAppLaunchUrl({
 
   const { fqdn, publicAddr } = app;
   return `https://${rootCluster.proxyHost}/web/launch/${fqdn}/${cluster.name}/${publicAddr}`;
+}
+
+/** Returns a URL that opens the AWS app in the browser. */
+export function getAwsAppLaunchUrl({
+  app,
+  cluster,
+  rootCluster,
+  arn,
+}: {
+  app: App;
+  rootCluster: Cluster;
+  cluster: Cluster;
+  arn: string;
+}): string {
+  if (!app.awsConsole) {
+    return '';
+  }
+
+  const { fqdn, publicAddr } = app;
+  return `https://${rootCluster.proxyHost}/web/launch/${fqdn}/${
+    cluster.name
+  }/${publicAddr}/${encodeURIComponent(arn)}`;
+}
+
+/** Returns a URL that triggers IdP-initiated SSO for SAML Application. */
+export function getSamlAppSsoUrl({
+  app,
+  rootCluster,
+}: {
+  app: App;
+  rootCluster: Cluster;
+}): string {
+  if (!app.samlApp) {
+    return '';
+  }
+  return `https://${
+    rootCluster.proxyHost
+  }/enterprise/saml-idp/login/${encodeURIComponent(app.name)}`;
 }
 
 export function isWebApp(app: App): boolean {

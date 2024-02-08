@@ -399,11 +399,6 @@ type AuthenticationSettings struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
 	PIVSlot keys.PIVSlot `json:"piv_slot"`
-	// DeviceTrustDisabled provides a clue to Teleport clients on whether to avoid
-	// device authentication.
-	// Deprecated: Use DeviceTrust.Disabled instead.
-	// DELETE IN 16.0, replaced by the DeviceTrust field (codingllama).
-	DeviceTrustDisabled bool `json:"device_trust_disabled,omitempty"`
 	// DeviceTrust holds cluster-wide device trust settings.
 	DeviceTrust DeviceTrustSettings `json:"device_trust,omitempty"`
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD

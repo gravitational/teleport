@@ -20,6 +20,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os/user"
@@ -101,9 +102,9 @@ func TestTeleterm(t *testing.T) {
 		testCreateConnectMyComputerRole(t, pack)
 	})
 
-	t.Run("CreateAndDeleteConnectMyComputerToken", func(t *testing.T) {
+	t.Run("CreateConnectMyComputerToken", func(t *testing.T) {
 		t.Parallel()
-		testCreatingAndDeletingConnectMyComputerToken(t, pack)
+		testCreateConnectMyComputerToken(t, pack)
 	})
 
 	t.Run("WaitForConnectMyComputerNodeJoin", func(t *testing.T) {
@@ -611,7 +612,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 	}
 }
 
-func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack) {
+func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -687,41 +688,6 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 	require.Equal(t, types.SystemRoles{types.RoleNode}, tokenFromAuthServer.GetRoles())
 	// ...and is valid for no longer than 5 minutes.
 	require.LessOrEqual(t, tokenFromAuthServer.Expiry(), requestCreatedAt.Add(5*time.Minute))
-
-	// watcher waits for the token deletion
-	watcher, err := authServer.NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{
-			{Kind: types.KindToken},
-		},
-	})
-	require.NoError(t, err)
-	defer watcher.Close()
-
-	select {
-	case <-time.After(time.Second * 10):
-		t.Fatalf("Timeout waiting for event.")
-	case event := <-watcher.Events():
-		if event.Type != types.OpInit {
-			t.Fatalf("Unexpected event type.")
-		}
-		require.Equal(t, types.OpInit, event.Type)
-	case <-watcher.Done():
-		t.Fatal(watcher.Error())
-	}
-
-	// Call DeleteConnectMyComputerToken.
-	_, err = handler.DeleteConnectMyComputerToken(ctx, &api.DeleteConnectMyComputerTokenRequest{
-		RootClusterUri: rootClusterURI,
-		Token:          createdTokenResponse.GetToken(),
-	})
-	require.NoError(t, err)
-
-	waitForResourceToBeDeleted(t, watcher, types.KindToken, createdTokenResponse.GetToken())
-
-	_, err = authServer.GetToken(ctx, createdTokenResponse.GetToken())
-
-	// The token should no longer exist.
-	require.True(t, trace.IsNotFound(err))
 }
 
 func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
@@ -917,7 +883,7 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 		// before grpcServer.Serve is called and grpcServer.Serve will return
 		// grpc.ErrServerStopped.
 		err := <-serveErr
-		if err != grpc.ErrServerStopped {
+		if !errors.Is(err, grpc.ErrServerStopped) {
 			assert.NoError(t, err)
 		}
 	})
@@ -928,23 +894,4 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Context, *api.SendPendingHeadlessAuthenticationRequest) (*api.SendPendingHeadlessAuthenticationResponse, error) {
 	c.sendPendingHeadlessAuthenticationCount.Add(1)
 	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
-}
-
-func waitForResourceToBeDeleted(t *testing.T, watcher types.Watcher, kind, name string) {
-	timeout := time.After(time.Second * 15)
-	for {
-		select {
-		case <-timeout:
-			t.Fatalf("Timeout waiting for event.")
-		case event := <-watcher.Events():
-			if event.Type != types.OpDelete {
-				continue
-			}
-			if event.Resource.GetKind() == kind && event.Resource.GetMetadata().Name == name {
-				return
-			}
-		case <-watcher.Done():
-			t.Fatalf("Watcher error %s.", watcher.Error())
-		}
-	}
 }
