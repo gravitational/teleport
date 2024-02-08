@@ -31,6 +31,7 @@ export const List = () => {
       attempt={{ status: '' }}
       bots={botsFixture}
       disabledEdit={false}
+      disabledDelete={false}
       onClose={() => {}}
       onDelete={() => {}}
       onEdit={() => {}}
