@@ -103,7 +103,8 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
     ) {
-        Ok(_) => CGOResult {
+        Ok(_res) => CGOResult {
+            // TODO: add optional disconnect reason to the result
             err_code: CGOErrCode::ErrCodeSuccess,
             message: ptr::null_mut(),
         },
