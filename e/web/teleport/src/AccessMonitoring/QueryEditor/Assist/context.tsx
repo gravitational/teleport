@@ -11,6 +11,7 @@ import { ServerMessage, ServerMessageType } from 'teleport/Assist/types';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 interface QueryAssistContextValue {
   close: () => void;
@@ -29,12 +30,11 @@ export function QueryAssistContextProvider(props: PropsWithChildren<unknown>) {
 
   const [visible, setVisible] = useState(false);
 
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<AuthenticatedWebSocket | null>(null);
   const socketUrl = cfg.getAssistActionWebSocketUrl(
     getHostName(),
     clusterId,
-    getAccessToken(),
-    'audit-query'
+    getAccessToken()
   );
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export function QueryAssistContextProvider(props: PropsWithChildren<unknown>) {
   const [latestMessage, setLatestMessage] = useState('');
 
   useEffect(() => {
-    socketRef.current = new WebSocket(socketUrl);
+    socketRef.current = new AuthenticatedWebSocket(socketUrl);
 
     socketRef.current.onerror = () => {
       setErrorMessage('Could not connect to the Assist backend');
