@@ -45,8 +45,7 @@ type DatabaseObject struct {
 
 	// The kind of resource represented.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	// Differentiates variations of the same kind. All resources should
-	// contain one, even if it is never populated.
+	// Mandatory field for all resources. Not populated for this resource type.
 	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	// The version of the resource being represented.
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
