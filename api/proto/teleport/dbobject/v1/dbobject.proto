@@ -26,8 +26,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 message DatabaseObject {
   // The kind of resource represented.
   string kind = 1;
-  // Differentiates variations of the same kind. All resources should
-  // contain one, even if it is never populated.
+  // Mandatory field for all resources. Not populated for this resource type.
   string sub_kind = 2;
   // The version of the resource being represented.
   string version = 3;
