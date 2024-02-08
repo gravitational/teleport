@@ -21,7 +21,7 @@ import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
 import type { SharedUnifiedResource } from 'shared/components/UnifiedResources';
 
 type ResourceSearchResultBase<
-  Result extends resourcesServiceTypes.SearchResult
+  Result extends resourcesServiceTypes.SearchResult,
 > = Result & {
   labelMatches: LabelMatch[];
   resourceMatches: ResourceMatch<Result['kind']>[];
@@ -73,7 +73,7 @@ export type LabelMatch = {
 };
 
 export type ResourceMatch<Kind extends ResourceSearchResult['kind']> = {
-  field: typeof searchableFields[Kind][number];
+  field: (typeof searchableFields)[Kind][number];
   searchTerm: string;
 };
 
