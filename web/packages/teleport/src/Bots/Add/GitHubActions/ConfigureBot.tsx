@@ -88,15 +88,17 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
           </Text>
         </Alert>
       )}
-      <Text>
-        GitHub Actions is a popular CI/CD platform that works as a part of the
-        larger GitHub ecosystem. Teleport Machine ID allows GitHub Actions to
-        securely interact with Teleport protected resources without the need for
-        long-lived credentials. Through this integration, Teleport will create a
-        bot-specific role that scopes its permissions in your Teleport instance
-        to the necessary resources and provide inputs for your GitHub Actions
-        YAML configuration.
-      </Text>
+      <Box maxWidth="1080px">
+        <Text>
+          GitHub Actions is a popular CI/CD platform that works as a part of the
+          larger GitHub ecosystem. Teleport Machine ID allows GitHub Actions to
+          securely interact with Teleport protected resources without the need
+          for long-lived credentials. Through this integration, Teleport will
+          create a bot-specific role that scopes its permissions in your
+          Teleport instance to the necessary resources and provide inputs for
+          your GitHub Actions YAML configuration.
+        </Text>
+      </Box>
       <Text my="3">
         Teleport supports secure joining on both GitHub-hosted and self-hosted
         GitHub Actions runners as well as GitHub Enterprise Server.
