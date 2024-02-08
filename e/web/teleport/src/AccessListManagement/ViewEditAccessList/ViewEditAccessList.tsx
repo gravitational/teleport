@@ -216,22 +216,23 @@ export function ViewEditAccessList() {
 
     MainContent = (
       <>
-        {accessList.requiresReview && (perms.isOwner || perms.adminWhoCanEdit) && (
-          <OutlineInfo css={{ justifyContent: 'space-between' }}>
-            <Flex alignItems="center">
-              <ReviewBannerIcon size={18} />
-              This Access List needs review by{' '}
-              {format(accessList.audit.nextDate, 'MM/dd')}.
-            </Flex>
-            <ButtonBorder
-              justifyContent="space-between"
-              onClick={() => setReviewing(true)}
-            >
-              Start Review
-              <ArrowForward size={18} ml={2} />
-            </ButtonBorder>
-          </OutlineInfo>
-        )}
+        {accessList.requiresReview &&
+          (perms.isOwner || perms.adminWhoCanEdit) && (
+            <OutlineInfo css={{ justifyContent: 'space-between' }}>
+              <Flex alignItems="center">
+                <ReviewBannerIcon size={18} />
+                This Access List needs review by{' '}
+                {format(accessList.audit.nextDate, 'MM/dd')}.
+              </Flex>
+              <ButtonBorder
+                justifyContent="space-between"
+                onClick={() => setReviewing(true)}
+              >
+                Start Review
+                <ArrowForward size={18} ml={2} />
+              </ButtonBorder>
+            </OutlineInfo>
+          )}
         <Box mb={6}>
           <Specs
             roleOptions={roleOptions}

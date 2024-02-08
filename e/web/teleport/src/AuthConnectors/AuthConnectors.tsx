@@ -141,5 +141,5 @@ const ResponsiveAddMenu = styled(Box)`
 
   @media screen and (max-width: ${props => props.theme.breakpoints.tablet}px) {
     width: 100%;
-  } ;
+  }
 `;

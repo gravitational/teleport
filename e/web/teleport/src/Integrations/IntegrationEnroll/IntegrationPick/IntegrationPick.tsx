@@ -195,8 +195,8 @@ function PluginTile({
     plugin.disableForTeam && cfg.isTeam
       ? 'requires-enterprise'
       : hostedButNoAccess
-      ? 'denied'
-      : 'allowed';
+        ? 'denied'
+        : 'allowed';
 
   const pluginEnrollable = pluginAccess === 'allowed' && !pluginAlreadyEnrolled;
 

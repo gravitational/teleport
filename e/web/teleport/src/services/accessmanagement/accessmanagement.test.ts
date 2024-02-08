@@ -74,9 +74,8 @@ test('fetch an access list, empty response does not throw error', async () => {
   };
 
   jest.spyOn(api, 'get').mockResolvedValue({ accessList: null });
-  let response = await accessManagementService.fetchAccessList(
-    'does-not-matter'
-  );
+  let response =
+    await accessManagementService.fetchAccessList('does-not-matter');
   expect(response).toStrictEqual(madeResponse);
 
   jest.spyOn(api, 'get').mockResolvedValue({
@@ -135,9 +134,8 @@ test('fetch an access list', async () => {
       ],
     },
   });
-  let response = await accessManagementService.fetchAccessList(
-    'does-not-matter'
-  );
+  let response =
+    await accessManagementService.fetchAccessList('does-not-matter');
   expect(response).toStrictEqual({
     id: 'some-id',
     title: 'some title',

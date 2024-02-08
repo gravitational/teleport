@@ -58,7 +58,7 @@ function makeReviewers(jsonSuggestedReviewers, reviews: AccessRequestReview[]) {
       ({
         name,
         state: 'PENDING',
-      } as AccessRequestReviewer)
+      }) as AccessRequestReviewer
   );
 
   // The reviewers in reviews list, may not be a part of the suggested reviewers list

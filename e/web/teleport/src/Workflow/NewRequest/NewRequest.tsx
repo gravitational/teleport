@@ -340,79 +340,80 @@ export function NewRequest(props: State) {
           </Box>
         </Flex>
       </Flex>
-      {dryRunAttempt.status === 'success' && selectedResource === 'resource' && (
-        <UnifiedResources
-          bulkActions={[
-            {
-              key: 'add_to_resource',
-              action: addSelectedResources,
-              Icon: ListAddCheck,
-              text: 'Add/remove from request',
-            },
-          ]}
-          ClusterDropdown={
-            <ClusterDropdown
-              clusterLoader={ctx.clusterService}
-              clusterId={clusterId}
-              onError={setClusterDropdownError}
-            />
-          }
-          resources={resources.map(resource => ({
-            resource,
-            ui: {
-              ActionButton:
-                resource.kind === 'app' ? (
-                  <AppRequestButton
-                    agent={resource}
-                    addedResources={addedResources}
-                    addOrRemoveResource={addOrRemoveResource}
-                  />
-                ) : (
-                  <RequestButton
-                    disabled={resourceRequestsDisabled}
-                    isAgentAdded={Boolean(
-                      addedResources[resource.kind][getResourceId(resource)]
-                    )}
-                    onClick={() =>
-                      addOrRemoveResource(
-                        resource.kind,
-                        getResourceId(resource)
-                      )
-                    }
-                  />
-                ),
-            },
-          }))}
-          fetchResources={unifiedFetch}
-          resourcesFetchAttempt={unifiedFetchAttempt}
-          params={agentFilter}
-          setParams={setAgentFilter}
-          unifiedResourcePreferences={preferences.unifiedResourcePreferences}
-          updateUnifiedResourcesPreferences={preferences => {
-            updatePreferences({ unifiedResourcePreferences: preferences });
-          }}
-          pinning={{ kind: 'hidden' }}
-          availableKinds={availableKinds}
-          // we only use the SearchPanel in the header because we will need a separate
-          // header that includes the request type dropdown and Proceed to Request button
-          Header={
-            <Flex justifyContent="space-between" alignItems="center">
-              <UnifiedSearchPanel
-                params={agentFilter}
-                setParams={setAgentFilter}
-                // the following two parameters aren't needed as we don't need url
-                // filtering to work inside access requests so we can no-op them
-                pathname={''}
-                replaceHistory={() => {}}
+      {dryRunAttempt.status === 'success' &&
+        selectedResource === 'resource' && (
+          <UnifiedResources
+            bulkActions={[
+              {
+                key: 'add_to_resource',
+                action: addSelectedResources,
+                Icon: ListAddCheck,
+                text: 'Add/remove from request',
+              },
+            ]}
+            ClusterDropdown={
+              <ClusterDropdown
+                clusterLoader={ctx.clusterService}
+                clusterId={clusterId}
+                onError={setClusterDropdownError}
               />
-            </Flex>
-          }
-          key={clusterId}
-          NoResources={
-            <NoResults query={agentFilter?.query || agentFilter?.search} />
-          }
-        />
-      )}
+            }
+            resources={resources.map(resource => ({
+              resource,
+              ui: {
+                ActionButton:
+                  resource.kind === 'app' ? (
+                    <AppRequestButton
+                      agent={resource}
+                      addedResources={addedResources}
+                      addOrRemoveResource={addOrRemoveResource}
+                    />
+                  ) : (
+                    <RequestButton
+                      disabled={resourceRequestsDisabled}
+                      isAgentAdded={Boolean(
+                        addedResources[resource.kind][getResourceId(resource)]
+                      )}
+                      onClick={() =>
+                        addOrRemoveResource(
+                          resource.kind,
+                          getResourceId(resource)
+                        )
+                      }
+                    />
+                  ),
+              },
+            }))}
+            fetchResources={unifiedFetch}
+            resourcesFetchAttempt={unifiedFetchAttempt}
+            params={agentFilter}
+            setParams={setAgentFilter}
+            unifiedResourcePreferences={preferences.unifiedResourcePreferences}
+            updateUnifiedResourcesPreferences={preferences => {
+              updatePreferences({ unifiedResourcePreferences: preferences });
+            }}
+            pinning={{ kind: 'hidden' }}
+            availableKinds={availableKinds}
+            // we only use the SearchPanel in the header because we will need a separate
+            // header that includes the request type dropdown and Proceed to Request button
+            Header={
+              <Flex justifyContent="space-between" alignItems="center">
+                <UnifiedSearchPanel
+                  params={agentFilter}
+                  setParams={setAgentFilter}
+                  // the following two parameters aren't needed as we don't need url
+                  // filtering to work inside access requests so we can no-op them
+                  pathname={''}
+                  replaceHistory={() => {}}
+                />
+              </Flex>
+            }
+            key={clusterId}
+            NoResources={
+              <NoResults query={agentFilter?.query || agentFilter?.search} />
+            }
+          />
+        )}
       {selectedResource !== 'resource' && (
         <Box>
           {(attempt.status === 'processing' ||
@@ -754,7 +755,9 @@ const StyledSelectAllPanel = styled(StyledPanel)`
     height: 24px;
     padding-top: 16px;
     padding-bottom: 16px;
-    transition: height 100ms ease-out, padding-top 100ms ease-out,
+    transition:
+      height 100ms ease-out,
+      padding-top 100ms ease-out,
       padding-bottom 100ms ease-out;
   }
   &.entered {
@@ -768,7 +771,9 @@ const StyledSelectAllPanel = styled(StyledPanel)`
     height: 0px;
     padding: 0px;
     padding-bottom: 0px;
-    transition: height 50ms linear, padding-top 50ms linear,
+    transition:
+      height 50ms linear,
+      padding-top 50ms linear,
       padding-bottom 50ms linear;
   }
   &.exited {

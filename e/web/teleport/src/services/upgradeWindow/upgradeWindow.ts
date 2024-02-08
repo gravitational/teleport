@@ -4,7 +4,7 @@ import cfg from 'e-teleport/config';
 
 export const availableUpgradeWindowStartHours = [8, 16, 23] as const;
 export type UpgradeWindowStartHour =
-  typeof availableUpgradeWindowStartHours[number];
+  (typeof availableUpgradeWindowStartHours)[number];
 
 export const service = {
   getUpgradeWindowStartHour(): Promise<UpgradeWindowStartHour> {

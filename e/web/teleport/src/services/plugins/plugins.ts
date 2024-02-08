@@ -18,9 +18,8 @@ export const pluginsService = {
   },
 
   async createPlugin(formData: FormData): Promise<Plugin> {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(
-      false
-    );
+    const webauthnResponse =
+      await auth.getWebauthnResponseForAdminAction(false);
     return api
       .postFormData(cfg.getPluginUrl(), formData, webauthnResponse)
       .then(makePlugin);
