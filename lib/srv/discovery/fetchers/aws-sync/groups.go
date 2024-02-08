@@ -71,6 +71,7 @@ func (a *awsFetcher) pollAWSGroups(ctx context.Context, result *Resources, colle
 			})
 		}
 
+		// always discard the error
 		_ = eG.Wait()
 
 		return nil
