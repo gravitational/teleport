@@ -274,9 +274,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     setupWebSocket(conversationId);
 
-    const serverMessages = await service.loadConversationMessages(
-      conversationId
-    );
+    const serverMessages =
+      await service.loadConversationMessages(conversationId);
     const messages: ResolvedServerMessage[] = [];
 
     for (const message of serverMessages) {
@@ -315,9 +314,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
         loading: true,
       });
 
-      const serverMessages = await service.loadConversationMessages(
-        conversationId
-      );
+      const serverMessages =
+        await service.loadConversationMessages(conversationId);
       const messages: ResolvedServerMessage[] = [];
 
       for (const message of serverMessages) {
