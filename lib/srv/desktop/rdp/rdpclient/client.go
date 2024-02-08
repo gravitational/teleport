@@ -289,7 +289,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.BadParameter("user key was nil")
 	}
 
-	if res := C.client_run(
+	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			go_addr: addr,
@@ -305,12 +305,26 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 		},
-	); res.err_code != C.ErrCodeSuccess {
-		if res.message == nil {
-			return trace.Errorf("unknown error: %v", res.err_code)
-		}
+	)
+
+	var message string
+	if res.message != nil {
+		message = C.GoString(res.message)
 		defer C.free_string(res.message)
-		return trace.Errorf("%s", C.GoString(res.message))
+	}
+
+	// If the client exited with an error, return it.
+	if res.err_code != C.ErrCodeSuccess {
+		if message != "" {
+			return trace.Errorf("RDP client exited with error code [%v] and error message: %v", res.err_code, message)
+		}
+		return trace.Errorf("RDP client exited with error code [%v] and an unknown error", res.err_code)
+	}
+
+	if message != "" {
+		c.cfg.Log.Info("RDP client exited gracefully with message: ", message)
+	} else {
+		c.cfg.Log.Info("RDP client exited gracefully")
 	}
 
 	return nil
