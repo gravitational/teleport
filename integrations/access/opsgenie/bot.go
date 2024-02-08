@@ -61,11 +61,15 @@ func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipi
 
 // BroadcastAccessRequestMessage creates an alert for the provided recipients (schedules)
 func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
-	schedules := []string{}
+	rawRecipients := []string{}
 	for _, recipient := range recipients {
-		schedules = append(schedules, recipient.Name)
+		rawRecipients = append(rawRecipients, recipient.Name)
 	}
-	if len(recipients) == 0 {
+	schedules := []string{}
+	if annSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
+		schedules = annSchedules
+	}
+	if len(schedules) == 0 {
 		schedules = append(schedules, b.client.DefaultSchedules...)
 	}
 	opsgenieReqData := RequestData{
@@ -79,7 +83,8 @@ func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []co
 			Reason: reqData.ResolutionReason,
 		},
 		SystemAnnotations: types.Labels{
-			types.TeleportNamespace + types.ReqAnnotationSchedulesLabel: schedules,
+			types.TeleportNamespace + types.ReqAnnotationSchedulesLabel:      schedules,
+			types.TeleportNamespace + types.ReqAnnotationNotifyServicesLabel: rawRecipients,
 		},
 	}
 	opsgenieData, err := b.client.CreateAlert(ctx, reqID, opsgenieReqData)
