@@ -6496,6 +6496,9 @@ message AWSMatcher {
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   // Environment credentials will not be used when this value is set.
   string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
+  // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
+  // discovered clusters, currently only affects AWS EKS discovery in integration mode.
+  bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role
