@@ -543,21 +543,19 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		Type:       types.HostCA,
 	}, false)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(err, connector.Close())
 	}
 
-	err = process.storage.WriteIdentity(auth.IdentityCurrent, *identity)
-	if err != nil {
+	if err := process.storage.WriteIdentity(auth.IdentityCurrent, *identity); err != nil {
 		process.log.Warningf("Failed to write %v identity: %v.", role, err)
 	}
 
-	err = process.storage.WriteState(role, auth.StateV2{
+	if err := process.storage.WriteState(role, auth.StateV2{
 		Spec: auth.StateSpecV2{
 			Rotation: ca.GetRotation(),
 		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	}); err != nil {
+		return nil, trace.NewAggregate(err, connector.Close())
 	}
 	process.log.Infof("The process successfully wrote the credentials and state of %v to the disk.", role)
 	return connector, nil
