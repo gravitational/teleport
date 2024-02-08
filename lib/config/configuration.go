@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"golang.org/x/exp/slog"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"

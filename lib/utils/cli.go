@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
-	"log/slog"
 	"os"
 	"runtime"
 	"strconv"
@@ -37,6 +36,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"

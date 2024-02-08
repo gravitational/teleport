@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/url"
 	"os"
 	"os/user"
@@ -34,6 +33,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"

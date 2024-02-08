@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
@@ -29,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"

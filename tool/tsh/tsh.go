@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -50,6 +49,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"golang.org/x/exp/slog"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 

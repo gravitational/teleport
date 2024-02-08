@@ -18,16 +18,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"regexp"
 	"strings"
 	"testing"
-	"testing/slogtest"
 	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
+	"golang.org/x/exp/slog/slogtest"
 )
 
 // TestSlogTextHandler validates that the SlogTextHandler fulfills

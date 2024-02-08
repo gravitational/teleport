@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"

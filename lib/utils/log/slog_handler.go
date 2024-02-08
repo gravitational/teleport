@@ -18,9 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +26,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+	"golang.org/x/exp/slog"
 )
 
 // TraceLevel is the logging level when set to Trace verbosity.

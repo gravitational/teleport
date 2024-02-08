@@ -15,9 +15,8 @@
 package log
 
 import (
-	"log/slog"
-
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 )
 
 // SlogLevelToLogrusLevel converts a [slog.Level] to its equivalent

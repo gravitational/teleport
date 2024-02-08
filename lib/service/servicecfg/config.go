@@ -17,7 +17,6 @@ package servicecfg
 
 import (
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -30,6 +29,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slog"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"

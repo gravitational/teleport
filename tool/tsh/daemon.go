@@ -18,9 +18,9 @@ package main
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slog"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/teleterm"

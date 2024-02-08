@@ -19,7 +19,6 @@ package common
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"

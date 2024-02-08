@@ -20,11 +20,11 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"log/slog"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
 func TestUserMessageFromError(t *testing.T) {
