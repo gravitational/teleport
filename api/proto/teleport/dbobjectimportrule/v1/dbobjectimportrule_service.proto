@@ -51,7 +51,7 @@ service DatabaseObjectImportRuleService {
 // The request for CreateDatabaseObjectImportRule.
 message CreateDatabaseObjectImportRuleRequest {
   // The DatabaseObjectImportRule to create.
-  DatabaseObjectImportRule item = 1;
+  DatabaseObjectImportRule rule = 1;
 }
 
 // The request for GetDatabaseObjectImportRule.
@@ -72,7 +72,7 @@ message ListDatabaseObjectImportRulesRequest {
 // The response for ListDatabaseObjectImportRules.
 message ListDatabaseObjectImportRulesResponse {
   // The page of DatabaseObjectImportRules that matched the request.
-  repeated DatabaseObjectImportRule items = 1;
+  repeated DatabaseObjectImportRule rules = 1;
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;
@@ -81,13 +81,13 @@ message ListDatabaseObjectImportRulesResponse {
 // The request for UpdateDatabaseObjectImportRule.
 message UpdateDatabaseObjectImportRuleRequest {
   // The DatabaseObjectImportRule to replace.
-  DatabaseObjectImportRule item = 1;
+  DatabaseObjectImportRule rule = 1;
 }
 
 // The request for UpsertDatabaseObjectImportRule.
 message UpsertDatabaseObjectImportRuleRequest {
   // The DatabaseObjectImportRule to create or replace.
-  DatabaseObjectImportRule item = 1;
+  DatabaseObjectImportRule rule = 1;
 }
 
 // The request for DeleteDatabaseObjectImportRule.
