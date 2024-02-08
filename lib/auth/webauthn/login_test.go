@@ -653,7 +653,7 @@ func TestCredentialRPID(t *testing.T) {
 	})
 }
 
-func TestLogin_scopeAndReuse(t *testing.T) {
+func TestLoginFlow_scopeAndReuse(t *testing.T) {
 	// webUser gets a newly registered device and a webID.
 	const webUser = "llama"
 	webIdentity := newFakeIdentity(webUser)
