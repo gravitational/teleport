@@ -80,6 +80,7 @@ linters-settings:
     key-naming-case: snake
     static-msg: true
   testifylint:
+    disable-all: true
     enable:
       - bool-compare
       - compares
