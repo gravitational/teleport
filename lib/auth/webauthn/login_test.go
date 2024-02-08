@@ -708,6 +708,16 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 					require.ErrorContains(t, err, "cannot allow reuse")
 				},
 			},
+			{
+				name: "NOK scope PASSWORDLESS_LOGIN not allowed",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+				},
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
+					require.ErrorContains(t, err, "passwordless challenge scope")
+				},
+			},
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
