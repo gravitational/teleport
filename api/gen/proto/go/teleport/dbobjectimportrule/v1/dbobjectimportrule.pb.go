@@ -37,6 +37,9 @@ const (
 )
 
 // DatabaseObjectImportRule is the resource representing a global database object import rule.
+// The import rules govern which database objects are imported from databases.
+// See type teleport.dbobject.v1.DatabaseObject for the description of a database object.
+// For rationale behind this type, see the RFD 151.
 type DatabaseObjectImportRule struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
