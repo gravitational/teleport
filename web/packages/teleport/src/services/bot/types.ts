@@ -89,3 +89,8 @@ export type GitHubRepoRule = {
   ref?: string;
   refType?: RefType;
 };
+
+export type EditBotRequest = {
+  // roles is the list of roles to assign to the bot
+  roles: string[];
+};
