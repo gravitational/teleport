@@ -482,8 +482,8 @@
           ],
           "entries": [
             {
-              "title": "Getting Started On-Premises",
-              "slug": "/access-controls/access-graph/getting-started-on-prem/",
+              "title": "TAG for Self-Hosted Clusters",
+              "slug": "/access-controls/access-graph/self-hosted/",
               "forScopes": [
                 "enterprise"
               ]
