@@ -32,6 +32,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -292,6 +294,8 @@ func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
 		case websocket.BinaryMessage:
 			c.readBuffer = data
 			return c.readLocked(b)
+		case websocket.PongMessage:
+			// Receives Pong as response to Ping. Nothing to do.
 		}
 	}
 }
@@ -308,7 +312,10 @@ func (c *websocketALPNServerConn) Write(b []byte) (n int, err error) {
 func (c *websocketALPNServerConn) WritePing() error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
-	err := c.Conn.WriteMessage(websocket.PingMessage, nil)
+
+	// Send some identifier with Ping. Note that we are not validating the Pong
+	// response.
+	err := c.Conn.WriteMessage(websocket.PingMessage, []byte(teleport.ComponentTeleport))
 	return trace.Wrap(c.convertError(err))
 }
 

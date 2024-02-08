@@ -268,7 +268,6 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string
 	// Handle WebSocket.
 	if resp.Header.Get(constants.WebAPIConnUpgradeHeader) == constants.WebAPIConnUpgradeTypeWebSocket {
 		if err := checkWebSocketUpgradeResponse(resp, alpnUpgradeType, challengeKey); err != nil {
-			defer conn.Close()
 			return nil, trace.Wrap(err)
 		}
 

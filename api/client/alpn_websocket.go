@@ -51,13 +51,7 @@ func applyWebSocketUpgradeHeaders(req *http.Request, alpnUpgradeType, challengeK
 func computeWebSocketAcceptKey(challengeKey string) string {
 	h := sha1.New()
 	h.Write([]byte(challengeKey))
-
-	// WebSocket magic string:
-	// https://www.rfc-editor.org/rfc/rfc6455
-	//
-	// Server side uses gorilla:
-	// https://github.com/gorilla/websocket/blob/dcea2f088ce10b1b0722c4eb995a4e145b5e9047/util.go#L17-L24
-	h.Write([]byte("258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+	h.Write([]byte(websocketAcceptKeyMagicString))
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
@@ -126,7 +120,6 @@ func (c *websocketALPNClientConn) readLocked(b []byte) (int, error) {
 			return 0, io.EOF
 		case ws.OpPing:
 			pong := ws.NewPongFrame(frame.Payload)
-			pong.Header.Masked = true
 			if err := c.writeFrame(pong); err != nil {
 				return 0, trace.Wrap(err)
 			}
@@ -139,13 +132,15 @@ func (c *websocketALPNClientConn) readLocked(b []byte) (int, error) {
 
 func (c *websocketALPNClientConn) Write(b []byte) (int, error) {
 	frame := ws.NewFrame(ws.OpBinary, true, b)
-	frame.Header.Masked = true
 	return len(b), trace.Wrap(c.writeFrame(frame))
 }
 
 func (c *websocketALPNClientConn) writeFrame(frame ws.Frame) error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
+	// By RFC standard, all client frames must be masked:
+	// https://datatracker.ietf.org/doc/html/rfc6455#section-5.1
+	frame.Header.Masked = true
 	return trace.Wrap(ws.WriteFrame(c.Conn, frame))
 }
 
@@ -154,4 +149,14 @@ const (
 	websocketHeaderKeyVersion      = "Sec-WebSocket-Version"
 	websocketHeaderKeyChallengeKey = "Sec-WebSocket-Key"
 	websocketHeaderKeyAccept       = "Sec-WebSocket-Accept"
+
+	// websocketAcceptKeyMagicString is the magic string used for computing
+	// the accept key during WebSocket handshake.
+	//
+	// RFC reference:
+	// https://www.rfc-editor.org/rfc/rfc6455
+	//
+	// Server side uses gorilla:
+	// https://github.com/gorilla/websocket/blob/dcea2f088ce10b1b0722c4eb995a4e145b5e9047/util.go#L17-L24
+	websocketAcceptKeyMagicString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 )
