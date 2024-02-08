@@ -209,6 +209,9 @@ func (s *Service[T]) CreateResource(ctx context.Context, resource T) error {
 	if trace.IsAlreadyExists(err) {
 		return trace.AlreadyExists("%s %q already exists", s.resourceKind, resource.GetName())
 	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	return trace.Wrap(err)
 }
@@ -223,6 +226,9 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) error {
 	_, err = s.backend.Update(ctx, item)
 	if trace.IsNotFound(err) {
 		return trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
+	}
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(err)
@@ -293,6 +299,7 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 	if err := resource.CheckAndSetDefaults(); err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
+
 	value, err := s.marshalFunc(resource)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
