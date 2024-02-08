@@ -19,6 +19,7 @@ package types
 import (
 	"testing"
 
+	"github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,6 +33,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 		errAssertion     require.ErrorAssertionFunc
 		expectedEntityID string
 		attributeMapping []*SAMLAttributeMapping
+		preset           string
 	}{
 		{
 			name:             "valid entity descriptor",
@@ -171,6 +173,26 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 				require.ErrorContains(t, err, "invalid name format")
 			},
 		},
+		{
+			name:             "supported preset value",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			acsURL:           "https:/test.com/acs",
+			expectedEntityID: "IAMShowcase",
+			errAssertion:     require.NoError,
+			preset:           samlsp.GCP,
+		},
+		{
+			name:             "unsupported preset value",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			acsURL:           "https:/test.com/acs",
+			expectedEntityID: "IAMShowcase",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported preset")
+			},
+			preset: "notsupported",
+		},
 	}
 
 	for _, test := range tests {
@@ -182,6 +204,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 				EntityID:         test.entityID,
 				ACSURL:           test.acsURL,
 				AttributeMapping: test.attributeMapping,
+				Preset:           test.preset,
 			})
 
 			test.errAssertion(t, err)

@@ -20,6 +20,8 @@ import (
 	"encoding/xml"
 	"fmt"
 
+	"github.com/gravitational/teleport/api/types/samlsp"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -105,6 +107,7 @@ var (
 	// ErrDuplicateAttributeName is returned when attribute mapping declares two or more
 	// attributes with the same name.
 	ErrDuplicateAttributeName = &trace.BadParameterError{Message: "duplicate attribute name not allowed"}
+	ErrUnsupportedPresetName  = &trace.BadParameterError{Message: "unsupported preset name"}
 )
 
 // SAMLIdPServiceProvider specifies configuration for service providers for Teleport's built in SAML IdP.
@@ -262,6 +265,13 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		attrNames[attributeMap.Name] = struct{}{}
 	}
 
+	if preset := s.Spec.Preset; preset != "" {
+		// check if preset value is supported
+		if ok := validatePreset(preset); !ok {
+			return trace.Wrap(ErrUnsupportedPresetName)
+		}
+	}
+
 	return nil
 }
 
@@ -308,4 +318,13 @@ func (am *SAMLAttributeMapping) CheckAndSetDefaults() error {
 		return trace.BadParameter("invalid name format: %s", am.NameFormat)
 	}
 	return nil
+}
+
+func validatePreset(preset string) bool {
+	switch preset {
+	case samlsp.GCP:
+		return true
+	default:
+		return false
+	}
 }
