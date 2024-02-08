@@ -218,7 +218,7 @@ func TestDiscoveryServer(t *testing.T) {
 			emitter: &mockEmitter{
 				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
 					t.Helper()
-					require.Equal(t, ae, &events.SSMRun{
+					require.Equal(t, &events.SSMRun{
 						Metadata: events.Metadata{
 							Type: libevents.SSMRunEvent,
 							Code: libevents.SSMRunSuccessCode,
@@ -229,7 +229,7 @@ func TestDiscoveryServer(t *testing.T) {
 						Region:     "eu-central-1",
 						ExitCode:   0,
 						Status:     ssm.CommandStatusSuccess,
-					})
+					}, ae)
 				},
 			},
 			wantInstalledInstances: []string{"instance-id-1"},
