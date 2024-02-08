@@ -247,24 +247,17 @@ tests:
       - ../.lint/backwards-compatibility.yaml
     asserts:
       - equal:
-          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
-          value: false
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.capabilities
+          path: spec.template.spec.containers[0].securityContext
           value:
-            drop:
-              - all
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
-          value: true
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
-          value: true
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.runAsUser
-          value: 9807
-      - matchSnapshot:
-          path: spec.template.spec
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 9807
+            seccompProfile:
+              type: RuntimeDefault
 
   - it: should set image and tag correctly if action is Upgrade
     template: deployment.yaml

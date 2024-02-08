@@ -1163,29 +1163,37 @@ resources: {}
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 # for more details.
 #
+# The default value is compatible with [the restricted PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
+#
 # To unset the security context, set it to `null` or `~`.
 initSecurityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-      - all
+      - ALL
   readOnlyRootFilesystem: true
   runAsNonRoot: true
   runAsUser: 9807
+  seccompProfile:
+    type: RuntimeDefault
 
 # securityContext(object) -- sets the container security context for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 # for more details.
+#
+# The default value is compatible with [the restricted PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 #
 # To unset the security context, set it to `null` or `~`.
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-      - all
+      - ALL
   readOnlyRootFilesystem: true
   runAsNonRoot: true
   runAsUser: 9807
+  seccompProfile:
+    type: RuntimeDefault
 
 # podSecurityContext(object) -- sets the pod security context for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
