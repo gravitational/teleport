@@ -296,3 +296,37 @@ func TestGetBotByName(t *testing.T) {
 	_, err = pack.clt.Get(ctx, fmt.Sprintf("%s/%s", endpoint, "invalid-bot"), nil)
 	require.Error(t, err)
 }
+
+func TestEditBot(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint(
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+	)
+
+	// create a bot named `test-bot-edit`
+	botName := "test-bot-edit"
+	_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
+		BotName: botName,
+		Roles:   []string{""},
+	})
+	require.NoError(t, err)
+
+	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpoint, botName), updateBotRequest{
+		Roles: []string{"new-new-role"},
+	})
+	require.NoError(t, err)
+
+	var bot machineidv1.Bot
+	require.NoError(t, json.Unmarshal(response.Bytes(), &bot), "invalid response received")
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
+	assert.Equal(t, botName, bot.Metadata.Name)
+	assert.Equal(t, []string{"new-new-role"}, bot.Spec.Roles)
+}
