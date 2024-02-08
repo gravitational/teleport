@@ -692,7 +692,7 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 			{
 				name:         "NOK challenge extensions not provided",
 				challengeExt: nil,
-				assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "extensions must be supplied")
 				},
@@ -703,7 +703,7 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				},
-				assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "cannot allow reuse")
 				},
@@ -751,7 +751,7 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				},
 				requiredExt: nil,
-				assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "extensions must be supplied")
 				},
@@ -763,7 +763,7 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 				requiredExt: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
-				assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
 					require.ErrorContains(t, err, "is not satisfied")
 				},
@@ -804,7 +804,7 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},
-				assertErr: func(tt require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
 					require.ErrorContains(t, err, "reuse is not permitted")
 				},
