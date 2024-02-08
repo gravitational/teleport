@@ -149,7 +149,7 @@ func newChangeReader(ctx context.Context, config *pgxpool.Config, log logrus.Fie
 		}
 	}
 
-	if _, err = conn.Exec(ctx, "SET CLUSTER SETTING kv.rangefeed.enabled = true", pgx.QueryExecModeExec); err != nil {
+	if _, err := conn.Exec(ctx, "SET CLUSTER SETTING kv.rangefeed.enabled = true", pgx.QueryExecModeExec); err != nil {
 		log.WithError(err).Warn("Failed to configure cluster settings kv.rangefeed.enabled = true;")
 	}
 
