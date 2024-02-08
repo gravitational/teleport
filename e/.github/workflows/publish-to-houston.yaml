@@ -1,0 +1,52 @@
+---
+name: Publish release artifacts to Houston
+on:
+  workflow_dispatch:
+    inputs:
+      teleport-version:
+        description: |
+          The semver version of Teleport version that we're building for.
+          This must not have a leading `v`.
+        type: string
+
+      environment:
+        description: GitHub environment to publish to.
+        type: string
+        default: publish-prod
+
+      workflow-tag:
+        description: Tag used to identify workflow runs spawned by this event.
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+    steps:
+      - name: Assume Houston publishing role
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.HOUSTON_UPLOAD_AWS_ROLE }}
+          role-session-name: "gha-publish-to-houston-${{ github.run_attempt }}"
+          role-duration-seconds: 900
+
+      - name: Publish artifacts from pending storage
+        env:
+          # TODO(camscale): move regions to GitHub vars.
+          SRC_S3_REGION: us-west-2
+          SRC_S3_URI: s3://${{ vars.ARTIFACT_SOURCE_BUCKET }}/teleport/tag/${{ inputs.teleport-version }}
+          DST_S3_REGION: us-east-1
+          DST_S3_URI: s3://${{ vars.HOUSTON_BUCKET }}/teleport/${{ inputs.teleport-version }}
+        run: |
+          aws s3 sync --acl public-read \
+            --source-region "${SRC_S3_REGION}" --region "${DST_S3_REGION}" \
+            "${SRC_S3_URI}" "${DST_S3_URI}"
+
+      # Required for gh-trigger-workflow to find dispatched workflow.
+      - name: ${{ inputs.workflow-tag }}
+        if: inputs.workflow-tag != ''
+        run: |
+          # Do nothing
