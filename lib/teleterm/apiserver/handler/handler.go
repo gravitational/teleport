@@ -19,10 +19,13 @@
 package handler
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/vnet"
 )
 
 // New creates an instance of Handler
@@ -57,6 +60,9 @@ type Handler struct {
 
 	// Config is the service config
 	Config
+	// TODO: Move this to daemon.Service, add mutex.
+	Vnet       *vnet.Manager
+	VnetCancel context.CancelFunc
 }
 
 // sortedLabels is a sort wrapper that sorts labels by name

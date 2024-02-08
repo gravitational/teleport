@@ -332,6 +332,9 @@ export type TshdClient = {
   ) => Promise<AccessRequest>;
 
   updateTshdEventsServerAddress: (address: string) => Promise<void>;
+
+  startVnet: (rootClusterUri: uri.RootClusterUri) => Promise<void>;
+  stopVnet: (rootClusterUri: uri.RootClusterUri) => Promise<void>;
 };
 
 export type TshAbortController = {

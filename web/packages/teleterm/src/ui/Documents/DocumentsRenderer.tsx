@@ -50,6 +50,8 @@ import { RootClusterUri, isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
 
 import { ResourcesContextProvider } from '../DocumentCluster/resourcesContext';
 
+import { DocumentVnet } from '../Vnet/DocumentVnet';
+
 import { WorkspaceContextProvider } from './workspaceContext';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 
@@ -161,6 +163,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentAccessRequests doc={doc} visible={visible} />;
       case 'doc.connect_my_computer':
         return <DocumentConnectMyComputer doc={doc} visible={visible} />;
+      case 'doc.vnet':
+        return <DocumentVnet doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>

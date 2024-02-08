@@ -76,6 +76,8 @@ const (
 	TerminalService_ListUnifiedResources_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources"
 	TerminalService_GetUserPreferences_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences"
 	TerminalService_UpdateUserPreferences_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
+	TerminalService_StartVnet_FullMethodName                         = "/teleport.lib.teleterm.v1.TerminalService/StartVnet"
+	TerminalService_StopVnet_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/StopVnet"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -197,6 +199,11 @@ type TerminalServiceClient interface {
 	// UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
 	// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
 	UpdateUserPreferences(ctx context.Context, in *UpdateUserPreferencesRequest, opts ...grpc.CallOption) (*UpdateUserPreferencesResponse, error)
+	// StartVnet starts VNet for the given root cluster. Only one VNet instance can be active at a
+	// time.
+	StartVnet(ctx context.Context, in *StartVnetRequest, opts ...grpc.CallOption) (*StartVnetResponse, error)
+	// StopVnet stops VNet for the given root cluster.
+	StopVnet(ctx context.Context, in *StopVnetRequest, opts ...grpc.CallOption) (*StopVnetResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -612,6 +619,24 @@ func (c *terminalServiceClient) UpdateUserPreferences(ctx context.Context, in *U
 	return out, nil
 }
 
+func (c *terminalServiceClient) StartVnet(ctx context.Context, in *StartVnetRequest, opts ...grpc.CallOption) (*StartVnetResponse, error) {
+	out := new(StartVnetResponse)
+	err := c.cc.Invoke(ctx, TerminalService_StartVnet_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) StopVnet(ctx context.Context, in *StopVnetRequest, opts ...grpc.CallOption) (*StopVnetResponse, error) {
+	out := new(StopVnetResponse)
+	err := c.cc.Invoke(ctx, TerminalService_StopVnet_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility
@@ -731,6 +756,11 @@ type TerminalServiceServer interface {
 	// UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
 	// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
 	UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*UpdateUserPreferencesResponse, error)
+	// StartVnet starts VNet for the given root cluster. Only one VNet instance can be active at a
+	// time.
+	StartVnet(context.Context, *StartVnetRequest) (*StartVnetResponse, error)
+	// StopVnet stops VNet for the given root cluster.
+	StopVnet(context.Context, *StopVnetRequest) (*StopVnetResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -857,6 +887,12 @@ func (UnimplementedTerminalServiceServer) GetUserPreferences(context.Context, *G
 }
 func (UnimplementedTerminalServiceServer) UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*UpdateUserPreferencesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserPreferences not implemented")
+}
+func (UnimplementedTerminalServiceServer) StartVnet(context.Context, *StartVnetRequest) (*StartVnetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartVnet not implemented")
+}
+func (UnimplementedTerminalServiceServer) StopVnet(context.Context, *StopVnetRequest) (*StopVnetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StopVnet not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 
@@ -1602,6 +1638,42 @@ func _TerminalService_UpdateUserPreferences_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_StartVnet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartVnetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).StartVnet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_StartVnet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).StartVnet(ctx, req.(*StartVnetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_StopVnet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopVnetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).StopVnet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_StopVnet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).StopVnet(ctx, req.(*StopVnetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1760,6 +1832,14 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateUserPreferences",
 			Handler:    _TerminalService_UpdateUserPreferences_Handler,
+		},
+		{
+			MethodName: "StartVnet",
+			Handler:    _TerminalService_StartVnet_Handler,
+		},
+		{
+			MethodName: "StopVnet",
+			Handler:    _TerminalService_StopVnet_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

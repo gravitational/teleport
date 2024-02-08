@@ -24,6 +24,10 @@
 import { TerminalService } from "./service_pb";
 import type { BinaryWriteOptions } from "@protobuf-ts/runtime";
 import type { BinaryReadOptions } from "@protobuf-ts/runtime";
+import type { StopVnetResponse } from "./service_pb";
+import type { StopVnetRequest } from "./service_pb";
+import type { StartVnetResponse } from "./service_pb";
+import type { StartVnetRequest } from "./service_pb";
 import type { UpdateUserPreferencesResponse } from "./service_pb";
 import type { UpdateUserPreferencesRequest } from "./service_pb";
 import type { GetUserPreferencesResponse } from "./service_pb";
@@ -497,6 +501,27 @@ export interface ITerminalServiceClient {
     updateUserPreferences(input: UpdateUserPreferencesRequest, metadata: grpc.Metadata, callback: (err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     updateUserPreferences(input: UpdateUserPreferencesRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     updateUserPreferences(input: UpdateUserPreferencesRequest, callback: (err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    // TODO(ravicious): Move VNet RPCs to a new service.
+
+    /**
+     * StartVnet starts VNet for the given root cluster. Only one VNet instance can be active at a
+     * time.
+     *
+     * @generated from protobuf rpc: StartVnet(teleport.lib.teleterm.v1.StartVnetRequest) returns (teleport.lib.teleterm.v1.StartVnetResponse);
+     */
+    startVnet(input: StartVnetRequest, metadata: grpc.Metadata, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: StartVnetResponse) => void): grpc.ClientUnaryCall;
+    startVnet(input: StartVnetRequest, metadata: grpc.Metadata, callback: (err: grpc.ServiceError | null, value?: StartVnetResponse) => void): grpc.ClientUnaryCall;
+    startVnet(input: StartVnetRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: StartVnetResponse) => void): grpc.ClientUnaryCall;
+    startVnet(input: StartVnetRequest, callback: (err: grpc.ServiceError | null, value?: StartVnetResponse) => void): grpc.ClientUnaryCall;
+    /**
+     * StopVnet stops VNet for the given root cluster.
+     *
+     * @generated from protobuf rpc: StopVnet(teleport.lib.teleterm.v1.StopVnetRequest) returns (teleport.lib.teleterm.v1.StopVnetResponse);
+     */
+    stopVnet(input: StopVnetRequest, metadata: grpc.Metadata, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: StopVnetResponse) => void): grpc.ClientUnaryCall;
+    stopVnet(input: StopVnetRequest, metadata: grpc.Metadata, callback: (err: grpc.ServiceError | null, value?: StopVnetResponse) => void): grpc.ClientUnaryCall;
+    stopVnet(input: StopVnetRequest, options: grpc.CallOptions, callback: (err: grpc.ServiceError | null, value?: StopVnetResponse) => void): grpc.ClientUnaryCall;
+    stopVnet(input: StopVnetRequest, callback: (err: grpc.ServiceError | null, value?: StopVnetResponse) => void): grpc.ClientUnaryCall;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -908,5 +933,26 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     updateUserPreferences(input: UpdateUserPreferencesRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: UpdateUserPreferencesResponse) => void)): grpc.ClientUnaryCall {
         const method = TerminalService.methods[39];
         return this.makeUnaryRequest<UpdateUserPreferencesRequest, UpdateUserPreferencesResponse>(`/${TerminalService.typeName}/${method.name}`, (value: UpdateUserPreferencesRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): UpdateUserPreferencesResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
+    }
+    // TODO(ravicious): Move VNet RPCs to a new service.
+
+    /**
+     * StartVnet starts VNet for the given root cluster. Only one VNet instance can be active at a
+     * time.
+     *
+     * @generated from protobuf rpc: StartVnet(teleport.lib.teleterm.v1.StartVnetRequest) returns (teleport.lib.teleterm.v1.StartVnetResponse);
+     */
+    startVnet(input: StartVnetRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: StartVnetResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: StartVnetResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: StartVnetResponse) => void)): grpc.ClientUnaryCall {
+        const method = TerminalService.methods[40];
+        return this.makeUnaryRequest<StartVnetRequest, StartVnetResponse>(`/${TerminalService.typeName}/${method.name}`, (value: StartVnetRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): StartVnetResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
+    }
+    /**
+     * StopVnet stops VNet for the given root cluster.
+     *
+     * @generated from protobuf rpc: StopVnet(teleport.lib.teleterm.v1.StopVnetRequest) returns (teleport.lib.teleterm.v1.StopVnetResponse);
+     */
+    stopVnet(input: StopVnetRequest, metadata: grpc.Metadata | grpc.CallOptions | ((err: grpc.ServiceError | null, value?: StopVnetResponse) => void), options?: grpc.CallOptions | ((err: grpc.ServiceError | null, value?: StopVnetResponse) => void), callback?: ((err: grpc.ServiceError | null, value?: StopVnetResponse) => void)): grpc.ClientUnaryCall {
+        const method = TerminalService.methods[41];
+        return this.makeUnaryRequest<StopVnetRequest, StopVnetResponse>(`/${TerminalService.typeName}/${method.name}`, (value: StopVnetRequest): Buffer => Buffer.from(method.I.toBinary(value, this._binaryOptions)), (value: Buffer): StopVnetResponse => method.O.fromBinary(value, this._binaryOptions), input, (metadata as any), (options as any), (callback as any));
     }
 }

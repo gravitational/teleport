@@ -1039,6 +1039,40 @@ export function createTshdClient(
         });
       });
     },
+
+    startVnet(
+      rootClusterUri: uri.RootClusterUri,
+      abortSignal?: types.TshAbortSignal
+    ): Promise<void> {
+      return withAbort(abortSignal, callRef => {
+        return new Promise((resolve, reject) => {
+          callRef.current = tshd.startVnet({ rootClusterUri }, err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      });
+    },
+
+    stopVnet(
+      rootClusterUri: uri.RootClusterUri,
+      abortSignal?: types.TshAbortSignal
+    ): Promise<void> {
+      return withAbort(abortSignal, callRef => {
+        return new Promise((resolve, reject) => {
+          callRef.current = tshd.stopVnet({ rootClusterUri }, err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      });
+    },
   };
 
   return client;

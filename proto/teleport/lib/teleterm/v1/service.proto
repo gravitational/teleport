@@ -163,6 +163,14 @@ service TerminalService {
   // UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
   // Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
   rpc UpdateUserPreferences(UpdateUserPreferencesRequest) returns (UpdateUserPreferencesResponse);
+
+  // TODO(ravicious): Move VNet RPCs to a new service.
+
+  // StartVnet starts VNet for the given root cluster. Only one VNet instance can be active at a
+  // time.
+  rpc StartVnet(StartVnetRequest) returns (StartVnetResponse);
+  // StopVnet stops VNet for the given root cluster.
+  rpc StopVnet(StopVnetRequest) returns (StopVnetResponse);
 }
 
 message EmptyResponse {}
@@ -624,3 +632,15 @@ message UserPreferences {
   teleport.userpreferences.v1.ClusterUserPreferences cluster_preferences = 1;
   teleport.userpreferences.v1.UnifiedResourcePreferences unified_resource_preferences = 2;
 }
+
+message StartVnetRequest {
+  string root_cluster_uri = 1;
+}
+
+message StartVnetResponse {}
+
+message StopVnetRequest {
+  string root_cluster_uri = 1;
+}
+
+message StopVnetResponse {}

@@ -161,6 +161,8 @@ func NewManager(ctx context.Context, cfg *Config) (m *Manager, err error) {
 }
 
 // Run starts the VNet.
+// TODO: Accept ctx instead of saving rootCtx. Or maybe not? How do we stop vnet if we shouldn't be
+// storing contexts as fields on structs?
 func (m *Manager) Run() error {
 	defer m.rootCtxCancel()
 

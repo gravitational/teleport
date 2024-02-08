@@ -33,12 +33,9 @@ export function useNewTabOpener({
       return;
     }
 
-    const clusterDocument = documentsService.createClusterDocument({
-      clusterUri: localClusterUri,
+    documentsService.openVnetDocument({
+      rootClusterUri: routing.ensureRootClusterUri(localClusterUri),
     });
-
-    documentsService.add(clusterDocument);
-    documentsService.open(clusterDocument.uri);
   }, [documentsService, localClusterUri]);
 
   const openTerminalTab = useCallback(() => {

@@ -78,8 +78,10 @@ func New(cfg Config) (*Service, error) {
 	go connectUsageReporter.Run(closeContext)
 
 	return &Service{
-		cfg:                    &cfg,
-		closeContext:           closeContext,
+		cfg:          &cfg,
+		closeContext: closeContext,
+		// TODO: Remove this once vnet is moved to daemon.Service.
+		RootContext:            closeContext,
 		cancel:                 cancel,
 		gateways:               make(map[string]gateway.Gateway),
 		usageReporter:          connectUsageReporter,
@@ -1092,6 +1094,7 @@ type Service struct {
 	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
 	// to the tshd events gRPC client.
 	closeContext context.Context
+	RootContext  context.Context
 	cancel       context.CancelFunc
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.

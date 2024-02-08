@@ -2053,6 +2053,82 @@ export namespace UserPreferences {
     }
 }
 
+export class StartVnetRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): StartVnetRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): StartVnetRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: StartVnetRequest): StartVnetRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: StartVnetRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): StartVnetRequest;
+    static deserializeBinaryFromReader(message: StartVnetRequest, reader: jspb.BinaryReader): StartVnetRequest;
+}
+
+export namespace StartVnetRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class StartVnetResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): StartVnetResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: StartVnetResponse): StartVnetResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: StartVnetResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): StartVnetResponse;
+    static deserializeBinaryFromReader(message: StartVnetResponse, reader: jspb.BinaryReader): StartVnetResponse;
+}
+
+export namespace StartVnetResponse {
+    export type AsObject = {
+    }
+}
+
+export class StopVnetRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): StopVnetRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): StopVnetRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: StopVnetRequest): StopVnetRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: StopVnetRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): StopVnetRequest;
+    static deserializeBinaryFromReader(message: StopVnetRequest, reader: jspb.BinaryReader): StopVnetRequest;
+}
+
+export namespace StopVnetRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class StopVnetResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): StopVnetResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: StopVnetResponse): StopVnetResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: StopVnetResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): StopVnetResponse;
+    static deserializeBinaryFromReader(message: StopVnetResponse, reader: jspb.BinaryReader): StopVnetResponse;
+}
+
+export namespace StopVnetResponse {
+    export type AsObject = {
+    }
+}
+
 export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_UNSPECIFIED = 0,
     PASSWORDLESS_PROMPT_PIN = 1,

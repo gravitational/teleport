@@ -21,6 +21,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { StopVnetResponse } from "./service_pb";
+import { StopVnetRequest } from "./service_pb";
+import { StartVnetResponse } from "./service_pb";
+import { StartVnetRequest } from "./service_pb";
 import { UpdateUserPreferencesResponse } from "./service_pb";
 import { UpdateUserPreferencesRequest } from "./service_pb";
 import { GetUserPreferencesResponse } from "./service_pb";
@@ -378,6 +382,21 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: UpdateUserPreferences(teleport.lib.teleterm.v1.UpdateUserPreferencesRequest) returns (teleport.lib.teleterm.v1.UpdateUserPreferencesResponse);
      */
     updateUserPreferences: grpc.handleUnaryCall<UpdateUserPreferencesRequest, UpdateUserPreferencesResponse>;
+    // TODO(ravicious): Move VNet RPCs to a new service.
+
+    /**
+     * StartVnet starts VNet for the given root cluster. Only one VNet instance can be active at a
+     * time.
+     *
+     * @generated from protobuf rpc: StartVnet(teleport.lib.teleterm.v1.StartVnetRequest) returns (teleport.lib.teleterm.v1.StartVnetResponse);
+     */
+    startVnet: grpc.handleUnaryCall<StartVnetRequest, StartVnetResponse>;
+    /**
+     * StopVnet stops VNet for the given root cluster.
+     *
+     * @generated from protobuf rpc: StopVnet(teleport.lib.teleterm.v1.StopVnetRequest) returns (teleport.lib.teleterm.v1.StopVnetResponse);
+     */
+    stopVnet: grpc.handleUnaryCall<StopVnetRequest, StopVnetResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -790,5 +809,25 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => UpdateUserPreferencesRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(UpdateUserPreferencesResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(UpdateUserPreferencesRequest.toBinary(value))
+    },
+    startVnet: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/StartVnet",
+        originalName: "StartVnet",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => StartVnetResponse.fromBinary(bytes),
+        requestDeserialize: bytes => StartVnetRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(StartVnetResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(StartVnetRequest.toBinary(value))
+    },
+    stopVnet: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/StopVnet",
+        originalName: "StopVnet",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => StopVnetResponse.fromBinary(bytes),
+        requestDeserialize: bytes => StopVnetRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(StopVnetResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(StopVnetRequest.toBinary(value))
     }
 };

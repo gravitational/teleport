@@ -214,6 +214,14 @@ export interface DocumentConnectMyComputer extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
 }
 
+export interface DocumentVnet extends DocumentBase {
+  kind: 'doc.vnet';
+  // `DocumentVnet` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+  // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
+  // between a document and a cluster just by looking at the document fields.
+  rootClusterUri: uri.RootClusterUri;
+}
+
 export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
@@ -223,11 +231,12 @@ export type DocumentTerminal =
 
 export type Document =
   | DocumentAccessRequests
-  | DocumentBlank
   | DocumentGateway
   | DocumentCluster
   | DocumentTerminal
-  | DocumentConnectMyComputer;
+  | DocumentConnectMyComputer
+  | DocumentVnet
+  | DocumentBlank;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document

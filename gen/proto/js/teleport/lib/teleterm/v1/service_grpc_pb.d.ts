@@ -60,6 +60,8 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     listUnifiedResources: ITerminalServiceService_IListUnifiedResources;
     getUserPreferences: ITerminalServiceService_IGetUserPreferences;
     updateUserPreferences: ITerminalServiceService_IUpdateUserPreferences;
+    startVnet: ITerminalServiceService_IStartVnet;
+    stopVnet: ITerminalServiceService_IStopVnet;
 }
 
 interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest, teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse> {
@@ -422,6 +424,24 @@ interface ITerminalServiceService_IUpdateUserPreferences extends grpc.MethodDefi
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse>;
 }
+interface ITerminalServiceService_IStartVnet extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.StartVnetRequest, teleport_lib_teleterm_v1_service_pb.StartVnetResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/StartVnet";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.StartVnetRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.StartVnetRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.StartVnetResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.StartVnetResponse>;
+}
+interface ITerminalServiceService_IStopVnet extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.StopVnetRequest, teleport_lib_teleterm_v1_service_pb.StopVnetResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/StopVnet";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.StopVnetRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.StopVnetRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.StopVnetResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.StopVnetResponse>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
@@ -466,6 +486,8 @@ export interface ITerminalServiceServer {
     listUnifiedResources: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
     getUserPreferences: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse>;
     updateUserPreferences: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse>;
+    startVnet: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.StartVnetRequest, teleport_lib_teleterm_v1_service_pb.StartVnetResponse>;
+    stopVnet: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.StopVnetRequest, teleport_lib_teleterm_v1_service_pb.StopVnetResponse>;
 }
 
 export interface ITerminalServiceClient {
@@ -588,6 +610,12 @@ export interface ITerminalServiceClient {
     updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    startVnet(request: teleport_lib_teleterm_v1_service_pb.StartVnetRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StartVnetResponse) => void): grpc.ClientUnaryCall;
+    startVnet(request: teleport_lib_teleterm_v1_service_pb.StartVnetRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StartVnetResponse) => void): grpc.ClientUnaryCall;
+    startVnet(request: teleport_lib_teleterm_v1_service_pb.StartVnetRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StartVnetResponse) => void): grpc.ClientUnaryCall;
+    stopVnet(request: teleport_lib_teleterm_v1_service_pb.StopVnetRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StopVnetResponse) => void): grpc.ClientUnaryCall;
+    stopVnet(request: teleport_lib_teleterm_v1_service_pb.StopVnetRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StopVnetResponse) => void): grpc.ClientUnaryCall;
+    stopVnet(request: teleport_lib_teleterm_v1_service_pb.StopVnetRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StopVnetResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -710,4 +738,10 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    public startVnet(request: teleport_lib_teleterm_v1_service_pb.StartVnetRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StartVnetResponse) => void): grpc.ClientUnaryCall;
+    public startVnet(request: teleport_lib_teleterm_v1_service_pb.StartVnetRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StartVnetResponse) => void): grpc.ClientUnaryCall;
+    public startVnet(request: teleport_lib_teleterm_v1_service_pb.StartVnetRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StartVnetResponse) => void): grpc.ClientUnaryCall;
+    public stopVnet(request: teleport_lib_teleterm_v1_service_pb.StopVnetRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StopVnetResponse) => void): grpc.ClientUnaryCall;
+    public stopVnet(request: teleport_lib_teleterm_v1_service_pb.StopVnetRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StopVnetResponse) => void): grpc.ClientUnaryCall;
+    public stopVnet(request: teleport_lib_teleterm_v1_service_pb.StopVnetRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.StopVnetResponse) => void): grpc.ClientUnaryCall;
 }

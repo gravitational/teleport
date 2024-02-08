@@ -716,6 +716,50 @@ function deserialize_teleport_lib_teleterm_v1_SetGatewayTargetSubresourceNameReq
   return teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_StartVnetRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.StartVnetRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.StartVnetRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_StartVnetRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.StartVnetRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_StartVnetResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.StartVnetResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.StartVnetResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_StartVnetResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.StartVnetResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_StopVnetRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.StopVnetRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.StopVnetRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_StopVnetRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.StopVnetRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_StopVnetResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.StopVnetResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.StopVnetResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_StopVnetResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.StopVnetResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest');
@@ -1326,6 +1370,33 @@ updateUserPreferences: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse,
+  },
+  // TODO(ravicious): Move VNet RPCs to a new service.
+//
+// StartVnet starts VNet for the given root cluster. Only one VNet instance can be active at a
+// time.
+startVnet: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/StartVnet',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.StartVnetRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.StartVnetResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_StartVnetRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_StartVnetRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_StartVnetResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_StartVnetResponse,
+  },
+  // StopVnet stops VNet for the given root cluster.
+stopVnet: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/StopVnet',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.StopVnetRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.StopVnetResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_StopVnetRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_StopVnetRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_StopVnetResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_StopVnetResponse,
   },
 };
 

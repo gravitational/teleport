@@ -1161,6 +1161,34 @@ export interface UserPreferences {
     unifiedResourcePreferences?: UnifiedResourcePreferences;
 }
 /**
+ * @generated from protobuf message teleport.lib.teleterm.v1.StartVnetRequest
+ */
+export interface StartVnetRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.StartVnetResponse
+ */
+export interface StartVnetResponse {
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.StopVnetRequest
+ */
+export interface StopVnetRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.StopVnetResponse
+ */
+export interface StopVnetResponse {
+}
+/**
  * PasswordlessPrompt describes different prompts we need from users
  * during the passwordless login flow.
  *
@@ -5308,6 +5336,150 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UserPreferences
  */
 export const UserPreferences = new UserPreferences$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StartVnetRequest$Type extends MessageType<StartVnetRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.StartVnetRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StartVnetRequest>): StartVnetRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<StartVnetRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StartVnetRequest): StartVnetRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StartVnetRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.StartVnetRequest
+ */
+export const StartVnetRequest = new StartVnetRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StartVnetResponse$Type extends MessageType<StartVnetResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.StartVnetResponse", []);
+    }
+    create(value?: PartialMessage<StartVnetResponse>): StartVnetResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StartVnetResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StartVnetResponse): StartVnetResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: StartVnetResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.StartVnetResponse
+ */
+export const StartVnetResponse = new StartVnetResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StopVnetRequest$Type extends MessageType<StopVnetRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.StopVnetRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StopVnetRequest>): StopVnetRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<StopVnetRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StopVnetRequest): StopVnetRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StopVnetRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.StopVnetRequest
+ */
+export const StopVnetRequest = new StopVnetRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StopVnetResponse$Type extends MessageType<StopVnetResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.StopVnetResponse", []);
+    }
+    create(value?: PartialMessage<StopVnetResponse>): StopVnetResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StopVnetResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StopVnetResponse): StopVnetResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: StopVnetResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.StopVnetResponse
+ */
+export const StopVnetResponse = new StopVnetResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5351,5 +5523,7 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "GetConnectMyComputerNodeName", options: {}, I: GetConnectMyComputerNodeNameRequest, O: GetConnectMyComputerNodeNameResponse },
     { name: "ListUnifiedResources", options: {}, I: ListUnifiedResourcesRequest, O: ListUnifiedResourcesResponse },
     { name: "GetUserPreferences", options: {}, I: GetUserPreferencesRequest, O: GetUserPreferencesResponse },
-    { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse }
+    { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse },
+    { name: "StartVnet", options: {}, I: StartVnetRequest, O: StartVnetResponse },
+    { name: "StopVnet", options: {}, I: StopVnetRequest, O: StopVnetResponse }
 ]);

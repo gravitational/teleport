@@ -107,4 +107,7 @@ export class MockTshClient implements types.TshdClient {
   promoteAccessRequest = async () => undefined;
 
   updateTshdEventsServerAddress: (address: string) => Promise<void>;
+
+  startVnet = () => Promise.resolve();
+  stopVnet = () => Promise.resolve();
 }
