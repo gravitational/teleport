@@ -111,9 +111,11 @@ func (f *LoginFlow) Begin(ctx context.Context, user string, challengeExtensions 
 	}
 
 	lf := &loginFlow{
-		U2F:         f.U2F,
-		Webauthn:    f.Webauthn,
-		identity:    mfaIdentity{f.Identity},
+		U2F:      f.U2F,
+		Webauthn: f.Webauthn,
+		identity: mfaIdentity{f.Identity},
+		// TODO(codingllama): Record session data to distinct scope keys based on
+		//  the actual challenge scope.
 		sessionData: (*userSessionStorage)(f),
 	}
 	return lf.begin(ctx, user, challengeExtensions)
