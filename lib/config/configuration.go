@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
@@ -217,7 +218,7 @@ type CommandLineFlags struct {
 
 	// IntegrationConfExternalAuditStorageArguments contains the arguments of the
 	// `teleport integration configure externalauditstorage` command
-	IntegrationConfExternalAuditStorageArguments servicecfg.ExternalAuditStorageConfiguration
+	IntegrationConfExternalAuditStorageArguments easconfig.ExternalAuditStorageConfiguration
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
