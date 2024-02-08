@@ -234,9 +234,8 @@ function AgentSetup() {
             let certsReloaded = false;
 
             try {
-              const response = await ctx.connectMyComputerService.createRole(
-                rootClusterUri
-              );
+              const response =
+                await ctx.connectMyComputerService.createRole(rootClusterUri);
               certsReloaded = response.certsReloaded;
             } catch (error) {
               if (isAccessDeniedError(error)) {
