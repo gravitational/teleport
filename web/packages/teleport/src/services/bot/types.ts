@@ -95,3 +95,7 @@ export type BotType = BotUiFlow;
 export enum BotUiFlow {
   GitHubActionsSsh = 'github-actions-ssh',
 }
+export type EditBotRequest = {
+  // roles is the list of roles to assign to the bot
+  roles: string[];
+};

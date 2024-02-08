@@ -22,6 +22,8 @@ import { FlatBot } from 'teleport/services/bot/types';
 
 export type BotOptionsCellProps = {
   bot: FlatBot;
+  disabledEdit: boolean;
+  onClickEdit: (bot: FlatBot) => void;
   onClickDelete: (bot: FlatBot) => void;
   onClickView: (bot: FlatBot) => void;
 };
@@ -29,11 +31,16 @@ export type BotOptionsCellProps = {
 export type BotListProps = {
   attempt: Attempt;
   bots: FlatBot[];
+  disabledEdit: boolean;
+  roles: string[];
   onClose: () => void;
   onDelete: () => void;
+  onEdit: () => void;
   selectedBot: FlatBot;
   setSelectedBot: Dispatch<SetStateAction<FlatBot>>;
   onView: (bot: FlatBot) => void;
+  selectedRoles: string[];
+  setSelectedRoles: Dispatch<SetStateAction<string[]>>;
 };
 
 export type DeleteBotProps = {
@@ -51,3 +58,13 @@ export type ViewBotProps = {
 export enum BotFlowType {
   GitHubActions = 'github-actions',
 }
+
+export type EditBotProps = {
+  allRoles: string[];
+  attempt: Attempt;
+  name: string;
+  onClose: () => void;
+  onEdit: () => void;
+  selectedRoles: string[];
+  setSelectedRoles: Dispatch<SetStateAction<string[]>>;
+};

@@ -18,22 +18,36 @@
 
 import Table, { LabelCell } from 'design/DataTable';
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import { BotOptionsCell } from 'teleport/Bots/List/ActionCell';
 
 import { BotListProps } from 'teleport/Bots/types';
 import { DeleteBot } from 'teleport/Bots/DeleteBot';
+import { EditBot } from 'teleport/Bots/EditBot';
+
+enum Interaction {
+  EDIT,
+  DELETE,
+  NONE,
+}
 
 export function BotList({
   attempt,
   bots,
+  disabledEdit,
+  roles,
   onClose,
   onDelete,
+  onEdit,
   selectedBot,
   setSelectedBot,
   onView,
+  selectedRoles,
+  setSelectedRoles,
 }: BotListProps) {
+  const [interaction, setInteraction] = useState<Interaction>(Interaction.NONE);
+
   return (
     <>
       <Table
@@ -57,8 +71,17 @@ export function BotList({
             render: bot => (
               <BotOptionsCell
                 bot={bot}
-                onClickDelete={() => setSelectedBot(bot)}
                 onClickView={() => onView(bot)}
+                disabledEdit={disabledEdit}
+                onClickEdit={() => {
+                  setSelectedBot(bot);
+                  setSelectedRoles(bot.roles);
+                  setInteraction(Interaction.EDIT);
+                }}
+                onClickDelete={() => {
+                  setSelectedBot(bot);
+                  setInteraction(Interaction.DELETE);
+                }}
               />
             ),
           },
@@ -67,12 +90,23 @@ export function BotList({
         isSearchable
         pagination={{ pageSize: 20 }}
       />
-      {selectedBot && (
+      {selectedBot && interaction === Interaction.DELETE && (
         <DeleteBot
           attempt={attempt}
           name={selectedBot.name}
           onClose={onClose}
           onDelete={onDelete}
+        />
+      )}
+      {selectedBot && interaction === Interaction.EDIT && (
+        <EditBot
+          allRoles={roles}
+          attempt={attempt}
+          name={selectedBot.name}
+          onClose={onClose}
+          onEdit={onEdit}
+          selectedRoles={selectedRoles}
+          setSelectedRoles={setSelectedRoles}
         />
       )}
     </>

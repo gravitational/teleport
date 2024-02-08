@@ -27,10 +27,15 @@ export function BotOptionsCell({
   onClickDelete,
   onClickView,
   bot,
+  disabledEdit,
+  onClickEdit,
 }: BotOptionsCellProps) {
   return (
     <Cell align="right">
       <MenuButton>
+        <MenuItem onClick={onClickEdit} disabled={disabledEdit}>
+          Edit...
+        </MenuItem>
         <MenuItem onClick={onClickDelete}>Delete...</MenuItem>
         {bot.type === BotUiFlow.GitHubActionsSsh && (
           <MenuItem onClick={onClickView}>View...</MenuItem>

@@ -25,11 +25,16 @@ import { botsFixture } from 'teleport/Bots/fixtures';
 const makeProps = (): BotListProps => ({
   attempt: { status: '' },
   bots: botsFixture,
-  onClose: () => {},
-  onDelete: () => {},
+  disabledEdit: false,
+  onClose: () => { },
+  onDelete: () => { },
+  onEdit: () => { },
+  roles: [],
   selectedBot: null,
-  setSelectedBot: () => {},
-  onView: () => {},
+  selectedRoles: [],
+  setSelectedBot: () => { },
+  onView: () => { },
+  setSelectedRoles: () => { },
 });
 
 test('renders table with bots', () => {
