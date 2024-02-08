@@ -214,6 +214,8 @@ class TeleportContext implements types.Context {
       managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
       externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
+      listBots: userContext.getBotsAccess().list,
+      addBots: userContext.getBotsAccess().create,
     };
   }
 }
@@ -249,6 +251,8 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   accessMonitoring: false,
   accessGraph: false,
   externalAuditStorage: false,
+  addBots: false,
+  listBots: false,
 };
 
 export default TeleportContext;
