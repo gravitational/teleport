@@ -49,7 +49,7 @@ const day = 24 * time.Hour
 
 // maxAccessDuration is the maximum duration that an access request can be
 // granted for.
-const maxAccessDuration = 7 * day
+const maxAccessDuration = 14 * day
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
@@ -1230,7 +1230,7 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 
 	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
 
-	// For dry run requests, the max_duration is set to 7 days.
+	// For dry run requests, the max_duration is set to 14 days.
 	// This prevents the time drift that can occur as the value is set on the client side.
 	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
 	if req.GetDryRun() {
