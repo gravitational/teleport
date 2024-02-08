@@ -1,0 +1,77 @@
+name: Publish Operator OCI images
+on:
+  workflow_dispatch:
+    inputs:
+      teleport-version:
+        description: |
+          The semver version of Teleport version that we're publishing.
+        type: string
+        required: true
+
+      environment:
+        description: GitHub environment to publish to.
+        type: string
+        default: publish-prod
+
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Parse version
+        id: version
+        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        with:
+          version: ${{ inputs.teleport-version }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+       
+      - name: Assume AWS Promotion Role
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          aws-region:  us-west-2
+          role-to-assume: ${{ vars.PUBLISH_OPERATOR_OCI_AWS_ROLE }}
+          role-session-name: "gha-publish-operator-oci-${{ github.run_attempt }}"
+          # Promotion should take roughly a minute, so 15 mins gives us plenty
+          # of leeway (and is the miminum value we can ask for).
+          role-duration-seconds: 900
+     
+      - name: Login to Source ECR Registry
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Login to Destination ECR Registry
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+        with:
+          registry-type: ${{ startsWith('public.ecr.aws', vars.OPERATOR_PUBLISH_ECR_REPO) && 'public' || 'private' }}
+
+      - name: Publish Multi-arch Images
+        env:
+          SRC_REPO: ${{ vars.OPERATOR_PENDING_ECR_REPO }}
+          SRC_LABEL: ${{ steps.version.outputs.full }}
+          DST_REPO: ${{ vars.OPERATOR_PUBLISH_ECR_REPO }}
+          DST_LABELS: ${{ steps.version.outputs.labels }}
+        run: |
+          read -ra labels <<< "${DST_LABELS}" # split on whitespace into array
+          for label in "${labels[@]}"; do
+            dst="${DST_REPO}:${label}"
+            if docker manifest inspect "${dst}" >/dev/null 2>&1; then
+              printf 'Found existing image, skipping "%s"\n' "${dst}"
+            else
+              docker buildx imagetools create --tag "${dst}" "${SRC_REPO}:${SRC_LABEL}"
+            fi
+          done
+
+      # Required for gh-trigger-workflow to find dispatched workflow.
+      - name: ${{ inputs.workflow-tag }}
+        if: inputs.workflow-tag != ''
+        run: |
+          # Do nothing
