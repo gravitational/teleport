@@ -40,3 +40,7 @@ export type DeleteBotProps = {
   onClose: () => void;
   onDelete: () => void;
 };
+
+export enum BotType {
+  GitHubActions = 'github-actions',
+}

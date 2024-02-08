@@ -17,10 +17,13 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { Alert, Box, ButtonPrimary, Indicator } from 'design';
 
 import { useAttemptNext } from 'shared/hooks';
+
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import {
   FeatureBox,
@@ -30,8 +33,13 @@ import {
 import { BotList } from 'teleport/Bots/List/BotList';
 import { deleteBot, fetchBots } from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
+import cfg from 'teleport/config';
+import useTeleport from 'teleport/useTeleport';
 
 export function Bots() {
+  const ctx = useTeleport();
+  const hasAddBotPermissions = ctx.getFeatureFlags().addBots;
+
   const [bots, setBots] = useState<FlatBot[]>();
   const [selectedBot, setSelectedBot] = useState<FlatBot>();
   const { attempt: deleteAttempt, run: deleteRun } = useAttemptNext();
@@ -66,9 +74,26 @@ export function Bots() {
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Bots</FeatureHeaderTitle>
-        <ButtonPrimary ml="auto" width="240px" disabled>
-          Enroll New Bot
-        </ButtonPrimary>
+        <Box ml="auto">
+          <HoverTooltip
+            tipContent={
+              hasAddBotPermissions
+                ? ''
+                : `Insufficient permissions. Reach out to your Teleport administrator
+    to request bot creation permissions.`
+            }
+          >
+            <ButtonPrimary
+              ml="auto"
+              width="240px"
+              as={Link}
+              to={cfg.getBotsNewRoute()}
+              disabled={!hasAddBotPermissions}
+            >
+              Enroll New Bot
+            </ButtonPrimary>
+          </HoverTooltip>
+        </Box>
       </FeatureHeader>
       {fetchAttempt.status == 'processing' && (
         <Box textAlign="center" m={10}>

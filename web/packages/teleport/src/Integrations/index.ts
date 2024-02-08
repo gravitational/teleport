@@ -17,3 +17,4 @@
 // export as default for use with React.lazy
 export { Integrations as default } from './Integrations';
 export { IntegrationList } from './IntegrationList';
+export { IntegrationTile } from './Enroll/common';

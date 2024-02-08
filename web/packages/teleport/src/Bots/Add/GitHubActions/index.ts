@@ -16,4 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { fetchBots, deleteBot, createBot, getBot, createBotToken } from './bot';
+export { GitHubActions as default, GitHubActionsFlow } from './GitHubActions';
+export { ConnectGitHub as ConfigureBot } from './ConnectGitHub';

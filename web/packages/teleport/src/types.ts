@@ -170,6 +170,8 @@ export interface FeatureFlags {
   managementSection: boolean;
   accessGraph: boolean;
   externalAuditStorage: boolean;
+  listBots: boolean;
+  addBots: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
