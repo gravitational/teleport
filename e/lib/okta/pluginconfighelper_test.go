@@ -64,7 +64,7 @@ func TestGetOktaGroups(t *testing.T) {
 			},
 		},
 		{
-			name: "get groups with filters",
+			name: "get groups with filters, don't duplicate",
 			groups: []*okta.Group{
 				{Id: "1", Profile: &okta.GroupProfile{Name: "group1", Description: "description"}},
 				{Id: "2", Profile: &okta.GroupProfile{Name: "admin-group2"}},
@@ -72,6 +72,7 @@ func TestGetOktaGroups(t *testing.T) {
 			},
 			filters: []string{
 				"*-group*",
+				"*-*",
 			},
 			expectErr: require.NoError,
 			expect: []*PluginConfigOktaGroup{
@@ -159,7 +160,7 @@ func TestGetOktaApps(t *testing.T) {
 			},
 		},
 		{
-			name: "get apps with filters",
+			name: "get apps with filters, don't duplicate",
 			apps: []okta.App{
 				&okta.Application{Id: "1", Label: "app1"},
 				&okta.Application{Id: "2", Label: "admin-app2"},
@@ -167,6 +168,7 @@ func TestGetOktaApps(t *testing.T) {
 			},
 			filters: []string{
 				"*-app*",
+				"*-*",
 			},
 			expectErr: require.NoError,
 			expect: []*PluginConfigOktaApp{

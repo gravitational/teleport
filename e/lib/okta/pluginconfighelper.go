@@ -184,6 +184,7 @@ func getMatches[T any](resources []T, filters []*regexp.Regexp, getNameFn func(T
 		for _, filter := range filters {
 			if filter.MatchString(getNameFn(resource)) {
 				filteredResources = append(filteredResources, resource)
+				break
 			}
 		}
 	}
