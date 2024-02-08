@@ -95,7 +95,7 @@ func TestValidateDatabaseObject(t *testing.T) {
 		{
 			name:           "nil object",
 			databaseObject: nil,
-			expectedError:  trace.BadParameter("object must be non-nil"),
+			expectedError:  trace.BadParameter("database object must be non-nil"),
 		},
 		{
 			name:           "nil metadata",
@@ -109,7 +109,7 @@ func TestValidateDatabaseObject(t *testing.T) {
 				Metadata: &headerv1.Metadata{Name: "test", Namespace: defaults.Namespace},
 				Spec:     &dbobjectv1.DatabaseObjectSpec{Name: "test"},
 			},
-			expectedError: trace.BadParameter("wrong kind %v", "InvalidKind"),
+			expectedError: trace.BadParameter("invalid kind InvalidKind, expected db_object"),
 		},
 		{
 			name: "missing spec",

@@ -80,7 +80,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 		{
 			name:          "nil rule",
 			rule:          nil,
-			expectedError: trace.BadParameter("must be non-nil"),
+			expectedError: trace.BadParameter("database object import rule must be non-nil"),
 		},
 		{
 			name: "missing metadata",
@@ -116,7 +116,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 				},
 				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{},
 			},
-			expectedError: trace.BadParameter("wrong kind %v", "InvalidKind"),
+			expectedError: trace.BadParameter("invalid kind InvalidKind, expected db_object_import_rule"),
 		},
 		{
 			name: "missing spec",
