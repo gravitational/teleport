@@ -180,18 +180,19 @@ func runAdminSubcommand(socketPath string) error {
 		"--socket", socketPath,
 	}, " ")
 	prompt := "VNet wants to set up a virtual network device."
-	appleScript := fmt.Sprintf(`
-try
-	set x to do shell script "%s" with prompt "%s" with administrator privileges
-on error errorMessage
-	display dialog errorMessage
-	do shell script "echo '" & errorMessage & "' >&2"
-	error errorMessage
-end try`, cmdAndArgs, prompt)
+	appleScript := fmt.Sprintf(`do shell script "%s" with prompt "%s" with administrator privileges`, cmdAndArgs, prompt)
 	cmd := exec.Command("osascript", "-e", appleScript)
+	stderr := new(strings.Builder)
+	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
 		if err, ok := err.(*exec.ExitError); ok {
-			stderr := string(err.Stderr)
+			stderr := stderr.String()
+
+			// https://developer.apple.com/library/archive/documentation/AppleScript/Conceptual/AppleScriptLangGuide/reference/ASLR_error_codes.html#//apple_ref/doc/uid/TP40000983-CH220-SW2
+			if strings.Contains(stderr, "-128") {
+				return trace.Errorf("admin setup canceled by user")
+			}
+
 			return trace.Wrap(err, fmt.Sprintf("admin setup subcommand exited, stderr: %s", stderr))
 		}
 		return trace.Wrap(err, "running admin setup subcommand")
