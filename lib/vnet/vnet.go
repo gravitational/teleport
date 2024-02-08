@@ -394,7 +394,6 @@ func forwardBetweenOsAndVnet(ctx context.Context, osTUN tun.Device, vnetEndpoint
 func forwardVnetEndpointToOsTUN(ctx context.Context, endpoint *channel.Endpoint, tun tun.Device) error {
 	bufs := [][]byte{make([]byte, device.MessageTransportHeaderSize+mtu)}
 	for {
-		bufs[0] = bufs[0][:cap(bufs[0])]
 		packet := endpoint.ReadContext(ctx)
 		if packet.IsNil() {
 			// Nil packet is returned when context is cancelled.
@@ -409,28 +408,25 @@ func forwardVnetEndpointToOsTUN(ctx context.Context, endpoint *channel.Endpoint,
 		if _, err := tun.Write(bufs, device.MessageTransportHeaderSize); err != nil {
 			return trace.Wrap(err, "writing packets to TUN")
 		}
+		bufs[0] = bufs[0][:cap(bufs[0])]
 	}
 }
 
 func forwardOsTUNToVnetEndpoint(ctx context.Context, tun tun.Device, dstEndpoint *channel.Endpoint) error {
 	const readOffset = device.MessageTransportHeaderSize
-	buffers := make([][]byte, tun.BatchSize())
-	for i := range buffers {
-		buffers[i] = make([]byte, device.MessageTransportHeaderSize+mtu)
+	bufs := make([][]byte, tun.BatchSize())
+	for i := range bufs {
+		bufs[i] = make([]byte, device.MessageTransportHeaderSize+mtu)
 	}
-	sizes := make([]int, len(buffers))
+	sizes := make([]int, len(bufs))
 	for {
-		for i := range buffers {
-			buffers[i] = buffers[i][:cap(buffers[i])]
-		}
-		n, err := tun.Read(buffers, sizes, readOffset)
+		n, err := tun.Read(bufs, sizes, readOffset)
 		if err != nil {
 			return trace.Wrap(err, "reading packets from TUN")
 		}
 		for i := range sizes[:n] {
-			buffers[i] = buffers[i][readOffset : readOffset+sizes[i]]
 			packet := stack.NewPacketBuffer(stack.PacketBufferOptions{
-				Payload: buffer.MakeWithData(buffers[i]),
+				Payload: buffer.MakeWithData(bufs[i][readOffset : readOffset+sizes[i]]),
 			})
 			dstEndpoint.InjectInbound(header.IPv4ProtocolNumber, packet)
 			packet.DecRef()
