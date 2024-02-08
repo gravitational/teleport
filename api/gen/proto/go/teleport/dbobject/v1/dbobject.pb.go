@@ -36,6 +36,8 @@ const (
 )
 
 // DatabaseObject represents a database object that can be imported into Teleport.
+// An example of such object would be a database table, along with various metadata.
+// For rationale behind this type, see the RFD 151.
 type DatabaseObject struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

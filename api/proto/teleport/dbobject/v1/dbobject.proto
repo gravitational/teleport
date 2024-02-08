@@ -21,6 +21,8 @@ import "teleport/header/v1/metadata.proto";
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1;dbobjectv1";
 
 // DatabaseObject represents a database object that can be imported into Teleport.
+// An example of such object would be a database table, along with various metadata.
+// For rationale behind this type, see the RFD 151.
 message DatabaseObject {
   // The kind of resource represented.
   string kind = 1;

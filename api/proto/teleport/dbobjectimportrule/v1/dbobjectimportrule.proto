@@ -22,6 +22,9 @@ import "teleport/legacy/types/wrappers/wrappers.proto";
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1;dbobjectimportrulev1";
 
 // DatabaseObjectImportRule is the resource representing a global database object import rule.
+// The import rules govern which database objects are imported from databases.
+// See type teleport.dbobject.v1.DatabaseObject for the description of a database object.
+// For rationale behind this type, see the RFD 151.
 message DatabaseObjectImportRule {
   // The kind of resource represented.
   string kind = 1;
