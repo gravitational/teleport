@@ -96,12 +96,10 @@ export function NavigationMenu() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         onClose={() => setIsMenuOpened(false)}
-        menuListCss={() =>
-          css`
-            display: flex;
-            flex-direction: column;
-          `
-        }
+        menuListCss={() => css`
+          display: flex;
+          flex-direction: column;
+        `}
       >
         {isAgentConfiguredAttempt.status === 'processing' && (
           <Indicator

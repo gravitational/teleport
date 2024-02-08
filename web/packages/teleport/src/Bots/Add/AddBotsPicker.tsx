@@ -57,7 +57,7 @@ type BotIntegration = {
 
 const integrations: BotIntegration[] = [
   {
-    title: 'GitHub Actions',
+    title: 'GitHub Actions + SSH',
     link: cfg.getBotsNewRoute(BotFlowType.GitHubActions),
     icon: <GitHubIcon size={80} />,
     kind: IntegrationEnrollKind.MachineIDGitHubActions,
