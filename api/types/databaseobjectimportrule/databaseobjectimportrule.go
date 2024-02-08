@@ -51,7 +51,7 @@ func NewDatabaseObjectImportRuleWithLabels(name string, labels map[string]string
 // ValidateDatabaseObjectImportRule checks if dbobjectimportrulev1.DatabaseObjectImportRule is valid.
 func ValidateDatabaseObjectImportRule(rule *dbobjectimportrulev1.DatabaseObjectImportRule) error {
 	if rule == nil {
-		return trace.BadParameter("must be non-nil")
+		return trace.BadParameter("database object import rule must be non-nil")
 	}
 	if rule.Metadata == nil {
 		return trace.BadParameter("metadata: must be non-nil")
@@ -60,12 +60,12 @@ func ValidateDatabaseObjectImportRule(rule *dbobjectimportrulev1.DatabaseObjectI
 		return trace.BadParameter("metadata.name: must be non-empty")
 	}
 	if rule.Kind != types.KindDatabaseObjectImportRule {
-		return trace.BadParameter("wrong kind %v", rule.Kind)
+		return trace.BadParameter("invalid kind %v, expected %v", rule.Kind, types.KindDatabaseObjectImportRule)
 	}
 	if rule.Spec == nil {
 		return trace.BadParameter("missing spec")
 	}
-	if len(rule.Spec.DbLabels) == 0 {
+	if rule.Spec.DbLabels == nil || len(rule.Spec.DbLabels.Values) == 0 {
 		return trace.BadParameter("missing db_labels")
 	}
 	if len(rule.Spec.Mappings) == 0 {

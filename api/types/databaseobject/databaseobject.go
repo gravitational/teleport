@@ -51,7 +51,7 @@ func NewDatabaseObjectWithLabels(name string, labels map[string]string, spec *db
 // ValidateDatabaseObject checks if *dbobjectv1.DatabaseObject is valid.
 func ValidateDatabaseObject(obj *dbobjectv1.DatabaseObject) error {
 	if obj == nil {
-		return trace.BadParameter("object must be non-nil")
+		return trace.BadParameter("database object must be non-nil")
 	}
 	if obj.Metadata == nil {
 		return trace.BadParameter("metadata: must be non-nil")
@@ -60,7 +60,7 @@ func ValidateDatabaseObject(obj *dbobjectv1.DatabaseObject) error {
 		return trace.BadParameter("metadata.name: must be non-empty")
 	}
 	if obj.Kind != types.KindDatabaseObject {
-		return trace.BadParameter("wrong kind %v", obj.Kind)
+		return trace.BadParameter("invalid kind %v, expected %v", obj.Kind, types.KindDatabaseObject)
 	}
 	if obj.Spec == nil {
 		return trace.BadParameter("spec: must be non-empty")
