@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.dbobjectimportrule.v1;
 
 import "teleport/header/v1/metadata.proto";
+import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1;dbobjectimportrulev1";
 
@@ -42,7 +43,7 @@ message DatabaseObjectImportRuleSpec {
   int32 priority = 1;
 
   // db_labels is a set of labels matched against database labels.
-  map<string, string> db_labels = 2;
+  wrappers.LabelValues db_labels = 2;
 
   // Mappings is a list of matches that will map match conditions to labels.
   repeated DatabaseObjectImportRuleMapping mappings = 4;

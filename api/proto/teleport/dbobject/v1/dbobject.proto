@@ -40,7 +40,7 @@ message DatabaseObjectSpec {
   // The protocol used to connect to the database (e.g., postgres).
   string protocol = 1;
   // The name of the database service that this object belongs to.
-  string db_service_name = 2;
+  string database_service_name = 2;
   // The kind of database object (e.g., table, view).
   string object_kind = 3;
   // The database containing the object.

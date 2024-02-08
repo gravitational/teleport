@@ -35,7 +35,7 @@ func TestNewDatabaseObjectImportRule(t *testing.T) {
 		{
 			name: "valid rule",
 			spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-				DbLabels: map[string]string{"key": "value"},
+				DbLabels: types.Labels{"key": {"value"}}.ToProto(),
 				Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
 			},
 			expectedError: nil,
@@ -71,7 +71,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 					Namespace: defaults.Namespace,
 				},
 				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-					DbLabels: map[string]string{"key": "value"},
+					DbLabels: types.Labels{"key": {"value"}}.ToProto(),
 					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
 				},
 			},
@@ -156,7 +156,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 					Namespace: defaults.Namespace,
 				},
 				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-					DbLabels: map[string]string{"key": "value"},
+					DbLabels: types.Labels{"key": {"value"}}.ToProto(),
 				},
 			},
 			expectedError: trace.BadParameter("missing mappings"),
