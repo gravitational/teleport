@@ -94,7 +94,7 @@ export function LockedAccessRequests() {
               transform: translate(-50%, 50%);
               @media screen and (max-width: 800px) {
                 min-width: 100%;
-              } ;
+              }
             `}
           >
             {CTAButton}
