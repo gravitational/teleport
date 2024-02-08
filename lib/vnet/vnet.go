@@ -22,10 +22,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -61,10 +59,30 @@ var (
 	defaultDNSAddress = tcpip.AddrFrom4([4]byte{100, 127, 100, 127})
 )
 
+// Run is a blocking call to create and start Teleport VNet.
+func Run(ctx context.Context, tc *client.TeleportClient) error {
+	tun, err := CreateAndSetupTUNDevice()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	manager, err := NewManager(ctx, &Config{
+		Client:    tc,
+		TUNDevice: tun,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := manager.Run(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // Config holds configuration parameters for the VNet.
 type Config struct {
 	Client     *client.TeleportClient
-	TunDevice  tun.Device
+	TUNDevice  tun.Device
 	DNSAddress tcpip.Address
 	DNSSuffix  string
 }
@@ -74,7 +92,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Client == nil {
 		return trace.BadParameter("client is required")
 	}
-	if c.TunDevice == nil {
+	if c.TUNDevice == nil {
 		return trace.BadParameter("TUN device is required")
 	}
 	if c.DNSAddress == (tcpip.Address{}) {
@@ -82,26 +100,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.DNSSuffix == "" {
 		c.DNSSuffix = defaultDNSSuffix
-	}
-	return nil
-}
-
-// Run is a blocking call to create and start Teleport VNet.
-func Run(ctx context.Context, tc *client.TeleportClient) error {
-	tun, err := SetupAsAdmin()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	manager, err := NewManager(ctx, &Config{
-		Client:    tc,
-		TunDevice: tun,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := manager.Run(); err != nil {
-		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -151,7 +149,7 @@ func NewManager(ctx context.Context, cfg *Config) (m *Manager, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Manager{
 		tc:            cfg.Client,
-		tun:           cfg.TunDevice,
+		tun:           cfg.TUNDevice,
 		dnsSuffix:     cfg.DNSSuffix,
 		dnsAddress:    cfg.DNSAddress,
 		stack:         stack,
@@ -377,20 +375,20 @@ func createStack() (*stack.Stack, error) {
 	return netStack, nil
 }
 
-func forwardBetweenOsAndVnet(ctx context.Context, osTun tun.Device, vnetEndpoint *channel.Endpoint) error {
+func forwardBetweenOsAndVnet(ctx context.Context, osTUN tun.Device, vnetEndpoint *channel.Endpoint) error {
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return forwardVnetEndpointToOsTun(ctx, vnetEndpoint, osTun) })
-	g.Go(func() error { return forwardOsTunToVnetEndpoint(ctx, osTun, vnetEndpoint) })
+	g.Go(func() error { return forwardVnetEndpointToOsTUN(ctx, vnetEndpoint, osTUN) })
+	g.Go(func() error { return forwardOsTUNToVnetEndpoint(ctx, osTUN, vnetEndpoint) })
 	g.Go(func() error {
 		<-ctx.Done()
-		osTun.Close()
+		osTUN.Close()
 		vnetEndpoint.Close()
 		return nil
 	})
 	return trace.Wrap(g.Wait())
 }
 
-func forwardVnetEndpointToOsTun(ctx context.Context, endpoint *channel.Endpoint, tun tun.Device) error {
+func forwardVnetEndpointToOsTUN(ctx context.Context, endpoint *channel.Endpoint, tun tun.Device) error {
 	bufs := [][]byte{make([]byte, device.MessageTransportHeaderSize+mtu)}
 	for {
 		bufs[0] = bufs[0][:cap(bufs[0])]
@@ -411,7 +409,7 @@ func forwardVnetEndpointToOsTun(ctx context.Context, endpoint *channel.Endpoint,
 	}
 }
 
-func forwardOsTunToVnetEndpoint(ctx context.Context, tun tun.Device, dstEndpoint *channel.Endpoint) error {
+func forwardOsTUNToVnetEndpoint(ctx context.Context, tun tun.Device, dstEndpoint *channel.Endpoint) error {
 	const readOffset = device.MessageTransportHeaderSize
 	buffers := make([][]byte, tun.BatchSize())
 	for i := range buffers {
@@ -435,56 +433,6 @@ func forwardOsTunToVnetEndpoint(ctx context.Context, tun tun.Device, dstEndpoint
 			packet.DecRef()
 		}
 	}
-}
-
-// SetupAsAdmin handles the OS setup that needs to run with admin rights,
-// including creating the TUN device and setting up IP routes.
-func SetupAsAdmin() (tun.Device, error) {
-	tun, tunName, err := createTunDevice()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	slog.Info("Created TUN device.", "dev", tunName)
-
-	if err := setupHostIPRoutes(tunName); err != nil {
-		return nil, trace.Wrap(err, "setting up host IP routes")
-	}
-	return tun, nil
-}
-
-func createTunDevice() (tun.Device, string, error) {
-	slog.Debug("Creating TUN device.")
-	dev, err := tun.CreateTUN("utun", mtu)
-	if err != nil {
-		return nil, "", trace.Wrap(err, "creating TUN device")
-	}
-	name, err := dev.Name()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "getting TUN device name")
-	}
-	return dev, name, nil
-}
-
-// TODO: something better than this.
-func setupHostIPRoutes(tunName string) error {
-	const (
-		ip   = "100.64.0.1"
-		mask = "100.64.0.0/10"
-	)
-	fmt.Println("Setting IP address for the TUN device:")
-	cmd := exec.Command("ifconfig", tunName, ip, ip, "up")
-	fmt.Println("\t", cmd.Path, strings.Join(cmd.Args, " "))
-	if err := cmd.Run(); err != nil {
-		return trace.Wrap(err, "running ifconfig")
-	}
-
-	fmt.Println("Setting an IP route for the VNet:")
-	cmd = exec.Command("route", "add", "-net", mask, "-interface", tunName)
-	fmt.Println("\t", cmd.Path, strings.Join(cmd.Args, " "))
-	if err := cmd.Run(); err != nil {
-		return trace.Wrap(err, "running route add")
-	}
-	return nil
 }
 
 func getenvInt(envVar string) (int, error) {
