@@ -131,6 +131,16 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				process.log.Infof("Ignoring %q.", signal)
 			}
 		case <-process.ReloadContext().Done():
+			// it's fine to signal.Stop the same channel multiple times, and
+			// after the function returns we're guaranteed to have restored the
+			// default handlers for the signals and that no more signals are
+			// pushed into the channel
+			signal.Stop(sigC)
+			if len(sigC) > 0 {
+				// exhaust all signals before the internal reload, so we don't
+				// miss signals to exit or to graceful restart instead
+				continue
+			}
 			process.log.Infof("Exiting signal handler: process has started internal reload.")
 			return ErrTeleportReloading
 		case <-process.ExitContext().Done():
