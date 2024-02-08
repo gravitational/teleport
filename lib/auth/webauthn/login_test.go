@@ -870,6 +870,157 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 	})
 }
 
+func TestLoginFlow_userVerification(t *testing.T) {
+	// Prepare a user and a pair of registered devices.
+	mfaDev, err := mocku2f.Create()
+	require.NoError(t, err)
+
+	pwdlessDev, err := mocku2f.Create()
+	require.NoError(t, err)
+	pwdlessDev.IgnoreAllowedCredentials = true // passwordless settings
+	pwdlessDev.SetUV = true
+	pwdlessDev.AllowResidentKey = true
+
+	const user = "llama"
+	const origin = "https://example.com"
+	webIdentity := newFakeIdentity(user)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+
+	ctx := context.Background()
+	register := func(t *testing.T, dev *mocku2f.Key, rr wanlib.RegisterResponse) {
+		webRegistration := &wanlib.RegistrationFlow{
+			Webauthn: webConfig,
+			Identity: webIdentity,
+		}
+
+		cc, err := webRegistration.Begin(ctx, rr.User, rr.Passwordless)
+		require.NoError(t, err)
+
+		ccr, err := dev.SignCredentialCreation(origin, cc)
+		require.NoError(t, err)
+		rr.CreationResponse = ccr
+
+		_, err = webRegistration.Finish(ctx, rr)
+		require.NoError(t, err)
+	}
+
+	// Register devices. They are "persisted" in the fake identify.
+	register(t, mfaDev, wanlib.RegisterResponse{
+		User:       user,
+		DeviceName: "mfa",
+	})
+	register(t, pwdlessDev, wanlib.RegisterResponse{
+		User:         user,
+		DeviceName:   "pwdless",
+		Passwordless: true,
+	})
+
+	tests := []struct {
+		name                      string
+		exts, requiredExts        *mfav1.ChallengeExtensions
+		dev                       *mocku2f.Key
+		wantAssertionVerification string
+		wantErr                   string
+	}{
+		{
+			name: "mfaDev fails mismatched UserVerification",
+			exts: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				// User verification wrongly not required here!
+			},
+			requiredExts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_REQUIRED,
+			},
+			dev:     mfaDev,
+			wantErr: "authenticator response",
+		},
+		{
+			name: "pwdlessDev succeeds mismatched UserVerification",
+			exts: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				// User verification wrongly not required here!
+			},
+			requiredExts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_REQUIRED,
+			},
+			dev: pwdlessDev, // Returns UV=1 regardless of requests.
+		},
+		{
+			name: "verification preferred",
+			exts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_PREFERRED,
+			},
+			requiredExts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_PREFERRED,
+			},
+			dev:                       mfaDev, // Not capable of UV, but still allowed by settings.
+			wantAssertionVerification: string(protocol.VerificationPreferred),
+		},
+		{
+			name: "verification required",
+			exts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_REQUIRED,
+			},
+			requiredExts: &mfav1.ChallengeExtensions{
+				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_REQUIRED,
+			},
+			dev:                       pwdlessDev, // Capable of UV.
+			wantAssertionVerification: string(protocol.VerificationRequired),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Reset before test.
+			webIdentity.SessionData = make(map[string]*wantypes.SessionData)
+
+			lf := &wanlib.LoginFlow{
+				Webauthn: webConfig,
+				Identity: webIdentity,
+			}
+
+			assertion, err := lf.Begin(ctx, user, test.exts)
+			require.NoError(t, err, "lf.Begin")
+
+			if test.wantAssertionVerification != "" {
+				// Verify assertion.
+				assert.Equal(t,
+					test.wantAssertionVerification,
+					string(assertion.Response.UserVerification),
+					"assertion.Response.UserVerification mismatch")
+
+				// Verify stored session data.
+				if assert.Len(t, webIdentity.SessionData, 1, "stored SessionData mismatch") {
+					// Verify our single SD instance.
+					// We don't care about the key, just the value.
+					for _, sd := range webIdentity.SessionData {
+						assert.Equal(t,
+							test.wantAssertionVerification,
+							sd.UserVerification,
+							"stored SessionData.UserVerification mismatch")
+						break // Only one key anyway.
+					}
+				}
+			}
+
+			assertionResp, err := test.dev.SignAssertion(origin, assertion)
+			require.NoError(t, err, "dev.SignAssertion")
+
+			_, err = lf.Finish(ctx, user, assertionResp, test.requiredExts)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "lf.Finish error mismatch")
+			} else {
+				assert.NoError(t, err, "lf.Finish")
+			}
+		})
+	}
+}
+
 type fakeIdentity struct {
 	User *types.UserV2
 	// MappedUser is used as the reply to GetTeleportUserByWebauthnID.

@@ -80,6 +80,12 @@ func (l *loginWithDevices) GetMFADevices(_ context.Context, _ string, _ bool) ([
 //  4. Server runs Finish()
 //  5. If all server-side checks are successful, then login/authentication is
 //     complete.
+//
+// LoginFlow is used in the following scenarios:
+//   - Password plus challenge logins
+//   - Presence verification checks (eg, session MFA)
+//   - User verification checks after the initial login (eg, password changes
+//     with only a discoverable credential).
 type LoginFlow struct {
 	U2F      *types.U2F
 	Webauthn *types.Webauthn
