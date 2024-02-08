@@ -51,9 +51,8 @@ type TerminalProps = {
 export function Terminal(props: TerminalProps) {
   const refElement = useRef<HTMLElement>();
   const refCtrl = useRef<XTermCtrl>();
-  const [startPtyProcessAttempt, setStartPtyProcessAttempt] = useState<
-    Attempt<void>
-  >(makeEmptyAttempt());
+  const [startPtyProcessAttempt, setStartPtyProcessAttempt] =
+    useState<Attempt<void>>(makeEmptyAttempt());
   const theme = useTheme();
 
   useEffect(() => {
