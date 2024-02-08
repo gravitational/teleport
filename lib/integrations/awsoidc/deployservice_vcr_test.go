@@ -29,6 +29,7 @@ import (
 	"gopkg.in/dnaeon/go-vcr.v3/recorder"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 )
 
 func TestDeployDBService(t *testing.T) {
@@ -97,6 +98,7 @@ func TestDeployDBService(t *testing.T) {
 			DatabaseResourceMatcherLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
 			},
+			DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
 		}
 	}
 

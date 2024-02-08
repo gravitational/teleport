@@ -6,9 +6,9 @@ set -ex
 # Yarn v1 doesn't respect the --frozen-lockfile flag when using workspaces.
 # https://github.com/yarnpkg/yarn/issues/4098
 
-message="yarn.lock needs an update. Run yarn install, verify that correct dependencies were \
-installed and commit the updated version of yarn.lock. Make sure you have the packages/webapps.e \
-submodule initialized and updated first."
+message="yarn.lock needs an update. Run yarn install, verify that the correct dependencies were \
+installed and commit the updated version of yarn.lock. If you are making changes to enterprise \
+dependencies, make sure those changes are reflected in web/packages/e-imports/package.json as well."
 
 cp yarn.lock yarn-before-install.lock
 yarn install

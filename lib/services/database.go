@@ -329,7 +329,7 @@ func ValidateSQLServerURI(uri string) error {
 
 	parsedURI, err := url.Parse(uri)
 	if err != nil {
-		return trace.BadParameter("unabled to parse database address: %s", err)
+		return trace.BadParameter("unable to parse database address: %s", err)
 	}
 
 	if parsedURI.Scheme != sqlServerSchema {

@@ -372,6 +372,10 @@ export const HorizontalSplit = styled.div`
 export const StyledIndicator = styled(HorizontalSplit)`
   align-items: center;
   justify-content: center;
+  position: absolute;
+  overflow: hidden;
+  top: 50%;
+  left: 50%;
 `;
 
 const Wrapper = styled(Box)<{ hasDockedElement: boolean }>`

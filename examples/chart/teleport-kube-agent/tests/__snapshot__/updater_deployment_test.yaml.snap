@@ -57,10 +57,12 @@ sets the affinity:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
     serviceAccountName: RELEASE-NAME-updater
 sets the tolerations:
   1: |
@@ -101,10 +103,12 @@ sets the tolerations:
         allowPrivilegeEscalation: false
         capabilities:
           drop:
-          - all
+          - ALL
         readOnlyRootFilesystem: true
         runAsNonRoot: true
         runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
     serviceAccountName: RELEASE-NAME-updater
     tolerations:
     - effect: NoExecute

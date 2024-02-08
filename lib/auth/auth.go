@@ -6414,12 +6414,6 @@ func (k *authKeepAliver) Close() error {
 	return nil
 }
 
-const (
-	// TokenLenBytes is len in bytes of the invite token
-	// TODO(marco): remove const block when e/ code is no longer using it.
-	TokenLenBytes = 16
-)
-
 // githubClient is internal structure that stores Github OAuth 2client and its config
 type githubClient struct {
 	client *oauth2.Client
