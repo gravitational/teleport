@@ -61,7 +61,7 @@ var (
 
 // Run is a blocking call to create and start Teleport VNet.
 func Run(ctx context.Context, tc *client.TeleportClient) error {
-	tun, err := CreateAndSetupTUNDevice()
+	tun, err := CreateAndSetupTUNDevice(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

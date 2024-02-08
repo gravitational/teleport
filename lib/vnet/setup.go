@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/tun"
 )
@@ -34,14 +36,14 @@ const (
 	AdminSetupSubcommand = "vnet-admin-setup"
 )
 
-func CreateAndSetupTUNDevice() (tun.Device, error) {
+func CreateAndSetupTUNDevice(ctx context.Context) (tun.Device, error) {
 	var device tun.Device
 	var name string
 	var err error
 	if os.Getuid() == 0 {
-		device, name, err = createAndSetupTUNDeviceAsRoot()
+		device, name, err = createAndSetupTUNDeviceAsRoot(ctx)
 	} else {
-		device, name, err = createAndSetupTUNDeviceWithoutRoot()
+		device, name, err = createAndSetupTUNDeviceWithoutRoot(ctx)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -50,37 +52,40 @@ func CreateAndSetupTUNDevice() (tun.Device, error) {
 	return device, nil
 }
 
-func createAndSetupTUNDeviceAsRoot() (tun.Device, string, error) {
+func createAndSetupTUNDeviceAsRoot(ctx context.Context) (tun.Device, string, error) {
 	tun, tunName, err := createTUNDevice()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	if err := setupHostIPRoutes(tunName); err != nil {
+	if err := setupHostIPRoutes(ctx, tunName); err != nil {
 		return nil, "", trace.Wrap(err, "setting up host IP routes")
 	}
 	return tun, tunName, nil
 }
 
-func createAndSetupTUNDeviceWithoutRoot() (tun.Device, string, error) {
+func createAndSetupTUNDeviceWithoutRoot(ctx context.Context) (tun.Device, string, error) {
 	slog.Info("Spawning child process as root to create and setup TUN device")
 	socket, socketPath, err := createUnixSocket()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- runAdminSubcommand(socketPath)
-	}()
+	var tunName string
+	var tunFd uintptr
+	g, ctx := errgroup.WithContext(ctx)
 
-	tunName, tunFd, err := recvTUNNameAndFd(socket)
-	if err != nil {
+	g.Go(func() error {
+		return trace.Wrap(runAdminSubcommand(ctx, socketPath))
+	})
+
+	g.Go(func() error {
+		tunName, tunFd, err = recvTUNNameAndFd(ctx, socket)
+		return trace.Wrap(err, "waiting for TUN device name")
+	})
+
+	if err := g.Wait(); err != nil {
 		return nil, "", trace.Wrap(err)
-	}
-
-	if err := <-errCh; err != nil {
-		return nil, "", trace.Wrap(err, "waiting for admin subcommand to exit")
 	}
 
 	tunDevice, err := tun.CreateTUNFromFile(os.NewFile(tunFd, ""), 0)
@@ -121,6 +126,12 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 		return trace.Wrap(err)
 	}
 	defer conn.Close()
+
+	err = conn.SetDeadline(time.Now().Add(time.Minute))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	rights := unix.UnixRights(int(fd))
 	if _, _, err := conn.WriteMsgUnix([]byte(tunName), rights, socketAddr); err != nil {
 		return trace.Wrap(err, "writing to unix conn")
@@ -128,12 +139,26 @@ func sendTUNNameAndFd(socketPath, tunName string, fd uintptr) error {
 	return nil
 }
 
-func recvTUNNameAndFd(socket *net.UnixListener) (string, uintptr, error) {
-	socket.SetDeadline(time.Now().Add(time.Minute))
+func recvTUNNameAndFd(ctx context.Context, socket *net.UnixListener) (string, uintptr, error) {
+	err := socket.SetDeadline(time.Now().Add(time.Minute))
+	if err != nil {
+		return "", 0, trace.Wrap(err)
+	}
+
+	go func() {
+		<-ctx.Done()
+		socket.Close()
+	}()
+
 	conn, err := socket.AcceptUnix()
 	if err != nil {
 		return "", 0, trace.Wrap(err)
 	}
+
+	go func() {
+		<-ctx.Done()
+		conn.Close()
+	}()
 
 	msg := make([]byte, 32)
 	oob := make([]byte, unix.CmsgSpace(4)) // Fd is 4 bytes
@@ -168,7 +193,7 @@ func recvTUNNameAndFd(socket *net.UnixListener) (string, uintptr, error) {
 	return tunName, fd, nil
 }
 
-func runAdminSubcommand(socketPath string) error {
+func runAdminSubcommand(ctx context.Context, socketPath string) error {
 	executableName, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting executable path")
@@ -181,7 +206,7 @@ func runAdminSubcommand(socketPath string) error {
 	}, " ")
 	prompt := "VNet wants to set up a virtual network device."
 	appleScript := fmt.Sprintf(`do shell script "%s" with prompt "%s" with administrator privileges`, cmdAndArgs, prompt)
-	cmd := exec.Command("osascript", "-e", appleScript)
+	cmd := exec.CommandContext(ctx, "osascript", "-e", appleScript)
 	stderr := new(strings.Builder)
 	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
@@ -203,8 +228,8 @@ func runAdminSubcommand(socketPath string) error {
 // AdminSubcommand is the tsh subcommand that should run as root that will
 // create and setup a TUN device and pass the file descriptor for that device
 // over the unix socket found at socketPath.
-func AdminSubcommand(socketPath string) error {
-	tun, tunName, err := createAndSetupTUNDeviceAsRoot()
+func AdminSubcommand(ctx context.Context, socketPath string) error {
+	tun, tunName, err := createAndSetupTUNDeviceAsRoot(ctx)
 	if err != nil {
 		return trace.Wrap(err, "doing admin setup")
 	}
@@ -228,20 +253,20 @@ func createTUNDevice() (tun.Device, string, error) {
 }
 
 // TODO: something better than this.
-func setupHostIPRoutes(tunName string) error {
+func setupHostIPRoutes(ctx context.Context, tunName string) error {
 	const (
 		ip   = "100.64.0.1"
 		mask = "100.64.0.0/10"
 	)
 	fmt.Println("Setting IP address for the TUN device:")
-	cmd := exec.Command("ifconfig", tunName, ip, ip, "up")
+	cmd := exec.CommandContext(ctx, "ifconfig", tunName, ip, ip, "up")
 	fmt.Println("\t", cmd.Path, strings.Join(cmd.Args, " "))
 	if err := cmd.Run(); err != nil {
 		return trace.Wrap(err, "running ifconfig")
 	}
 
 	fmt.Println("Setting an IP route for the VNet:")
-	cmd = exec.Command("route", "add", "-net", mask, "-interface", tunName)
+	cmd = exec.CommandContext(ctx, "route", "add", "-net", mask, "-interface", tunName)
 	fmt.Println("\t", cmd.Path, strings.Join(cmd.Args, " "))
 	if err := cmd.Run(); err != nil {
 		return trace.Wrap(err, "running route add")
