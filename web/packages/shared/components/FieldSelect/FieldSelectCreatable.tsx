@@ -67,6 +67,7 @@ export function FieldSelectCreatable({
   elevated = false,
   inputId = 'select',
   markAsError = false,
+  customProps,
   ...styles
 }: CreatableProps) {
   const { valid, message } = useRule(rule(value));
@@ -106,6 +107,7 @@ export function FieldSelectCreatable({
         options={options}
         formatCreateLabel={formatCreateLabel}
         aria-label={ariaLabel}
+        customProps={customProps}
       />
     </Box>
   );
