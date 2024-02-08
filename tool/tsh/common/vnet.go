@@ -29,3 +29,7 @@ func onVNet(cf *CLIConf) error {
 	}
 	return trace.Wrap(vnet.Run(cf.Context, tc))
 }
+
+func onVNetAdminSetupCommand(cf *CLIConf) error {
+	return trace.Wrap(vnet.AdminSubcommand(cf.socketPath))
+}

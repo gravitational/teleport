@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/utils/mlock"
+	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -510,6 +511,9 @@ type CLIConf struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	// socketPath is a path to a socket.
+	socketPath string
 }
 
 // Stdout returns the stdout writer.
@@ -1129,7 +1133,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Device Trust commands.
 	deviceCmd := newDeviceCommand(app)
 
-	vnet := app.Command("vnet", "Start Teleport VNet")
+	vnetCommand := app.Command("vnet", "Start Teleport VNet")
+
+	vnetAdminSetupCommand := app.Command(vnet.AdminSetupSubcommand, "helper to run the vnet setup as root").Hidden()
+	vnetAdminSetupCommand.Flag("socket", "unix socket path").StringVar(&cf.socketPath)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1485,8 +1492,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onKubectlCommand(&cf, args, args[idx:])
 	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
-	case vnet.FullCommand():
+	case vnetCommand.FullCommand():
 		err = onVNet(&cf)
+	case vnetAdminSetupCommand.FullCommand():
+		err = onVNetAdminSetupCommand(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
