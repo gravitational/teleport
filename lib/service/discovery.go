@@ -59,10 +59,11 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
 		IntegrationOnlyCredentials: process.integrationOnlyCredentials(),
 		Matchers: discovery.Matchers{
-			AWS:        process.Config.Discovery.AWSMatchers,
-			Azure:      process.Config.Discovery.AzureMatchers,
-			GCP:        process.Config.Discovery.GCPMatchers,
-			Kubernetes: process.Config.Discovery.KubernetesMatchers,
+			AWS:         process.Config.Discovery.AWSMatchers,
+			Azure:       process.Config.Discovery.AzureMatchers,
+			GCP:         process.Config.Discovery.GCPMatchers,
+			Kubernetes:  process.Config.Discovery.KubernetesMatchers,
+			AccessGraph: process.Config.Discovery.AccessGraph,
 		},
 		DiscoveryGroup: process.Config.Discovery.DiscoveryGroup,
 		Emitter:        asyncEmitter,
