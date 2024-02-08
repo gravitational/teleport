@@ -18,20 +18,8 @@ on:
 
       teleport-version:
         description: |
-          The semver version of Teleport versionthat we're building for.
+          The semver version of Teleport version that we're building for.
         type: string
-
-      build-role-arn:
-        description: |
-          The ARN of the role used to store the resulting image(s) in ECR
-        type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
-
-      dest-image-prefix:
-        description: |
-          Registry hostname and namespace prefix for where the built images will be pushed.
-        type: string
-        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
 
       architectures:
         description:
@@ -40,10 +28,16 @@ on:
         type: string
         default: "amd64 arm64 arm"
 
+      environment:
+        description: GitHub environment to build in.
+        type: string
+        default: build-prod
+
 jobs:
   build-image:
     name: Build OCI Images
     runs-on: ubuntu-22.04-16core
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
@@ -58,8 +52,7 @@ jobs:
         id: params
         env:
           ARCHITECTURES: ${{ inputs.architectures }}
-          VERSION: ${{ inputs.teleport-version }}
-          IMAGE_PREFIX: ${{ inputs.dest-image-prefix }}
+          TELEPORT_VERSION: ${{ inputs.teleport-version || inputs.oss-teleport-ref }}
         run: |
           # Convert architectures into docker platform args
           read -ra arches <<<"${ARCHITECTURES}" # safely read into array to prevent globbing
@@ -68,6 +61,7 @@ jobs:
             printf 'linux/%s\n' "${arches[@]}"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
+          echo "teleport-version=${TELEPORT_VERSION#v}" >> "$GITHUB_OUTPUT"
 
       # Log into Docker Hub to increase rate limits
       - name: Login to Docker Hub
@@ -80,8 +74,8 @@ jobs:
         uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
           aws-region: us-west-2
-          role-to-assume: ${{ inputs.build-role-arn }}
-          role-session-name: "gha-teleport-operator-oci-build-${{ github.run_number}}-${{ inputs.teleport-version }}"
+          role-to-assume: ${{ vars.BUILD_OPERATOR_OCI_AWS_ROLE }}
+          role-session-name: "gha-build-operator-oci-${{ github.run_attempt }}"
           role-duration-seconds: 3600
 
       - name: Log into Destination ECR Registry
@@ -93,7 +87,7 @@ jobs:
       - name: Check if Image Exists
         id: check
         env:
-          IMAGE: ${{ inputs.dest-image-prefix }}/teleport-operator:${{ inputs.teleport-version }}
+          IMAGE: ${{ vars.OPERATOR_PENDING_ECR_REPO }}:${{ steps.params.outputs.teleport-version }}
         run: |
           if docker manifest inspect "${IMAGE}" >/dev/null 2>&1; then
             echo "Skipping build/push as image already exists: ${IMAGE}" >> "$GITHUB_STEP_SUMMARY"
@@ -110,4 +104,4 @@ jobs:
           context: .
           file: ./integrations/operator/Dockerfile.gha
           platforms: ${{ steps.params.outputs.platforms }}
-          tags: ${{ inputs.dest-image-prefix }}/teleport-operator:${{ inputs.teleport-version }}
+          tags: ${{ vars.OPERATOR_PENDING_ECR_REPO }}:${{ steps.params.outputs.teleport-version }}

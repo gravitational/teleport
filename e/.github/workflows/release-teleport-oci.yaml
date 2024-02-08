@@ -24,6 +24,11 @@ on:
           release tag.
         type: string
 
+      environment:
+        description: GitHub environment to build in.
+        type: string
+        default: build-prod
+
       workflow-tag:
         description: |
           Tag used to identify workflow runs spawned by this event.
@@ -60,3 +65,4 @@ jobs:
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       teleport-version: ${{ needs.setup.outputs.teleport-version }}
       architectures: "amd64 arm64 arm"
+      environment: ${{ inputs.environment }}
