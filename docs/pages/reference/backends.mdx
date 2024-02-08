@@ -85,7 +85,7 @@ machines running Teleport. This endpoint must be enabled by using the
 reply `{"status":"ok"}` if the Teleport service is running without problems.
 The endpoint must be exposed on a proxy interface for the load balancer health checks
 to succeed.  You should only do this on the proxy instances and ensure that
-port 3000 is not exposed to the public internet.  Otherwise, continue to use
+port 3000 is not exposed to the public internet.  For other services, continue to use
 the 127.0.0.1 local loopback.
 
 We'll cover how to use `etcd`, PostgreSQL, DynamoDB, and Firestore storage
