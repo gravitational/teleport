@@ -19,14 +19,45 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { makeListBot } from 'teleport/services/bot/consts';
+import { makeBot, toApiGitHubTokenSpec } from 'teleport/services/bot/consts';
 
-import { BotList, BotResponse } from './types';
+import {
+  BotList,
+  BotResponse,
+  FlatBot,
+  CreateBotRequest,
+  CreateBotJoinTokenRequest,
+} from './types';
+
+export function createBot(config: CreateBotRequest): Promise<void> {
+  return api.post(cfg.getBotsUrl(), config);
+}
+
+export async function getBot(name: string): Promise<FlatBot | null> {
+  try {
+    return await api.get(cfg.getBotUrlWithName(name)).then(makeBot);
+  } catch (err) {
+    // capture the not found error response and return null instead of throwing
+    if (err?.response?.status === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export function createBotToken(req: CreateBotJoinTokenRequest) {
+  return api.post(cfg.getBotTokenUrl(), {
+    integrationName: req.integrationName,
+    joinMethod: req.joinMethod,
+    webFlowLabel: req.webFlowLabel,
+    gitHub: toApiGitHubTokenSpec(req.gitHub),
+  });
+}
 
 export function fetchBots(signal: AbortSignal): Promise<BotList> {
   return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
     const items = json?.items || [];
-    return { bots: items.map(makeListBot) };
+    return { bots: items.map(makeBot) };
   });
 }
 
