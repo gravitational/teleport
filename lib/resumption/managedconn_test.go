@@ -232,11 +232,11 @@ func TestBuffer(t *testing.T) {
 
 	b.append(bytes.Repeat([]byte("a"), 9999))
 	require.EqualValues(t, 10000, b.len())
-	require.EqualValues(t, 16384, len(b.data))
+	require.Len(t, b.data, 16384)
 
 	b.advance(5000)
 	require.EqualValues(t, 5000, b.len())
-	require.EqualValues(t, 16384, len(b.data))
+	require.Len(t, b.data, 16384)
 
 	b1, b2 := b.free()
 	require.NotEmpty(t, b1)
@@ -245,12 +245,12 @@ func TestBuffer(t *testing.T) {
 
 	b.append(bytes.Repeat([]byte("a"), 7000))
 	require.EqualValues(t, 12000, b.len())
-	require.EqualValues(t, 16384, len(b.data))
+	require.Len(t, b.data, 16384)
 
 	b1, b2 = b.free()
 	require.NotEmpty(t, b1)
 	require.Empty(t, b2)
-	require.EqualValues(t, 16384-12000, len(b1))
+	require.Len(t, b1, 16384-12000)
 
 	b1, b2 = b.buffered()
 	require.NotEmpty(t, b1)
