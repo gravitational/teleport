@@ -2051,7 +2051,7 @@ export const events = [
     db_uri: 'localhost:1433',
     db_user: 'alice',
     ei: 50,
-    event: 'db.session.malformed_packet',
+    event: 'db.session.permissions.update',
     sid: '3ed38c42-eef0-419b-b893-f2f10990f117',
     time: '2022-06-02T08:46:33.825Z',
     uid: '503e310d-8d88-4bea-bbbb-a1b35456a03a',
