@@ -179,14 +179,15 @@ func runAdminSubcommand(socketPath string) error {
 		AdminSetupSubcommand,
 		"--socket", socketPath,
 	}, " ")
+	prompt := "VNet wants to set up a virtual network device."
 	appleScript := fmt.Sprintf(`
 try
-	set x to do shell script "%s" with administrator privileges
+	set x to do shell script "%s" with prompt "%s" with administrator privileges
 on error errorMessage
 	display dialog errorMessage
 	do shell script "echo '" & errorMessage & "' >&2"
 	error errorMessage
-end try`, cmdAndArgs)
+end try`, cmdAndArgs, prompt)
 	cmd := exec.Command("osascript", "-e", appleScript)
 	if err := cmd.Run(); err != nil {
 		if err, ok := err.(*exec.ExitError); ok {
