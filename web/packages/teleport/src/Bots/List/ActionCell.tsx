@@ -22,10 +22,17 @@ import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
 import { BotOptionsCellProps } from 'teleport/Bots/types';
 
-export function BotOptionsCell({ onClickDelete }: BotOptionsCellProps) {
+export function BotOptionsCell({
+  disabledEdit,
+  onClickEdit,
+  onClickDelete,
+}: BotOptionsCellProps) {
   return (
     <Cell align="right">
       <MenuButton>
+        <MenuItem onClick={onClickEdit} disabled={disabledEdit}>
+          Edit...
+        </MenuItem>
         <MenuItem onClick={onClickDelete}>Delete...</MenuItem>
       </MenuButton>
     </Cell>
