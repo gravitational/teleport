@@ -540,6 +540,7 @@ func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.Acce
 					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
 				},
+				MaxDuration: types.NewDuration(maxAccessDuration),
 			},
 		}
 	}
