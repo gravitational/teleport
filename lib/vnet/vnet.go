@@ -337,7 +337,10 @@ func (m *Manager) refreshState(ctx context.Context) error {
 		catalog.PushAddress(fqdn, addr)
 		nextIp += 1
 	}
-	io.Copy(os.Stdout, table.AsBuffer())
+	_, err = io.Copy(os.Stdout, table.AsBuffer())
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	m.dnsServer.UpdateCatalog(catalog)
 
