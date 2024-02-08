@@ -31,11 +31,21 @@ export default function parseError(json) {
 
 export class ApiError extends Error {
   response: Response;
+  messages: string[];
 
-  constructor(message: string, response: Response, opts?: ErrorOptions) {
+  constructor(
+    message: string,
+    response: Response,
+    opts?: ErrorOptions,
+    // messages contains a list of other related
+    // errors besides the main error set for field
+    // "message".
+    messages?: string[]
+  ) {
     message = message || 'Unknown error';
     super(message, opts);
     this.response = response;
     this.name = 'ApiError';
+    this.messages = messages || [];
   }
 }
