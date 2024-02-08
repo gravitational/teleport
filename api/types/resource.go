@@ -747,7 +747,14 @@ func GetExpiry(v any) time.Time {
 	case Resource:
 		return r.Expiry()
 	case ResourceMetadata:
-		return r.GetMetadata().Expires.AsTime()
+		// ResourceMetadata uses *timestamppb.Timestamp instead of time.Time. The zero value for this type is 01/01/1970.
+		// This is a problem for resources without explicit expiry set: they'd become obsolete on creation.
+		// For this reason, we check for nil expiry explicitly, and default it to time.Time{}.
+		exp := r.GetMetadata().GetExpires()
+		if exp == nil {
+			return time.Time{}
+		}
+		return exp.AsTime()
 	}
 
 	return time.Time{}
