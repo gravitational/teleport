@@ -216,7 +216,8 @@ const AssistContainer = styled.div<{ docked: boolean }>`
     0
   );
   animation: forwards ${slideIn} 0.5s cubic-bezier(0.33, 1, 0.68, 1);
-  transition: width 0.5s cubic-bezier(0.33, 1, 0.68, 1),
+  transition:
+    width 0.5s cubic-bezier(0.33, 1, 0.68, 1),
     height 0.5s cubic-bezier(0.33, 1, 0.68, 1);
   background: ${p => p.theme.colors.levels.popout};
   border-radius: var(--assist-border-radius);

@@ -46,9 +46,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.12 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.13 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'c3cc0f1386b0544383a61244a4beeb762b67498f' ] && \
+    [ "$(git rev-parse HEAD)" = '85cf92f55d9e2ac5aacf92bedd33fb890b9f8b4c' ] && \
     ./config --release -fPIC --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -56,9 +56,9 @@ RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.12
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
 # Keep the version below synced with devbox.json
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.14.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
+    [ "$(git rev-parse HEAD)" = '1a9d335c8f0e821f9eff27482fdda96e59a4f577' ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
@@ -220,11 +220,12 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     cargo --version && \
     rustc --version && \
     rustup component add rustfmt clippy && \
+    rustup target add wasm32-unknown-unknown && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
 
 ARG WASM_PACK_VERSION
 # Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack --version ${WASM_PACK_VERSION}
+RUN cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}
 
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
@@ -318,7 +319,7 @@ RUN go install github.com/daixiang0/gci@v0.12.1
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-RUN VERSION='v1.55.2'; \
+RUN VERSION='v1.56.0'; \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 
@@ -342,14 +343,14 @@ COPY --from=libfido2 \
     /usr/local/lib/libcrypto.a \
     /usr/local/lib/libcrypto.so.3 \
     /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.13.0 \
+    /usr/local/lib/libfido2.so.1.14.0 \
     /usr/local/lib/libssl.a \
     /usr/local/lib/libssl.so.3 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
     ln -s libcrypto.so.3 libcrypto.so && \
-    ln -s libfido2.so.1.13.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.14.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.3 libssl.so && \
     ldconfig

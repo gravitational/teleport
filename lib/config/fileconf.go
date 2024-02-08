@@ -557,7 +557,8 @@ func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type logYAML Log
 	log := (*logYAML)(l)
 	if err := unmarshal(log); err != nil {
-		if _, ok := err.(*yaml.TypeError); !ok {
+		var typeError *yaml.TypeError
+		if !errors.As(err, &typeError) {
 			return err
 		}
 
@@ -1029,9 +1030,13 @@ type AuthenticationConfig struct {
 	// DefaultSessionTTL is the default cluster max session ttl
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
-	// PIVSlot is a PIV slot that Teleport clients should use instead of the
-	// default based on private key policy. For example, "9a" or "9e".
+	// Deprecated. HardwareKey.PIVSlot should be used instead.
+	// TODO(Joerger): DELETE IN 17.0.0
 	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+
+	// HardwareKey holds settings related to hardware key support.
+	// Requires Teleport Enterprise.
+	HardwareKey *HardwareKey `yaml:"hardware_key,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1062,7 +1067,17 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	var h *types.HardwareKey
+	if a.HardwareKey != nil {
+		h, err = a.HardwareKey.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// TODO(Joerger): DELETE IN 17.0.0
 	if a.PIVSlot != "" {
+		log.Warn(`The "piv_slot" setting will be removed in 17.0.0, please set "hardware_key.piv_slot" instead.`)
 		if err = a.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err, "failed to parse piv_slot")
 		}
@@ -1082,6 +1097,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		DeviceTrust:       dt,
 		DefaultSessionTTL: a.DefaultSessionTTL,
 		PIVSlot:           string(a.PIVSlot),
+		HardwareKey:       h,
 	})
 }
 
@@ -1159,11 +1175,11 @@ func getCertificatePEM(certOrPath string) (string, error) {
 	data, err := os.ReadFile(certOrPath)
 	if err != nil {
 		// Don't use trace in order to keep a clean error message.
-		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
+		return "", fmt.Errorf("%q is not a valid x509 certificate (%w) and can't be read as a file (%w)", certOrPath, parseErr, err)
 	}
 	if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
 		// Don't use trace in order to keep a clean error message.
-		return "", fmt.Errorf("file %q contains an invalid x509 certificate: %v", certOrPath, err)
+		return "", fmt.Errorf("file %q contains an invalid x509 certificate: %w", certOrPath, err)
 	}
 
 	return string(data), nil // OK, valid PEM file
@@ -1208,6 +1224,61 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 		Mode:             dt.Mode,
 		AutoEnroll:       autoEnroll,
 		EKCertAllowedCAs: allowedCAs,
+	}, nil
+}
+
+// HardwareKey holds settings related to hardware key support.
+// Requires Teleport Enterprise.
+type HardwareKey struct {
+	// PIVSlot is a PIV slot that Teleport clients should use instead of the
+	// default based on private key policy. For example, "9a" or "9e".
+	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+
+	// SerialNumberValidation contains optional settings for hardware key
+	// serial number validation, including whether it is enabled.
+	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"require_known_serial_number,omitempty"`
+}
+
+func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
+	if h.PIVSlot != "" {
+		if err := h.PIVSlot.Validate(); err != nil {
+			return nil, trace.Wrap(err, "failed to parse hardware_key.piv_slot")
+		}
+	}
+
+	hk := &types.HardwareKey{PIVSlot: string(h.PIVSlot)}
+
+	if h.SerialNumberValidation != nil {
+		var err error
+		hk.SerialNumberValidation, err = h.SerialNumberValidation.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return hk, nil
+}
+
+// HardwareKeySerialNumberValidation holds settings related to hardware key serial number validation.
+// Requires Teleport Enterprise.
+type HardwareKeySerialNumberValidation struct {
+	// Enabled indicates whether hardware key serial number validation is enabled.
+	Enabled string `yaml:"enabled"`
+
+	// SerialNumberTraitName is an optional custom user trait name for hardware key
+	// serial numbers to replace the default: "hardware_key_serial_numbers".
+	SerialNumberTraitName string `yaml:"serial_number_trait_name"`
+}
+
+func (h *HardwareKeySerialNumberValidation) Parse() (*types.HardwareKeySerialNumberValidation, error) {
+	enabled, err := apiutils.ParseBool(h.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.HardwareKeySerialNumberValidation{
+		Enabled:               enabled,
+		SerialNumberTraitName: h.SerialNumberTraitName,
 	}, nil
 }
 

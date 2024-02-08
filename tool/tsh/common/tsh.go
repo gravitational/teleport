@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -415,6 +416,9 @@ type CLIConf struct {
 	// JoinMode is the participant mode someone is joining a session as.
 	JoinMode string
 
+	// SessionKinds is the kind of active sessions to list.
+	SessionKinds []string
+
 	// displayParticipantRequirements is set if verbose participant requirement information should be printed for moderated sessions.
 	displayParticipantRequirements bool
 
@@ -610,6 +614,7 @@ const (
 	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
 	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
 	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
+	noResumeEnvVar           = "TELEPORT_NO_RESUME"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -751,7 +756,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
-	ssh.Flag("no-resume", "Disable SSH connection resumption").BoolVar(&cf.DisableSSHResumption)
+	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -828,7 +833,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	proxySSH.Flag("no-resume", "Disable SSH connection resumption").BoolVar(&cf.DisableSSHResumption)
+	proxySSH.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
@@ -934,7 +939,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
-	scp.Flag("no-resume", "Disable SSH connection resumption").BoolVar(&cf.DisableSSHResumption)
+	scp.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes.")
 	ls.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -946,11 +951,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ls.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	ls.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	ls.Flag("all", "List nodes from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
+
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters.")
 	clusters.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	clusters.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&cf.Verbose)
+
+	// sessions
+	sessions := app.Command("sessions", "Operate on active sessions.")
+	sessionsList := sessions.Command("ls", "List active sessions.")
+	sessionsList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	sessionsList.Flag("kind", "Filter by session kind(s)").Default("ssh", "k8s", "db", "app", "desktop").EnumsVar(&cf.SessionKinds, "ssh", "k8s", "kube", "db", "app", "desktop")
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
@@ -982,6 +994,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	latencySSH := latency.Command("ssh", "Measure latency to a particular SSH host.")
 	latencySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	latencySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	latencySSH.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
 	// bench
 	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
@@ -998,7 +1011,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
-	benchSSH.Flag("no-resume", "Disable SSH connection resumption").BoolVar(&cf.DisableSSHResumption)
+	benchSSH.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 
 	benchWeb := bench.Command("web", "Run Web benchmark tests").Hidden()
 	benchWebSSH := benchWeb.Command("ssh", "Run SSH benchmark tests").Hidden()
@@ -1361,6 +1374,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onListNodes(&cf)
 	case clusters.FullCommand():
 		err = onListClusters(&cf)
+	case sessionsList.FullCommand():
+		err = onListSessions(&cf)
 	case login.FullCommand():
 		err = onLogin(&cf)
 	case logout.FullCommand():
@@ -3063,6 +3078,92 @@ func onListClusters(cf *CLIConf) error {
 	return nil
 }
 
+func onListSessions(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clt, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	sessions, err := clt.AuthClient.GetActiveSessionTrackers(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	kinds := map[string]types.SessionKind{
+		"ssh":     types.SSHSessionKind,
+		"db":      types.DatabaseSessionKind,
+		"app":     types.AppSessionKind,
+		"desktop": types.WindowsDesktopSessionKind,
+		"k8s":     types.KubernetesSessionKind,
+		// tsh commands often use "kube" to mean kubernetes,
+		// so add an alias to make it more intuitive
+		"kube": types.KubernetesSessionKind,
+	}
+
+	var filter []types.SessionKind
+	for _, k := range cf.SessionKinds {
+		filter = append(filter, kinds[k])
+	}
+	sessions = sortAndFilterSessions(sessions, filter)
+	return trace.Wrap(serializeSessions(sessions, strings.ToLower(cf.Format), cf.Stdout()))
+}
+
+func sortAndFilterSessions(sessions []types.SessionTracker, kinds []types.SessionKind) []types.SessionTracker {
+	filtered := slices.DeleteFunc(sessions, func(st types.SessionTracker) bool {
+		return !slices.Contains(kinds, st.GetSessionKind())
+	})
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].GetCreated().Before(filtered[j].GetCreated())
+	})
+	return filtered
+}
+
+func serializeSessions(sessions []types.SessionTracker, format string, w io.Writer) error {
+	switch format {
+	case teleport.Text, "":
+		printSessions(w, sessions)
+	case teleport.JSON:
+		out, err := utils.FastMarshalIndent(sessions, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(w, string(out))
+	case teleport.YAML:
+		out, err := yaml.Marshal(sessions)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(w, string(out))
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
+	return nil
+}
+
+func printSessions(output io.Writer, sessions []types.SessionTracker) {
+	table := asciitable.MakeTable([]string{"ID", "Kind", "Created", "Hostname", "Address", "Login", "Command"})
+	for _, s := range sessions {
+		table.AddRow([]string{
+			s.GetSessionID(),
+			string(s.GetSessionKind()),
+			s.GetCreated().Format(time.RFC3339),
+			s.GetHostname(),
+			s.GetAddress(),
+			s.GetLogin(),
+			strings.Join(s.GetCommand(), " "),
+		})
+	}
+
+	tableOutput := table.AsBuffer().String()
+	fmt.Fprintln(output, tableOutput)
+}
+
 type clusterInfo struct {
 	ClusterName string            `json:"cluster_name"`
 	Status      string            `json:"status"`
@@ -3371,6 +3472,9 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 
 // onJoin executes 'ssh join' command
 func onJoin(cf *CLIConf) error {
+	// TODO(espadolini): figure out if connection resumption should be allowed
+	// on join, and if so, for which participant modes
+	cf.DisableSSHResumption = true
 	if err := validateParticipantMode(types.SessionParticipantMode(cf.JoinMode)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3546,6 +3650,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 
+	c.DialOpts = append(c.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTSH))
 	c.Tracer = cf.tracer
 
 	// Force the use of proxy template below.

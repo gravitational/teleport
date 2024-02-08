@@ -88,7 +88,8 @@ func TestRoleSetupRun_Idempotency(t *testing.T) {
 	_, err = roleSetup.Run(ctx, accessAndIdentity, certManager, &clusters.Cluster{URI: uri.NewClusterURI("foo")})
 	require.NoError(t, err)
 
-	require.Equal(t, 1, accessAndIdentity.callCounts["UpsertRole"], "expected two runs to update the role only once")
+	require.Equal(t, 1, accessAndIdentity.callCounts["CreateRole"], "expected two runs to create the role only once")
+	require.Equal(t, 0, accessAndIdentity.callCounts["UpdateRole"], "expected two runs to not update the role")
 	require.Equal(t, 1, accessAndIdentity.callCounts["UpdateUser"], "expected two runs to update the user only once")
 }
 
@@ -96,19 +97,25 @@ func TestRoleSetupRun_RoleErrors(t *testing.T) {
 	existingRole, err := types.NewRole("connect-my-computer-alice", types.RoleSpecV6{})
 	require.NoError(t, err)
 
+	bogusErr := errors.New("something went wrong")
+
 	tests := []struct {
 		name          string
-		upsertRoleErr error
 		existingRole  types.Role
+		createRoleErr error
+		updateRoleErr error
+		wantErr       error
 	}{
 		{
 			name:          "creating role fails",
-			upsertRoleErr: errors.New("something went wrong"),
+			createRoleErr: bogusErr,
+			wantErr:       bogusErr,
 		},
 		{
 			name:          "updating role fails",
-			upsertRoleErr: errors.New("something went wrong"),
 			existingRole:  existingRole,
+			updateRoleErr: bogusErr,
+			wantErr:       bogusErr,
 		},
 	}
 
@@ -126,8 +133,9 @@ func TestRoleSetupRun_RoleErrors(t *testing.T) {
 				user:          user,
 				callCounts:    make(map[string]int),
 				events:        events,
-				upsertRoleErr: tt.upsertRoleErr,
 				role:          tt.existingRole,
+				createRoleErr: tt.createRoleErr,
+				updateRoleErr: tt.updateRoleErr,
 			}
 
 			roleSetup, err := NewRoleSetup(&RoleSetupConfig{})
@@ -135,7 +143,7 @@ func TestRoleSetupRun_RoleErrors(t *testing.T) {
 
 			_, err = roleSetup.Run(ctx, accessAndIdentity, certManager, &clusters.Cluster{URI: uri.NewClusterURI("foo")})
 			require.Error(t, err)
-			require.ErrorIs(t, err, tt.upsertRoleErr)
+			require.ErrorIs(t, err, tt.wantErr)
 		})
 	}
 }
@@ -296,7 +304,8 @@ type mockAccessAndIdentity struct {
 	requireManualOpInitFire bool
 	node                    types.Server
 	nodeErr                 error
-	upsertRoleErr           error
+	createRoleErr           error
+	updateRoleErr           error
 }
 
 func (m *mockAccessAndIdentity) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
@@ -310,11 +319,26 @@ func (m *mockAccessAndIdentity) GetRole(ctx context.Context, name string) (types
 	return nil, trace.NotFound("role not found")
 }
 
-func (m *mockAccessAndIdentity) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
-	m.callCounts["UpsertRole"]++
+func (m *mockAccessAndIdentity) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	m.callCounts["CreateRole"]++
 
-	if m.upsertRoleErr != nil {
-		return nil, m.upsertRoleErr
+	if m.createRoleErr != nil {
+		return nil, m.createRoleErr
+	}
+
+	m.role = role
+	m.events.Fire(types.Event{
+		Type:     types.OpPut,
+		Resource: role,
+	})
+	return role, nil
+}
+
+func (m *mockAccessAndIdentity) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
+	m.callCounts["UpdateRole"]++
+
+	if m.updateRoleErr != nil {
+		return nil, m.updateRoleErr
 	}
 
 	m.role = role

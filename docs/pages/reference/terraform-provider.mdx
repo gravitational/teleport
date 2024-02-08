@@ -86,18 +86,41 @@ provider "teleport" {
 
 ## Provider resource versioning
 
-Teleport resource APIs are versioned. Based on the provided version, Teleport will
-set different defaults. The Terraform provider might not see the changes caused
-by a resource version increase as version is used to set defaults on creation.
-However those changes will take effect as soon as Terraform will need to update
-the resource for any other reason.
+Since Teleport 15, you must set the version on each resource, and version cannot
+be changed in-place. Terraform will delete the resource and create a new one if
+a version change is required.
 
-Since Teleport 15, you MUST set the version on each resource. This is not
-enforced on previous Teleport provider versions but we highly recommend doing
-so. If it's not specified, Terraform will pick the latest one by default. When
-this happens, you will face unexpected changes when doing major Terraform
-provider upgrades, potentially introducing new resource versions
-and changing the behaviour of your existing TF code.
+This is not enforced on previous Teleport provider versions, but we recommend doing
+so. When the version is not specified, Terraform will pick the latest one by default.
+However, version upgrades don't re-apply the resource defaults. This could lead
+to different results if you create a new resource or upgrade an existing one.
+To mitigate this, you should explicitly set the resource version.
+
+<Admonition type="warning">
+  Upgrading the Terraform Provider to a new version with `teleport_role`
+  resources without a specified version can change the role behavior and access
+  rules. You must set the role version before upgrading to ensure the role
+  access rules don't change.
+
+  The default role version is the highest supported:
+
+  - v12 default role version is `v5`
+  - v13 default role version is `v6`
+  - v14 default role version is `v7`
+
+  For example, before upgrading from v12 to v13, edit every unversioned role
+  to pin the `v5` version:
+
+  ```hcl
+  resource "teleport_role" "test" {
+    version = "v5"
+    metadata = {
+      name = "my-role"
+    }
+    // ...
+  }
+  ```
+</Admonition>
 
 
 ## teleport_access_list
@@ -111,12 +134,12 @@ and changing the behaviour of your existing TF code.
 
 header is the header for the resource.
 
-|   Name   |  Type  | Required |                                                                                                              Description                                                                                                              |
-|----------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| kind     | string |          | kind is a resource kind.                                                                                                                                                                                                              |
-| metadata | object |          | metadata is resource metadata.                                                                                                                                                                                                        |
-| sub_kind | string |          | sub_kind is an optional resource sub kind, used in some resources.                                                                                                                                                                    |
-| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It ust be an integer prefixed by "v". For example: `v1` |
+|   Name   |  Type  | Required |                                                                                                              Description                                                                                                               |
+|----------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| kind     | string |          | kind is a resource kind.                                                                                                                                                                                                               |
+| metadata | object |          | metadata is resource metadata.                                                                                                                                                                                                         |
+| sub_kind | string |          | sub_kind is an optional resource sub kind, used in some resources.                                                                                                                                                                     |
+| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by "v". For example: `v1` |
 
 #### header.metadata
 
@@ -137,10 +160,10 @@ spec is the specification for the access list.
 
 |        Name         |  Type  | Required |                                                                                                                                                                                         Description                                                                                                                                                                                         |
 |---------------------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| audit               | object |          | audit describes the frequency that this access list must be audited.                                                                                                                                                                                                                                                                                                                        |
+| audit               | object | *        | audit describes the frequency that this access list must be audited.                                                                                                                                                                                                                                                                                                                        |
 | description         | string |          | description is an optional plaintext description of the access list.                                                                                                                                                                                                                                                                                                                        |
 | grants              | object | *        | grants describes the access granted by membership to this access list.                                                                                                                                                                                                                                                                                                                      |
-| membership          | string |          | membership defines how list membership is applied. There are two possible values: `explicit` (default): To be considered ag member of the access list, a user must both meet the `membership_requires` conditions AND be explicitly added to the list. `implicit`: Any user meeting the `membership_requires` conditions will automatically be considered a member of this list.             |
+| membership          | string |          | membership defines how list membership is applied. There are two possible values: `explicit` (default): To be considered ag member of the access list, a user must both meet the `membership_requires` conditions AND be explicitly added to the list. `implicit`: Any user meeting the `membership_requires` conditions will automatically be considered a member of this list.            |
 | membership_requires | object |          | membership_requires describes the requirements for a user to be a member of the access list. For a membership to an access list to be effective, the user must meet the requirements of Membership_requires and must be in the members list.                                                                                                                                                |
 | owner_grants        | object |          | owner_grants describes the access granted by owners to this access list.                                                                                                                                                                                                                                                                                                                    |
 | owners              | object | *        | owners is a list of owners of the access list.                                                                                                                                                                                                                                                                                                                                              |
@@ -156,7 +179,7 @@ audit describes the frequency that this access list must be audited.
 |-----------------|--------------|----------|---------------------------------------------------------|
 | next_audit_date | RFC3339 time |          |                                                         |
 | notifications   | object       |          | notifications is the configuration for notifying users. |
-| recurrence      | object       |          | recurrence is the recurrence definition                 |
+| recurrence      | object       | *        | recurrence is the recurrence definition                 |
 
 ##### spec.audit.notifications
 
@@ -173,7 +196,7 @@ recurrence is the recurrence definition
 |     Name     |  Type  | Required |                             Description                             |
 |--------------|--------|----------|---------------------------------------------------------------------|
 | day_of_month | number |          | day_of_month is the day of month that reviews will be scheduled on. |
-| frequency    | number |          | frequency is the frequency of reviews.                              |
+| frequency    | number | *        | frequency is the frequency of reviews.                              |
 
 #### spec.grants
 
@@ -291,7 +314,10 @@ resource "teleport_access_list" "crane-operation" {
     }
     title = "Crane operation"
     audit = {
-      frequency = "3600h"  // 150 days
+      recurrence = {
+        frequency = 3 # audit every 3 months
+        day_of_month = 15 # audit happen 15's day of the month. Possible values are 1, 15, and 31.
+      }
     }
   }
 }
@@ -567,13 +593,13 @@ resource "teleport_bot" "example" {
 
 ## teleport_cluster_maintenance_config
 
-|   Name   |  Type  | Required |                                                                                                              Description                                                                                                              |
-|----------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                                                                                                                                                                                         |
-| nonce    | number |          | Nonce is used to protect against concurrent modification of the maintenance window. Clients should treat nonces as opaque.                                                                                                            |
-| spec     | object |          |                                                                                                                                                                                                                                       |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                                                                                                                                                                      |
-| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It ust be an integer prefixed by "v". For example: `v1` |
+|   Name   |  Type  | Required |                                                                                                              Description                                                                                                               |
+|----------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                                                                                                                                                                          |
+| nonce    | number |          | Nonce is used to protect against concurrent modification of the maintenance window. Clients should treat nonces as opaque.                                                                                                             |
+| spec     | object |          |                                                                                                                                                                                                                                        |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                                                                                                                                                                       |
+| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by "v". For example: `v1` |
 
 ### metadata
 
@@ -1067,10 +1093,10 @@ resource "teleport_github_connector" "github" {
 |       Name        |  Type  | Required |                                                                            Description                                                                            |
 |-------------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | metadata          | object |          | Metadata is resource metadata.                                                                                                                                    |
-| priority          | number |          | Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first. |
+| priority          | number | *        | Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first. |
 | traits_expression | string |          | TraitsExpression is a predicate expression which should return the desired traits for the user upon login.                                                        |
 | traits_map        | object |          | TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.                                    |
-| version           | string |          | Version is the resource version.                                                                                                                                  |
+| version           | string | *        | Version is the resource version.                                                                                                                                  |
 
 ### metadata
 
@@ -1081,7 +1107,7 @@ Metadata is resource metadata.
 | description | string         |          | Description is object description                                                                                                                                                            |
 | expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                                                                                                             |
 | labels      | map of strings |          | Labels is a set of labels                                                                                                                                                                    |
-| name        | string         |          | Name is an object name                                                                                                                                                                       |
+| name        | string         | *        | Name is an object name                                                                                                                                                                       |
 | namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.                                                                                       |
 | revision    | string         |          | Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource. |
 
@@ -1215,12 +1241,12 @@ resource "teleport_oidc_connector" "example" {
 
 ## teleport_okta_import_rule
 
-|   Name   |  Type  | Required |                                                                                                              Description                                                                                                              |
-|----------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                                                                                                                                                                                         |
-| spec     | object | *        | Spec is the specification for the Okta import rule.                                                                                                                                                                                   |
-| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                                                                                                                                                                      |
-| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It ust be an integer prefixed by "v". For example: `v1` |
+|   Name   |  Type  | Required |                                                                                                              Description                                                                                                               |
+|----------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                                                                                                                                                                          |
+| spec     | object | *        | Spec is the specification for the Okta import rule.                                                                                                                                                                                    |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources                                                                                                                                                                       |
+| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by "v". For example: `v1` |
 
 ### metadata
 
@@ -2287,11 +2313,11 @@ resource "teleport_trusted_cluster" "cluster" {
 
 ## teleport_trusted_device
 
-|   Name   |  Type  | Required |                                                                                                              Description                                                                                                              |
-|----------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                                                                                                                                                                                                         |
-| spec     | object |          | Specification of the device.                                                                                                                                                                                                          |
-| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It ust be an integer prefixed by "v". For example: `v1` |
+|   Name   |  Type  | Required |                                                                                                              Description                                                                                                               |
+|----------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                                                                                                                                                                                          |
+| spec     | object |          | Specification of the device.                                                                                                                                                                                                           |
+| version  | string | *        | Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by "v". For example: `v1` |
 
 ### metadata
 

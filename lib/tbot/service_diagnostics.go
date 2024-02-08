@@ -20,6 +20,7 @@ package tbot
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/pprof"
 
@@ -88,7 +89,7 @@ func (s *diagnosticsService) Run(ctx context.Context) error {
 		}
 	}()
 
-	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 

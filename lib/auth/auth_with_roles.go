@@ -2116,7 +2116,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3106,7 +3106,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	certs, err := a.authServer.generateUserCert(certReq)
+	certs, err := a.authServer.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

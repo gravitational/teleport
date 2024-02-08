@@ -19,6 +19,7 @@
 package keystore
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -28,6 +29,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/cloud"
 )
 
 func HSMTestConfig(t *testing.T) Config {
@@ -91,11 +94,14 @@ func awsKMSTestConfig(t *testing.T) (Config, bool) {
 	if awsKMSAccount == "" || awsKMSRegion == "" {
 		return Config{}, false
 	}
+	cloudClients, err := cloud.NewClients()
+	require.NoError(t, err)
 	return Config{
 		AWSKMS: AWSKMSConfig{
-			Cluster:    "test-cluster",
-			AWSAccount: awsKMSAccount,
-			AWSRegion:  awsKMSRegion,
+			Cluster:      "test-cluster",
+			AWSAccount:   awsKMSAccount,
+			AWSRegion:    awsKMSRegion,
+			CloudClients: cloudClients,
 		},
 	}, true
 }
@@ -170,7 +176,8 @@ func softHSMTestConfig(t *testing.T) (Config, bool) {
 	cmd := exec.Command("softhsm2-util", "--init-token", "--free", "--label", tokenLabel, "--so-pin", "password", "--pin", "password")
 	t.Logf("Running command: %q", cmd)
 	if err := cmd.Run(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			require.NoError(t, exitErr, "error creating test softhsm token: %s", string(exitErr.Stderr))
 		}
 		require.NoError(t, err, "error attempting to run softhsm2-util")

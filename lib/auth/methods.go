@@ -229,11 +229,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 
 	if props.clientMetadata != nil {
 		event.RemoteAddr = props.clientMetadata.RemoteAddr
-		if len(props.clientMetadata.UserAgent) > maxUserAgentLen {
-			event.UserAgent = props.clientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
-		} else {
-			event.UserAgent = props.clientMetadata.UserAgent
-		}
+		event.UserAgent = trimUserAgent(props.clientMetadata.UserAgent)
 	}
 
 	if props.mfaDevice != nil {
@@ -828,7 +824,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		certReq.ttl = time.Minute
 	}
 
-	certs, err := a.generateUserCert(certReq)
+	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -873,7 +869,8 @@ func (a *Server) createUserWebSession(ctx context.Context, user services.UserSta
 }
 
 func getErrorByTraceField(err error) error {
-	traceErr, ok := err.(trace.Error)
+	var traceErr trace.Error
+	ok := errors.As(err, &traceErr)
 	switch {
 	case !ok:
 		log.WithError(err).Warn("Unexpected error type, wanted TraceError")
@@ -883,6 +880,13 @@ func getErrorByTraceField(err error) error {
 	}
 
 	return nil
+}
+
+func trimUserAgent(userAgent string) string {
+	if len(userAgent) > maxUserAgentLen {
+		return userAgent[:maxUserAgentLen-3] + "..."
+	}
+	return userAgent
 }
 
 const noLocalAuth = "local auth disabled"

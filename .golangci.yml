@@ -19,6 +19,7 @@ linters:
   enable:
     - bodyclose
     - depguard
+    - errorlint
     - gci
     - goimports
     - gosimple
@@ -58,6 +59,10 @@ linters-settings:
             desc: 'experimental project, not to be confused with official Go packages'
           - pkg: golang.org/x/exp/slices
             desc: 'use "slices" instead'
+  errorlint:
+    comparison: true
+    asserts: true
+    errorf: true
   gci:
     sections:
       - standard # Standard section: captures all standard packages.
@@ -80,6 +85,7 @@ linters-settings:
     key-naming-case: snake
     static-msg: true
   testifylint:
+    disable-all: true
     enable:
       - bool-compare
       - compares
