@@ -156,10 +156,12 @@ type BotService struct {
 
 // GetBot gets a bot by name. It will throw an error if the bot does not exist.
 func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bot, error) {
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbRead,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -188,10 +190,12 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 func (bs *BotService) ListBots(
 	ctx context.Context, req *pb.ListBotsRequest,
 ) (*pb.ListBotsResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbList,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -239,10 +243,11 @@ func (bs *BotService) ListBots(
 func (bs *BotService) CreateBot(
 	ctx context.Context, req *pb.CreateBotRequest,
 ) (*pb.Bot, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbCreate,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
@@ -346,12 +351,15 @@ func UpsertBot(
 
 // UpsertBot creates a new bot or forcefully updates an existing bot.
 func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (*pb.Bot, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbCreate, types.VerbUpdate,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Support reused MFA for bulk tctl create requests.
 	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
@@ -392,12 +400,15 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 func (bs *BotService) UpdateBot(
 	ctx context.Context, req *pb.UpdateBotRequest,
 ) (*pb.Bot, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbUpdate,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -517,12 +528,15 @@ func (bs *BotService) DeleteBot(
 	// seem to be any automatic deletion of locks in teleport today (other
 	// than expiration). Consistency around security controls seems important
 	// but we can revisit this if desired.
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbDelete,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
