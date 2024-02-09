@@ -588,3 +588,71 @@ func GetKind(v any) string {
 
 	return ""
 }
+
+// GetRevision returns the revision, if one can be obtained, otherwise
+// an empty string is returned.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func GetRevision(v any) string {
+	switch r := v.(type) {
+	case Resource:
+		return r.GetRevision()
+	case ResourceMetadata:
+		return r.GetMetadata().Revision
+	}
+
+	return ""
+}
+
+// SetRevision updates the revision if v supports the concept of revisions.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func SetRevision(v any, revision string) {
+	switch r := v.(type) {
+	case Resource:
+		r.SetRevision(revision)
+	case ResourceMetadata:
+		r.GetMetadata().Revision = revision
+	}
+}
+
+// GetExpiry returns the expiration, if one can be obtained, otherwise returns
+// an empty time `time.Time{}`, which is equivalent to no expiry.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+func GetExpiry(v any) time.Time {
+	switch r := v.(type) {
+	case Resource:
+		return r.Expiry()
+	case ResourceMetadata:
+		// ResourceMetadata uses *timestamppb.Timestamp instead of time.Time. The zero value for this type is 01/01/1970.
+		// This is a problem for resources without explicit expiry set: they'd become obsolete on creation.
+		// For this reason, we check for nil expiry explicitly, and default it to time.Time{}.
+		exp := r.GetMetadata().GetExpires()
+		if exp == nil {
+			return time.Time{}
+		}
+		return exp.AsTime()
+	}
+
+	return time.Time{}
+}
+
+// GetResourceID returns the id, if one can be obtained, otherwise returns
+// zero.
+//
+// Works for both [Resource] and [ResourceMetadata] instances.
+//
+// Deprecated: GetRevision should be used instead.
+func GetResourceID(v any) int64 {
+	switch r := v.(type) {
+	case Resource:
+		//nolint:staticcheck // SA1019. Added for backward compatibility.
+		return r.GetResourceID()
+	case ResourceMetadata:
+		//nolint:staticcheck // SA1019. Added for backward compatibility.
+		return r.GetMetadata().Id
+	}
+
+	return 0
+}
