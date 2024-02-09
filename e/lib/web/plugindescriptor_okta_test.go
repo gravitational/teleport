@@ -138,37 +138,57 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 	logrus.SetFormatter(logutils.NewDefaultTextFormatter(true))
 	logrus.SetLevel(logrus.TraceLevel)
 
+	appFilters := []string{"app1", "app2"}
+	groupFilters := []string{"group1", "group2"}
+	defaultOwners := []string{"owner1", "owner2"}
+
 	testCases := []struct {
-		name                string
-		orgURL              string
-		enableIGS           bool
-		correctedOrgURL     string
-		expectSCIMToken     require.ValueAssertionFunc
-		expectSCIMTokenCred require.ErrorAssertionFunc
+		name                  string
+		orgURL                string
+		enableIGS             bool
+		enabledAccessListSync bool
+		correctedOrgURL       string
+		expectSCIMToken       require.ValueAssertionFunc
+		expectSCIMTokenCred   require.ErrorAssertionFunc
+		expectAppFilters      require.ValueAssertionFunc
+		expectGroupFilters    require.ValueAssertionFunc
+		expectDefaultOwners   require.ValueAssertionFunc
 	}{
 		{
-			name:                "full org URL",
-			orgURL:              oktaTestOrg,
-			enableIGS:           true,
-			correctedOrgURL:     oktaTestOrg,
-			expectSCIMToken:     requireEqualTo(oktaSCIMToken),
-			expectSCIMTokenCred: require.NoError,
+			name:                  "full org URL",
+			orgURL:                oktaTestOrg,
+			enableIGS:             true,
+			enabledAccessListSync: true,
+			correctedOrgURL:       oktaTestOrg,
+			expectSCIMToken:       requireEqualTo(oktaSCIMToken),
+			expectSCIMTokenCred:   require.NoError,
+			expectAppFilters:      requireEqualTo(appFilters),
+			expectGroupFilters:    requireEqualTo(groupFilters),
+			expectDefaultOwners:   requireEqualTo(defaultOwners),
 		},
 		{
-			name:                "missing URL scheme is fixed",
-			orgURL:              "example-org.okta.com",
-			enableIGS:           true,
-			correctedOrgURL:     "https://example-org.okta.com",
-			expectSCIMToken:     requireEqualTo(oktaSCIMToken),
-			expectSCIMTokenCred: require.NoError,
+			name:                  "missing URL scheme is fixed",
+			orgURL:                "example-org.okta.com",
+			enableIGS:             true,
+			enabledAccessListSync: false,
+			correctedOrgURL:       "https://example-org.okta.com",
+			expectSCIMToken:       requireEqualTo(oktaSCIMToken),
+			expectSCIMTokenCred:   require.NoError,
+			expectAppFilters:      require.Empty,
+			expectGroupFilters:    require.Empty,
+			expectDefaultOwners:   require.Empty,
 		},
 		{
-			name:                "IGS disabled",
-			orgURL:              oktaTestOrg,
-			enableIGS:           false,
-			correctedOrgURL:     oktaTestOrg,
-			expectSCIMToken:     require.Empty,
-			expectSCIMTokenCred: requireNotFound,
+			name:                  "IGS disabled",
+			orgURL:                oktaTestOrg,
+			enableIGS:             false,
+			enabledAccessListSync: false,
+			correctedOrgURL:       oktaTestOrg,
+			expectSCIMToken:       require.Empty,
+			expectSCIMTokenCred:   requireNotFound,
+			expectAppFilters:      require.Empty,
+			expectGroupFilters:    require.Empty,
+			expectDefaultOwners:   require.Empty,
 		},
 	}
 
@@ -276,6 +296,20 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			}
 			if testCase.enableIGS {
 				form.Set("scimToken", oktaSCIMToken)
+
+				appFilterB, err := json.Marshal(appFilters)
+				require.NoError(t, err)
+				form.Set("appFilters", string(appFilterB))
+
+				groupFilterB, err := json.Marshal(groupFilters)
+				require.NoError(t, err)
+				form.Set("groupFilters", string(groupFilterB))
+
+				if testCase.enabledAccessListSync {
+					defaultOwnerB, err := json.Marshal(defaultOwners)
+					require.NoError(t, err)
+					form.Set("defaultOwners", string(defaultOwnerB))
+				}
 			}
 			response, err := webPack.clt.PostForm(s.ctx, installPluginEndPoint, form)
 
@@ -308,6 +342,11 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			oktaSettings := oktaPlg.Spec.GetOkta()
 			require.NotNil(t, oktaSettings)
 			require.Equal(t, testCase.correctedOrgURL, oktaSettings.OrgUrl)
+
+			testCase.expectAppFilters(t, oktaSettings.SyncSettings.AppFilters)
+			testCase.expectGroupFilters(t, oktaSettings.SyncSettings.GroupFilters)
+			testCase.expectDefaultOwners(t, oktaSettings.SyncSettings.DefaultOwners)
+			require.Equal(t, testCase.enabledAccessListSync, oktaSettings.SyncSettings.SyncAccessLists)
 
 			syncSettings := oktaPlg.Spec.GetOkta().SyncSettings
 			require.NotNil(t, syncSettings)

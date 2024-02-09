@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 
@@ -176,9 +177,13 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 					Okta: &types.PluginOktaSettings{
 						OrgUrl: params.oktaOrgURL,
 						SyncSettings: &types.PluginOktaSyncSettings{
-							SsoConnectorId: oktaSSOConnectorName,
-							AppId:          connInfo.OktaAppID,
-							SyncUsers:      true,
+							SsoConnectorId:  oktaSSOConnectorName,
+							AppId:           connInfo.OktaAppID,
+							SyncUsers:       true,
+							GroupFilters:    params.groupFilters,
+							AppFilters:      params.appFilters,
+							DefaultOwners:   params.defaultOwners,
+							SyncAccessLists: params.enableAccessListSync,
 						},
 					},
 				},
@@ -211,11 +216,15 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 }
 
 type oktaPluginInputs struct {
-	oktaOrgURL          string
-	oktaAPIToken        string
-	scimBearerToken     string
-	scimBearerTokenHash string
-	oktaClient          okta.OktaClient
+	oktaOrgURL           string
+	oktaAPIToken         string
+	scimBearerToken      string
+	scimBearerTokenHash  string
+	groupFilters         []string
+	appFilters           []string
+	defaultOwners        []string
+	enableAccessListSync bool
+	oktaClient           okta.OktaClient
 }
 
 type validateOktaPluginInputsArgs struct {
@@ -319,6 +328,8 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 	}
 
 	if args.clusterFeatures.GetIdentityGovernance() {
+		params.enableAccessListSync = true
+
 		params.scimBearerToken = args.form.Get("scimToken")
 		if params.scimBearerToken == "" {
 			return oktaPluginInputs{}, trace.BadParameter("missing SCIM bearer token")
@@ -328,11 +339,54 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 		if err != nil {
 			return oktaPluginInputs{}, trace.BadParameter("hashing SCIM bearer token")
 		}
-
 		params.scimBearerTokenHash = string(scimTokenHash)
+
+		var defaultOwners []string
+		defaultOwnersString := args.form.Get("defaultOwners")
+		if defaultOwnersString != "" {
+			defaultOwners = []string{}
+			if err := json.Unmarshal([]byte(defaultOwnersString), &defaultOwners); err != nil {
+				return oktaPluginInputs{}, trace.Wrap(err)
+			}
+		}
+		params.defaultOwners = defaultOwners
+		if defaultOwners == nil {
+			params.enableAccessListSync = false
+			return params, nil
+		}
+
+		params.appFilters, err = getOktaAppFilters(args.form)
+		if err != nil {
+			return oktaPluginInputs{}, trace.Wrap(err)
+		}
+
+		params.groupFilters, err = getOktaGroupFilters(args.form)
+		if err != nil {
+			return oktaPluginInputs{}, trace.Wrap(err)
+		}
 	}
 
 	return params, nil
+}
+
+func getOktaFilters(filterString string) ([]string, error) {
+	var filters []string
+	if filterString != "" {
+		filters = []string{}
+		if err := json.Unmarshal([]byte(filterString), &filters); err != nil {
+			return []string{}, trace.Wrap(err)
+		}
+	}
+
+	return filters, nil
+}
+
+func getOktaGroupFilters(form url.Values) ([]string, error) {
+	return getOktaFilters(form.Get("groupFilters"))
+}
+
+func getOktaAppFilters(form url.Values) ([]string, error) {
+	return getOktaFilters(form.Get("appFilters"))
 }
 
 func getOrCreateSAMLConnector(ctx context.Context, sessCtx *web.SessionContext, oktaClient okta.OktaClient, samlConnectorName string, signingKeypair *types.AsymmetricKeyPair, log *logrus.Entry) (*okta.SAMLConnectorInfo, error) {
