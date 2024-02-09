@@ -180,6 +180,12 @@ const (
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
 
+	// KindDatabaseObjectImportRule is a database object import rule resource.
+	KindDatabaseObjectImportRule = "db_object_import_rule"
+
+	// KindDatabaseObject is a database object resource.
+	KindDatabaseObject = "db_object"
+
 	// KindKubeServer is an kubernetes server resource.
 	KindKubeServer = "kube_server"
 
