@@ -128,17 +128,17 @@ type DatabaseObjectSpec struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// The protocol used to connect to the database (e.g., postgres).
+	// The protocol used to connect to the database (e.g., postgres). Required.
 	Protocol string `protobuf:"bytes,1,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	// The name of the database service that this object belongs to.
+	// The name of the database service that this object belongs to. Required.
 	DatabaseServiceName string `protobuf:"bytes,2,opt,name=database_service_name,json=databaseServiceName,proto3" json:"database_service_name,omitempty"`
-	// The kind of database object (e.g., table, view).
+	// The kind of database object (e.g., table, view). Required.
 	ObjectKind string `protobuf:"bytes,3,opt,name=object_kind,json=objectKind,proto3" json:"object_kind,omitempty"`
-	// The database containing the object.
+	// The database containing the object. Optional.
 	Database string `protobuf:"bytes,4,opt,name=database,proto3" json:"database,omitempty"`
-	// The schema containing the object (if applicable).
+	// The schema containing the object (if applicable). Optional.
 	Schema string `protobuf:"bytes,5,opt,name=schema,proto3" json:"schema,omitempty"`
-	// The name of the object.
+	// The name of the object. Required.
 	Name string `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
 }
 

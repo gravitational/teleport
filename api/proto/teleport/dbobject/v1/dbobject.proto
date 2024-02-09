@@ -38,16 +38,16 @@ message DatabaseObject {
 
 // DatabaseObjectSpec is the spec for the database object.
 message DatabaseObjectSpec {
-  // The protocol used to connect to the database (e.g., postgres).
+  // The protocol used to connect to the database (e.g., postgres). Required.
   string protocol = 1;
-  // The name of the database service that this object belongs to.
+  // The name of the database service that this object belongs to. Required.
   string database_service_name = 2;
-  // The kind of database object (e.g., table, view).
+  // The kind of database object (e.g., table, view). Required.
   string object_kind = 3;
-  // The database containing the object.
+  // The database containing the object. Optional.
   string database = 4;
-  // The schema containing the object (if applicable).
+  // The schema containing the object (if applicable). Optional.
   string schema = 5;
-  // The name of the object.
+  // The name of the object. Required.
   string name = 6;
 }
