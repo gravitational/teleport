@@ -681,9 +681,9 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 
 			var authAdminActionErr error
 			if tt.allowedReusedMFA {
-				authAdminActionErr = AuthorizeAdminActionAllowReusedMFA(ctx, authCtx)
+				authAdminActionErr = authCtx.AuthorizeAdminActionAllowReusedMFA()
 			} else {
-				authAdminActionErr = AuthorizeAdminAction(ctx, authCtx)
+				authAdminActionErr = authCtx.AuthorizeAdminAction()
 			}
 
 			if tt.wantAdminActionAuthorized {

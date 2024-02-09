@@ -250,7 +250,7 @@ func (bs *BotService) CreateBot(
 	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -361,7 +361,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -409,7 +409,7 @@ func (bs *BotService) UpdateBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -537,7 +537,7 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
