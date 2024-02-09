@@ -53,6 +53,7 @@ export function getResourceUri(
         leafClusterId: document.leafClusterId,
       });
     case 'doc.connect_my_computer':
+    case 'doc.vnet':
       return document.rootClusterUri;
     case 'doc.blank':
       return undefined;
