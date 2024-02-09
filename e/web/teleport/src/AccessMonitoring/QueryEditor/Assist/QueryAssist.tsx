@@ -1,8 +1,7 @@
 import React, { ChangeEvent, useEffect, useRef, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
-import { BrainIcon } from 'design/SVGIcon';
 
-import { Cross } from 'design/Icon';
+import { ChatCircleSparkle, Cross } from 'design/Icon';
 
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
@@ -199,7 +198,7 @@ export function QueryAssist() {
   return (
     <Container>
       <AssistButton onClick={handleClick} isLoading={loading}>
-        {loading ? <LoadingSpinner /> : <BrainIcon size={18} />}
+        {loading ? <LoadingSpinner /> : <ChatCircleSparkle size={18} />}
       </AssistButton>
 
       {errorMessage && <ErrorMessage>{errorMessage}</ErrorMessage>}
