@@ -1415,8 +1415,21 @@ func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 }
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
+// TODO(Joerger): replace with authCtx.AuthorizeAdminAction
 func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
-	switch authCtx.AdminActionAuthState {
+	return authCtx.AuthorizeAdminAction()
+}
+
+// AuthorizeAdminActionAllowReusedMFA will ensure that the user is authorized to perform
+// admin actions. Additionally, MFA challenges that allow reuse will be accepted.
+// TODO(Joerger): replace with authCtx.AuthorizeAdminActionAllowReusedMFA
+func AuthorizeAdminActionAllowReusedMFA(ctx context.Context, authCtx *Context) error {
+	return authCtx.AuthorizeAdminActionAllowReusedMFA()
+}
+
+// AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
+func (c *Context) AuthorizeAdminAction() error {
+	switch c.AdminActionAuthState {
 	case AdminActionAuthMFAVerified, AdminActionAuthNotRequired:
 		return nil
 	}
@@ -1425,11 +1438,11 @@ func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
 
 // AuthorizeAdminActionAllowReusedMFA will ensure that the user is authorized to perform
 // admin actions. Additionally, MFA challenges that allow reuse will be accepted.
-func AuthorizeAdminActionAllowReusedMFA(ctx context.Context, authCtx *Context) error {
-	if authCtx.AdminActionAuthState == AdminActionAuthMFAVerifiedWithReuse {
+func (c *Context) AuthorizeAdminActionAllowReusedMFA() error {
+	if c.AdminActionAuthState == AdminActionAuthMFAVerifiedWithReuse {
 		return nil
 	}
-	return AuthorizeAdminAction(ctx, authCtx)
+	return c.AuthorizeAdminAction()
 }
 
 // LocalUser is a local user
