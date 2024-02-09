@@ -94,8 +94,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
 func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfigv1.ListDiscoveryConfigsRequest) (*discoveryconfigv1.ListDiscoveryConfigsResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindDiscoveryConfig, types.VerbRead, types.VerbList)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -117,8 +121,12 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 
 // GetDiscoveryConfig returns the specified DiscoveryConfig resource.
 func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.GetDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindDiscoveryConfig, types.VerbRead)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -132,8 +140,12 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 
 // CreateDiscoveryConfig creates a new DiscoveryConfig resource.
 func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.CreateDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindDiscoveryConfig, types.VerbCreate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -152,8 +164,12 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 // UpdateDiscoveryConfig updates an existing DiscoveryConfig.
 func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.UpdateDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindDiscoveryConfig, types.VerbUpdate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -172,8 +188,12 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 // UpsertDiscoveryConfig creates or updates a DiscoveryConfig.
 func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.UpsertDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindDiscoveryConfig, types.VerbCreate, types.VerbUpdate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -192,8 +212,12 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 // DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.DeleteDiscoveryConfigRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindDiscoveryConfig, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -206,8 +230,12 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 // DeleteAllDiscoveryConfigs removes all DiscoveryConfig resources.
 func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoveryconfigv1.DeleteAllDiscoveryConfigsRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindDiscoveryConfig, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindDiscoveryConfig, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
