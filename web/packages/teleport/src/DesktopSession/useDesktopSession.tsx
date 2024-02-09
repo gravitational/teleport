@@ -36,14 +36,16 @@ export default function useDesktopSession() {
   // tdpConnection tracks the state of the tdpClient's TDP connection
   // - 'processing' at first
   // - 'success' once the first TdpClientEvent.IMAGE_FRAGMENT is seen
-  // - 'failed' if a fatal error is encountered
-  // - '' if the connection closed gracefully
+  // - 'failed' if a fatal error is encountered, should have a statusText
+  // - '' if the connection closed gracefully by the server, should have a statusText
   const { attempt: tdpConnection, setAttempt: setTdpConnection } =
     useAttempt('processing');
 
   // wsConnection track's the state of the tdpClient's websocket connection.
-  // 'init' to start, 'open' when TdpClientEvent.WS_OPEN is encountered, then 'closed'
-  // again when TdpClientEvent.WS_CLOSE is encountered.
+  // - 'init' to start
+  // - 'open' when TdpClientEvent.WS_OPEN is encountered
+  // - then 'closed' again when TdpClientEvent.WS_CLOSE is encountered.
+  // Once it's 'closed', it should have the message that came with the TdpClientEvent.WS_CLOSE event..
   const [wsConnection, setWsConnection] = useState<{
     status: 'init' | 'open' | 'closed';
     message?: string;

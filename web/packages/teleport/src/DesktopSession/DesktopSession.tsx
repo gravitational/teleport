@@ -91,8 +91,8 @@ export function DesktopSession(props: State) {
         const showAlert =
           fetchAttempt.status === 'failed' || // Fetch attempt failed
           tdpConnection.status === 'failed' || // TDP connection failed
-          tdpConnection.status === '' || // TDP connection ended gracefully
-          wsConnection.status === 'closed'; // Websocket closed
+          tdpConnection.status === '' || // TDP connection ended gracefully server-side
+          wsConnection.status === 'closed'; // Websocket closed (could mean client side graceful close or unexpected close, the message will tell us which)
         const processing =
           fetchAttempt.status === 'processing' ||
           tdpConnection.status === 'processing';
