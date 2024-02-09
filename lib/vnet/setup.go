@@ -199,13 +199,12 @@ func runAdminSubcommand(ctx context.Context, socketPath string) error {
 		return trace.Wrap(err, "getting executable path")
 	}
 
-	cmdAndArgs := strings.Join([]string{
-		executableName,
-		AdminSetupSubcommand,
-		"--socket", socketPath,
-	}, " ")
 	prompt := "VNet wants to set up a virtual network device."
-	appleScript := fmt.Sprintf(`do shell script "%s" with prompt "%s" with administrator privileges`, cmdAndArgs, prompt)
+	appleScript := fmt.Sprintf(`
+  set executableName to "%s"
+	set socketPath to "%s"
+	do shell script quoted form of executableName & " %s --socket " & quoted form of socketPath with prompt "%s" with administrator privileges`,
+		executableName, socketPath, AdminSetupSubcommand, prompt)
 	cmd := exec.CommandContext(ctx, "osascript", "-e", appleScript)
 	stderr := new(strings.Builder)
 	cmd.Stderr = stderr
