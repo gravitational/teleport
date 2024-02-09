@@ -2954,6 +2954,25 @@ message RoleConditions {
   // GroupLabelsExpression is a predicate expression used to allow/deny
   // access to user groups.
   string GroupLabelsExpression = 37 [(gogoproto.jsontag) = "group_labels_expression,omitempty"];
+  // DatabasePermissions specifies a set of permissions that will be granted
+  // to the database user when using automatic database user provisioning.
+  repeated DatabasePermission DatabasePermissions = 38 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "db_permissions,omitempty"
+  ];
+}
+
+// DatabasePermission specifies the database object permission for the user.
+message DatabasePermission {
+  // Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...
+  repeated string Permissions = 1 [(gogoproto.jsontag) = "permissions"];
+
+  // Match is a list of object labels that must be matched for the permission to be granted.
+  wrappers.LabelValues Match = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "match",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
