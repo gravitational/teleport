@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -206,6 +207,13 @@ func (m *Manager) Run() error {
 	return trace.Wrap(forwardBetweenOsAndVnet(m.rootCtx, m.tun, linkEndpoint))
 }
 
+// Close closes all connections, destroys the networking stack and closes the TUN device.
+func (m *Manager) Close() error {
+	m.rootCtxCancel()
+	m.stack.Destroy()
+	return trace.Wrap(m.tun.Close())
+}
+
 func (m *Manager) tcpHandler(addr tcpip.Address) (tcpHandler, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -269,7 +277,11 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	}
 
 	if err := handler(ctx, connector); err != nil {
-		slog.Debug("Error handling TCP connection.", "err", err)
+		if errors.Is(err, context.Canceled) {
+			slog.Debug("TCP connection handler returned early due to canceled context.")
+		} else {
+			slog.Debug("Error handling TCP connection.", "err", err)
+		}
 	}
 	if !completed {
 		// Handler did not consume the connector.

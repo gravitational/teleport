@@ -75,7 +75,12 @@ func New(cfg Config) (*APIServer, error) {
 	api.RegisterTerminalServiceServer(grpcServer, serviceHandler)
 	vnetapi.RegisterVnetServiceServer(grpcServer, vnetService)
 
-	return &APIServer{cfg, ls, grpcServer}, nil
+	return &APIServer{
+		Config:      cfg,
+		ls:          ls,
+		grpcServer:  grpcServer,
+		vnetService: vnetService,
+	}, nil
 }
 
 // Serve starts accepting incoming connections
@@ -86,6 +91,7 @@ func (s *APIServer) Serve() error {
 // Stop stops the server and closes all listeners
 func (s *APIServer) Stop() {
 	s.grpcServer.GracefulStop()
+	s.vnetService.Close()
 }
 
 func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener, error) {
@@ -123,4 +129,6 @@ type APIServer struct {
 	ls net.Listener
 	// grpc is an instance of grpc server
 	grpcServer *grpc.Server
+
+	vnetService *vnet.Service
 }

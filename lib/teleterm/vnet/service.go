@@ -18,18 +18,24 @@ package service
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/vnet"
 )
 
 // Service implements gRPC service for VNet.
 type Service struct {
 	api.UnimplementedVnetServiceServer
 
-	cfg Config
+	cfg    Config
+	vnet   *vnet.Manager
+	mu     sync.Mutex
+	closed atomic.Bool
 }
 
 // New creates an instance of Service
@@ -57,9 +63,90 @@ func (c *Config) CheckAndSetDefaults() error {
 }
 
 func (s *Service) Start(ctx context.Context, req *api.StartRequest) (*api.StartResponse, error) {
-	return nil, trace.NotImplemented("Start not implemented")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed.Load() {
+		return nil, trace.Errorf("VNet service has been closed")
+	}
+
+	// TODO: Take req.RootClusterUri into account.
+	if s.vnet != nil {
+		return nil, trace.CompareFailed("VNet service is already running")
+	}
+
+	tun, err := vnet.CreateAndSetupTUNDevice(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, client, err := s.cfg.DaemonService.ResolveCluster(req.RootClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: Should NewManager take context?
+	manager, err := vnet.NewManager(context.TODO(), &vnet.Config{
+		Client:    client,
+		TUNDevice: tun,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.vnet = manager
+
+	go func() {
+		s.vnet.Run()
+		// TODO: Log error.
+	}()
+
+	return &api.StartResponse{}, nil
 }
 
+// Stop closes the VNet instance. req.RootClusterUri must match RootClusterUri of the currently
+// active instance.
+//
+// Intended to be called by the Electron app when the user wants to stop VNet for a particular root
+// cluster.
 func (s *Service) Stop(ctx context.Context, req *api.StopRequest) (*api.StopResponse, error) {
-	return nil, trace.NotImplemented("Stop not implemented")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed.Load() {
+		return nil, trace.Errorf("VNet service has been closed")
+	}
+
+	if s.vnet == nil {
+		return nil, trace.Errorf("VNet service is not running")
+	}
+
+	err := s.vnet.Close()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.vnet = nil
+
+	return &api.StopResponse{}, nil
+}
+
+// Close stops the current VNet instance and prevents new instances from being started.
+//
+// Intended for cleanup code when tsh daemon gets terminated.
+func (s *Service) Close() error {
+	s.closed.Store(true)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.vnet != nil {
+		if err := s.vnet.Close(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	s.vnet = nil
+
+	return nil
 }
