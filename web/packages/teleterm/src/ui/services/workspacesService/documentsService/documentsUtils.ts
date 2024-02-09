@@ -15,7 +15,6 @@
  */
 
 import { ClusterOrResourceUri, routing } from 'teleterm/ui/uri';
-import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { Document, isDocumentTshNodeWithServerId } from './types';
 
@@ -55,6 +54,7 @@ export function getResourceUri(
     case 'doc.blank':
       return undefined;
     default:
-      assertUnreachable(document);
+      document satisfies never;
+      return undefined;
   }
 }
