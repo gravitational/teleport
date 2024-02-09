@@ -153,11 +153,9 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 	// Set the user verification requirement, if present, only for
 	// non-discoverable logins.
 	// For discoverable logins we rely on the wan.WebAuthn default set below.
-	if !discoverableLogin &&
-		challengeExtensions.UserVerificationRequirement != mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_UNSPECIFIED {
-		if uv, ok := userVerificationToProtocol(challengeExtensions.UserVerificationRequirement); ok {
-			opts = append(opts, wan.WithUserVerification(uv))
-		}
+	if !discoverableLogin && challengeExtensions.UserVerificationRequirement != "" {
+		uvr := protocol.UserVerificationRequirement(challengeExtensions.UserVerificationRequirement)
+		opts = append(opts, wan.WithUserVerification(uvr))
 	}
 
 	// Create the WebAuthn object and issue a new challenge.
@@ -313,8 +311,8 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 
 	// Verify (and possibly correct) the user verification requirement.
 	// A mismatch here could indicate a programming error or even foul play.
-	uv, _ := userVerificationToProtocol(requiredExtensions.UserVerificationRequirement)
-	if (discoverableLogin || uv == protocol.VerificationRequired) && sd.UserVerification != string(protocol.VerificationRequired) {
+	uvr := protocol.UserVerificationRequirement(requiredExtensions.UserVerificationRequirement)
+	if (discoverableLogin || uvr == protocol.VerificationRequired) && sd.UserVerification != string(protocol.VerificationRequired) {
 		// This is not a failure yet, but will likely become one.
 		sd.UserVerification = string(protocol.VerificationRequired)
 		log.Warnf(""+
@@ -437,17 +435,4 @@ func setCounterAndTimestamps(dev *types.MFADevice, credential *wan.Credential) e
 	}
 	dev.LastUsed = time.Now()
 	return nil
-}
-
-func userVerificationToProtocol(v mfav1.UserVerificationRequirement) (protocol.UserVerificationRequirement, bool) {
-	switch v {
-	case mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_REQUIRED:
-		return protocol.VerificationRequired, true
-	case mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_PREFERRED:
-		return protocol.VerificationPreferred, true
-	case mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_DISCOURAGED:
-		return protocol.VerificationDiscouraged, true
-	default:
-		return "", false
-	}
 }

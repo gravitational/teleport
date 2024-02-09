@@ -35,8 +35,12 @@ message ChallengeExtensions {
   // of the server. See the server implementation for details.
   ChallengeAllowReuse allow_reuse = 2;
   // User verification requirement for the challenge.
-  // Optional.
-  UserVerificationRequirement user_verification_requirement = 3;
+  //
+  // * https://www.w3.org/TR/webauthn-2/#enum-userVerificationRequirement.
+  // * https://pkg.go.dev/github.com/go-webauthn/webauthn/protocol#UserVerificationRequirement.
+  //
+  // Optional. Empty is equivalent to "discouraged".
+  string user_verification_requirement = 3;
 }
 
 // ChallengeScope is a scope authorized by an MFA challenge resolution.
@@ -76,21 +80,4 @@ enum ChallengeAllowReuse {
   CHALLENGE_ALLOW_REUSE_YES = 1;
   // Reuse is not permitted.
   CHALLENGE_ALLOW_REUSE_NO = 2;
-}
-
-// User verification requirement for the challenge.
-// See https://www.w3.org/TR/webauthn-2/#enum-userVerificationRequirement.
-enum UserVerificationRequirement {
-  // User verification requirement not specified.
-  // Functionally equivalent to VERIFICATION_REQUIREMENT_DISCOURAGED.
-  USER_VERIFICATION_REQUIREMENT_UNSPECIFIED = 0;
-  // User verification required.
-  // The server will reject challenge responses with UV=0.
-  USER_VERIFICATION_REQUIREMENT_REQUIRED = 1;
-  // User verification is desirable but not mandatory.
-  // The server will accept challenge responses with any UV value.
-  USER_VERIFICATION_REQUIREMENT_PREFERRED = 2;
-  // User verification actively discouraged.
-  // The server will accept challenge responses with any UV value.
-  USER_VERIFICATION_REQUIREMENT_DISCOURAGED = 3;
 }

@@ -930,7 +930,7 @@ func TestLoginFlow_userVerification(t *testing.T) {
 			},
 			requiredExts: &mfav1.ChallengeExtensions{
 				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_REQUIRED,
+				UserVerificationRequirement: string(protocol.VerificationRequired),
 			},
 			dev:     mfaDev,
 			wantErr: "authenticator response",
@@ -943,7 +943,7 @@ func TestLoginFlow_userVerification(t *testing.T) {
 			},
 			requiredExts: &mfav1.ChallengeExtensions{
 				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_REQUIRED,
+				UserVerificationRequirement: string(protocol.VerificationRequired),
 			},
 			dev: pwdlessDev, // Returns UV=1 regardless of requests.
 		},
@@ -951,11 +951,11 @@ func TestLoginFlow_userVerification(t *testing.T) {
 			name: "verification preferred",
 			exts: &mfav1.ChallengeExtensions{
 				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_PREFERRED,
+				UserVerificationRequirement: string(protocol.VerificationPreferred),
 			},
 			requiredExts: &mfav1.ChallengeExtensions{
 				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_PREFERRED,
+				UserVerificationRequirement: string(protocol.VerificationPreferred),
 			},
 			dev:                       mfaDev, // Not capable of UV, but still allowed by settings.
 			wantAssertionVerification: string(protocol.VerificationPreferred),
@@ -964,11 +964,11 @@ func TestLoginFlow_userVerification(t *testing.T) {
 			name: "verification required",
 			exts: &mfav1.ChallengeExtensions{
 				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_REQUIRED,
+				UserVerificationRequirement: string(protocol.VerificationRequired),
 			},
 			requiredExts: &mfav1.ChallengeExtensions{
 				Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-				UserVerificationRequirement: mfav1.UserVerificationRequirement_USER_VERIFICATION_REQUIREMENT_REQUIRED,
+				UserVerificationRequirement: string(protocol.VerificationRequired),
 			},
 			dev:                       pwdlessDev, // Capable of UV.
 			wantAssertionVerification: string(protocol.VerificationRequired),
