@@ -143,6 +143,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.DATABASE_SESSION_QUERY]: Icons.Database,
   [eventCodes.DATABASE_SESSION_QUERY_FAILURE]: Icons.Database,
   [eventCodes.DATABASE_SESSION_MALFORMED_PACKET]: Icons.Database,
+  [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: Icons.Database,
   [eventCodes.DATABASE_CREATED]: Icons.Database,
   [eventCodes.DATABASE_UPDATED]: Icons.Database,
   [eventCodes.DATABASE_DELETED]: Icons.Database,
