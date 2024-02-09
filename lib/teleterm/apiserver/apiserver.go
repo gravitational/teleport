@@ -27,8 +27,10 @@ import (
 	"google.golang.org/grpc"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	vnetapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
+	vnet "github.com/gravitational/teleport/lib/teleterm/vnet"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -50,7 +52,7 @@ func New(cfg Config) (*APIServer, error) {
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 
-	// Create Terminal service.
+	// Create Terminal and VNet services.
 
 	serviceHandler, err := handler.New(
 		handler.Config{
@@ -61,7 +63,17 @@ func New(cfg Config) (*APIServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	vnetService, err := vnet.New(
+		vnet.Config{
+			DaemonService: cfg.Daemon,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	api.RegisterTerminalServiceServer(grpcServer, serviceHandler)
+	vnetapi.RegisterVnetServiceServer(grpcServer, vnetService)
 
 	return &APIServer{cfg, ls, grpcServer}, nil
 }
