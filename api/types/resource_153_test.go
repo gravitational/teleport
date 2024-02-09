@@ -160,45 +160,97 @@ func TestResourceMethods(t *testing.T) {
 	}
 
 	t.Run("GetExpiry", func(t *testing.T) {
-		require.Equal(t, expiry, types.GetExpiry(user))
-		require.Equal(t, expiry, types.GetExpiry(bot))
+		_, err := types.GetExpiry("invalid type")
+		require.Error(t, err)
+
+		objExpiry, err := types.GetExpiry(user)
+		require.NoError(t, err)
+		require.Equal(t, expiry, objExpiry)
+
+		objExpiry, err = types.GetExpiry(bot)
+		require.NoError(t, err)
+		require.Equal(t, expiry, objExpiry)
 
 		// check the nil expiry special case.
 		user.Metadata.Expires = nil
-		require.Equal(t, time.Time{}, types.GetExpiry(user))
+		objExpiry, err = types.GetExpiry(user)
+		require.NoError(t, err)
+		require.Equal(t, time.Time{}, objExpiry)
 
 		bot.Metadata.Expires = nil
-		require.Equal(t, time.Time{}, types.GetExpiry(bot))
+		objExpiry, err = types.GetExpiry(bot)
+		require.NoError(t, err)
+		require.Equal(t, time.Time{}, objExpiry)
 	})
 
 	t.Run("GetResourceID", func(t *testing.T) {
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		require.Equal(t, user.GetResourceID(), types.GetResourceID(user))
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		require.Equal(t, bot.GetMetadata().Id, types.GetResourceID(bot))
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		_, err := types.GetResourceID("invalid type")
+		require.Error(t, err)
+
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		id, err := types.GetResourceID(user)
+		require.NoError(t, err)
+		require.Equal(t, user.GetResourceID(), id)
+
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		id, err = types.GetResourceID(bot)
+		require.NoError(t, err)
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		require.Equal(t, bot.GetMetadata().Id, id)
 	})
 
 	t.Run("GetRevision", func(t *testing.T) {
-		require.Equal(t, user.GetRevision(), types.GetRevision(user))
-		require.Equal(t, bot.GetMetadata().Revision, types.GetRevision(bot))
+		_, err := types.GetRevision("invalid type")
+		require.Error(t, err)
+
+		revision, err := types.GetRevision(user)
+		require.Equal(t, user.GetRevision(), revision)
+		require.NoError(t, err)
+
+		revision, err = types.GetRevision(bot)
+		require.NoError(t, err)
+		require.Equal(t, bot.GetMetadata().Revision, revision)
 	})
 
 	t.Run("SetRevision", func(t *testing.T) {
 		rev := uuid.NewString()
-		types.SetRevision(bot, rev)
-		types.SetRevision(user, rev)
+		require.NoError(t, types.SetRevision(bot, rev))
+		require.NoError(t, types.SetRevision(user, rev))
+		require.Error(t, types.SetRevision("invalid type", "dummy"))
 
-		require.Equal(t, rev, types.GetRevision(user))
-		require.Equal(t, rev, types.GetRevision(bot))
+		revision, err := types.GetRevision(user)
+		require.NoError(t, err)
+		require.Equal(t, rev, revision)
+
+		revision, err = types.GetRevision(bot)
+		require.NoError(t, err)
+		require.Equal(t, rev, revision)
 	})
 
 	t.Run("GetKind", func(t *testing.T) {
-		require.Equal(t, types.KindUser, types.GetKind(user))
-		require.Equal(t, "bot", types.GetKind(bot))
+		_, err := types.GetKind("invalid type")
+		require.Error(t, err)
+
+		kind, err := types.GetKind(user)
+		require.NoError(t, err)
+		require.Equal(t, types.KindUser, kind)
+
+		kind, err = types.GetKind(bot)
+		require.NoError(t, err)
+		require.Equal(t, "bot", kind)
 	})
 
 	t.Run("GetOrigin", func(t *testing.T) {
-		require.Equal(t, user.Origin(), types.GetOrigin(user))
-		require.Equal(t, "mars", types.GetOrigin(bot))
+		_, err := types.GetOrigin("invalid type")
+		require.Error(t, err)
+
+		origin, err := types.GetOrigin(user)
+		require.NoError(t, err)
+		require.Equal(t, user.Origin(), origin)
+
+		origin, err = types.GetOrigin(bot)
+		require.NoError(t, err)
+		require.Equal(t, "mars", origin)
 	})
 }
