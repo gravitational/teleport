@@ -41,6 +41,8 @@ Rationale: as there is no reliable way to verify that the user actually has a pa
 
 The user will need to pick upfront whether they want to authenticate with a passwordless or an MFA device, even in case of hardware tokens. This is because in order to perform a WebAuthn authentication ceremony, we need to specify upfront whether we require [user verification](https://w3c.github.io/webauthn/#user-verification) or not using the [`PublicKeyCredentialRequestOptions.userVerification`](https://w3c.github.io/webauthn/#dom-publickeycredentialrequestoptions-userverification) field. The client (user agent) is not obliged to return an assertion that contains user verification if we didn't require it, and although the WebAuthn spec says it should do it ["if possible"](https://w3c.github.io/webauthn/#dom-userverificationrequirement-preferred), the exact details of what is considered "possible" are left to interpretation. The key question of whether we are guaranteed to receive user verification if a token capable of user verification has been used is left unanswered. Since user verification is required for changing password without giving the current one, we can't allow the user to perform it if the returned authenticator data contains flags with the [User Verified bit](https://w3c.github.io/webauthn/#authdata-flags-uv) set to 0. Thus, we need to specify user verification requirement when we create the authentication request.
 
+There are two RPCs that take part in the process of changing password when token authentication is required: the first one that generates the challenge (currently handled by )
+
 The following diagram sums up the modified process:
 
 ```mermaid
@@ -65,6 +67,48 @@ ContactAdmin --> End([End])
 ```
 
 For clarity, error cases (such as password mismatch or inability to confirm user identity) were omitted from the above diagram.
+
+We are going to implement the following changes to the WebAuthn flow and APIs:
+
+1. Move the responsibility for verifying the old password to the `ChangePassword` RPC call. This will allow us to decouple the verification from setting the new password in the UI (the old password will not be required when generating the challenge). This verification will be specific to the `ChangePassword` call and will not be a part of the generic `LoginFlow`. The
+2. Add a possibility to request user verification through [`ChallengeExtensions`](https://github.com/gravitational/teleport/blob/3a8dcdc52c47b37091796fadb3ca775c06b7933e/api/proto/teleport/mfa/v1/mfa.proto#L27):
+   ```proto
+   message ChallengeExtensions {
+     // ...
+     string user_verification_requirement = 3; // "required", "discouraged", etc.
+   }
+   ```
+   This will automatically become a parameter of the `CreateAuthenticateChallenge` RPC call through the `ChallengeExtensions` field. To make it possible to specify from the client side, we will accept a corresponding `userVerificationRequirement` parameter to the `/v1/webapi/mfa/authenticatechallenge/password` POST endpoint.
+3. Create a dedicated [challenge scope](https://github.com/gravitational/teleport/blob/3a8dcdc52c47b37091796fadb3ca775c06b7933e/api/proto/teleport/mfa/v1/mfa.proto#L40) for the challenge that allows changing a password (`CHALLENGE_SCOPE_PASSWORD_CHANGE`).
+
+Here is what the updated process is going to look like:
+
+```mermaid
+sequenceDiagram
+participant C as Client
+participant P as Proxy Service
+participant A as Auth Service
+C ->> P: POST mfa/authenticatechallenge/password<br>Specify user verification requirement
+activate P
+P ->> A: CreateAuthenticateChallenge<br>Request: ContextUser<br>Specify user verification requirement<br>Set scope to PASSWORD_CHANGE
+deactivate P
+activate A
+A ->> P: Challenge
+deactivate A
+activate P
+P ->> C: Challenge
+deactivate P
+activate C
+C ->> P: PUT users/password<br>Send new pasword, assertion response<br>Send old password only if no UV requested
+deactivate C
+activate P
+P ->> A: ChangePassword
+deactivate P
+activate A
+A ->> A: Verify scope and assertion response
+A ->> A: Verify old password if UV=0
+deactivate A
+```
 
 ### Recognizing Users Who Configured Their Passwords
 
