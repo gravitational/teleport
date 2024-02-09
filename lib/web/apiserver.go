@@ -854,7 +854,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Deprecated: The desktopplayback/ws variant should be used instead.
 	// TODO(lxea): DELETE in v16
 	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithClusterAuthWebSocket(false, h.desktopPlaybackHandle))
-	// // GET /webapi/sites/:site/desktopplayback/:sid/ws
+	// GET /webapi/sites/:site/desktopplayback/:sid/ws
 	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(true, h.desktopPlaybackHandle))
 	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
 
