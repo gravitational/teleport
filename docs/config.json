@@ -1761,38 +1761,6 @@
           "forScopes": ["enterprise", "cloud"]
         }
       ]
-    },
-    {
-      "icon": "wrench",
-      "title": "Contribute",
-      "entries": [
-        {
-          "title": "Documentation",
-          "slug": "/contributing/documentation/",
-          "entries": [
-            {
-              "title": "How to Contribute",
-              "slug": "/contributing/documentation/how-to-contribute/"
-            },
-            {
-              "title": "Reviewing Documentation Changes",
-              "slug": "/contributing/documentation/reviewing-docs/"
-            },
-            {
-              "title": "Creating Documentation Issues",
-              "slug": "/contributing/documentation/issues/"
-            },
-            {
-              "title": "Style Guide",
-              "slug": "/contributing/documentation/style-guide/"
-            },
-            {
-              "title": "UI Reference",
-              "slug": "/contributing/documentation/reference/"
-            }
-          ]
-        }
-      ]
     }
   ],
   "variables": {
@@ -2072,16 +2040,6 @@
     {
       "source": "/database-access/guides/mysql-aws/",
       "destination": "/database-access/guides/rds/",
-      "permanent": true
-    },
-    {
-      "source": "/docs/",
-      "destination": "/contributing/documentation/",
-      "permanent": true
-    },
-    {
-      "source": "/docs/best-practices/",
-      "destination": "/contributing/documentation/",
       "permanent": true
     },
     {
@@ -2827,11 +2785,6 @@
     {
       "source": "/architecture/",
       "destination": "/architecture/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/contributing/",
-      "destination": "/contributing/documentation/",
       "permanent": true
     },
     {
