@@ -818,9 +818,13 @@ const (
 	// command execution (exec and shells).
 	ExecSubCommand = "exec"
 
-	// ForwardSubCommand is the sub-command Teleport uses to re-exec itself
-	// for port forwarding.
-	ForwardSubCommand = "forwardv2"
+	// LocalForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for local port forwarding.
+	LocalForwardSubCommand = "forwardv2"
+
+	// RemoteForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for remote port forwarding.
+	RemoteForwardSubCommand = "remoteforward"
 
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
