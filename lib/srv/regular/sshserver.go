@@ -2325,6 +2325,10 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	scx.AddCloser(listener)
 	// Set the src addr again since it may have been updated with a new port.
 	scx.SrcAddr = listener.Addr().String()
+	if err := sshutils.StartRemoteListener(ctx, scx.ConnectionContext, scx.SrcAddr, scx.DstAddr, listener); err != nil {
+		scx.Close()
+		return trace.Wrap(err)
+	}
 
 	// Report addr back to the client.
 	if r.WantReply {
@@ -2342,15 +2346,10 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		}
 	}
 
-	event := scx.GetPortForward()
-	if err := s.EmitAuditEvent(ctx, &event); err != nil {
-		scx.Close()
-		return trace.Wrap(err)
-	}
-	if err := sshutils.StartRemoteListener(ctx, scx.ConnectionContext, scx.SrcAddr, scx.DstAddr, listener); err != nil {
-		scx.Close()
-		return trace.Wrap(err)
-	}
+	scx.AddCloser(utils.CloseFunc(func() error {
+		event := scx.GetPortForward()
+		return trace.Wrap(s.EmitAuditEvent(ctx, &event))
+	}))
 	s.remoteForwardingMap.Store(scx.SrcAddr, scx)
 	return nil
 }
