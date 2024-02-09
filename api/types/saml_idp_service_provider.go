@@ -20,10 +20,9 @@ import (
 	"encoding/xml"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types/samlsp"
-
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/gravitational/teleport/api/utils"
 )
 

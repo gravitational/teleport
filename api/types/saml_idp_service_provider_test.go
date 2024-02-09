@@ -19,8 +19,9 @@ package types
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/samlsp"
 )
 
 // TestNewSAMLIdPServiceProvider ensures a valid SAML IdP service provider.
