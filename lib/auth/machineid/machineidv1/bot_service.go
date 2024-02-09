@@ -621,6 +621,22 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 		},
 	}
 
+	// Copy in labels from the user
+	b.Metadata.Labels = map[string]string{}
+	for k, v := range user.GetMetadata().Labels {
+		// We exclude the two labels that are implicitly added to the user by
+		// the bot service.
+		specialLabels := []string{
+			types.BotLabel,
+			types.BotGenerationLabel,
+		}
+		if slices.Contains(specialLabels, k) {
+			continue
+		}
+		b.Metadata.Labels[k] = v
+	}
+
+	// Copy in traits
 	for k, v := range user.GetTraits() {
 		if len(v) == 0 {
 			continue
@@ -670,12 +686,19 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	}
 	user.SetRoles([]string{resourceName})
 	userMeta := user.GetMetadata()
-	userMeta.Labels = map[string]string{
-		types.BotLabel: bot.Metadata.Name,
-		// We always set this to zero here - but in Upsert, we copy from the
-		// previous user before writing if necessary.
-		types.BotGenerationLabel: "0",
+
+	// First copy in the labels from the Bot resource
+	userMeta.Labels = map[string]string{}
+	for k, v := range bot.Metadata.Labels {
+		userMeta.Labels[k] = v
 	}
+	// Then set these labels over the top - we exclude these when converting
+	// back.
+	userMeta.Labels[types.BotLabel] = bot.Metadata.Name
+	// We always set this to zero here - but in Upsert, we copy from the
+	// previous user before writing if necessary
+	userMeta.Labels[types.BotGenerationLabel] = "0"
+
 	user.SetMetadata(userMeta)
 
 	traits := map[string][]string{}

@@ -115,6 +115,10 @@ func TestCreateBot(t *testing.T) {
 				Bot: &machineidv1pb.Bot{
 					Metadata: &headerv1.Metadata{
 						Name: "success",
+						Labels: map[string]string{
+							"my-label":       "my-value",
+							"my-other-label": "my-other-value",
+						},
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -138,6 +142,10 @@ func TestCreateBot(t *testing.T) {
 				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "success",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
@@ -162,6 +170,8 @@ func TestCreateBot(t *testing.T) {
 					Labels: map[string]string{
 						types.BotLabel:           "success",
 						types.BotGenerationLabel: "0",
+						"my-label":               "my-value",
+						"my-other-label":         "my-other-value",
 					},
 				},
 				Spec: types.UserSpecV2{
@@ -725,6 +735,10 @@ func TestUpsertBot(t *testing.T) {
 		Bot: &machineidv1pb.Bot{
 			Metadata: &headerv1.Metadata{
 				Name: "pre-existing",
+				Labels: map[string]string{
+					"my-label":       "my-value",
+					"my-other-label": "my-other-value",
+				},
 			},
 			Spec: &machineidv1pb.BotSpec{
 				Roles: []string{testRole.GetName()},
@@ -762,6 +776,10 @@ func TestUpsertBot(t *testing.T) {
 				Bot: &machineidv1pb.Bot{
 					Metadata: &headerv1.Metadata{
 						Name: "new",
+						Labels: map[string]string{
+							"my-label":       "my-value",
+							"my-other-label": "my-other-value",
+						},
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -781,6 +799,10 @@ func TestUpsertBot(t *testing.T) {
 				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "new",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
@@ -805,6 +827,8 @@ func TestUpsertBot(t *testing.T) {
 					Labels: map[string]string{
 						types.BotLabel:           "new",
 						types.BotGenerationLabel: "0",
+						"my-label":               "my-value",
+						"my-other-label":         "my-other-value",
 					},
 				},
 				Spec: types.UserSpecV2{
@@ -861,6 +885,8 @@ func TestUpsertBot(t *testing.T) {
 					Labels: map[string]string{
 						types.BotLabel:           "pre-existing",
 						types.BotGenerationLabel: "1337",
+						"my-label":               "my-value",
+						"my-other-label":         "my-other-value",
 					},
 				},
 				Spec: types.UserSpecV2{
@@ -1043,6 +1069,10 @@ func TestGetBot(t *testing.T) {
 			Bot: &machineidv1pb.Bot{
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
@@ -1150,6 +1180,10 @@ func TestListBots(t *testing.T) {
 			Bot: &machineidv1pb.Bot{
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
