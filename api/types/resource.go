@@ -742,7 +742,7 @@ func SetRevision(v any, revision string) {
 }
 
 // GetExpiry returns the expiration, if one can be obtained, otherwise returns
-// an empty time.
+// an empty time `time.Time{}`, which is equivalent to no expiry.
 //
 // Works for both [Resource] and [ResourceMetadata] instances.
 func GetExpiry(v any) time.Time {
