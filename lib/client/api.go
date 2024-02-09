@@ -1968,12 +1968,17 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
 		socket, err := nodeClient.Client.Listen("tcp", addr)
 		if err != nil {
+			// We log the error here instead of returning it to be consistent with
+			// the other port forwarding methods, which don't stop the session
+			// if forwarding fails.
+			message := fmt.Sprintf("Failed to bind on remote host to %v: %v.", addr, err)
 			if strings.Contains(err.Error(), remoteForwardUnsupportedMessage) {
-				return trace.NotImplemented("Node does not support remote port forwarding (-R).")
+				message = "Node does not support remote port forwarding (-R)."
 			}
-			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
+			log.Error(message)
+		} else {
+			go nodeClient.remoteListenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)), addr)
 		}
-		go nodeClient.remoteListenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)), addr)
 	}
 	return nil
 }

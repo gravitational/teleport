@@ -1111,9 +1111,8 @@ func (s *Server) getDirectTCPIPForwardDialer(scx *srv.ServerContext) (sshutils.T
 		return d, nil
 	}
 
-	dialerConn, closer, err := s.startForwardingSubprocess(scx)
+	proc, err := s.startForwardingSubprocess(scx)
 	if err != nil {
-		dialerConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -1134,7 +1133,7 @@ func (s *Server) getDirectTCPIPForwardDialer(scx *srv.ServerContext) (sshutils.T
 		}
 		defer remoteFD.Close()
 
-		_, _, err = dialerConn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
+		_, _, err = proc.Conn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
 		if err != nil {
 			local.Close()
 			return nil, trace.Wrap(err)
@@ -1148,12 +1147,12 @@ func (s *Server) getDirectTCPIPForwardDialer(scx *srv.ServerContext) (sshutils.T
 		// another forwarder was concurrently created. this isn't actually a problem, multiple forwarders
 		// being registered is harmless, but it does result in slightly higher resource utilization, so its
 		// preferable to use the existing forwarder and close ours in the background.
-		go closer.Close()
+		go proc.Close()
 		return other, nil
 	}
 
 	// successfully registered this dialer, add closer to context.
-	scx.Parent().AddCloser(closer)
+	scx.Parent().AddCloser(proc)
 
 	return dialer, nil
 }
@@ -1194,7 +1193,7 @@ func (l *remoteForwardingListener) Addr() net.Addr {
 
 // listenTCPIP creates a new listener in the forwarding process.
 func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener, error) {
-	controlConn, err := s.getTCPIPForwardConn(scx)
+	proc, err := s.getTCPIPForwardProcess(scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1211,15 +1210,30 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener,
 		return nil, trace.Wrap(err)
 	}
 	defer remoteFD.Close()
-	_, _, err = controlConn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
+	_, _, err = proc.Conn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// The forwarding process may have chosen its own port, so we need to get the
 	// new listen address.
+	var n int
 	var addrBuf [1024]byte
-	n, _, err := localConn.ReadWithFDs(addrBuf[:], nil)
+	readDone := make(chan struct{})
+	// Read addr in another goroutine so we can cancel it if the forwarding process
+	// stops.
+	go func() {
+		n, _, err = localConn.ReadWithFDs(addrBuf[:], nil)
+		close(readDone)
+	}()
+
+	select {
+	case <-proc.Done:
+		localConn.Close()
+		return nil, trace.Errorf("forwarding process is closed")
+	case <-readDone:
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1232,43 +1246,43 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener,
 // getDirectTCPIPForwarder sets up a connection-level subprocess that handles
 // remote forwarding connections. Subsequent calls from the same connection
 // context reuse the same forwarder.
-func (s *Server) getTCPIPForwardConn(scx *srv.ServerContext) (*uds.Conn, error) {
-	if conn, ok := scx.Parent().GetTCPIPForwardConn(); ok {
-		return conn, nil
+func (s *Server) getTCPIPForwardProcess(scx *srv.ServerContext) (*sshutils.TCPIPForwardProcess, error) {
+	if proc, ok := scx.Parent().GetTCPIPForwardProcess(); ok {
+		return proc, nil
 	}
 
-	conn, closer, err := s.startForwardingSubprocess(scx)
+	proc, err := s.startForwardingSubprocess(scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Try to register with the parent context.
-	if other, ok := scx.Parent().TrySetTCPIPForwardConn(conn); !ok {
+	if otherProc, ok := scx.Parent().TrySetTCPIPForwardProcess(proc); !ok {
 		// Another forwarder was concurrently created. this isn't actually a problem, multiple forwarders
 		// being registered is harmless, but it does result in slightly higher resource utilization, so its
 		// preferable to use the existing forwarder and close ours in the background.
-		go closer.Close()
-		return other, nil
+		go proc.Close()
+		return otherProc, nil
 	}
 
-	scx.Parent().AddCloser(closer)
-	return conn, nil
+	scx.Parent().AddCloser(proc)
+	return proc, nil
 }
 
 // startForwardingSubprocess launches the forwarding process. It returns a
 // conn to communicate with the process and a close func to close the process
 // when finished.
-func (s *Server) startForwardingSubprocess(scx *srv.ServerContext) (*uds.Conn, io.Closer, error) {
+func (s *Server) startForwardingSubprocess(scx *srv.ServerContext) (*sshutils.TCPIPForwardProcess, error) {
 	// Create the socket to communicate over.
 	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer remoteConn.Close()
 	remoteFD, err := remoteConn.File()
 	if err != nil {
 		localConn.Close()
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer remoteFD.Close()
 
@@ -1278,7 +1292,7 @@ func (s *Server) startForwardingSubprocess(scx *srv.ServerContext) (*uds.Conn, i
 	cmd, err := srv.ConfigureCommand(scx, remoteFD)
 	if err != nil {
 		localConn.Close()
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Propagate stderr from the spawned Teleport process to log any errors.
@@ -1287,7 +1301,7 @@ func (s *Server) startForwardingSubprocess(scx *srv.ServerContext) (*uds.Conn, i
 	// Start the child process that will be used to listen for connections.
 	if err := cmd.Start(); err != nil {
 		localConn.Close()
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	cdone := make(chan struct{})
@@ -1295,6 +1309,7 @@ func (s *Server) startForwardingSubprocess(scx *srv.ServerContext) (*uds.Conn, i
 
 	go func() {
 		defer close(cdone)
+		defer localConn.Close()
 		// Ensure unexpected cmd failures get logged.
 		if err := cmd.Wait(); err != nil && !explicitlyClosed.Load() {
 			s.Logger.Warnf("Remote forwarder process exited early with unexpected error: %v", err)
@@ -1318,7 +1333,11 @@ func (s *Server) startForwardingSubprocess(scx *srv.ServerContext) (*uds.Conn, i
 		return nil
 	})
 
-	return localConn, processCloser, nil
+	return &sshutils.TCPIPForwardProcess{
+		Conn:   localConn,
+		Done:   cdone,
+		Closer: processCloser,
+	}, nil
 }
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
@@ -2275,6 +2294,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 			if replyErr := r.Reply(false, []byte(utils.FormatErrorWithNewline(err))); replyErr != nil {
 				log.Errorf("sending error reply to SSH global request: %v", replyErr)
 			}
+			r.WantReply = false
 		}
 		return err
 	}
