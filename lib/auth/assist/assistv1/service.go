@@ -97,7 +97,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 func (a *Service) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
 	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbCreate)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	if userHasAccess(authCtx, req) {
@@ -112,7 +112,7 @@ func (a *Service) CreateAssistantConversation(ctx context.Context, req *assist.C
 func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, req *assist.UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error) {
 	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbUpdate)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	if userHasAccess(authCtx, req) {
@@ -131,7 +131,7 @@ func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, req *assi
 func (a *Service) GetAssistantConversations(ctx context.Context, req *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
 	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbList)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	if userHasAccess(authCtx, req) {
@@ -146,7 +146,7 @@ func (a *Service) GetAssistantConversations(ctx context.Context, req *assist.Get
 func (a *Service) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) (*emptypb.Empty, error) {
 	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbDelete)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	if userHasAccess(authCtx, req) {
@@ -160,7 +160,7 @@ func (a *Service) DeleteAssistantConversation(ctx context.Context, req *assist.D
 func (a *Service) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
 	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbRead)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	if userHasAccess(authCtx, req) {
@@ -175,7 +175,7 @@ func (a *Service) GetAssistantMessages(ctx context.Context, req *assist.GetAssis
 func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.CreateAssistantMessageRequest) (*emptypb.Empty, error) {
 	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbCreate)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	if userHasAccess(authCtx, req) {
@@ -199,7 +199,7 @@ func (a *Service) IsAssistEnabled(ctx context.Context, _ *assist.IsAssistEnabled
 
 	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Check if this endpoint is called by a user or Proxy.
@@ -210,7 +210,7 @@ func (a *Service) IsAssistEnabled(ctx context.Context, _ *assist.IsAssistEnabled
 			false, /* silent */
 		)
 		if checkErr != nil {
-			return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+			return nil, trace.Wrap(err)
 		}
 	} else {
 		// This endpoint is called from Proxy to check if the assist is enabled.
@@ -229,7 +229,7 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 	// TODO(jakule): The kind needs to be updated when we add more resources.
 	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindNode, types.VerbRead, types.VerbList)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	if a.embedder == nil {

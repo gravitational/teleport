@@ -553,7 +553,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	userContext, err := f.cfg.Authz.Authorize(ctx)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, f.log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	// kubeResource is the Kubernetes Resource the request is targeted at.
