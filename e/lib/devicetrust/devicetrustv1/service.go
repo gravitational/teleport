@@ -210,7 +210,7 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -260,7 +260,7 @@ func (s *Service) UpdateDevice(ctx context.Context, req *devicepb.UpdateDeviceRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -329,7 +329,7 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -394,7 +394,7 @@ func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -506,7 +506,7 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -592,7 +592,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 		// Audit information.
 		devMetadata = getDeviceMetadata(dev)
 	} else {
-		if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+		if err := authCtx.AuthorizeAdminAction(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -838,7 +838,7 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 

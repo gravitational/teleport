@@ -57,12 +57,12 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 // CreateLoginRule creates a login rule if one with the same name does not
 // already exist, else it returns an error.
 func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbCreate)
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbCreate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -81,12 +81,12 @@ func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLo
 // UpsertLoginRule creates a login rule if one with the same name does not
 // already exist, else it replaces the existing login rule.
 func (s *Service) UpsertLoginRule(ctx context.Context, req *loginrulepb.UpsertLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbCreate, types.VerbUpdate)
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -131,12 +131,12 @@ func (s *Service) ListLoginRules(ctx context.Context, req *loginrulepb.ListLogin
 
 // DeleteLoginRule deletes an existing login rule.
 func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLoginRuleRequest) (*emptypb.Empty, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbDelete)
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbDelete)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

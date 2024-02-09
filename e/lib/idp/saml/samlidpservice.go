@@ -238,11 +238,11 @@ func (s *SAMLIdPService) TestSAMLIdPAttributeMapping(ctx context.Context, req *s
 
 // authorizeAccess checks user context with given authorizeVerbs against KindSAMLIdPServiceProvider resource.
 func (s *SAMLIdPService) authorizeAccess(ctx context.Context, authorizeVerbs ...string) error {
-	authzWithContext, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true /* quiet */, types.KindSAMLIdPServiceProvider, authorizeVerbs...)
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true /* quiet */, types.KindSAMLIdPServiceProvider, authorizeVerbs...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = authz.AuthorizeAdminAction(ctx, authzWithContext); err != nil {
+	if err = authCtx.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

@@ -465,7 +465,7 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -474,12 +474,12 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 	if oldAccessList != nil {
 		verbs = []string{types.VerbUpdate}
 
-		// TODO(Joerger): Use `authzCtx.AuthorizeResourceWithVerbs` after adding it to the authz package.
+		// TODO(Joerger): Use `authCtx.AuthorizeResourceWithVerbs` after adding it to the authz package.
 		ruleCtx := &services.Context{
-			User:     authzCtx.User,
+			User:     authCtx.User,
 			Resource: oldAccessList,
 		}
-		if _, err := authz.AuthorizeContextWithVerbs(ctx, s.log, authzCtx, true, ruleCtx, oldAccessList.GetKind(), verbs...); err != nil {
+		if _, err := authz.AuthorizeContextWithVerbs(ctx, s.log, authCtx, true, ruleCtx, oldAccessList.GetKind(), verbs...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -488,30 +488,30 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 		newAccessList.SetRevision(oldAccessList.GetRevision())
 	}
 
-	// TODO(Joerger): Use `authzCtx.AuthorizeResourceWithVerbs` after adding it to the authz package.
+	// TODO(Joerger): Use `authCtx.AuthorizeResourceWithVerbs` after adding it to the authz package.
 	ruleCtx := &services.Context{
-		User:     authzCtx.User,
+		User:     authCtx.User,
 		Resource: newAccessList,
 	}
-	if _, err := authz.AuthorizeContextWithVerbs(ctx, s.log, authzCtx, true, ruleCtx, newAccessList.GetKind(), verbs...); err != nil {
+	if _, err := authz.AuthorizeContextWithVerbs(ctx, s.log, authCtx, true, ruleCtx, newAccessList.GetKind(), verbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !oktaModificationAllowed(*authzCtx, oldAccessList, newAccessList) {
+	if !oktaModificationAllowed(*authCtx, oldAccessList, newAccessList) {
 		return nil, trace.AccessDenied(oktaErrorMsg)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	username, err := getUsername(authzCtx)
+	username, err := getUsername(authCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	updated := oldAccessList != nil
-	resp, upsertErr := s.upsertAccessList(ctx, authzCtx, newAccessList)
+	resp, upsertErr := s.upsertAccessList(ctx, authCtx, newAccessList)
 
 	s.emitUpsertAccessListEvent(ctx, username, updated, accessListName, upsertErr)
 
@@ -648,7 +648,7 @@ func (s *Service) deleteAccessList(ctx context.Context, authCtx *authz.Context, 
 	}
 
 	// Allow reused MFA responses to allow deleting an access list after deleting all members.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -858,7 +858,7 @@ func (s *Service) UpsertAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1035,7 +1035,7 @@ func (s *Service) DeleteAccessListMember(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1126,7 +1126,7 @@ func (s *Service) DeleteAllAccessListMembersForAccessList(ctx context.Context, r
 	}
 
 	// Allow reused MFA responses to allow deleting an access list after deleting all members.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1195,7 +1195,7 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1530,7 +1530,7 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1651,7 +1651,7 @@ func (s *Service) CreateAccessListReview(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1806,7 +1806,7 @@ func (s *Service) DeleteAccessListReview(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
