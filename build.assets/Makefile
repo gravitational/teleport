@@ -88,6 +88,17 @@ PULL_ON_CI = $(if $(filter $(CI),true),docker inspect --type=image $(1) >/dev/nu
 # more details.
 RELEASE_TARGET ?= release
 
+# DOCKER_BUILDER_NAME extracts the name of the buildx builder that uses the "docker" driver.
+#
+# The awk command looks for the first line that has "docker" in the second (DRIVER) column.
+# -F '[ *]+': there may be an asterisk between the first and second column if that record is the default,
+# so just subsume the asterisk into the field separator.
+DOCKER_BUILDER_NAME = $(shell docker buildx ls 2>/dev/null | awk -F '[ *]+' '$$2 == "docker" {print $$1}')
+
+.PHONY:print-docker-builder-name
+print-docker-builder-name:
+	@echo $(DOCKER_BUILDER_NAME)
+
 #
 # Build 'teleport' release inside a docker container
 #
@@ -132,6 +143,7 @@ build-binaries-fips: buildbox-centos7-fips webassets
 buildbox:
 	$(call PULL_ON_CI,$(BUILDBOX))
 	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -145,6 +157,7 @@ buildbox:
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
 		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX) .
@@ -171,6 +184,7 @@ buildbox-centos7:
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH))
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH))
 	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
@@ -182,6 +196,7 @@ buildbox-centos7:
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) -f Dockerfile-centos7 .
@@ -190,10 +205,21 @@ buildbox-centos7:
 # Builds a Docker buildbox for CentOS 7 FIPS builds
 # Uses regular CentOS 7 buildbox as base, so limited arguments are needed.
 #
+# Because this target uses the image built by the buildbox-centos7 target, it is
+# expected to be run with a buildx builder that uses the "docker" driver. If another
+# driver is used, the --build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH)
+# will not know about the local image that was just built, and will pull the image from
+# the Docker repository instead, which will be out of date.
+#
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips: buildbox-centos7
-	docker build \
+	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH))
+	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) \
+		--cache-to type=inline \
+		--cache-from $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) \
+		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_FIPS)-$(RUNTIME_ARCH) -f Dockerfile-centos7-fips .
 
 #
@@ -205,12 +231,13 @@ buildbox-centos7-fips: buildbox-centos7
 buildbox-arm:
 	$(call PULL_ON_CI,$(BUILDBOX_ARM))
 	docker buildx build \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_ARM) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
@@ -228,12 +255,14 @@ endif
 buildbox-node:
 	$(call PULL_ON_CI,$(BUILDBOX_NODE))
 	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_NODE) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_NODE) -f Dockerfile-node .
@@ -599,9 +628,11 @@ print-buildbox-version:
 .PHONY:build-centos7-assets
 build-centos7-assets:
 	docker buildx build \
+		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg BUILDARCH=$(HOST_ARCH) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
