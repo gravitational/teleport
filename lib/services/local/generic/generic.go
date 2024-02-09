@@ -216,6 +216,9 @@ func (s *Service[T]) CreateResource(ctx context.Context, resource T) (T, error) 
 	if trace.IsAlreadyExists(err) {
 		return t, trace.AlreadyExists("%s %q already exists", s.resourceKind, resource.GetName())
 	}
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
 
 	types.SetRevision(resource, lease.Revision)
 	return resource, trace.Wrap(err)
@@ -232,6 +235,9 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) (T, error) 
 	lease, err := s.backend.Update(ctx, item)
 	if trace.IsNotFound(err) {
 		return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
+	}
+	if err != nil {
+		return t, trace.Wrap(err)
 	}
 
 	types.SetRevision(resource, lease.Revision)

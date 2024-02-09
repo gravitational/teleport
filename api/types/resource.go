@@ -742,7 +742,7 @@ func SetRevision(v any, revision string) {
 }
 
 // GetExpiry returns the expiration, if one can be obtained, otherwise returns
-// an empty time.
+// an empty time `time.Time{}`, which is equivalent to no expiry.
 //
 // Works for both [Resource] and [ResourceMetadata] instances.
 func GetExpiry(v any) time.Time {
@@ -750,7 +750,14 @@ func GetExpiry(v any) time.Time {
 	case Resource:
 		return r.Expiry()
 	case ResourceMetadata:
-		return r.GetMetadata().Expires.AsTime()
+		// ResourceMetadata uses *timestamppb.Timestamp instead of time.Time. The zero value for this type is 01/01/1970.
+		// This is a problem for resources without explicit expiry set: they'd become obsolete on creation.
+		// For this reason, we check for nil expiry explicitly, and default it to time.Time{}.
+		exp := r.GetMetadata().GetExpires()
+		if exp == nil {
+			return time.Time{}
+		}
+		return exp.AsTime()
 	}
 
 	return time.Time{}
