@@ -254,7 +254,13 @@ func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessS
 }
 
 // Authorize authorizes user based on identity supplied via context
-func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
+func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
+	defer func() {
+		if err != nil {
+			err = a.convertAuthorizerError(err)
+		}
+	}()
+
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
@@ -331,6 +337,35 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 	default:
 		return nil, trace.AccessDenied("unsupported context type %T", userI)
 	}
+}
+
+// convertAuthorizerError will take an authorizer error and convert it into an error easily
+// handled by gRPC services.
+func (a *authorizer) convertAuthorizerError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	// propagate connection problem error so we can differentiate
+	// between connection failed and access denied
+	case trace.IsConnectionProblem(err):
+		return trace.ConnectionProblem(err, "failed to connect to the database")
+	case trace.IsNotFound(err):
+		// user not found, wrap error with access denied
+		return trace.Wrap(err, "access denied")
+	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
+		a.logger.Warn(err)
+		return trace.Wrap(err)
+	case trace.IsAccessDenied(err):
+		// don't print stack trace, just log the warning
+		a.logger.Warn(err)
+	case keys.IsPrivateKeyPolicyError(err):
+		// private key policy errors should be returned to the client
+		// unaltered so that they know to reauthenticate with a valid key.
+		return trace.Unwrap(err)
+	default:
+		a.logger.WithError(err).Warn("Suppressing unknown authz error.")
+	}
+	return trace.AccessDenied("access denied")
 }
 
 // ErrIPPinningMissing is returned when user cert should be pinned but isn't.
@@ -1133,40 +1168,11 @@ func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.User
 	return meta
 }
 
-// ConvertAuthorizerError will take an authorizer error and convert it into an error easily
-// handled by gRPC services.
-func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err error) error {
-	switch {
-	case err == nil:
-		return nil
-	// propagate connection problem error so we can differentiate
-	// between connection failed and access denied
-	case trace.IsConnectionProblem(err):
-		return trace.ConnectionProblem(err, "failed to connect to the database")
-	case trace.IsNotFound(err):
-		// user not found, wrap error with access denied
-		return trace.Wrap(err, "access denied")
-	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
-		log.Warn(err)
-		return trace.Wrap(err)
-	case trace.IsAccessDenied(err):
-		// don't print stack trace, just log the warning
-		log.Warn(err)
-	case keys.IsPrivateKeyPolicyError(err):
-		// private key policy errors should be returned to the client
-		// unaltered so that they know to reauthenticate with a valid key.
-		return trace.Unwrap(err)
-	default:
-		log.Warn(trace.DebugReport(err))
-	}
-	return trace.AccessDenied("access denied")
-}
-
 // AuthorizeResourceWithVerbs will ensure that the user has access to the given verbs for the given kind.
 func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, resource types.Resource, verbs ...string) (*Context, error) {
 	authCtx, err := authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, ConvertAuthorizerError(ctx, log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	ruleCtx := &services.Context{
@@ -1181,7 +1187,7 @@ func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, aut
 func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, kind string, verbs ...string) (*Context, error) {
 	authCtx, err := authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, ConvertAuthorizerError(ctx, log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	ruleCtx := &services.Context{
