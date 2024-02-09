@@ -4463,7 +4463,9 @@ func TestSerializeKubeSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeKubeSessions([]types.SessionTracker{tracker}, f)
+		var b bytes.Buffer
+		err := serializeSessions([]types.SessionTracker{tracker}, f, &b)
+		return b.String(), err
 	})
 }
 
