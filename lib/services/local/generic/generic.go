@@ -336,18 +336,30 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 		return backend.Item{}, trace.Wrap(err)
 	}
 
-	rev := types.GetRevision(resource)
+	rev, err := types.GetRevision(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
 	value, err := s.marshalFunc(resource)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     s.MakeKey(name),
-		Value:   value,
-		Expires: types.GetExpiry(resource),
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		ID:       types.GetResourceID(resource),
+		Key:      s.MakeKey(name),
+		Value:    value,
 		Revision: rev,
+	}
+
+	item.Expires, err = types.GetExpiry(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	//nolint:staticcheck // SA1019. Added for backward compatibility.
+	item.ID, err = types.GetResourceID(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
 	}
 
 	return item, nil
