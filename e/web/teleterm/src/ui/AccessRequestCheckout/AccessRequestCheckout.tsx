@@ -60,6 +60,8 @@ export function AccessRequestCheckout() {
     clearCreateAttempt,
     data,
     suggestedReviewers,
+    selectedReviewers,
+    setSelectedReviewers,
     assumedRequests,
     requestedCount,
     goToRequestsList: reset, // have to pass through RequestCheckout because works differently on web
@@ -118,6 +120,8 @@ export function AccessRequestCheckout() {
             createRequest={createRequest}
             clearAttempt={clearCreateAttempt}
             reviewers={suggestedReviewers}
+            selectedReviewers={selectedReviewers}
+            setSelectedReviewers={setSelectedReviewers}
             requireReason={false}
             numRequestedResources={requestedCount}
             isResourceRequest={data[0]?.kind !== 'role'}

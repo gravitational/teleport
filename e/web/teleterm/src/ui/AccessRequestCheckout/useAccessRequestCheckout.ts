@@ -5,6 +5,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService';
 import { useLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import { ReviewerOption } from 'e-teleport/Workflow/NewRequest/RequestCheckout/types';
 
 import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
 
@@ -18,6 +19,10 @@ export default function useAccessRequestCheckout() {
 
   const loggedInUser = useLoggedInUser();
   const suggestedReviewers = loggedInUser?.suggestedReviewers || [];
+  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerOption[]>(
+    () =>
+      suggestedReviewers.map(r => ({ label: r, value: r, isSelected: true }))
+  );
 
   const [showCheckout, setShowCheckout] = useState(false);
   const [hasExited, setHasExited] = useState(false);
@@ -207,5 +212,7 @@ export default function useAccessRequestCheckout() {
     collapseBar,
     setShowCheckout,
     suggestedReviewers,
+    selectedReviewers,
+    setSelectedReviewers,
   };
 }

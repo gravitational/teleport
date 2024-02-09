@@ -15,6 +15,8 @@ import Ctx from 'e-teleport/teleportContextE';
 
 import { State as NewRequestState, ResourceKind } from '../useNewRequest';
 
+import { ReviewerOption } from './types';
+
 import type { ResourceIdKind } from 'teleport/services/agents';
 import type { AccessRequest, ResourceId } from 'e-teleport/services/workflow';
 
@@ -48,6 +50,9 @@ export function useRequestCheckout({
     Option<number>[]
   >([]);
   const [suggestedReviewers, setSuggestedReviewers] = useState<string[]>([]);
+  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerOption[]>(
+    []
+  );
 
   // Format data suitable for table listing.
   const data: {
@@ -117,7 +122,16 @@ export function useRequestCheckout({
           setRequestTTL(requestTTLValues[index]);
         }
 
-        setSuggestedReviewers(resp.reviewers.map(r => r.name));
+        const reviewers = resp.reviewers.map(r => r.name).sort();
+        setSuggestedReviewers(reviewers);
+        // Initially select suggested reviewers for the requestor.
+        setSelectedReviewers(
+          reviewers.map(r => ({
+            value: r,
+            label: r,
+            isSelected: true,
+          }))
+        );
 
         setFetchStatus('loaded');
         // setAttemptStatus();
@@ -226,11 +240,9 @@ export function useRequestCheckout({
     createAttempt: createAttempt.attempt,
     fetchResourceRequestRolesAttempt: fetchResourceRequestRolesAttempt.attempt,
     requireReason: ctx.storeUser.getAccessStrategy().type === 'reason',
-    reviewers: [
-      ...new Set(
-        ctx.storeUser.getSuggestedReviewers().concat(suggestedReviewers)
-      ),
-    ].sort(),
+    reviewers: suggestedReviewers,
+    selectedReviewers,
+    setSelectedReviewers,
     createRequest,
     resourceRequestRoles,
     data,

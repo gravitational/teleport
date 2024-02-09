@@ -4,7 +4,8 @@ import ReactSelectCreatable from 'react-select/creatable';
 import styled from 'styled-components';
 import { ButtonBorder, Box, Text, Flex, ButtonIcon } from 'design';
 import * as Icon from 'design/Icon';
-import { Option } from 'shared/components/Select';
+
+import { ReviewerOption } from './types';
 
 export function SelectReviewers({
   reviewers,
@@ -14,7 +15,9 @@ export function SelectReviewers({
   const selectWrapperRef = useRef(null);
   const reactSelectRef = useRef(null);
   const [editReviewers, setEditReviewers] = useState(false);
-  const [suggestedReviewers, setSuggestedReviewers] = useState<CreateOption[]>(
+  const [suggestedReviewers, setSuggestedReviewers] = useState<
+    ReviewerOption[]
+  >(
     // Initially, all suggested reviewers are selected for the requestor.
     () => reviewers.map(r => ({ value: r, label: r, isDisabled: true }))
   );
@@ -89,7 +92,7 @@ export function SelectReviewers({
     );
   };
 
-  function handleOnChange(values: CreateOption[]) {
+  function handleOnChange(values: ReviewerOption[]) {
     const updateSelectedReviewers = values.map(r => ({
       value: r.value,
       label: r.label,
@@ -156,11 +159,14 @@ function Reviewers({
   toggleEditReviewers,
   updateReviewers,
 }: {
-  reviewers: CreateOption[];
+  reviewers: ReviewerOption[];
   editReviewers: boolean;
   toggleEditReviewers(): void;
-  updateReviewers(o: CreateOption[]): void;
+  updateReviewers(o: ReviewerOption[]): void;
 }) {
+  const [expanded, setExpanded] = useState(true);
+  const ArrowIcon = expanded ? Icon.ChevronDown : Icon.ChevronRight;
+
   const $reviewers = reviewers.map((reviewer, index) => {
     return (
       <Flex
@@ -211,7 +217,6 @@ function Reviewers({
         borderBottom={1}
         mb={2}
         pb={2}
-        width="260px"
         justifyContent="space-between"
         alignItems="center"
         height="34px"
@@ -219,31 +224,33 @@ function Reviewers({
           border-color: ${props => props.theme.colors.spotBackground[1]};
         `}
       >
-        <Text mr={2} fontSize={1}>
-          Reviewers (optional)
-        </Text>
-        <ButtonBorder
-          onClick={e => {
-            // By stopping propagation,
-            // we prevent this event from being interpreted as an outside click.
-            e.stopPropagation();
-            toggleEditReviewers();
-          }}
-          size="small"
-          width="50px"
-        >
-          {btnTxt}
-        </ButtonBorder>
+        <Flex>
+          <Text mr={2} fontSize={1}>
+            Reviewers (optional)
+          </Text>
+          <ButtonBorder
+            onClick={e => {
+              // By stopping propagation,
+              // we prevent this event from being interpreted as an outside click.
+              e.stopPropagation();
+              toggleEditReviewers();
+            }}
+            size="small"
+            width="50px"
+          >
+            {btnTxt}
+          </ButtonBorder>
+        </Flex>
+        {reviewers.length > 0 && (
+          <ButtonIcon onClick={() => setExpanded(e => !e)}>
+            <ArrowIcon size="medium" />
+          </ButtonIcon>
+        )}
       </Flex>
-      <Box data-testid="reviewers">{$reviewers}</Box>
+      {expanded && <Box data-testid="reviewers">{$reviewers}</Box>}
     </>
   );
 }
-
-type CreateOption = Option & {
-  isDisabled?: boolean;
-  isSelected?: boolean;
-};
 
 const SelectWrapper = styled(Box)`
   width: 260px;

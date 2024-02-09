@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import {
   Alert,
   Box,
+  ButtonIcon,
   ButtonPrimary,
   ButtonText,
   Flex,
@@ -39,11 +40,6 @@ import { SelectReviewers } from './SelectReviewers';
 import { State, useRequestCheckout } from './useRequestCheckout';
 
 import type { TransitionStatus } from 'react-transition-group';
-
-type CreateOption = Option & {
-  isDisabled?: boolean;
-  isSelected?: boolean;
-};
 
 export function SuccessActionComponent({ cfg, reset, onClose }) {
   return (
@@ -103,6 +99,8 @@ export function RequestCheckout({
   createRequest,
   clearAttempt,
   reviewers,
+  selectedReviewers,
+  setSelectedReviewers,
   SuccessComponent,
   requireReason,
   numRequestedResources,
@@ -130,18 +128,6 @@ export function RequestCheckout({
     isInvalidRoleSelection ||
     fetchResourceRequestRolesAttempt.status === 'failed' ||
     fetchResourceRequestRolesAttempt.status === 'processing';
-
-  const [selectedReviewers, setSelectedReviewers] = useState<CreateOption[]>(
-    // Initially select suggested reviewers for the requestor.
-    // If a user did not select/define any reviewers, the backend
-    // will also automatically add all suggested reviewers.
-    () =>
-      reviewers.map(r => ({
-        value: r,
-        label: r,
-        isSelected: true,
-      }))
-  );
 
   function updateReason(reason: string) {
     setReason(reason);
@@ -215,7 +201,7 @@ export function RequestCheckout({
         )}
         {fetchStatus === 'loading' && (
           <Box mt={5} textAlign="center">
-            <Indicator size="small" />
+            <Indicator />
           </Box>
         )}
 
@@ -448,7 +434,7 @@ function AppsGrantedAccess({ apps }: { apps: string[] }) {
               {`Grants access to ${apps.length} apps`}
             </LabelInput>
           </Flex>
-          <ArrowIcon size="medium" />
+          {apps.length > 0 && <ArrowIcon size="medium" />}
         </Flex>
       </Box>
       {expanded && (
@@ -519,13 +505,14 @@ function ResourceRequestRoles({
             </Flex>
           ) : (
             <Flex
-              mt={3}
-              mr={1}
+              mt={2}
               height="100%"
               alignItems="center"
               justifyContent="center"
             >
-              <ArrowIcon size="medium" />
+              <ButtonIcon>
+                <ArrowIcon size="medium" />
+              </ButtonIcon>
             </Flex>
           )}
         </Flex>

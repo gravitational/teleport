@@ -11,8 +11,21 @@ export default {
   title: 'TeleportE/Workflow/Checkout',
 };
 
-export const Loaded = () => <RequestCheckout {...props} />;
-export const Empty = () => <RequestCheckout {...props} data={[]} />;
+export const Loaded = () => {
+  const [selectedReviewers, setSelectedReviewers] = useState(
+    props.selectedReviewers
+  );
+  return (
+    <RequestCheckout
+      {...props}
+      selectedReviewers={selectedReviewers}
+      setSelectedReviewers={setSelectedReviewers}
+    />
+  );
+};
+export const Empty = () => (
+  <RequestCheckout {...props} data={[]} selectedReviewers={[]} />
+);
 
 export const Failed = () => (
   <RequestCheckout
@@ -23,10 +36,14 @@ export const Failed = () => (
       statusText: 'some error message',
     }}
     SuccessComponent={SuccessActionComponent}
+    selectedReviewers={[]}
   />
 );
 
 export const LoadedResourceRequest = () => {
+  const [selectedReviewers, setSelectedReviewers] = useState(
+    props.selectedReviewers
+  );
   const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
     useState(props.resourceRequestRoles);
   return (
@@ -36,6 +53,8 @@ export const LoadedResourceRequest = () => {
       fetchResourceRequestRolesAttempt={{ status: 'success' }}
       selectedResourceRequestRoles={selectedResourceRequestRoles}
       setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
+      selectedReviewers={selectedReviewers}
+      setSelectedReviewers={setSelectedReviewers}
     />
   );
 };
@@ -76,6 +95,16 @@ const props: RequestCheckoutProps = {
   isResourceRequest: false,
   requireReason: true,
   reviewers: ['bob', 'cat', 'george washington'],
+  selectedReviewers: [
+    { value: 'bob', label: 'bob', isSelected: true },
+    { value: 'cat', label: 'cat', isSelected: true },
+    {
+      value: 'george washington',
+      label: 'george washington',
+      isSelected: true,
+    },
+  ],
+  setSelectedReviewers: () => null,
   createRequest: () => null,
   data: [
     {

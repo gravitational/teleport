@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import { render, screen, userEvent, fireEvent } from 'design/utils/testing';
 
-import { RequestCheckout, RequestCheckoutProps } from './RequestCheckout';
+import {
+  RequestCheckout as RequestCheckoutComp,
+  RequestCheckoutProps,
+} from './RequestCheckout';
 
 test('start with no suggested reviewers', async () => {
-  render(<RequestCheckout {...props} reviewers={[]} />);
+  render(<RequestCheckout />);
 
   // Test init renders no reviewers.
   let reviewers = screen.getByTestId('reviewers');
@@ -28,7 +32,7 @@ test('start with no suggested reviewers', async () => {
 });
 
 test('start with suggested reviewers', async () => {
-  render(<RequestCheckout {...props} reviewers={['llama']} />);
+  render(<RequestCheckout reviewers={['llama']} />);
 
   // Test init renders reviewers.
   let reviewers = screen.getByTestId('reviewers');
@@ -71,12 +75,31 @@ test('start with suggested reviewers', async () => {
   expect(reviewers.childNodes[1]).toHaveTextContent('llama');
 });
 
+const RequestCheckout = ({ reviewers = [] }: { reviewers?: string[] }) => {
+  const [selectedReviewers, setSelectedReviewers] = useState(() =>
+    reviewers.map(r => ({ label: r, value: r, isSelected: true }))
+  );
+
+  return (
+    <div>
+      <RequestCheckoutComp
+        {...props}
+        reviewers={reviewers}
+        selectedReviewers={selectedReviewers}
+        setSelectedReviewers={setSelectedReviewers}
+      />
+    </div>
+  );
+};
+
 const props: RequestCheckoutProps = {
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
   requireReason: true,
-  reviewers: ['llama', 'alpaca'],
+  reviewers: [],
+  selectedReviewers: [],
+  setSelectedReviewers: () => null,
   createRequest: () => null,
   data: [],
   clearAttempt: () => null,
