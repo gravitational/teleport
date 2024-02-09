@@ -35,7 +35,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -170,7 +169,7 @@ func (h *Handler) createDesktopConnection(
 		clientSrcAddr: clientSrcAddr,
 		clientDstAddr: clientDstAddr,
 	}
-	serviceConn, version, err := c.connectToWindowsService(clusterName, validServiceIDs)
+	serviceConn, _, err := c.connectToWindowsService(clusterName, validServiceIDs)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
@@ -195,7 +194,7 @@ func (h *Handler) createDesktopConnection(
 
 	// proxyWebsocketConn hangs here until connection is closed
 	handleProxyWebsocketConnErr(
-		proxyWebsocketConn(ws, serviceConnTLS, version), log)
+		proxyWebsocketConn(ws, serviceConnTLS), log)
 
 	return nil
 }
@@ -426,19 +425,12 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (conn net.C
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, wdsVersion string) error {
+func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 	var closeOnce sync.Once
 	close := func() {
 		ws.Close()
 		wds.Close()
 	}
-
-	v, err := semver.NewVersion(wdsVersion)
-	if err != nil {
-		return trace.BadParameter("invalid windows desktop service version  %q: %v", wdsVersion, err)
-	}
-
-	isPre15 := v.Major < 15
 
 	errs := make(chan error, 2)
 
@@ -518,11 +510,6 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, wdsVersion string) err
 			if err != nil {
 				errs <- err
 				return
-			}
-			// don't pass the sync keys message along to old agents
-			// (they don't support it)
-			if isPre15 && tdp.MessageType(buf[0]) == tdp.TypeSyncKeys {
-				continue
 			}
 
 			if _, err := wds.Write(buf[:n]); err != nil {
