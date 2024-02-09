@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -1047,11 +1048,8 @@ func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
 }
 
 func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
-	// Return a defensive copy, caller might modify the slice.
-	devices := f.User.GetLocalAuth().MFA
-	devicesCopy := make([]*types.MFADevice, len(devices))
-	copy(devicesCopy, devices)
-	return devicesCopy, nil
+	// Return a defensive copy of the slice, the caller might modify it.
+	return slices.Clone(f.User.GetLocalAuth().MFA), nil
 }
 
 func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
