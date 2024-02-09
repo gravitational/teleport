@@ -2543,7 +2543,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			}
 
 			attestatedSerialNumber := strconv.Itoa(int(attestationData.SerialNumber))
-			// serial number traits can be a comma seperated list, or a list of comma separated lists.
+			// serial number traits can be a comma separated list, or a list of comma separated lists.
 			// e.g. [["12345678,87654321"], ["13572468"]].
 			if !slices.ContainsFunc(registeredSerialNumbers, func(s string) bool {
 				return slices.Contains(strings.Split(s, ","), attestatedSerialNumber)
@@ -2774,8 +2774,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		CertificateType: events.CertificateTypeUser,
 		Identity:        &eventIdentity,
 		ClientMetadata: apievents.ClientMetadata{
-			//TODO(greedy52) currently only user-agent from GRPC clients are
-			//fetched. Need to propagate user-agent from HTTP calls.
+			// TODO(greedy52) currently only user-agent from GRPC clients are
+			// fetched. Need to propagate user-agent from HTTP calls.
 			UserAgent: trimUserAgent(metadata.UserAgentFromContext(ctx)),
 		},
 	}); err != nil {

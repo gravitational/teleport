@@ -2442,7 +2442,7 @@ func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 			err = p.a.SetAuthPreference(ctx, authPref)
 			require.NoError(t, err)
 
-			_, err = p.a.generateUserCert(certReq)
+			_, err = p.a.generateUserCert(ctx, certReq)
 			tt.assertErr(t, err)
 		})
 	}
