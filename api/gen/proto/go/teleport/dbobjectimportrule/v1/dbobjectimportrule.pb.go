@@ -130,11 +130,14 @@ type DatabaseObjectImportRuleSpec struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// priority represents the priority of the rule application. Rules with higher priorities override those with lower.
+	// priority represents the priority of the rule application.
+	//
+	// Rules are processed from lowest to highest priority.
+	// If two rules apply the same label, then the value applied with the rule with the highest priority wins.
 	Priority int32 `protobuf:"varint,1,opt,name=priority,proto3" json:"priority,omitempty"`
 	// db_labels is a set of labels matched against database labels.
 	DbLabels *wrappers.LabelValues `protobuf:"bytes,2,opt,name=db_labels,json=dbLabels,proto3" json:"db_labels,omitempty"`
-	// Mappings is a list of matches that will map match conditions to labels.
+	// mappings is a list of matches that will map match conditions to labels.
 	Mappings []*DatabaseObjectImportRuleMapping `protobuf:"bytes,4,rep,name=mappings,proto3" json:"mappings,omitempty"`
 }
 
@@ -197,11 +200,11 @@ type DatabaseObjectImportRuleMapping struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Match specifies the matching rules.
+	// match specifies the matching rules, like the object names.
 	Match *DatabaseObjectImportMatch `protobuf:"bytes,1,opt,name=match,proto3" json:"match,omitempty"`
-	// Scope specifies the object scope.
+	// scope specifies the object scope. Optional. If not provided, all scopes will be accepted.
 	Scope *DatabaseObjectImportScope `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
-	// AddLabels specifies which labels to add if the match succeeds.
+	// add_labels specifies which labels to add if the match succeeds. At least one should be present.
 	AddLabels map[string]string `protobuf:"bytes,3,rep,name=add_labels,json=addLabels,proto3" json:"add_labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -258,17 +261,17 @@ func (x *DatabaseObjectImportRuleMapping) GetAddLabels() map[string]string {
 	return nil
 }
 
-// DatabaseObjectImportMatch specifies the matching rules.
+// DatabaseObjectImportMatch specifies acceptable object names. Must have at least one non-empty member.
 type DatabaseObjectImportMatch struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// table_names specify the names of the tables to match.
+	// table_names specify the names of the tables to match. Optional.
 	TableNames []string `protobuf:"bytes,1,rep,name=table_names,json=tableNames,proto3" json:"table_names,omitempty"`
-	// view_names specify the names of the views to match.
+	// view_names specify the names of the views to match. Optional.
 	ViewNames []string `protobuf:"bytes,2,rep,name=view_names,json=viewNames,proto3" json:"view_names,omitempty"`
-	// procedure_names specify the names of the procedures to match.
+	// procedure_names specify the names of the procedures to match. Optional.
 	ProcedureNames []string `protobuf:"bytes,3,rep,name=procedure_names,json=procedureNames,proto3" json:"procedure_names,omitempty"`
 }
 
@@ -325,15 +328,15 @@ func (x *DatabaseObjectImportMatch) GetProcedureNames() []string {
 	return nil
 }
 
-// DatabaseObjectImportScope specifies the object scope.
+// DatabaseObjectImportScope specifies the object scope. Members are matched independently of each other.
 type DatabaseObjectImportScope struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// database_names specify the names of the databases to include in the scope.
+	// database_names specify the names of the databases to include in the scope. Optional.
 	DatabaseNames []string `protobuf:"bytes,1,rep,name=database_names,json=databaseNames,proto3" json:"database_names,omitempty"`
-	// schema_names specify the names of the schemas to include in the scope.
+	// schema_names specify the names of the schemas to include in the scope. Optional.
 	SchemaNames []string `protobuf:"bytes,2,rep,name=schema_names,json=schemaNames,proto3" json:"schema_names,omitempty"`
 }
 
