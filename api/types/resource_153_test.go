@@ -17,6 +17,7 @@ package types_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -145,6 +146,13 @@ func TestResourceMethods(t *testing.T) {
 	t.Run("GetExpiry", func(t *testing.T) {
 		require.Equal(t, expiry, types.GetExpiry(user))
 		require.Equal(t, expiry, types.GetExpiry(bot))
+
+		// check the nil expiry special case.
+		user.Metadata.Expires = nil
+		require.Equal(t, time.Time{}, types.GetExpiry(user))
+
+		bot.Metadata.Expires = nil
+		require.Equal(t, time.Time{}, types.GetExpiry(bot))
 	})
 
 	t.Run("GetResourceID", func(t *testing.T) {
