@@ -816,7 +816,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	// GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>&width=<width>&height=<height>
 	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(true, h.desktopConnectHandle))
 	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
-	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithClusterAuth(h.desktopPlaybackHandle))
+	// Deprecated: The desktopplayback/ws variant should be used instead.
+	// TODO(lxea): DELETE in v16
+	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithClusterAuthWebSocket(false, h.desktopPlaybackHandle))
+	// // GET /webapi/sites/:site/desktopplayback/:sid/ws
+	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(true, h.desktopPlaybackHandle))
 	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
 
 	// GET a Connection Diagnostics by its name
@@ -3832,31 +3836,19 @@ var authnWsUpgrader = websocket.Upgrader{
 // TODO(lxea): remove the 'websocketAuth' bool once the deprecated websocket handlers are removed
 func (h *Handler) WithClusterAuthWebSocket(websocketAuth bool, fn ClusterWebsocketHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		if websocketAuth {
-			sctx, ws, site, err := h.authenticateWSRequestWithCluster(w, r, p)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			// WS protocol requires the server send a close message
-			// which should be done by downstream users
-			defer ws.Close()
+		var sctx *SessionContext
+		var ws *websocket.Conn
+		var site reversetunnelclient.RemoteSite
+		var err error
 
-			if _, err := fn(w, r, p, sctx, site, ws); err != nil {
-				h.writeErrToWebSocket(ws, err)
-			}
-			return nil, nil
+		if websocketAuth {
+			sctx, ws, site, err = h.authenticateWSRequestWithCluster(w, r, p)
+		} else {
+			sctx, ws, site, err = h.authenticateWSRequestWithClusterDeprecated(w, r, p)
 		}
 
-		sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-		ws, err := authnWsUpgrader.Upgrade(w, r, nil)
-		if err != nil {
-			const errMsg = "Error upgrading to websocket"
-			h.log.WithError(err).Error(errMsg)
-			http.Error(w, errMsg, http.StatusInternalServerError)
-			return nil, nil
 		}
 		// WS protocol requires the server send a close message
 		// which should be done by downstream users
@@ -3884,6 +3876,19 @@ func (h *Handler) authenticateWSRequestWithCluster(w http.ResponseWriter, r *htt
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
+	return sctx, ws, site, nil
+}
+
+// TODO(lxea): remove once the deprecated websocket handlers are removed
+func (h *Handler) authenticateWSRequestWithClusterDeprecated(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, *websocket.Conn, reversetunnelclient.RemoteSite, error) {
+	sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	ws, err := authnWsUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
 	return sctx, ws, site, nil
 }
 

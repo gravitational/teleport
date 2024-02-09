@@ -31,22 +31,20 @@ func (h *Handler) desktopPlaybackHandle(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
-	ctx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
 ) (interface{}, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing sid in request URL")
 	}
 
-	clt, err := ctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	websocket.Handler(func(ws *websocket.Conn) {
-		defer h.log.Debug("desktopPlaybackHandle websocket handler returned")
-		desktop.NewPlayer(sID, ws, clt, h.log).Play(r.Context())
-	}).ServeHTTP(w, r)
+	desktop.NewPlayer(sID, ws, clt, h.log).Play(r.Context())
 	return nil, nil
 }
