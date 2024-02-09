@@ -38,7 +38,20 @@ updates:
       - zmb3
 
   - package-ecosystem: github-actions
-    directory: "/"
+    directory: "/.github/actions"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - wadells
+      - jentfoo
+      - fheinecke
+      - camscale
+
+  - package-ecosystem: github-actions
+    directory: "/.github/workflows"
     schedule:
       interval: weekly
       day: monday
