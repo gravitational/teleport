@@ -71,6 +71,8 @@ export enum TdpClientEvent {
   TDP_WARNING = 'tdp warning',
   // CLIENT_WARNING represents a warning event that isn't a TDP_WARNING
   CLIENT_WARNING = 'client warning',
+  // TDP_INFO corresponds with the TDP info message
+  TDP_INFO = 'tdp info',
   WS_OPEN = 'ws open',
   WS_CLOSE = 'ws close',
   RESET = 'reset',
@@ -134,7 +136,11 @@ export default class Client extends EventEmitterWebAuthnSender {
     // prior to a socket 'close' event (https://stackoverflow.com/a/40084550/6277051).
     // Therefore, we can rely on our onclose handler to account for any websocket errors.
     this.socket.onerror = null;
-    this.socket.onclose = () => {
+    this.socket.onclose = ev => {
+      let message = 'session disconnected';
+      if (ev.code !== WebsocketCloseCode.NORMAL) {
+        message = `connection closed with websocket error code: ${ev.code}`;
+      }
       this.logger.info('websocket is closed');
 
       // Clean up all of our socket's listeners and the socket itself.
@@ -143,7 +149,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       this.socket.onclose = null;
       this.socket = null;
 
-      this.emit(TdpClientEvent.WS_CLOSE);
+      this.emit(TdpClientEvent.WS_CLOSE, message);
     };
   }
 
@@ -294,6 +300,8 @@ export default class Client extends EventEmitterWebAuthnSender {
       );
     } else if (notification.severity === Severity.Warning) {
       this.handleWarning(notification.message, TdpClientEvent.TDP_WARNING);
+    } else {
+      this.handleInfo(notification.message);
     }
   }
 
@@ -698,6 +706,11 @@ export default class Client extends EventEmitterWebAuthnSender {
   ) {
     this.logger.warn(warning);
     this.emit(warnType, warning);
+  }
+
+  private handleInfo(info: string) {
+    this.logger.info(info);
+    this.emit(TdpClientEvent.TDP_INFO, info);
   }
 
   // Ensures full cleanup of this object.

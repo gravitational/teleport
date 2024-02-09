@@ -72,6 +72,7 @@ import "C"
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -251,13 +252,17 @@ func (c *Client) readClientSize() error {
 				s.Width, s.Height, maxRDPScreenWidth, maxRDPScreenHeight,
 			)
 			c.cfg.Log.Error(err)
-			c.cfg.Conn.WriteMessage(tdp.Notification{Message: err.Error(), Severity: tdp.SeverityError})
+			return trace.Wrap(c.sendTDPNotification(err.Error(), tdp.SeverityError))
 		}
 
 		c.clientWidth = uint16(s.Width)
 		c.clientHeight = uint16(s.Height)
 		return nil
 	}
+}
+
+func (c *Client) sendTDPNotification(message string, severity tdp.Severity) error {
+	return c.cfg.Conn.WriteMessage(tdp.Notification{Message: message, Severity: severity})
 }
 
 func (c *Client) startRustRDP(ctx context.Context) error {
@@ -313,19 +318,28 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		defer C.free_string(res.message)
 	}
 
-	// If the client exited with an error, return it.
+	// If the client exited with an error, send a tdp error notification and return it.
 	if res.err_code != C.ErrCodeSuccess {
+		var err error
+
 		if message != "" {
-			return trace.Errorf("RDP client exited with error code [%v] and error message: %v", res.err_code, message)
+			err = trace.Errorf("RDP client exited with an error: %v", message)
+		} else {
+			err = trace.Errorf("RDP client exited with an unknown error")
 		}
-		return trace.Errorf("RDP client exited with error code [%v] and an unknown error", res.err_code)
+
+		c.sendTDPNotification(err.Error(), tdp.SeverityError)
+		return err
 	}
 
 	if message != "" {
-		c.cfg.Log.Info("RDP client exited gracefully with message: ", message)
+		message = fmt.Sprintf("RDP client exited gracefully with message: %v", message)
 	} else {
-		c.cfg.Log.Info("RDP client exited gracefully")
+		message = "RDP client exited gracefully"
 	}
+
+	c.cfg.Log.Info(message)
+	c.sendTDPNotification(message, tdp.SeverityInfo)
 
 	return nil
 }

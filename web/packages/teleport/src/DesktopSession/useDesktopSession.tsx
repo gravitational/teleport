@@ -37,16 +37,14 @@ export default function useDesktopSession() {
   // - 'processing' at first
   // - 'success' once the first TdpClientEvent.IMAGE_FRAGMENT is seen
   // - 'failed' if a fatal error is encountered
+  // - '' if the connection closed gracefully
   const { attempt: tdpConnection, setAttempt: setTdpConnection } =
     useAttempt('processing');
 
   // wsConnection track's the state of the tdpClient's websocket connection.
-  // 'closed' to start, 'open' when TdpClientEvent.WS_OPEN is encountered, then 'closed'
+  // 'init' to start, 'open' when TdpClientEvent.WS_OPEN is encountered, then 'closed'
   // again when TdpClientEvent.WS_CLOSE is encountered.
-  const [wsConnection, setWsConnection] = useState<'open' | 'closed'>('closed');
-
-  // disconnected tracks whether the user intentionally disconnected the client
-  const [disconnected, setDisconnected] = useState(false);
+  const [wsConnection, setWsConnection] = useState<{status: 'init' | 'open' | 'closed', message?: string}>({status: 'init'});
 
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
 
@@ -193,8 +191,6 @@ export default function useDesktopSession() {
     fetchAttempt,
     tdpConnection,
     wsConnection,
-    disconnected,
-    setDisconnected,
     webauthn,
     setTdpConnection,
     showAnotherSessionActiveDialog,

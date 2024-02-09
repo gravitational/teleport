@@ -16,16 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import {
-  Indicator,
-  Box,
-  Text,
-  Flex,
-  ButtonSecondary,
-  ButtonPrimary,
-} from 'design';
-import { Danger, Info } from 'design/Alert';
+import React, { useState, useEffect } from 'react';
+import { Indicator, Box, Flex, ButtonSecondary, ButtonPrimary } from 'design';
+import { Info } from 'design/Alert';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -58,92 +51,97 @@ declare global {
   }
 }
 
+const invalidStateMessage =
+  'The application has detected an invalid internal application state. \
+            Please file a bug report for this issue at \
+            https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md';
+
 export function DesktopSession(props: State) {
   const {
     fetchAttempt,
     tdpConnection,
-    disconnected,
     wsConnection,
-    setTdpConnection,
     showAnotherSessionActiveDialog,
     setShowAnotherSessionActiveDialog,
   } = props;
 
-  const processing =
-    fetchAttempt.status === 'processing' ||
-    tdpConnection.status === 'processing';
+  const [state, setState] = useState<{
+    screen: 'processing' | 'anotherSessionActive' | 'canvas' | 'alert dialog';
+    alertMessage?: string;
+  }>({
+    screen: 'processing',
+  });
 
-  // onDialogClose is called when a user
-  // dismisses a non-fatal error dialog.
-  const onDialogClose = () => {
-    // The following state-setting calls will
-    // cause the useEffect below to calculate the
-    // errorDialog state.
+  useEffect(() => {
+    setState(prevState => {
+      // We always want to show the user the first alert that caused the session to fail/end,
+      // so if we're already showing an alert, don't change the screen.
+      //
+      // This allows us to track the various pieces of the state independently and always display
+      // the vital information to the user. For example, we can track the TDP connection status
+      // and the websocket connection status separately throughout the codebase. If the TDP connection
+      // fails, and then the websocket closes, we want to show the TDP connection error to the user,
+      // not the websocket closing. But if the websocket closes unexpectedly before a TDP message telling
+      // us why, we want to show the websocket closing message to the user.
+      if (prevState.screen === 'alert dialog') {
+        return prevState;
+      } else {
+        // Otherwise, calculate screen state:
+        const showAnotherSessionActive = showAnotherSessionActiveDialog;
+        const showAlert =
+          fetchAttempt.status === 'failed' || // Fetch attempt failed
+          tdpConnection.status === 'failed' || // TDP connection failed
+          tdpConnection.status === '' || // TDP connection ended gracefully
+          wsConnection.status === 'closed'; // Websocket closed
+        const processing =
+          fetchAttempt.status === 'processing' ||
+          tdpConnection.status === 'processing';
 
-    setTdpConnection(prevState => {
-      if (prevState.status === '') {
-        // If prevState.status was a non-fatal error,
-        // we assume that the TDP connection remains open.
-        return { status: 'success' };
+        if (showAnotherSessionActive) {
+          return { screen: 'anotherSessionActive' };
+        } else if (showAlert) {
+          let message = '';
+          if (fetchAttempt.status === 'failed') {
+            message = fetchAttempt.statusText || 'fetch attempt failed';
+          } else if (tdpConnection.status === 'failed') {
+            message = tdpConnection.statusText || 'TDP connection failed';
+          } else if (tdpConnection.status === '') {
+            message =
+              tdpConnection.statusText || 'TDP connection ended gracefully';
+          } else if (wsConnection.status === 'closed') {
+            message =
+              wsConnection.message ||
+              'websocket disconnected for an unknown reason';
+          } else {
+            message = invalidStateMessage;
+          }
+          return { screen: 'alert dialog', alertMessage: message };
+        } else if (processing) {
+          return { screen: 'processing' };
+        } else {
+          return { screen: 'canvas' };
+        }
       }
-      return prevState;
     });
-  };
+  }, [
+    fetchAttempt,
+    tdpConnection,
+    wsConnection,
+    showAnotherSessionActiveDialog,
+  ]);
 
-  const computeErrorDialog = () => {
-    // Websocket is closed but we haven't
-    // closed it on purpose or registered a fatal TDP error.
-    const unknownConnectionError =
-      wsConnection === 'closed' &&
-      !disconnected &&
-      (tdpConnection.status === 'success' || tdpConnection.status === '');
-
-    let errorText = '';
-    if (fetchAttempt.status === 'failed') {
-      errorText = fetchAttempt.statusText || 'fetch attempt failed';
-    } else if (tdpConnection.status === 'failed') {
-      errorText = tdpConnection.statusText || 'TDP connection failed';
-    } else if (tdpConnection.status === '') {
-      errorText = tdpConnection.statusText || 'encountered a non-fatal error';
-    } else if (unknownConnectionError) {
-      errorText = 'Session disconnected for an unknown reason.';
-    } else if (
-      fetchAttempt.status === 'processing' &&
-      tdpConnection.status === 'success'
-    ) {
-      errorText =
-        'The application has detected an invalid internal application state. \
-        Please file a bug report for this issue at \
-        https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md';
-    }
-    const open = errorText !== '';
-
-    return {
-      open,
-      text: errorText,
-      isError: unknownConnectionError || errorText === 'RDP connection failed',
-    };
-  };
-
-  const errorDialog = computeErrorDialog();
-  const Alert = errorDialog.isError ? Danger : Info;
-
-  if (errorDialog.open) {
+  if (state.screen === 'alert dialog') {
     return (
       <Session {...props} clientShouldConnect={false} displayCanvas={false}>
-        <Dialog
-          dialogCss={() => ({ width: '484px' })}
-          onClose={onDialogClose}
-          open={errorDialog.open}
-        >
+        <Dialog dialogCss={() => ({ width: '484px' })} open={true}>
           <DialogHeader style={{ flexDirection: 'column' }}>
-            <DialogTitle>
-              {errorDialog.isError ? 'Error' : 'Disconnected'}
-            </DialogTitle>
+            <DialogTitle>Disconnected</DialogTitle>
           </DialogHeader>
           <DialogContent>
             <>
-              <Alert children={<>{errorDialog.text}</>} />
+              <Info
+                children={<>{state.alertMessage || invalidStateMessage}</>}
+              />
               Refresh the page to reconnect.
             </>
           </DialogContent>
@@ -161,9 +159,7 @@ export function DesktopSession(props: State) {
         </Dialog>
       </Session>
     );
-  }
-
-  if (showAnotherSessionActiveDialog) {
+  } else if (state.screen === 'anotherSessionActive') {
     // Don't start the TDP connection until the user confirms they're ok
     // with potentially killing another user's connection.
     const shouldConnect = false;
@@ -206,19 +202,7 @@ export function DesktopSession(props: State) {
         </Dialog>
       </Session>
     );
-  }
-
-  if (disconnected) {
-    return (
-      <Session {...props} clientShouldConnect={false} displayCanvas={false}>
-        <Box textAlign="center" m={10}>
-          <Text>Session successfully disconnected</Text>
-        </Box>
-      </Session>
-    );
-  }
-
-  if (processing) {
+  } else if (state.screen === 'processing') {
     // We don't know whether another session for this desktop is active while the
     // fetchAttempt is still processing, so hold off on starting a TDP connection
     // until that information is available.
@@ -241,7 +225,6 @@ export function DesktopSession(props: State) {
 }
 
 function Session({
-  setDisconnected,
   webauthn,
   tdpClient,
   username,
@@ -255,6 +238,7 @@ function Session({
   clientOnClipboardData,
   clientOnTdpError,
   clientOnTdpWarning,
+  clientOnTdpInfo,
   clientOnWsClose,
   clientOnWsOpen,
   canvasOnKeyDown,
@@ -278,7 +262,6 @@ function Session({
     <Flex flexDirection="column">
       <TopBar
         onDisconnect={() => {
-          setDisconnected(true);
           setClipboardSharingState(prevState => ({
             ...prevState,
             isSharing: false,
@@ -329,6 +312,7 @@ function Session({
         clientOnClipboardData={clientOnClipboardData}
         clientOnTdpError={clientOnTdpError}
         clientOnTdpWarning={clientOnTdpWarning}
+        clientOnTdpInfo={clientOnTdpInfo}
         clientOnWsClose={clientOnWsClose}
         clientOnWsOpen={clientOnWsOpen}
         canvasOnKeyDown={canvasOnKeyDown}
