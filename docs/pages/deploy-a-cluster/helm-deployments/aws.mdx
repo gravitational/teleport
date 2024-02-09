@@ -184,7 +184,6 @@ $ helm install cert-manager jetstack/cert-manager \
 --create-namespace \
 --namespace cert-manager \
 --set installCRDs=true \
---set global.leaderElection.namespace=cert-manager \
 --set extraArgs="{--issuer-ambient-credentials}" # required to automount ambient AWS credentials when using an Issuer
 ```
 
@@ -339,11 +338,11 @@ podSecurityPolicy:
   enabled: false
 ```
 <Admonition type="note">
-If using an AWS PCA with cert-manager, you will need to
+If using an AWS PCA with cert-manager, you will need to 
 [ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
 `highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
-certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`),
-upload the full certificate chain to a secret, and
+certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`), 
+upload the full certificate chain to a secret, and 
 [reference the secret](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)
 with `tls.existingCASecretName` in the values file.
 </Admonition>
@@ -429,11 +428,11 @@ podSecurityPolicy:
   enabled: false
 ```
 <Admonition type="note">
-If using an AWS PCA with cert-manager, you will need to
+If using an AWS PCA with cert-manager, you will need to 
 [ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
 `highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
-certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`),
-upload the full certificate chain to a secret, and
+certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`), 
+upload the full certificate chain to a secret, and 
 [reference the secret](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)
 with `tls.existingCASecretName` in the values file.
 </Admonition>
@@ -450,7 +449,7 @@ aws:
   backendTable: <Var name="teleport-helm-backend" /> # DynamoDB table to use for the Teleport backend
   auditLogTable: <Var name="teleport-helm-events" />             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
   auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
-  sessionRecordingBucket: <Var name="your-sessions-bucket" />  # S3 bucket to use for Teleport session recordings
+  sessionRecordingBucket: <Var name="your-sessions-bucket" />  # S3 bucket to use for Teleport session recordings 
   backups: true                                   # Whether or not to turn on DynamoDB backups
   dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
 highAvailability:

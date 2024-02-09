@@ -47,10 +47,7 @@ export interface ResourceHeader {
      */
     subKind: string;
     /**
-     * Version is the API version used to create the resource. It must be
-     * specified. Based on this version, Teleport will apply different defaults on
-     * resource creation or deletion. It must be an integer prefixed by "v".
-     * For example: `v1`
+     * version is version.
      *
      * @generated from protobuf field: string version = 3;
      */

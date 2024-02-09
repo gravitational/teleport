@@ -30,3 +30,10 @@ func TestNormalizeLocation(t *testing.T) {
 	require.Equal(t, "uk", NormalizeLocation("United Kingdom"))
 	require.Equal(t, "somenewlocation5", NormalizeLocation("Some New Location 5"))
 }
+
+func TestGetLocationDisplayName(t *testing.T) {
+	require.Equal(t, "Canada Central", GetLocationDisplayName("canadacentral"))
+	require.Equal(t, "United Kingdom", GetLocationDisplayName("uk"))
+	require.Equal(t, "West US 2 (Stage)", GetLocationDisplayName("West US 2 (Stage)"))
+	require.Equal(t, "unknownlocation", GetLocationDisplayName("unknownlocation"))
+}

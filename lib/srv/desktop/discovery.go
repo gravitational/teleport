@@ -21,7 +21,6 @@ package desktop
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -62,7 +61,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		// reconcile once before starting the ticker, so that desktops show up immediately
 		// (we still have a small delay to give the LDAP client time to initialize)
 		time.Sleep(15 * time.Second)
-		if err := reconciler.Reconcile(s.closeCtx); err != nil && !errors.Is(err, context.Canceled) {
+		if err := reconciler.Reconcile(s.closeCtx); err != nil && err != context.Canceled {
 			s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
 		}
 
@@ -75,7 +74,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 			case <-s.closeCtx.Done():
 				return
 			case <-t.Chan():
-				if err := reconciler.Reconcile(s.closeCtx); err != nil && !errors.Is(err, context.Canceled) {
+				if err := reconciler.Reconcile(s.closeCtx); err != nil && err != context.Canceled {
 					s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
 				}
 			}

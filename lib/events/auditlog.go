@@ -766,7 +766,7 @@ func (l *AuditLog) unpackFile(fileName string) (readSeekCloser, error) {
 		// Unexpected EOF is returned by gzip reader
 		// when the file has not been closed yet,
 		// ignore this error
-		if !errors.Is(err, io.ErrUnexpectedEOF) {
+		if err != io.ErrUnexpectedEOF {
 			dest.Close()
 			return nil, trace.Wrap(err)
 		}
@@ -1011,7 +1011,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 
 			event, err := protoReader.Read(ctx)
 			if err != nil {
-				if !errors.Is(err, io.EOF) {
+				if err != io.EOF {
 					e <- trace.Wrap(err)
 				} else {
 					close(c)

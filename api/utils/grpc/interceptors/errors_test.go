@@ -16,7 +16,6 @@ package interceptors_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
 	"testing"
@@ -78,9 +77,8 @@ func TestGRPCErrorWrapping(t *testing.T) {
 		assert.Nil(t, resp, "resp is non-nil")
 		assert.True(t, trace.IsNotFound(err), "trace.IsNotFound failed: err=%v (%T)", err, trace.Unwrap(err))
 		assert.Equal(t, "not found", err.Error())
-
-		var traceErr *trace.TraceErr
-		assert.False(t, errors.As(err, &traceErr), "client error should not include traces originating in the middleware")
+		_, ok := err.(*trace.TraceErr)
+		assert.False(t, ok, "client error should not include traces originating in the middleware")
 		var remoteErr *interceptors.RemoteError
 		assert.ErrorAs(t, err, &remoteErr, "Remote error is not marked as an interceptors.RemoteError")
 	})
@@ -101,16 +99,15 @@ func TestGRPCErrorWrapping(t *testing.T) {
 		// io.EOF error (meaning the server errored and closed the stream).
 		// In either case, it is still safe to recv from the stream and check for
 		// the already exists error.
-		//nolint:errorlint //comparison != error comparison on purpose!
-		if sendErr != nil && sendErr != io.EOF {
+		if sendErr != nil && sendErr != io.EOF /* == error comparison on purpose! */ {
 			t.Fatalf("Unexpected error: %q (%T)", sendErr, sendErr)
 		}
 
 		_, err = stream.Recv()
 		assert.True(t, trace.IsAlreadyExists(err), "trace.IsAlreadyExists failed: err=%v (%T)", err, trace.Unwrap(err))
 		assert.Equal(t, "already exists", err.Error())
-		var traceErr *trace.TraceErr
-		assert.False(t, errors.As(err, &traceErr), "client error should not include traces originating in the middleware")
+		_, ok := err.(*trace.TraceErr)
+		assert.False(t, ok, "client error should not include traces originating in the middleware")
 		assert.True(t, trace.IsAlreadyExists(err), "trace.IsAlreadyExists failed: err=%v (%T)", err, trace.Unwrap(err))
 		var remoteErr *interceptors.RemoteError
 		assert.ErrorAs(t, err, &remoteErr, "Remote error is not marked as an interceptors.RemoteError")

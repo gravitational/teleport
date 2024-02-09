@@ -35,7 +35,6 @@ helm install cert-manager jetstack/cert-manager \
     --create-namespace \
     --namespace cert-manager \
     --set installCRDs=true \
-    --set global.leaderElection.namespace=cert-manager \
     --set extraArgs="{--issuer-ambient-credentials}" # required to automount ambient AWS credentials when using an Issuer
 
 

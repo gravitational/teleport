@@ -183,7 +183,6 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			BotName:       e.BotName,
 			JoinMethod:    e.Method,
 			JoinTokenName: e.TokenName,
-			UserName:      e.UserName,
 		}
 
 	case *apievents.DeviceEvent2:
@@ -234,13 +233,6 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserName:  e.User,
 			Days:      e.Days,
 			IsSuccess: e.Status.Success,
-		}
-	case *apievents.ValidateMFAAuthResponse:
-		return &MFAAuthenticationEvent{
-			UserName:          e.User,
-			DeviceId:          e.MFADevice.DeviceID,
-			DeviceType:        e.MFADevice.DeviceType,
-			MfaChallengeScope: e.ChallengeScope,
 		}
 	}
 

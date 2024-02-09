@@ -93,12 +93,6 @@ type RDSEndpointDetails struct {
 	ProxyCustomEndpointName string
 	// Region is the AWS region the database resides in.
 	Region string
-	// EndpointType specifies the type of the endpoint, if available.
-	//
-	// Note that the endpoint type of RDS Proxies are determined by their
-	// targets, so the endpoint type will be empty for RDS Proxies here as it
-	// cannot be decided by the endpoint URL itself.
-	EndpointType string
 }
 
 // IsProxy returns true if the RDS endpoint is an RDS Proxy.
@@ -195,21 +189,12 @@ func parseRDSWithoutSuffixes(endpoint string, parts []string, region string) (*R
 			return &RDSEndpointDetails{
 				ClusterCustomEndpointName: parts[0],
 				Region:                    region,
-				EndpointType:              RDSEndpointTypeCustom,
-			}, nil
-
-		case strings.HasPrefix(parts[1], "cluster-ro-"):
-			return &RDSEndpointDetails{
-				ClusterID:    parts[0],
-				Region:       region,
-				EndpointType: RDSEndpointTypeReader,
 			}, nil
 
 		case strings.HasPrefix(parts[1], "cluster-"):
 			return &RDSEndpointDetails{
-				ClusterID:    parts[0],
-				Region:       region,
-				EndpointType: RDSEndpointTypePrimary,
+				ClusterID: parts[0],
+				Region:    region,
 			}, nil
 
 		case strings.HasPrefix(parts[1], "proxy-"):
@@ -220,9 +205,8 @@ func parseRDSWithoutSuffixes(endpoint string, parts []string, region string) (*R
 
 		default:
 			return &RDSEndpointDetails{
-				InstanceID:   parts[0],
-				Region:       region,
-				EndpointType: RDSEndpointTypeInstance,
+				InstanceID: parts[0],
+				Region:     region,
 			}, nil
 		}
 
@@ -380,18 +364,6 @@ const (
 	OpenSearchCustomEndpoint = "custom"
 	// OpenSearchVPCEndpoint is the VPC endpoint for domain.
 	OpenSearchVPCEndpoint = "vpc"
-
-	// RDSEndpointTypePrimary is the endpoint that specifies the connection for
-	// the primary instance of the RDS cluster.
-	RDSEndpointTypePrimary = "primary"
-	// RDSEndpointTypeReader is the endpoint that load-balances connections
-	// across the Aurora Replicas that are available in an RDS cluster.
-	RDSEndpointTypeReader = "reader"
-	// RDSEndpointTypeCustom is the endpoint that specifies one of the custom
-	// endpoints associated with the RDS cluster.
-	RDSEndpointTypeCustom = "custom"
-	// RDSEndpointTypeInstance is the endpoint of an RDS DB instance.
-	RDSEndpointTypeInstance = "instance"
 )
 
 // ParseElastiCacheEndpoint extracts the details from the provided

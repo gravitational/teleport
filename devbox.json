@@ -15,7 +15,6 @@
     "zlib@latest",
     "rustup@latest",
     "wasm-pack@latest",
-    "wasm-bindgen-cli@latest",
 
     "buf@1.26.1",
     "go@1.21.4",

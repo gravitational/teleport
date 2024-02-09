@@ -684,8 +684,6 @@ message BotJoinEvent {
   // join_token_name is the anonymised name of the token used to join
   // the cluster.
   string join_token_name = 3;
-  // user_name is the anonymised name of the Bot user.
-  string user_name = 4;
 }
 
 // UICreateNewRoleClickEvent is an event that can be triggered during custom role creation

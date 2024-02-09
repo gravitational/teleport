@@ -211,7 +211,7 @@ func (r *Reader) setErr(err error) {
 	r.err = err
 	r.cond.Broadcast()
 	// Skip EOF, it's a normal clean exit.
-	if !errors.Is(err, io.EOF) {
+	if err != io.EOF {
 		r.onDisconnect(err)
 	}
 	r.cond.L.Unlock()

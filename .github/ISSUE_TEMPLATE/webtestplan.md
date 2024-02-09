@@ -565,10 +565,6 @@ Use Discover Wizard to enroll new resources and access them:
             - [ ] local login on a GitHub-enabled cluster
          - [ ] SAML (platform cluster)
          - [ ] OIDC (e-demo)
-   - Verify that all items from this section work on:
-      - [ ] macOS
-      - [ ] Windows
-      - [ ] Linux
 - Shell
    - [ ] Verify that the shell is pinned to the correct cluster (for root clusters and leaf
      clusters).
@@ -585,10 +581,6 @@ Use Discover Wizard to enroll new resources and access them:
       - Run the program: `$ mc`
       - Resize Teleport Connect to see if the panels resize with it
    - [ ] Verify that the tab automatically closes on `$ exit` command.
-   - Verify that all items from this section work on:
-      - [ ] macOS
-      - [ ] Windows
-      - [ ] Linux
 - Kubernetes access
    - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory.
    - [ ] Close the tab and open it again (to the same resource). Verify that the kubeconfig path didn't change.
@@ -605,19 +597,11 @@ Use Discover Wizard to enroll new resources and access them:
       - [ ] Removes the connection
       - [ ] Logs out of the cluster
       - [ ] Closes Teleport Connect
-   - Verify that all items from this section work on:
-      - [ ] macOS
-      - [ ] Windows
-      - [ ] Linux
 - State restoration from disk
    - [ ] Verify that the app asks about restoring previous tabs when launched and restores them
          properly.
    - [ ] Verify that the app opens with the cluster that was active when you closed the app.
    - [ ] Verify that the app remembers size & position after restart.
-      - Verify that this works on:
-         - [ ] macOS
-         - [ ] Windows
-         - [ ] Linux
    - [ ] Verify that [reopening a cluster that has no workspace
      assigned](https://github.com/gravitational/webapps.e/issues/275#issuecomment-1131663575) works.
    - [ ] Verify that reopening the app after removing `~/Library/Application Support/Teleport
@@ -644,10 +628,6 @@ Use Discover Wizard to enroll new resources and access them:
    - [ ] Verify that pagination works in tandem with search, that is verify that search results are
          paginated too.
    - [ ] Verify that you can connect to these resources.
-      - Verify that this works on:
-         - [ ] macOS
-         - [ ] Windows
-         - [ ] Linux
    - [ ] Verify that clicking "Connect" shows available logins and db usernames.
       - Logins and db usernames are taken from the role, under `spec.allow.logins` and
         `spec.allow.db_users`.
@@ -660,10 +640,6 @@ Use Discover Wizard to enroll new resources and access them:
    - [ ] Verify that other shortcuts are shown after you close all tabs.
    - [ ] Verify that the other shortcuts work and each of them is shown on hover on relevant UI
      elements.
-   - Verify that all items from this section work on:
-      - [ ] macOS
-      - [ ] Windows
-      - [ ] Linux
 - Workspaces & cluster management
    - [ ] Verify that logging in to a new cluster adds it to the identity switcher and switches to
      the workspace of that cluster automatically.
@@ -717,10 +693,6 @@ Use Discover Wizard to enroll new resources and access them:
       - [ ] Create a db connection, close the app, run `tsh proxy db` with the same port, start the
         app. Verify that the app doesn't crash and the db connection tab shows you the error
         (address in use) and offers a way to retry creating the connection.
-         - Verify that this works on:
-            - [ ] macOS
-            - [ ] Windows
-            - [ ] Linux
 - File transfer
    - Download
       - [ ] Verify if Connect asks for a path when downloading the file.
@@ -736,10 +708,6 @@ Use Discover Wizard to enroll new resources and access them:
    - Log in, create a db connection and run the CLI command; wait for the cert to expire, make
      another connection to the local db proxy.
       - [ ] Verify that the window received focus and a modal login is shown.
-         - Verify that this works on:
-            - [ ] macOS
-            - [ ] Windows
-            - [ ] Linux
       - Verify that after successfully logging in:
          - [ ] The cluster info is synced.
          - [ ] The first connection wasn't dropped; try executing `select now();`, the client should
@@ -813,19 +781,15 @@ Use Discover Wizard to enroll new resources and access them:
       - [ ] Verify that after re-login, requests that are not expired and are approved are assumable
         again
 - Configuration
-   - [ ] Verify that clicking on More Options icon `⋮` > Open Config File opens the `app_config.json` file in your editor.
-      - Verify that this works on:
-         - [ ] macOS
-         - [ ] Windows
-         - [ ] Linux
-   - Change a config property and restart the app. Verify that the change has been applied.
+    - [ ] Verify that clicking on More Options icon `⋮` > Open Config File opens the `app_config.json` file in your editor.
+    - Change a config property and restart the app. Verify that the change has been applied.
       - [ ] Change a keyboard shortcut.
       - [ ] Change `terminal.fontFamily`.
-   - Provide the same keyboard shortcut for two actions.
+    - Provide the same keyboard shortcut for two actions.
       - [ ] Verify that a notification is displayed saying that a duplicate shortcut was found.
-   - Provide an invalid value for some property (for example, set `"keymap.tab1": "ABC"`).
+    - Provide an invalid value for some property (for example, set `"keymap.tab1": "ABC"`).
       - [ ] Verify that a notification is displayed saying that the property has an invalid value.
-   - Make a syntax error in the file (for example, set `"keymap.tab1": not a string`).
+    - Make a syntax error in the file (for example, set `"keymap.tab1": not a string`).
       - [ ] Verify that a notification is displayed saying that the config file was not loaded correctly.
       - [ ] Verify that your config changes were not overridden.
 - Headless auth
@@ -866,10 +830,6 @@ Use Discover Wizard to enroll new resources and access them:
      cluster within the timeout.
    - [ ] Verify autostart behavior. The agent should automatically start on app start unless it was
      manually stopped before exiting the app.
-   - Verify that all items from this section work on:
-      - [ ] macOS
-      - [ ] Windows
-      - [ ] Linux
 - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
   `~/Library/Application\ Support/Teleport\ Connect/logs`.
 - [ ] Verify that the password from the login form is not saved in the renderer log.

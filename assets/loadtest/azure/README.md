@@ -1,6 +1,6 @@
-# OpenTofu automation for Teleport load tests on Azure
+# Terraform automation for Teleport load tests on Azure
 
-This OpenTofu module sets up:
+This Terraform module sets up:
 - a resource group with a random name prefixed by `loadtest-`
 - an AKS cluster (parameters in `aks.tf`, random name prefixed by `loadtest-`)
 - cert-manager with contributor access to the az.teleportdemo.net zone
@@ -19,9 +19,9 @@ This OpenTofu module sets up:
 
 ## Deployment
 
-To initialize the OpenTofu providers, run `tofu init`. To deploy, if `az account show` returns an error, run `az login`, then edit `terraform.tfvars`, then `tofu apply`.
+To initialize the Terraform providers, run `terraform init`. To deploy, if `az account show` returns an error, run `az login`, then edit `terraform.tfvars`, then `terraform apply`.
 
-After deployment, `make create-joe` will create a `joe` Teleport account (outputting the invite link on the terminal), `make grafana` will port forward the grafana instance at [http://127.0.0.1:8080/](http://127.0.0.1:8080/), `make psql` will open a `psql` client connected to the backend database.
+After deployment, `make create-user` will create a `joe` Teleport account (outputting the invite link on the terminal), `make grafana` will port forward the grafana instance at [http://127.0.0.1:8080/](http://127.0.0.1:8080/), `make psql` will open a `psql` client connected to the backend database.
 
 As a result of some of these commands, or manually with `make aks`, the local kube config should be pointed at the newly created AKS cluster.
 
@@ -29,8 +29,8 @@ As a result of some of these commands, or manually with `make aks`, the local ku
 
 Parameters are sprinkled throughout the module, the main pgbk tunable is `pool_max_conns`, exposed in the chart as `databasePoolMaxConnections` (the current value of 50, in `teleport_kube.tf`, was good enough).
 
-The size of the node pool can be scaled up and down by tweaking it in `aks.tf` and running `tofu apply` again; 10k reverse tunnel nodes required about 9 Standard_D16s_v3 nodes (576GiB of total ram).
+The size of the node pool can be scaled up and down by tweaking it in `aks.tf` and running `terraform apply` again; 10k reverse tunnel nodes required about 9 Standard_D16s_v3 nodes (576GiB of total ram).
 
 ## Clean up
 
-To clean everything up, run `make destroy`. It's possible to delete just the teleport deployment (to create it again manually, say) by disabling it in `terraform.tfvars` and then running `tofu apply` again. Selectively destroying other resources is not recommended, as OpenTofu might get confused.
+To clean everything up, run `make destroy`. It's possible to delete just the teleport deployment (to create it again manually, say) by disabling it in `terraform.tfvars` and then running `terraform apply` again. Selectively destroying other resources is not recommended, as Terraform might get confused.

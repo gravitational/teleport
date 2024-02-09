@@ -26,12 +26,6 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-const (
-	ProductionRegistryOrg string = "gravitational"
-	PublicEcrRegion       string = "us-east-1"
-	StagingEcrRegion      string = "us-west-2"
-)
-
 // Describes a registry and repo that images are to be published to.
 type ContainerRepo struct {
 	Name            string                            // Human readable name for the repo. Does not need to match remote value.
@@ -57,6 +51,17 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, roleSecret, d
 	profileName := fmt.Sprintf("ecr-%s", name)
 
 	registryOrg := ProductionRegistryOrg
+	if configureForPRTestingOnly {
+		accessKeyIDSecret = testingSecretPrefix + accessKeyIDSecret
+		secretAccessKeySecret = testingSecretPrefix + secretAccessKeySecret
+		roleSecret = testingSecretPrefix + roleSecret
+		registryOrg = testingECRRegistryOrg
+
+		if !isPublic {
+			domain = testingECRDomain
+			ecrRegion = testingECRRegion
+		}
+	}
 
 	loginCommands := []string{
 		"apk add --no-cache aws-cli",

@@ -38,7 +38,7 @@ func signDroneConfig() error {
 	out, err := exec.Command("drone", "sign", "gravitational/teleport", "--save").CombinedOutput()
 	if err != nil {
 		if len(out) > 0 {
-			err = fmt.Errorf("drone signing failed: %w\noutput:\n%s", err, out)
+			err = fmt.Errorf("drone signing failed: %v\noutput:\n%s", err, out)
 		}
 		return err
 	}

@@ -3618,8 +3618,6 @@ message BotJoin {
     (gogoproto.jsontag) = "attributes,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
-  // UserName is the name of the user associated with the bot which has joined.
-  string UserName = 7 [(gogoproto.jsontag) = "user_name,omitempty"];
 }
 
 // InstanceJoin records an instance join event.

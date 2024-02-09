@@ -1409,7 +1409,7 @@ func (s *Server) Stop() {
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
 	<-s.ctx.Done()
-	if err := s.ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
+	if err := s.ctx.Err(); err != nil && err != context.Canceled {
 		return trace.Wrap(err)
 	}
 	return nil

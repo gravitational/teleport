@@ -37,9 +37,8 @@ func TestParseRDSEndpoint(t *testing.T) {
 			endpoint:            "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 			expectIsRDSEndpoint: true,
 			expectDetails: &RDSEndpointDetails{
-				InstanceID:   "aurora-instance-1",
-				Region:       "us-west-1",
-				EndpointType: "instance",
+				InstanceID: "aurora-instance-1",
+				Region:     "us-west-1",
 			},
 		},
 		{
@@ -47,9 +46,8 @@ func TestParseRDSEndpoint(t *testing.T) {
 			endpoint:            "aurora-instance-2.abcdefghijklmnop.rds.cn-north-1.amazonaws.com.cn",
 			expectIsRDSEndpoint: true,
 			expectDetails: &RDSEndpointDetails{
-				InstanceID:   "aurora-instance-2",
-				Region:       "cn-north-1",
-				EndpointType: "instance",
+				InstanceID: "aurora-instance-2",
+				Region:     "cn-north-1",
 			},
 		},
 		{
@@ -57,19 +55,8 @@ func TestParseRDSEndpoint(t *testing.T) {
 			endpoint:            "my-cluster.cluster-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 			expectIsRDSEndpoint: true,
 			expectDetails: &RDSEndpointDetails{
-				ClusterID:    "my-cluster",
-				Region:       "us-west-1",
-				EndpointType: "primary",
-			},
-		},
-		{
-			name:                "RDS cluster reader",
-			endpoint:            "my-cluster.cluster-ro-abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-			expectIsRDSEndpoint: true,
-			expectDetails: &RDSEndpointDetails{
-				ClusterID:    "my-cluster",
-				Region:       "us-west-1",
-				EndpointType: "reader",
+				ClusterID: "my-cluster",
+				Region:    "us-west-1",
 			},
 		},
 		{
@@ -79,7 +66,6 @@ func TestParseRDSEndpoint(t *testing.T) {
 			expectDetails: &RDSEndpointDetails{
 				ClusterCustomEndpointName: "my-custom",
 				Region:                    "us-west-1",
-				EndpointType:              "custom",
 			},
 		},
 		{

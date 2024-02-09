@@ -1866,6 +1866,10 @@ func (r *certRequest) check() error {
 
 type certRequestOption func(*certRequest)
 
+func certRequestMFAVerified(mfaID string) certRequestOption {
+	return func(r *certRequest) { r.mfaVerified = mfaID }
+}
+
 func certRequestPreviousIdentityExpires(previousIdentityExpires time.Time) certRequestOption {
 	return func(r *certRequest) { r.previousIdentityExpires = previousIdentityExpires }
 }
@@ -3111,19 +3115,23 @@ type newRegisterChallengeRequest struct {
 func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
 	switch req.deviceType {
 	case proto.DeviceType_DEVICE_TYPE_TOTP:
-		if req.token == nil {
-			return nil, trace.BadParameter("all TOTP registrations require a privilege token")
-		}
-
 		otpKey, otpOpts, err := a.newTOTPKey(req.username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		token := req.token
-		secrets, err := a.createTOTPUserTokenSecrets(ctx, token, otpKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		// TODO(codingllama): Once AddMFADeviceSync is no more all requests should
+		//  have a token. If they don't, then the secret is "lost" to the server.
+		var qrCode []byte
+		var challengeID string
+		if token := req.token; token != nil {
+			secrets, err := a.createTOTPUserTokenSecrets(ctx, token, otpKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			qrCode = secrets.GetQRCode()
+			challengeID = token.GetName()
 		}
 
 		return &proto.MFARegisterChallenge{
@@ -3135,8 +3143,8 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 					Algorithm:     otpOpts.Algorithm.String(),
 					Digits:        uint32(otpOpts.Digits.Length()),
 					Account:       otpKey.AccountName(),
-					QRCode:        secrets.GetQRCode(),
-					ID:            token.GetName(),
+					QRCode:        qrCode,
+					ID:            challengeID,
 				},
 			},
 		}, nil
@@ -3420,6 +3428,10 @@ type newMFADeviceFields struct {
 	// tokenID is the ID of a reset/invite/recovery/privilege token.
 	// It is generally used to recover the TOTP secret stored in the token.
 	tokenID string
+	// totpSecret is a secret shared by client and server to generate totp codes.
+	// Field can be empty to get secret by "tokenID".
+	// DELETE IN 16. Only used by the streaming AddMFADevice RPC. (codingllama)
+	totpSecret string
 
 	// webIdentityOverride is an optional RegistrationIdentity override to be used
 	// for device registration. A common override is decorating the regular
@@ -3492,15 +3504,19 @@ func (a *Server) registerTOTPDevice(ctx context.Context, regResp *proto.MFARegis
 		return nil, trace.BadParameter("second factor TOTP not allowed by cluster")
 	}
 
-	if req.tokenID == "" {
+	var secret string
+	switch {
+	case req.tokenID != "":
+		secrets, err := a.GetUserTokenSecrets(ctx, req.tokenID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		secret = secrets.GetOTPKey()
+	case req.totpSecret != "":
+		secret = req.totpSecret
+	default:
 		return nil, trace.BadParameter("missing TOTP secret")
 	}
-
-	secrets, err := a.GetUserTokenSecrets(ctx, req.tokenID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	secret := secrets.GetOTPKey()
 
 	dev, err := services.NewTOTPDevice(req.newDeviceName, secret, a.clock.Now())
 	if err != nil {

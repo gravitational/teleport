@@ -15,3 +15,5 @@ This checklist is to be run prior to cutting the release branch.
   - [ ] Run `make dronegen` and ensure _all_ buildbox references in the resulting yaml refer to the new image
   - [ ] Commit and merge. Drone should build new buildbox images and push to
     `public.ecr.aws`
+- [ ] Update the list of OCI images to rebuild nightly in
+  [`rebuild-teleport-oci-distroless-cron.yml` on `master`](https://github.com/gravitational/teleport.e/blob/master/.github/workflows/rebuild-teleport-oci-distroless-cron.yml)

@@ -118,8 +118,10 @@ type BaseProps = {
   actionText?: string;
   /**
    * The MFA challenge scope of the action to perform, as defined in webauthn.proto.
+   *
+   * TODO(Joerger): change to required field once provided by /e references
    */
-  challengeScope: MfaChallengeScope;
+  challengeScope?: MfaChallengeScope;
 };
 
 // MfaResponseProps defines a function

@@ -218,7 +218,7 @@ func TestDatabaseServerResource(t *testing.T) {
 
 	_, err = runResourceCommand(t, fileConfig, []string{"get", wantServer, "--format=json"})
 	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
+	require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
 
 	// remove database server by discovered name.
 	_, err = runResourceCommand(t, fileConfig, []string{"rm", wantServersDiscoveredName})

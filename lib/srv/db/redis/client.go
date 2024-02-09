@@ -21,7 +21,6 @@ package redis
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -356,7 +355,7 @@ func (c *clusterClient) Process(ctx context.Context, inCmd redis.Cmder) error {
 			}
 
 			result := c.Get(ctx, k)
-			if errors.Is(result.Err(), redis.Nil) {
+			if result.Err() == redis.Nil {
 				resultsKeys = append(resultsKeys, redis.Nil)
 				continue
 			}

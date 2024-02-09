@@ -19,7 +19,6 @@
 package reverseproxy
 
 import (
-	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -40,11 +39,10 @@ type defaultHandler struct{}
 func (e *defaultHandler) ServeHTTP(w http.ResponseWriter, req *http.Request, err error) {
 	statusCode := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, io.EOF):
+	case err == io.EOF:
 		statusCode = http.StatusBadGateway
 	default:
-		var e net.Error
-		switch ok := errors.As(err, &e); {
+		switch e, ok := err.(net.Error); {
 		case ok && e.Timeout():
 			statusCode = http.StatusGatewayTimeout
 		case ok:

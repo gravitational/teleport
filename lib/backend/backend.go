@@ -123,28 +123,19 @@ func New(ctx context.Context, backend string, params Params) (Backend, error) {
 
 // IterateRange is a helper for stepping over a range
 func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byte, limit int, fn func([]Item) (stop bool, err error)) error {
-	if limit == 0 || limit > 10_000 {
-		limit = 10_000
-	}
 	for {
-		// we load an extra item here so that we can be certain we have a correct
-		// start key for the next range.
-		rslt, err := bk.GetRange(ctx, startKey, endKey, limit+1)
+		rslt, err := bk.GetRange(ctx, startKey, endKey, limit)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		end := limit
-		if len(rslt.Items) < end {
-			end = len(rslt.Items)
-		}
-		stop, err := fn(rslt.Items[0:end])
+		stop, err := fn(rslt.Items)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if stop || len(rslt.Items) <= limit {
+		if stop || len(rslt.Items) < limit {
 			return nil
 		}
-		startKey = rslt.Items[limit].Key
+		startKey = nextKey(rslt.Items[limit-1].Key)
 	}
 }
 

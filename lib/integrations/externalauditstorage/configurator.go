@@ -193,7 +193,6 @@ func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAud
 				"ExternalAuditStorage: configured AWS OIDC integration %q not found",
 				oidcIntegrationName)
 		}
-		return nil, trace.Wrap(err)
 	}
 	awsOIDCSpec := integration.GetAWSOIDCIntegrationSpec()
 	if awsOIDCSpec == nil {

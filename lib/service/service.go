@@ -714,7 +714,7 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 		if err != nil {
 			// This error means that was a clean shutdown
 			// and no reload is necessary.
-			if errors.Is(err, ErrTeleportExited) {
+			if err == ErrTeleportExited {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -727,7 +727,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 	if err == nil {
 		return nil, ErrTeleportExited
 	}
-	if !errors.Is(err, ErrTeleportReloading) {
+	if err != ErrTeleportReloading {
 		return nil, trace.Wrap(err)
 	}
 	cfg.Log.Infof("Started in-process service reload.")
@@ -779,7 +779,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 	timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer cancel()
 	srv.Shutdown(services.ProcessReloadContext(timeoutCtx))
-	if errors.Is(timeoutCtx.Err(), context.DeadlineExceeded) {
+	if timeoutCtx.Err() == context.DeadlineExceeded {
 		// The new service can start initiating connections to the old service
 		// keeping it from shutting down gracefully, or some external
 		// connections can keep hanging the old auth service and prevent
@@ -793,7 +793,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer cancel()
 		srv.WaitWithContext(timeoutCtx)
-		if errors.Is(timeoutCtx.Err(), context.DeadlineExceeded) {
+		if timeoutCtx.Err() == context.DeadlineExceeded {
 			return nil, trace.BadParameter("the old service has failed to exit.")
 		}
 	} else {
@@ -4500,7 +4500,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 
 			err := kubeServer.Serve(listeners.kube, mopts...)
-			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
 			}
 			return nil
@@ -4887,7 +4887,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	process.RegisterCriticalFunc("proxy.reversetunnel.web", func() error {
 		log.Infof("Minimal web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		defer minimalWebHandler.Close()
-		if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && err != http.ErrServerClosed {
 			log.Warningf("Error while serving web requests: %v", err)
 		}
 		log.Info("Exited.")

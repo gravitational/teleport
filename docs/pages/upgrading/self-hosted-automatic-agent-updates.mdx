@@ -248,9 +248,8 @@ roles provide this ability, so you will need to create one.
    version: v7
    metadata:
      name: cmc-editor
-   spec:
-     allow:
-       rules:
+   allow:
+     rules:
        - resources: ['cluster_maintenance_config']
          verbs: ['create', 'read', 'update', 'delete']
    ```

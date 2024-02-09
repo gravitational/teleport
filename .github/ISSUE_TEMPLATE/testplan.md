@@ -165,23 +165,6 @@ as well as an upgrade of the previous version of Teleport.
     sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
     ```
 
-- [ ] External Audit Storage
-
-    External Audit Storage must be tested on an Enterprise Cloud tenant.
-    Instructions for deploying a custom release to a cloud staging tenant: https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md
-
-  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/choose-an-edition/teleport-cloud/external-audit-storage/
-    - [ ] Docs (including screenshots) are up to date
-    - [ ] Discover flow works with or without an existing AWS OIDC integration
-    - [ ] Draft configuration can be resumed after navigating away
-    - [ ] Bootstrap step (oneoff command pasted into CloudShell) works to create infra
-    - [ ] Created IAM policy (attached to AWS OIDC integration role) matches docs example
-    - [ ] Audit Events and Session Recordings (created after EAS enabled) are stored in configured S3 buckets
-    - [ ] Audit Events and Session Recordings (created after EAS enabled) can be queried and played in the web UI
-    - [ ] `tsh play <session-id>` works
-  - [ ] Existing EAS configuration can be replaced with a new one via Discover flow
-  - [ ] Existing EAS configuration can be deleted (disabling EAS)
-
 - [ ] Interact with a cluster using `tsh`
 
    These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
@@ -388,7 +371,7 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
 
 ### Migrations
 
-* [ ] Migrate trusted clusters
+* [ ] Migrate trusted clusters from 2.4.0 to 2.5.0
   * [ ] Migrate auth server on main cluster, then rest of the servers on main cluster
         SSH should work for both main and old clusters
   * [ ] Migrate auth server on remote cluster, then rest of the remote cluster
@@ -671,33 +654,28 @@ tsh ssh node-that-requires-device-trust
   - [ ] device_trust.mode="optional" doesn't impede access, but issues device
         extensions on login
   - [ ] device_trust.mode="required" enforces enrolled devices
-    - [ ] SSH
-    - [ ] DB Access
-    - [ ] K8s Access
-    - [ ] App Access NOT enforced in global mode
-  - [ ] device_trust.mode="required" is enforced by processes and not only by
+  - [ ] device_trust.mode="required" is enforced by processes, and not only by
         Auth APIs
-    - [ ] SSH
-    - [ ] DB Access
-    - [ ] K8s Access
 
     Testing this requires issuing a certificate without device extensions
     (mode="off"), then changing the cluster configuration to mode="required" and
     attempting to access a process directly, without a login attempt.
 
   - [ ] Role-based authz enforces enrolled devices
-        (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
-    - [ ] SSH
-    - [ ] DB Access
-    - [ ] K8s Access
-    - [ ] App Access
+        (device_trust.mode="off" or "optional",
+        role.spec.options.device_trust_mode="required")
   - [ ] Device authorization works correctly for both require_session_mfa=false
         and require_session_mfa=true
-    - [ ] SSH
-    - [ ] DB Access
-    - [ ] K8s Access
-  - [ ] Device authorization applies to Trusted Clusters
-        (root with mode="optional" and leaf with mode="required")
+
+  - [ ] Device authorization applies to SSH access (all items above)
+  - [ ] Device authorization applies to Trusted Clusters (root with
+        mode="optional" and leaf with mode="required")
+  - [ ] Device authorization applies to Database access (all items above)
+  - [ ] Device authorization applies to Kubernetes access (all items above)
+
+  - [ ] Cluster-wide device authorization __does not apply__ to App access
+  - [ ] Role-based device authorization __applies__ to App access
+
   - [ ] Device authorization __does not apply__ to Windows Desktop access
         (both cluster-wide and role)
 
@@ -780,11 +758,6 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
   - [ ] New cluster with CloudHSM CA works
   - [ ] Migrating a software cluster to CloudHSM works
   - [ ] CA rotation works
-- [ ] AWS KMS Support
-  - [ ] Make sure docs/links are up to date
-  - [ ] New cluster with AWS KMS CA works
-  - [ ] Migrating a software cluster to AWS KMS works
-  - [ ] CA rotation works
 - [ ] GCP KMS Support
   - [ ] Make sure docs/links are up to date
   - [ ] New cluster with GCP KMS CA works
@@ -824,14 +797,12 @@ $ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<
 
 ## Moderated session
 
-Create two Teleport users, a moderator and a user. Configure Teleport roles to require that the moderator moderate the user's sessions. Use `TELEPORT_HOME` to `tsh login` as the user in one terminal, and the moderator in another.
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
+ - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator.
+ - [ ] `Ctrl+C` in the #2 terminal should disconnect the moderator and terminate the session as session has no moderator.
 
-Ensure the default `terminationPolicy` of `terminate` has not been changed.
-
-For each of the following cases, create a moderated session with the user using `tsh ssh` and join this session with the moderator using `tsh join --role moderator`:
- - [ ] Ensure that `Ctrl+C` in the user terminal disconnects the moderator as the session has ended.
- - [ ] Ensure that `Ctrl+C` in the moderator terminal disconnects the moderator and terminates the user's session as the session no longer has a moderator.
- - [ ] Ensure that `t` in the moderator terminal terminates the session for all participants.
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
+- [ ] `t` in any terminal should terminate the session for all participants.
 
 ## Performance
 
@@ -1306,9 +1277,6 @@ https://goteleport.com/docs/installation/#operating-system-support
 - [ ] `tsh` runs on the minimum supported Windows version
 - [ ] Teleport Connect runs on the minimum supported Windows version
 
-Azure offers virtual machines with the Windows 10 2016 LTSB image. This image runs on Windows 10
-rev. 1607, which is the exact minimum Windows version that we support.
-
 ### macOS
 
 - [ ] `tsh` runs on the minimum supported macOS version
@@ -1410,29 +1378,6 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Windows Desktop
   - [ ] App Access
 
-## SSH Connection Resumption
-
-Verify that SSH works, and that resumable SSH is not interrupted across a Teleport Cloud tenant upgrade. 
-|   | Standard node | Non-resuming node | Peered node | Agentless node |
-|---|---|---|---|---|
-| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| Teleport Connect | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| Web UI (not resuming) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| OpenSSH (standard `tsh config`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| OpenSSH (changing `ProxyCommand` to `tsh proxy ssh --no-resume`) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-
-Verify that SSH works, and that resumable SSH is not interrupted across a control plane restart (of either the root or the leaf cluster).
-
-|   | Tunnel node | Direct dial node |
-|---|---|---|
-| `tsh ssh` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| `tsh ssh --no-resume` | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| `tsh ssh` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| `tsh ssh --no-resume` (from a root cluster) | <ul><li> [ ] </ul></li> | <ul><li> [ ] </ul></li> |
-| OpenSSH (without `ProxyCommand`) | n/a | <ul><li> [ ] </ul></li> |
-| OpenSSH's `ssh-keyscan` | n/a | <ul><li> [ ] </ul></li> |
-
 ## EC2 Discovery
 
 [EC2 Discovery docs](https://goteleport.com/docs/server-access/guides/ec2-discovery/)
@@ -1532,30 +1477,6 @@ Assist test plan is in the core section instead of WebUI as most functionality i
   - [ ] Assist icon is visible in WebUI's Terminal
   - [ ] A Bash command can be generated in the above window.
   - [ ] When an output is selected in the Terminal "Explain" option is available, and it generates the summary.
-
-## IGS:
-- [ ] Access Monitoring
-  - [ ] Verify that users can run custom audit queries.
-  - [ ] Verify that the Privileged Access Report is generated and periodically refreshed.
-
-- [ ] Access List
-  - [ ] Verify Access List membership/ownership/expiration date.
-    - [ ] Verify permissions granted by Access List membership.
-    - [ ] Verify permissions granted by Access List ownership.
-    - [ ] Verify Access List Review.
-    - [ ] verify Access LIst Promotion.
-    - [ ] Verify that owners can only add/remove members and not change other properties.
-
-- [ ] Verify Okta Sync Service
-  - [ ] Verify OKTA Plugin configuration.
-    - [ ] Verify that the OKTA Plugin can be configured.
-    - [ ] Verify the Single Sign-On (SSO) connector created by the OKTA Plugin.
-  - [ ] Verify OKTA users/apps/groups sync.
-    - [ ] Verify that users/apps/groups are synced from OKTA to Teleport.
-    - [ ] Verify the custom `okta_import_rule` rule configuration.
-    - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
-  - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in OKTA.
-  - [ ] Verify access to OKTA apps granted by access_list/access_request.
 
 ## Resources
 

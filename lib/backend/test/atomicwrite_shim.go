@@ -42,7 +42,7 @@ func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Atomi
 			return nil, nil, trace.Wrap(err)
 		}
 
-		return AtomicWriteShim{
+		return atomicWriteShim{
 			AtomicWriterBackend: bk,
 			sentinel:            []byte(uuid.New().String()),
 		}, clock, nil
@@ -50,7 +50,7 @@ func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Atomi
 }
 
 // atomciWriteShim reimplements all single-write backend methods as calls to AtomicWrite.
-type AtomicWriteShim struct {
+type atomicWriteShim struct {
 	backend.AtomicWriterBackend
 	sentinel []byte
 }
@@ -58,7 +58,7 @@ type AtomicWriteShim struct {
 // sca builds a sentinel conditional action to be added to calls to AtomicWrite to force them to
 // all contain multiple conditional actions. This is a trick used to avoid being routed to an
 // optimized impl (e.g. translating a Whatever/Put into a standard Backend.Put).
-func (a AtomicWriteShim) sca() backend.ConditionalAction {
+func (a atomicWriteShim) sca() backend.ConditionalAction {
 	return backend.ConditionalAction{
 		Key:       a.sentinel,
 		Condition: backend.NotExists(),
@@ -67,7 +67,7 @@ func (a AtomicWriteShim) sca() backend.ConditionalAction {
 }
 
 // Create creates item if it does not exist
-func (a AtomicWriteShim) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+func (a atomicWriteShim) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	rev, err := a.AtomicWrite(ctx, []backend.ConditionalAction{
 		a.sca(),
 		{
@@ -90,7 +90,7 @@ func (a AtomicWriteShim) Create(ctx context.Context, i backend.Item) (*backend.L
 
 // Put puts value into backend (creates if it does not
 // exists, updates it otherwise)
-func (a AtomicWriteShim) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+func (a atomicWriteShim) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	rev, err := a.AtomicWrite(ctx, []backend.ConditionalAction{
 		a.sca(),
 		{
@@ -111,7 +111,7 @@ func (a AtomicWriteShim) Put(ctx context.Context, i backend.Item) (*backend.Leas
 
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
-func (a AtomicWriteShim) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
+func (a atomicWriteShim) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
 	const casRetries = 16
 
 	for i := 0; i < casRetries; i++ {
@@ -156,7 +156,7 @@ func (a AtomicWriteShim) CompareAndSwap(ctx context.Context, expected backend.It
 }
 
 // Update updates value in the backend
-func (a AtomicWriteShim) Update(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+func (a atomicWriteShim) Update(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	rev, err := a.AtomicWrite(ctx, []backend.ConditionalAction{
 		a.sca(),
 		{
@@ -182,7 +182,7 @@ func (a AtomicWriteShim) Update(ctx context.Context, i backend.Item) (*backend.L
 
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
-func (a AtomicWriteShim) Delete(ctx context.Context, key []byte) error {
+func (a atomicWriteShim) Delete(ctx context.Context, key []byte) error {
 	_, err := a.AtomicWrite(ctx, []backend.ConditionalAction{
 		a.sca(),
 		{
@@ -201,7 +201,7 @@ func (a AtomicWriteShim) Delete(ctx context.Context, key []byte) error {
 
 // ConditionalUpdate updates the value in the backend if the revision of the [backend.Item] matches
 // the stored revision.
-func (a AtomicWriteShim) ConditionalUpdate(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+func (a atomicWriteShim) ConditionalUpdate(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	rev, err := a.AtomicWrite(ctx, []backend.ConditionalAction{
 		a.sca(),
 		{
@@ -226,7 +226,7 @@ func (a AtomicWriteShim) ConditionalUpdate(ctx context.Context, i backend.Item) 
 }
 
 // ConditionalDelete deletes the item by key if the revision matches the stored revision.
-func (a AtomicWriteShim) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+func (a atomicWriteShim) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
 	_, err := a.AtomicWrite(ctx, []backend.ConditionalAction{
 		a.sca(),
 		{

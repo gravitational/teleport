@@ -146,8 +146,8 @@ func TestCheckExpiredCredentials(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
-				var aggregate trace.Aggregate
-				require.ErrorAs(t, trace.Unwrap(err), &aggregate)
+				aggregate, ok := trace.Unwrap(err).(trace.Aggregate)
+				require.True(t, ok)
 				require.Len(t, aggregate.Errors(), tc.expectNumErrors, "check number of errors reported")
 			}
 		})

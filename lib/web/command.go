@@ -128,7 +128,6 @@ func (h *Handler) executeCommand(
 	_ httprouter.Params,
 	sessionCtx *SessionContext,
 	site reversetunnelclient.RemoteSite,
-	rawWS *websocket.Conn,
 ) (any, error) {
 	q := r.URL.Query()
 	params := q.Get("params")
@@ -171,6 +170,20 @@ func (h *Handler) executeCommand(
 	}
 
 	clusterName := site.GetName()
+
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     func(r *http.Request) bool { return true },
+	}
+
+	rawWS, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		errMsg := "Error upgrading to websocket"
+		h.log.WithError(err).Error(errMsg)
+		http.Error(w, errMsg, http.StatusInternalServerError)
+		return nil, nil
+	}
 
 	defer func() {
 		rawWS.WriteMessage(websocket.CloseMessage, nil)

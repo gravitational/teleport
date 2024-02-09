@@ -429,7 +429,7 @@ func TestNodeCRUD(t *testing.T) {
 
 			// GetNodes should fail if namespace isn't provided
 			_, err = presence.GetNodes(ctx, "")
-			require.True(t, trace.IsBadParameter(err))
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 		})
 		t.Run("GetNode", func(t *testing.T) {
 			t.Parallel()
@@ -441,11 +441,11 @@ func TestNodeCRUD(t *testing.T) {
 
 			// GetNode should fail if node name isn't provided
 			_, err = presence.GetNode(ctx, apidefaults.Namespace, "")
-			require.True(t, trace.IsBadParameter(err))
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 
 			// GetNode should fail if namespace isn't provided
 			_, err = presence.GetNode(ctx, "", "node1")
-			require.True(t, trace.IsBadParameter(err))
+			require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
 		})
 	})
 

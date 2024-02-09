@@ -723,7 +723,7 @@ func mergeFiles(files []*os.File, outputFile *os.File) error {
 		}
 
 		nextLine, err := readLine(min.Dec)
-		if errors.Is(trace.Unwrap(err), io.EOF) {
+		if trace.Unwrap(err) == io.EOF {
 			// EOF means that file no longer has events. Continue with other files.
 			continue
 		} else if err != nil {

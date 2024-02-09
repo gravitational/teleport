@@ -147,7 +147,7 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 	}()
 
 	if err := client.SendMsg(event, result); err != nil {
-		if errors.Is(err, ErrAuditdDisabled) || isPermissionError(err) {
+		if err == ErrAuditdDisabled || isPermissionError(err) {
 			// Do not return the error to the caller if auditd is disabled,
 			// or we don't have required permissions to use it.
 			return nil

@@ -19,7 +19,6 @@ package retryutils
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -186,8 +185,7 @@ func (r *Linear) For(ctx context.Context, retryFn func() error) error {
 		if err == nil {
 			return nil
 		}
-		var permanentRetryError *permanentRetryError
-		if errors.As(trace.Unwrap(err), &permanentRetryError) {
+		if _, ok := trace.Unwrap(err).(*permanentRetryError); ok {
 			return trace.Wrap(err)
 		}
 		log.Debugf("Will retry in %v: %v.", r.Duration(), err)

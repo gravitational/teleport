@@ -873,8 +873,7 @@ func (a *Server) createUserWebSession(ctx context.Context, user services.UserSta
 }
 
 func getErrorByTraceField(err error) error {
-	var traceErr trace.Error
-	ok := errors.As(err, &traceErr)
+	traceErr, ok := err.(trace.Error)
 	switch {
 	case !ok:
 		log.WithError(err).Warn("Unexpected error type, wanted TraceError")

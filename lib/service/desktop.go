@@ -20,7 +20,6 @@ package service
 
 import (
 	"crypto/tls"
-	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -276,7 +275,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 
 		err = srv.Serve(mux.TLS())
 		if err != nil {
-			if errors.Is(err, http.ErrServerClosed) {
+			if err == http.ErrServerClosed {
 				return nil
 			}
 			return trace.Wrap(err)

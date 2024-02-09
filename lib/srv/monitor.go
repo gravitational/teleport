@@ -356,16 +356,13 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 			clientLastActive := w.Tracker.GetClientLastActive()
 			since := w.Clock.Since(clientLastActive)
 			if since >= w.ClientIdleTimeout {
-				reason := "Client reported no activity"
+				reason := "client reported no activity"
 				if !clientLastActive.IsZero() {
-					reason = fmt.Sprintf("Client exceeded idle timeout of %v", w.ClientIdleTimeout)
+					reason = fmt.Sprintf("client is idle for %v, exceeded idle timeout of %v",
+						since, w.ClientIdleTimeout)
 				}
-				if w.MessageWriter != nil {
-					msg := w.IdleTimeoutMessage
-					if msg == "" {
-						msg = reason
-					}
-					if _, err := w.MessageWriter.WriteString(msg); err != nil {
+				if w.MessageWriter != nil && w.IdleTimeoutMessage != "" {
+					if _, err := w.MessageWriter.WriteString(w.IdleTimeoutMessage); err != nil {
 						w.Entry.WithError(err).Warn("Failed to send idle timeout message.")
 					}
 				}

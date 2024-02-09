@@ -33,6 +33,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -126,11 +127,12 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*terminal, error) {
 	u := url.URL{
 		Host:   cfg.proxy,
 		Scheme: client.WSS,
-		Path:   "/v1/webapi/sites/-current-/connect/ws",
+		Path:   "/v1/webapi/sites/-current-/connect",
 	}
 
 	q := u.Query()
 	q.Set("params", string(data))
+	q.Set(roundtrip.AccessTokenQueryParam, cfg.pack.session.Token)
 	u.RawQuery = q.Encode()
 
 	header := http.Header{}
@@ -157,10 +159,6 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*terminal, error) {
 		return nil, trace.Wrap(err, sb.String())
 	}
 	if err := resp.Body.Close(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := makeAuthReqOverWS(ws, cfg.pack.session.Token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

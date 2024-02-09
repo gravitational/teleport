@@ -772,7 +772,7 @@ func checkTransfer(t *testing.T, preserveAttrs bool, dst string, srcs ...string)
 			dstPath := filepath.Join(dst, relPath)
 			dstInfo, err := os.Stat(dstPath)
 			if err != nil {
-				return fmt.Errorf("error getting dst file info: %w", err)
+				return fmt.Errorf("error getting dst file info: %v", err)
 			}
 			require.Equal(t, info.IsDir(), dstInfo.IsDir(), "expected %q IsDir=%t, got %t", dstPath, info.IsDir(), dstInfo.IsDir())
 

@@ -34,7 +34,7 @@ import Dialog, {
 } from 'design/Dialog';
 import { Danger } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
-import Validation, { Validator } from 'shared/components/Validation';
+import Validation from 'shared/components/Validation';
 import {
   requiredToken,
   requiredField,
@@ -100,15 +100,8 @@ export function AddDevice({
     setMfaOption(option);
   }
 
-  function onSubmit(
-    validator: Validator,
-    e: React.MouseEvent<HTMLButtonElement>
-  ) {
-    // Call preventDefault() before validate() to make sure the form doesn't get
-    // submitted by the browser if validation fails.
+  function onSubmit(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
-
-    if (!validator.validate()) return;
 
     if (mfaOption.value === 'webauthn') {
       addWebauthnDevice(deviceName, resolvedDeviceUsage);
@@ -271,7 +264,7 @@ export function AddDevice({
                 size="large"
                 width="45%"
                 type="submit"
-                onClick={e => onSubmit(validator, e)}
+                onClick={e => validator.validate() && onSubmit(e)}
                 disabled={addDeviceAttempt.status === 'processing'}
                 mr={3}
               >

@@ -27,13 +27,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	botconfig "github.com/gravitational/teleport/lib/tbot/config"
@@ -161,39 +159,16 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 }
 
 // MakeBot creates a server-side bot and returns joining parameters.
-func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) (*botconfig.OnboardingConfig, *machineidv1pb.Bot) {
-	ctx := context.TODO()
+func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *proto.CreateBotResponse {
 	t.Helper()
 
-	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Metadata: &headerv1.Metadata{
-				Name: name,
-			},
-			Spec: &machineidv1pb.BotSpec{
-				Roles: roles,
-			},
-		},
+	bot, err := client.CreateBot(context.Background(), &proto.CreateBotRequest{
+		Name:  name,
+		Roles: roles,
 	})
-	require.NoError(t, err)
 
-	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	require.NoError(t, err)
-	tok, err := types.NewProvisionTokenFromSpec(
-		tokenName,
-		time.Now().Add(10*time.Minute),
-		types.ProvisionTokenSpecV2{
-			Roles:   []types.SystemRole{types.RoleBot},
-			BotName: b.Metadata.Name,
-		})
-	require.NoError(t, err)
-	err = client.CreateToken(ctx, tok)
-	require.NoError(t, err)
-
-	return &botconfig.OnboardingConfig{
-		TokenValue: tok.GetName(),
-		JoinMethod: types.JoinMethodToken,
-	}, b
+	return bot
 }
 
 // DefaultBotConfig creates a usable bot config from joining parameters.
@@ -203,7 +178,7 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) (*
 // - Uses a memory storage destination
 // - Does not verify Proxy WebAPI certificates
 func DefaultBotConfig(
-	t *testing.T, fc *config.FileConfig, onboarding *botconfig.OnboardingConfig, outputs []botconfig.Output, opts DefaultBotConfigOpts,
+	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output, opts DefaultBotConfigOpts,
 ) *botconfig.BotConfig {
 	t.Helper()
 
@@ -218,7 +193,9 @@ func DefaultBotConfig(
 
 	cfg := &botconfig.BotConfig{
 		AuthServer: authServer,
-		Onboarding: *onboarding,
+		Onboarding: botconfig.OnboardingConfig{
+			JoinMethod: botParams.JoinMethod,
+		},
 		Storage: &botconfig.StorageConfig{
 			Destination: &botconfig.DestinationMemory{},
 		},
@@ -228,6 +205,8 @@ func DefaultBotConfig(
 		// certs.
 		Insecure: opts.Insecure,
 	}
+
+	cfg.Onboarding.SetToken(botParams.TokenID)
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
 

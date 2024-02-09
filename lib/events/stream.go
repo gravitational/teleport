@@ -1064,7 +1064,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			// message and the message itself
 			_, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size])
 			if err != nil {
-				if !errors.Is(err, io.EOF) {
+				if err != io.EOF {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
 				// reached the end of the current part, but not necessarily

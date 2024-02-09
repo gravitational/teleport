@@ -19,7 +19,6 @@
 package output
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/gravitational/trace"
@@ -35,8 +34,8 @@ func NewInvalidOutputError(coarse, detail string) error {
 
 // IsInvalidOutputError returns true if the error is an invalidOutputError.
 func IsInvalidOutputError(err error) bool {
-	var invalidOutputError *invalidOutputError
-	return errors.As(trace.Unwrap(err), &invalidOutputError)
+	_, ok := trace.Unwrap(err).(*invalidOutputError)
+	return ok
 }
 
 // invalidOutputError represents an error caused by the output of an LLM.

@@ -47,39 +47,29 @@ func ConvertError(err error) error {
 		return nil
 	}
 	// Unwrap original error first.
-	var traceErr *trace.TraceErr
-	if errors.As(err, &traceErr) {
+	if _, ok := err.(*trace.TraceErr); ok {
 		return ConvertError(trace.Unwrap(err))
 	}
-	var pgErr pgError
-	if errors.As(err, &pgErr) {
+	if pgErr, ok := err.(pgError); ok {
 		return ConvertError(pgErr.Unwrap())
 	}
-
-	var c causer
-	if errors.As(err, &c) {
-		return ConvertError(c.Cause())
+	if causer, ok := err.(causer); ok {
+		return ConvertError(causer.Cause())
 	}
 	if _, ok := status.FromError(err); ok {
 		return trail.FromGRPC(err)
 	}
-
-	var googleAPIErr *googleapi.Error
-	var awsRequestFailureErr awserr.RequestFailure
-	var azResponseErr *azcore.ResponseError
-	var pgError *pgconn.PgError
-	var myError *mysql.MyError
-	switch err := trace.Unwrap(err); {
-	case errors.As(err, &googleAPIErr):
-		return convertGCPError(googleAPIErr)
-	case errors.As(err, &awsRequestFailureErr):
-		return awslib.ConvertRequestFailureError(awsRequestFailureErr)
-	case errors.As(err, &azResponseErr):
-		return azurelib.ConvertResponseError(azResponseErr)
-	case errors.As(err, &pgError):
-		return convertPostgresError(pgError)
-	case errors.As(err, &myError):
-		return convertMySQLError(myError)
+	switch e := trace.Unwrap(err).(type) {
+	case *googleapi.Error:
+		return convertGCPError(e)
+	case awserr.RequestFailure:
+		return awslib.ConvertRequestFailureError(e)
+	case *azcore.ResponseError:
+		return azurelib.ConvertResponseError(e)
+	case *pgconn.PgError:
+		return convertPostgresError(e)
+	case *mysql.MyError:
+		return convertMySQLError(e)
 	}
 	return err // Return unmodified.
 }
@@ -225,9 +215,8 @@ a few minutes to propagate):
 }
 
 func isRDSMySQLIAMAuthError(err error) bool {
-	var c causer
-	if errors.As(err, &c) {
-		return isRDSMySQLIAMAuthError(c.Cause())
+	if causer, ok := err.(causer); ok {
+		return isRDSMySQLIAMAuthError(causer.Cause())
 	}
 	var mysqlError *mysql.MyError
 	if !errors.As(trace.Unwrap(err), &mysqlError) {

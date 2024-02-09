@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -262,7 +261,7 @@ func (h *HTTP) ListenAndServe(ctx context.Context) error {
 		log.Debugf("Starting secure HTTPS server on %s", addr)
 		err = h.server.ServeTLS(listener, h.CertFile, h.KeyFile)
 	}
-	if errors.Is(err, http.ErrServerClosed) {
+	if err == http.ErrServerClosed {
 		return nil
 	}
 	return trace.Wrap(err)
