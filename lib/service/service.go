@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -431,6 +432,10 @@ type TeleportProcess struct {
 
 	// SSHD is used to execute commands to update or validate OpenSSH config.
 	SSHD openssh.SSHD
+
+	// resolver is used to identify the reverse tunnel address when connecting via
+	// the proxy.
+	resolver reversetunnelclient.Resolver
 }
 
 type keyPairKey struct {
@@ -709,7 +714,7 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 		if err != nil {
 			// This error means that was a clean shutdown
 			// and no reload is necessary.
-			if err == ErrTeleportExited {
+			if errors.Is(err, ErrTeleportExited) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -722,7 +727,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 	if err == nil {
 		return nil, ErrTeleportExited
 	}
-	if err != ErrTeleportReloading {
+	if !errors.Is(err, ErrTeleportReloading) {
 		return nil, trace.Wrap(err)
 	}
 	cfg.Log.Infof("Started in-process service reload.")
@@ -743,16 +748,24 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.Wrap(err, "failed to start a new service")
 	}
+
 	// Wait for the new server to report that it has started
 	// before shutting down the old one.
 	startTimeoutCtx, startCancel := context.WithTimeout(ctx, signalPipeTimeout)
 	defer startCancel()
+	go func() {
+		// Avoid waiting for TeleportReadyEvent if it will never fire.
+		newSrv.WaitForEvent(startTimeoutCtx, ServiceExitedWithErrorEvent)
+		startCancel()
+	}()
 	if _, err := newSrv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent); err != nil {
 		warnOnErr(newSrv.Close(), cfg.Log)
 		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.BadParameter("the new service has failed to start")
 	}
 	cfg.Log.Infof("New service has started successfully.")
+	startCancel()
+
 	shutdownTimeout := cfg.Testing.ShutdownTimeout
 	if shutdownTimeout == 0 {
 		// The default shutdown timeout is very generous to avoid disrupting
@@ -766,7 +779,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 	timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer cancel()
 	srv.Shutdown(services.ProcessReloadContext(timeoutCtx))
-	if timeoutCtx.Err() == context.DeadlineExceeded {
+	if errors.Is(timeoutCtx.Err(), context.DeadlineExceeded) {
 		// The new service can start initiating connections to the old service
 		// keeping it from shutting down gracefully, or some external
 		// connections can keep hanging the old auth service and prevent
@@ -780,12 +793,13 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer cancel()
 		srv.WaitWithContext(timeoutCtx)
-		if timeoutCtx.Err() == context.DeadlineExceeded {
+		if errors.Is(timeoutCtx.Err(), context.DeadlineExceeded) {
 			return nil, trace.BadParameter("the old service has failed to exit.")
 		}
 	} else {
 		cfg.Log.Infof("The old service was successfully shut down gracefully.")
 	}
+
 	return newSrv, nil
 }
 
@@ -973,6 +987,27 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if err == nil {
 			process.Config.SetAuthServerAddress(utils.FromAddr(listener.Addr()))
 		}
+	}
+
+	var resolverAddr utils.NetAddr
+	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
+		resolverAddr = cfg.ProxyServer
+	} else {
+		resolverAddr = cfg.AuthServerAddresses()[0]
+	}
+
+	process.resolver, err = reversetunnelclient.CachingResolver(
+		process.ExitContext(),
+		reversetunnelclient.WebClientResolver(&webclient.Config{
+			Context:   process.ExitContext(),
+			ProxyAddr: resolverAddr.String(),
+			Insecure:  lib.IsInsecureDevMode(),
+			Timeout:   process.Config.Testing.ClientTimeout,
+		}),
+		process.Clock,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER")
@@ -4256,19 +4291,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		tlscfg.InsecureSkipVerify = true
 		tlscfg.ClientAuth = tls.RequireAnyClientCert
 	}
-	tlscfg.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
-		tlsClone := tlscfg.Clone()
-
-		// Build the client CA pool containing the cluster's user CA in
-		// order to be able to validate certificates provided by users.
-		var err error
-		tlsClone.ClientCAs, _, err = auth.DefaultClientCertPool(accessPoint, clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return tlsClone, nil
-	}
+	tlscfg.GetConfigForClient = auth.WithClusterCAs(tlscfg, accessPoint, clusterName, log)
 
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
 		TransportCredentials: credentials.NewTLS(tlscfg),
@@ -4477,7 +4500,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 
 			err := kubeServer.Serve(listeners.kube, mopts...)
-			if err != nil && err != http.ErrServerClosed {
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
 			}
 			return nil
@@ -4864,7 +4887,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	process.RegisterCriticalFunc("proxy.reversetunnel.web", func() error {
 		log.Infof("Minimal web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		defer minimalWebHandler.Close()
-		if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && err != http.ErrServerClosed {
+		if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Warningf("Error while serving web requests: %v", err)
 		}
 		log.Info("Exited.")

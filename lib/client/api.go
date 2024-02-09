@@ -1982,8 +1982,13 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
-	if session.GetSessionKind() != types.SSHSessionKind {
-		return trace.BadParameter("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
+	switch kind := session.GetSessionKind(); kind {
+	case types.KubernetesSessionKind:
+		return trace.BadParameter("session joining for Kubernetes is supported with the command tsh kube join")
+	case types.SSHSessionKind:
+		// continue
+	default:
+		return trace.BadParameter("session joining is not supported for %v sessions", kind)
 	}
 	if types.IsOpenSSHNodeSubKind(session.GetTargetSubKind()) {
 		return trace.BadParameter("session joining is only supported for Teleport nodes, not OpenSSH nodes")
@@ -3574,7 +3579,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, root
 		return trace.Wrap(err)
 	}
 
-	if !tc.dtAttemptLoginIgnorePing && (pingResp.Auth.DeviceTrustDisabled || pingResp.Auth.DeviceTrust.Disabled) {
+	if !tc.dtAttemptLoginIgnorePing && pingResp.Auth.DeviceTrust.Disabled {
 		log.Debug("Device Trust: skipping device authentication, device trust disabled")
 		return nil
 	}
@@ -4324,24 +4329,28 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	if tc.CheckVersions {
 		if !utils.MeetsVersion(teleport.Version, pr.MinClientVersion) {
 			fmt.Fprintf(tc.Stderr, `
-			WARNING
-			Detected potentially incompatible client and server versions.
-			Minimum client version supported by the server is %v but you are using %v.
-			Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
-			Future versions of tsh will fail when incompatible versions are detected.
-			`, pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is %v but you are using %v.
+Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+				pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
 		}
 
 		// Recent `tsh mfa` changes require at least Teleport v15.
 		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
 		if !utils.MeetsVersion(pr.ServerVersion, minServerVersion) {
 			fmt.Fprintf(tc.Stderr, `
-			WARNING
-			Detected incompatible client and server versions.
-			Minimum server version supported by tsh is %v but your server is using %v.
-			Please use a tsh version that matches your server.
-			You may use the --skip-version-check flag to bypass this check.
-			`, minServerVersion, pr.ServerVersion)
+WARNING
+Detected incompatible client and server versions.
+Minimum server version supported by tsh is %v but your server is using %v.
+Please use a tsh version that matches your server.
+You may use the --skip-version-check flag to bypass this check.
+
+`,
+				minServerVersion, pr.ServerVersion)
 		}
 	}
 

@@ -25,6 +25,38 @@ playback to start before the entire session is downloaded and unpacked.
 Additionally, `tsh play` now supports a `--speed` flag for adjusting the
 playback speed.
 
+#### Standalone Teleport Operator
+
+Prior to Teleport 15, the Teleport Kubernetes Operator had to run as a sidecar
+of the Teleport auth. It was not possible to use the operator in Teleport Cloud
+or against a Teleport cluster not deployed with the `teleport-cluster` Helm chart.
+
+In Teleport 15, the Teleport Operator can reconcile resources in any Teleport
+cluster. Teleport Cloud users can now use the operator to manage their resources.
+
+When deployed with the `teleport-cluster` chart, the operator now runs in a
+separate pod. This ensures that Teleport's availability won't be impacted if
+the operator becomes unready.
+
+See [the Standalone Operator guide](docs/pages/management/dynamic-resources/teleport-operator-standalone.mdx)
+for installation instructions.
+
+#### Teleport Operator now supports roles v6 and v7
+
+Starting with Teleport 15, newly supported kinds will contain the resource version.
+For example: `TeleportRoleV6` and `TeleportRoleV7` kinds will allow users to
+create Teleport Roles v6 and v7.
+
+Existing kinds will remain unchanged in Teleport 15, but will be renamed in
+Teleport 16 for consistency.
+
+To migrate an existing Custom Resource (CR) `TeleportRole` to
+a `TeleportRoleV7`, you must:
+- upgrade Teleport and the operator to v15
+- annotate the exiting `TeleportRole` CR with `teleport.dev/keep: "true"`
+- delete the `TeleportRole` CR (it won't delete the role in Teleport thanks to the annotation)
+- create a new `TeleportRoleV7` CR with the same name
+
 ### Breaking changes and deprecations
 
 #### RDP engine requires RemoteFX
@@ -182,6 +214,36 @@ and instance type has been changed to ARM64/Graviton.
 
 As a result of this modernization, the legacy monitoring stack configuration
 used with the legacy AMIs has been removed.
+
+#### `teleport-cluster` Helm chart changes
+
+Due to the new separate operator deployment, the operator is deployed by a subchart.
+This causes the following breaking changes:
+- `installCRDs` has been replaced by `operator.installCRDs`
+- `teleportVersionOverride` does not set the operator version anymore, you must 
+  use `operator.teleportVersionOverride` to override the operator version.
+
+Note: version overrides are dangerous and not recommended. Each chart version
+is designed to run a specific Teleport and operator version. If you want to
+deploy a specific Teleport version, use Helm's `--version X.Y.Z` instead.
+
+The operator now joins using a Kubernetes ServiceAccount token. To validate the
+token, the Teleport Auth Service must have access to the `TokenReview` API.
+The chart configures this for you since v12, unless you disabled `rbac` creation.
+
+#### Resource version is now mandatory and immutable in the Terraform provider
+
+Starting with Teleport 15, each Terraform resource must have its version specified.
+Before version 15, Terraform was picking the latest version available on resource creation.
+This caused inconsistencies as new resources created with the same manifest as
+old resources were not exhibiting the same behavior.
+
+Resource version is now immutable. Changing a resource version will cause
+Terraform to delete and re-create the resource. This ensures the correct
+defaults are set.
+
+Existing resources will continue to work as Terraform already imported their
+version. However, new resources will require an explicit version.
 
 ### Other changes
 

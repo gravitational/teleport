@@ -615,6 +615,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ExternalAuditStorageDisable{
 			ExternalAuditStorageDisable: e,
 		}
+	case *CreateMFAAuthChallenge:
+		out.Event = &OneOf_CreateMFAAuthChallenge{
+			CreateMFAAuthChallenge: e,
+		}
+	case *ValidateMFAAuthResponse:
+		out.Event = &OneOf_ValidateMFAAuthResponse{
+			ValidateMFAAuthResponse: e,
+		}
+	case *OktaAccessListSync:
+		out.Event = &OneOf_OktaAccessListSync{
+			OktaAccessListSync: e,
+		}
 
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

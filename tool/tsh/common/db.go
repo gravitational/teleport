@@ -722,7 +722,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 
 	// no tunnel, check for protocol-specific cases
 	switch arg.dbInfo.Protocol {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		// certs are needed for non-tunnel postgres cancel requests.
 		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err != nil {
@@ -883,18 +883,6 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 
 	needDBUser := d.Username == "" && isDatabaseUserRequired(d.Protocol)
 	needDBName := d.Database == "" && isDatabaseNameRequired(d.Protocol)
-	if !needDBUser && !needDBName {
-		return nil
-	}
-
-	// If database has admin user defined, we're most likely using automatic
-	// user provisioning so default to Teleport username unless database
-	// username was provided explicitly.
-	if needDBUser && db.GetAdminUser().Name != "" {
-		log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
-		d.Username = tc.Username
-		needDBUser = false
-	}
 	if !needDBUser && !needDBName {
 		return nil
 	}
@@ -1144,6 +1132,8 @@ func getDefaultDBUser(db types.Database, checker services.AccessChecker) (string
 		// ref: https://redis.io/commands/auth
 		extraUsers = append(extraUsers, defaults.DefaultRedisUsername)
 	}
+	// Note that EnumerateDatabaseUsers also calculates the username when
+	// auto-user provisioning is enabled for this database.
 	dbUsers, err := checker.EnumerateDatabaseUsers(db, extraUsers...)
 	if err != nil {
 		return "", trace.Wrap(err)

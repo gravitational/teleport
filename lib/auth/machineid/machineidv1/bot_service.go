@@ -156,10 +156,12 @@ type BotService struct {
 
 // GetBot gets a bot by name. It will throw an error if the bot does not exist.
 func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bot, error) {
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbRead,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -188,10 +190,12 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 func (bs *BotService) ListBots(
 	ctx context.Context, req *pb.ListBotsRequest,
 ) (*pb.ListBotsResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbList,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -234,49 +238,19 @@ func (bs *BotService) ListBots(
 	}, nil
 }
 
-// createBotAuthz allows the legacy rbac noun/verbs to continue being used until
-// v16.0.0.
-func (bs *BotService) createBotAuthz(ctx context.Context) (*authz.Context, error) {
-	var authCtx *authz.Context
-	var originalErr error
-	authCtx, originalErr = authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbCreate,
-	)
-	if originalErr != nil {
-		// TODO(noah): DELETE IN 16.0.0
-		if _, err := authz.AuthorizeWithVerbs(
-			ctx, bs.logger, bs.authorizer, false, types.KindUser, types.VerbCreate,
-		); err != nil {
-			return nil, originalErr
-		}
-		if _, err := authz.AuthorizeWithVerbs(
-			ctx, bs.logger, bs.authorizer, false, types.KindRole, types.VerbCreate,
-		); err != nil {
-			return nil, originalErr
-		}
-		var err error
-		authCtx, err = authz.AuthorizeWithVerbs(
-			ctx, bs.logger, bs.authorizer, false, types.KindToken, types.VerbCreate,
-		)
-		if err != nil {
-			return nil, originalErr
-		}
-		bs.logger.Warn("CreateBot authz fell back to legacy resource/verbs. Explicitly grant access to the Bot resource. From V16.0.0, this will fail!")
-	}
-	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return authCtx, nil
-}
-
 // CreateBot creates a new bot. It will throw an error if the bot already
 // exists.
 func (bs *BotService) CreateBot(
 	ctx context.Context, req *pb.CreateBotRequest,
 ) (*pb.Bot, error) {
-	authCtx, err := bs.createBotAuthz(ctx)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -377,12 +351,15 @@ func UpsertBot(
 
 // UpsertBot creates a new bot or forcefully updates an existing bot.
 func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (*pb.Bot, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbCreate, types.VerbUpdate,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Support reused MFA for bulk tctl create requests.
 	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
@@ -423,12 +400,15 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 func (bs *BotService) UpdateBot(
 	ctx context.Context, req *pb.UpdateBotRequest,
 ) (*pb.Bot, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbUpdate,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -538,41 +518,6 @@ func (bs *BotService) deleteBotRole(ctx context.Context, botName string) error {
 	return bs.backend.DeleteRole(ctx, role.GetName())
 }
 
-// deleteBotAuthz allows the legacy rbac noun/verbs to continue being used until
-// v16.0.0.
-func (bs *BotService) deleteBotAuthz(ctx context.Context) error {
-	var authCtx *authz.Context
-	var originalErr error
-	authCtx, originalErr = authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbDelete,
-	)
-	if originalErr != nil {
-		// TODO(noah): DELETE IN 16.0.0
-		var err error
-		authCtx, err = authz.AuthorizeWithVerbs(
-			ctx, bs.logger, bs.authorizer, false, types.KindUser, types.VerbDelete,
-		)
-		if err != nil {
-			return originalErr
-		}
-		if _, err := authz.AuthorizeWithVerbs(
-			ctx, bs.logger, bs.authorizer, false, types.KindRole, types.VerbDelete,
-		); err != nil {
-			return originalErr
-		}
-		if _, err := authz.AuthorizeWithVerbs(
-			ctx, bs.logger, bs.authorizer, false, types.KindToken, types.VerbDelete,
-		); err != nil {
-			return originalErr
-		}
-		bs.logger.Warn("DeleteBot authz fell back to legacy resource/verbs. Explicitly grant access to the Bot resource. From V16.0.0, this will fail!")
-	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // DeleteBot deletes an existing bot. It will throw an error if the bot does
 // not exist.
 func (bs *BotService) DeleteBot(
@@ -583,7 +528,16 @@ func (bs *BotService) DeleteBot(
 	// seem to be any automatic deletion of locks in teleport today (other
 	// than expiration). Consistency around security controls seems important
 	// but we can revisit this if desired.
-	if err := bs.deleteBotAuthz(ctx); err != nil {
+	authCtx, err := bs.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -591,7 +545,7 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.BadParameter("bot_name: must be non-empty")
 	}
 
-	err := trace.NewAggregate(
+	err = trace.NewAggregate(
 		trace.Wrap(bs.deleteBotUser(ctx, req.BotName), "deleting bot user"),
 		trace.Wrap(bs.deleteBotRole(ctx, req.BotName), "deleting bot role"),
 	)

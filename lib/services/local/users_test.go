@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"slices"
@@ -209,67 +210,6 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		require.NoError(t, err)
 		_, err = identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
 		require.True(t, trace.IsNotFound(err))
-	})
-}
-
-func TestRecoveryAttemptsCRUD(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-	identity := newIdentityService(t, clock)
-
-	// Predefine times for equality check.
-	time1 := clock.Now()
-	time2 := time1.Add(2 * time.Minute)
-	time3 := time1.Add(4 * time.Minute)
-
-	t.Run("create, get, and delete recovery attempts", func(t *testing.T) {
-		username := "someuser"
-
-		// Test creation of recovery attempt.
-		err := identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
-		require.NoError(t, err)
-		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time1, Expires: time3})
-		require.NoError(t, err)
-		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time2, Expires: time3})
-		require.NoError(t, err)
-
-		// Test retrieving attempts sorted by oldest to latest.
-		attempts, err := identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Len(t, attempts, 3)
-		require.WithinDuration(t, time1, attempts[0].Time, time.Second)
-		require.WithinDuration(t, time2, attempts[1].Time, time.Second)
-		require.WithinDuration(t, time3, attempts[2].Time, time.Second)
-
-		// Test delete all recovery attempts.
-		err = identity.DeleteUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Empty(t, attempts)
-	})
-
-	t.Run("deleting user deletes recovery attempts", func(t *testing.T) {
-		username := "someuser2"
-
-		// Create a user, to test deletion of recovery attempts with user.
-		userResource := &types.UserV2{}
-		userResource.SetName(username)
-		_, err := identity.CreateUser(ctx, userResource)
-		require.NoError(t, err)
-
-		err = identity.CreateUserRecoveryAttempt(ctx, username, &types.RecoveryAttempt{Time: time3, Expires: time3})
-		require.NoError(t, err)
-		attempts, err := identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Len(t, attempts, 1)
-
-		err = identity.DeleteUser(ctx, username)
-		require.NoError(t, err)
-		attempts, err = identity.GetUserRecoveryAttempts(ctx, username)
-		require.NoError(t, err)
-		require.Empty(t, attempts)
 	})
 }
 
@@ -1199,4 +1139,58 @@ func TestIdentityService_ListUsers(t *testing.T) {
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	require.Empty(t, cmp.Diff(expectedUsers, retrieved, cmpopts.SortSlices(devicesSort)), "not all users returned from listing operation")
+}
+
+func TestCompareAndSwapUser(t *testing.T) {
+	t.Parallel()
+	require := require.New(t)
+	ctx := context.Background()
+
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	bob1, err := types.NewUser("bob")
+	require.NoError(err)
+	bob1.SetLogins([]string{"bob"})
+
+	bob2, err := types.NewUser("bob")
+	require.NoError(err)
+	bob2.SetLogins([]string{"bob", "alice"})
+
+	require.False(services.UsersEquals(bob1, bob2))
+
+	currentBob, err := identity.UpsertUser(ctx, bob1)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob1))
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob1))
+
+	err = identity.CompareAndSwapUser(ctx, bob2, bob1)
+	require.NoError(err)
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob2))
+
+	item, err := identity.Backend.Get(ctx, backend.Key(local.WebPrefix, local.UsersPrefix, "bob", local.ParamsPrefix))
+	require.NoError(err)
+	var m map[string]any
+	require.NoError(json.Unmarshal(item.Value, &m))
+	m["deprecated_field"] = 42
+	item.Value, err = json.Marshal(m)
+	require.NoError(err)
+	_, err = identity.Backend.Put(ctx, *item)
+	require.NoError(err)
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob2))
+
+	err = identity.CompareAndSwapUser(ctx, bob1, bob2)
+	require.NoError(err)
+
+	currentBob, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(err)
+	require.True(services.UsersEquals(currentBob, bob1))
 }

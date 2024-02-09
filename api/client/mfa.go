@@ -22,31 +22,26 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 )
 
-// performAdminActionMFACeremony retrieves an MFA challenge from the server,
-// prompts the user to answer the challenge, and returns the resulting MFA response.
-func (c *Client) performAdminActionMFACeremony(ctx context.Context, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+// PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
+// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
+// an MFA challenge response for the user.
+func (c *Client) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	// Don't attempt the MFA ceremony if we can't prompt for a response.
 	if c.c.MFAPromptConstructor == nil {
-		return nil, trace.BadParameter("missing PromptAdminRequestMFA field, client cannot perform MFA ceremony")
+		return nil, trace.Wrap(&mfa.ErrMFANotSupported, "missing MFAPromptConstructor field, client cannot perform MFA ceremony")
 	}
 
-	chal, err := c.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	return mfa.PerformMFACeremony(ctx, c, challengeRequest, promptOpts...)
+}
+
+// PromptMFA prompts the user for MFA. Implements [mfa.MFACeremonyClient].
+func (c *Client) PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	if c.c.MFAPromptConstructor == nil {
+		return nil, trace.Wrap(&mfa.ErrMFANotSupported, "missing MFAPromptConstructor field, client cannot prompt for MFA")
 	}
 
-	resp, err := c.c.MFAPromptConstructor(promptOpts...).Run(ctx, chal)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resp, nil
+	return c.c.MFAPromptConstructor(promptOpts...).Run(ctx, chal)
 }

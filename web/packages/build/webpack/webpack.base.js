@@ -157,6 +157,7 @@ function createDefaultConfig() {
         design: path.join(__dirname, '/../../design/src'),
         shared: path.join(__dirname, '/../../shared'),
         'gen-proto-js': path.join(__dirname, '/../../../../gen/proto/js'),
+        'gen-proto-ts': path.join(__dirname, '/../../../../gen/proto/ts'),
       },
 
       /*

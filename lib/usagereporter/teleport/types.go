@@ -69,6 +69,7 @@ func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventReques
 				BotName:       a.AnonymizeString(u.BotName),
 				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
 				JoinMethod:    u.JoinMethod,
+				UserName:      a.AnonymizeString(u.UserName),
 			},
 		},
 	}
@@ -1008,6 +1009,23 @@ func (e *DiscoveryFetchEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEven
 			DiscoveryFetchEvent: &prehogv1a.DiscoveryFetchEvent{
 				CloudProvider: e.CloudProvider,
 				ResourceType:  e.ResourceType,
+			},
+		},
+	}
+}
+
+// MFAAuthenticationEvent is emitted when a user performs MFA authentication.
+type MFAAuthenticationEvent prehogv1a.MFAAuthenticationEvent
+
+// Anonymize anonymizes the event.
+func (e *MFAAuthenticationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_MfaAuthenticationEvent{
+			MfaAuthenticationEvent: &prehogv1a.MFAAuthenticationEvent{
+				UserName:          a.AnonymizeString(e.UserName),
+				DeviceId:          a.AnonymizeString(e.DeviceId),
+				DeviceType:        e.DeviceType,
+				MfaChallengeScope: e.MfaChallengeScope,
 			},
 		},
 	}

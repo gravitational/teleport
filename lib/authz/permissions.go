@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -34,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
@@ -208,12 +208,6 @@ type Context struct {
 	// Inherited from the authorizer that creates the context.
 	disableDeviceRoleMode bool
 
-	// AdminActionVerified is whether this auth request is verified for admin actions. This
-	// either means that the request was MFA verified through the context or Hardware Key support,
-	// or the identity does not require admin MFA (built in roles, bot impersonated user, etc).
-	// TODO(Joerger): Deprecated in favor of AdminActionAuthState, remove once e is no longer dependent.
-	AdminActionAuthorized bool
-
 	// AdminActionAuthState is the state of admin action authorization for this auth context.
 	AdminActionAuthState AdminActionAuthState
 }
@@ -330,7 +324,13 @@ func (c *Context) GetAccessState(authPref types.AuthPreference) services.AccessS
 }
 
 // Authorize authorizes user based on identity supplied via context
-func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
+func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
+	defer func() {
+		if err != nil {
+			err = a.convertAuthorizerError(err)
+		}
+	}()
+
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
@@ -433,6 +433,16 @@ func (a *authorizer) checkAdminActionVerification(ctx context.Context, authConte
 }
 
 func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, authContext *Context) (bool, error) {
+	// Provide a way to turn off admin MFA requirements in case expected functionality
+	// is disrupted by this requirement, such as for integrations essential to a user
+	// which do not yet make use of a machine ID / AdminRole impersonated identity.
+	//
+	// TODO(Joerger): once we have fully transitioned to requiring machine ID for
+	// integrations and ironed out any bugs with admin MFA, this env var should be removed.
+	if os.Getenv("TELEPORT_UNSTABLE_DISABLE_MFA_ADMIN_ACTIONS") == "yes" {
+		return false, nil
+	}
+
 	// Builtin roles do not require MFA to perform admin actions.
 	switch authContext.Identity.(type) {
 	case BuiltinRole, RemoteBuiltinRole:
@@ -444,8 +454,8 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 		return false, trace.Wrap(err)
 	}
 
-	// Admin actions do not require MFA when Webauthn is not enabled.
-	if authpref.GetPreferredLocalMFA() != constants.SecondFactorWebauthn {
+	// Check if this cluster enforces MFA for admin actions.
+	if !authpref.IsAdminActionMFAEnforced() {
 		return false, nil
 	}
 
@@ -512,6 +522,35 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 	}
 
 	return nil
+}
+
+// convertAuthorizerError will take an authorizer error and convert it into an error easily
+// handled by gRPC services.
+func (a *authorizer) convertAuthorizerError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	// propagate connection problem error so we can differentiate
+	// between connection failed and access denied
+	case trace.IsConnectionProblem(err):
+		return trace.ConnectionProblem(err, "failed to connect to the database")
+	case trace.IsNotFound(err):
+		// user not found, wrap error with access denied
+		return trace.Wrap(err, "access denied")
+	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
+		a.logger.Warn(err)
+		return trace.Wrap(err)
+	case trace.IsAccessDenied(err):
+		// don't print stack trace, just log the warning
+		a.logger.Warn(err)
+	case keys.IsPrivateKeyPolicyError(err):
+		// private key policy errors should be returned to the client
+		// unaltered so that they know to reauthenticate with a valid key.
+		return trace.Unwrap(err)
+	default:
+		a.logger.WithError(err).Warn("Suppressing unknown authz error.")
+	}
+	return trace.AccessDenied("access denied")
 }
 
 // ErrIPPinningMissing is returned when user cert should be pinned but isn't.
@@ -594,7 +633,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 
 	// The user is prefixed with "remote-" and suffixed with cluster name with
 	// the hope that it does not match a real local user.
-	user, err := types.NewUser(fmt.Sprintf("remote-%v-%v", u.Username, u.ClusterName))
+	user, err := types.NewUser(services.UsernameForRemoteCluster(u.Username, u.ClusterName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1333,40 +1372,12 @@ func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.User
 	return meta
 }
 
-// ConvertAuthorizerError will take an authorizer error and convert it into an error easily
-// handled by gRPC services.
-func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err error) error {
-	switch {
-	case err == nil:
-		return nil
-	// propagate connection problem error so we can differentiate
-	// between connection failed and access denied
-	case trace.IsConnectionProblem(err):
-		return trace.ConnectionProblem(err, "failed to connect to the database")
-	case trace.IsNotFound(err):
-		// user not found, wrap error with access denied
-		return trace.Wrap(err, "access denied")
-	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
-		log.Warn(err)
-		return trace.Wrap(err)
-	case trace.IsAccessDenied(err):
-		// don't print stack trace, just log the warning
-		log.Warn(err)
-	case keys.IsPrivateKeyPolicyError(err):
-		// private key policy errors should be returned to the client
-		// unaltered so that they know to reauthenticate with a valid key.
-		return trace.Unwrap(err)
-	default:
-		log.WithError(err).Warn("Suppressing unknown authz error.")
-	}
-	return trace.AccessDenied("access denied")
-}
-
+// TODO(Joerger): replace with Authorize and authCtx.CheckAccessToResource
 // AuthorizeResourceWithVerbs will ensure that the user has access to the given verbs for the given kind.
 func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, resource types.Resource, verbs ...string) (*Context, error) {
 	authCtx, err := authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, ConvertAuthorizerError(ctx, log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	ruleCtx := &services.Context{
@@ -1377,11 +1388,12 @@ func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, aut
 	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
 }
 
+// TODO(Joerger): replace with Authorize and authCtx.CheckAccessToKind
 // AuthorizeWithVerbs will ensure that the user has access to the given verbs for the given kind.
 func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, kind string, verbs ...string) (*Context, error) {
 	authCtx, err := authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, ConvertAuthorizerError(ctx, log, err)
+		return nil, trace.Wrap(err)
 	}
 
 	ruleCtx := &services.Context{
@@ -1391,6 +1403,7 @@ func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer 
 	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
 }
 
+// TODO(Joerger): replace with authCtx.CheckAccessToRule
 // AuthorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
 func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
 	errs := make([]error, len(verbs))
@@ -1404,12 +1417,40 @@ func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 	return authCtx, nil
 }
 
+// CheckAccessToKind will ensure that the user has access to the given verbs for the given kind.
+func (c *Context) CheckAccessToKind(quiet bool, kind string, verb string, additionalVerbs ...string) error {
+	ruleCtx := &services.Context{
+		User: c.User,
+	}
+
+	return c.CheckAccessToRule(quiet, ruleCtx, kind, verb, additionalVerbs...)
+}
+
+// CheckAccessToResource will ensure that the user has access to the given verbs for the given resource.
+func (c *Context) CheckAccessToResource(quiet bool, resource types.Resource, verb string, additionalVerbs ...string) error {
+	ruleCtx := &services.Context{
+		User:     c.User,
+		Resource: resource,
+	}
+
+	return c.CheckAccessToRule(quiet, ruleCtx, resource.GetKind(), verb, additionalVerbs...)
+}
+
+// CheckAccessToRule will ensure that the user has access to the given verbs for the given [services.Context] and kind.
+// Prefer to use [Context.CheckAccessToKind] or [Context.CheckAccessToResource] for common checks.
+func (c *Context) CheckAccessToRule(quiet bool, ruleCtx *services.Context, kind string, verb string, additionalVerbs ...string) error {
+	var errs []error
+	for _, verb := range append(additionalVerbs, verb) {
+		if err := c.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
 func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
-	// TODO(Joerger): AdminActionAuthorized is deprecated in favor of AdminActionAuthState, remove once e is no longer dependent.
-	if authCtx.AdminActionAuthorized {
-		return nil
-	}
 	switch authCtx.AdminActionAuthState {
 	case AdminActionAuthMFAVerified, AdminActionAuthNotRequired:
 		return nil

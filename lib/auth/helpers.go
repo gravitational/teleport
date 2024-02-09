@@ -475,7 +475,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := a.AuthServer.generateUserCert(certRequest{
+	certs, err := a.AuthServer.generateUserCert(ctx, certRequest{
 		user:          userState,
 		ttl:           ttl,
 		compatibility: compatibility,
@@ -542,7 +542,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			identity.TTL = time.Hour
 		}
 
-		certs, err := authServer.generateUserCert(certRequest{
+		certs, err := authServer.generateUserCert(ctx, certRequest{
 			publicKey:        pub,
 			user:             userState,
 			ttl:              identity.TTL,

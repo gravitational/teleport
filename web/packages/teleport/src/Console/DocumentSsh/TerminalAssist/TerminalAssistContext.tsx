@@ -26,7 +26,7 @@ import React, {
 } from 'react';
 
 import { Author, ServerMessage } from 'teleport/Assist/types';
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import { getHostName } from 'teleport/services/api';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import {
@@ -36,6 +36,7 @@ import {
   SuggestedCommandMessage,
   UserMessage,
 } from 'teleport/Console/DocumentSsh/TerminalAssist/types';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 interface TerminalAssistContextValue {
   close: () => void;
@@ -57,11 +58,10 @@ export function TerminalAssistContextProvider(
 
   const [visible, setVisible] = useState(false);
 
-  const socketRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<AuthenticatedWebSocket | null>(null);
   const socketUrl = cfg.getAssistActionWebSocketUrl(
     getHostName(),
     clusterId,
-    getAccessToken(),
     'ssh-cmdgen'
   );
 
@@ -72,7 +72,7 @@ export function TerminalAssistContextProvider(
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => {
-    socketRef.current = new WebSocket(socketUrl);
+    socketRef.current = new AuthenticatedWebSocket(socketUrl);
 
     socketRef.current.onmessage = e => {
       const data = JSON.parse(e.data) as ServerMessage;
@@ -117,11 +117,10 @@ export function TerminalAssistContextProvider(
     const socketUrl = cfg.getAssistActionWebSocketUrl(
       getHostName(),
       clusterId,
-      getAccessToken(),
       'ssh-explain'
     );
 
-    const ws = new WebSocket(socketUrl);
+    const ws = new AuthenticatedWebSocket(socketUrl);
 
     ws.onopen = () => {
       ws.send(encodedOutput);

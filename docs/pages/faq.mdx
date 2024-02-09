@@ -60,11 +60,6 @@ Yes, Teleport supports [Headless WebAuthn authentication](./access-controls/guid
 which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
 are not logged in to Teleport or may not have access to a browser.
 
-## I'm getting `ssh: subsystem request failed` while I try to copy files, what to do?
-
-Make sure that all Teleport components are at least at version 10.3.0. Older versions
-don't support the SFTP protocol, and it's enabled by default in `tsh` v11.0.0 and OpenSSH v9.0.
-
 ## `tsh` is very slow on Windows, what to do?
 
 If your host machine is joined to an Active Directory domain, you might find user lookups take a
@@ -107,9 +102,9 @@ Here are the major versions of Teleport and their support windows:
 
 | Release | Release Date       | EOL            | Minimum `tsh` version |
 |---------|--------------------|----------------|-----------------------|
+| v15.0   | January 29, 2024   | January 2025   | v14.0.0               |
 | v14.0   | September 20, 2023 | September 2024 | v13.0.0               |
 | v13.0   | May 8, 2023        | May 2024       | v12.0.0               |
-| v12.0   | February 6, 2023   | February 2024  | v11.0.0               |
 
 ### Version compatibility
 

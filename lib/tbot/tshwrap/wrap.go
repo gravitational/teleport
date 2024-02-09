@@ -222,9 +222,6 @@ func GetEnvForTSH(destPath string) (map[string]string, error) {
 	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, config.HostCAPath)
 	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, config.DatabaseCAPath)
 
-	// TODO(timothyb89): Kubernetes support. We don't generate kubeconfigs yet, so we have
-	// nothing to give tsh for now.
-
 	return env, nil
 }
 

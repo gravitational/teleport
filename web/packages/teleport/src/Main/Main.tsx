@@ -20,7 +20,9 @@ import React, {
   ReactNode,
   Suspense,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  lazy,
   useState,
   createContext,
   useContext,
@@ -34,6 +36,9 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { matchPath, useHistory } from 'react-router';
 
 import Dialog from 'design/Dialog';
+import { sharedStyles } from 'design/theme/themes/sharedStyles';
+
+import { AssistViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/assist_pb';
 
 import { Redirect, Route, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
@@ -51,6 +56,7 @@ import {
 } from 'teleport/Navigation/Navigation';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 import { TopBarProps } from 'teleport/TopBar/TopBar';
+import { useUser } from 'teleport/User/UserContext';
 import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
 
 import { MainContainer } from './MainContainer';
@@ -58,6 +64,8 @@ import { OnboardDiscover } from './OnboardDiscover';
 
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
+
+const Assist = lazy(() => import('teleport/Assist'));
 
 export interface MainProps {
   initialAlerts?: ClusterAlert[];
@@ -84,12 +92,24 @@ export function Main(props: MainProps) {
     run(() => ctx.init());
   }, []);
 
+  const { preferences } = useUser();
+  const viewMode = preferences?.assist?.viewMode;
+  const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
+  const [showAssist, setShowAssist] = useState(false);
   const featureFlags = ctx.getFeatureFlags();
 
   const features = useMemo(
     () => props.features.filter(feature => feature.hasAccess(featureFlags)),
     [featureFlags, props.features]
   );
+  const feature = features
+    .filter(feature => Boolean(feature.route))
+    .find(f =>
+      matchPath(history.location.pathname, {
+        path: f.route.path,
+        exact: f.route.exact ?? false,
+      })
+    );
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
@@ -159,6 +179,9 @@ export function Main(props: MainProps) {
   const requiresOnboarding =
     onboard && !onboard.hasResource && !onboard.notified;
   const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;
+  const hasSidebar =
+    feature?.category === NavigationCategory.Management &&
+    !feature?.hideNavigation;
 
   return (
     <FeaturesContextProvider value={features}>
@@ -168,11 +191,19 @@ export function Main(props: MainProps) {
             ? props.topBarProps.CustomLogo
             : null
         }
+        assistProps={{
+          showAssist,
+          setShowAssist,
+          assistEnabled,
+        }}
       />
       <Wrapper>
         <MainContainer>
           <Navigation />
-          <HorizontalSplit>
+          <HorizontalSplit
+            dockedView={showAssist && viewMode === AssistViewMode.DOCKED}
+            hasSidebar={hasSidebar}
+          >
             <ContentMinWidth>
               <BannerList
                 banners={banners}
@@ -185,6 +216,12 @@ export function Main(props: MainProps) {
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
+
+          {showAssist && (
+            <Suspense fallback={null}>
+              <Assist onClose={() => setShowAssist(false)} />
+            </Suspense>
+          )}
         </MainContainer>
       </Wrapper>
       {displayOnboardDiscover && (
@@ -273,8 +310,23 @@ type MinWidthContextState = {
 
 const ContentMinWidthContext = createContext<MinWidthContextState>(null);
 
+/**
+ * @deprecated Use useNoMinWidth instead.
+ */
 export const useContentMinWidthContext = () =>
   useContext(ContentMinWidthContext);
+
+export const useNoMinWidth = () => {
+  const { setEnforceMinWidth } = useContext(ContentMinWidthContext);
+
+  useLayoutEffect(() => {
+    setEnforceMinWidth(false);
+
+    return () => {
+      setEnforceMinWidth(true);
+    };
+  }, []);
+};
 
 const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
@@ -286,7 +338,7 @@ const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           display: flex;
           flex-direction: column;
           flex: 1;
-          ${enforceMinWidth ? 'min-width: 1250px;' : ''}
+          ${enforceMinWidth ? 'min-width: 1000px;' : ''}
         `}
       >
         {children}
@@ -295,21 +347,43 @@ const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   );
 };
 
+function getWidth(hasSidebar: boolean, isDockedView: boolean) {
+  const { dockedAssistWidth, sidebarWidth } = sharedStyles;
+  if (hasSidebar && isDockedView) {
+    return `max-width: calc(100% - ${sidebarWidth}px - ${dockedAssistWidth}px);`;
+  }
+  if (isDockedView) {
+    return `max-width: calc(100% - ${dockedAssistWidth}px);`;
+  }
+  if (hasSidebar) {
+    return `max-width: calc(100% - ${sidebarWidth}px);`;
+  }
+  return 'max-width: 100%;';
+}
+
 export const HorizontalSplit = styled.div`
   display: flex;
   flex-direction: column;
   flex: 1;
+  ${props => getWidth(props.hasSidebar, props.dockedView)}
   overflow-x: auto;
 `;
 
 export const StyledIndicator = styled(HorizontalSplit)`
   align-items: center;
   justify-content: center;
+  position: absolute;
+  overflow: hidden;
+  top: 50%;
+  left: 50%;
 `;
 
 const Wrapper = styled(Box)<{ hasDockedElement: boolean }>`
   display: flex;
   height: 100vh;
   flex-direction: column;
-  width: ${p => (p.hasDockedElement ? 'calc(100vw - 520px)' : '100vw')};
+  width: ${p =>
+    p.hasDockedElement
+      ? `calc(100vw - ${p.theme.dockedAssistWidth}px)`
+      : '100vw'};
 `;

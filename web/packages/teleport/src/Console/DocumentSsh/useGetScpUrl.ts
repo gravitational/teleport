@@ -20,7 +20,7 @@ import { useCallback } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg, { UrlScpParams } from 'teleport/config';
-import auth, { MFAChallengeScope } from 'teleport/services/auth/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export default function useGetScpUrl(addMfaToScpUrls: boolean) {
   const { setAttempt, attempt, handleError } = useAttempt('');
@@ -36,7 +36,7 @@ export default function useGetScpUrl(addMfaToScpUrls: boolean) {
       }
       try {
         let webauthn = await auth.getWebauthnResponse(
-          MFAChallengeScope.USER_SESSION
+          MfaChallengeScope.USER_SESSION
         );
         setAttempt({
           status: 'success',

@@ -290,10 +290,7 @@ type isMFARequiredWindowsDesktop struct {
 	Login string `json:"login"`
 }
 
-type isMFARequiredAdminAction struct {
-	// Name is the name of the admin action RPC.
-	Name string `json:"desktop_name"`
-}
+type isMFARequiredAdminAction struct{}
 
 type isMFARequiredRequest struct {
 	// Database contains fields required to check if target database
@@ -392,9 +389,7 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 		numRequests++
 		protoReq = &proto.IsMFARequiredRequest{
 			Target: &proto.IsMFARequiredRequest_AdminAction{
-				AdminAction: &proto.AdminAction{
-					Name: r.AdminAction.Name,
-				},
+				AdminAction: &proto.AdminAction{},
 			},
 		}
 	}

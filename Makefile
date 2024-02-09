@@ -246,7 +246,7 @@ CC=arm-linux-gnueabihf-gcc
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 endif
 endif # OS == linux
 
@@ -346,9 +346,9 @@ ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
 ifneq ("$(FIPS)","")
-	cargo build -p rdp-client --features=fips --release $(CARGO_TARGET)
+	cargo build -p rdp-client --features=fips --release --locked $(CARGO_TARGET)
 else
-	cargo build -p rdp-client --release $(CARGO_TARGET)
+	cargo build -p rdp-client --release --locked $(CARGO_TARGET)
 endif
 else
 .PHONY: rdpclient
