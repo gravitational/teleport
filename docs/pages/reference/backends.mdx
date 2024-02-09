@@ -1479,11 +1479,9 @@ secrets like keys and user records will be stored.
   type="warning"
   title="IMPORTANT"
 >
-  `CockroachDB` can currently only be used to store Teleport's internal database in a
-  highly-available way. This will allow you to have multiple auth servers in your
-  cluster for a high availability deployment, but it will not also store Teleport audit events
-  for you in the same way that [DynamoDB](#dynamodb) or
-  [Firestore](#firestore) will.
+  CockroachDB can currently only be used to store Teleport's cluster state.
+  It cannot be used for Teleport's audit log in the same way that
+  [DynamoDB](#dynamodb) or Firestore](#firestore) wan.
 </Admonition>
 
 At a minimum you must configure CockroachDB to allow Teleport to create tables.
