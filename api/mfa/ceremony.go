@@ -56,7 +56,7 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 		// user is not a Teleport user - for example, the AdminRole. Treat this as an MFA
 		// not supported error so the client knows when it can be ignored.
 		if trace.IsBadParameter(err) {
-			return nil, &ErrMFANotSupported
+			return nil, trace.Wrap(&ErrMFANotSupported, err.Error())
 		}
 		return nil, trace.Wrap(err)
 	}

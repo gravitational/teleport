@@ -57,6 +57,7 @@ func WithMFAUnaryInterceptor(mfaCeremony mfa.MFACeremony) grpc.UnaryClientInterc
 		if ceremonyErr != nil {
 			// If the client does not support MFA ceremonies, return the original error.
 			if errors.Is(ceremonyErr, &mfa.ErrMFANotSupported) {
+				logrus.WithError(err).Debug("MFA is not supported by this client")
 				return trail.FromGRPC(err)
 			} else if errors.Is(ceremonyErr, &mfa.ErrMFANotRequired) {
 				// This error should never occur since the auth server uses the same mechanism
