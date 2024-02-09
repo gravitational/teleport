@@ -50,7 +50,7 @@ import (
 )
 
 func TestServeConfigureError(t *testing.T) {
-	srv := &TLSServer{Server: &http.Server{TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, CipherSuites: []uint16{}}}}
+	srv := &TLSServer{Server: &http.Server{TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12, CipherSuites: []uint16{}}}, closeContext: context.Background()}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer listener.Close()
