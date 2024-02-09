@@ -236,7 +236,7 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 			"flat": "true",
 		}).
 		SetResult(&result).
-		Get("v2/schedules/{scheduleName}/on-calls")
+		Post("v2/schedules/{scheduleName}/on-calls")
 	if err != nil {
 		return RespondersResult{}, trace.Wrap(err)
 	}
