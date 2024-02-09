@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // listResources forwards the pod list request to the target server, captures
@@ -49,8 +50,9 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 
 	isLocalKubeCluster := f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName)
 	supportsType := false
+	resourceKind := ""
 	if isLocalKubeCluster {
-		_, supportsType = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
+		resourceKind, supportsType = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
 	}
 
 	// status holds the returned response code.
@@ -64,6 +66,19 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		status = rw.Status()
 	} else {
 		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
+
+		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, resourceKind, allowedResources, deniedResources)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !shouldBeAllowed {
+			notFoundMessage := f.kubeResourceDeniedAccessMsg(
+				sess.User.GetName(),
+				sess.requestVerb,
+				sess.apiResource,
+			)
+			return nil, trace.AccessDenied(notFoundMessage)
+		}
 		// isWatch identifies if the request is long-lived watch stream based on
 		// HTTP connection.
 		isWatch := isKubeWatchRequest(req, sess.authContext.apiResource)
@@ -114,6 +129,26 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 
 	// Returns the status and any filter error.
 	return memBuffer.Status(), trace.Wrap(err)
+}
+
+func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind string, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
+	resource := types.KubernetesResource{
+		Kind:      resourceKind,
+		Namespace: sess.apiResource.namespace,
+		Verbs:     []string{sess.requestVerb},
+	}
+	result, err := utils.KubeResourceMatchesNamespaceVerbRegex(resource, deniedResources, types.Deny)
+	if err != nil {
+		return false, trace.Wrap(err)
+	} else if result {
+		return false, nil
+	}
+
+	result, err = utils.KubeResourceMatchesNamespaceVerbRegex(resource, allowedResources, types.Allow)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return result, nil
 }
 
 // listResourcesWatcher handles a long lived connection to the upstream server where
