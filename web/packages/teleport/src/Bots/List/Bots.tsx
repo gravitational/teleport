@@ -17,10 +17,10 @@
  */
 
 import React, { useEffect, useState } from 'react';
-
-import { Alert, Box, ButtonPrimary, Indicator } from 'design';
-
 import { useAttemptNext } from 'shared/hooks';
+import { Link } from 'react-router-dom';
+import { HoverTooltip } from 'shared/components/ToolTip';
+import { Alert, Box, ButtonPrimary, Indicator } from 'design';
 
 import {
   FeatureBox,
@@ -28,47 +28,111 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { BotList } from 'teleport/Bots/List/BotList';
-import { deleteBot, fetchBots } from 'teleport/services/bot/bot';
+import {
+  deleteBot,
+  editBot,
+  fetchBots,
+  fetchRoles,
+} from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
+import useTeleport from 'teleport/useTeleport';
+
+import cfg from 'teleport/config';
 
 export function Bots() {
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
+  const hasAddBotPermissions = flags.addBots;
+
   const [bots, setBots] = useState<FlatBot[]>();
+  const [roles, setRoles] = useState<string[]>();
   const [selectedBot, setSelectedBot] = useState<FlatBot>();
-  const { attempt: deleteAttempt, run: deleteRun } = useAttemptNext();
+  const [selectedRoles, setSelectedRoles] = useState<string[]>();
+  const { attempt: crudAttempt, run: crudRun } = useAttemptNext();
   const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext('processing');
 
   useEffect(() => {
     const signal = new AbortController();
+    const flags = ctx.getFeatureFlags();
 
-    async function init(signal: AbortSignal) {
-      const res = await fetchBots(signal);
-      setBots(res.bots);
+    async function bots(signal: AbortSignal) {
+      return await fetchBots(signal, flags);
     }
 
-    fetchRun(() => init(signal.signal));
+    async function roles(signal: AbortSignal) {
+      return await fetchRoles(signal, flags);
+    }
+
+    fetchRun(() =>
+      Promise.all([bots(signal.signal), roles(signal.signal)]).then(
+        ([botRes, roleRes]) => {
+          setBots(botRes.bots);
+          setRoles(roleRes.map(r => r.name));
+        }
+      )
+    );
     return () => {
       signal.abort();
     };
-  }, [fetchRun]);
+  }, [ctx, fetchRun]);
 
   function onDelete() {
-    deleteRun(() => deleteBot(selectedBot.name)).then(() => {
+    crudRun(() => deleteBot(flags, selectedBot.name)).then(() => {
       setBots(bots.filter(bot => bot.name !== selectedBot.name));
       onClose();
     });
   }
 
+  function onEdit() {
+    crudRun(() =>
+      editBot(flags, selectedBot.name, { roles: selectedRoles }).then(
+        (updated: FlatBot) => {
+          const updatedList: FlatBot[] = bots.map((item: FlatBot): FlatBot => {
+            if (item.name !== selectedBot.name) {
+              return item;
+            }
+            return {
+              ...item,
+              ...updated,
+            };
+          });
+
+          setBots(updatedList);
+          onClose();
+        }
+      )
+    );
+  }
+
   function onClose() {
     setSelectedBot(null);
+    setSelectedRoles(null);
   }
 
   return (
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Bots</FeatureHeaderTitle>
-        <ButtonPrimary ml="auto" width="240px" disabled>
-          Enroll New Bot
-        </ButtonPrimary>
+        <Box ml="auto">
+          <HoverTooltip
+            tipContent={
+              hasAddBotPermissions
+                ? ''
+                : `Insufficient permissions. Reach out to your Teleport administrator
+    to request bot creation permissions.`
+            }
+          >
+            <ButtonPrimary
+              ml="auto"
+              width="240px"
+              as={Link}
+              to={cfg.getBotsNewRoute()}
+              disabled={!hasAddBotPermissions}
+            >
+              Enroll New Bot
+            </ButtonPrimary>
+          </HoverTooltip>
+        </Box>
       </FeatureHeader>
       {fetchAttempt.status == 'processing' && (
         <Box textAlign="center" m={10}>
@@ -80,12 +144,17 @@ export function Bots() {
       )}
       {fetchAttempt.status == 'success' && (
         <BotList
-          attempt={deleteAttempt}
+          attempt={crudAttempt}
           bots={bots}
+          disabledEdit={!flags.roles}
+          roles={roles}
           onClose={onClose}
           onDelete={onDelete}
+          onEdit={onEdit}
           selectedBot={selectedBot}
           setSelectedBot={setSelectedBot}
+          selectedRoles={selectedRoles}
+          setSelectedRoles={setSelectedRoles}
         />
       )}
     </FeatureBox>

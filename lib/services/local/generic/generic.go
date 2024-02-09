@@ -218,6 +218,9 @@ func (s *Service[T]) CreateResource(ctx context.Context, resource T) (T, error) 
 	if trace.IsAlreadyExists(err) {
 		return t, trace.AlreadyExists("%s %q already exists", s.resourceKind, resource.GetName())
 	}
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
 
 	types.SetRevision(resource, lease.Revision)
 	return resource, trace.Wrap(err)
@@ -234,6 +237,9 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) (T, error) 
 	lease, err := s.backend.Update(ctx, item)
 	if trace.IsNotFound(err) {
 		return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
+	}
+	if err != nil {
+		return t, trace.Wrap(err)
 	}
 
 	types.SetRevision(resource, lease.Revision)
@@ -317,18 +323,30 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 		return backend.Item{}, trace.Wrap(err)
 	}
 
-	rev := types.GetRevision(resource)
+	rev, err := types.GetRevision(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
 	value, err := s.marshalFunc(resource)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     s.MakeKey(name),
-		Value:   value,
-		Expires: types.GetExpiry(resource),
-		//nolint:staticcheck // SA1019. Added for backward compatibility.
-		ID:       types.GetResourceID(resource),
+		Key:      s.MakeKey(name),
+		Value:    value,
 		Revision: rev,
+	}
+
+	item.Expires, err = types.GetExpiry(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	//nolint:staticcheck // SA1019. Added for backward compatibility.
+	item.ID, err = types.GetResourceID(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
 	}
 
 	return item, nil

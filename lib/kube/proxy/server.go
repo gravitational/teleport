@@ -317,6 +317,14 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	defer mux.Close()
 
 	t.mu.Lock()
+	select {
+	// If the server is closed before the listener is started, return early
+	// to avoid deadlock.
+	case <-t.closeContext.Done():
+		t.mu.Unlock()
+		return nil
+	default:
+	}
 	t.listener = mux.TLS()
 	err = http2.ConfigureServer(t.Server, &http2.Server{})
 	t.mu.Unlock()
@@ -404,8 +412,11 @@ func (t *TLSServer) close(ctx context.Context) error {
 		t.KubernetesServersWatcher.Close()
 	}
 
+	var listClose error
 	t.mu.Lock()
-	listClose := t.listener.Close()
+	if t.listener != nil {
+		listClose = t.listener.Close()
+	}
 	t.mu.Unlock()
 	return trace.NewAggregate(append(errs, listClose)...)
 }

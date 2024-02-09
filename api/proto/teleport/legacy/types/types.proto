@@ -1923,9 +1923,15 @@ message AuthPreferenceSpecV2 {
   // Requires Teleport Enterprise.
   OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
 
-  // PIVSlot is a PIV slot that Teleport clients should use instead of the
-  // default based on private key policy. For example, "9a" or "9e".
-  string PIVSlot = 18 [(gogoproto.jsontag) = "piv_slot,omitempty"];
+  // TODO(Joerger): DELETE IN 17.0.0
+  // Deprecated, replaced by HardwareKey settings.
+  string PIVSlot = 18 [
+    (gogoproto.jsontag) = "piv_slot,omitempty",
+    deprecated = true
+  ];
+
+  // HardwareKey are the settings for hardware key support.
+  HardwareKey HardwareKey = 19 [(gogoproto.jsontag) = "hardware_key,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -2013,6 +2019,30 @@ message DeviceTrust {
   // If not present, then the CA of TPM EKCerts will not be checked during
   // enrollment, this allows any device to enroll.
   repeated string EKCertAllowedCAs = 3 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
+}
+
+// HardwareKey holds settings related to hardware key support.
+// Requires Teleport Enterprise.
+message HardwareKey {
+  // PIVSlot is a PIV slot that Teleport clients should use instead of the
+  // default based on private key policy. For example, "9a" or "9e".
+  string PIVSlot = 1 [(gogoproto.jsontag) = "piv_slot,omitempty"];
+
+  // SerialNumberValidation holds settings for hardware key serial number validation.
+  // By default, serial number validation is disabled.
+  HardwareKeySerialNumberValidation SerialNumberValidation = 2 [(gogoproto.jsontag) = "serial_number_validation,omitempty"];
+}
+
+message HardwareKeySerialNumberValidation {
+  // Enabled indicates whether hardware key serial number validation is enabled.
+  bool Enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+
+  // SerialNumberTraitName is an optional custom user trait name for hardware key
+  // serial numbers to replace the default: "hardware_key_serial_numbers".
+  //
+  // Note: Values for this user trait should be a comma-separated list of serial numbers,
+  // or a list of comm-separated lists. e.g ["123", "345,678"]
+  string SerialNumberTraitName = 2 [(gogoproto.jsontag) = "serial_number_trait_name,omitempty"];
 }
 
 // Namespace represents namespace resource specification
@@ -5871,12 +5901,15 @@ message SAMLIdPServiceProviderSpecV1 {
   string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
   // ACSURL is the endpoint where SAML authentication response will be redirected.
   string ACSURL = 3 [(gogoproto.jsontag) = "acs_url"];
-  // AttributeMapping is used to map Service Provider requested attributes to
+  // AttributeMapping is used to map service provider requested attributes to
   // username, role and traits in Teleport.
   repeated SAMLAttributeMapping AttributeMapping = 4 [(gogoproto.jsontag) = "attribute_mapping"];
+  // Preset is used to define service provider profile that will have a custom behavior
+  // processed by Teleport.
+  string Preset = 5 [(gogoproto.jsontag) = "preset"];
 }
 
-// SAMLAttributeMapping represents SAML Service Provider requested attribute
+// SAMLAttributeMapping represents SAML service provider requested attribute
 // name, format and its values.
 message SAMLAttributeMapping {
   //  name is an attribute name.
@@ -6414,6 +6447,9 @@ message AWSMatcher {
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   // Environment credentials will not be used when this value is set.
   string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
+  // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
+  // discovered clusters, currently only affects AWS EKS discovery in integration mode.
+  bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role

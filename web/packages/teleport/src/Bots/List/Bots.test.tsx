@@ -17,16 +17,31 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
 import api from 'teleport/services/api';
 import { botsApiResponseFixture } from 'teleport/Bots/fixtures';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ContextProvider } from 'teleport/index';
 
 import { Bots } from './Bots';
 
+function renderWithContext(element) {
+  const ctx = createTeleportContext();
+  return render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>{element}</ContextProvider>
+    </MemoryRouter>
+  );
+}
+
 test('fetches bots on load', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue({ ...botsApiResponseFixture });
-  render(<Bots />);
+  jest
+    .spyOn(api, 'get')
+    .mockResolvedValueOnce({ ...botsApiResponseFixture })
+    .mockResolvedValueOnce(['role-1', 'editor']);
+  renderWithContext(<Bots />);
 
   expect(screen.getByText('Bots')).toBeInTheDocument();
   await waitFor(() => {
@@ -34,13 +49,48 @@ test('fetches bots on load', async () => {
       screen.getByText(botsApiResponseFixture.items[0].metadata.name)
     ).toBeInTheDocument();
   });
-  expect(api.get).toHaveBeenCalled();
+  expect(api.get).toHaveBeenCalledTimes(2);
+});
+
+test('calls edit endpoint', async () => {
+  jest
+    .spyOn(api, 'get')
+    .mockResolvedValueOnce({ ...botsApiResponseFixture })
+    .mockResolvedValueOnce(['role-1', 'editor']);
+  jest.spyOn(api, 'put').mockResolvedValue({});
+  renderWithContext(<Bots />);
+
+  expect(screen.getByText('Bots')).toBeInTheDocument();
+  await waitFor(() => {
+    expect(
+      screen.getByText(botsApiResponseFixture.items[0].metadata.name)
+    ).toBeInTheDocument();
+  });
+
+  const actionCells = screen.queryAllByRole('button', { name: 'OPTIONS' });
+  expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
+  await userEvent.click(actionCells[0]);
+
+  expect(screen.getByText('Edit...')).toBeInTheDocument();
+  await userEvent.click(screen.getByText('Edit...'));
+
+  expect(screen.getByText('Edit Bot')).toBeInTheDocument();
+  await userEvent.click(screen.queryByRole('button', { name: 'Save' }));
+
+  expect(screen.queryByText('Edit Bot')).not.toBeInTheDocument();
+  expect(api.put).toHaveBeenCalledWith(
+    `/v1/webapi/sites/localhost/machine-id/bot/${botsApiResponseFixture.items[0].metadata.name}`,
+    { roles: ['bot-bot-role'] }
+  );
 });
 
 test('calls delete endpoint', async () => {
-  jest.spyOn(api, 'get').mockResolvedValue({ ...botsApiResponseFixture });
+  jest
+    .spyOn(api, 'get')
+    .mockResolvedValueOnce({ ...botsApiResponseFixture })
+    .mockResolvedValueOnce(['role-1', 'editor']);
   jest.spyOn(api, 'delete').mockResolvedValue({});
-  render(<Bots />);
+  renderWithContext(<Bots />);
 
   expect(screen.getByText('Bots')).toBeInTheDocument();
   await waitFor(() => {

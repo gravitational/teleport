@@ -59,7 +59,7 @@ jobs:
       id-token: write
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+      image: ghcr.io/gravitational/teleport-buildbox:teleport16
       env:
         WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged

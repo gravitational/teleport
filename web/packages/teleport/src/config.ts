@@ -130,6 +130,7 @@ const cfg = {
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
+    botsNew: '/web/bots/new/:type?',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -197,12 +198,12 @@ const cfg = {
     desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
     desktopPlaybackWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
     ttyWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
@@ -311,11 +312,11 @@ const cfg = {
       '/v1/webapi/assistant/conversations/:conversationId/title',
     assistGenerateSummaryPath: '/v1/webapi/assistant/title/summary',
     assistConversationWebSocketPath:
-      'wss://:hostname/v1/webapi/sites/:clusterId/assistant',
+      'wss://:hostname/v1/webapi/sites/:clusterId/assistant/ws',
     assistConversationHistoryPath:
       '/v1/webapi/assistant/conversations/:conversationId',
     assistExecuteCommandWebSocketPath:
-      'wss://:hostname/v1/webapi/command/:clusterId/execute',
+      'wss://:hostname/v1/webapi/command/:clusterId/execute/ws',
     userPreferencesPath: '/v1/webapi/user/preferences',
     userClusterPreferencesPath: '/v1/webapi/user/preferences/:clusterId',
 
@@ -324,8 +325,8 @@ const cfg = {
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
 
-    botPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name',
-    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot',
+    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
+    botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -493,6 +494,10 @@ const cfg = {
 
   getBotsRoute() {
     return generatePath(cfg.routes.bots);
+  },
+
+  getBotsNewRoute(type?: string) {
+    return generatePath(cfg.routes.botsNew, { type });
   },
 
   getAppsRoute(clusterId: string) {
@@ -865,12 +870,10 @@ const cfg = {
   getAssistConversationWebSocketUrl(
     hostname: string,
     clusterId: string,
-    accessToken: string,
     conversationId: string
   ) {
     const searchParams = new URLSearchParams();
 
-    searchParams.set('access_token', accessToken);
     searchParams.set('conversation_id', conversationId);
 
     return (
@@ -884,12 +887,10 @@ const cfg = {
   getAssistActionWebSocketUrl(
     hostname: string,
     clusterId: string,
-    accessToken: string,
     action: string
   ) {
     const searchParams = new URLSearchParams();
 
-    searchParams.set('access_token', accessToken);
     searchParams.set('action', action);
 
     return (
@@ -909,12 +910,10 @@ const cfg = {
   getAssistExecuteCommandUrl(
     hostname: string,
     clusterId: string,
-    accessToken: string,
     params: Record<string, string>
   ) {
     const searchParams = new URLSearchParams();
 
-    searchParams.set('access_token', accessToken);
     searchParams.set('params', JSON.stringify(params));
 
     return (
@@ -1026,6 +1025,11 @@ const cfg = {
     );
   },
 
+  getBotTokenUrl() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botsTokenPath, { clusterId });
+  },
+
   getBotsUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.botsPath, { clusterId });
@@ -1033,7 +1037,7 @@ const cfg = {
 
   getBotUrlWithName(name: string) {
     const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botPath, { clusterId, name });
+    return generatePath(cfg.api.botsPath, { clusterId, name });
   },
 
   init(backendConfig = {}) {

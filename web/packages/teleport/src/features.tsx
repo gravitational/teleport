@@ -71,6 +71,7 @@ const IntegrationEnroll = lazy(
   () => import('@gravitational/teleport/src/Integrations/Enroll')
 );
 const Bots = lazy(() => import('./Bots'));
+const AddBots = lazy(() => import('./Bots/Add'));
 
 // ****************************
 // Resource Features
@@ -221,7 +222,7 @@ export class FeatureBots implements TeleportFeature {
     component: Bots,
   };
 
-  // todo (michellescripts) return flags.Bots once integrated with mcbattirola and feature is ready
+  // todo (michellescripts) return flags.Users once integrated with mcbattirola and feature is ready
   hasAccess() {
     return false;
   }
@@ -234,6 +235,27 @@ export class FeatureBots implements TeleportFeature {
       return cfg.getBotsRoute();
     },
   };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
+export class FeatureAddBots implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+  hideFromNavigation = true;
+
+  route = {
+    title: 'New Bot',
+    path: cfg.routes.botsNew,
+    exact: false,
+    component: () => <AddBots />,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.addBots;
+  }
 
   getRoute() {
     return this.route;
@@ -604,6 +626,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureBots(),
+    new FeatureAddBots(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureDiscover(),

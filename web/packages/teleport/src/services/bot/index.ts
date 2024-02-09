@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { fetchBots, deleteBot } from './bot';
+export { fetchBots, deleteBot, createBot, getBot, createBotToken } from './bot';
