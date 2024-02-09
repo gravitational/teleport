@@ -1252,6 +1252,9 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	totalInstancesMetric.Set(float64(imp.TotalInstances()))
 	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
 
+	// reset upgrader counts
+	upgraderCountsMetric.Reset()
+
 	for upgraderType, upgraderVersions := range imp.upgraderCounts {
 		for version, count := range upgraderVersions {
 			upgraderCountsMetric.With(prometheus.Labels{
