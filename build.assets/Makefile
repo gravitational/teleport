@@ -205,10 +205,10 @@ buildbox-centos7:
 # Uses regular CentOS 7 buildbox as base, so limited arguments are needed.
 #
 # Because this target uses the image built by the buildbox-centos7 target, it is
-# expected to be run using a docker buildx driver. If another driver is used, the
-# --build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH) will not know
-# about the local image just built and will pull the image from the Docker repository
-# instead, which will be out of date.
+# expected to be run with a buildx builder that uses the "docker" driver. If another
+# driver is used, the --build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH)
+# will not know about the local image that was just built, and will pull the image from
+# the Docker repository instead, which will be out of date.
 #
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips: buildbox-centos7
