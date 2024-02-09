@@ -3,7 +3,7 @@ module github.com/gravitational/os-package-repo-tool
 go 1.21
 
 require (
-	github.com/aws/aws-sdk-go v1.50.10
+	github.com/aws/aws-sdk-go v1.50.15
 	github.com/cavaliergopher/rpm v1.2.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/gravitational/trace v1.3.1
@@ -11,7 +11,7 @@ require (
 	github.com/seqsense/s3sync v1.9.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4 // indirect
-	golang.org/x/mod v0.14.0
+	golang.org/x/mod v0.15.0
 	golang.org/x/sync v0.6.0
 )
 
