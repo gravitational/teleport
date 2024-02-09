@@ -44,7 +44,10 @@ export default function useDesktopSession() {
   // wsConnection track's the state of the tdpClient's websocket connection.
   // 'init' to start, 'open' when TdpClientEvent.WS_OPEN is encountered, then 'closed'
   // again when TdpClientEvent.WS_CLOSE is encountered.
-  const [wsConnection, setWsConnection] = useState<{status: 'init' | 'open' | 'closed', message?: string}>({status: 'init'});
+  const [wsConnection, setWsConnection] = useState<{
+    status: 'init' | 'open' | 'closed';
+    message?: string;
+  }>({ status: 'init' });
 
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
 
