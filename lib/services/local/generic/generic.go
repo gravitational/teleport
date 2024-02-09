@@ -305,10 +305,19 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     s.MakeKey(name),
-		Value:   value,
-		Expires: resource.Expiry(),
-		ID:      resource.GetResourceID(),
+		Key:   s.MakeKey(name),
+		Value: value,
+	}
+
+	item.Expires, err = types.GetExpiry(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	//nolint:staticcheck // SA1019. Added for backward compatibility.
+	item.ID, err = types.GetResourceID(resource)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
 	}
 
 	return item, nil
