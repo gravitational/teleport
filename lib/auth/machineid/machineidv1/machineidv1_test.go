@@ -282,6 +282,25 @@ func TestCreateBot(t *testing.T) {
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
+		{
+			name: "validation - empty role",
+			user: botCreator.GetName(),
+			req: &machineidv1pb.CreateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "empty-string-role",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles:  []string{""},
+						Traits: []*machineidv1pb.Trait{},
+					},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -610,6 +629,28 @@ func TestUpdateBot(t *testing.T) {
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
+		{
+			name: "validation - empty string role",
+			user: botUpdaterUser.GetName(),
+			req: &machineidv1pb.UpdateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: preExistingBot.Metadata.Name,
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles:  []string{""},
+						Traits: []*machineidv1pb.Trait{},
+					},
+				},
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"spec.roles"},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -908,6 +949,25 @@ func TestUpsertBot(t *testing.T) {
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "must be non-empty")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
+		{
+			name: "validation - empty role",
+			user: botCreator.GetName(),
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "empty-string-role",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles:  []string{""},
+						Traits: []*machineidv1pb.Trait{},
+					},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},

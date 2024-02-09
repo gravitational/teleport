@@ -21,6 +21,7 @@ package machineidv1
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -440,6 +441,11 @@ func (bs *BotService) UpdateBot(
 	for _, path := range req.UpdateMask.Paths {
 		switch {
 		case path == "spec.roles":
+			if slices.Contains(req.Bot.Spec.Roles, "") {
+				return nil, trace.BadParameter(
+					"spec.roles: must not contain empty strings",
+				)
+			}
 			role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
 				Roles: req.Bot.Spec.Roles,
 			})
@@ -581,6 +587,9 @@ func validateBot(b *pb.Bot) error {
 	}
 	if b.Spec == nil {
 		return trace.BadParameter("spec: must be non-nil")
+	}
+	if slices.Contains(b.Spec.Roles, "") {
+		return trace.BadParameter("spec.roles: must not contain empty strings")
 	}
 	return nil
 }
