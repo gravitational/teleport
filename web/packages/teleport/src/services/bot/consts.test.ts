@@ -20,9 +20,9 @@ describe('getBotType', () => {
     expect(getBotType(labels)).toBeNull();
   });
 
-  test('unralated label', () => {
+  test('unrelated label', () => {
     const labels = new Map(
-      Object.entries({ 'unralated-label': 'github-actions-ssh' })
+      Object.entries({ 'unrelated-label': 'github-actions-ssh' })
     );
     expect(getBotType(labels)).toBeNull();
   });
