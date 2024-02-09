@@ -63,6 +63,7 @@ export const DesktopPlayer = ({
     clientOnClientScreenSpec,
     clientOnWsClose,
     clientOnTdpError,
+    clientOnTdpInfo,
   } = useDesktopPlayer({
     sid,
     clusterId,
@@ -102,6 +103,7 @@ export const DesktopPlayer = ({
           clientOnClientScreenSpec={clientOnClientScreenSpec}
           clientOnWsClose={clientOnWsClose}
           clientOnTdpError={clientOnTdpError}
+          clientOnTdpInfo={clientOnTdpInfo}
           canvasOnContextMenu={handleContextMenu}
           style={{
             ...canvasStyle,
@@ -175,6 +177,14 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     [setPlayerStatus, setStatusText]
   );
 
+  const clientOnTdpInfo = useCallback(
+    (info: string) => {
+      setPlayerStatus(StatusEnum.COMPLETE);
+      setStatusText(info);
+    },
+    [setStatusText]
+  );
+
   const clientOnClientScreenSpec = useCallback(
     (_cli: TdpClient, canvas: HTMLCanvasElement, spec: ClientScreenSpec) => {
       const { width, height } = spec;
@@ -221,6 +231,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     clientOnClientScreenSpec,
     clientOnWsClose,
     clientOnTdpError,
+    clientOnTdpInfo,
   };
 };
 

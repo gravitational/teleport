@@ -108,14 +108,14 @@ export function createViteConfig(
       config.server.proxy = {
         // The format of the regex needs to assume that the slashes are escaped, for example:
         // \/v1\/webapi\/sites\/:site\/connect
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/connect`]: {
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/connect(?:\\/ws)?`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
         // /webapi/sites/:site/desktops/:desktopName/connect
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect(?:\\/ws)?`]:
           {
             target: `wss://${target}`,
             changeOrigin: false,
@@ -123,7 +123,7 @@ export function createViteConfig(
             ws: true,
           },
         // /webapi/sites/:site/desktopplayback/:sid
-        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
+        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)(?:\\/ws)?': {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
@@ -134,13 +134,13 @@ export function createViteConfig(
           changeOrigin: false,
           secure: false,
         },
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/assistant`]: {
+        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/assistant(?:\\/ws)?`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
-        '^\\/v1\\/webapi\\/command\\/(.*?)/execute': {
+        '^\\/v1\\/webapi\\/command\\/(.*?)/execute(?:\\/ws)?': {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
