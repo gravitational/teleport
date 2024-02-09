@@ -285,7 +285,7 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.12.1
 
 # Install golangci-lint.
-RUN VERSION='v1.56.0'; \
+RUN VERSION='v1.56.1'; \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 
