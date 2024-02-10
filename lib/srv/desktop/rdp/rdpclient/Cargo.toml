@@ -39,7 +39,7 @@ uuid = { version = "1.7.0", features = ["v4"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
-tempfile = "3.9.0"
+tempfile = "3.10.0"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]
