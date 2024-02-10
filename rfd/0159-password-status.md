@@ -70,7 +70,7 @@ For clarity, error cases (such as password mismatch or inability to confirm user
 
 We are going to implement the following changes to the WebAuthn flow and APIs:
 
-1. Move the responsibility for verifying the old password to the `ChangePassword` RPC call. This will allow us to decouple the verification from setting the new password in the UI (the old password will not be required when generating the challenge). This verification will be specific to the `ChangePassword` call and will not be a part of the generic `LoginFlow`. The
+1. Move the responsibility for verifying the old password to the `ChangePassword` RPC call. This will allow us to decouple the verification from setting the new password in the UI (the old password will not be required when generating the challenge). This verification will be specific to the `ChangePassword` call and will not be a part of the generic `LoginFlow`.
 2. Add a possibility to request user verification through [`ChallengeExtensions`](https://github.com/gravitational/teleport/blob/3a8dcdc52c47b37091796fadb3ca775c06b7933e/api/proto/teleport/mfa/v1/mfa.proto#L27):
    ```proto
    message ChallengeExtensions {
