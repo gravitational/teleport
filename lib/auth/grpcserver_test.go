@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -1797,7 +1798,11 @@ var requireMFATypes = []types.RequireMFAType{
 }
 
 func TestIsMFARequired(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	testModules := &modules.TestModules{
+		TestBuildType:       modules.BuildEnterprise,
+		MockAttestationData: &keys.AttestationData{},
+	}
+	modules.SetTestModules(t, testModules)
 
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -1833,8 +1838,6 @@ func TestIsMFARequired(t *testing.T) {
 			for _, roleRequireMFAType := range requireMFATypes {
 				roleRequireMFAType := roleRequireMFAType
 				t.Run(fmt.Sprintf("role=%v", roleRequireMFAType.String()), func(t *testing.T) {
-					t.Parallel()
-
 					user, err := types.NewUser(roleRequireMFAType.String())
 					require.NoError(t, err)
 
@@ -1851,6 +1854,14 @@ func TestIsMFARequired(t *testing.T) {
 					user, err = srv.Auth().UpsertUser(ctx, user)
 					require.NoError(t, err)
 
+					mfaVerifiedByHardwareKey := role.GetPrivateKeyPolicy().MFAVerified() || authPref.GetPrivateKeyPolicy().MFAVerified()
+					if mfaVerifiedByHardwareKey {
+						// Set attestated key policy to the most restrictive hardware key MFA is required.
+						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
+					} else {
+						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKey
+					}
+
 					cl, err := srv.NewClient(TestUser(user.GetName()))
 					require.NoError(t, err)
 
@@ -1864,9 +1875,7 @@ func TestIsMFARequired(t *testing.T) {
 
 					// If auth pref or role require session MFA, and MFA is not already
 					// verified according to private key policy, expect MFA required.
-					wantRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) &&
-						!role.GetPrivateKeyPolicy().MFAVerified() &&
-						!authPref.GetPrivateKeyPolicy().MFAVerified()
+					wantRequired := (role.GetOptions().RequireMFAType.IsSessionMFARequired() || authPref.GetRequireMFAType().IsSessionMFARequired()) && !mfaVerifiedByHardwareKey
 					var wantMFARequired proto.MFARequired
 					if wantRequired {
 						wantMFARequired = proto.MFARequired_MFA_REQUIRED_YES

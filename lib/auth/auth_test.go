@@ -2275,6 +2275,179 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	}, map[string][]string(traits))
 }
 
+func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	require.NoError(t, err)
+	user.SetTraits(map[string][]string{
+		// add in other random serial numbers to test comparison logic.
+		"hardware_key_serial_numbers": {"other1", "other2,12345678,other3"},
+		// custom trait name
+		"known_yubikeys": {"13572468"},
+	})
+	_, err = p.a.UpdateUser(ctx, user)
+	require.NoError(t, err)
+
+	accessInfo := services.AccessInfoFromUserState(user)
+	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+	require.NoError(t, err)
+
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	key, err := keys.NewPrivateKey(priv, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+	certReq := certRequest{
+		user:      user,
+		checker:   accessChecker,
+		publicKey: key.MarshalSSHPublicKey(),
+	}
+
+	for _, tt := range []struct {
+		name                string
+		cap                 types.AuthPreferenceSpecV2
+		mockAttestationData *keys.AttestationData
+		assertErr           require.ErrorAssertionFunc
+	}{
+		{
+			name: "private key policy satified",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+			assertErr: require.NoError,
+		}, {
+			name: "no attestation data",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, "expected private key policy error but got %v", err)
+				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
+			},
+		}, {
+			name: "private key policy not satisfied",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
+				SerialNumber:     12345678,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, "expected private key policy error but got %v", err)
+				require.True(t, keys.IsPrivateKeyPolicyError(err), "expected private key policy error but got %v", err)
+			},
+		}, {
+			name: "known hardware key",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled: true,
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     12345678,
+			},
+			assertErr: require.NoError,
+		}, {
+			name: "partial serial number is unknown",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled: true,
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     1234,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
+				require.ErrorContains(t, err, "unknown hardware key")
+			},
+		}, {
+			name: "known hardware key custom trait name",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled:               true,
+						SerialNumberTraitName: "known_yubikeys",
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     13572468,
+			},
+			assertErr: require.NoError,
+		}, {
+			name: "unknown hardware key",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled: true,
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     87654321,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
+				require.ErrorContains(t, err, "unknown hardware key")
+			},
+		}, {
+			name: "no known hardware keys",
+			cap: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+				HardwareKey: &types.HardwareKey{
+					SerialNumberValidation: &types.HardwareKeySerialNumberValidation{
+						Enabled:               true,
+						SerialNumberTraitName: "none",
+					},
+				},
+			},
+			mockAttestationData: &keys.AttestationData{
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+				SerialNumber:     12345678,
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error but got %v", err)
+				require.ErrorContains(t, err, "no known hardware keys")
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				MockAttestationData: tt.mockAttestationData,
+			})
+
+			authPref, err := types.NewAuthPreference(tt.cap)
+			require.NoError(t, err)
+			err = p.a.SetAuthPreference(ctx, authPref)
+			require.NoError(t, err)
+
+			_, err = p.a.generateUserCert(ctx, certReq)
+			tt.assertErr(t, err)
+		})
+	}
+}
+
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
