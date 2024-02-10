@@ -21,7 +21,6 @@ package local
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -1785,14 +1784,9 @@ func (s *IdentityService) UpsertKeyAttestationData(ctx context.Context, attestat
 }
 
 // GetKeyAttestationData gets a verified public key attestation response.
-func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error) {
-	if publicKey == nil {
-		return nil, trace.BadParameter("missing parameter publicKey")
-	}
-
-	pubDER, err := x509.MarshalPKIXPublicKey(publicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (s *IdentityService) GetKeyAttestationData(ctx context.Context, pubDER []byte) (*keys.AttestationData, error) {
+	if pubDER == nil {
+		return nil, trace.BadParameter("missing parameter pubDER")
 	}
 
 	key := keyAttestationDataFingerprint(pubDER)
