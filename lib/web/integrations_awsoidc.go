@@ -443,7 +443,8 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		data = append(data, ui.EKSClusterEnrollmentResult{
 			ClusterName: result.ClusterName,
 			Error:       trace.UserMessage(result.Error),
-			ResourceId:  result.ResourceId},
+			ResourceId:  result.ResourceId,
+		},
 		)
 	}
 
@@ -869,6 +870,47 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the browser to complete the Database enrollment.",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	_, err = fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
+}
+
+// accessGraphCloudSyncOIDC returns a script that configures the required IAM permissions to sync
+// Cloud resources with Teleport Access Graph.
+func (h *Handler) accessGraphCloudSyncOIDC(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+
+	cloud := queryParams.Get("provider")
+	switch cloud {
+	case "aws":
+		return h.awsAccessGraphOIDCSync(w, r, p)
+	default:
+		return nil, trace.BadParameter("invalid cloud provider %q", cloud)
+	}
+}
+
+func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	queryParams := r.URL.Query()
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	// The script must execute the following command:
+	// "teleport integration configure  access-graph aws-iam"
+	argsList := []string{
+		"integration", "configure", "access-graph", "aws-iam",
+		fmt.Sprintf("--role=%s", role),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to complete the Access Graph AWS Sync enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
