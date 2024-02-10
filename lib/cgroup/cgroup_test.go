@@ -95,6 +95,7 @@ func TestRootCreateCustomRootPath(t *testing.T) {
 		"nested/custom",
 		"/deep/nested/custom",
 	} {
+		rootPath := rootPath
 		t.Run(rootPath, func(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()
