@@ -128,6 +128,9 @@ func (a *awsFetcher) Poll(ctx context.Context) (*Resources, error) {
 
 func (a *awsFetcher) poll(ctx context.Context) (*Resources, error) {
 	eGroup, ctx := errgroup.WithContext(ctx)
+	// Set the limit for the number of concurrent pollers running in parallel.
+	// This is to prevent the number of concurrent pollers from growing too large
+	// and causing the AWS API to throttle requests.
 	eGroup.SetLimit(5)
 	var (
 		errs   []error
