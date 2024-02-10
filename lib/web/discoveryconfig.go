@@ -53,6 +53,7 @@ func (h *Handler) discoveryconfigCreate(w http.ResponseWriter, r *http.Request, 
 			Azure:          req.Azure,
 			GCP:            req.GCP,
 			Kube:           req.Kube,
+			AccessGraph:    req.AccessGraph,
 		},
 	)
 	if err != nil {
@@ -106,6 +107,7 @@ func (h *Handler) discoveryconfigUpdate(w http.ResponseWriter, r *http.Request, 
 	dc.Spec.Azure = req.Azure
 	dc.Spec.GCP = req.GCP
 	dc.Spec.Kube = req.Kube
+	dc.Spec.AccessGraph = req.AccessGraph
 
 	if _, err := clt.DiscoveryConfigClient().UpdateDiscoveryConfig(r.Context(), dc); err != nil {
 		return nil, trace.Wrap(err)
