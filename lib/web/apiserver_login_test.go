@@ -16,7 +16,6 @@ package web
 
 import (
 	"context"
-	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -167,8 +166,8 @@ func TestWebauthnLogin_webWithPrivateKeyEnabledError(t *testing.T) {
 	require.NoError(t, err)
 
 	modules.SetTestModules(t, &modules.TestModules{
-		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
-			return "", keys.NewPrivateKeyPolicyError(policy)
+		MockAttestationData: &keys.AttestationData{
+			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 		},
 	})
 
