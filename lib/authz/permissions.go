@@ -1372,51 +1372,6 @@ func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.User
 	return meta
 }
 
-// TODO(Joerger): replace with Authorize and authCtx.CheckAccessToResource
-// AuthorizeResourceWithVerbs will ensure that the user has access to the given verbs for the given kind.
-func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, resource types.Resource, verbs ...string) (*Context, error) {
-	authCtx, err := authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ruleCtx := &services.Context{
-		User:     authCtx.User,
-		Resource: resource,
-	}
-
-	return AuthorizeContextWithVerbs(ctx, log, authCtx, ruleCtx, resource.GetKind(), verbs...)
-}
-
-// TODO(Joerger): replace with Authorize and authCtx.CheckAccessToKind
-// AuthorizeWithVerbs will ensure that the user has access to the given verbs for the given kind.
-func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, kind string, verbs ...string) (*Context, error) {
-	authCtx, err := authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ruleCtx := &services.Context{
-		User: authCtx.User,
-	}
-
-	return AuthorizeContextWithVerbs(ctx, log, authCtx, ruleCtx, kind, verbs...)
-}
-
-// TODO(Joerger): replace with authCtx.CheckAccessToRule
-// AuthorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
-func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
-	errs := make([]error, len(verbs))
-	for i, verb := range verbs {
-		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb)
-	}
-
-	if err := trace.NewAggregate(errs...); err != nil {
-		return nil, err
-	}
-	return authCtx, nil
-}
-
 // CheckAccessToKind will ensure that the user has access to the given verbs for the given kind.
 func (c *Context) CheckAccessToKind(kind string, verb string, additionalVerbs ...string) error {
 	ruleCtx := &services.Context{
@@ -1447,19 +1402,6 @@ func (c *Context) CheckAccessToRule(ruleCtx *services.Context, kind string, verb
 	}
 
 	return trace.NewAggregate(errs...)
-}
-
-// AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
-// TODO(Joerger): replace with authCtx.AuthorizeAdminAction
-func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
-	return authCtx.AuthorizeAdminAction()
-}
-
-// AuthorizeAdminActionAllowReusedMFA will ensure that the user is authorized to perform
-// admin actions. Additionally, MFA challenges that allow reuse will be accepted.
-// TODO(Joerger): replace with authCtx.AuthorizeAdminActionAllowReusedMFA
-func AuthorizeAdminActionAllowReusedMFA(ctx context.Context, authCtx *Context) error {
-	return authCtx.AuthorizeAdminActionAllowReusedMFA()
 }
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
