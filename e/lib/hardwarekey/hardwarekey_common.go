@@ -1,8 +1,10 @@
 package hardwarekey
 
 import (
+	"bytes"
 	"context"
 	"crypto"
+	"crypto/x509"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -22,6 +24,11 @@ type AttestationServer interface {
 // AttestHardwareKey attests a hardware key, either with the given statement or a
 // previously stored attestation data matching the given public key.
 func AttestHardwareKey(ctx context.Context, server AttestationServer, requiredKeyPolicy keys.PrivateKeyPolicy, att *keys.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (keys.PrivateKeyPolicy, error) {
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
 	// Get the private key policy met by the given public key. If attestation statement
 	// is not given, then no private key policy will be met.
 	privateKeyPolicy := keys.PrivateKeyPolicyNone
@@ -30,6 +37,12 @@ func AttestHardwareKey(ctx context.Context, server AttestationServer, requiredKe
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
+
+		// Verify that the given public key matches the attestation statement.
+		if !bytes.Equal(pubDER, attData.PublicKeyDER) {
+			return "", trace.BadParameter("the provided attestation statement does not match the given public key")
+		}
+
 		privateKeyPolicy = attData.PrivateKeyPolicy
 		if err := server.UpsertKeyAttestationData(ctx, attData, sessionTTL); err != nil {
 			return "", trace.Wrap(err)

@@ -129,6 +129,10 @@ STATIC_LIBS_TSH += -lpcsclite
 endif
 endif
 
+# Enable PIV test packages for testing.
+# This test tag should never be used for builds/releases, only tests.
+PIV_TEST_TAG := pivtest
+
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
 ifneq ("$(OS)","linux")
@@ -423,7 +427,7 @@ test-go-all:
 #
 test-go:
 ifneq ("$(SUBJECT)", "")
-	gotestsum -- $(SUBJECT) -race -shuffle on $(ADDFLAGS)
+	gotestsum -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG)" $(ADDFLAGS) 
 endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource

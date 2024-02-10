@@ -1,4 +1,4 @@
-//go:build piv
+//go:build piv && !pivtest
 
 package hardwarekey
 
