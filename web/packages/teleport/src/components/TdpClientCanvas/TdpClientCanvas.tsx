@@ -100,7 +100,7 @@ function TdpClientCanvas(props: Props) {
   useEffect(() => {
     if (client) {
       const canvas = canvasRef.current;
-      const updatePointer = (pointer: {data: ImageData, hotspot_x: number, hotspot_y: number}) => {
+      const updatePointer = (pointer: {data?: ImageData, hotspot_x?: number, hotspot_y?: number}) => {
         if (pointer.data === undefined) {
           canvas.style.cursor = "none";
           return;
