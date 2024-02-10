@@ -105,7 +105,7 @@ function TdpClientCanvas(props: Props) {
           canvas.style.cursor = "none";
           return;
         }
-        const cursor = canvas.ownerDocument.createElement("canvas");
+        const cursor = document.createElement('canvas');
         cursor.width = pointer.data.width;
         cursor.height = pointer.data.height;
         cursor.getContext('2d').putImageData(pointer.data, 0, 0);
