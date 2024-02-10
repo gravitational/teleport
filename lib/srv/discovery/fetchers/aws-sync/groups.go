@@ -42,6 +42,10 @@ func (a *awsFetcher) pollAWSGroups(ctx context.Context, result *Resources, colle
 		}
 
 		eG, ctx := errgroup.WithContext(ctx)
+		// Limit the number of concurrent goroutines to avoid overwhelming the AWS API.
+		// These goroutines are fetching inline and attached policies for each group.
+		// We also have other goroutines fetching inline and attached policies for users
+		// and roles.
 		eG.SetLimit(10)
 		groupsMu := sync.Mutex{}
 		for _, group := range result.Groups {
