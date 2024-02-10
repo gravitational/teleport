@@ -4247,7 +4247,7 @@ func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*Sessi
 	if err != nil {
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
-	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
+	sctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
 		clearSessionCookies((w))
 		return nil, trace.AccessDenied("need auth")
@@ -4268,11 +4268,11 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		if err != nil {
 			return nil, trace.AccessDenied("need auth")
 		}
-		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
+		if err := sctx.validateBearerToken(r.Context(), creds.Password); err != nil {
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}
-	return ctx, nil
+	return sctx, nil
 }
 
 type wsBearerToken struct {
@@ -4332,10 +4332,6 @@ func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) 
 	// unset the deadline as downstream consumers should handle this themselves.
 	if err := ws.SetReadDeadline(time.Time{}); err != nil {
 		return nil, nil, trace.ConnectionProblem(err, "Error setting websocket read deadline: %v", err)
-	}
-
-	if err := parseMFAResponseFromRequest(r); err != nil {
-		return nil, nil, trace.Wrap(err)
 	}
 
 	return sctx, ws, nil
