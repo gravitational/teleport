@@ -496,16 +496,16 @@ Most Teleport customers will start with all resources and roles in the cluster s
 
 We will let them introduce resource groups gradually. Let’s create two resource groups, `prod` and `dev` with resource groups `west` and `lab`.
 
-Here is the hierarchy, we will assume that mars and luna servers matched the assignments:
+Here is the resource groups hierarchy, where we will assume that mars and luna servers matched the assignments:
 
 ```mermaid
-  graph Resources;
-      luna-->west;
-      west-->prod;
-      prod-->cluster;
-      lab-->dev;
-      mars-->lab;
-      dev-->cluster;
+graph TD;
+    luna(Server luna)-->west;
+    west-->prod;
+    prod-->cluster;
+    lab-->dev;
+    mars(Server mars)-->lab;
+    dev-->cluster;
 ```
 
 ```yaml
