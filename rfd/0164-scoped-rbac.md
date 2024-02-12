@@ -912,7 +912,11 @@ Let's review the cases in the reverse order:
 
 How would Teleport "make sure that it has fetched a version of a resource at least as fresh as a timestamp?". 
 
-Some backends make it easy, like Etcd giving a generation version for every resource, making sure you are not looking at the stale snapshot. Backends like DynamoDB are making it very hard or impossible.
+Some backends make it easy, like Etcd giving a generation version for every resource, making sure you are not looking at the stale snapshot. 
+
+Backends like DynamoDB are making it very hard or impossible, the only way with those backends is for the client to keep track when was the last time if has last fetched the resource `R` in cases 1 and 2, and update this value for `R` in it's in memory-cache.
+
+We also are making assumption that time is in sync between all clients.
 
 TODO: question for a scale team on implementation details for backends.
 
