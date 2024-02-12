@@ -72,18 +72,39 @@ type DatabaseObjectImportRuleService struct {
 	logger     logrus.FieldLogger
 }
 
+func (rs *DatabaseObjectImportRuleService) authorize(ctx context.Context, adminAction bool, verb string, additionalVerbs ...string) error {
+	authCtx, err := rs.authorizer.Authorize(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = authCtx.CheckAccessToKind(false, types.KindDatabaseObjectImportRule, verb, additionalVerbs...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if adminAction {
+		err = authz.AuthorizeAdminAction(ctx, authCtx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
 // GetDatabaseObjectImportRule gets a DatabaseObjectImportRule by name. It will return an error if the DatabaseObjectImportRule does not exist.
-func (bs *DatabaseObjectImportRuleService) GetDatabaseObjectImportRule(ctx context.Context, req *pb.GetDatabaseObjectImportRuleRequest) (*pb.DatabaseObjectImportRule, error) {
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindDatabaseObjectImportRule, types.VerbRead,
-	)
+func (rs *DatabaseObjectImportRuleService) GetDatabaseObjectImportRule(ctx context.Context, req *pb.GetDatabaseObjectImportRuleRequest) (*pb.DatabaseObjectImportRule, error) {
+	err := rs.authorize(ctx, false, types.VerbRead)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if req.Name == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
-	out, err := bs.backend.GetDatabaseObjectImportRule(ctx, req.Name)
+
+	out, err := rs.backend.GetDatabaseObjectImportRule(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,16 +112,15 @@ func (bs *DatabaseObjectImportRuleService) GetDatabaseObjectImportRule(ctx conte
 }
 
 // ListDatabaseObjectImportRules lists all DatabaseObjectImportRules.
-func (bs *DatabaseObjectImportRuleService) ListDatabaseObjectImportRules(
+func (rs *DatabaseObjectImportRuleService) ListDatabaseObjectImportRules(
 	ctx context.Context, req *pb.ListDatabaseObjectImportRulesRequest,
 ) (*pb.ListDatabaseObjectImportRulesResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindDatabaseObjectImportRule, types.VerbList,
-	)
+	err := rs.authorize(ctx, false, types.VerbRead, types.VerbList)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, next, err := bs.backend.ListDatabaseObjectImportRules(ctx, int(req.PageSize), req.PageToken)
+
+	out, next, err := rs.backend.ListDatabaseObjectImportRules(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -112,19 +132,20 @@ func (bs *DatabaseObjectImportRuleService) ListDatabaseObjectImportRules(
 
 // CreateDatabaseObjectImportRule creates a new DatabaseObjectImportRule. It will return an error if the DatabaseObjectImportRule already
 // exists.
-func (bs *DatabaseObjectImportRuleService) CreateDatabaseObjectImportRule(
+func (rs *DatabaseObjectImportRuleService) CreateDatabaseObjectImportRule(
 	ctx context.Context, req *pb.CreateDatabaseObjectImportRuleRequest,
 ) (*pb.DatabaseObjectImportRule, error) {
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindDatabaseObjectImportRule, types.VerbCreate,
-	)
+	err := rs.authorize(ctx, true, types.VerbCreate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := databaseobjectimportrule.ValidateDatabaseObjectImportRule(req.Rule); err != nil {
+
+	err = databaseobjectimportrule.ValidateDatabaseObjectImportRule(req.Rule)
+	if err != nil {
 		return nil, trace.Wrap(err, "validating rule")
 	}
-	out, err := bs.backend.CreateDatabaseObjectImportRule(ctx, req.Rule)
+
+	out, err := rs.backend.CreateDatabaseObjectImportRule(ctx, req.Rule)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,24 +169,20 @@ func UpsertDatabaseObjectImportRule(
 
 // UpdateDatabaseObjectImportRule updates an existing DatabaseObjectImportRule. It will throw an error if the DatabaseObjectImportRule does
 // not exist.
-func (bs *DatabaseObjectImportRuleService) UpdateDatabaseObjectImportRule(
+func (rs *DatabaseObjectImportRuleService) UpdateDatabaseObjectImportRule(
 	ctx context.Context, req *pb.UpdateDatabaseObjectImportRuleRequest,
 ) (*pb.DatabaseObjectImportRule, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindDatabaseObjectImportRule, types.VerbUpdate,
-	)
+	err := rs.authorize(ctx, true, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	if err := databaseobjectimportrule.ValidateDatabaseObjectImportRule(req.Rule); err != nil {
+	err = databaseobjectimportrule.ValidateDatabaseObjectImportRule(req.Rule)
+	if err != nil {
 		return nil, trace.Wrap(err, "validating rule")
 	}
 
-	rule, err := bs.backend.UpdateDatabaseObjectImportRule(ctx, req.Rule)
+	rule, err := rs.backend.UpdateDatabaseObjectImportRule(ctx, req.Rule)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -174,19 +191,15 @@ func (bs *DatabaseObjectImportRuleService) UpdateDatabaseObjectImportRule(
 
 // DeleteDatabaseObjectImportRule deletes an existing DatabaseObjectImportRule. It will throw an error if the DatabaseObjectImportRule does
 // not exist.
-func (bs *DatabaseObjectImportRuleService) DeleteDatabaseObjectImportRule(
+func (rs *DatabaseObjectImportRuleService) DeleteDatabaseObjectImportRule(
 	ctx context.Context, req *pb.DeleteDatabaseObjectImportRuleRequest,
 ) (*emptypb.Empty, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindDatabaseObjectImportRule, types.VerbDelete,
-	)
+	err := rs.authorize(ctx, true, types.VerbDelete)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = bs.backend.DeleteDatabaseObjectImportRule(ctx, req.Name)
+
+	err = rs.backend.DeleteDatabaseObjectImportRule(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
