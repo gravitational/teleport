@@ -422,3 +422,43 @@ func mustStartForwardProxy(t *testing.T) (*testhelpers.ProxyHandler, *url.URL) {
 	go http.Serve(listener, handler)
 	return handler, url
 }
+
+func Test_connUpgradeMode(t *testing.T) {
+	tests := []struct {
+		envVarValue      string
+		wantUseWebSocket require.BoolAssertionFunc
+		wantUseLegacy    require.BoolAssertionFunc
+	}{
+		{
+			envVarValue:      "",
+			wantUseWebSocket: require.True,
+			wantUseLegacy:    require.True,
+		},
+		{
+			envVarValue:      "WebSocket",
+			wantUseWebSocket: require.True,
+			wantUseLegacy:    require.False,
+		},
+		{
+			envVarValue:      "websocket",
+			wantUseWebSocket: require.True,
+			wantUseLegacy:    require.False,
+		},
+		{
+			envVarValue:      "legacy",
+			wantUseWebSocket: require.False,
+			wantUseLegacy:    require.True,
+		},
+		{
+			envVarValue:      "default",
+			wantUseWebSocket: require.True,
+			wantUseLegacy:    require.True,
+		},
+	}
+
+	for _, test := range tests {
+		mode := connUpgradeMode(test.envVarValue)
+		test.wantUseWebSocket(t, mode.useWebSocket())
+		test.wantUseLegacy(t, mode.useLegacy())
+	}
+}
