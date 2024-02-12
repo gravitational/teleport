@@ -888,12 +888,33 @@ Bob was granted role `access` in scope `/dev/lab`.
 
 Let's assume that every time a resource is added or removed to a resource group, it has it's timestamp updated.
 
-At `Step 1`, `Alice` removed 
+* Before any of the step, we can assume that grant hierarchy `G` - `/dev/lab` has some timestamp `Tg` and a resource hierarchy - `R` has some timestamp `Tr`.
+* At a `Step 1`, at the timestamp `T1` Alice removed Bob from access list granting role `access` in the scope `/dev/lab`. Teleport has updated the `_root` nodes of grant hierarchy `/dev` and `/dev/lab` with this timestamp in the backend.
+* At a `Step 2`, at the timestamp `T2` > `T1`, Alice added a new resource `luna` to the scope of the `/dev/lab`. Teleport has updated the `_root` node of the resource group hierarchy `/dev` and `/dev/lab` with this timestamp in the backend.
+* At a `Step 3`, Teleport proxy would have to evaluate access to host luna. The proxy would have to make sure that it's copy of the grant hierarchies `/dev/lab` is not stale.
 
-`Ta`
-must know that it has all grants that have been craeted and updated post prior to `Ta`.
+In our example `T2 > T1 > Tr` and `T2 > T1 > Tg`. There are two sub cases when `Tr > Tg` and `Tr < Tg`
 
+Here are possible combinations of versions that The Proxy can encounter:
 
+```
+1. G - Tg, R - Tr
+2. G - T1, R - Tr
+3. G - Tg, R - T2
+4. G - T1, R - T2
+```
+
+Let's review the cases in the reverse order:
+
+* In the cases 3 and 4, the Proxy sees that the resource group has been updated after the grant, because `T2 > T1 > Tg` and can proceed.
+* In the case 2, The proxy sees that `R` may be stale, because it's `Tr` less than `T1 and has to make a call to the backend making sure it fetched update of `R` least as fresh as `T1` with membership of `luna`.
+* In case 1, if `Tr > Tg`, the proxy can proceed, otherwise if `Tr < Tg`, the proxy has to make sure it has fetched the latest update of `Tr` at least as fresh as `Tg` with membership of `luna`.
+
+How would Teleport "make sure that it has fetched a version of a resource at least as fresh as a timestamp?". 
+
+Some backends make it easy, like Etcd giving a generation version for every resource, making sure you are not looking at the stale snapshot. Backends like DynamoDB are making it very hard or impossible.
+
+TODO: question for a scale team on implementation details for backends.
 
 ### Migration
 
