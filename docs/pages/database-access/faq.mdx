@@ -3,33 +3,6 @@ title: Database Access FAQ
 description: Frequently asked questions about Teleport database access.
 ---
 
-## Which database protocols does Teleport the Database Service support?
-
-The Teleport Database Service currently supports the following protocols:
-
-- Cassandra
-- ClickHouse
-- CockroachDB
-- DynamoDB
-- MariaDB
-- Microsoft SQL Server
-- MongoDB
-- MySQL
-- Oracle
-- PostgreSQL
-- Redis
-- Snowflake
-
-For PostgreSQL and MySQL, the following Cloud-hosted versions are supported in addition to self-hosted deployments:
-
-- Amazon RDS
-- Amazon Aurora (except for Amazon Aurora Serverless, which doesn't support IAM authentication)
-- Amazon Redshift
-- Google Cloud SQL
-- Azure Database
-
-See the available [guides](./guides.mdx) for all supported configurations.
-
 ## Are database sessions listed under recorded sessions?
 
 (!docs/pages/includes/database-access/db-audit-events.mdx!)
