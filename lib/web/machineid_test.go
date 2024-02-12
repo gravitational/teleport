@@ -56,7 +56,7 @@ func TestListBots(t *testing.T) {
 		n += 1
 		_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
 			BotName: "test-bot-" + strconv.Itoa(n),
-			Roles:   []string{""},
+			Roles:   []string{"test-role"},
 		})
 		require.NoError(t, err)
 	}
@@ -244,7 +244,7 @@ func TestDeleteBot(t *testing.T) {
 	// create bot to delete
 	_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
 		BotName: botName,
-		Roles:   []string{""},
+		Roles:   []string{"test-role"},
 	})
 	require.NoError(t, err)
 
@@ -280,7 +280,7 @@ func TestGetBotByName(t *testing.T) {
 	botName := "test-bot-1"
 	_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
 		BotName: botName,
-		Roles:   []string{""},
+		Roles:   []string{"test-role"},
 	})
 	require.NoError(t, err)
 
@@ -315,7 +315,7 @@ func TestEditBot(t *testing.T) {
 	botName := "test-bot-edit"
 	_, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
 		BotName: botName,
-		Roles:   []string{""},
+		Roles:   []string{"test-role"},
 	})
 	require.NoError(t, err)
 
