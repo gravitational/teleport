@@ -29,7 +29,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 )
 
-// DatabaseObjectImportRule is the DatabaseObjectImportRule service
+// DatabaseObjectImportRules manages DatabaseObjectImportRule resources.
 type DatabaseObjectImportRule interface {
 	// CreateDatabaseObjectImportRule will create a new DatabaseObjectImportRule resource.
 	CreateDatabaseObjectImportRule(ctx context.Context, rule *dbobjectimportrulev1.DatabaseObjectImportRule) (*dbobjectimportrulev1.DatabaseObjectImportRule, error)
