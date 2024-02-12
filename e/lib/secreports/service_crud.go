@@ -21,7 +21,7 @@ func (s *Service) UpsertAuditQuery(ctx context.Context, req *pb.UpsertAuditQuery
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true /* quiet */, types.KindAuditQuery, types.VerbUpdate, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAuditQuery, types.VerbUpdate, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -55,7 +55,7 @@ func (s *Service) GetAuditQuery(ctx context.Context, req *pb.GetAuditQueryReques
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAuditQuery, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -79,7 +79,7 @@ func (s *Service) ListAuditQueries(ctx context.Context, req *pb.ListAuditQueries
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbList, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAuditQuery, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -101,7 +101,7 @@ func (s *Service) GetSchema(ctx context.Context, _ *pb.GetSchemaRequest) (*pb.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAuditQuery, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -125,7 +125,7 @@ func (s *Service) DeleteAuditQuery(ctx context.Context, req *pb.DeleteAuditQuery
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAuditQuery, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -148,7 +148,7 @@ func (s *Service) UpsertReport(ctx context.Context, req *pb.UpsertReportRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbUpdate, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindSecurityReport, types.VerbUpdate, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -189,7 +189,7 @@ func (s *Service) GetReport(ctx context.Context, req *pb.GetReportRequest) (*pb.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindSecurityReport, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -213,7 +213,7 @@ func (s *Service) ListReports(ctx context.Context, req *pb.ListReportsRequest) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbList, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindSecurityReport, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -251,7 +251,7 @@ func (s *Service) DeleteReport(ctx context.Context, req *pb.DeleteReportRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindSecurityReport, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

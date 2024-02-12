@@ -310,7 +310,7 @@ func (*NoopChecker) Roles() []types.Role {
 	return nil // Don't panic.
 }
 
-func (*NoopChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace string, rule string, verb string, silent bool) error {
+func (*NoopChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace string, rule string, verb string) error {
 	return nil // Anything goes.
 }
 

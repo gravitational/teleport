@@ -53,7 +53,7 @@ type fakeChecker struct {
 	services.AccessChecker
 }
 
-func (fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, rule string, verb string, silent bool) error {
+func (fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, rule string, verb string) error {
 	return nil
 }
 

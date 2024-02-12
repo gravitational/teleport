@@ -115,7 +115,7 @@ type fakeChecker struct {
 	roles []string
 }
 
-func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string, silent bool) error {
+func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string) error {
 	for _, r := range f.rules {
 		if r.HasResource(kind) && r.HasVerb(verb) {
 			return nil

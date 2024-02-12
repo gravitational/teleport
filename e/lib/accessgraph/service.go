@@ -90,7 +90,7 @@ func (s *Service) Query(ctx context.Context, request *accessgraphv1.QueryRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(true, types.KindAccessGraph, types.VerbRead); err != nil {
+	if err := authzCtx.CheckAccessToKind(types.KindAccessGraph, types.VerbRead); err != nil {
 		return nil, trace.WrapWithMessage(err, "not allowed to read the access graph")
 	}
 

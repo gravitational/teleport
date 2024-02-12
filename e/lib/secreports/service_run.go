@@ -31,7 +31,7 @@ func (s *Service) RunAuditQuery(ctx context.Context, req *pb.RunAuditQueryReques
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAuditQuery, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -95,7 +95,7 @@ func (s *Service) GetAuditQueryResult(ctx context.Context, req *pb.GetAuditQuery
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAuditQuery, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -127,7 +127,7 @@ func (s *Service) GetReportResult(ctx context.Context, req *pb.GetReportResultRe
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindSecurityReport, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -158,7 +158,7 @@ func (s *Service) GetReportState(ctx context.Context, req *pb.GetReportStateRequ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindSecurityReport, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -187,7 +187,7 @@ func (s *Service) RunReport(ctx context.Context, req *pb.RunReportRequest) (*emp
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindSecurityReport, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

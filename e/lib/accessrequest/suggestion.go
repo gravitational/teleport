@@ -108,8 +108,8 @@ func canModifyAccessList(clt modules.RoleGetter, reviewerIdentity *tlsca.Identit
 	}
 
 	// check if the reviewer can modify this access list
-	authErrCreate := accessChecker.CheckAccessToRule(&services.Context{User: reviewer, Resource: accessList}, apidefaults.Namespace, types.KindAccessList, types.VerbCreate, true)
-	authErrUpdate := accessChecker.CheckAccessToRule(&services.Context{User: reviewer, Resource: accessList}, apidefaults.Namespace, types.KindAccessList, types.VerbUpdate, true)
+	authErrCreate := accessChecker.CheckAccessToRule(&services.Context{User: reviewer, Resource: accessList}, apidefaults.Namespace, types.KindAccessList, types.VerbCreate)
+	authErrUpdate := accessChecker.CheckAccessToRule(&services.Context{User: reviewer, Resource: accessList}, apidefaults.Namespace, types.KindAccessList, types.VerbUpdate)
 	authErr := trace.NewAggregate(authErrCreate, authErrUpdate)
 	switch {
 	case authErr == nil:

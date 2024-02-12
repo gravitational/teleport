@@ -317,7 +317,7 @@ type ruleVerifyingChecker struct {
 	want []wantRuleVerb
 }
 
-func (c *ruleVerifyingChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace string, rule string, verb string, silent bool) error {
+func (c *ruleVerifyingChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace string, rule string, verb string) error {
 	if namespace != defaults.Namespace {
 		return fmt.Errorf("unexpected namespace: %v", namespace)
 	}
@@ -2113,7 +2113,7 @@ func (a *userAwareAuthorizer) Authorize(ctx context.Context) (*authz.Context, er
 	}, nil
 }
 
-func (a *userAwareAuthorizer) CheckAccessToRule(ruleCtx services.RuleContext, namespace, rule, verb string, silent bool) error {
+func (a *userAwareAuthorizer) CheckAccessToRule(ruleCtx services.RuleContext, namespace, rule, verb string) error {
 	user, err := ruleCtx.GetIdentifier([]string{"user", "metadata", "name"})
 	if err != nil {
 		return err

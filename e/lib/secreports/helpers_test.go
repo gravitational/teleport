@@ -23,7 +23,7 @@ type mockChecker struct {
 	roles []string
 }
 
-func (f *mockChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string, silent bool) error {
+func (f *mockChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string) error {
 	for _, r := range f.rules {
 		if r.HasResource(kind) && r.HasVerb(verb) {
 			return nil
@@ -117,8 +117,7 @@ func mustClone[T any](t *testing.T, src T) T {
 	return dst
 }
 
-type mockEmitter struct {
-}
+type mockEmitter struct{}
 
 func (m mockEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return nil

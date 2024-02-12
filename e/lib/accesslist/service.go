@@ -212,7 +212,7 @@ func (s *Service) GetAccessLists(ctx context.Context, _ *accesslistv1.GetAccessL
 	// ownership/membership to particular access lists.
 	results, getErr := s.accessLists.GetAccessLists(ctx)
 
-	authErr := authCtx.CheckAccessToKind(true, types.KindAccessList, types.VerbRead, types.VerbList)
+	authErr := authCtx.CheckAccessToKind(types.KindAccessList, types.VerbRead, types.VerbList)
 
 	results, err = s.filterResults(ctx, results, false, getErr, authErr)
 	if err != nil {
@@ -243,7 +243,7 @@ func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAcc
 	}
 	// We don't return the auth error right away because this endpoint can still return results based on the calling user's
 	// ownership/membership to particular access lists.
-	authErr := authCtx.CheckAccessToKind(true, types.KindAccessList, types.VerbRead, types.VerbList)
+	authErr := authCtx.CheckAccessToKind(types.KindAccessList, types.VerbRead, types.VerbList)
 
 	var results []*accesslist.AccessList
 	nextToken := req.NextToken
@@ -474,7 +474,7 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 	verb := types.VerbCreate
 	if oldAccessList != nil {
 		verb = types.VerbUpdate
-		if err := authCtx.CheckAccessToResource(true, oldAccessList, verb); err != nil {
+		if err := authCtx.CheckAccessToResource(oldAccessList, verb); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -483,7 +483,7 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 		newAccessList.SetRevision(oldAccessList.GetRevision())
 	}
 
-	if err := authCtx.CheckAccessToResource(true, newAccessList, verb); err != nil {
+	if err := authCtx.CheckAccessToResource(newAccessList, verb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1447,9 +1447,9 @@ func getModifiedMembers(oldMembers map[string]*accesslist.AccessListMember, upda
 func (s *Service) hasAccessListRBAC(ctx context.Context, authCtx *authz.Context, accessList *accesslist.AccessList, verb string, additionalVerbs ...string) error {
 	var authErr error
 	if accessList != nil {
-		authErr = authCtx.CheckAccessToResource(true, accessList, verb, additionalVerbs...)
+		authErr = authCtx.CheckAccessToResource(accessList, verb, additionalVerbs...)
 	} else {
-		authErr = authCtx.CheckAccessToKind(true, types.KindAccessList, verb, additionalVerbs...)
+		authErr = authCtx.CheckAccessToKind(types.KindAccessList, verb, additionalVerbs...)
 	}
 
 	if authErr != nil && !trace.IsAccessDenied(authErr) {
@@ -1461,7 +1461,7 @@ func (s *Service) hasAccessListRBAC(ctx context.Context, authCtx *authz.Context,
 
 // hasUserRBAC tests if the user has RBAC access to users.
 func (s *Service) hasUserRBAC(ctx context.Context, authCtx *authz.Context, verb string, additionalVerbs ...string) bool {
-	authErr := authCtx.CheckAccessToKind(true, types.KindUser, verb, additionalVerbs...)
+	authErr := authCtx.CheckAccessToKind(types.KindUser, verb, additionalVerbs...)
 	if authErr != nil {
 		s.log.WithError(authErr).Debug("hasUserRBAC had error")
 	}

@@ -566,7 +566,6 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	checkErr := authCtx.Checker.CheckAccessToRule(
 		&services.Context{User: authCtx.User},
 		defaults.Namespace, types.KindDevice, types.VerbCreateEnrollToken,
-		false, /* silent */
 	)
 	if checkErr != nil && !autoEnrollEnabled {
 		return nil, trace.Wrap(checkErr)
@@ -958,7 +957,7 @@ func (s *Service) authorizeAccess(ctx context.Context, rule string, verbs ...str
 		User: authCtx.User,
 	}
 	for _, verb := range verbs {
-		if err := authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, rule, verb, false /* silent */); err != nil {
+		if err := authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, rule, verb); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

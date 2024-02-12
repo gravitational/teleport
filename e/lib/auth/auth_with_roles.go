@@ -373,8 +373,7 @@ func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, actio
 		&services.Context{User: authCtx.User},
 		namespace,
 		resource,
-		action,
-		false)
+		action)
 }
 
 // hasBuiltinProxyRole checks if context contains built in role proxy

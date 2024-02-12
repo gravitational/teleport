@@ -62,7 +62,7 @@ func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindLoginRule, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -90,7 +90,7 @@ func (s *Service) UpsertLoginRule(ctx context.Context, req *loginrulepb.UpsertLo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindLoginRule, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -117,7 +117,7 @@ func (s *Service) GetLoginRule(ctx context.Context, req *loginrulepb.GetLoginRul
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindLoginRule, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -132,7 +132,7 @@ func (s *Service) ListLoginRules(ctx context.Context, req *loginrulepb.ListLogin
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbList, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindLoginRule, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -154,7 +154,7 @@ func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindLoginRule, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -179,7 +179,7 @@ func (s *Service) TestLoginRule(ctx context.Context, req *loginrulepb.TestLoginR
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbList, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindLoginRule, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -97,7 +97,7 @@ func (s *Service) TestDraftExternalAuditStorageBuckets(ctx context.Context, req 
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -124,7 +124,7 @@ func (s *Service) TestDraftExternalAuditStorageGlue(ctx context.Context, req *pb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -151,7 +151,7 @@ func (s *Service) TestDraftExternalAuditStorageAthena(ctx context.Context, req *
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -178,7 +178,7 @@ func (s *Service) GenerateDraftExternalAuditStorage(ctx context.Context, req *pb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -201,7 +201,7 @@ func (s *Service) CreateDraftExternalAuditStorage(ctx context.Context, req *pb.C
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -230,7 +230,7 @@ func (s *Service) UpsertDraftExternalAuditStorage(ctx context.Context, req *pb.U
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -258,7 +258,7 @@ func (s *Service) GetDraftExternalAuditStorage(ctx context.Context, req *pb.GetD
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -277,7 +277,7 @@ func (s *Service) DeleteDraftExternalAuditStorage(ctx context.Context, req *pb.D
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -293,7 +293,7 @@ func (s *Service) PromoteToClusterExternalAuditStorage(ctx context.Context, req 
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbCreate, types.VerbUpdate, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbCreate, types.VerbUpdate, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// TODO(nklaassen): administrative endpoint with mfa.
@@ -333,7 +333,7 @@ func (s *Service) GetClusterExternalAuditStorage(ctx context.Context, req *pb.Ge
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	externalAudit, err := s.externalAuditStorage.GetClusterExternalAuditStorage(ctx)
@@ -351,7 +351,7 @@ func (s *Service) DisableClusterExternalAuditStorage(ctx context.Context, req *p
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindExternalAuditStorage, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindExternalAuditStorage, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -406,7 +406,7 @@ func (s *Service) checkClusterAuditConfig(ctx context.Context, region string) er
 
 // retrieve an AWS Config using the configurator credentials provider
 func (s *Service) getAWSConfig(ctx context.Context, authCtx *authz.Context) (aws.Config, error) {
-	if err := authCtx.CheckAccessToKind(false /*quiet*/, types.KindIntegration, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
 		return aws.Config{}, trace.Wrap(err)
 	}
 	configurator, err := ecaint.NewDraftConfigurator(ctx, s.externalAuditStorage, s.integrationSvc)

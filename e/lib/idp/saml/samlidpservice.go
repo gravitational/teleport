@@ -212,7 +212,7 @@ func (s *SAMLIdPService) TestSAMLIdPAttributeMapping(ctx context.Context, req *s
 	}
 
 	// only users who can create attribute mapping should be able to test it.
-	if err := authCtx.CheckAccessToKind(true /* quiet */, types.KindSAMLIdPServiceProvider, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindSAMLIdPServiceProvider, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
