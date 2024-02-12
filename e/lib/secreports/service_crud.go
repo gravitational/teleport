@@ -12,14 +12,19 @@ import (
 	conv "github.com/gravitational/teleport/api/types/secreports/convert/v1"
 	"github.com/gravitational/teleport/e/lib/secreports/reports"
 	"github.com/gravitational/teleport/gen/go/eventschema"
-	"github.com/gravitational/teleport/lib/authz"
 )
 
 // UpsertAuditQuery updates the audit query.
 func (s *Service) UpsertAuditQuery(ctx context.Context, req *pb.UpsertAuditQueryRequest) (*emptypb.Empty, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAuditQuery, types.VerbUpdate, types.VerbCreate); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(true /* quiet */, types.KindAuditQuery, types.VerbUpdate, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := s.upsertAuditQuery(ctx, req); err != nil {
 		s.log.WithError(err).Warn("Failed to upsert audit query.")
 		switch {
@@ -45,9 +50,15 @@ func (s *Service) upsertAuditQuery(ctx context.Context, req *pb.UpsertAuditQuery
 
 // GetAuditQuery returns the audit query.
 func (s *Service) GetAuditQuery(ctx context.Context, req *pb.GetAuditQueryRequest) (*pb.AuditQuery, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAuditQuery, types.VerbRead); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	item, err := s.storage.GetSecurityAuditQuery(ctx, req.GetName())
 	if err != nil {
 		s.log.WithError(err).Debug("Failed to get audit query.")
@@ -63,9 +74,15 @@ func (s *Service) GetAuditQuery(ctx context.Context, req *pb.GetAuditQueryReques
 
 // ListAuditQueries list audit queries.
 func (s *Service) ListAuditQueries(ctx context.Context, req *pb.ListAuditQueriesRequest) (*pb.ListAuditQueriesResponse, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAuditQuery, types.VerbList, types.VerbRead); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	items, nextToken, err := s.storage.ListSecurityAuditQueries(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -79,9 +96,15 @@ func (s *Service) ListAuditQueries(ctx context.Context, req *pb.ListAuditQueries
 
 // GetSchema returns the audit query schema.
 func (s *Service) GetSchema(ctx context.Context, _ *pb.GetSchemaRequest) (*pb.GetSchemaResponse, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAuditQuery, types.VerbUse); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	eventSchema, err := eventschema.GetViewsDetails()
 	if err != nil {
 		s.log.WithError(err).Error("Failed to get schema.")
@@ -97,9 +120,15 @@ func (s *Service) DeleteAuditQuery(ctx context.Context, req *pb.DeleteAuditQuery
 	if err := validateRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAuditQuery, types.VerbDelete); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := s.storage.DeleteSecurityAuditQuery(ctx, req.GetName()); err != nil {
 		s.log.WithError(err).Warn("Failed to delete audit query.")
 		switch {
@@ -114,9 +143,15 @@ func (s *Service) DeleteAuditQuery(ctx context.Context, req *pb.DeleteAuditQuery
 
 // UpsertReport creates or updates Security Report.
 func (s *Service) UpsertReport(ctx context.Context, req *pb.UpsertReportRequest) (*emptypb.Empty, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindSecurityReport, types.VerbUpdate, types.VerbCreate); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbUpdate, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if reports.IsPreBuiltReport(req.GetReport().Header.GetMetadata().GetName()) {
 		return nil, trace.BadParameter("cannot modify pre-build report")
 	}
@@ -149,9 +184,15 @@ func (s *Service) GetReport(ctx context.Context, req *pb.GetReportRequest) (*pb.
 	if err := validateRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindSecurityReport, types.VerbRead); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	item, err := s.storage.GetSecurityReport(ctx, req.GetName())
 	if err != nil {
 		s.log.WithError(err).Warn("Failed to get security report.")
@@ -167,9 +208,15 @@ func (s *Service) GetReport(ctx context.Context, req *pb.GetReportRequest) (*pb.
 
 // ListReports list the security reports.
 func (s *Service) ListReports(ctx context.Context, req *pb.ListReportsRequest) (*pb.ListReportsResponse, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindSecurityReport, types.VerbList, types.VerbRead); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	resp, err := s.listSecurityReports(ctx, req)
 	if err != nil {
 		s.log.WithError(err).Warn("Failed to list ListReports.")
@@ -199,7 +246,12 @@ func (s *Service) DeleteReport(ctx context.Context, req *pb.DeleteReportRequest)
 	if err := validateRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindSecurityReport, types.VerbDelete); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

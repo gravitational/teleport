@@ -206,8 +206,17 @@ func (s *SAMLIdPService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 }
 
 func (s *SAMLIdPService) TestSAMLIdPAttributeMapping(ctx context.Context, req *samlidppb.TestSAMLIdPAttributeMappingRequest) (*samlidppb.TestSAMLIdPAttributeMappingResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// only users who can create attribute mapping should be able to test it.
-	if err := s.authorizeAccess(ctx, types.VerbCreate); err != nil {
+	if err := authCtx.CheckAccessToKind(true /* quiet */, types.KindSAMLIdPServiceProvider, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -234,18 +243,6 @@ func (s *SAMLIdPService) TestSAMLIdPAttributeMapping(ctx context.Context, req *s
 	}
 
 	return &resp, nil
-}
-
-// authorizeAccess checks user context with given authorizeVerbs against KindSAMLIdPServiceProvider resource.
-func (s *SAMLIdPService) authorizeAccess(ctx context.Context, authorizeVerbs ...string) error {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true /* quiet */, types.KindSAMLIdPServiceProvider, authorizeVerbs...)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err = authCtx.AuthorizeAdminAction(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func attributeToRequestedAttribute(attributes []*types.SAMLAttributeMapping) (reqAttrs []saml.RequestedAttribute) {

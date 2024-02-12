@@ -25,7 +25,13 @@ func (s *Service) RunAuditQuery(ctx context.Context, req *pb.RunAuditQueryReques
 	if err := validateRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAuditQuery, types.VerbUse); err != nil {
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -83,9 +89,16 @@ func (s *Service) GetAuditQueryResult(ctx context.Context, req *pb.GetAuditQuery
 	if err := validateRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAuditQuery, types.VerbUse); err != nil {
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAuditQuery, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	result, err := s.athena.GetQueryResult(ctx, req.ResultId, req.NextToken, req.GetMaxResults())
 	if err != nil {
 		s.log.WithError(err).Warn("Failed to get audit query result.")
@@ -108,7 +121,13 @@ func (s *Service) GetReportResult(ctx context.Context, req *pb.GetReportResultRe
 	if err := validateRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindSecurityReport, types.VerbUse); err != nil {
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -133,9 +152,16 @@ func (s *Service) GetReportState(ctx context.Context, req *pb.GetReportStateRequ
 	if err := validateRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindSecurityReport, types.VerbUse); err != nil {
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	executionName := secreports.ReportExecutionName(req.GetName(), int32(req.GetDays()))
 	state, err := s.storage.GetSecurityReportState(ctx, executionName)
 	if err != nil {
@@ -155,7 +181,13 @@ func (s *Service) RunReport(ctx context.Context, req *pb.RunReportRequest) (*emp
 	if err := validateRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindSecurityReport, types.VerbUse); err != nil {
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindSecurityReport, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

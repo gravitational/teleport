@@ -104,7 +104,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // CreatePlugin creates a new plugin instance.
 func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginRequest) (*emptypb.Empty, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbCreate); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /* quiet */, types.KindPlugin, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -257,6 +262,11 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 
 // GetPlugin returns a plugin instance by name.
 func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest) (*types.PluginV1, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	readVerb := types.VerbReadNoSecrets
 
 	if req.WithSecrets {
@@ -270,10 +280,11 @@ func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest
 		// and instead of possibly returning a "not found",
 		// return an "access denied" error.
 		// Log the original error instead.
-		if authErr := s.authorizeVerbs(ctx, types.VerbList); authErr != nil {
+
+		if authErr := authCtx.CheckAccessToKind(false /* quiet */, types.KindPlugin, types.VerbList); authErr != nil {
 			// Generate a fake auth error equivalent to a real one
 			// using a dummy context which does not have user info, so will never have permissions
-			fakeAuthError := s.authorizeVerbs(context.Background(), readVerb)
+			fakeAuthError := authCtx.CheckAccessToKind(false /* quiet */, types.KindPlugin, readVerb)
 			s.log.Error(err)
 			return nil, fakeAuthError
 		}
@@ -281,7 +292,7 @@ func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.authorizeVerbsWithResource(ctx, plugin, readVerb); err != nil {
+	if err := authCtx.CheckAccessToResource(false /* quiet */, plugin, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -294,7 +305,12 @@ func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest
 
 // ListPlugins returns a paginated view of plugin instances.
 func (s *Service) ListPlugins(ctx context.Context, req *pluginspb.ListPluginsRequest) (*pluginspb.ListPluginsResponse, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbList, types.VerbRead); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /* quiet */, types.KindPlugin, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -320,7 +336,12 @@ func (s *Service) ListPlugins(ctx context.Context, req *pluginspb.ListPluginsReq
 
 // DeletePlugin removes the specified plugin instance and any associated static credentials.
 func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginRequest) (*emptypb.Empty, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbDelete); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /* quiet */, types.KindPlugin, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -352,7 +373,12 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 
 // SetPluginCredentials sets the credentials for the given plugin.
 func (s *Service) SetPluginCredentials(ctx context.Context, req *pluginspb.SetPluginCredentialsRequest) (*emptypb.Empty, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbRead, types.VerbUpdate); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /* quiet */, types.KindPlugin, types.VerbRead, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := s.pluginService.SetPluginCredentials(ctx, req.Name, req.Credentials); err != nil {
@@ -363,7 +389,12 @@ func (s *Service) SetPluginCredentials(ctx context.Context, req *pluginspb.SetPl
 
 // SetPluginStatus sets the status for the given plugin.
 func (s *Service) SetPluginStatus(ctx context.Context, req *pluginspb.SetPluginStatusRequest) (*emptypb.Empty, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbUpdate); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /* quiet */, types.KindPlugin, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := s.pluginService.SetPluginStatus(ctx, req.Name, req.Status); err != nil {
@@ -375,7 +406,12 @@ func (s *Service) SetPluginStatus(ctx context.Context, req *pluginspb.SetPluginS
 // GetAvailablePluginTypes returns the types of plugins
 // that the auth server supports onboarding.
 func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.GetAvailablePluginTypesRequest) (*pluginspb.GetAvailablePluginTypesResponse, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbCreate); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /* quiet */, types.KindPlugin, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -457,14 +493,4 @@ func (s *Service) SearchPluginStaticCredentials(ctx context.Context, req *plugin
 
 	// This has some other role, so deny access.
 	return nil, trace.AccessDenied("access denied")
-}
-
-func (s *Service) authorizeVerbs(ctx context.Context, verbs ...string) error {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, false /* quiet */, types.KindPlugin, verbs...)
-	return trace.Wrap(err)
-}
-
-func (s *Service) authorizeVerbsWithResource(ctx context.Context, resource types.Resource, verbs ...string) error {
-	_, err := authz.AuthorizeResourceWithVerbs(ctx, s.log, s.authorizer, false /* quiet */, resource, verbs...)
-	return trace.Wrap(err)
 }

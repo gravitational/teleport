@@ -57,8 +57,12 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 // CreateLoginRule creates a login rule if one with the same name does not
 // already exist, else it returns an error.
 func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbCreate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -81,8 +85,12 @@ func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLo
 // UpsertLoginRule creates a login rule if one with the same name does not
 // already exist, else it replaces the existing login rule.
 func (s *Service) UpsertLoginRule(ctx context.Context, req *loginrulepb.UpsertLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbCreate, types.VerbUpdate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -104,7 +112,12 @@ func (s *Service) UpsertLoginRule(ctx context.Context, req *loginrulepb.UpsertLo
 
 // GetLoginRule retrieves a login rule described by the given request.
 func (s *Service) GetLoginRule(ctx context.Context, req *loginrulepb.GetLoginRuleRequest) (*loginrulepb.LoginRule, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbRead); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -114,7 +127,12 @@ func (s *Service) GetLoginRule(ctx context.Context, req *loginrulepb.GetLoginRul
 
 // ListLoginRules lists all login rules.
 func (s *Service) ListLoginRules(ctx context.Context, req *loginrulepb.ListLoginRulesRequest) (*loginrulepb.ListLoginRulesResponse, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbList, types.VerbRead); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -131,8 +149,12 @@ func (s *Service) ListLoginRules(ctx context.Context, req *loginrulepb.ListLogin
 
 // DeleteLoginRule deletes an existing login rule.
 func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLoginRuleRequest) (*emptypb.Empty, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -152,7 +174,12 @@ func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLo
 // to test that the output matches expectations prior to them being enforced and
 // potentially locking out users.
 func (s *Service) TestLoginRule(ctx context.Context, req *loginrulepb.TestLoginRuleRequest) (*loginrulepb.TestLoginRuleResponse, error) {
-	if _, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false /*silent*/, types.KindLoginRule, types.VerbList, types.VerbRead); err != nil {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(false /*silent*/, types.KindLoginRule, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

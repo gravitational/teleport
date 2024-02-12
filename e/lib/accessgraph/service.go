@@ -85,9 +85,13 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 }
 
 func (s *Service) Query(ctx context.Context, request *accessgraphv1.QueryRequest) (*accessgraphv1.QueryResponse, error) {
-	_, authErr := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAccessGraph, types.VerbRead)
-	if authErr != nil {
-		return nil, trace.WrapWithMessage(authErr, "not allowed to read the access graph")
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(true, types.KindAccessGraph, types.VerbRead); err != nil {
+		return nil, trace.WrapWithMessage(err, "not allowed to read the access graph")
 	}
 
 	resp, err := s.client.Query(ctx, request)

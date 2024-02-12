@@ -197,7 +197,10 @@ func createUsersAndRoles(t *testing.T, roleSvc *local.AccessService, ctx context
 	_, err = userSvc.CreateUser(ctx, testUser)
 	require.NoError(t, err)
 
-	_, err = types.NewUser("test-user-no-perm")
+	testUserNoPerm, err := types.NewUser("test-user-no-perm")
+	require.NoError(t, err)
+
+	_, err = userSvc.CreateUser(ctx, testUserNoPerm)
 	require.NoError(t, err)
 }
 
