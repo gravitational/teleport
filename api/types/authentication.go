@@ -96,8 +96,14 @@ type AuthPreference interface {
 	GetRequireMFAType() RequireMFAType
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+
+	// GetHardwareKey returns the hardware key settings configured for the cluster.
+	GetHardwareKey() (*HardwareKey, error)
 	// GetPIVSlot returns the configured piv slot for the cluster.
 	GetPIVSlot() keys.PIVSlot
+	// GetHardwareKeySerialNumberValidation returns the cluster's hardware key
+	// serial number validation settings.
+	GetHardwareKeySerialNumberValidation() (*HardwareKeySerialNumberValidation, error)
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -398,9 +404,29 @@ func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	}
 }
 
+// GetHardwareKey returns the hardware key settings configured for the cluster.
+func (c *AuthPreferenceV2) GetHardwareKey() (*HardwareKey, error) {
+	if c.Spec.HardwareKey == nil {
+		return nil, trace.NotFound("Hardware key support is not configured in this cluster")
+	}
+	return c.Spec.HardwareKey, nil
+}
+
 // GetPIVSlot returns the configured piv slot for the cluster.
 func (c *AuthPreferenceV2) GetPIVSlot() keys.PIVSlot {
-	return keys.PIVSlot(c.Spec.PIVSlot)
+	if hk, err := c.GetHardwareKey(); err == nil {
+		return keys.PIVSlot(hk.PIVSlot)
+	}
+	return ""
+}
+
+// GetHardwareKeySerialNumberValidation returns the cluster's hardware key
+// serial number validation settings.
+func (c *AuthPreferenceV2) GetHardwareKeySerialNumberValidation() (*HardwareKeySerialNumberValidation, error) {
+	if c.Spec.HardwareKey == nil || c.Spec.HardwareKey.SerialNumberValidation == nil {
+		return nil, trace.NotFound("Hardware key serial number validation is not configured in this cluster")
+	}
+	return c.Spec.HardwareKey.SerialNumberValidation, nil
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
@@ -650,6 +676,15 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	}
 
+	// TODO(Joerger): DELETE IN 17.0.0
+	c.CheckSetPIVSlot()
+
+	if hk, err := c.GetHardwareKey(); err == nil {
+		if err := keys.PIVSlot(hk.PIVSlot).Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// Make sure the IdP section is populated.
 	if c.Spec.IDP == nil {
 		c.Spec.IDP = &IdPOptions{}
@@ -672,6 +707,22 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// CheckSetPIVSlot ensures that the PIVSlot and Hardwarekey.PIVSlot stay in sync so that
+// older versions of Teleport that do not know about Hardwarekey.PIVSlot are able to keep
+// using PIVSlot and newer versions of Teleport can rely solely on Hardwarekey.PIVSlot
+// without causing any service degradation.
+// TODO(Joerger): DELETE IN 17.0.0
+func (c *AuthPreferenceV2) CheckSetPIVSlot() {
+	if c.Spec.PIVSlot != "" {
+		if c.Spec.HardwareKey == nil {
+			c.Spec.HardwareKey = &HardwareKey{}
+		}
+		c.Spec.HardwareKey.PIVSlot = c.Spec.PIVSlot
+	} else if c.Spec.HardwareKey != nil && c.Spec.HardwareKey.PIVSlot != "" {
+		c.Spec.PIVSlot = c.Spec.HardwareKey.PIVSlot
+	}
 }
 
 // String represents a human readable version of authentication settings.
