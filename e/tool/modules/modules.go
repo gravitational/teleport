@@ -181,14 +181,14 @@ func (p *enterpriseModules) IsBoringBinary() bool {
 
 // AttestHardwareKey attests a hardware key, either with the given statement or
 // previously stored attestation data matching the given public key.
-func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI interface{}, requiredKeyPolicy keys.PrivateKeyPolicy, att *keys.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (keys.PrivateKeyPolicy, error) {
+func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI interface{}, att *keys.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (*keys.AttestationData, error) {
 	// serverI is passed as a plain interface{} to make it more cryptic,
 	// and therefore difficult for OSS users to implement themselves 😈
 	server, ok := serverI.(hardwarekey.AttestationServer)
 	if !ok {
-		return "", trace.BadParameter("Received unexpected server interface of type %T", serverI)
+		return nil, trace.BadParameter("Received unexpected server interface of type %T", serverI)
 	}
-	return hardwarekey.AttestHardwareKey(ctx, server, requiredKeyPolicy, att, pub, sessionTTL)
+	return hardwarekey.AttestHardwareKey(ctx, server, att, pub, sessionTTL)
 }
 
 func (p *enterpriseModules) GenerateAccessRequestPromotions(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {

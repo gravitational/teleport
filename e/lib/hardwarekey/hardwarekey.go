@@ -28,8 +28,6 @@ func attestYubikey(att *attestation.YubiKeyAttestationStatement) (*keys.Attestat
 		return nil, trace.Wrap(err)
 	}
 
-	privateKeyPolicy := keys.GetPrivateKeyPolicyFromAttestation(attestation)
-
 	pubDER, err := x509.MarshalPKIXPublicKey(slotCert.PublicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -37,6 +35,7 @@ func attestYubikey(att *attestation.YubiKeyAttestationStatement) (*keys.Attestat
 
 	return &keys.AttestationData{
 		PublicKeyDER:     pubDER,
-		PrivateKeyPolicy: privateKeyPolicy,
+		PrivateKeyPolicy: keys.GetPrivateKeyPolicyFromAttestation(attestation),
+		SerialNumber:     attestation.Serial,
 	}, nil
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
@@ -28,11 +29,7 @@ func (s *mockAttestationServer) UpsertKeyAttestationData(ctx context.Context, at
 	return nil
 }
 
-func (s *mockAttestationServer) GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error) {
-	pubDER, err := x509.MarshalPKIXPublicKey(publicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (s *mockAttestationServer) GetKeyAttestationData(ctx context.Context, pubDER []byte) (*keys.AttestationData, error) {
 	att, ok := s.attestations[string(pubDER)]
 	if !ok {
 		return nil, trace.NotFound("attestation data not found")
@@ -56,85 +53,54 @@ func TestAttestHardwareKey(t *testing.T) {
 	hardwareKeyPubDER, err := x509.MarshalPKIXPublicKey(hardwareKey.Public())
 	require.NoError(t, err)
 
+	testAttestationData := &keys.AttestationData{
+		PublicKeyDER:     hardwareKeyPubDER,
+		PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
+	}
+
 	for _, tt := range []struct {
-		name                 string
-		requiredPolicy       keys.PrivateKeyPolicy
-		pub                  crypto.PublicKey
-		attestationstatement *keys.AttestationStatement
-		attestationData      *keys.AttestationData
-		s                    AttestationServer
-		expectAttestedPolicy keys.PrivateKeyPolicy
-		assertError          require.ErrorAssertionFunc
+		name                  string
+		s                     AttestationServer
+		pub                   crypto.PublicKey
+		attestationData       *keys.AttestationData
+		assertAttestError     require.ErrorAssertionFunc
+		expectAttestationData *keys.AttestationData
 	}{
 		{
-			name:           "policy met by provided attestation",
-			requiredPolicy: keys.PrivateKeyPolicyHardwareKey,
-			pub:            hardwareKey.Public(),
-			attestationData: &keys.AttestationData{
-				PublicKeyDER:     hardwareKeyPubDER,
-				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
+			name: "no attestation",
+			s:    &mockAttestationServer{make(map[string]*keys.AttestationData)},
+			pub:  hardwareKey.Public(),
+			assertAttestError: func(tt require.TestingT, err error, i ...interface{}) {
+				assert.True(t, trace.IsNotFound(err), "expected not found err but got %v", err)
 			},
-			s:                    &mockAttestationServer{make(map[string]*keys.AttestationData)},
-			expectAttestedPolicy: keys.PrivateKeyPolicyHardwareKey,
-			assertError:          require.NoError,
+			expectAttestationData: nil,
 		}, {
-			name:           "policy exceeded by provided attestation",
-			requiredPolicy: keys.PrivateKeyPolicyHardwareKey,
-			pub:            hardwareKey.Public(),
-			attestationData: &keys.AttestationData{
-				PublicKeyDER:     hardwareKeyPubDER,
-				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-			},
-			s:                    &mockAttestationServer{make(map[string]*keys.AttestationData)},
-			assertError:          require.NoError,
-			expectAttestedPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			name:                  "attestation from statement",
+			pub:                   hardwareKey.Public(),
+			attestationData:       testAttestationData,
+			s:                     &mockAttestationServer{make(map[string]*keys.AttestationData)},
+			assertAttestError:     require.NoError,
+			expectAttestationData: testAttestationData,
 		}, {
-			name:           "policy met by stored attestation",
-			requiredPolicy: keys.PrivateKeyPolicyHardwareKey,
-			pub:            hardwareKey.Public(),
+			name: "attestation from backend",
+			pub:  hardwareKey.Public(),
 			s: &mockAttestationServer{
 				attestations: map[string]*keys.AttestationData{
-					string(hardwareKeyPubDER): {
-						PublicKeyDER:     hardwareKeyPubDER,
-						PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
-					},
+					string(hardwareKeyPubDER): testAttestationData,
 				},
 			},
-			expectAttestedPolicy: keys.PrivateKeyPolicyHardwareKey,
-			assertError:          require.NoError,
+			assertAttestError:     require.NoError,
+			expectAttestationData: testAttestationData,
 		}, {
-			name:           "policy not met by provided attestation",
-			requiredPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-			pub:            hardwareKey.Public(),
-			attestationData: &keys.AttestationData{
-				PublicKeyDER:     hardwareKeyPubDER,
-				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
+			name:            "attestation doesn't match public key",
+			pub:             basicKey.Public(),
+			s:               &mockAttestationServer{make(map[string]*keys.AttestationData)},
+			attestationData: testAttestationData,
+			assertAttestError: func(tt require.TestingT, err error, i ...interface{}) {
+				assert.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %v", err)
+				assert.ErrorContains(t, err, "does not match the given public key")
 			},
-			s:           &mockAttestationServer{make(map[string]*keys.AttestationData)},
-			assertError: require.Error,
-		}, {
-			name:           "policy not met by stored attestation",
-			requiredPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-			pub:            hardwareKey.Public(),
-			s: &mockAttestationServer{
-				attestations: map[string]*keys.AttestationData{
-					string(hardwareKeyPubDER): {
-						PublicKeyDER:     hardwareKeyPubDER,
-						PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
-					},
-				},
-			},
-			assertError: require.Error,
-		}, {
-			name:           "attestation data doesn't match public key",
-			requiredPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-			pub:            basicKey.Public(),
-			s:              &mockAttestationServer{make(map[string]*keys.AttestationData)},
-			attestationData: &keys.AttestationData{
-				PublicKeyDER:     hardwareKeyPubDER,
-				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
-			},
-			assertError: require.Error,
+			expectAttestationData: nil,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -153,9 +119,9 @@ func TestAttestHardwareKey(t *testing.T) {
 				}
 			}
 
-			attestedPolicy, err := AttestHardwareKey(ctx, tt.s, tt.requiredPolicy, attestationStatement, tt.pub, 0)
-			tt.assertError(t, err)
-			require.Equal(t, tt.expectAttestedPolicy, attestedPolicy)
+			attestationData, err := AttestHardwareKey(ctx, tt.s, attestationStatement, tt.pub, 0)
+			tt.assertAttestError(t, err)
+			require.Equal(t, tt.expectAttestationData, attestationData)
 		})
 	}
 }
