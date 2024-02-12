@@ -806,22 +806,119 @@ spec:
 
 This will let bob to ssh with agent forwarding on into hosts in scope of /dev/lab only.
 
-### Scalability
+## Implementation
+
+Teleport will stop issuing new certificate extensions for access granted by Access Lists or Access Requests. Instead, Teleport will create and distribute internal `Grant` resources. These resources will be used by Teleport only and will never be exposed to users.
+
+Here is a high-level structure of an internal `grant` resource:
+
+```yaml
+kind: grant
+version: v1
+metadata:
+  # name is a unique random identifier uuid-v4 of this grant 
+  name: uuid
+spec:
+  # the time when the grant expires in RFC3339 format
+  create_time: "2023-02-22T21:04:26.312862Z"
+  # the time when the grant has been updated in RFC3339 format
+  update_time: "2023-02-22T21:04:26.312862Z"
+  # the time when the grant expires in RFC3339 format
+  expires: "2021-08-14T22:27:00Z"
+  roles: [admin, editor]
+  identity: 'alice@example.com'
+  scope: '/dev/lab`
+```
+
+We will also assume that resource groups, roles `V8` and Access Lists `V2` all have `create_time` and `update_time` fields.
+
+Teleport will store grants reflecting the scope hierarchy, for example, if there are two grants, one for `alice@example.com` 
+at scope `/dev/lab` and another for `bob@example.com` for scope `/grants/dev`, we will store them in a tree:
+
+```
+# the _root node only contains the empty grant to capture last update time.
+/grants/dev/_root
+/grants/dev/_members/bob@example.com: grant-2-uuid
+
+/grants/dev/lab/root
+/grants/dev/lab/_members/alice@example.com: grant-1-uuid
+```
+
+Every time we add, or update the grant in the hierarchy, we will also update it's `_root` with the timestamp.
+
+We will also store `ResourceGroup` as a hierarchy:
+
+```
+/resource_groups/dev/_root
+/resource_groups/dev/_members/luna
+
+/resource_groups/dev/lab/_root
+/resource_groups/dev/lab/_members/mars
+```
+
+Every time we add or remove a resource, we update the `_root` of the hierarchy with the timestamp.
+
+When stored this way, each part of Teleport can subscribe and fetch grants for resource groups relevant to it, and would know when the grant hierarchy or resource hierarchy was last updated.
+
+### The "New enemy" problem
+
+The Zanzibar paper describes two cases of "new enemy problem" (https://research.google/pubs/zanzibar-googles-consistent-global-authorization-system/):
+
+**Case 1 - Neglecting update order**
+
+* Step 1. Alice removes Bob from the ACL of a folder.
+* Step 2. Alice asks Charlie to add new docs to a folder.
+* Step 3. Bob should not see new documents, but can do so, if the ACL neglects the ordering. (Because in Zanzibar, individual documents may inherit ACL of the parent folder).
+
+**Case 2 - Misapplying old ACL to new content**
+
+* Step 1. Alice removes Bob from the ACL of the document.
+* Step 2. Alice asks Charlie to add new contents to the document.
+* Step 3. Bob should not be able to see new content, but may do so, if ACL evaluates Bob's permissions at Step 2 before reading Step 1.
+
+Let's review how those cases can apply to Teleport's Grants.
+
+Bob was granted role `access` in scope `/dev/lab`.
+
+**Case 1 - Neglecting update order** 
+
+* Step 1. Alice removes Bob from the access list granting `access` in scope of `/dev/lab`
+* Step 2. Alice adds new resource `luna` to the scope of `/dev/lab`
+* Step 3. Bob should not get access to `luna`, but can do so, if the Teleport Proxy evaluating access skips `Step 1` before evaluating `Step 2`
+
+Let's assume that every time a resource is added or removed to a resource group, it has it's timestamp updated.
+
+At `Step 1`, `Alice` removed 
+
+`Ta`
+must know that it has all grants that have been craeted and updated post prior to `Ta`.
+
+
+
+### Migration
+
+We will release a new versions of resources in multiple phases:
+
+* `RoleV8` will introduce `parent_resource_group` and `grantable_scope`, `create_time`, `update_time`. `RoleV9` will remove `node_labels`,  `node_labels_expression`. Users can gradually migrate to new versions, first by leveraging scopes and resoruce groups, and then removing labels matching.
+* Access List `V2` will also introduce `create_time` and `update_time`,  `scope` and `member_lists`.
+* We will craete a new resrouce `ResourceGroup` referenced in this RFD `V1` will have `create_time` and `update_time`.
+* The connector resources `saml` and `oidc` will loose `attributes_to_roles` and `claims_to_roles` respectively in their `V3`.
+* We will deprecate login rules in the first major release of 2025.
+* We will stop encoding roles and traits in certificatees in the first major release of 2025.
+
+## Scalability
 
 We have to make sure that resource group assignments scale with large-scale clusters. 
 
 Also, each computing resource would only need to pull roles for its scope and above. With a properly built infrastructure hierarchy, this will significantly reduce the amount of roles that have to be distributed and evaluated for each computing resource.
 
-### UX
+## UX
 
 We can start displaying resource groups as a special type of label in the existing UI, and represent it as a label: teleport.dev/resource_group:/env/prod/lab. 
 
 Teleport Discover should integrate with scopes by importing AWS accounts, GCP, Azure resource groups and resources within Teleport’s Resource groups.
 
-### Implementation
-Access Lists grants will not result in roles and traits encoded in certificates. Instead, grants will be evaluated at each point of access.
-
-### Security
+## Security
 
 Access Lists grants will not result in roles and traits encoded in certificates. Instead, grants will be evaluated at each point of access.
 
