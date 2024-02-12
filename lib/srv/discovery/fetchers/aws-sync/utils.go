@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,12 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export function assertUnreachable(x: never): never {
-  throw new UnhandledCaseError(x);
+package aws_sync
+
+import (
+	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+)
+
+func awsTimeToProtoTime(t *time.Time) *timestamppb.Timestamp {
+	if t == nil {
+		return nil
+	}
+	return timestamppb.New(*t)
 }
 
-export class UnhandledCaseError extends Error {
-  constructor(public unhandledCase: unknown) {
-    super(`Unhandled case: ${unhandledCase}`);
-  }
+func strPtrToWrapper(s *string) *wrapperspb.StringValue {
+	if s == nil {
+		return nil
+	}
+	return &wrapperspb.StringValue{Value: *s}
+}
+
+func strPtrToByteSlice(s *string) []byte {
+	if s == nil {
+		return nil
+	}
+	return []byte(*s)
 }

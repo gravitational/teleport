@@ -48,6 +48,8 @@ type Spec struct {
 	GCP []types.GCPMatcher `json:"gcp,omitempty" yaml:"gcp"`
 	// Kube is a list of matchers for the supported resources in Kubernetes.
 	Kube []types.KubernetesMatcher `json:"kube,omitempty" yaml:"kube"`
+	// AccessGraph is the configuration for the Access Graph Cloud sync.
+	AccessGraph *types.AccessGraphSync `json:"access_graph,omitempty" yaml:"access_graph"`
 }
 
 // NewDiscoveryConfig will create a new discovery config.
@@ -109,6 +111,12 @@ func (a *DiscoveryConfig) CheckAndSetDefaults() error {
 	}
 	for i := range a.Spec.Kube {
 		if err := a.Spec.Kube[i].CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if a.Spec.AccessGraph != nil {
+		if err := a.Spec.AccessGraph.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
