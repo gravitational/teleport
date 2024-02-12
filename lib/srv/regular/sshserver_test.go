@@ -254,7 +254,8 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		sshSrv.Wait()
 	})
 
-	require.NoError(t, sshSrv.heartbeat.ForceSend(time.Second))
+	_, err = testServer.Auth().UpsertNode(ctx, sshSrv.getServerInfo())
+	require.NoError(t, err)
 
 	sshSrvAddress := sshSrv.Addr()
 	_, sshSrvPort, err := net.SplitHostPort(sshSrvAddress)
