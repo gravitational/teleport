@@ -3147,8 +3147,9 @@ func (c *Client) DeleteAllDatabaseServices(ctx context.Context) error {
 func (c *Client) GetDatabaseObjectsImportRules(ctx context.Context) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, error) {
 	var out []*dbobjectimportrulev1.DatabaseObjectImportRule
 	req := &dbobjectimportrulev1.ListDatabaseObjectImportRulesRequest{}
+	client := c.DatabaseObjectImportRuleClient()
 	for {
-		resp, err := c.DatabaseObjectImportRuleClient().ListDatabaseObjectImportRules(ctx, req)
+		resp, err := client.ListDatabaseObjectImportRules(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -251,7 +251,7 @@ type InitConfig struct {
 	AccessLists services.AccessLists
 
 	// DatabaseObjectImportRule is a service that manages database object import rules.
-	DatabaseObjectImportRule services.DatabaseObjectImportRule
+	DatabaseObjectImportRules services.DatabaseObjectImportRules
 
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates

@@ -30,7 +30,7 @@ import (
 )
 
 // DatabaseObjectImportRules manages DatabaseObjectImportRule resources.
-type DatabaseObjectImportRule interface {
+type DatabaseObjectImportRules interface {
 	// CreateDatabaseObjectImportRule will create a new DatabaseObjectImportRule resource.
 	CreateDatabaseObjectImportRule(ctx context.Context, rule *dbobjectimportrulev1.DatabaseObjectImportRule) (*dbobjectimportrulev1.DatabaseObjectImportRule, error)
 
