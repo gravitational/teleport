@@ -72,6 +72,7 @@ func TestListBots(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
 
 	assert.Len(t, bots.Items, created)
+	assert.Equal(t, bots.Items[0].Spec.Roles, []string{"test-role"})
 }
 
 func TestListBots_UnauthenticatedError(t *testing.T) {
@@ -135,11 +136,31 @@ func TestCreateBot(t *testing.T) {
 	var users []ui.UserListEntry
 	json.Unmarshal(getUsersResp.Bytes(), &users)
 
-	found := slices.ContainsFunc(users, func(user ui.UserListEntry) bool {
-		// bots users have a `bot-` prefix
+	i := slices.IndexFunc(users, func(user ui.UserListEntry) bool {
+		// bot name is prefixed with `bot` in UserList
 		return user.Name == "bot-test-bot"
 	})
-	require.True(t, found)
+	require.NotEqual(t, -1, i)
+	// the user resource returned from ListUsers should only contain the roles created for the bot (not create/edit request roles)
+	require.Equal(t, []string{"bot-test-bot"}, users[i].Roles)
+
+	// fetch bots and assert that the bot we created exists
+	getBotsResp, err := pack.clt.Get(ctx, endpoint, url.Values{
+		"page_token": []string{""},  // default to the start
+		"page_size":  []string{"2"}, // is ignored
+	})
+	require.NoError(t, err)
+
+	var bots ListBotsResponse
+	require.NoError(t, json.Unmarshal(getBotsResp.Bytes(), &bots), "invalid response received")
+
+	i = slices.IndexFunc(bots.Items, func(bot *machineidv1.Bot) bool {
+		// bot name is not prefixed in BotList
+		return bot.Metadata.Name == "test-bot"
+	})
+	require.NotEqual(t, -1, i)
+	// the bot resource returned from ListBots should only contain the roles attached to the bot via the create/edit request (not created roles)
+	require.Equal(t, []string{"bot-role-0", "bot-role-1"}, bots.Items[i].Spec.GetRoles())
 
 	// Make sure an unauthenticated client can't create bots
 	publicClt := s.client(t)
