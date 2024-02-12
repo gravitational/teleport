@@ -20,11 +20,14 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import { makeBot, toApiGitHubTokenSpec } from 'teleport/services/bot/consts';
+import { makeResourceList, Resource } from 'teleport/services/resources';
+import { FeatureFlags } from 'teleport/types';
 
 import {
   BotList,
   BotResponse,
   FlatBot,
+  EditBotRequest,
   CreateBotRequest,
   CreateBotJoinTokenRequest,
 } from './types';
@@ -54,13 +57,51 @@ export function createBotToken(req: CreateBotJoinTokenRequest) {
   });
 }
 
-export function fetchBots(signal: AbortSignal): Promise<BotList> {
+export function fetchBots(
+  signal: AbortSignal,
+  flags: FeatureFlags
+): Promise<BotList> {
+  if (!flags.users) {
+    return;
+  }
+
   return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
     const items = json?.items || [];
     return { bots: items.map(makeBot) };
   });
 }
 
-export function deleteBot(name: string) {
+export function fetchRoles(
+  signal: AbortSignal,
+  flags: FeatureFlags
+): Promise<Resource<'role'>[]> {
+  if (!flags.roles) {
+    return;
+  }
+
+  return api.get(cfg.getRolesUrl(), signal).then(res => {
+    return makeResourceList<'role'>(res);
+  });
+}
+
+export function editBot(
+  flags: FeatureFlags,
+  name: string,
+  req: EditBotRequest
+): Promise<FlatBot> {
+  if (!flags.users || !flags.roles) {
+    return;
+  }
+
+  return api.put(cfg.getBotUrlWithName(name), req).then(res => {
+    return makeBot(res);
+  });
+}
+
+export function deleteBot(flags: FeatureFlags, name: string) {
+  if (!flags.users) {
+    return;
+  }
+
   return api.delete(cfg.getBotUrlWithName(name));
 }

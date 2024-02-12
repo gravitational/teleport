@@ -18,11 +18,13 @@
 
 import React from 'react';
 
+import { UnhandledCaseError } from 'shared/utils/assertUnreachable';
+
 import { FailedApp } from 'teleterm/ui/components/App';
 import Logger from 'teleterm/logger';
 
 export class CatchError extends React.Component {
-  logger = new Logger('components/CatchError');
+  logger = new Logger('CatchError');
 
   static getDerivedStateFromError(error) {
     return { error };
@@ -33,7 +35,17 @@ export class CatchError extends React.Component {
   };
 
   componentDidCatch(err) {
-    this.logger.error('render', err);
+    if (err instanceof UnhandledCaseError) {
+      try {
+        // Log this message only to console to avoid storing it on disk. unhandledCase might be an
+        // object which holds sensitive data.
+        console.error('Unhandled case', JSON.stringify(err.unhandledCase));
+      } catch (error) {
+        console.error('Cannot stringify unhandled case', error);
+      }
+    }
+
+    this.logger.error('Caught', err.stack || err);
   }
 
   render() {

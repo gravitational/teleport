@@ -35,8 +35,12 @@ import (
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
 func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.GenerateAWSOIDCTokenRequest) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbUse)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -143,8 +147,12 @@ var _ integrationpb.AWSOIDCServiceServer = (*AWSOIDCService)(nil)
 
 // ListIntegrations returns a paginated list of Databases.
 func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.ListDatabasesRequest) (*integrationpb.ListDatabasesResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbUse)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
