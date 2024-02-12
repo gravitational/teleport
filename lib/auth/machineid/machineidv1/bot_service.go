@@ -598,9 +598,9 @@ func validateBot(b *pb.Bot) error {
 // Bot when converting a User and Role to a Bot. Typically, these are internal
 // labels that are managed by this service and exposing them to the end user
 // would allow for misconfiguration.
-var nonPropagatedLabels = []string{
-	types.BotLabel,
-	types.BotGenerationLabel,
+var nonPropagatedLabels = map[string]struct{}{
+	types.BotLabel:           {},
+	types.BotGenerationLabel: {},
 }
 
 // botFromUserAndRole
@@ -635,7 +635,7 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 	for k, v := range user.GetMetadata().Labels {
 		// We exclude the labels that are implicitly added to the user by the
 		// bot service.
-		if slices.Contains(nonPropagatedLabels, k) {
+		if _, ok := nonPropagatedLabels[k]; ok {
 			continue
 		}
 		b.Metadata.Labels[k] = v
