@@ -73,6 +73,7 @@ func (a *awsFetcher) pollAWSRoles(ctx context.Context, result *Resources, collec
 				return nil
 			})
 		}
+		// always discard the error
 		_ = eG.Wait()
 		return nil
 	}
