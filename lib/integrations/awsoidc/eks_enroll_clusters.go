@@ -107,7 +107,7 @@ type EnrollEKSCLusterClient interface {
 	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 
 	// CheckAgentAlreadyInstalled checks if teleport-kube-agent Helm chart is already installed on the EKS cluster.
-	CheckAgentAlreadyInstalled(genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
+	CheckAgentAlreadyInstalled(context.Context, genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
 
 	// InstallKubeAgent installs teleport-kube-agent Helm chart to the EKS cluster.
 	InstallKubeAgent(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, logrus.FieldLogger, EnrollEKSClustersRequest) error
@@ -128,13 +128,13 @@ func (d *defaultEnrollEKSClustersClient) GetCallerIdentity(ctx context.Context, 
 }
 
 // CheckAgentAlreadyInstalled checks if teleport-kube-agent Helm chart is already installed on the EKS cluster.
-func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(clientGetter genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
+func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(ctx context.Context, clientGetter genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
 	actionConfig, err := getHelmActionConfig(clientGetter, log)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	return checkAgentAlreadyInstalled(actionConfig)
+	return checkAgentAlreadyInstalled(ctx, actionConfig)
 }
 
 func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreator) (string, string, error) {
@@ -329,7 +329,7 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 		return "", trace.Wrap(err, "unable to build kubernetes client for EKS cluster %q", clusterName)
 	}
 
-	if alreadyInstalled, err := clt.CheckAgentAlreadyInstalled(kubeClientGetter, log); err != nil {
+	if alreadyInstalled, err := clt.CheckAgentAlreadyInstalled(ctx, kubeClientGetter, log); err != nil {
 		return "", trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
 	} else if alreadyInstalled {
 		return "", trace.AlreadyExists("teleport-kube-agent is already installed on the cluster %q", clusterName)
@@ -467,7 +467,7 @@ func getHelmSettings() (*helmCli.EnvSettings, error) {
 }
 
 // checkAgentAlreadyInstalled checks through the Helm if teleport-kube-agent chart was already installed in the EKS cluster.
-func checkAgentAlreadyInstalled(actionConfig *action.Configuration) (bool, error) {
+func checkAgentAlreadyInstalled(ctx context.Context, actionConfig *action.Configuration) (bool, error) {
 	var releases []*release.Release
 	var err error
 	// We setup a little backoff loop because sometimes access entry auth needs a bit more time to propagate and take
@@ -476,7 +476,11 @@ func checkAgentAlreadyInstalled(actionConfig *action.Configuration) (bool, error
 		listCmd := action.NewList(actionConfig)
 		releases, err = listCmd.Run()
 		if err != nil {
-			time.Sleep(time.Duration(attempt) * time.Second)
+			select {
+			case <-time.After(time.Duration(attempt) * time.Second):
+			case <-ctx.Done():
+				return false, trace.NewAggregate(err, ctx.Err())
+			}
 		} else {
 			break
 		}
