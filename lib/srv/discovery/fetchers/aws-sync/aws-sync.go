@@ -162,6 +162,16 @@ func (a *awsFetcher) poll(ctx context.Context) (*Resources, error) {
 	// - attached policies
 	eGroup.Go(a.pollAWSGroups(ctx, result, collectErr))
 
+	// fetch AWS EC2 instances and their associated resources.
+	// - instance profiles
+	eGroup.Go(a.pollAWSEC2Instances(ctx, result, collectErr))
+
+	// fetch AWS IAM policies and their policy documents.
+	eGroup.Go(a.pollAWSPolicies(ctx, result, collectErr))
+
+	// fetch AWS S3 buckets.
+	eGroup.Go(a.pollAWSS3Buckets(ctx, result, collectErr))
+
 	if err := eGroup.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
