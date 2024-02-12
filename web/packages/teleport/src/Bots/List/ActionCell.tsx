@@ -21,11 +21,14 @@ import { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
 import { BotOptionsCellProps } from 'teleport/Bots/types';
+import { BotUiFlow } from 'teleport/services/bot/types';
 
 export function BotOptionsCell({
+  onClickDelete,
+  onClickView,
+  bot,
   disabledEdit,
   onClickEdit,
-  onClickDelete,
 }: BotOptionsCellProps) {
   return (
     <Cell align="right">
@@ -34,6 +37,9 @@ export function BotOptionsCell({
           Edit...
         </MenuItem>
         <MenuItem onClick={onClickDelete}>Delete...</MenuItem>
+        {bot.type === BotUiFlow.GitHubActionsSsh && (
+          <MenuItem onClick={onClickView}>View...</MenuItem>
+        )}
       </MenuButton>
     </Cell>
   );
