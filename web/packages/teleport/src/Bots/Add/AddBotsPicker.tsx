@@ -45,7 +45,7 @@ import {
 import { IntegrationTile } from 'teleport/Integrations';
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 
-import { BotType } from '../types';
+import { BotFlowType } from '../types';
 
 type BotIntegration = {
   title: string;
@@ -58,7 +58,7 @@ type BotIntegration = {
 const integrations: BotIntegration[] = [
   {
     title: 'GitHub Actions + SSH',
-    link: cfg.getBotsNewRoute(BotType.GitHubActions),
+    link: cfg.getBotsNewRoute(BotFlowType.GitHubActions),
     icon: <GitHubIcon size={80} />,
     kind: IntegrationEnrollKind.MachineIDGitHubActions,
     guided: true,
