@@ -26,7 +26,7 @@ import { MutableRefObject, useEffect, useRef, useCallback } from 'react';
  * events to be ignored.
  */
 export function useRefClickOutside<
-  T extends { contains(eventTarget: HTMLElement): boolean }
+  T extends { contains(eventTarget: HTMLElement): boolean },
 >(options: { open: boolean; setOpen(b: boolean): void }): MutableRefObject<T> {
   const ref = useRef<T>();
   const { setOpen, open } = options;
