@@ -59,7 +59,7 @@ export type BotList = {
 
 export type FlatBot = Omit<ApiBot, 'metadata' | 'spec'> &
   ApiBotMetadata &
-  ApiBotSpec;
+  ApiBotSpec & { type?: BotType };
 
 export type BotResponse = {
   items: ApiBot[];
@@ -90,6 +90,11 @@ export type GitHubRepoRule = {
   refType?: RefType;
 };
 
+export type BotType = BotUiFlow;
+
+export enum BotUiFlow {
+  GitHubActionsSsh = 'github-actions-ssh',
+}
 export type EditBotRequest = {
   // roles is the list of roles to assign to the bot
   roles: string[];

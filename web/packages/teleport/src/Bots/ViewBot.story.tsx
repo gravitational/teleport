@@ -18,26 +18,42 @@
 
 import React from 'react';
 
-import { Switch, Route } from 'teleport/components/Router';
-import cfg from 'teleport/config';
+import { BotUiFlow } from 'teleport/services/bot/types';
 
-import { FeatureBox } from 'teleport/components/Layout';
+import { ContextProvider } from 'teleport';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
-import { BotFlowType } from '../types';
+import { ViewBot } from './ViewBot';
+import { ViewBotProps } from './types';
 
-import GitHubActionsFlow from './GitHubActions';
-import { AddBotsPicker } from './AddBotsPicker';
+export default {
+  title: 'Teleport/Bots/Add/ViewBot',
+};
 
-export function AddBots() {
+export const GitHubActionsSsh = () => {
+  const ctx = createTeleportContext();
+
   return (
-    <FeatureBox>
-      <Switch>
-        <Route
-          path={cfg.getBotsNewRoute(BotFlowType.GitHubActions)}
-          component={GitHubActionsFlow}
-        />
-        <Route path={cfg.getBotsNewRoute()} component={AddBotsPicker} />
-      </Switch>
-    </FeatureBox>
+    <ContextProvider ctx={ctx}>
+      <ViewBot {...props} />
+    </ContextProvider>
   );
-}
+};
+
+const props: ViewBotProps = {
+  bot: {
+    name: 'my-github-bot',
+    type: BotUiFlow.GitHubActionsSsh,
+    namespace: '',
+    description: '',
+    labels: null,
+    revision: '',
+    traits: [],
+    status: '',
+    subKind: '',
+    version: '',
+    kind: '',
+    roles: [],
+  },
+  onClose: () => {},
+};

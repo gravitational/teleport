@@ -17,3 +17,4 @@
  */
 
 export { fetchBots, deleteBot, createBot, getBot, createBotToken } from './bot';
+export { GITHUB_ACTIONS_LABEL_KEY } from './consts';
