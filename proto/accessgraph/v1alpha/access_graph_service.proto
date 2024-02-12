@@ -95,6 +95,8 @@ message QueryResponse {
   repeated Node nodes = 1;
   // edges is a list of edges returned by the query.
   repeated Edge edges = 2;
+  // iteration_token is a token to continue the iteration.
+  string iteration_token = 3;
 }
 
 // GetFileRequest is a request to get a file.
