@@ -263,7 +263,7 @@ type Identity interface {
 	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error
 
 	// GetKeyAttestationData gets a verified public key attestation response.
-	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
+	GetKeyAttestationData(ctx context.Context, pubDer []byte) (*keys.AttestationData, error)
 
 	HeadlessAuthenticationService
 
