@@ -1281,7 +1281,8 @@ func CopyRulesSlice(in []Rule) []Rule {
 // from scalar and list values
 type Labels map[string]utils.Strings
 
-func (l Labels) protoType() *wrappers.LabelValues {
+// ToProto returns a protobuf-compatible representation of Labels.
+func (l Labels) ToProto() *wrappers.LabelValues {
 	v := &wrappers.LabelValues{
 		Values: make(map[string]wrappers.StringValues, len(l)),
 	}
@@ -1297,12 +1298,12 @@ func (l Labels) protoType() *wrappers.LabelValues {
 
 // Marshal marshals value into protobuf representation
 func (l Labels) Marshal() ([]byte, error) {
-	return proto.Marshal(l.protoType())
+	return proto.Marshal(l.ToProto())
 }
 
 // MarshalTo marshals value to the array
 func (l Labels) MarshalTo(data []byte) (int, error) {
-	return l.protoType().MarshalTo(data)
+	return l.ToProto().MarshalTo(data)
 }
 
 // Unmarshal unmarshals value from protobuf
@@ -1324,7 +1325,7 @@ func (l *Labels) Unmarshal(data []byte) error {
 
 // Size returns protobuf size
 func (l Labels) Size() int {
-	return l.protoType().Size()
+	return l.ToProto().Size()
 }
 
 // Clone returns non-shallow copy of the labels set

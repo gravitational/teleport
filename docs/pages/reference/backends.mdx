@@ -79,10 +79,18 @@ load balancer you'll need to run Teleport with `--insecure-no-tls`
 If your load balancer supports HTTP health checks, configure it to hit the
 `/readyz` [diagnostics endpoint](../management/diagnostics/monitoring.mdx) on
 machines running Teleport. This endpoint must be enabled by using the
-`--diag-addr` flag to teleport start: `teleport start
---diag-addr=127.0.0.1:3000` The
-[http://127.0.0.1:3000/readyz](http://127.0.0.1:3000/readyz) endpoint will
+`--diag-addr` flag to teleport start:
+
+```code
+$ teleport start --diag-addr=0.0.0.0:3000
+```
+
+The `/readyz` endpoint will
 reply `{"status":"ok"}` if the Teleport service is running without problems.
+The endpoint must be exposed on a proxy interface for the load balancer health checks
+to succeed.  You should only do this on the proxy instances and ensure that
+port 3000 is not exposed to the public internet, just the load balancers.  For other services, continue to use
+the 127.0.0.1 local loopback interface.
 
 We'll cover how to use `etcd`, PostgreSQL, DynamoDB, and Firestore storage
 backends to make Teleport highly available below.

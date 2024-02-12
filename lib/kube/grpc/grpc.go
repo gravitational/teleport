@@ -173,7 +173,7 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 func (s *Server) authorize(ctx context.Context) (*authz.Context, error) {
 	authCtx, err := s.cfg.Authz.Authorize(ctx)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, s.cfg.Log, err)
+		return nil, trace.Wrap(err)
 	}
 	return authCtx, nil
 }
