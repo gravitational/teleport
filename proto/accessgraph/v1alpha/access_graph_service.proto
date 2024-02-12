@@ -78,6 +78,15 @@ service AccessGraphService {
 message QueryRequest {
   // query is a SQL query.
   string query = 1;
+
+  // iteration_token is a token to continue the iteration.
+  string iteration_token = 2;
+
+  // iteration_kind is a kind of node that should be iterated.
+  repeated string iteration_kind = 3;
+
+  // limit is a limit of nodes to return.
+  int32 limit = 4;
 }
 
 // QueryResponse is a response to a query.
