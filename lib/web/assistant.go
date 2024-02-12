@@ -332,9 +332,9 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 // This handler covers the main chat conversation as well as the
 // SSH completition (SSH command generation and output explanation).
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params,
-	sctx *SessionContext, site reversetunnelclient.RemoteSite,
+	sctx *SessionContext, site reversetunnelclient.RemoteSite, ws *websocket.Conn,
 ) (any, error) {
-	if err := runAssistant(h, w, r, sctx, site); err != nil {
+	if err := runAssistant(h, w, r, sctx, site, ws); err != nil {
 		h.log.Warn(trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
@@ -420,7 +420,7 @@ func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
 
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
-	sctx *SessionContext, site reversetunnelclient.RemoteSite,
+	sctx *SessionContext, site reversetunnelclient.RemoteSite, ws *websocket.Conn,
 ) (err error) {
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
@@ -453,20 +453,6 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
 		return trace.Wrap(err)
-	}
-
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin:     func(r *http.Request) bool { return true },
-	}
-
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		errMsg := "Error upgrading to websocket"
-		h.log.WithError(err).Error(errMsg)
-		http.Error(w, errMsg, http.StatusInternalServerError)
-		return nil
 	}
 
 	// Note: This time should be longer than OpenAI response time.
