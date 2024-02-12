@@ -25,6 +25,7 @@ export type BotOptionsCellProps = {
   disabledEdit: boolean;
   onClickEdit: (bot: FlatBot) => void;
   onClickDelete: (bot: FlatBot) => void;
+  onClickView: (bot: FlatBot) => void;
 };
 
 export type BotListProps = {
@@ -48,7 +49,12 @@ export type DeleteBotProps = {
   onDelete: () => void;
 };
 
-export enum BotType {
+export type ViewBotProps = {
+  bot: FlatBot;
+  onClose: () => void;
+};
+
+export enum BotFlowType {
   GitHubActions = 'github-actions',
 }
 
