@@ -52,7 +52,7 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "lib/operatortest/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "lib/operatortest/**/*" -e "tooling/**/*"
           target: test-go
           path: .
           directory: e

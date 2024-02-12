@@ -166,8 +166,19 @@ func (c *Config) validateVersionChannel() error {
 		return trace.BadParameter("the version-channel flag should not be empty")
 	}
 
+	// Get just the major version channel with `v` prefix from provided value,
+	// if it is a semver. The `semver.IsValue` function will only return true
+	// if the argument has a `v` prefix. First check the value assuming it has
+	// a `v` prefix, and if the check fails, add a `v` and try again.
+	// Example: v1.2.3 -> v1, 4.5.6-dev.tag+meta -> v4
 	if semver.IsValid(c.versionChannel) {
 		c.versionChannel = semver.Major(c.versionChannel)
+		return nil
+	}
+
+	coercedSemverChannel := "v" + c.versionChannel
+	if semver.IsValid(coercedSemverChannel) {
+		c.versionChannel = semver.Major(coercedSemverChannel)
 	}
 
 	return nil
