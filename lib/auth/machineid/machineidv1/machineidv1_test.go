@@ -301,7 +301,7 @@ func TestCreateBot(t *testing.T) {
 						Name: "empty-string-role",
 					},
 					Spec: &machineidv1pb.BotSpec{
-						Roles:  []string{""},
+						Roles:  []string{"foo", "", "bar"},
 						Traits: []*machineidv1pb.Trait{},
 					},
 				},
@@ -648,7 +648,7 @@ func TestUpdateBot(t *testing.T) {
 						Name: preExistingBot.Metadata.Name,
 					},
 					Spec: &machineidv1pb.BotSpec{
-						Roles:  []string{""},
+						Roles:  []string{"foo", "", "bar"},
 						Traits: []*machineidv1pb.Trait{},
 					},
 				},
@@ -987,7 +987,7 @@ func TestUpsertBot(t *testing.T) {
 						Name: "empty-string-role",
 					},
 					Spec: &machineidv1pb.BotSpec{
-						Roles:  []string{""},
+						Roles:  []string{"foo", "", "bar"},
 						Traits: []*machineidv1pb.Trait{},
 					},
 				},
