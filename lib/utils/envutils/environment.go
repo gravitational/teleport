@@ -71,7 +71,7 @@ func readEnvironment(r io.Reader) ([]string, error) {
 		// split on first =, if not found, log it and continue
 		idx := strings.Index(line, "=")
 		if idx == -1 {
-			log.Debugf("Bad line %v while reading environment: no = separator found", lineno)
+			log.Debugf("Bad line %v while reading environment file: no = separator found", lineno)
 			continue
 		}
 
