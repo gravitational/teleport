@@ -594,6 +594,15 @@ func validateBot(b *pb.Bot) error {
 	return nil
 }
 
+// nonPropagatedLabels are labels that are not propagated from the User to the
+// Bot when converting a User and Role to a Bot. Typically, these are internal
+// labels that are managed by this service and exposing them to the end user
+// would allow for misconfiguration.
+var nonPropagatedLabels = []string{
+	types.BotLabel,
+	types.BotGenerationLabel,
+}
+
 // botFromUserAndRole
 //
 // Typically, we treat the bot user as the "canonical" source of information
@@ -624,13 +633,9 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 	// Copy in labels from the user
 	b.Metadata.Labels = map[string]string{}
 	for k, v := range user.GetMetadata().Labels {
-		// We exclude the two labels that are implicitly added to the user by
-		// the bot service.
-		specialLabels := []string{
-			types.BotLabel,
-			types.BotGenerationLabel,
-		}
-		if slices.Contains(specialLabels, k) {
+		// We exclude the labels that are implicitly added to the user by the
+		// bot service.
+		if slices.Contains(nonPropagatedLabels, k) {
 			continue
 		}
 		b.Metadata.Labels[k] = v
