@@ -94,19 +94,28 @@ type Backend interface {
 
 // IterateRange is a helper for stepping over a range
 func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byte, limit int, fn func([]Item) (stop bool, err error)) error {
+	if limit == 0 || limit > 10_000 {
+		limit = 10_000
+	}
 	for {
-		rslt, err := bk.GetRange(ctx, startKey, endKey, limit)
+		// we load an extra item here so that we can be certain we have a correct
+		// start key for the next range.
+		rslt, err := bk.GetRange(ctx, startKey, endKey, limit+1)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		stop, err := fn(rslt.Items)
+		end := limit
+		if len(rslt.Items) < end {
+			end = len(rslt.Items)
+		}
+		stop, err := fn(rslt.Items[0:end])
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if stop || len(rslt.Items) < limit {
+		if stop || len(rslt.Items) <= limit {
 			return nil
 		}
-		startKey = nextKey(rslt.Items[limit-1].Key)
+		startKey = rslt.Items[limit].Key
 	}
 }
 
