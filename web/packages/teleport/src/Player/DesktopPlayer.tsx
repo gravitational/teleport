@@ -161,7 +161,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
       .replace(':clusterId', clusterId)
       .replace(':sid', sid);
     return new PlayerClient({ url, setTime, setPlayerStatus, setStatusText });
-  }, [clusterId, sid, setTime, setPlayerStatus]);
+  }, [clusterId, sid]);
 
   const clientOnWsClose = useCallback(() => {
     if (playerClient) {
@@ -169,21 +169,15 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     }
   }, [playerClient]);
 
-  const clientOnTdpError = useCallback(
-    (error: Error) => {
-      setPlayerStatus(StatusEnum.ERROR);
-      setStatusText(error.message || error.toString());
-    },
-    [setPlayerStatus, setStatusText]
-  );
+  const clientOnTdpError = useCallback((error: Error) => {
+    setPlayerStatus(StatusEnum.ERROR);
+    setStatusText(error.message || error.toString());
+  }, []);
 
-  const clientOnTdpInfo = useCallback(
-    (info: string) => {
-      setPlayerStatus(StatusEnum.COMPLETE);
-      setStatusText(info);
-    },
-    [setStatusText]
-  );
+  const clientOnTdpInfo = useCallback((info: string) => {
+    setPlayerStatus(StatusEnum.COMPLETE);
+    setStatusText(info);
+  }, []);
 
   const clientOnClientScreenSpec = useCallback(
     (_cli: TdpClient, canvas: HTMLCanvasElement, spec: ClientScreenSpec) => {
@@ -210,7 +204,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
 
       setCanvasSizeIsSet(true);
     },
-    [setCanvasSizeIsSet]
+    []
   );
 
   useEffect(() => {
