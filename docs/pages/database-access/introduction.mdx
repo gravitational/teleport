@@ -56,6 +56,16 @@ issues](https://github.com/gravitational/teleport/labels/database-access) or
 open a [new issue](https://github.com/gravitational/teleport/issues/new/choose)
 to register your interest.
 
+## Supported database clients
+
+Teleport relies on client certificates for authentication, so any database
+client that supports this method of authentication and uses modern TLS (1.2+)
+should work.
+
+Standard command-line clients such as `psql`, `mysql`, `mongo` or `mongosh` are
+supported. There are also instructions for configuring select
+[graphical clients](../connect-your-client/gui-clients.mdx).
+
 ## Resources
 
 To learn more about configuring role-based access control for database access,
