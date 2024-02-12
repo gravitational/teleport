@@ -238,8 +238,8 @@ func KubeResourceMatchesNamespaceVerbRegex(input types.KubernetesResource, resou
 	// namespace resource or a clusterrole.
 	isClusterWideResource := slices.Contains(types.KubernetesClusterWideResourceKinds, input.Kind)
 
-	// If the user is list/read/watch a namespace, they should be able to see the
-	// namespace they have resources defined for.
+	// If the user is allowed to list/read/watch a resource, they should be able to see the
+	// namespace in which the resource is.
 	// This is a special case because we don't want to require the user to have
 	// access to the namespace resource itself.
 	// This is only allowed for the list/read/watch verbs because we don't want
