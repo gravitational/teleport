@@ -3056,6 +3056,47 @@ message DatabaseSessionQuery {
   ];
 }
 
+// DatabasePermissionUpdate is emitted when a user database permissions are updated.
+message DatabasePermissionUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // PermissionSummary is a summary of applied permissions.
+  repeated DatabasePermissionEntry PermissionSummary = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "permission_summary"
+  ];
+}
+
+// DatabasePermissionEntry is a summary of permissions, scoped to a particular permission.
+message DatabasePermissionEntry {
+  // Permission is a particular database-level permission, e.g. "SELECT".
+  string Permission = 1 [(gogoproto.jsontag) = "permission"];
+  // Counts stores information how many objects of particular kind (e.g. "table") were affected.
+  map<string, int32> Counts = 2 [(gogoproto.jsontag) = "counts"];
+}
+
 // PostgresParse is emitted when a Postgres client creates a prepared statement
 // using extended query protocol.
 message PostgresParse {
@@ -3572,6 +3613,13 @@ message CertificateCreate {
 
   // Identity is the identity associated with the certificate, as interpreted by Teleport.
   Identity Identity = 3 [(gogoproto.jsontag) = "identity"];
+
+  // Client is the common client event metadata
+  ClientMetadata Client = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // RenewableCertificateGenerationMismatch is emitted when a renewable
@@ -3926,6 +3974,7 @@ message OneOf {
     events.CreateMFAAuthChallenge CreateMFAAuthChallenge = 146;
     events.ValidateMFAAuthResponse ValidateMFAAuthResponse = 147;
     events.OktaAccessListSync OktaAccessListSync = 148;
+    events.DatabasePermissionUpdate DatabasePermissionUpdate = 149;
   }
 }
 

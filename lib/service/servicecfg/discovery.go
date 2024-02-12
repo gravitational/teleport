@@ -34,6 +34,8 @@ type DiscoveryConfig struct {
 	GCPMatchers []types.GCPMatcher
 	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
 	KubernetesMatchers []types.KubernetesMatcher
+	// AccessGraph is used to sync cloud provider resources into Access Graph.
+	AccessGraph *types.AccessGraphSync
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -52,5 +54,6 @@ type DiscoveryConfig struct {
 func (d DiscoveryConfig) IsEmpty() bool {
 	return len(d.AWSMatchers) == 0 && len(d.AzureMatchers) == 0 &&
 		len(d.GCPMatchers) == 0 && len(d.KubernetesMatchers) == 0 &&
-		d.DiscoveryGroup == ""
+		d.DiscoveryGroup == "" &&
+		(d.AccessGraph == nil || len(d.AccessGraph.AWS) == 0)
 }

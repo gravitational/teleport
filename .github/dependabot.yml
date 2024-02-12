@@ -180,7 +180,24 @@ updates:
       - "no-changelog"
 
   - package-ecosystem: github-actions
-    directory: "/"
+    directory: "/.github/workflows"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - wadells
+      - jentfoo
+      - fheinecke
+      - camscale
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "no-changelog"
+
+  - package-ecosystem: github-actions
+    directory: "/.github/actions"
     schedule:
       interval: weekly
       day: monday
