@@ -30,7 +30,7 @@ import {
   PngFrame,
   SyncKeys,
 } from 'teleport/lib/tdp/codec';
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import { getHostName } from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { Sha256Digest } from 'teleport/lib/util';
 
@@ -85,7 +85,6 @@ export default function useTdpClientCanvas(props: Props) {
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':desktopName', desktopName)
-      .replace(':token', getAccessToken())
       .replace(':username', username);
 
     setTdpClient(new TdpClient(addr));
