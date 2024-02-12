@@ -53,7 +53,7 @@ const props: State = {
   username: 'user',
   clientOnWsOpen: () => {},
   clientOnWsClose: () => {},
-  wsConnection: { status: 'closed', message: 'websocket closed' },
+  wsConnection: { status: 'closed', statusText: 'websocket closed' },
   setClipboardSharingState: () => {},
   directorySharingState: {
     allowedByAcl: true,
@@ -237,7 +237,7 @@ export const Disconnected = () => (
     {...props}
     fetchAttempt={{ status: 'success' }}
     tdpConnection={{ status: 'success' }}
-    wsConnection={{ status: 'closed', message: 'session disconnected' }}
+    wsConnection={{ status: 'closed', statusText: 'session disconnected' }}
   />
 );
 

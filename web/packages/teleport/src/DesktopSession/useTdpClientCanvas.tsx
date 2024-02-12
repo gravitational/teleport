@@ -194,13 +194,13 @@ export default function useTdpClientCanvas(props: Props) {
     setDirectorySharingState(defaultDirectorySharingState);
     setClipboardSharingState(defaultClipboardSharingState);
     setTdpConnection({
-      status: '',
+      status: '', // gracefully disconnecting
       statusText: info,
     });
   };
 
-  const clientOnWsClose = (message: string) => {
-    setWsConnection({ status: 'closed', message });
+  const clientOnWsClose = (statusText: string) => {
+    setWsConnection({ status: 'closed', statusText });
   };
 
   const clientOnWsOpen = () => {
@@ -411,7 +411,7 @@ type Props = {
   desktopName: string;
   clusterId: string;
   setTdpConnection: Setter<Attempt>;
-  setWsConnection: Setter<{ status: 'open' | 'closed'; message?: string }>;
+  setWsConnection: Setter<{ status: 'open' | 'closed'; statusText?: string }>;
   clipboardSharingState: ClipboardSharingState;
   setClipboardSharingState: Setter<ClipboardSharingState>;
   setDirectorySharingState: Setter<DirectorySharingState>;

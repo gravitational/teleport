@@ -139,7 +139,8 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.socket.onclose = ev => {
       let message = 'session disconnected';
       if (ev.code !== WebsocketCloseCode.NORMAL) {
-        message = `connection closed with websocket error code: ${ev.code}`;
+        this.logger.error(`websocket closed with error code: ${ev.code}`);
+        message = `connection closed with websocket error`;
       }
       this.logger.info('websocket is closed');
 
