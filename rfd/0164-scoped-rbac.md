@@ -347,7 +347,9 @@ spec:
   grantable_scope: '/env/prod`
 ```
 
-Grantable scope specifies maximum scope this role can be granted on. By default, all roles are granted on the highest level - cluster level.
+Grantable scope specifies maximum scope this role can be granted on. 
+
+**Important:** By default, if the `grantable_scope` is missing, we assume empty scope - that will prevent the role from being granted on any scopes. When migrating existing roles, we would set `/` - root scope to avoid breaking the cluster. 
 
 To sum it up, any role is granted to a set of users present in the access list, to a set of resources specified in the resource group.
 
@@ -928,7 +930,7 @@ TODO: question for a scale team on implementation details for backends.
 
 We will release a new versions of resources in multiple phases:
 
-* `RoleV8` will introduce `parent_resource_group` and `grantable_scope`, `create_time`, `update_time`. `RoleV9` will remove `node_labels`,  `node_labels_expression`. Users can gradually migrate to new versions, first by leveraging scopes and resoruce groups, and then removing labels matching.
+* `RoleV8` will introduce `parent_resource_group` and `grantable_scope`, `create_time`, `update_time`. `RoleV9` will remove `node_labels`,  `node_labels_expression`. Users can gradually migrate to new versions, first by leveraging scopes and resoruce groups, and then removing labels matching. For new `RoleV8` roles by default, if the `grantable_scope` is missing, we assume empty scope - that will prevent the role from being granted on any scopes. When migrating existing roles from `V7`, we would set `/` - root scope to avoid breaking the cluster. 
 * Access List `V2` will also introduce `create_time` and `update_time`,  `scope` and `member_lists`.
 * We will craete a new resrouce `ResourceGroup` referenced in this RFD `V1` will have `create_time` and `update_time`.
 * The connector resources `saml` and `oidc` will loose `attributes_to_roles` and `claims_to_roles` respectively in their `V3`.
