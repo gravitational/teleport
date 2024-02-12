@@ -34,7 +34,7 @@ import (
 
 // Backend interface for manipulating DatabaseObjectImportRule resources.
 type Backend interface {
-	services.DatabaseObjectImportRule
+	services.DatabaseObjectImportRules
 }
 
 // DatabaseObjectImportRuleServiceConfig holds configuration options for

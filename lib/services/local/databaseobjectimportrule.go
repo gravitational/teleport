@@ -35,7 +35,7 @@ type databaseObjectImportRuleService struct {
 	svc *generic.Service153[*databaseobjectimportrulev1.DatabaseObjectImportRule]
 }
 
-var _ services.DatabaseObjectImportRule = (*databaseObjectImportRuleService)(nil)
+var _ services.DatabaseObjectImportRules = (*databaseObjectImportRuleService)(nil)
 
 func (s *databaseObjectImportRuleService) UpsertDatabaseObjectImportRule(ctx context.Context, rule *databaseobjectimportrulev1.DatabaseObjectImportRule) error {
 	_, err := s.svc.UpsertResource(ctx, rule)
@@ -70,7 +70,7 @@ const (
 	databaseObjectImportRulePrefix = "databaseObjectImportRulePrefix"
 )
 
-func NewDatabaseObjectImportRuleService(backend backend.Backend) (services.DatabaseObjectImportRule, error) {
+func NewDatabaseObjectImportRuleService(backend backend.Backend) (services.DatabaseObjectImportRules, error) {
 	service, err := generic.NewService153(backend,
 		types.KindDatabaseObjectImportRule,
 		databaseObjectImportRulePrefix,

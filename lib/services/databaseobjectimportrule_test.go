@@ -23,50 +23,38 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
 )
 
 func TestMarshalDatabaseObjectImportRuleRoundTrip(t *testing.T) {
-	mkImportRule := func(name string, spec *dbobjectimportrulev1.DatabaseObjectImportRuleSpec) *dbobjectimportrulev1.DatabaseObjectImportRule {
-		out, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, spec)
-		require.NoError(t, err)
-		return out
-	}
-
-	tests := []struct {
-		name string
-		obj  *dbobjectimportrulev1.DatabaseObjectImportRule
-	}{
-		{name: "dbImportRule-import_all_staging_tables", obj: mkImportRule("import_all_staging_tables", &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-			Priority: 30,
-			DbLabels: map[string]string{"env": "staging"},
-			Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
-				{
-					Scope: &dbobjectimportrulev1.DatabaseObjectImportScope{
-						SchemaNames:   []string{"public"},
-						DatabaseNames: []string{"foo", "bar", "baz"},
-					},
-					Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
-						TableNames:     []string{"*"},
-						ViewNames:      []string{"1", "2", "3"},
-						ProcedureNames: []string{"aaa", "bbb", "ccc"},
-					},
-					AddLabels: map[string]string{
-						"env":          "staging",
-						"custom_label": "my_custom_value",
-					},
+	spec := &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+		Priority: 30,
+		DbLabels: types.Labels{"env": {"staging"}}.ToProto(),
+		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
+			{
+				Scope: &dbobjectimportrulev1.DatabaseObjectImportScope{
+					SchemaNames:   []string{"public"},
+					DatabaseNames: []string{"foo", "bar", "baz"},
+				},
+				Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
+					TableNames:     []string{"*"},
+					ViewNames:      []string{"1", "2", "3"},
+					ProcedureNames: []string{"aaa", "bbb", "ccc"},
+				},
+				AddLabels: map[string]string{
+					"env":          "staging",
+					"custom_label": "my_custom_value",
 				},
 			},
-		})},
+		},
 	}
+	obj, err := databaseobjectimportrule.NewDatabaseObjectImportRule("import_all_staging_tables", spec)
+	require.NoError(t, err)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			out, err := MarshalDatabaseObjectImportRule(tt.obj)
-			require.NoError(t, err)
-			obj, err := UnmarshalDatabaseObjectImportRule(out)
-			require.NoError(t, err)
-			require.True(t, proto.Equal(tt.obj, obj), "messages are not equal")
-		})
-	}
+	out, err := MarshalDatabaseObjectImportRule(obj)
+	require.NoError(t, err)
+	newObj, err := UnmarshalDatabaseObjectImportRule(out)
+	require.NoError(t, err)
+	require.True(t, proto.Equal(obj, newObj), "messages are not equal")
 }

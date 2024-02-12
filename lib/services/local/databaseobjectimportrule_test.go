@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	databaseobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
@@ -50,7 +51,7 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	// Create a couple import rules.
 	importRule1, err := databaseobjectimportrule.NewDatabaseObjectImportRule("r1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
 		Priority: 10,
-		DbLabels: map[string]string{"env": "dev"},
+		DbLabels: types.Labels{"env": {"dev"}}.ToProto(),
 		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
 			{
 				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
@@ -66,7 +67,7 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 	importRule2, err := databaseobjectimportrule.NewDatabaseObjectImportRule("r2", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
 		Priority: 20,
-		DbLabels: map[string]string{"env": "prod"},
+		DbLabels: types.Labels{"env": {"prod"}}.ToProto(),
 		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
 			{
 				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
