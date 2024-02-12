@@ -61,8 +61,8 @@ func (s *databaseObjectImportRuleService) DeleteDatabaseObjectImportRule(ctx con
 	return trace.Wrap(s.svc.DeleteResource(ctx, name))
 }
 
-func (s *databaseObjectImportRuleService) ListDatabaseObjectImportRules(ctx context.Context, size int, token string) ([]*databaseobjectimportrulev1.DatabaseObjectImportRule, string, error) {
-	out, next, err := s.svc.ListResources(ctx, size, token)
+func (s *databaseObjectImportRuleService) ListDatabaseObjectImportRules(ctx context.Context, size int, pageToken string) ([]*databaseobjectimportrulev1.DatabaseObjectImportRule, string, error) {
+	out, next, err := s.svc.ListResources(ctx, size, pageToken)
 	return out, next, trace.Wrap(err)
 }
 
