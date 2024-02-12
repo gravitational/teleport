@@ -47,7 +47,7 @@ type DatabaseObjectImportRules interface {
 	UpdateDatabaseObjectImportRule(ctx context.Context, rule *dbobjectimportrulev1.DatabaseObjectImportRule) (*dbobjectimportrulev1.DatabaseObjectImportRule, error)
 
 	// ListDatabaseObjectImportRules will list DatabaseObjectImportRule resources.
-	ListDatabaseObjectImportRules(ctx context.Context, size int, token string) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, string, error)
+	ListDatabaseObjectImportRules(ctx context.Context, size int, pageToken string) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, string, error)
 }
 
 // MarshalDatabaseObjectImportRule marshals DatabaseObjectImportRule resource to JSON.
