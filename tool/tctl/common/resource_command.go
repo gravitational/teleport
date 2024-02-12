@@ -593,30 +593,23 @@ func (rc *ResourceCommand) createDatabaseObjectImportRule(ctx context.Context, c
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ruleName := rule.GetMetadata().GetName()
-
-	existingRule, err := client.DatabaseObjectImportRuleClient().GetDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.GetDatabaseObjectImportRuleRequest{Name: ruleName})
-	if err != nil && !trace.IsNotFound(err) {
+	if rc.IsForced() {
+		_, err = client.DatabaseObjectImportRuleClient().UpsertDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.UpsertDatabaseObjectImportRuleRequest{
+			Rule: rule,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("rule %q has been created\n", rule.GetMetadata().GetName())
+		return nil
+	}
+	_, err = client.DatabaseObjectImportRuleClient().CreateDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.CreateDatabaseObjectImportRuleRequest{
+		Rule: rule,
+	})
+	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if existingRule != nil {
-		if !rc.force {
-			return trace.AlreadyExists("rule %q already exists", ruleName)
-		}
-		_, err = client.DatabaseObjectImportRuleClient().UpdateDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.UpdateDatabaseObjectImportRuleRequest{Rule: rule})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("rule %q has been updated\n", ruleName)
-	} else {
-		_, err = client.DatabaseObjectImportRuleClient().CreateDatabaseObjectImportRule(ctx, &dbobjectimportrulev1.CreateDatabaseObjectImportRuleRequest{Rule: rule})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("rule %q has been created\n", ruleName)
-	}
-
+	fmt.Printf("bot %q has been created\n", rule.GetMetadata().GetName())
 	return nil
 }
 
