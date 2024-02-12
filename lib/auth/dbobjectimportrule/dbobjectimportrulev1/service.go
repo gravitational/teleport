@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// Backend encapsulates required backend methods.
+// Backend interface for manipulating DatabaseObjectImportRule resources.
 type Backend interface {
 	services.DatabaseObjectImportRule
 }
@@ -72,7 +72,7 @@ type DatabaseObjectImportRuleService struct {
 	logger     logrus.FieldLogger
 }
 
-// GetDatabaseObjectImportRule gets a DatabaseObjectImportRule by name. It will throw an error if the DatabaseObjectImportRule does not exist.
+// GetDatabaseObjectImportRule gets a DatabaseObjectImportRule by name. It will return an error if the DatabaseObjectImportRule does not exist.
 func (bs *DatabaseObjectImportRuleService) GetDatabaseObjectImportRule(ctx context.Context, req *pb.GetDatabaseObjectImportRuleRequest) (*pb.DatabaseObjectImportRule, error) {
 	_, err := authz.AuthorizeWithVerbs(
 		ctx, bs.logger, bs.authorizer, false, types.KindDatabaseObjectImportRule, types.VerbRead,
@@ -110,7 +110,7 @@ func (bs *DatabaseObjectImportRuleService) ListDatabaseObjectImportRules(
 	}, nil
 }
 
-// CreateDatabaseObjectImportRule creates a new DatabaseObjectImportRule. It will throw an error if the DatabaseObjectImportRule already
+// CreateDatabaseObjectImportRule creates a new DatabaseObjectImportRule. It will return an error if the DatabaseObjectImportRule already
 // exists.
 func (bs *DatabaseObjectImportRuleService) CreateDatabaseObjectImportRule(
 	ctx context.Context, req *pb.CreateDatabaseObjectImportRuleRequest,
