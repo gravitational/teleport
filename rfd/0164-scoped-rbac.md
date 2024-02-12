@@ -825,7 +825,11 @@ spec:
   update_time: "2023-02-22T21:04:26.312862Z"
   # the time when the grant expires in RFC3339 format
   expires: "2021-08-14T22:27:00Z"
+  # roles that are granted
   roles: [admin, editor]
+  # traits that are granted
+  traits:
+    - 'internal.logins': 'root'
   identity: 'alice@example.com'
   scope: '/dev/lab`
 ```
@@ -916,7 +920,7 @@ Some backends make it easy, like Etcd giving a generation version for every reso
 
 Backends like DynamoDB are making it very hard or impossible, the only way with those backends is for the client to keep track when was the last time if has last fetched the resource `R` in cases 1 and 2, and update this value for `R` in it's in memory-cache.
 
-We also are making assumption that time is in sync between all clients.
+We also are making assumption that time is in sync between all clients. In real-world, it's more complicated, because we have to consider the times when roles have been updated and fetched, but the algorithm will remain the same.
 
 TODO: question for a scale team on implementation details for backends.
 
