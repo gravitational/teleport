@@ -648,7 +648,11 @@ func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
 }
 
 func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
-	return f.User.GetLocalAuth().MFA, nil
+	// Return a defensive copy, caller might modify the slice.
+	devices := f.User.GetLocalAuth().MFA
+	devicesCopy := make([]*types.MFADevice, len(devices))
+	copy(devicesCopy, devices)
+	return devicesCopy, nil
 }
 
 func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {

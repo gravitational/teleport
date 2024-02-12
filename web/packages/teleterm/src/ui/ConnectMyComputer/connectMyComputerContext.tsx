@@ -273,9 +273,10 @@ export const ConnectMyComputerContextProvider: FC<
     const { rootClusterId } = routing.parseClusterUri(rootClusterUri).params;
     let nodeName: string;
     try {
-      nodeName = await connectMyComputerService.getConnectMyComputerNodeName(
-        rootClusterUri
-      );
+      nodeName =
+        await connectMyComputerService.getConnectMyComputerNodeName(
+          rootClusterUri
+        );
     } catch (error) {
       if (isNotFoundError(error)) {
         return;

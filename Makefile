@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=14.3.3
+VERSION=14.3.4
 
 DOCKER_IMAGE ?= teleport
 
@@ -352,9 +352,9 @@ ifeq ("$(with_rdpclient)", "yes")
 .PHONY: rdpclient
 rdpclient:
 ifneq ("$(FIPS)","")
-	cargo build -p rdp-client --features=fips --release $(CARGO_TARGET)
+	cargo build -p rdp-client --features=fips --release --locked $(CARGO_TARGET)
 else
-	cargo build -p rdp-client --release $(CARGO_TARGET)
+	cargo build -p rdp-client --release --locked $(CARGO_TARGET)
 endif
 else
 .PHONY: rdpclient

@@ -144,6 +144,17 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 
 // ListResources returns a paginated list of resources.
 func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
+	resources, next, err := s.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
+	var nextKey string
+	if next != nil {
+		nextKey = backend.GetPaginationKey(*next)
+	}
+	return resources, nextKey, trace.Wrap(err)
+}
+
+// ListResourcesReturnNextResource returns a paginated list of resources. The next resource is returned, which allows consumers to construct
+// the next pagination key as appropriate.
+func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSize int, pageToken string) ([]T, *T, error) {
 	rangeStart := backend.Key(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
@@ -157,26 +168,26 @@ func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken 
 	// no filter provided get the range directly
 	result, err := s.backend.GetRange(ctx, rangeStart, rangeEnd, limit)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	out := make([]T, 0, len(result.Items))
 	for _, item := range result.Items {
 		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		out = append(out, resource)
 	}
 
-	var nextKey string
+	var next *T
 	if len(out) > pageSize {
-		nextKey = backend.GetPaginationKey(out[len(out)-1])
+		next = &out[pageSize]
 		// Truncate the last item that was used to determine next row existence.
 		out = out[:pageSize]
 	}
 
-	return out, nextKey, nil
+	return out, next, nil
 }
 
 // GetResource returns the specified resource.
@@ -205,6 +216,9 @@ func (s *Service[T]) CreateResource(ctx context.Context, resource T) (T, error) 
 	if trace.IsAlreadyExists(err) {
 		return t, trace.AlreadyExists("%s %q already exists", s.resourceKind, resource.GetName())
 	}
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
 
 	types.SetRevision(resource, lease.Revision)
 	return resource, trace.Wrap(err)
@@ -221,6 +235,9 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) (T, error) 
 	lease, err := s.backend.Update(ctx, item)
 	if trace.IsNotFound(err) {
 		return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
+	}
+	if err != nil {
+		return t, trace.Wrap(err)
 	}
 
 	types.SetRevision(resource, lease.Revision)

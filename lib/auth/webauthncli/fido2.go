@@ -230,7 +230,18 @@ func fido2Login(
 			assertions, err = dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
 		}
 		if errors.Is(err, libfido2.ErrNoCredentials) {
-			err = ErrUsingNonRegisteredDevice // "Upgrade" error message.
+			// U2F devices error instantly with ErrNoCredentials.
+			// If that is the case, we mark the error as non-interactive and continue
+			// without this device. This is the only safe option, as it lets the
+			// handleDevice goroutine exit gracefully. Do not attempt to wait for
+			// touch - this causes another slew of problems with abandoned U2F
+			// goroutines during registration.
+			if !info.fido2 {
+				log.Debugf("FIDO2: U2F device %v not registered, ignoring it", info.path)
+				err = &nonInteractiveError{err: err}
+			} else {
+				err = ErrUsingNonRegisteredDevice // "Upgrade" error message.
+			}
 		}
 		if err != nil {
 			return trace.Wrap(err)
@@ -665,8 +676,15 @@ func startDevices(
 
 		dev, err := fidoNewDevice(path)
 		if err != nil {
-			closeAll()
-			return nil, nil, trace.Wrap(err, "device open")
+			// Be resilient to open errors.
+			// This can happen to devices that failed to cancel (and thus are still
+			// asserting) when we run sequential operations. For example: registration
+			// immediately followed by assertion (in a single process).
+			// This is largely safe to ignore, as opening is fairly consistent in
+			// other situations and failures are likely from a non-chosen device in
+			// multi-device scenarios.
+			log.Debugf("FIDO2: Device %v failed to open, skipping: %v", path, err)
+			continue
 		}
 
 		fidoDevs = append(fidoDevs, dev)
@@ -674,6 +692,9 @@ func startDevices(
 			path: path,
 			dev:  dev,
 		})
+	}
+	if len(fidoDevs) == 0 {
+		return nil, nil, errors.New("failed to open security keys")
 	}
 
 	// Prompt touch, it's about to begin.

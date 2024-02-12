@@ -97,7 +97,7 @@ export type ActionMeta = {
  */
 export type CustomSelectComponentProps<
   CustomProps,
-  CustomOption = Option
+  CustomOption = Option,
 > = CustomOption & {
   /**
    * selectProps is the field to use to access the props that were
