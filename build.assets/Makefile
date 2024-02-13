@@ -188,12 +188,6 @@ buildbox-centos7:
 #
 # Builds a Docker buildbox for CentOS 7 FIPS builds
 #
-# Because this target uses the image built by the buildbox-centos7 target, it is
-# expected to be run with a buildx builder that uses the "docker" driver. If another
-# driver is used, the --build-arg BUILDBOX_CENTOS7=$(BUILDBOX_CENTOS7)-$(RUNTIME_ARCH)
-# will not know about the local image that was just built, and will pull the image from
-# the Docker repository instead, which will be out of date.
-#
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips:
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS))
@@ -223,6 +217,7 @@ buildbox-arm:
 	DOCKER_BUILDKIT=1 docker build \
 		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--cache-to type=inline \
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--build-arg UID=$(UID) \
@@ -230,8 +225,6 @@ buildbox-arm:
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--cache-to type=inline \
-		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
 CONNECT_VERSION ?= $(VERSION)
