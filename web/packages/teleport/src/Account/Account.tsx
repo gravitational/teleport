@@ -42,6 +42,10 @@ import AddDevice from './ManageDevices/AddDevice';
 import { ActionButton, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
 import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
+import { storageService } from 'teleport/services/storageService';
+
+const useNewAddAuthDeviceDialog =
+  storageService.isNewAddAuthDeviceDialogEnabled();
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
@@ -201,7 +205,11 @@ export function Account({
                         ? 'Passwordless authentication is disabled'
                         : ''
                     }
-                    onClick={onAddPasskey}
+                    onClick={() =>
+                      useNewAddAuthDeviceDialog
+                        ? onAddPasskey()
+                        : onAddDevice('passwordless')
+                    }
                   >
                     <Icon.Add size={20} />
                     Add a Passkey
