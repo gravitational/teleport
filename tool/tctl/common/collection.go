@@ -1178,10 +1178,13 @@ func (c *databaseObjectImportRuleCollection) resources() []types.Resource {
 }
 
 func (c *databaseObjectImportRuleCollection) writeText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name"})
+	t := asciitable.MakeTable([]string{"Name", "Priority", "Mapping Count", "DB Label Count"})
 	for _, b := range c.rules {
 		t.AddRow([]string{
 			b.GetMetadata().GetName(),
+			fmt.Sprintf("%v", b.GetSpec().GetPriority()),
+			fmt.Sprintf("%v", len(b.GetSpec().GetMappings())),
+			fmt.Sprintf("%v", len(b.GetSpec().GetDbLabels().Values)),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
