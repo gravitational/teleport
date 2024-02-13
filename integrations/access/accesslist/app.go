@@ -129,11 +129,13 @@ func (a *App) run(ctx context.Context) error {
 	for {
 		select {
 		case <-timer.Chan():
+			// The timer is reset before posting, else the tests might receive
+			// the message and advance the fake clock before we reset the timer.
+			timer.Reset(jitter(reminderInterval))
 			if err := a.remindIfNecessary(ctx); err != nil {
 				return trace.Wrap(err)
 			}
 
-			timer.Reset(jitter(reminderInterval))
 		case <-ctx.Done():
 			log.Info("Access list monitor is finished")
 			return nil
