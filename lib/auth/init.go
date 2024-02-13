@@ -813,6 +813,8 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetDeviceAdminRole(),
 		services.NewPresetDeviceEnrollRole(),
 		services.NewPresetRequireTrustedDeviceRole(),
+		services.NewSystemOktaResourcesRole(),
+		services.NewSystemOktaRequesterRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
