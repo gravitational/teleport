@@ -72,7 +72,7 @@ func TestListBots(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
 
 	assert.Len(t, bots.Items, created)
-	assert.Equal(t, bots.Items[0].Spec.Roles, []string{"test-role"})
+	assert.Equal(t, []string{"test-role"}, bots.Items[0].Spec.Roles)
 }
 
 func TestListBots_UnauthenticatedError(t *testing.T) {
