@@ -329,6 +329,8 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			require.IsType(t, &ui.OktaPluginSpec{}, plugin.Spec)
 			spec := plugin.Spec.(*ui.OktaPluginSpec)
 			require.Equal(t, oktaAppID, spec.OktaAppID)
+			require.Equal(t, "Teleport_App_plus_index", spec.OktaAppName)
+			require.Equal(t, "Teleport App", spec.OktaAppLabel)
 			require.Equal(t, oktaSSOConnectorName, spec.TeleportSSOConnector)
 			testCase.expectSCIMToken(t, spec.SCIMBearerToken)
 
@@ -575,6 +577,8 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 			require.IsType(t, &ui.OktaPluginSpec{}, plugin.Spec)
 			spec := plugin.Spec.(*ui.OktaPluginSpec)
 			require.Equal(t, oktaAppID, spec.OktaAppID)
+			require.Equal(t, "Teleport_App_plus_index", spec.OktaAppName)
+			require.Equal(t, "Teleport App", spec.OktaAppLabel)
 			require.Equal(t, oktaSSOConnectorName, spec.TeleportSSOConnector)
 			testCase.expectSCIMToken(t, spec.SCIMBearerToken)
 

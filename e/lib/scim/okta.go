@@ -207,6 +207,7 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 		_, err := okta.LockUser(ctx, okta.LockParams{
 			User:     teleportUser,
 			Reason:   okta.LockReasonDeactivated,
+			Message:  "User deactivated by Okta",
 			OrgURL:   oktaSettings.OrgUrl,
 			Clock:    s.clock,
 			LocksSvc: s.locks,

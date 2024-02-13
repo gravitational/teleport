@@ -88,7 +88,7 @@ export function SetUpScim() {
               bash={false}
               lines={[
                 {
-                  text: `email`,
+                  text: `userName`,
                 },
               ]}
             />

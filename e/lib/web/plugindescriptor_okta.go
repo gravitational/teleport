@@ -207,8 +207,9 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 
 	uiPlugin.Spec = &ui.OktaPluginSpec{
 		SCIMBearerToken:      params.scimBearerToken,
-		OktaAppName:          connInfo.OktaAppName,
 		OktaAppID:            connInfo.OktaAppID,
+		OktaAppName:          connInfo.OktaAppName,
+		OktaAppLabel:         connInfo.OktaAppLabel,
 		TeleportSSOConnector: connInfo.Connector.GetName(),
 	}
 

@@ -25,8 +25,12 @@ type OktaPluginSpec struct {
 	// installation
 	OktaAppID string `json:"oktaAppId,omitempty"`
 
-	// OktaAppName is the human readable name of the Okta SAML app created
+	// OktaAppLabel is the human readable name of the Okta SAML app created
 	// during the Okta plugin installation
+	OktaAppLabel string `json:"oktaAppLabel,omitempty"`
+
+	// OktaAppName is the unique app name of the Okta SAML app created during
+	// the plugin installation
 	OktaAppName string `json:"oktaAppName,omitempty"`
 
 	// TeleportSSOConnector is the name of the Teleport SAML SSO connector

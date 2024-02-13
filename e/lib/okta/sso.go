@@ -79,9 +79,10 @@ func (a *ConnectorArgs) Check() error {
 // SAMLConnectorInfo holds data about the created SSO connector and underlying
 // Okta SAML app. Returned from CreateSSOConnector().
 type SAMLConnectorInfo struct {
-	Connector   types.SAMLConnector
-	OktaAppID   string
-	OktaAppName string
+	Connector    types.SAMLConnector
+	OktaAppID    string
+	OktaAppLabel string
+	OktaAppName  string
 }
 
 // CreateSAMLConnector automates the creation of an Okta SAML app and
@@ -192,9 +193,10 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 	}
 
 	info := &SAMLConnectorInfo{
-		Connector:   connector,
-		OktaAppID:   app.Id,
-		OktaAppName: app.Name,
+		Connector:    connector,
+		OktaAppID:    app.Id,
+		OktaAppName:  app.Name,
+		OktaAppLabel: app.Label,
 	}
 
 	return info, nil
@@ -230,9 +232,10 @@ func ValidateSAMLConnector(ctx context.Context, connector types.SAMLConnector, o
 	}
 
 	info := &SAMLConnectorInfo{
-		Connector:   connector,
-		OktaAppID:   connectorAppID,
-		OktaAppName: samlApp.Label,
+		Connector:    connector,
+		OktaAppID:    connectorAppID,
+		OktaAppName:  samlApp.Name,
+		OktaAppLabel: samlApp.Label,
 	}
 
 	return info, nil

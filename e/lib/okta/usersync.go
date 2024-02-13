@@ -405,6 +405,7 @@ func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleport
 type LockParams struct {
 	User     types.User
 	Reason   string
+	Message  string
 	OrgURL   string
 	Clock    clockwork.Clock
 	LocksSvc LocksService
@@ -447,8 +448,13 @@ func LockUser(ctx context.Context, args LockParams) (types.Lock, error) {
 		return nil, err
 	}
 
+	msg := args.Message
+	if msg == "" {
+		status, _ := args.User.GetLabel(eteleport.OktaUserStatusLabel)
+		msg = fmt.Sprintf("Okta user %q is %s", args.User.GetName(), status)
+	}
+
 	expiry := args.Clock.Now().Add(lockTTL)
-	status, _ := args.User.GetLabel(eteleport.OktaUserStatusLabel)
 	l := &types.LockV2{
 		Metadata: types.Metadata{
 			Name: uuid.NewString(),
@@ -460,7 +466,7 @@ func LockUser(ctx context.Context, args LockParams) (types.Lock, error) {
 			Expires: &expiry,
 		},
 		Spec: types.LockSpecV2{
-			Message: fmt.Sprintf("Okta user %q is %s", args.User.GetName(), status),
+			Message: msg,
 			Target: types.LockTarget{
 				User: args.User.GetName(),
 			},

@@ -39,7 +39,8 @@ func TestPluginSerialization(t *testing.T) {
 				Spec: &OktaPluginSpec{
 					TeleportSSOConnector: "okta-integration",
 					OktaAppID:            "0oae1fwmde3GL1HC55d7",
-					OktaAppName:          "Teleport platform.teleport.sh",
+					OktaAppName:          "dev-78836936_teleportauth_4",
+					OktaAppLabel:         "Teleport platform.teleport.sh",
 					SCIMBearerToken:      "some-great-big-random-string",
 				},
 			},
@@ -51,7 +52,8 @@ func TestPluginSerialization(t *testing.T) {
 				"spec": map[string]any{
 					"teleportSsoConnector": "okta-integration",
 					"oktaAppId":            "0oae1fwmde3GL1HC55d7",
-					"oktaAppName":          "Teleport platform.teleport.sh",
+					"oktaAppName":          "dev-78836936_teleportauth_4",
+					"oktaAppLabel":         "Teleport platform.teleport.sh",
 					"scimBearerToken":      "some-great-big-random-string",
 				},
 			},
@@ -100,6 +102,7 @@ func TestOktaPluginSpecJSON(t *testing.T) {
 			TeleportSSOConnector: "okta-integration",
 			OktaAppID:            "0oae1fwmde3GL1HC55d7",
 			OktaAppName:          "Teleport platform.teleport.sh",
+			OktaAppLabel:         "dev-78836936_teleportauth_4",
 			SCIMBearerToken:      "some-great-big-random-string",
 		},
 	}
