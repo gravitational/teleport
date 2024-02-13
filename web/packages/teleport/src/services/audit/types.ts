@@ -67,6 +67,7 @@ export const eventCodes = {
   DATABASE_SESSION_STARTED_FAILURE: 'TDB00W',
   DATABASE_SESSION_STARTED: 'TDB00I',
   DATABASE_SESSION_MALFORMED_PACKET: 'TDB06I',
+  DATABASE_SESSION_PERMISSIONS_UPDATE: 'TDB07I',
   DATABASE_CREATED: 'TDB03I',
   DATABASE_UPDATED: 'TDB04I',
   DATABASE_DELETED: 'TDB05I',
@@ -259,6 +260,8 @@ export const eventCodes = {
   OKTA_ASSIGNMENT_PROCESS_FAILURE: 'TOK004E',
   OKTA_ASSIGNMENT_CLEANUP: 'TOK005I',
   OKTA_ASSIGNMENT_CLEANUP_FAILURE: 'TOK005E',
+  OKTA_ACCESS_LIST_SYNC: 'TOK006I',
+  OKTA_ACCESS_LIST_SYNC_FAILURE: 'TOK006E',
   ACCESS_LIST_CREATE: 'TAL001I',
   ACCESS_LIST_CREATE_FAILURE: 'TAL001E',
   ACCESS_LIST_UPDATE: 'TAL002I',
@@ -760,6 +763,19 @@ export type RawEvents = {
       name: string;
       db_service: string;
       db_name: string;
+    }
+  >;
+  [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: RawEvent<
+    typeof eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      permission_summary: {
+        permission: string;
+        counts: { [key: string]: number };
+      }[];
     }
   >;
   [eventCodes.DATABASE_CREATED]: RawEvent<
@@ -1387,6 +1403,12 @@ export type RawEvents = {
       source: string;
     }
   >;
+  [eventCodes.OKTA_ACCESS_LIST_SYNC]: RawEvent<
+    typeof eventCodes.OKTA_ACCESS_LIST_SYNC
+  >;
+  [eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE
+  >;
   [eventCodes.ACCESS_LIST_CREATE]: RawEvent<
     typeof eventCodes.ACCESS_LIST_CREATE,
     {
@@ -1506,19 +1528,19 @@ export type RawEvents = {
   [eventCodes.CREATE_MFA_AUTH_CHALLENGE]: RawEvent<
     typeof eventCodes.CREATE_MFA_AUTH_CHALLENGE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSE]: RawEvent<
     typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: RawEvent<
     typeof eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE,
     {
-      updated_by: string;
+      user: string;
     }
   >;
 };
@@ -1526,7 +1548,7 @@ export type RawEvents = {
 /**
  * Event Code
  */
-export type EventCode = typeof eventCodes[keyof typeof eventCodes];
+export type EventCode = (typeof eventCodes)[keyof typeof eventCodes];
 
 type HasName = {
   name: string;

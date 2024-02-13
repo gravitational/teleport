@@ -163,9 +163,8 @@ describe('setActiveWorkspace', () => {
       persistedWorkspaces: {},
     });
 
-    const { isAtDesiredWorkspace } = await workspacesService.setActiveWorkspace(
-      '/clusters/foo'
-    );
+    const { isAtDesiredWorkspace } =
+      await workspacesService.setActiveWorkspace('/clusters/foo');
 
     expect(isAtDesiredWorkspace).toBe(false);
     expect(workspacesService.getRootClusterUri()).toBeUndefined();
@@ -248,7 +247,7 @@ function getTestSetup(options: {
         }
         return clusterDocument;
       },
-    } as Partial<DocumentsService> as DocumentsService);
+    }) as Partial<DocumentsService> as DocumentsService;
 
   return { workspacesService, clusterDocument, modalsService };
 }

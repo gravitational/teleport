@@ -97,8 +97,8 @@ export function OneClusterWithActiveCluster() {
     proxyHost: 'localhost:3080',
     loggedInUser: makeLoggedInUser({
       name: 'alice',
-      rolesList: ['access', 'editor'],
-      sshLoginsList: ['root'],
+      roles: ['access', 'editor'],
+      sshLogins: ['root'],
     }),
   });
 
@@ -183,8 +183,8 @@ export function ManyClustersWithActiveCluster() {
     proxyHost: 'localhost:3080',
     loggedInUser: makeLoggedInUser({
       name: activeIdentityRootCluster.userName,
-      rolesList: ['access', 'editor'],
-      sshLoginsList: ['root'],
+      roles: ['access', 'editor'],
+      sshLogins: ['root'],
     }),
   });
 
@@ -234,7 +234,7 @@ export function LongNamesWithManyRoles() {
     proxyHost: 'localhost:3080',
     loggedInUser: makeLoggedInUser({
       name: activeIdentityRootCluster.userName,
-      rolesList: [
+      roles: [
         'circle-mark-app-access',
         'grafana-lite-app-access',
         'grafana-gold-app-access',
@@ -245,7 +245,7 @@ export function LongNamesWithManyRoles() {
         'sales-center-shop-app-access',
         'sales-center-floor-db-access',
       ],
-      sshLoginsList: ['root'],
+      sshLogins: ['root'],
     }),
   });
 

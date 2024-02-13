@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/scim"
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -80,6 +81,9 @@ type Client struct {
 
 // Make sure Client implements all the necessary methods.
 var _ ClientI = &Client{}
+
+// Static asserton that the scim client actually implements the SCIM interface.
+var _ services.SCIM = (*scim.Client)(nil)
 
 // NewClient creates a new API client with a connection to a Teleport server.
 //
@@ -439,6 +443,10 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 
 func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
+}
+
+func (c *Client) SCIMClient() services.SCIM {
+	return c.APIClient.SCIMClient()
 }
 
 // SecReportsClient returns a client for security reports.
@@ -920,6 +928,12 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	OktaClient() services.Okta
 
+	// SCIMClient returns a client for the SCIM provisioning service. Clients
+	// connecting to OSS clusters will still get a client when calling this method,
+	// but the back-end service will fail all requests with "Not Implemented" as per the
+	// default GRPC behavior.
+	SCIMClient() services.SCIM
+
 	// AccessListClient returns an access list client.
 	// Clients connecting to older Teleport versions still get an access list client
 	// when calling this method, but all RPCs will return "not implemented" errors
@@ -983,6 +997,8 @@ type ClientI interface {
 	// but may result in confusing behavior if it is used outside of those contexts.
 	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
 
-	// PromptMFA prompts the user for MFA.
-	PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
+	// PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
+	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
+	// an MFA challenge response for the user.
+	PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
 }

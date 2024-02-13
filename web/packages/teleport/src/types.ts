@@ -36,6 +36,11 @@ export interface TeleportFeatureNavigationItem {
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
+  /*
+   * isSelected is an option function provided to allow more control over whether this feature is
+   * in the "selected" state in the navigation
+   */
+  isSelected?: (clusterId: string, pathname: string) => boolean;
 }
 
 export enum NavTitle {
@@ -192,3 +197,11 @@ export enum RecommendationStatus {
   Notify = 'NOTIFY',
   Done = 'DONE',
 }
+
+// WebsocketStatus is used to indicate the auth status from a
+// websocket connection
+export type WebsocketStatus = {
+  type: string;
+  status: string;
+  message?: string;
+};

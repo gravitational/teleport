@@ -47,6 +47,7 @@ import {
   getWebAppLaunchUrl,
   isWebApp,
   getAwsAppLaunchUrl,
+  getSamlAppSsoUrl,
 } from 'teleterm/services/tshd/app';
 
 export function ConnectServerActionButton(props: {
@@ -56,7 +57,7 @@ export function ConnectServerActionButton(props: {
 
   function getSshLogins(): string[] {
     const cluster = ctx.clustersService.findClusterByResource(props.server.uri);
-    return cluster?.loggedInUser?.sshLoginsList || [];
+    return cluster?.loggedInUser?.sshLogins || [];
   }
 
   function connect(login: string): void {
@@ -220,7 +221,7 @@ function AppButton(props: {
   if (props.app.awsConsole) {
     return (
       <AwsLaunchButton
-        awsRoles={props.app.awsRolesList}
+        awsRoles={props.app.awsRoles}
         getLaunchUrl={arn =>
           getAwsAppLaunchUrl({
             app: props.app,
@@ -229,7 +230,27 @@ function AppButton(props: {
             arn,
           })
         }
+        onLaunchUrl={props.onLaunchUrl}
       />
+    );
+  }
+
+  if (props.app.samlApp) {
+    return (
+      <ButtonBorder
+        size="small"
+        onClick={props.onLaunchUrl}
+        as="a"
+        textTransform="none"
+        title="Log in to the app in the browser"
+        href={getSamlAppSsoUrl({
+          app: props.app,
+          rootCluster: props.rootCluster,
+        })}
+        target="_blank"
+      >
+        Login
+      </ButtonBorder>
     );
   }
 
@@ -247,7 +268,7 @@ function AppButton(props: {
           })}
           onClick={props.onLaunchUrl}
           target="_blank"
-          title="Launch app in the browser"
+          title="Launch the app in the browser"
           css={`
             border-top-right-radius: 0;
             border-bottom-right-radius: 0;

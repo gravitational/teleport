@@ -68,13 +68,13 @@ export const OnlineEmptyResourcesAndCanAddResourcesAndConnectComputer = () => {
     makeRootCluster({
       uri: rootClusterDoc.clusterUri,
       loggedInUser: makeLoggedInUser({
-        userType: tsh.UserType.USER_TYPE_LOCAL,
+        userType: tsh.UserType.LOCAL,
         acl: {
           tokens: {
             create: true,
             list: true,
             edit: true,
-            pb_delete: true,
+            delete: true,
             read: true,
             use: true,
           },
@@ -104,13 +104,13 @@ export const OnlineEmptyResourcesAndCanAddResourcesButCannotConnectComputer =
       makeRootCluster({
         uri: rootClusterDoc.clusterUri,
         loggedInUser: makeLoggedInUser({
-          userType: tsh.UserType.USER_TYPE_SSO,
+          userType: tsh.UserType.SSO,
           acl: {
             tokens: {
               create: true,
               list: true,
               edit: true,
-              pb_delete: true,
+              delete: true,
               read: true,
               use: true,
             },
@@ -144,7 +144,7 @@ export const OnlineEmptyResourcesAndCannotAddResources = () => {
             create: false,
             list: true,
             edit: true,
-            pb_delete: true,
+            delete: true,
             read: true,
             use: true,
           },
@@ -241,6 +241,17 @@ export const OnlineLoadedResources = () => {
                 { arn: 'foo', display: 'foo', name: 'foo' },
                 { arn: 'bar', display: 'bar', name: 'bar' },
               ],
+            },
+          },
+          {
+            kind: 'app',
+            resource: {
+              ...makeApp(),
+              name: 'SAML app',
+              desc: 'SAML Application',
+              publicAddr: '',
+              endpointUri: '',
+              samlApp: true,
             },
           },
         ],

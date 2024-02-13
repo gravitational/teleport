@@ -843,11 +843,11 @@ func TestLogin_scopeAndReuse(t *testing.T) {
 				}
 
 				require.NoError(t, err)
-				require.Equal(t, loginData, &wanlib.LoginData{
+				require.Equal(t, &wanlib.LoginData{
 					Device:     device,
 					User:       user,
 					AllowReuse: loginData.AllowReuse,
-				})
+				}, loginData)
 
 				// Session data should only be deleted if reuse was not requested on begin.
 				if test.challengeExt.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
@@ -886,7 +886,11 @@ func newFakeIdentity(user string, devices ...*types.MFADevice) *fakeIdentity {
 }
 
 func (f *fakeIdentity) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
-	return f.User.GetLocalAuth().MFA, nil
+	// Return a defensive copy, caller might modify the slice.
+	devices := f.User.GetLocalAuth().MFA
+	devicesCopy := make([]*types.MFADevice, len(devices))
+	copy(devicesCopy, devices)
+	return devicesCopy, nil
 }
 
 func (f *fakeIdentity) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {

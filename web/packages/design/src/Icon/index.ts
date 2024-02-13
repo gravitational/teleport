@@ -55,6 +55,7 @@ export { CardView } from './Icons/CardView';
 export { Cash } from './Icons/Cash';
 export { Chart } from './Icons/Chart';
 export { ChatBubble } from './Icons/ChatBubble';
+export { ChatCircleSparkle } from './Icons/ChatCircleSparkle';
 export { Check } from './Icons/Check';
 export { ChevronCircleDown } from './Icons/ChevronCircleDown';
 export { ChevronCircleLeft } from './Icons/ChevronCircleLeft';

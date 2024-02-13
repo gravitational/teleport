@@ -5828,7 +5828,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, g.Logger, err)
+		return nil, trace.Wrap(err)
 	}
 	return &grpcContext{
 		Context: authContext,
@@ -5874,8 +5874,8 @@ func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.
 	}, nil
 }
 
-// StreamUnstructuredSessionEventsServer streams all events from a given session recording as an unstructured format.
-func (g *GRPCServer) StreamUnstructuredSessionEventsServer(req *auditlogpb.StreamUnstructuredSessionEventsRequest, stream auditlogpb.AuditLogService_StreamUnstructuredSessionEventsServer) error {
+// StreamUnstructuredSessionEvents streams all events from a given session recording as an unstructured format.
+func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstructuredSessionEventsRequest, stream auditlogpb.AuditLogService_StreamUnstructuredSessionEventsServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)

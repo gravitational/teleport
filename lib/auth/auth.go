@@ -520,6 +520,7 @@ type Services struct {
 	services.Embeddings
 	services.UserPreferences
 	services.PluginData
+	services.SCIM
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -551,6 +552,13 @@ func (r *Services) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
 // OktaClient returns the okta client.
 func (r *Services) OktaClient() services.Okta {
 	return r
+}
+
+// SCIMClient returns a client for the SCIM service. Note that in an OSS
+// Teleport cluster, or an Enterprise cluster with IGS disabled, the SCIM
+// service on the other end will return "NotImplemented" for every call.
+func (r *Services) SCIMClient() services.SCIM {
+	return r.SCIM
 }
 
 // AccessListClient returns the access list client.
@@ -1570,6 +1578,10 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.clock = clock
+}
+
+func (a *Server) SetSCIMService(scim services.SCIM) {
+	a.Services.SCIM = scim
 }
 
 // SetAuditLog sets the server's audit log
@@ -2596,16 +2608,13 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	// Only validate/default kubernetes cluster name for the current teleport
-	// cluster. If this cert is targeting a trusted teleport cluster, leave all
-	// the kubernetes cluster validation up to them.
-	if req.routeToCluster == clusterName {
-		req.kubernetesCluster, err = kubeutils.CheckOrSetKubeCluster(a.closeCtx, a, req.kubernetesCluster, clusterName)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			log.Debug("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
+	// Ensure that the Kubernetes cluster name specified in the request exists
+	// when the certificate is intended for a local Kubernetes cluster.
+	// If the certificate is targeting a trusted Teleport cluster, it is the
+	// responsibility of the cluster to ensure its existence.
+	if req.routeToCluster == clusterName && req.kubernetesCluster != "" {
+		if err := kubeutils.CheckKubeCluster(a.closeCtx, a, req.kubernetesCluster); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -6420,12 +6429,6 @@ func (k *authKeepAliver) Close() error {
 	k.cancel()
 	return nil
 }
-
-const (
-	// TokenLenBytes is len in bytes of the invite token
-	// TODO(marco): remove const block when e/ code is no longer using it.
-	TokenLenBytes = 16
-)
 
 // githubClient is internal structure that stores Github OAuth 2client and its config
 type githubClient struct {

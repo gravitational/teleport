@@ -983,6 +983,9 @@ func (a *AuthCommand) checkLeafCluster(clusterAPI auth.ClientI) error {
 }
 
 func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI auth.ClientI) error {
+	if a.kubeCluster == "" {
+		return nil
+	}
 	if a.outputFormat != identityfile.FormatKubernetes && a.kubeCluster != "" {
 		// User set --kube-cluster-name but it's not actually used for the chosen --format.
 		// Print a warning but continue.
@@ -1002,10 +1005,10 @@ func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI auth.Clie
 		return nil
 	}
 
-	a.kubeCluster, err = kubeutils.CheckOrSetKubeCluster(ctx, clusterAPI, a.kubeCluster, a.leafCluster)
-	if err != nil && !trace.IsNotFound(err) {
+	if err := kubeutils.CheckKubeCluster(ctx, clusterAPI, a.kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 

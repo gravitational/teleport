@@ -16,10 +16,10 @@ package interceptors_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -88,15 +88,19 @@ func TestGRPCErrorWrapping(t *testing.T) {
 		stream, err := client.AddMFADevice(context.Background())
 		require.NoError(t, err)
 
+		// Give the server time to close the stream. This allows us to more
+		// consistently hit the io.EOF error.
+		time.Sleep(100 * time.Millisecond)
+
 		//nolint:staticcheck // SA1019. The specific stream used here doesn't matter.
 		sendErr := stream.Send(&proto.AddMFADeviceRequest{})
 
-		// io.EOF means the server closed the stream, which can
-		// happen depending in timing. In either case, it is
-		// still safe to recv from the stream and check for
+		// Expect either a success (unlikely because of the Sleep) or an unwrapped
+		// io.EOF error (meaning the server errored and closed the stream).
+		// In either case, it is still safe to recv from the stream and check for
 		// the already exists error.
-		if sendErr != nil && !errors.Is(sendErr, io.EOF) {
-			t.Fatalf("Unexpected error: %v", sendErr)
+		if sendErr != nil && sendErr != io.EOF /* == error comparison on purpose! */ {
+			t.Fatalf("Unexpected error: %q (%T)", sendErr, sendErr)
 		}
 
 		_, err = stream.Recv()

@@ -374,20 +374,30 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if activeConnections == 0 {
 		return err
 	}
+	minReportInterval := 10 * s.shutdownPollPeriod
+	maxReportInterval := 600 * s.shutdownPollPeriod
 	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-	lastReport := time.Time{}
+	reportedConnections := activeConnections
+	lastReport := time.Now()
+	reportInterval := minReportInterval
 	ticker := time.NewTicker(s.shutdownPollPeriod)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case now := <-ticker.C:
 			activeConnections = s.trackUserConnections(0)
 			if activeConnections == 0 {
 				return err
 			}
-			if time.Since(lastReport) > 10*s.shutdownPollPeriod {
+			if activeConnections != reportedConnections || now.Sub(lastReport) > reportInterval {
 				s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-				lastReport = time.Now()
+				lastReport = now
+				if activeConnections == reportedConnections {
+					reportInterval = min(reportInterval*2, maxReportInterval)
+				} else {
+					reportInterval = minReportInterval
+					reportedConnections = activeConnections
+				}
 			}
 		case <-ctx.Done():
 			s.log.Infof("Context canceled wait, returning.")
