@@ -3068,8 +3068,8 @@ func (c *Client) DeleteAllDatabaseServices(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-// GetDatabaseObjectsImportRules retrieves all database object import rules.
-func (c *Client) GetDatabaseObjectsImportRules(ctx context.Context) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, error) {
+// GetDatabaseObjectImportRules retrieves all database object import rules.
+func (c *Client) GetDatabaseObjectImportRules(ctx context.Context) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, error) {
 	var out []*dbobjectimportrulev1.DatabaseObjectImportRule
 	req := &dbobjectimportrulev1.ListDatabaseObjectImportRulesRequest{}
 	client := c.DatabaseObjectImportRuleClient()
