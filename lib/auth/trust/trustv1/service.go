@@ -167,12 +167,12 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 
 // DeleteCertAuthority deletes the matching cert authority.
 func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCertAuthorityRequest) (*emptypb.Empty, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbDelete)
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbDelete)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -199,7 +199,7 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authzCtx); err != nil {
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -212,12 +212,12 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 
 // RotateCertAuthority rotates a cert authority.
 func (s *Service) RotateCertAuthority(ctx context.Context, req *trustpb.RotateCertAuthorityRequest) (*trustpb.RotateCertAuthorityResponse, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbCreate, types.VerbUpdate)
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
