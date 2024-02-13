@@ -29,7 +29,6 @@ import (
 	"testing"
 
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	"github.com/stretchr/testify/assert"
@@ -443,7 +442,6 @@ func (s *WebSuite) makeAssistant(_ *testing.T, pack *authPack, conversationID, a
 		q.Set("action", action)
 	}
 
-	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -459,6 +457,10 @@ func (s *WebSuite) makeAssistant(_ *testing.T, pack *authPack, conversationID, a
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := makeAuthReqOverWS(ws, pack.session.Token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
