@@ -80,6 +80,8 @@ export default function useTdpClientCanvas(props: Props) {
    */
   const syncBeforeNextKey = useRef(true);
 
+  const keyboardHandler = useRef(new KeyboardHandler());
+
   useEffect(() => {
     const addr = cfg.api.desktopWsAddr
       .replace(':fqdn', getHostName())
@@ -239,62 +241,17 @@ export default function useTdpClientCanvas(props: Props) {
     }
   };
 
-  const isMac = getPlatform() === Platform.macOS;
-  /**
-   * Special handler for the CapsLock key.
-   *
-   * On MacOS Edge/Chrome/Safari, each physical CapsLock DOWN-UP registers
-   * as either a single DOWN or single UP, with DOWN corresponding to
-   * "CapsLock on" and UP to "CapsLock off". On MacOS Firefox, it always
-   * registers as a DOWN.
-   *
-   * On Windows and Linux, all browsers treat CapsLock like a normal key.
-   *
-   * The remote Windows machine also treats CapsLock like a normal key, and
-   * expects a DOWN-UP whenever it's pressed.
-   */
-  const handleCapsLock = (cli: TdpClient, state: ButtonState) => {
-    if (isMac) {
-      // On Mac, every UP or DOWN given to us by the browser corresponds
-      // to a DOWN + UP on the remote machine.
-      cli.sendKeyboardInput('CapsLock', ButtonState.DOWN);
-      cli.sendKeyboardInput('CapsLock', ButtonState.UP);
-    } else {
-      // On Windows or Linux, we just pass the event through normally to the server.
-      cli.sendKeyboardInput('CapsLock', state);
-    }
-  };
-
-  /**
-   * Handles a keyboard event.
-   */
-  const handleKeyboardEvent = (
-    cli: TdpClient,
-    e: KeyboardEvent,
-    state: ButtonState
-  ) => {
-    if (e.code === 'CapsLock') {
-      handleCapsLock(cli, state);
-      return;
-    }
-    cli.sendKeyboardInput(e.code, state);
-  };
-
   const canvasOnKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
+    console.log('keydown', e.code, e.key, e.keyCode);
     handleSyncBeforeNextKey(cli, e);
-    handleKeyboardEvent(cli, e, ButtonState.DOWN);
+    keyboardHandler.current.handleKeyboardEvent(cli, e, ButtonState.DOWN);
 
     // The key codes in the if clause below are those that have been empirically determined not
     // to count as transient activation events. According to the documentation, a keydown for
     // the Esc key and any "shortcut key reserved by the user agent" don't count as activation
     // events: https://developer.mozilla.org/en-US/docs/Web/Security/User_activation.
-    if (
-      e.code !== 'MetaRight' &&
-      e.code !== 'MetaLeft' &&
-      e.code !== 'AltRight' &&
-      e.code !== 'AltLeft'
-    ) {
+    if (e.key !== 'Meta' && e.key !== 'Alt' && e.key !== 'Escape') {
       // Opportunistically sync local clipboard to remote while
       // transient user activation is in effect.
       // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
@@ -304,11 +261,13 @@ export default function useTdpClientCanvas(props: Props) {
 
   const canvasOnKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
+    console.log('keyup', e.code, e.key, e.keyCode);
     handleSyncBeforeNextKey(cli, e);
-    handleKeyboardEvent(cli, e, ButtonState.UP);
+    keyboardHandler.current.handleKeyboardEvent(cli, e, ButtonState.UP);
   };
 
   const canvasOnFocusOut = () => {
+    keyboardHandler.current.handleOnFocusOut();
     syncBeforeNextKey.current = true;
   };
 
@@ -449,4 +408,123 @@ async function sysClipboardGuard(
   // but the other is denied, and we want to try the operation. The feature is
   // either fully enabled or fully disabled.
   return isSharingClipboard(clipboardSharingState) && document.hasFocus();
+}
+
+class KeyboardHandler {
+  withheld: { [code: string]: ButtonState | undefined } = {};
+  private isMac: boolean;
+
+  constructor() {
+    this.isMac = getPlatform() === Platform.macOS;
+  }
+
+  public handleKeyboardEvent(
+    cli: TdpClient,
+    e: KeyboardEvent,
+    state: ButtonState
+  ) {
+    if (this.handleCapsLock(cli, e, state)) {
+      return;
+    }
+
+    if (this.handleWithholding(e, state)) {
+      return;
+    }
+
+    this.handleUnwithholding(cli, e, state);
+
+    cli.sendKeyboardInput(e.code, state);
+  }
+
+  /**
+   * Called when the canvas loses focus.
+   *
+   * This clears the withheld keys, so that they don't get stuck in the
+   * down state if the user loses focus while holding them down.
+   */
+  public handleOnFocusOut() {
+    this.withheld = {};
+  }
+
+  /**
+   * Special handler for the CapsLock key.
+   *
+   * On MacOS Edge/Chrome/Safari, each physical CapsLock DOWN-UP registers
+   * as either a single DOWN or single UP, with DOWN corresponding to
+   * "CapsLock on" and UP to "CapsLock off". On MacOS Firefox, it always
+   * registers as a DOWN.
+   *
+   * On Windows and Linux, all browsers treat CapsLock like a normal key.
+   *
+   * The remote Windows machine also treats CapsLock like a normal key, and
+   * expects a DOWN-UP whenever it's pressed.
+   *
+   * Returns true if the event was handled, false otherwise.
+   */
+  private handleCapsLock(
+    cli: TdpClient,
+    e: KeyboardEvent,
+    state: ButtonState
+  ): boolean {
+    if (e.code === 'CapsLock') {
+      if (this.isMac) {
+        // On Mac, every UP or DOWN given to us by the browser corresponds
+        // to a DOWN + UP on the remote machine.
+        cli.sendKeyboardInput('CapsLock', ButtonState.DOWN);
+        cli.sendKeyboardInput('CapsLock', ButtonState.UP);
+      } else {
+        // On Windows or Linux, we just pass the event through normally to the server.
+        cli.sendKeyboardInput('CapsLock', state);
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Called before every keydown or keyup event. This witholds the
+   * keys for which we want to see what the next event is before
+   * sending them on to the server.
+   *
+   * Returns true if the event was handled, false otherwise.
+   */
+  private handleWithholding(e: KeyboardEvent, state: ButtonState): boolean {
+    if (this.shouldBeWithheld(e, state)) {
+      this.withheld[e.code] = state;
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Called after every keydown or keyup event. This sends any currently
+   * withheld keys to the server.
+   */
+  private handleUnwithholding(
+    cli: TdpClient,
+    e: KeyboardEvent,
+    state: ButtonState
+  ) {
+    if (this.shouldBeWithheld(e, state)) {
+      console.error('Unwithholding a key event that should have been withheld');
+      throw new Error('internal application error');
+    }
+
+    for (const code in this.withheld) {
+      const witheldState = this.withheld[code];
+      cli.sendKeyboardInput(code, witheldState);
+      this.withheld[code] = undefined;
+    }
+  }
+
+  private isWitholdableKey(e: KeyboardEvent): boolean {
+    return e.key === 'Meta' || e.key === 'Alt';
+  }
+
+  private shouldBeWithheld(e: KeyboardEvent, state: ButtonState): boolean {
+    return this.isWitholdableKey(e) && state === ButtonState.DOWN;
+  }
 }
