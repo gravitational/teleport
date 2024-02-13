@@ -59,6 +59,11 @@ to manipulate cluster resources stored on the Auth Service backend. The design
 of Teleport's configuration interface makes it well suited for
 infrastructure-as-code and GitOps approaches.
 
+You can get started with `tctl`, the Terraform Provider, and the Kubernetes
+Operator by following: 
+- the ["Managing Users and Roles with IaC" guide](./dynamic-resources/user-and-role.mdx)
+- the ["Creating Access Lists with IaC" guide](./dynamic-resources/access-list.mdx)
+
 For more information on Teleport roles, including the `internal.logins`
 trait we use in these example roles, see the [Teleport Access
 Controls Reference](../access-controls/reference.mdx).
@@ -211,6 +216,8 @@ Here are possible values of the `teleport.dev/origin` label:
 - `defaults`
 - `config-file`
 - `dynamic`
+- `terraform`
+- `kubernetes`
 
 When the Auth Service starts up, it looks up the values of static configuration
 fields that correspond to fields in dynamic configuration resources. If any of
