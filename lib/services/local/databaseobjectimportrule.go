@@ -32,37 +32,37 @@ import (
 
 // databaseObjectImportRuleService manages database object import rules in the backend.
 type databaseObjectImportRuleService struct {
-	svc *generic.Service153[*databaseobjectimportrulev1.DatabaseObjectImportRule]
+	service *generic.ServiceWrapper[*databaseobjectimportrulev1.DatabaseObjectImportRule]
 }
 
 var _ services.DatabaseObjectImportRules = (*databaseObjectImportRuleService)(nil)
 
 func (s *databaseObjectImportRuleService) UpsertDatabaseObjectImportRule(ctx context.Context, rule *databaseobjectimportrulev1.DatabaseObjectImportRule) error {
-	_, err := s.svc.UpsertResource(ctx, rule)
+	_, err := s.service.UpsertResource(ctx, rule)
 	return trace.Wrap(err)
 }
 
 func (s *databaseObjectImportRuleService) UpdateDatabaseObjectImportRule(ctx context.Context, rule *databaseobjectimportrulev1.DatabaseObjectImportRule) (*databaseobjectimportrulev1.DatabaseObjectImportRule, error) {
-	out, err := s.svc.UpdateResource(ctx, rule)
+	out, err := s.service.UpdateResource(ctx, rule)
 	return out, trace.Wrap(err)
 }
 
 func (s *databaseObjectImportRuleService) CreateDatabaseObjectImportRule(ctx context.Context, rule *databaseobjectimportrulev1.DatabaseObjectImportRule) (*databaseobjectimportrulev1.DatabaseObjectImportRule, error) {
-	out, err := s.svc.CreateResource(ctx, rule)
+	out, err := s.service.CreateResource(ctx, rule)
 	return out, trace.Wrap(err)
 }
 
 func (s *databaseObjectImportRuleService) GetDatabaseObjectImportRule(ctx context.Context, name string) (*databaseobjectimportrulev1.DatabaseObjectImportRule, error) {
-	out, err := s.svc.GetResource(ctx, name)
+	out, err := s.service.GetResource(ctx, name)
 	return out, trace.Wrap(err)
 }
 
 func (s *databaseObjectImportRuleService) DeleteDatabaseObjectImportRule(ctx context.Context, name string) error {
-	return trace.Wrap(s.svc.DeleteResource(ctx, name))
+	return trace.Wrap(s.service.DeleteResource(ctx, name))
 }
 
 func (s *databaseObjectImportRuleService) ListDatabaseObjectImportRules(ctx context.Context, size int, pageToken string) ([]*databaseobjectimportrulev1.DatabaseObjectImportRule, string, error) {
-	out, next, err := s.svc.ListResources(ctx, size, pageToken)
+	out, next, err := s.service.ListResources(ctx, size, pageToken)
 	return out, next, trace.Wrap(err)
 }
 
@@ -71,7 +71,7 @@ const (
 )
 
 func NewDatabaseObjectImportRuleService(backend backend.Backend) (services.DatabaseObjectImportRules, error) {
-	service, err := generic.NewService153(backend,
+	service, err := generic.NewServiceWrapper(backend,
 		types.KindDatabaseObjectImportRule,
 		databaseObjectImportRulePrefix,
 		services.MarshalDatabaseObjectImportRule,
@@ -79,5 +79,5 @@ func NewDatabaseObjectImportRuleService(backend backend.Backend) (services.Datab
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &databaseObjectImportRuleService{svc: service}, nil
+	return &databaseObjectImportRuleService{service: service}, nil
 }
