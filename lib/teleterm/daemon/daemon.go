@@ -886,33 +886,6 @@ func (s *Service) GetConnectMyComputerNodeName(req *api.GetConnectMyComputerNode
 	return &api.GetConnectMyComputerNodeNameResponse{Name: uuid}, trace.Wrap(err)
 }
 
-// DeleteConnectMyComputerToken deletes a join token.
-func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
-	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response := &api.DeleteConnectMyComputerTokenResponse{}
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		err = s.cfg.ConnectMyComputerTokenProvisioner.DeleteToken(ctx, authClient, req.Token)
-		return trace.Wrap(err)
-	})
-
-	return response, trace.Wrap(err)
-}
-
 // WaitForConnectMyComputerNodeJoin returns a response only after detecting that a Connect My
 // Computer node for the given cluster has joined the cluster.
 func (s *Service) WaitForConnectMyComputerNodeJoin(ctx context.Context, rootClusterURI uri.ResourceURI) (clusters.Server, error) {

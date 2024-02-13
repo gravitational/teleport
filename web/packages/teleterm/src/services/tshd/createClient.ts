@@ -690,23 +690,6 @@ export default function createClient(
       );
     },
 
-    deleteConnectMyComputerToken(uri: uri.RootClusterUri, token: string) {
-      return new Promise<void>((resolve, reject) => {
-        tshd.deleteConnectMyComputerToken(
-          new api.DeleteConnectMyComputerTokenRequest()
-            .setRootClusterUri(uri)
-            .setToken(token),
-          err => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve();
-            }
-          }
-        );
-      });
-    },
-
     waitForConnectMyComputerNodeJoin(
       uri: uri.RootClusterUri,
       abortSignal: types.TshAbortSignal

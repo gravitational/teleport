@@ -134,6 +134,7 @@ export type MainProcessClient = {
   openConfigFile(): Promise<string>;
   shouldUseDarkColors(): boolean;
   downloadAgent(): Promise<void>;
+  verifyAgent(): Promise<void>;
   createAgentConfigFile(args: CreateAgentConfigFileArgs): Promise<void>;
   openAgentLogsDirectory(args: {
     rootClusterUri: RootClusterUri;
@@ -265,6 +266,8 @@ export enum RendererIpc {
 export enum MainProcessIpc {
   GetRuntimeSettings = 'main-process-get-runtime-settings',
   TryRemoveConnectMyComputerAgentBinary = 'main-process-try-remove-connect-my-computer-agent-binary',
+  DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
+  VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
 }
 
 export enum WindowsManagerIpc {

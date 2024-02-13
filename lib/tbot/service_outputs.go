@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -57,6 +58,7 @@ type outputsService struct {
 	reloadBroadcaster *channelBroadcaster
 	botIdentitySrc    botIdentitySrc
 	cfg               *config.BotConfig
+	resolver          reversetunnelclient.Resolver
 }
 
 func (s *outputsService) String() string {
@@ -81,7 +83,7 @@ func (s *outputsService) renewOutputs(
 	defer span.End()
 
 	botIdentity := s.botIdentitySrc.BotIdentity()
-	client, err := clientForIdentity(ctx, s.log, s.cfg, botIdentity)
+	client, err := clientForIdentity(ctx, s.log, s.cfg, botIdentity, s.resolver)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -546,7 +548,7 @@ func (s *outputsService) generateImpersonatedIdentity(
 
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
-	impersonatedClient, err = clientForIdentity(ctx, s.log, s.cfg, impersonatedIdentity)
+	impersonatedClient, err = clientForIdentity(ctx, s.log, s.cfg, impersonatedIdentity, s.resolver)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

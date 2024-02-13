@@ -210,9 +210,8 @@ export function useCreateDatabase() {
     // database service. If there is no active database service,
     // user is led to the next step.
     try {
-      const { services } = await ctx.databaseService.fetchDatabaseServices(
-        clusterId
-      );
+      const { services } =
+        await ctx.databaseService.fetchDatabaseServices(clusterId);
 
       if (!findActiveDatabaseSvc(db.labels, services)) {
         updateAgentMeta({

@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -591,18 +592,22 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	}
 	span.AddEvent("completed migration legacy resources")
 
-	span.AddEvent("creating preset roles")
 	// Create presets - convenience and example resources.
-	if err := createPresetRoles(ctx, asrv); err != nil {
-		return trace.Wrap(err)
-	}
-	span.AddEvent("completed creating preset roles")
+	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+		span.AddEvent("creating preset roles")
+		if err := createPresetRoles(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset roles")
 
-	span.AddEvent("creating preset users")
-	if err := createPresetUsers(ctx, asrv); err != nil {
-		return trace.Wrap(err)
+		span.AddEvent("creating preset users")
+		if err := createPresetUsers(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset users")
+	} else {
+		log.Info("skipping preset role and user creation")
 	}
-	span.AddEvent("completed creating preset users")
 
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")

@@ -85,7 +85,7 @@ export function InProgress() {
     return () => ref.current.abort();
   }, []);
 
-  appContext.connectMyComputerService.downloadAgent = () =>
+  appContext.connectMyComputerService.createRole = () =>
     new Promise(resolve => {
       ref.current.signal.addEventListener('abort', () => resolve(undefined));
     });

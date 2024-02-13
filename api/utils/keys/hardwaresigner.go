@@ -95,4 +95,6 @@ type AttestationData struct {
 	PublicKeyDER []byte `json:"public_key"`
 	// PrivateKeyPolicy specifies the private key policy supported by the associated private key.
 	PrivateKeyPolicy PrivateKeyPolicy `json:"private_key_policy"`
+	// SerialNumber is the serial number of the Attested hardware key.
+	SerialNumber uint32 `json:"serial_number"`
 }

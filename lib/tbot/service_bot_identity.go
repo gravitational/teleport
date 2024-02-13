@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -53,6 +54,7 @@ type identityService struct {
 	log               logrus.FieldLogger
 	reloadBroadcaster *channelBroadcaster
 	cfg               *config.BotConfig
+	resolver          reversetunnelclient.Resolver
 
 	mu     sync.Mutex
 	_ident *identity.Identity
@@ -156,7 +158,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		if err := checkIdentity(s.log, loadedIdent); err != nil {
 			return trace.Wrap(err)
 		}
-		authClient, err := clientForIdentity(ctx, s.log, s.cfg, loadedIdent)
+		authClient, err := clientForIdentity(ctx, s.log, s.cfg, loadedIdent, s.resolver)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -186,7 +188,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	testClient, err := clientForIdentity(ctx, s.log, s.cfg, newIdentity)
+	testClient, err := clientForIdentity(ctx, s.log, s.cfg, newIdentity, s.resolver)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -288,7 +290,7 @@ func (s *identityService) renew(
 	if s.cfg.Onboarding.RenewableJoinMethod() {
 		// When using a renewable join method, we use GenerateUserCerts to
 		// request a new certificate using our current identity.
-		authClient, err := clientForIdentity(ctx, s.log, s.cfg, currentIdentity)
+		authClient, err := clientForIdentity(ctx, s.log, s.cfg, currentIdentity, s.resolver)
 		if err != nil {
 			return trace.Wrap(err, "creating auth client")
 		}
