@@ -729,6 +729,9 @@ const (
 
 	// ValidateMFAAuthResponseEvent is emitted when an MFA auth challenge is validated.
 	ValidateMFAAuthResponseEvent = "mfa_auth_challenge.validate"
+
+	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
+	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
 )
 
 const (
