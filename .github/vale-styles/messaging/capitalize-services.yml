@@ -9,8 +9,8 @@ level: error
 ignorecase: false
 tokens:
   - machine id
-  - database service
   - db service
+  - database service
   - 'app(lication) service'
   - desktop service
   - kubernetes service
