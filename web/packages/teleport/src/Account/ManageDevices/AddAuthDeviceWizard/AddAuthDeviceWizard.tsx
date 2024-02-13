@@ -19,40 +19,60 @@
 import { OutlineDanger } from 'design/Alert/Alert';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
+import Flex from 'design/Flex';
+import Image from 'design/Image';
+import Indicator from 'design/Indicator';
+import Link from 'design/Link';
 import { SingleRowBox } from 'design/MultiRowBox';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
 import Text from 'design/Text';
-import React, { useState, FormEvent } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
-import createMfaOptions from 'shared/utils/createMfaOptions';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { DeviceUsage } from 'teleport/services/mfa';
 import useTeleport from 'teleport/useTeleport';
 
 interface AddAuthDeviceWizardProps {
+  /** Indicates usage of the device to be added: MFA or a passkey. */
+  usage: DeviceUsage;
+  /** MFA type setting, as configured in the cluster's configuration. */
+  auth2faType: Auth2faType;
+  /**
+   * A privilege token that may have been created previously; if not empty, the
+   * reauthentication step will be skipped.
+   */
   privilegeToken?: string;
   onClose(): void;
   onSuccess(): void;
 }
 
-/**
- * A wizard for adding MFA and passkey devices. Currently only supports
- * passkeys.
- */
+/** A wizard for adding MFA and passkey devices. */
 export function AddAuthDeviceWizard({
   privilegeToken: privilegeTokenProp = '',
+  usage,
+  auth2faType,
   onClose,
   onSuccess,
 }: AddAuthDeviceWizardProps) {
   const reauthRequired = !privilegeTokenProp;
   const [privilegeToken, setPrivilegeToken] = useState(privilegeTokenProp);
   const [credential, setCredential] = useState<Credential>(null);
+
+  const mfaOptions = createMfaOptions({
+    auth2faType,
+    required: true,
+  });
+
+  /** A new MFA device type, irrelevant if usage === 'passkey'. */
+  const [newMfaDeviceType, setNewMfaDeviceType] = useState(mfaOptions[0].value);
 
   return (
     <Dialog
@@ -67,36 +87,38 @@ export function AddAuthDeviceWizard({
           reauthRequired ? 'withReauthentication' : 'withoutReauthentication'
         }
         // Step properties
+        usage={usage}
+        auth2faType={auth2faType}
         privilegeToken={privilegeToken}
         credential={credential}
+        newMfaDeviceType={newMfaDeviceType}
         onClose={onClose}
-        onSuccess={onSuccess}
         onAuthenticated={setPrivilegeToken}
-        onPasskeyCreated={setCredential}
+        onNewMfaDeviceTypeChange={setNewMfaDeviceType}
+        onDeviceCreated={setCredential}
+        onSuccess={onSuccess}
       />
     </Dialog>
   );
 }
 
 const wizardFlows = {
-  withReauthentication: [
-    ReauthenticateStep,
-    CreatePasskeyStep,
-    SavePasskeyStep,
-  ],
-  withoutReauthentication: [CreatePasskeyStep, SavePasskeyStep],
+  withReauthentication: [ReauthenticateStep, CreateDeviceStep, SaveDeviceStep],
+  withoutReauthentication: [CreateDeviceStep, SaveDeviceStep],
 };
 
 interface ReauthenticateStepProps extends StepComponentProps {
+  auth2faType: Auth2faType;
   onAuthenticated(privilegeToken: string): void;
   onClose(): void;
 }
 
-function ReauthenticateStep({
+export function ReauthenticateStep({
   next,
   refCallback,
   stepIndex,
   flowLength,
+  auth2faType,
   onClose,
   onAuthenticated: onAuthenticatedProp,
 }: ReauthenticateStepProps) {
@@ -105,20 +127,13 @@ function ReauthenticateStep({
     onAuthenticatedProp(privilegeToken);
     next();
   };
-  const {
-    attempt,
-    auth2faType,
-    preferredMfaType,
-    clearAttempt,
-    submitWithTotp,
-    submitWithWebauthn,
-  } = useReAuthenticate({
-    onAuthenticated,
-    challengeScope,
-  });
+  const { attempt, clearAttempt, submitWithTotp, submitWithWebauthn } =
+    useReAuthenticate({
+      onAuthenticated,
+      challengeScope,
+    });
   const mfaOptions = createMfaOptions({
     auth2faType,
-    preferredType: preferredMfaType,
     required: true,
   });
 
@@ -196,34 +211,45 @@ function ReauthenticateStep({
   );
 }
 
-interface CreatePasskeyStepProps extends StepComponentProps {
+interface CreateDeviceStepProps extends StepComponentProps {
+  usage: DeviceUsage;
+  auth2faType: Auth2faType;
   privilegeToken: string;
+  newMfaDeviceType: Auth2faType;
+  onNewMfaDeviceTypeChange(o: Auth2faType): void;
   onClose(): void;
-  onPasskeyCreated(c: Credential): void;
+  onDeviceCreated(c: Credential): void;
 }
 
-function CreatePasskeyStep({
+export function CreateDeviceStep({
   prev,
   next,
   refCallback,
   stepIndex,
   flowLength,
+  usage,
+  auth2faType,
   privilegeToken,
+  newMfaDeviceType,
+  onNewMfaDeviceTypeChange,
   onClose,
-  onPasskeyCreated,
-}: CreatePasskeyStepProps) {
+  onDeviceCreated,
+}: CreateDeviceStepProps) {
   const ctx = useTeleport();
   const createPasskeyAttempt = useAttempt();
-
   const onCreate = () => {
-    createPasskeyAttempt.run(async () => {
-      const credential = await ctx.mfaService.createNewWebAuthnDevice({
-        tokenId: privilegeToken,
-        deviceUsage: 'passwordless',
+    if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
+      createPasskeyAttempt.run(async () => {
+        const credential = await ctx.mfaService.createNewWebAuthnDevice({
+          tokenId: privilegeToken,
+          deviceUsage: usage,
+        });
+        onDeviceCreated(credential);
+        next();
       });
-      onPasskeyCreated(credential);
+    } else {
       next();
-    });
+    }
   };
 
   return (
@@ -231,12 +257,24 @@ function CreatePasskeyStep({
       <Text typography="body2">
         Step {stepIndex + 1} of {flowLength}
       </Text>
-      <Text typography="h4">Create a Passkey</Text>
+      <Text typography="h4">
+        {usage === 'passwordless' ? 'Create a Passkey' : 'Create an MFA Method'}
+      </Text>
       {createPasskeyAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{createPasskeyAttempt.attempt.statusText}</OutlineDanger>
       )}
-      <PasskeyBlurb />
-      <ButtonPrimary onClick={onCreate}>Create a passkey</ButtonPrimary>
+      {usage === 'passwordless' && <PasskeyBlurb />}
+      {usage === 'mfa' && (
+        <CreateMfaBox
+          auth2faType={auth2faType}
+          newMfaDeviceType={newMfaDeviceType}
+          privilegeToken={privilegeToken}
+          onNewMfaDeviceTypeChange={onNewMfaDeviceTypeChange}
+        />
+      )}
+      <ButtonPrimary onClick={onCreate}>
+        {usage === 'passwordless' ? 'Create a passkey' : 'Create an MFA method'}
+      </ButtonPrimary>
       {stepIndex === 0 ? (
         <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
       ) : (
@@ -246,43 +284,150 @@ function CreatePasskeyStep({
   );
 }
 
+function CreateMfaBox({
+  auth2faType,
+  newMfaDeviceType,
+  privilegeToken,
+  onNewMfaDeviceTypeChange,
+}: {
+  auth2faType: Auth2faType;
+  newMfaDeviceType: Auth2faType;
+  privilegeToken: string;
+  onNewMfaDeviceTypeChange(o: Auth2faType): void;
+}) {
+  const mfaOptions = createMfaOptions({
+    auth2faType,
+    required: true,
+  }).map((o: MfaOption) =>
+    // Be more specific about the WebAuthn device type (it's not a passkey).
+    o.value === 'webauthn' ? { ...o, label: 'Hardware Device' } : o
+  );
+
+  return (
+    <>
+      Multi-factor type
+      <RadioGroup
+        name="mfaOption"
+        options={mfaOptions}
+        value={newMfaDeviceType}
+        flexDirection="row"
+        gap={3}
+        onChange={o => {
+          onNewMfaDeviceTypeChange(o as Auth2faType);
+        }}
+      />
+      {newMfaDeviceType === 'otp' && (
+        <QrCodeBox privilegeToken={privilegeToken} />
+      )}
+    </>
+  );
+}
+
+function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
+  const fetchQrCodeAttempt = useAttempt('');
+  const [qrCode, setQrCode] = useState('');
+
+  useEffect(() => {
+    fetchQrCodeAttempt.run(() =>
+      auth
+        .createMfaRegistrationChallenge(privilegeToken, 'totp')
+        .then(res => setQrCode(res.qrCode))
+    );
+  }, []);
+
+  return (
+    <Flex
+      flexDirection="column"
+      borderRadius={8}
+      p={3}
+      mb={4}
+      css={`
+        background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+      `}
+    >
+      <Flex height="168px" justifyContent="center" alignItems="center">
+        {fetchQrCodeAttempt.attempt.status === 'processing' && <Indicator />}
+        {fetchQrCodeAttempt.attempt.status === 'success' && (
+          <Image
+            src={`data:image/png;base64,${qrCode}`}
+            height="100%"
+            style={{
+              boxSizing: 'border-box',
+              border: '8px solid white',
+            }}
+          />
+        )}
+      </Flex>
+      <Text typography="body1" textAlign="center" mt={2}>
+        Scan the QR Code with any authenticator app.
+        <br />
+        We recommend{' '}
+        <Link href="https://authy.com/download/" target="_blank">
+          Authy
+        </Link>
+        .
+      </Text>
+    </Flex>
+  );
+}
+
 interface SaveKeyStepProps extends StepComponentProps {
   privilegeToken: string;
   credential: Credential;
+  usage: DeviceUsage;
+  newMfaDeviceType: Auth2faType;
   onSuccess(): void;
 }
 
-function SavePasskeyStep({
+export function SaveDeviceStep({
   refCallback,
   prev,
   stepIndex,
   flowLength,
   privilegeToken,
   credential,
+  usage,
+  newMfaDeviceType,
   onSuccess,
 }: SaveKeyStepProps) {
   const ctx = useTeleport();
   const saveAttempt = useAttempt();
   const [deviceName, setDeviceName] = useState('');
+  const [authCode, setAuthCode] = useState('');
 
   const onSave = (e: FormEvent<HTMLFormElement>, validator: Validator) => {
     e.preventDefault();
     if (!validator.validate()) return;
-    saveAttempt.run(async () => {
-      await ctx.mfaService.saveNewWebAuthnDevice({
-        addRequest: {
-          tokenId: privilegeToken,
-          deviceUsage: 'passwordless',
-          deviceName,
-        },
-        credential,
+    if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
+      saveAttempt.run(async () => {
+        await ctx.mfaService.saveNewWebAuthnDevice({
+          addRequest: {
+            tokenId: privilegeToken,
+            deviceUsage: usage,
+            deviceName,
+          },
+          credential,
+        });
+        onSuccess();
       });
-      onSuccess();
-    });
+    } else {
+      saveAttempt.run(async () => {
+        await ctx.mfaService.addNewTotpDevice({
+          tokenId: privilegeToken,
+          secondFactorToken: authCode,
+          deviceName,
+        });
+        onSuccess();
+      });
+    }
   };
 
   const onNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDeviceName(e.target.value);
+  };
+
+  const onAuthCodeChanged = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAuthCode(e.target.value);
   };
 
   return (
@@ -290,7 +435,9 @@ function SavePasskeyStep({
       <Text typography="body2">
         Step {stepIndex + 1} of {flowLength}
       </Text>
-      <Text typography="h4">Save the Passkey</Text>
+      <Text typography="h4">
+        {usage === 'passwordless' ? 'Save the Passkey' : 'Save the MFA method'}
+      </Text>
       {saveAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{saveAttempt.attempt.statusText}</OutlineDanger>
       )}
@@ -306,7 +453,25 @@ function SavePasskeyStep({
               onChange={onNameChange}
               readonly={saveAttempt.attempt.status === 'processing'}
             />
-            <ButtonPrimary type="submit">Save the Passkey</ButtonPrimary>
+
+            {usage === 'mfa' && newMfaDeviceType === 'otp' && (
+              <FieldInput
+                label="Authenticator Code"
+                labelTip="Enter the code generated by your authenticator app"
+                rule={requiredField('Authenticator code is required')}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={authCode}
+                placeholder="123 456"
+                onChange={onAuthCodeChanged}
+                readonly={saveAttempt.attempt.status === 'processing'}
+              />
+            )}
+            <ButtonPrimary type="submit">
+              {usage === 'passwordless'
+                ? 'Save the Passkey'
+                : 'Save the MFA method'}
+            </ButtonPrimary>
             <ButtonSecondary onClick={prev}>Back</ButtonSecondary>
           </form>
         )}
