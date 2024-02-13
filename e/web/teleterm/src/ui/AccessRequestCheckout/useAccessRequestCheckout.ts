@@ -19,10 +19,8 @@ export default function useAccessRequestCheckout() {
 
   const loggedInUser = useLoggedInUser();
   const suggestedReviewers = loggedInUser?.suggestedReviewers || [];
-  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerOption[]>(
-    () =>
-      suggestedReviewers.map(r => ({ label: r, value: r, isSelected: true }))
-  );
+  const [selectedReviewers, setSelectedReviewers] =
+    useState<ReviewerOption[]>();
 
   const [showCheckout, setShowCheckout] = useState(false);
   const [hasExited, setHasExited] = useState(false);
@@ -47,6 +45,12 @@ export default function useAccessRequestCheckout() {
   const docService = ctx.workspacesService.getActiveWorkspaceDocumentService();
   const pendingAccessRequest =
     workspaceAccessRequest?.getPendingAccessRequest();
+
+  useEffect(() => {
+    setSelectedReviewers(
+      suggestedReviewers.map(r => ({ label: r, value: r, isSelected: true }))
+    );
+  }, [loggedInUser, hasExited]);
 
   useEffect(() => {
     if (!pendingAccessRequest) {
