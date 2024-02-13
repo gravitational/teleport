@@ -25,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 )
@@ -129,6 +130,10 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 
 		return nil
 	})
+
+	if tries > 1 {
+		backend.AtomicWriteContention.WithLabelValues(b.GetName()).Add(float64(tries - 1))
+	}
 
 	if tries > 2 {
 		// if we retried more than once, txn experienced non-trivial conflict and we should warn about it. Infrequent warnings of this kind
