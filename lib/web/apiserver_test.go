@@ -8028,7 +8028,7 @@ func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut),
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", currentSiteShortcut),
 	}
 
 	requestData := TerminalRequest{
