@@ -244,6 +244,9 @@ func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 		}
 		return dev, nil
 	}
+	// This message is relied upon by the Web UI in
+	// web/packages/teleport/src/Account/ManageDevices/AddAuthDeviceWizard/AddAuthDeviceWizard.tsx/RequthenticateStep().
+	// Please keep these in sync.
 	return nil, trace.AccessDenied("invalid totp token")
 }
 
