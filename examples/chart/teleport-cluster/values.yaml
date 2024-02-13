@@ -701,6 +701,10 @@ resources: {}
 #  limits:
 #    memory: "2Gi"
 
+# Pod security context for any pods created by the chart
+podSecurityContext: {}
+  # fsGroup: 65532
+
 # Security context to add to the container
 securityContext: {}
   # runAsUser: 99

@@ -327,5 +327,8 @@ spec:
 {{- if $auth.priorityClassName }}
       priorityClassName: {{ $auth.priorityClassName }}
 {{- end }}
+{{- if $auth.podSecurityContext }}
+      securityContext: {{- toYaml $auth.podSecurityContext | nindent 8 }}
+{{- end }}
       serviceAccountName: {{ include "teleport-cluster.auth.serviceAccountName" . }}
       terminationGracePeriodSeconds: {{ $auth.terminationGracePeriodSeconds }}
