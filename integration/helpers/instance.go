@@ -1539,7 +1539,7 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 	u := url.URL{
 		Host:   w.i.Web,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", w.tc.SiteName),
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", w.tc.SiteName),
 	}
 	data, err := json.Marshal(termReq)
 	if err != nil {
