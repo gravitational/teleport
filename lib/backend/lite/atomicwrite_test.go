@@ -32,8 +32,8 @@ import (
 
 // newAtomicWriteTestBackendBuilder builds a backend suitable for the atomic write test suite. Once all backends implement AtomicWrite,
 // it will be integrated into the main backend interface and we can get rid of this separate helper.
-func newAtomicWriteTestBackendBuilder(t *testing.T) func(options ...test.ConstructionOption) (backend.AtomicWriterBackend, clockwork.FakeClock, error) {
-	return func(options ...test.ConstructionOption) (backend.AtomicWriterBackend, clockwork.FakeClock, error) {
+func newAtomicWriteTestBackendBuilder(t *testing.T) func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+	return func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 		clock := clockwork.NewFakeClock()
 
 		cfg, err := test.ApplyOptions(options)
