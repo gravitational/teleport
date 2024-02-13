@@ -142,7 +142,7 @@ export function AddBotsPicker() {
         <FeatureHeaderTitle>Select Bot Type</FeatureHeaderTitle>
       </FeatureHeader>
 
-      <Text typography="body1">
+      <Text typography="body1" mb="5">
         Set up Teleport Machine ID to allow CI/CD workflows and other machines
         to access resources protected by Teleport.
       </Text>
@@ -154,7 +154,7 @@ export function AddBotsPicker() {
 
 export function BotTiles() {
   return (
-    <Flex mt={5} gap={3} flexWrap="wrap">
+    <Flex gap={3} flexWrap="wrap">
       {integrations.map(i => (
         <Box key={i.title}>
           {i.guided ? (
