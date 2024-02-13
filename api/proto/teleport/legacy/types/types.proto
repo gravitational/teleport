@@ -3000,6 +3000,30 @@ message RoleConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "db_permissions,omitempty"
   ];
+  // SPIFFE is used to allow or deny access to a role holder to generating a
+  // SPIFFE SVID.
+  repeated SPIFFERoleCondition SPIFFE = 39 [(gogoproto.jsontag) = "spiffe,omitempty"];
+}
+
+// SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
+// denied to generate. The Path matcher is required, and is evaluated first. If,
+// the Path does not match then the other matcher fields are not evaluated.
+message SPIFFERoleCondition {
+  // Path specifies a globby style matcher for the SPIFFE ID path. It should not
+  // include the trust domain and should start with a leading slash.
+  // Matching:
+  // - '*' matches zero or more characters.
+  // - '?' matches any single character.
+  // Example: /svc/foo/*/bar would match /svc/foo/baz/bar
+  string Path = 1 [(gogoproto.jsontag) = "path,omitempty"];
+  // DNS specifies a globby style matcher for the SPIFFE ID DNS SAN.
+  // Matching:
+  // - '*' matches zero or more characters.
+  // - '?' matches any single character.
+  repeated string DNSSANs = 2 [(gogoproto.jsontag) = "dns_sans,omitempty"];
+  // IPSANs specifies a matcher IP SANs which have been requested in the SVID.
+  // It supports IPv4 and IPv6.
+  repeated string IPSANs = 3 [(gogoproto.jsontag) = "ip_sans,omitempty"];
 }
 
 // DatabasePermission specifies the database object permission for the user.

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"path"
 	"regexp"
 	"slices"
@@ -1803,6 +1804,126 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 	}
 
 	return constants.SessionRecordingModeBestEffort
+}
+
+// globMatch performs simple a simple glob-style match test on a string.
+// - '*' matches zero or more characters.
+// - '?' matches any single character.
+// It returns true if a match is detected.
+func globMatch(pattern, str string) (bool, error) {
+	pattern = regexp.QuoteMeta(pattern)
+	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
+	pattern = strings.ReplaceAll(pattern, `\?`, ".")
+	pattern = "^" + pattern + "$"
+	matched, err := regexp.MatchString(pattern, str)
+	if err != nil {
+		return false, trace.Wrap(err, "compiling glob regex for %q", pattern)
+	}
+	return matched, nil
+}
+
+func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {
+	for i := range s {
+		match, err := f(s[i])
+		if err != nil {
+			return false, err
+		}
+		if match {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// matchSPIFFESVIDConditions compares a slice of SPIFFE Role Conditions against
+// a requested SPIFFE SVID generation. All fields within a condition must match,
+// but any condition in the slice can match for the function to return true.
+func matchSPIFFESVIDConditions(
+	conds []*types.SPIFFERoleCondition,
+	spiffeIDPath string,
+	dnsSANs []string,
+	ipSANs []net.IP,
+) (bool, error) {
+	return contains(conds, func(cond *types.SPIFFERoleCondition) (bool, error) {
+		// Match SPIFFE ID path.
+		match, err := globMatch(cond.Path, spiffeIDPath)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !match {
+			// No match - skip to next condition.
+			return false, nil
+		}
+
+		// All DNS SANs requested must match one of the DNS SAN matchers in the
+		// condition.
+		for _, dnsSAN := range dnsSANs {
+			match, err := contains(cond.DNSSANs, func(s string) (bool, error) {
+				return globMatch(s, dnsSAN)
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if !match {
+				return false, nil
+			}
+		}
+
+		// All IP SANs requested must match one of the IP SAN matchers in the
+		// condition.
+		for _, ipSAN := range ipSANs {
+			match, err := contains(cond.IPSANs, func(s string) (bool, error) {
+				_, cidr, err := net.ParseCIDR(s)
+				if err != nil {
+					return false, trace.Wrap(err, "parsing cidr")
+				}
+
+				return cidr.Contains(ipSAN), nil
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if !match {
+				return false, nil
+			}
+		}
+
+		// All condition fields matched.
+		return true, nil
+	})
+}
+
+// CheckSPIFFESVID checks if the role set has access to generating the
+// requested SPIFFE ID. Returns an error if the role set does not have the
+// ability to generate the requested SVID.
+func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) error {
+	accessDenied := trace.AccessDenied("access denied to generate SVID %q", spiffeIDPath)
+
+	// check deny: a single match on a deny rule prohibits generation
+	for _, role := range set {
+		cond := role.GetSPIFFEConditions(types.Deny)
+		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return accessDenied
+		}
+	}
+
+	// check allow: if a single condition matches, allow generation
+	for _, role := range set {
+		cond := role.GetSPIFFEConditions(types.Allow)
+		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return nil
+		}
+	}
+
+	return accessDenied
 }
 
 func roleNames(roles []types.Role) string {
