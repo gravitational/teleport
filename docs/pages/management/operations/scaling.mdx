@@ -101,3 +101,28 @@ etcdctl \
     --endpoints=127.0.0.1:2379 \
     endpoint status
 ```
+
+
+## Supported Load
+
+The tests below were performed against a Teleport Cloud tenant which runs on instances with 8 vCPU and 32 GiB memory and
+has default limits of 4CPU and 4Gi memory.
+
+### Concurrent Logins
+
+| Resource Type | Login Command                          | Logins | Failure                  |
+|---------------|----------------------------------------|--------|--------------------------|
+| SSH           | tsh login                              | 2000   | Auth CPU Limits exceeded |
+| Application   | tsh app login                          | 2000   | Auth CPU Limits exceeded |
+| Database      | tsh db login                           | 2000   | Auth CPU Limits exceeded |
+| Kubernetes    | tsh kube login && tsh kube credentials | 2000   | Auth CPU Limits exceeded |
+
+
+### Sessions Per Second
+
+| Resource Type | Sessions | Failure                   |
+|---------------|----------|---------------------------|
+| SSH           | 1000     | Auth CPU Limits exceeded  |
+| Application   | 2500     | Proxy CPU Limits exceeded |
+| Database      | 40       | Proxy CPU Limits exceeded |
+| Kubernetes    | 50       | Proxy CPU Limits exceeded |
