@@ -75,10 +75,10 @@ spec:
         - approve: 1
           deny: 1
       annotations:
-        teleport.dev/schedules: ['teleport-access-request-notifications']
+        teleport.dev/notify-services: ['teleport-access-request-notifications']
 ```
 
-The `teleport.dev/schedules` annotation specifies the schedule the alert will be be created for.
+The `teleport.dev/notify-services` annotation specifies the schedules the alert will be be created for.
 
 ### Create a user who will request access
 
@@ -121,7 +121,7 @@ As the Teleport user `myuser`, create an Access Request for the `editor` role:
 
 In Opsgenie, you will see a new alert containing information about the
 Access Request in either the default schedule specified when enrolling the plugin,
-or in the schedules specified by `teleport.dev/schedules` annotation in the requester's role.
+or in the schedules specified by `teleport.dev/notify-services` annotation in the requester's role.
 
 ### Resolve the request
 
