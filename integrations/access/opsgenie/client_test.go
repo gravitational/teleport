@@ -54,7 +54,7 @@ func TestCreateAlert(t *testing.T) {
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
 		SystemAnnotations: types.Labels{
-			types.TeleportNamespace + types.ReqAnnotationSchedulesLabel: {"responder@teleport.com"},
+			types.TeleportNamespace + types.ReqAnnotationNotifyServicesLabel: {"responder@teleport.com"},
 		},
 	})
 	assert.NoError(t, err)
