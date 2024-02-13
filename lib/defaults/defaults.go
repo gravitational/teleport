@@ -315,10 +315,6 @@ const (
 	// LowResPollingPeriod is a default low resolution polling period
 	LowResPollingPeriod = 600 * time.Second
 
-	// HighResReportingPeriod is a high resolution polling reporting
-	// period used in services
-	HighResReportingPeriod = 10 * time.Second
-
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
