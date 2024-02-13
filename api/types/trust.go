@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -67,7 +66,7 @@ var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, DatabaseClientCA,
 // major version, so that we can avoid erroring out when a potentially older
 // remote server doesn't know about them.
 func (c CertAuthType) NewlyAdded() bool {
-	return c.addedInMajorVer() >= semver.New(api.Version).Major
+	return c.addedInMajorVer() >= api.SemVersion.Major
 }
 
 // addedInVer return the major version in which given CA was added.
