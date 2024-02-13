@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled, { keyframes } from 'styled-components';
+import styled from 'styled-components';
 import { Button } from 'design';
-import { Wand } from 'design/Icon';
 
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
@@ -35,13 +34,10 @@ export function NavigationMenu() {
       kind="secondary"
       size="small"
       title="Open VNet"
+      textTransform="none"
     >
-      <Wand
-        css={`
-          animation: ${rainbowColor} 3s linear infinite;
-        `}
-        size="medium"
-      />
+      {/* TODO(ravicious): Replace it with an icon. */}
+      VNet
     </StyledButton>
   );
 }
@@ -52,43 +48,4 @@ const StyledButton = styled(Button)`
   padding: 0;
   width: ${props => props.theme.space[5]}px;
   height: ${props => props.theme.space[5]}px;
-`;
-
-const rainbowColor = keyframes`
-  100%,0%{
-    color: rgb(255,0,0);
-  }
-  8%{
-    color: rgb(255,127,0);
-  }
-  16%{
-    color: rgb(255,255,0);
-  }
-  25%{
-    color: rgb(127,255,0);
-  }
-  33%{
-    color: rgb(0,255,0);
-  }
-  41%{
-    color: rgb(0,255,127);
-  }
-  50%{
-    color: rgb(0,255,255);
-  }
-  58%{
-    color: rgb(0,127,255);
-  }
-  66%{
-    color: rgb(0,0,255);
-  }
-  75%{
-    color: rgb(127,0,255);
-  }
-  83%{
-    color: rgb(255,0,255);
-  }
-  91%{
-    color: rgb(255,0,127);
-  }
 `;
