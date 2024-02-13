@@ -39,6 +39,7 @@ export function BotList({
   attempt,
   bots,
   disabledEdit,
+  disabledDelete,
   roles,
   onClose,
   onDelete,
@@ -78,6 +79,7 @@ export function BotList({
                   setInteraction(Interaction.VIEW);
                 }}
                 disabledEdit={disabledEdit}
+                disabledDelete={disabledDelete}
                 onClickEdit={() => {
                   setSelectedBot(bot);
                   setSelectedRoles(bot.roles);
