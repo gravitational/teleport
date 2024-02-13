@@ -58,18 +58,28 @@ func serverVersionCRLFV1(pubKey *ecdh.PublicKey, hostID string) string {
 	)
 }
 
-// NewSSHServerWrapper wraps a given SSH server as to support connection
-// resumption.
-func NewSSHServerWrapper(log logrus.FieldLogger, sshServer func(net.Conn), hostID string) *SSHServerWrapper {
-	if log == nil {
-		log = logrus.WithField(trace.Component, Component)
+type SSHServerWrapperConfig struct {
+	Log       logrus.FieldLogger
+	SSHServer func(net.Conn)
+	HostID    string
+
+	DataDir string
+}
+
+// NewSSHServerWrapper wraps a given SSH server to support connection
+// resumption, providing a connection handler method and a
+// [multiplexer.PreDetectFunc] method.
+func NewSSHServerWrapper(cfg SSHServerWrapperConfig) *SSHServerWrapper {
+	if cfg.Log == nil {
+		cfg.Log = logrus.WithField(trace.Component, Component)
 	}
 
 	return &SSHServerWrapper{
-		sshServer: sshServer,
-		log:       log,
+		sshServer: cfg.SSHServer,
+		log:       cfg.Log,
 
-		hostID: hostID,
+		hostID:  cfg.HostID,
+		dataDir: cfg.DataDir,
 
 		conns: make(map[resumptionToken]*connEntry),
 	}
@@ -85,7 +95,8 @@ type SSHServerWrapper struct {
 	sshServer func(net.Conn)
 	log       logrus.FieldLogger
 
-	hostID string
+	hostID  string
+	dataDir string
 
 	mu    sync.Mutex
 	conns map[resumptionToken]*connEntry

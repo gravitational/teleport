@@ -2681,11 +2681,19 @@ func (process *TeleportProcess) initSSH() error {
 
 		var resumableServer *resumption.SSHServerWrapper
 		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {
-			resumableServer = resumption.NewSSHServerWrapper(
-				log.WithField(trace.Component, teleport.Component(teleport.ComponentNode, resumption.Component)),
-				s.HandleConnection,
-				serverID,
-			)
+			resumableServer = resumption.NewSSHServerWrapper(resumption.SSHServerWrapperConfig{
+				Log:       log.WithField(trace.Component, teleport.Component(teleport.ComponentNode, resumption.Component)),
+				SSHServer: s.HandleConnection,
+
+				HostID:  serverID,
+				DataDir: cfg.DataDir,
+			})
+
+			go func() {
+				if err := resumableServer.HandoverCleanup(process.GracefulExitContext()); err != nil {
+					log.WithError(err).Warn("Failed to clean up handover sockets.")
+				}
+			}()
 		}
 
 		var agentPool *reversetunnel.AgentPool
