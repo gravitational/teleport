@@ -16,23 +16,23 @@
 
 import React from 'react';
 
+import { BaseView } from '../flow';
+
 import { StepItem } from './StepItem';
 
-import type { View } from 'teleport/Discover/flow';
-
-interface StepListProps {
-  views: View[];
+interface StepListProps<T> {
+  views: BaseView<T>[];
   currentStep: number;
   index?: number;
 }
 
-export function StepList(props: StepListProps) {
+export function StepList<T>(props: StepListProps<T>) {
   const items = [];
 
   let startIndex = props.index || 0;
   for (const view of props.views) {
     items.push(
-      <StepItem
+      <StepItem<T>
         key={startIndex}
         view={view}
         currentStep={props.currentStep}
