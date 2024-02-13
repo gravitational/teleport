@@ -423,32 +423,41 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// then it's important that we periodically try to use the LDAP connection
 	// to detect connection closure
 	if s.ldapConfigured && len(s.cfg.DiscoveryBaseDN) == 0 {
-		s.cfg.Log.Debugln("starting LDAP connection checker")
-		go func() {
-			t := s.cfg.Clock.NewTicker(5 * time.Minute)
-			defer t.Stop()
-
-			for {
-				select {
-				case <-t.Chan():
-					// attempt to read CAs in the NTAuth store (we know we have permissions to do so)
-					ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
-					_, err := s.lc.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
-					if trace.IsConnectionProblem(err) {
-						s.cfg.Log.Infoln("reconnecting to LDAP server")
-						if err := s.initializeLDAP(); err != nil {
-							s.cfg.Log.Warnf("failed to reconnect to LDAP: %v", err)
-						}
-					}
-				case <-ctx.Done():
-					return
-				}
-			}
-		}()
+		s.startLDAPConnectionCheck(ctx)
 	}
 
 	ok = true
 	return s, nil
+}
+
+// startLDAPConnectionCheck starts a background process that
+// periodically reads from the LDAP connection in order to detect
+// connection closure, and reconnects if necessary.
+// This is useful when LDAP-based discovery is disabled, because without
+// discovery the connection goes idle and may be closed by the server.
+func (s *WindowsService) startLDAPConnectionCheck(ctx context.Context) {
+	s.cfg.Logger.DebugContext(ctx, "starting LDAP connection checker")
+	go func() {
+		t := s.cfg.Clock.NewTicker(5 * time.Minute)
+		defer t.Stop()
+
+		for {
+			select {
+			case <-t.Chan():
+				// attempt to read CAs in the NTAuth store (we know we have permissions to do so)
+				ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + s.cfg.LDAPConfig.DomainDN()
+				_, err := s.lc.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
+				if trace.IsConnectionProblem(err) {
+					s.cfg.Logger.DebugContext(ctx, "detected broken LDAP connection, will reconnect")
+					if err := s.initializeLDAP(); err != nil {
+						s.cfg.Logger.WarnContext(ctx, "failed to reconnect to LDAP", "error", err)
+					}
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 func (s *WindowsService) newSessionRecorder(recConfig types.SessionRecordingConfig, sessionID string) (libevents.SessionPreparerRecorder, error) {
