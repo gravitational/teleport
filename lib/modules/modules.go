@@ -273,7 +273,7 @@ type Modules interface {
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
-	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
+	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
@@ -375,9 +375,9 @@ func (p *defaultModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
-	return keys.PrivateKeyPolicyNone, nil
+	return nil, trace.NotFound("no attestation data for the given key")
 }
 
 // GenerateAccessRequestPromotions is a noop since OSS teleport does not support generating access list promotions.

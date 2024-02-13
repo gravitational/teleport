@@ -641,9 +641,19 @@
         },
         {
           "title": "Access Graph",
-          "slug": "/access-graph/",
+          "slug": "/access-controls/access-graph/",
           "forScopes": [
-            "team"
+            "team",
+            "enterprise"
+          ],
+          "entries": [
+            {
+              "title": "TAG for Self-Hosted Clusters",
+              "slug": "/access-controls/access-graph/self-hosted/",
+              "forScopes": [
+                "enterprise"
+              ]
+            }
           ]
         },
         {
@@ -2058,6 +2068,9 @@
       "username": "myuser",
       "nodeIP": "ip-172-31-35-170"
     },
+    "access_graph": {
+      "version": "1.9.1"
+    },
     "ansible": {
       "min_version": "2.9.6"
     },
@@ -3336,6 +3349,11 @@
     {
       "source": "/management/admin/upgrading-the-teleport-binary/",
       "destination": "/upgrading/",
+      "permanent": true
+    },
+    {
+      "source": "/access-graph/",
+      "destination": "/access-controls/access-graph/",
       "permanent": true
     }
   ]

@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base32"
@@ -2509,10 +2508,11 @@ type httpErrorResponse struct {
 
 func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
-		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
-			return "", keys.NewPrivateKeyPolicyError(policy)
+		MockAttestationData: &keys.AttestationData{
+			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 		},
 	})
+
 	s := newWebSuite(t)
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:           constants.Local,
@@ -5549,8 +5549,8 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-		MockAttestHardwareKey: func(_ context.Context, _ interface{}, policy keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
-			return "", keys.NewPrivateKeyPolicyError(policy)
+		MockAttestationData: &keys.AttestationData{
+			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 		},
 	})
 
