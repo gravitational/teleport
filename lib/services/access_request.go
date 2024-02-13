@@ -369,7 +369,7 @@ func ValidateAccessPredicates(role types.Role) error {
 
 	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
 		maxDuration.Duration() > maxAccessDuration {
-		return trace.BadParameter("max access duration must be less or equal 7 days")
+		return trace.BadParameter("max access duration must be less than or equal to %v", maxAccessDuration)
 	}
 
 	return nil
@@ -1230,9 +1230,8 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 
 	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
 
-	// For dry run requests, the max_duration is set to 14 days.
+	// For dry run requests, use the maximum possible duration.
 	// This prevents the time drift that can occur as the value is set on the client side.
-	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
 	if req.GetDryRun() {
 		maxDuration = maxAccessDuration
 	} else if maxDuration < 0 {
@@ -1240,7 +1239,7 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 	}
 
 	if maxDuration > maxAccessDuration {
-		return 0, trace.BadParameter("max_duration must be less or equal 7 days")
+		return 0, trace.BadParameter("max_duration must be less than or equal to %v", maxAccessDuration)
 	}
 
 	minAdjDuration := maxDuration
