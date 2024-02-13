@@ -57,10 +57,6 @@ const (
 	challengeHeaderKey = "x-teleport-challenge"
 )
 
-var (
-	authTeleportVersion = semver.New(teleport.Version)
-)
-
 // validateSTSHost returns an error if the given stsHost is not a valid regional
 // endpoint for the AWS STS service, or nil if it is valid. If fips is true, the
 // endpoint must be a valid FIPS endpoint.
@@ -317,7 +313,7 @@ type iamRegisterConfig struct {
 
 func defaultIAMRegisterConfig(fips bool) *iamRegisterConfig {
 	return &iamRegisterConfig{
-		authVersion: authTeleportVersion,
+		authVersion: teleport.SemVersion,
 		fips:        fips,
 	}
 }
