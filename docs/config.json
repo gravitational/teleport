@@ -1004,6 +1004,20 @@
           "title": "Getting Started",
           "slug": "/server-access/getting-started/"
         },
+	{
+	  "title": "Enrolling OpenSSH Servers",
+	  "slug": "/server-access/openssh/",
+	  "entries": [
+            {
+              "title": "Agentless OpenSSH Integration",
+              "slug": "/server-access/openssh/openssh/"
+            },
+            {
+              "title": "Agentless OpenSSH Integration (Manual Install)",
+              "slug": "/server-access/openssh/openssh-manual-install/"
+            }
+	  ]
+	},
         {
           "title": "Guides",
           "slug": "/server-access/guides/",
@@ -1011,14 +1025,6 @@
             {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
-            },
-            {
-              "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/guides/openssh/openssh/"
-            },
-            {
-              "title": "Agentless OpenSSH Integration (Manual Install)",
-              "slug": "/server-access/guides/openssh/openssh-manual-install/"
             },
             {
               "title": "Recording Proxy Mode",
@@ -2031,7 +2037,7 @@
     },
     {
       "source": "/openssh-teleport/",
-      "destination": "/server-access/guides/openssh/",
+      "destination": "/server-access/openssh/",
       "permanent": true
     },
     {
@@ -2991,7 +2997,7 @@
     },
     {
       "source": "/server-access/guides/openssh/",
-      "destination": "/server-access/guides/openssh/openssh/",
+      "destination": "/server-access/openssh/",
       "permanent": true
     },
     {

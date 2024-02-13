@@ -388,7 +388,7 @@ Teleport 14 before upgrading.
 #### SSH node open dial no longer supported
 
 Teleport 14 no longer allows connecting to OpenSSH servers not registered with
-the cluster. Follow the updated agentless OpenSSH integration [guide](docs/pages/server-access/guides/openssh.mdx)
+the cluster. Follow the updated agentless OpenSSH integration [guide](docs/pages/server-access/openssh/openssh.mdx)
 to register your OpenSSH nodes in the cluster’s inventory.
 
 You can set `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING=yes` environment variable
@@ -637,7 +637,7 @@ This will allow users to view the OpenSSH nodes in Web UI and using `tsh ls`
 and use RBAC to control access to them.
 
 See the updated [OpenSSH integration
-guide](docs/pages/server-access/guides/openssh.mdx).
+guide](docs/pages/server-access/openssh/openssh.mdx).
 
 ### Cross-cluster search for Teleport Connect
 
