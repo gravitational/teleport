@@ -9,25 +9,56 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 | Version | Date              |
 |---------|-------------------|
-| 15.0.1  | February 5, 2024  |
 | 15.1.0  | February 29, 2024 |
 
-### 15.0.1
+### 15.1.0
 
-#### Improved provisioning for Okta
+#### Standalone `tbot` Docker image
 
-Teleport will improve performance of receiving user/group updates from Okta by leveraging
-System for Cross-domain Identity Management (SCIM).
+We will ship a new container image that contains `tbot` but omits other
+Teleport binaries, providing a light-weight option for Machine ID users.
 
-*Delayed from Teleport 14.3.0.*
+#### SSH remote port forwarding
+
+In Teleport 15.1, we will expose remote port forwarding via the `tsh ssh -R`
+command. Remote port forwarding will be supported for both Teleport and OpenSSH
+nodes.
+
+#### Custom mouse pointers for remote desktop sessions
+
+Teleport remote desktop sessions will automatically change the mouse cursor
+depending on context (when hovering over a link, resizing a window, or editing
+text, for example).
+
+#### New paginated APIs
+
+Teleport's gRPC server will expose new paginated APIs for listing roles and
+access requests, which will improve performance on clusters with large numbers
+of these resources.
+
+#### Synchronization of Okta groups and apps
+
+Okta integration will support automatic synchronization of Okta groups and app
+assignments to Teleport as access lists giving users ability to request access
+to Okta apps without extra configuration.
+
+#### Database permission management for for PostgreSQL
+
+Admins will be able to configure Teleport RBAC rules for managing access to
+database objects (such as tables) in for PostgreSQL.
+
+#### EKS auto-discovery in Access Management UI
+
+Users going through EKS enrollment flow in Access Management web UI will have
+an option to enable auto-discovery for EKS clusters.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of           | Description                                                     |
-|-------------------|-----------------------------------------------------------------|
-| February 5, 2024  | All agents will be automatically upgraded to Teleport 14.       |
+| Week of        | Description                                |
+|----------------|--------------------------------------------|
+| March 4, 2024  | Teleport 15.1 will begin rollout on Cloud. |
 
 ## Production readiness
 

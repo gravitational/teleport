@@ -503,7 +503,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, wdsVersion string) err
 	go func() {
 		defer closeOnce.Do(close)
 
-		buf := make([]byte, 4096)
+		var buf bytes.Buffer
 		for {
 			_, reader, err := ws.NextReader()
 			switch {
@@ -514,18 +514,19 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, wdsVersion string) err
 				errs <- err
 				return
 			}
-			n, err := reader.Read(buf)
-			if err != nil {
+			buf.Reset()
+			if _, err := io.Copy(&buf, reader); err != nil {
 				errs <- err
 				return
 			}
 			// don't pass the sync keys message along to old agents
 			// (they don't support it)
-			if isPre15 && tdp.MessageType(buf[0]) == tdp.TypeSyncKeys {
+			b := buf.Bytes()
+			if isPre15 && len(b) > 0 && tdp.MessageType(b[0]) == tdp.TypeSyncKeys {
 				continue
 			}
 
-			if _, err := wds.Write(buf[:n]); err != nil {
+			if _, err := wds.Write(b); err != nil {
 				errs <- trace.Wrap(err, "sending TDP message to desktop agent")
 				return
 			}
