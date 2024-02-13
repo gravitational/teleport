@@ -135,6 +135,8 @@ type IdentityInfo struct {
 	// [TransportCredentialsConfig.Authorizer] provided to [NewTransportCredentials]
 	// was nil.
 	AuthContext *authz.Context
+	// Conn is the underlying [net.Conn] of the gRPC connection.
+	Conn net.Conn
 }
 
 // ServerHandshake does the authentication handshake for servers. It returns
@@ -175,6 +177,7 @@ func (c *TransportCredentials) ServerHandshake(rawConn net.Conn) (_ net.Conn, _ 
 		TLSInfo:        tlsInfo,
 		IdentityGetter: identityGetter,
 		AuthContext:    authCtx,
+		Conn:           conn,
 	}, nil
 }
 
