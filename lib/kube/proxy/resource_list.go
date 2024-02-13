@@ -131,20 +131,25 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	return memBuffer.Status(), trace.Wrap(err)
 }
 
+// matchListRequestShouldBeAllowed assess whether the user is permitted to perform its request
+// based on the defined kubernetes_resource rules. The aim is to catch cases when the user
+// has no access and present then a more user-friendly error message instead of returning
+// an empty list.
+// This function is not responsible for enforcing access rules.
 func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind string, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
 	resource := types.KubernetesResource{
 		Kind:      resourceKind,
 		Namespace: sess.apiResource.namespace,
 		Verbs:     []string{sess.requestVerb},
 	}
-	result, err := utils.KubeResourceMatchesNamespaceVerbRegex(resource, deniedResources, types.Deny)
+	result, err := utils.KubeResourceCouldMatchRules(resource, deniedResources, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
 	} else if result {
 		return false, nil
 	}
 
-	result, err = utils.KubeResourceMatchesNamespaceVerbRegex(resource, allowedResources, types.Allow)
+	result, err = utils.KubeResourceCouldMatchRules(resource, allowedResources, types.Allow)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

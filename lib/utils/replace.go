@@ -217,13 +217,12 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 	return false, nil
 }
 
-// KubeResourceMatchesNamespaceVerbRegex matches a resource against a list of
-// resources.
-// If isDeny is true, the function returns true if it will match all possible inputs.
-// This means that it will only return true if the resource name is a wildcard.
-// If isDeny is false, the function returns true if the resource matches any of the
-// resources namespaces in the list
-func KubeResourceMatchesNamespaceVerbRegex(input types.KubernetesResource, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
+// KubeResourceCouldMatchRules assess whether the user is permitted to perform its request
+// based on the defined kubernetes_resource rules. The aim is to catch cases when the user
+// has no access and present then a more user-friendly error message instead of returning
+// an empty list.
+// This function is not responsible for enforcing access rules.
+func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []types.KubernetesResource, cond types.RoleConditionType) (bool, error) {
 	if len(input.Verbs) != 1 {
 		return false, trace.BadParameter("only one verb is supported, input: %v", input.Verbs)
 	}
@@ -282,7 +281,7 @@ func KubeResourceMatchesNamespaceVerbRegex(input types.KubernetesResource, resou
 			// they should be able to see the "foo" namespace in the list of namespaces
 			// but only if the request is read-only.
 			cond := !isDeny || resource.Name == types.Wildcard && resource.Namespace == types.Wildcard
-			if input.Namespace == "" && cond {
+			if cond {
 				return cond, nil
 			}
 			if ok, err := MatchString(input.Name, resource.Namespace); err != nil || ok && cond {
