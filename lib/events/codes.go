@@ -151,6 +151,8 @@ const (
 	DatabaseSessionQueryFailedCode = "TDB02W"
 	// DatabaseSessionMalformedPacketCode is the db.session.malformed_packet event code.
 	DatabaseSessionMalformedPacketCode = "TDB06I"
+	// DatabaseSessionPermissionUpdateCode is the db.session.permissions.update event code.
+	DatabaseSessionPermissionUpdateCode = "TDB07I"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
@@ -507,6 +509,12 @@ const (
 
 	// OktaAssignmentCleanupFailureCode is the Okta assignment cleanup failure code.
 	OktaAssignmentCleanupFailureCode = "TOK005E"
+
+	// OktaAccessListSyncSuccessCode is the Okta access list sync success code.
+	OktaAccessListSyncSuccessCode = "TOK006I"
+
+	// OktaAccessListSyncSuccessCode is the Okta access list sync failure code.
+	OktaAccessListSyncFailureCode = "TOK006E"
 
 	// AccessListCreateSuccessCode is the access list create success code.
 	AccessListCreateSuccessCode = "TAL001I"

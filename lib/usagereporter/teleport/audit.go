@@ -234,6 +234,23 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			Days:      e.Days,
 			IsSuccess: e.Status.Success,
 		}
+	case *apievents.ValidateMFAAuthResponse:
+		return &MFAAuthenticationEvent{
+			UserName:          e.User,
+			DeviceId:          e.MFADevice.DeviceID,
+			DeviceType:        e.MFADevice.DeviceType,
+			MfaChallengeScope: e.ChallengeScope,
+		}
+	case *apievents.OktaAccessListSync:
+		return &OktaAccessListSyncEvent{
+			NumAppFilters:        e.NumAppFilters,
+			NumGroupFilters:      e.NumGroupFilters,
+			NumApps:              e.NumApps,
+			NumGroups:            e.NumGroups,
+			NumRoles:             e.NumRoles,
+			NumAccessLists:       e.NumAccessLists,
+			NumAccessListMembers: e.NumAccessListMembers,
+		}
 	}
 
 	return nil

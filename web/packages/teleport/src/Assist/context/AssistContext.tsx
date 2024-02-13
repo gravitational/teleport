@@ -31,7 +31,7 @@ import { AssistStateActionType, reducer } from 'teleport/Assist/context/state';
 import { convertServerMessages } from 'teleport/Assist/context/utils';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import { getHostName } from 'teleport/services/api';
 
 import {
   AccessRequestClientMessage,
@@ -48,6 +48,7 @@ import {
   makeMfaAuthenticateChallenge,
   WebauthnAssertionResponse,
 } from 'teleport/services/auth';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import * as service from '../service';
 import {
@@ -84,9 +85,9 @@ let lastCommandExecutionResultId = 0;
 const TEN_MINUTES = 10 * 60 * 1000;
 
 export function AssistContextProvider(props: PropsWithChildren<unknown>) {
-  const activeWebSocket = useRef<WebSocket>(null);
+  const activeWebSocket = useRef<AuthenticatedWebSocket>(null);
   // TODO(ryan): this should be removed once https://github.com/gravitational/teleport.e/pull/1609 is implemented
-  const executeCommandWebSocket = useRef<WebSocket>(null);
+  const executeCommandWebSocket = useRef<AuthenticatedWebSocket>(null);
   const refreshWebSocketTimeout = useRef<number | null>(null);
 
   const { clusterId } = useStickyClusterId();
@@ -124,11 +125,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   }
 
   function setupWebSocket(conversationId: string, initialMessage?: string) {
-    activeWebSocket.current = new WebSocket(
+    activeWebSocket.current = new AuthenticatedWebSocket(
       cfg.getAssistConversationWebSocketUrl(
         getHostName(),
         clusterId,
-        getAccessToken(),
         conversationId
       )
     );
@@ -274,9 +274,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     setupWebSocket(conversationId);
 
-    const serverMessages = await service.loadConversationMessages(
-      conversationId
-    );
+    const serverMessages =
+      await service.loadConversationMessages(conversationId);
     const messages: ResolvedServerMessage[] = [];
 
     for (const message of serverMessages) {
@@ -315,9 +314,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
         loading: true,
       });
 
-      const serverMessages = await service.loadConversationMessages(
-        conversationId
-      );
+      const serverMessages =
+        await service.loadConversationMessages(conversationId);
       const messages: ResolvedServerMessage[] = [];
 
       for (const message of serverMessages) {
@@ -350,7 +348,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     if (
       !activeWebSocket.current ||
-      activeWebSocket.current.readyState === WebSocket.CLOSED
+      activeWebSocket.current.readyState === AuthenticatedWebSocket.CLOSED
     ) {
       setupWebSocket(state.conversations.selectedId, data);
     } else {
@@ -380,7 +378,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   function sendMfaChallenge(data: WebauthnAssertionResponse) {
     if (
       !executeCommandWebSocket.current ||
-      executeCommandWebSocket.current.readyState !== WebSocket.OPEN ||
+      executeCommandWebSocket.current.readyState !==
+        AuthenticatedWebSocket.OPEN ||
       !data
     ) {
       console.warn(
@@ -448,12 +447,11 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     const url = cfg.getAssistExecuteCommandUrl(
       getHostName(),
       clusterId,
-      getAccessToken(),
       execParams
     );
 
     const proto = new Protobuf();
-    executeCommandWebSocket.current = new WebSocket(url);
+    executeCommandWebSocket.current = new AuthenticatedWebSocket(url);
     executeCommandWebSocket.current.binaryType = 'arraybuffer';
 
     executeCommandWebSocket.current.onmessage = event => {

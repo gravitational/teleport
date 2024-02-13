@@ -3,10 +3,12 @@
 exports[`render multi bash texts 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 48px;
+  padding-right: 40px;
   padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
@@ -28,7 +30,7 @@ exports[`render multi bash texts 1`] = `
 
 .c8 {
   box-sizing: border-box;
-  padding-right: 16px;
+  padding-right: 8px;
 }
 
 .c14 {
@@ -136,6 +138,7 @@ exports[`render multi bash texts 1`] = `
 
 .c1 {
   position: relative;
+  overflow: scroll;
 }
 
 .c7 {
@@ -396,10 +399,12 @@ exports[`render multi bash texts 1`] = `
 exports[`render multi bash texts with comment 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 48px;
+  padding-right: 40px;
   padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
@@ -421,7 +426,7 @@ exports[`render multi bash texts with comment 1`] = `
 
 .c9 {
   box-sizing: border-box;
-  padding-right: 16px;
+  padding-right: 8px;
 }
 
 .c15 {
@@ -533,6 +538,7 @@ exports[`render multi bash texts with comment 1`] = `
 
 .c1 {
   position: relative;
+  overflow: scroll;
 }
 
 .c8 {
@@ -810,10 +816,12 @@ https://apt.releases.teleport.dev/stable/v10" \\
 exports[`render non bash single text 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 48px;
+  padding-right: 40px;
   padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
@@ -835,7 +843,7 @@ exports[`render non bash single text 1`] = `
 
 .c8 {
   box-sizing: border-box;
-  padding-right: 16px;
+  padding-right: 8px;
 }
 
 .c10 {
@@ -937,6 +945,7 @@ exports[`render non bash single text 1`] = `
 
 .c1 {
   position: relative;
+  overflow: scroll;
 }
 
 .c7 {
@@ -1036,10 +1045,12 @@ exports[`render non bash single text 1`] = `
 exports[`render single bash text 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 48px;
+  padding-right: 40px;
   padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
@@ -1061,7 +1072,7 @@ exports[`render single bash text 1`] = `
 
 .c8 {
   box-sizing: border-box;
-  padding-right: 16px;
+  padding-right: 8px;
 }
 
 .c10 {
@@ -1163,6 +1174,7 @@ exports[`render single bash text 1`] = `
 
 .c1 {
   position: relative;
+  overflow: scroll;
 }
 
 .c7 {
@@ -1267,10 +1279,12 @@ exports[`render single bash text 1`] = `
 exports[`render single bash text with comment 1`] = `
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 48px;
+  padding-right: 40px;
   padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
 }
@@ -1292,7 +1306,7 @@ exports[`render single bash text with comment 1`] = `
 
 .c9 {
   box-sizing: border-box;
-  padding-right: 16px;
+  padding-right: 8px;
 }
 
 .c11 {
@@ -1398,6 +1412,7 @@ exports[`render single bash text with comment 1`] = `
 
 .c1 {
   position: relative;
+  overflow: scroll;
 }
 
 .c8 {

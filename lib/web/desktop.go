@@ -66,6 +66,7 @@ func (h *Handler) desktopConnectHandle(
 	p httprouter.Params,
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
 ) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
 	if desktopName == "" {
@@ -75,7 +76,7 @@ func (h *Handler) desktopConnectHandle(
 	log := sctx.cfg.Log.WithField("desktop-name", desktopName).WithField("cluster-name", site.GetName())
 	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(w, r, desktopName, site.GetName(), log, sctx, site); err != nil {
+	if err := h.createDesktopConnection(w, r, desktopName, site.GetName(), log, sctx, site, ws); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -94,15 +95,8 @@ func (h *Handler) createDesktopConnection(
 	log *logrus.Entry,
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
 ) error {
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-	}
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	defer ws.Close()
 
 	sendTDPError := func(err error) error {
@@ -509,7 +503,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, wdsVersion string) err
 	go func() {
 		defer closeOnce.Do(close)
 
-		buf := make([]byte, 4096)
+		var buf bytes.Buffer
 		for {
 			_, reader, err := ws.NextReader()
 			switch {
@@ -520,18 +514,19 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, wdsVersion string) err
 				errs <- err
 				return
 			}
-			n, err := reader.Read(buf)
-			if err != nil {
+			buf.Reset()
+			if _, err := io.Copy(&buf, reader); err != nil {
 				errs <- err
 				return
 			}
 			// don't pass the sync keys message along to old agents
 			// (they don't support it)
-			if isPre15 && tdp.MessageType(buf[0]) == tdp.TypeSyncKeys {
+			b := buf.Bytes()
+			if isPre15 && len(b) > 0 && tdp.MessageType(b[0]) == tdp.TypeSyncKeys {
 				continue
 			}
 
-			if _, err := wds.Write(buf[:n]); err != nil {
+			if _, err := wds.Write(b); err != nil {
 				errs <- trace.Wrap(err, "sending TDP message to desktop agent")
 				return
 			}

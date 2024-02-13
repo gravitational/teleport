@@ -1,117 +1,64 @@
 ---
 title: Teleport Upcoming Releases
 description: A timeline of upcoming Teleport releases.
-h1: Upcoming Teleport Releases
 ---
 
-The Teleport team delivers a new major release roughly every 3 months.
+The Teleport team delivers a new major release roughly every 4 months.
 
 ## Teleport
 
-### Teleport 12.3.0
+| Version | Date              |
+|---------|-------------------|
+| 15.1.0  | February 29, 2024 |
 
-####  Automatic user creation for Desktop Access
+### 15.1.0
 
-Teleport's passwordless access for local users will provide the ability to
-create Windows users on demand, similar to how host-user creation works for SSH
-servers.
+#### Standalone `tbot` Docker image
 
-#### SFTP UX enhancements
+We will ship a new container image that contains `tbot` but omits other
+Teleport binaries, providing a light-weight option for Machine ID users.
 
-Will include fixes for wildcard patterns, excessive audit logging and PyCharm
-compatibility. [#22748](https://github.com/gravitational/teleport/issues/22748)
-[#21518](https://github.com/gravitational/teleport/issues/21518)
-[#22982](https://github.com/gravitational/teleport/issues/22982)
-[#22263](https://github.com/gravitational/teleport/issues/22263)
-[#20863](https://github.com/gravitational/teleport/issues/20863)
-[#23593](https://github.com/gravitational/teleport/issues/23593)
+#### SSH remote port forwarding
 
-| Version | Date          |
-|---------|---------------|
-| 12.3.0  | May 1st, 2023 |
+In Teleport 15.1, we will expose remote port forwarding via the `tsh ssh -R`
+command. Remote port forwarding will be supported for both Teleport and OpenSSH
+nodes.
 
-### Teleport 13.0.0
+#### Custom mouse pointers for remote desktop sessions
 
-| Version        | Date             |
-|----------------|------------------|
-| 13.0.0-alpha.1 | April 17th, 2023 |
-| 13.0.0         | May 8th, 2023    |
+Teleport remote desktop sessions will automatically change the mouse cursor
+depending on context (when hovering over a link, resizing a window, or editing
+text, for example).
 
-####  Automatic upgrades
+#### New paginated APIs
 
-Users will be able to configure Teleport agents to upgrade automatically.
+Teleport's gRPC server will expose new paginated APIs for listing roles and
+access requests, which will improve performance on clusters with large numbers
+of these resources.
 
-####  TLS routing through ALB for server access and Kubernetes access
+#### Synchronization of Okta groups and apps
 
-Teleport will support server access and Kubernetes access through load
-balancers in TLS routing mode.
+Okta integration will support automatic synchronization of Okta groups and app
+assignments to Teleport as access lists giving users ability to request access
+to Okta apps without extra configuration.
 
-####  Ability to import applications and groups from Okta to Application Access
+#### Database permission management for for PostgreSQL
 
-Teleport will be able to imports Okta apps and groups and users will be able to
-use Access Requests with Okta apps and groups.
+Admins will be able to configure Teleport RBAC rules for managing access to
+database objects (such as tables) in for PostgreSQL.
 
-####  AWS OpenSearch support for Database Access
+#### EKS auto-discovery in Access Management UI
 
-Database access will add support for connecting to AWS OpenSearch.
-
-#### Cross-Cluster Search for Teleport Connect
-
-Teleport Connect will include a new search experience, allowing you to search
-for and connect to resources across all logged-in clusters.
-
-#### Kubernetes access performance improvements
-
-Users will experience better performance when interacting with Kubernetes clusters.
-
-#### Universal binaries (including Apple Silicon) for macOS
-
-Teleport will run natively on ARM Macs, without the need for Rosetta emulation.
-
-#### Simplified RDS onboarding flow in Access Management UI
-
-Teleport Access Management UI will provide ability to connect to AWS account
-and select RDS databases for onboarding.
-
-#### Light theme for Web UI
-
-Teleport's web UI will ship with an optional light theme.
-
-#### Other
-
-In addition, the following improvements
-
-- Improved SQL Server PKINIT Auth support
-- Session recording video export support for Desktop Access
-- Add support for locking to Web UI
-- Device listing in Web UI
-
-### 13.1.0
-
-####  GCP Auto-Discovery for Server Access
-
-Teleport will be able to automatically enroll GCP VM for server access.
-
-####  OpsGenie Access Request Plugin
-
-Teleport will include OpsGenie access plugin.
-
-*Delayed from Teleport 13.0.0.*
-
-| Version | Date           |
-|---------|----------------|
-| 12.3.0  | June 1st, 2023 |
+Users going through EKS enrollment flow in Access Management web UI will have
+an option to enable auto-discovery for EKS clusters.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of          | Description                                          |
-|------------------|------------------------------------------------------|
-| April 10th, 2023 | Teleport 12.2 begins to roll out for Cloud customers |
-| May 8th, 2023    | Add support for hosted Access Request plugins        |
-| June 5th, 2023   | Teleport 13.1 begins to roll out for Cloud customers |
-| June 5th, 2023   | Advanced Audit Log rollout begins                    |
+| Week of        | Description                                |
+|----------------|--------------------------------------------|
+| March 4, 2024  | Teleport 15.1 will begin rollout on Cloud. |
 
 ## Production readiness
 

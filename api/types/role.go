@@ -152,6 +152,11 @@ type Role interface {
 	// SetDatabaseRoles sets a list of database roles for auto-provisioned users.
 	SetDatabaseRoles(RoleConditionType, []string)
 
+	// GetDatabasePermissions gets database permissions for auto-provisioned users.
+	GetDatabasePermissions(rct RoleConditionType) DatabasePermissions
+	// SetDatabasePermissions sets database permissions for auto-provisioned users.
+	SetDatabasePermissions(RoleConditionType, DatabasePermissions)
+
 	// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
 	// SetImpersonateConditions sets conditions this role is allowed or denied to impersonate.
@@ -705,6 +710,23 @@ func (r *RoleV6) SetDatabaseRoles(rct RoleConditionType, values []string) {
 	}
 }
 
+// GetDatabasePermissions gets a list of database permissions for auto-provisioned users.
+func (r *RoleV6) GetDatabasePermissions(rct RoleConditionType) DatabasePermissions {
+	if rct == Allow {
+		return r.Spec.Allow.DatabasePermissions
+	}
+	return r.Spec.Deny.DatabasePermissions
+}
+
+// SetDatabasePermissions sets a list of database permissions for auto-provisioned users.
+func (r *RoleV6) SetDatabasePermissions(rct RoleConditionType, values DatabasePermissions) {
+	if rct == Allow {
+		r.Spec.Allow.DatabasePermissions = values
+	} else {
+		r.Spec.Deny.DatabasePermissions = values
+	}
+}
+
 // GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 func (r *RoleV6) GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions {
 	cond := r.Spec.Deny.Impersonate
@@ -1129,6 +1151,25 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 	}
 
+	for i, perm := range r.Spec.Allow.DatabasePermissions {
+		if err := perm.CheckAndSetDefaults(); err != nil {
+			return trace.BadParameter("failed to process 'allow' db_permission #%v: %v", i+1, err)
+		}
+		// Wildcards permissions are disallowed. Even though this should never pass the db-specific driver,
+		// it doesn't hurt to check it here. Wildcards *are* allowed on deny side,
+		// which is why this check is here and not in CheckAndSetDefaults().
+		for _, permission := range perm.Permissions {
+			if permission == Wildcard {
+				return trace.BadParameter("individual database permissions cannot be wildcards strings")
+			}
+		}
+	}
+	for i, perm := range r.Spec.Deny.DatabasePermissions {
+		if err := perm.CheckAndSetDefaults(); err != nil {
+			return trace.BadParameter("failed to process 'deny' db_permission #%v: %v", i+1, err)
+		}
+	}
+
 	for i := range r.Spec.Allow.Rules {
 		err := r.Spec.Allow.Rules[i].CheckAndSetDefaults()
 		if err != nil {
@@ -1240,7 +1281,8 @@ func CopyRulesSlice(in []Rule) []Rule {
 // from scalar and list values
 type Labels map[string]utils.Strings
 
-func (l Labels) protoType() *wrappers.LabelValues {
+// ToProto returns a protobuf-compatible representation of Labels.
+func (l Labels) ToProto() *wrappers.LabelValues {
 	v := &wrappers.LabelValues{
 		Values: make(map[string]wrappers.StringValues, len(l)),
 	}
@@ -1256,12 +1298,12 @@ func (l Labels) protoType() *wrappers.LabelValues {
 
 // Marshal marshals value into protobuf representation
 func (l Labels) Marshal() ([]byte, error) {
-	return proto.Marshal(l.protoType())
+	return proto.Marshal(l.ToProto())
 }
 
 // MarshalTo marshals value to the array
 func (l Labels) MarshalTo(data []byte) (int, error) {
-	return l.protoType().MarshalTo(data)
+	return l.ToProto().MarshalTo(data)
 }
 
 // Unmarshal unmarshals value from protobuf
@@ -1283,7 +1325,7 @@ func (l *Labels) Unmarshal(data []byte) error {
 
 // Size returns protobuf size
 func (l Labels) Size() int {
-	return l.protoType().Size()
+	return l.ToProto().Size()
 }
 
 // Clone returns non-shallow copy of the labels set

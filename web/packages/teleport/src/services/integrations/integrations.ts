@@ -177,11 +177,18 @@ export const integrationService = {
       .then(resp => resp.clusterDashboardUrl);
   },
 
-  enrollEksClusters(
+  async enrollEksClusters(
     integrationName: string,
     req: EnrollEksClustersRequest
   ): Promise<EnrollEksClustersResponse> {
-    return api.post(cfg.getEnrollEksClusterUrl(integrationName), req);
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+
+    return api.post(
+      cfg.getEnrollEksClusterUrl(integrationName),
+      req,
+      null,
+      webauthnResponse
+    );
   },
 
   fetchEksClusters(

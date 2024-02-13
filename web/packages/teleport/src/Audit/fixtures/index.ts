@@ -2043,6 +2043,26 @@ export const events = [
     user: 'alice',
   },
   {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TDB07I',
+    db_name: 'master',
+    db_protocol: 'postgres',
+    db_service: 'postgres-local',
+    db_uri: 'localhost:1433',
+    db_user: 'alice',
+    ei: 50,
+    event: 'db.session.permissions.update',
+    sid: '3ed38c42-eef0-419b-b893-f2f10990f117',
+    time: '2022-06-02T08:46:33.825Z',
+    uid: '503e310d-8d88-4bea-bbbb-a1b35456a03a',
+    user: 'alice',
+    permission_summary: [
+      { counts: { table: 1, view: 2 }, permission: 'INSERT' },
+      { counts: { table: 2, view: 4 }, permission: 'SELECT' },
+      { counts: { table: 3 }, permission: 'UPDATE' },
+    ],
+  },
+  {
     ei: 0,
     event: 'db.session.cassandra.prepare',
     code: 'TCA02I',
@@ -3099,6 +3119,16 @@ export const events = [
     name: 'assignment-id',
     source: 'source',
     user: 'mike',
+  },
+  {
+    code: 'TOK006I',
+    event: 'okta.access_list.sync',
+    time: '2023-05-08T19:21:36.144Z',
+  },
+  {
+    code: 'TOK006E',
+    event: 'okta.access_list.sync',
+    time: '2023-05-08T19:21:36.144Z',
   },
   {
     code: 'TAL001I',
