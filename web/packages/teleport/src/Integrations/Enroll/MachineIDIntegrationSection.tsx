@@ -21,8 +21,10 @@ import React from 'react';
 import { Box, Text } from 'design';
 
 import { BotTiles } from 'teleport/Bots/Add/AddBotsPicker';
+import useTeleport from 'teleport/useTeleport';
 
 export const MachineIDIntegrationSection = () => {
+  const ctx = useTeleport();
   return (
     <>
       <Box mb={3}>
@@ -34,7 +36,7 @@ export const MachineIDIntegrationSection = () => {
           to access resources protected by Teleport.
         </Text>
       </Box>
-      <BotTiles />
+      <BotTiles hasCreateBotPermission={ctx.getFeatureFlags().addBots} />
     </>
   );
 };
