@@ -27,6 +27,7 @@ const makeProps = (): BotListProps => ({
   attempt: { status: '' },
   bots: botsFixture,
   disabledEdit: false,
+  disabledDelete: false,
   onClose: () => {},
   onDelete: () => {},
   onEdit: () => {},
