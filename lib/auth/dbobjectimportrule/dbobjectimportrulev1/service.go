@@ -78,13 +78,13 @@ func (rs *DatabaseObjectImportRuleService) authorize(ctx context.Context, adminA
 		return trace.Wrap(err)
 	}
 
-	err = authCtx.CheckAccessToKind(false, types.KindDatabaseObjectImportRule, verb, additionalVerbs...)
+	err = authCtx.CheckAccessToKind(types.KindDatabaseObjectImportRule, verb, additionalVerbs...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if adminAction {
-		err = authz.AuthorizeAdminAction(ctx, authCtx)
+		err = authCtx.AuthorizeAdminAction()
 		if err != nil {
 			return trace.Wrap(err)
 		}
