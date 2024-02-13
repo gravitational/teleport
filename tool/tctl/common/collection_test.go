@@ -256,14 +256,16 @@ func testDatabaseServerCollection_writeText(t *testing.T) {
 func TestDatabaseImportRuleCollection_writeText(t *testing.T) {
 	mkRule := func(name string) *dbobjectimportrulev1.DatabaseObjectImportRule {
 		r, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-			Priority: 0,
-			DbLabels: types.Labels{"foo": {"bar"}}.ToProto(),
+			Priority: 123,
+			DbLabels: types.Labels{"foo": {"bar"}, "beast": {"dragon", "phoenix"}}.ToProto(),
 			Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
 				{
 					Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
 						TableNames: []string{"dummy"},
 					},
-					AddLabels: map[string]string{"dummy_table": "true"},
+					AddLabels: map[string]string{
+						"dummy_table": "true",
+						"another":     "label"},
 				},
 			},
 		})
@@ -278,10 +280,10 @@ func TestDatabaseImportRuleCollection_writeText(t *testing.T) {
 	}
 
 	table := asciitable.MakeTable(
-		[]string{"Name"},
-		[]string{"rule_1"},
-		[]string{"rule_2"},
-		[]string{"rule_3"},
+		[]string{"Name", "Priority", "Mapping Count", "DB Label Count"},
+		[]string{"rule_1", "123", "1", "2"},
+		[]string{"rule_2", "123", "1", "2"},
+		[]string{"rule_3", "123", "1", "2"},
 	)
 
 	formatted := table.AsBuffer().String()
