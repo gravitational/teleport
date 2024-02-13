@@ -63,7 +63,7 @@ runs:
         INPUT_OSS-TELEPORT-REF: ${{ inputs.oss-teleport-ref }}
         INPUT_OSS-TELEPORT-REPO: ${{ inputs.oss-teleport-repo }}
         INPUT_EDITION: ${{ inputs.edition }}
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           // Validate required inputs
