@@ -559,7 +559,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 	}
 }
 
-func TestKubeResourceMatchesNamespaceVerbRegex(t *testing.T) {
+func TestKubeResourceCouldMatchRules(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     types.KubernetesResource
@@ -1162,7 +1162,7 @@ func TestKubeResourceMatchesNamespaceVerbRegex(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := KubeResourceMatchesNamespaceVerbRegex(tt.input, tt.resources, tt.action)
+			got, err := KubeResourceCouldMatchRules(tt.input, tt.resources, tt.action)
 			tt.assert(t, err)
 			require.Equal(t, tt.matches, got)
 		})
