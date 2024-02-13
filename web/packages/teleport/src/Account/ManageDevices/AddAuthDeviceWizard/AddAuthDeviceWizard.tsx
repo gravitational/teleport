@@ -54,14 +54,6 @@ export function AddAuthDeviceWizard({
   const [privilegeToken, setPrivilegeToken] = useState(privilegeTokenProp);
   const [credential, setCredential] = useState<Credential>(null);
 
-  const onAuthenticated = (privilegeToken: string) => {
-    setPrivilegeToken(privilegeToken);
-  };
-
-  const onPasskeyCreated = (c: Credential) => {
-    setCredential(c);
-  };
-
   return (
     <Dialog
       open={true}
@@ -79,8 +71,8 @@ export function AddAuthDeviceWizard({
         credential={credential}
         onClose={onClose}
         onSuccess={onSuccess}
-        onAuthenticated={onAuthenticated}
-        onPasskeyCreated={onPasskeyCreated}
+        onAuthenticated={setPrivilegeToken}
+        onPasskeyCreated={setCredential}
       />
     </Dialog>
   );
@@ -151,6 +143,13 @@ function ReauthenticateStep({
     }
   };
 
+  // This message relies on the status message produced by the auth server in
+  // lib/auth/Server.checkOTP function. Please keep these in sync.
+  const errorMessage =
+    attempt.statusText === 'invalid totp token'
+      ? 'Invalid authenticator code'
+      : attempt.statusText;
+
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
       <Text typography="body2">
@@ -158,7 +157,7 @@ function ReauthenticateStep({
       </Text>
       <Text typography="h4">Verify Identity</Text>
       {attempt.status === 'failed' && (
-        <OutlineDanger>{attempt.statusText}</OutlineDanger>
+        <OutlineDanger>{errorMessage}</OutlineDanger>
       )}
       Multi-factor type
       <Validation>

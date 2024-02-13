@@ -34,6 +34,8 @@ import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import cfg from 'teleport/config';
 
+import { storageService } from 'teleport/services/storageService';
+
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
   State as ManageDevicesState,
@@ -42,7 +44,6 @@ import AddDevice from './ManageDevices/AddDevice';
 import { ActionButton, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
 import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
-import { storageService } from 'teleport/services/storageService';
 
 const useNewAddAuthDeviceDialog =
   storageService.isNewAddAuthDeviceDialogEnabled();

@@ -51,12 +51,15 @@ beforeEach(() => {
 
 afterEach(jest.resetAllMocks);
 
-interface TestWizardProps {
+function TestWizard({
+  ctx,
+  privilegeToken,
+  onSuccess,
+}: {
   ctx: TeleportContext;
   privilegeToken?: string;
   onSuccess(): void;
-}
-function TestWizard({ ctx, privilegeToken, onSuccess }: TestWizardProps) {
+}) {
   return (
     <ContextProvider ctx={ctx}>
       <AddAuthDeviceWizard

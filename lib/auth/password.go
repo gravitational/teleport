@@ -244,7 +244,10 @@ func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 		}
 		return dev, nil
 	}
-	return nil, trace.AccessDenied("invalid authenticator code")
+	// This message is relied upon by the Web UI in
+	// web/packages/teleport/src/Account/ManageDevices/AddAuthDeviceWizard/AddAuthDeviceWizard.tsx/RequthenticateStep().
+	// Please keep these in sync.
+	return nil, trace.AccessDenied("invalid totp token")
 }
 
 // checkTOTP checks if the TOTP token is valid.
