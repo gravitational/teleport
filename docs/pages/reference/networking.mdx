@@ -3,10 +3,7 @@ title: Networking
 description: This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
 ---
 
-## Public address
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+## Public addresses
 
 All Teleport services (e.g., the Proxy Service, Auth Service, and agents) have an
 optional `public_addr` property that you can modify in each service's
@@ -24,26 +21,21 @@ following use cases:
   load balancer.
 - You want Teleport to issue an SSH certificate for the service with additional
   principals, e.g., host names.
-</TabItem>
-<TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
-All Teleport services (e.g., the Application Service and Database Service) have
-an optional `public_addr` property that you can modify in each service's
-configuration file. The public address can take an IP or a DNS name. It can also
-be a list of values:
+In self-hosted Teleport deployments, you can configure the Teleport Proxy
+Service to provide public addresses for specific listeners that are separate
+from the main Proxy Service web address. See the following table for the public
+addresses that are available to configure:
 
-```yaml
-public_addr: ["service-one.example.com", "service-two.example.com"]
-```
-
-Specifying a public address for a Teleport agent may be useful in the
-following use cases:
-
-- You have multiple identical services behind a load balancer.
-- You want Teleport to issue an SSH certificate for the service with additional
-  principals, e.g., host names.
-</TabItem>
-</Tabs>
+| Service | Configuration field |
+| - | - |
+| Proxy peering connections | `proxy_service.peer_public_addr`|
+| Kubernetes traffic | `proxy_service.kube_public_addr` |
+| SSH traffic | `proxy_service.ssh_public_addr` |
+| Reverse tunnel traffic | `proxy_service.tunnel_public_addr` |
+| MySQL database traffic | `proxy_service.mysql_public_addr` |
+| PostgreSQL database traffic | `proxy_service.postgres_public_addr` |
+| MongoDB traffic | `proxy_service.mongo_public_addr` |
 
 ## HTTP CONNECT proxies
 
@@ -154,14 +146,14 @@ In those cases, they can set up separate listeners in the config file.
 
 | Port | Downstream Service | Description | Configuration Field |
 | - | - | - | - |
+| 27017 | Database Service | Traffic to MongoDB instances.| `proxy_service.mongo_listen_addr` |
 | 3021 | Proxy Service | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |`proxy_service.peer_listen_addr`|
 | 3023 | All clients | SSH port clients connect to. The Proxy Service will forward this connection to port `3022` on the destination service. | `proxy_service.ssh_public_addr`|
 | 3024 | Auth Service | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted Proxy Service instance. | `proxy_service.tunnel_public_addr` |
-| 3080 or 443 | Proxy Service | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. | `proxy_service.web_listen_addr` |
+| 3026 | Kubernetes Service | Traffic to Kubernetes clusters.| `proxy_service.kube_listen_addr` |
 | 3036 | Database Service | Traffic to MySQL databases.| `proxy_service.mysql_listen_addr` |
+| 3080 or 443 | Proxy Service | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. | `proxy_service.web_listen_addr` |
 | 5432 | Database Service | Traffic to Postgres databases.| `proxy_service.postgres_listen_addr` |
-| 27017 | Database Service | Traffic to MongoDB instances.| `proxy_service.mongo_listen_addr` |
-| 6379 | Database Service | Traffic to Redis instances.|
 
 ### Auth Service ports
 

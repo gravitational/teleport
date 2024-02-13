@@ -7,36 +7,6 @@ description: Frequently asked questions about Teleport database access.
 
 (!docs/pages/includes/database-access/db-audit-events.mdx!)
 
-## Can database clients use a public address different from the web public address?
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-When configuring the Teleport Proxy Service, administrators can set the
-`postgres_public_addr` and `mysql_public_addr` configuration fields to public
-addresses over which respective database clients should connect. See
-[Proxy Configuration](./reference/configuration.mdx#proxy-configuration) for
-more details.
-
-This is useful when the Teleport Web UI is running behind an L7 load balancer
-(e.g. ALB in AWS), in which case the PostgreSQL/MySQL proxy needs to be exposed
-on a plain TCP load balancer (e.g. NLB in AWS).
-
-</TabItem>
-<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
-
-In Teleport Enterprise Cloud, the Proxy Service uses the following ports for
-Database Service client traffic:
-
-|Configuration setting|Port|
-|---|---|
-|`mysql_public_addr`|`3036`|
-|`postgres_public_addr`|`443`|
-|`mongo_public_addr`|`443`|
-
-</TabItem>
-</Tabs>
-
 ## Can I provide a custom CA certificate?
 
 Yes, you can pass custom CA certificate by using a
