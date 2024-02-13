@@ -1203,6 +1203,7 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer localConn.Close()
 	defer remoteConn.Close()
 	remoteFD, err := remoteConn.File()
 	if err != nil {
@@ -1217,13 +1218,13 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener,
 
 	// The forwarding process may have chosen its own port, so we need to get the
 	// new listen address.
-	var n int
-	var addrBuf [1024]byte
+	var fn int
+	var fbuf [1]*os.File
 	readDone := make(chan struct{})
 	// Read addr in another goroutine so we can cancel it if the forwarding process
 	// stops.
 	go func() {
-		n, _, err = localConn.ReadWithFDs(addrBuf[:], nil)
+		_, fn, err = localConn.ReadWithFDs(nil, fbuf[:])
 		close(readDone)
 	}()
 
@@ -1237,10 +1238,12 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &remoteForwardingListener{
-		addr: string(addrBuf[:n]),
-		conn: localConn,
-	}, nil
+	if fn == 0 {
+		return nil, trace.BadParameter("forwarding process did not return a listener")
+	}
+
+	listener, err := net.FileListener(fbuf[0])
+	return listener, trace.Wrap(err)
 }
 
 // getDirectTCPIPForwarder sets up a connection-level subprocess that handles
