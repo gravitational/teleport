@@ -16,6 +16,7 @@
     "jsx": "react-jsx",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "noEmit": true,
     "noEmitHelpers": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
