@@ -1716,13 +1716,13 @@ export const formatters: Formatters = {
     type: 'spiffe.svid.issued',
     desc: 'SPIFFE SVID Issued',
     format: ({ user, spiffe_id }) =>
-        `User [${user}] requested SPIFFE SVID [${spiffe_id}]`,
+      `User [${user}] issued SPIFFE SVID [${spiffe_id}]`,
   },
   [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: {
     type: 'spiffe.svid.issued',
     desc: 'SPIFFE SVID Issued Failure',
     format: ({ user, spiffe_id }) =>
-        `User [${user}] failed to request SPIFFE SVID [${spiffe_id}]`,
+      `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
