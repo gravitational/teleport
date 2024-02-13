@@ -19,7 +19,7 @@ import (
 func getParamString(t *testing.T) string {
 	paramString := os.Getenv("TELEPORT_CRDB_TEST_PARAMS_JSON")
 	if paramString == "" {
-		t.Skip("CockroachDB backend tests are disabled. Enable them by setting the TELEPORT_PGBK_TEST_PARAMS_JSON variable.")
+		t.Skip("CockroachDB backend tests are disabled. Enable them by setting the TELEPORT_CRDB_TEST_PARAMS_JSON variable.")
 	}
 	return paramString
 }
