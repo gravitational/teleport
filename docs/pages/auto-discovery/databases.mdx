@@ -184,8 +184,36 @@ can be used for `tctl` and `tsh` commands.
 You can override the default name by applying the `TeleportDatabaseName` AWS
 tag to the AWS database resource.
 
-## Next
-- Learn about [Dynamic Registration](../database-access/guides/dynamic-registration.mdx) by the
-  Teleport Database Service.
-- Get started by [connecting](../database-access/guides.mdx) your database.
-- Connect AWS databases in [external AWS accounts](../database-access/guides/aws-cross-account.mdx).
+## Next steps
+
+Now that you know how to set up Teleport auto-discovery for AWS databases, learn
+how to configure Teleport to manage access to the AWS databases in your
+infrastructure. 
+
+### Filter out specific endpoints
+
+You can use the Teleport generated label `endpoint-type` on your `aws` matcher
+to filter the endpoints. For example, to disable read-only and custom endpoints
+for RDS auto-discovery, you can specify other endpoint types to match:
+
+```yaml
+  aws:
+  - types: ["rds"]
+    regions: ["us-west-1"]
+    tags:
+      "env": "dev"
+      "endpoint-type":
+        - "primary"
+        - "instance"
+```
+
+See [labels reference](./reference/labels.mdx) for a full list of Teleport
+generated labels and values.
+
+### Connect more AWS databases
+
+- Learn about [Dynamic Registration](./dynamic-registration.mdx) by the
+  Teleport Database Service, which you can use to enroll databases in Teleport
+  as you deploy them.
+- Connect AWS databases in [external AWS accounts](./aws-cross-account.mdx).
+- See [all of the databases](../guides.mdx) that Teleport can protect.
