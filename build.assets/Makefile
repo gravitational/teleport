@@ -144,7 +144,6 @@ buildbox:
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
@@ -178,7 +177,6 @@ buildbox-centos7:
 		--build-arg TARGETARCH=$(HOST_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
@@ -206,7 +204,6 @@ buildbox-centos7-fips:
 		--build-arg TARGETARCH=$(HOST_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-to type=inline \
@@ -219,19 +216,13 @@ buildbox-centos7-fips:
 # with the correct UID and GID created, so those arguments are not needed here.
 #
 .PHONY:buildbox-arm
-buildbox-arm:
+buildbox-arm: buildbox
 	$(call PULL_ON_CI,$(BUILDBOX_ARM))
 	DOCKER_BUILDKIT=1 docker build \
 		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--cache-from $(BUILDBOX) \
-		--cache-from $(BUILDBOX_ARM) \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
-		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--cache-to type=inline \
+		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
