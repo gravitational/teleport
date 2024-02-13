@@ -23,11 +23,16 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
+	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -41,16 +46,18 @@ func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHa
 		r.Header.Values(constants.WebAPIConnUpgradeTeleportHeader),
 		r.Header.Values(constants.WebAPIConnUpgradeHeader)...,
 	)
-	for _, upgradeType := range upgrades {
-		switch upgradeType {
-		case constants.WebAPIConnUpgradeTypeALPNPing:
-			return upgradeType, h.upgradeALPNWithPing, nil
-		case constants.WebAPIConnUpgradeTypeALPN:
-			return upgradeType, h.upgradeALPN, nil
-		}
-	}
 
-	return "", nil, trace.NotFound("unsupported upgrade types: %v", upgrades)
+	// Prefer WebSocket when multiple types are provided.
+	switch {
+	case slices.Contains(upgrades, constants.WebAPIConnUpgradeTypeWebSocket):
+		return constants.WebAPIConnUpgradeTypeWebSocket, h.upgradeALPN, nil
+	case slices.Contains(upgrades, constants.WebAPIConnUpgradeTypeALPNPing):
+		return constants.WebAPIConnUpgradeTypeALPNPing, h.upgradeALPNWithPing, nil
+	case slices.Contains(upgrades, constants.WebAPIConnUpgradeTypeALPN):
+		return constants.WebAPIConnUpgradeTypeALPN, h.upgradeALPN, nil
+	default:
+		return "", nil, trace.NotFound("unsupported upgrade types: %v", upgrades)
+	}
 }
 
 // connectionUpgrade handles connection upgrades.
@@ -60,6 +67,11 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	if upgradeType == constants.WebAPIConnUpgradeTypeWebSocket {
+		return h.upgradeALPNWebSocket(w, r, upgradeHandler)
+	}
+
+	// TODO(greedy52) DELETE legacy upgrade in 17.0.
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		return nil, trace.BadParameter("failed to hijack connection")
@@ -80,6 +92,48 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 
 	if err := upgradeHandler(r.Context(), conn); err != nil && !utils.IsOKNetworkError(err) {
 		h.log.WithError(err).Errorf("Failed to handle %v upgrade request.", upgradeType)
+	}
+	return nil, nil
+}
+
+func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, upgradeHandler ConnectionHandler) (interface{}, error) {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+		Subprotocols: []string{
+			constants.WebAPIConnUpgradeTypeALPN,
+			constants.WebAPIConnUpgradeTypeALPNPing,
+		},
+	}
+	wsConn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		h.log.WithError(err).Debug("Failed to upgrade weboscket.")
+		return nil, trace.Wrap(err)
+	}
+	defer wsConn.Close()
+
+	logrus.WithField("protocol", wsConn.Subprotocol()).Trace("Received WebSocket upgrade.")
+
+	conn := newWebSocketALPNServerConn(wsConn)
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	switch wsConn.Subprotocol() {
+	case constants.WebAPIConnUpgradeTypeALPNPing:
+		// Starts native WebSocket ping for "alpn-ping".
+		go h.startPing(ctx, conn)
+	case constants.WebAPIConnUpgradeTypeALPN:
+		// Nothing to do
+	default:
+		// Just close the connection. Upgrader hijacks the connection so no
+		// point returning an error.
+		h.log.WithField("client-protocols", websocket.Subprotocols(r)).
+			Debug("Unknown or empty WebSocket subprotocol.")
+		return nil, nil
+	}
+
+	if err := upgradeHandler(ctx, conn); err != nil && !utils.IsOKNetworkError(err) {
+		// Upgrader hijacks the connection so no point returning an error here.
+		h.log.WithError(err).WithField("protocol", wsConn.Subprotocol()).Errorf("Failed to handle WebSocket upgrade request.")
 	}
 	return nil, nil
 }
@@ -113,7 +167,11 @@ func (h *Handler) upgradeALPNWithPing(ctx context.Context, conn net.Conn) error 
 	return h.upgradeALPN(ctx, pingConn)
 }
 
-func (h *Handler) startPing(ctx context.Context, pingConn *pingconn.PingConn) {
+type pingWriter interface {
+	WritePing() error
+}
+
+func (h *Handler) startPing(ctx context.Context, pingConn pingWriter) {
 	ticker := time.NewTicker(defaults.ProxyPingInterval)
 	defer ticker.Stop()
 	for {
@@ -175,4 +233,96 @@ func (conn *waitConn) Close() error {
 	err := conn.Conn.Close()
 	conn.cancel()
 	return trace.Wrap(err)
+}
+
+type websocketALPNServerConn struct {
+	*websocket.Conn
+	readBuffer []byte
+	readError  error
+	readMutex  sync.Mutex
+	writeMutex sync.Mutex
+}
+
+func newWebSocketALPNServerConn(wsConn *websocket.Conn) *websocketALPNServerConn {
+	return &websocketALPNServerConn{
+		Conn: wsConn,
+	}
+}
+
+func (c *websocketALPNServerConn) convertError(err error) error {
+	if isOKWebsocketCloseError(err) {
+		return io.EOF
+	}
+	return err
+}
+
+func (c *websocketALPNServerConn) Read(b []byte) (int, error) {
+	c.readMutex.Lock()
+	defer c.readMutex.Unlock()
+
+	n, err := c.readLocked(b)
+	return n, trace.Wrap(err)
+}
+
+func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
+	// Stop reading if any previous read err.
+	if c.readError != nil {
+		return 0, trace.Wrap(c.readError)
+	}
+
+	if len(c.readBuffer) > 0 {
+		n := copy(b, c.readBuffer)
+		if n < len(c.readBuffer) {
+			c.readBuffer = c.readBuffer[n:]
+		} else {
+			c.readBuffer = nil
+		}
+		return n, nil
+	}
+
+	for {
+		messageType, data, err := c.Conn.ReadMessage()
+		if err != nil {
+			c.readError = c.convertError(err)
+			return 0, trace.Wrap(c.readError)
+		}
+
+		switch messageType {
+		case websocket.CloseMessage:
+			return 0, nil
+		case websocket.BinaryMessage:
+			c.readBuffer = data
+			return c.readLocked(b)
+		case websocket.PongMessage:
+			// Receives Pong as response to Ping. Nothing to do.
+		}
+	}
+}
+
+func (c *websocketALPNServerConn) Write(b []byte) (n int, err error) {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
+	if err := c.Conn.WriteMessage(websocket.BinaryMessage, b); err != nil {
+		return 0, trace.Wrap(c.convertError(err))
+	}
+	return len(b), nil
+}
+
+func (c *websocketALPNServerConn) WritePing() error {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
+
+	// Send some identifier with Ping. Note that we are not validating the Pong
+	// response.
+	err := c.Conn.WriteMessage(websocket.PingMessage, []byte(teleport.ComponentTeleport))
+	return trace.Wrap(c.convertError(err))
+}
+
+func (c *websocketALPNServerConn) SetDeadline(t time.Time) error {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
+	return trace.NewAggregate(
+		c.Conn.SetReadDeadline(t),
+		c.Conn.SetWriteDeadline(t),
+	)
 }
