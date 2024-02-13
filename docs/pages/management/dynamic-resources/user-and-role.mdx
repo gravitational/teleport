@@ -310,8 +310,8 @@ with a non-existing role is invalid and might be rejected by Teleport.
 
 ```code
 $ kubectl apply -n "$OPERATOR_NAMESPACE" -f roles.yaml
-teleportrole.resources.teleport.dev/manager created
-teleportrole.resources.teleport.dev/engineer created
+teleportrolev7.resources.teleport.dev/manager created
+teleportrolev7.resources.teleport.dev/engineer created
 
 $ kubectl apply -n "$OPERATOR_NAMESPACE" -f users.yaml 
 teleportuser.resources.teleport.dev/alice created
