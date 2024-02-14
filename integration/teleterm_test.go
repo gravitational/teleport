@@ -116,6 +116,12 @@ func TestTeleterm(t *testing.T) {
 		t.Parallel()
 		testDeleteConnectMyComputerNode(t, pack)
 	})
+
+	t.Run("Test remote client cache", func(t *testing.T) {
+		t.Parallel()
+
+		testRemoteClientCache(t, pack, creds)
+	})
 }
 
 func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
@@ -333,6 +339,74 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 		"Expected tshdEventService to receive 1 SendPendingHeadlessAuthentication message but got %v",
 		tshdEventsService.sendPendingHeadlessAuthenticationCount.Load(),
 	)
+}
+
+func testRemoteClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	t.Helper()
+	ctx := context.Background()
+
+	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
+
+	storageFakeClock := clockwork.NewFakeClockAt(time.Now())
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                tc.KeysDir,
+		Clock:              storageFakeClock,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+	})
+	require.NoError(t, err)
+
+	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
+	require.NoError(t, err)
+
+	daemonService, err := daemon.New(daemon.Config{
+		Storage: storage,
+		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		},
+		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		daemonService.Stop()
+	})
+
+	// The cache is empty, we will have to connect to proxy.
+	firstCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	require.NoError(t, err)
+
+	// Since we have a client in the cache, it should be returned.
+	secondCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.Equal(t, firstCallClient, secondCallClient)
+
+	// Let's remove the client from the cache.
+	// The call to GetRemoteClient will
+	// connect to proxy and return a new client.
+	err = daemonService.InvalidateRemoteClientsForRoot(cluster.URI)
+	require.NoError(t, err)
+	thirdCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.NotEqual(t, secondCallClient, thirdCallClient)
+
+	// Let the cert expire. We'll choose 24 hours to make sure we go above
+	// any cert durations that could be chosen here.
+	// This will only expire the local cert, not the remote session.
+	// The call to GetRemoteClient will connect to proxy and return a new client.
+	storageFakeClock.Advance(time.Hour * 24)
+	fourthCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.NotEqual(t, thirdCallClient, fourthCallClient)
+
+	// After closing the client (from our or a remote side)
+	// it will be removed from the cache.
+	// The call to GetRemoteClient will connect to proxy and return a new client.
+	err = fourthCallClient.Close()
+	require.NoError(t, err)
+	fifthCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	require.NoError(t, err)
+	require.NotEqual(t, fourthCallClient, fifthCallClient)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
