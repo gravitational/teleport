@@ -229,7 +229,7 @@ jobs:
         uses: sigstore/cosign-installer@e1523de7571e31dbe865fd2e80c5c7c23ae71eb4 # v3.4.0
 
       - name: Assume Public ECR login role
-        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         if: inputs.public-ecr-login-role-arn != ''
         with:
           aws-region: us-west-2
@@ -264,7 +264,7 @@ jobs:
           tree ./build
 
       - name: Assume Legacy Drone storage AWS role
-        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         if: inputs.pending-bucket-name != ''
         with:
           aws-region:  us-west-2
@@ -322,7 +322,7 @@ jobs:
           echo $EOF >> $GITHUB_OUTPUT
 
       - name: Assume Build AWS role
-        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.build-role-arn }}
@@ -390,7 +390,7 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
       - name: Assume tag build AWS role
-        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.build-role-arn }}
