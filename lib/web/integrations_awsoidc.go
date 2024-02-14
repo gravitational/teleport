@@ -886,12 +886,11 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 func (h *Handler) accessGraphCloudSyncOIDC(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
 
-	cloud := queryParams.Get("provider")
-	switch cloud {
-	case "aws":
+	switch kind := queryParams.Get("kind"); kind {
+	case "aws-iam":
 		return h.awsAccessGraphOIDCSync(w, r, p)
 	default:
-		return nil, trace.BadParameter("invalid cloud provider %q", cloud)
+		return nil, trace.BadParameter("unsuported kind provided %q", kind)
 	}
 }
 
@@ -903,7 +902,7 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	}
 
 	// The script must execute the following command:
-	// "teleport integration configure  access-graph aws-iam"
+	// "teleport integration configure access-graph aws-iam"
 	argsList := []string{
 		"integration", "configure", "access-graph", "aws-iam",
 		fmt.Sprintf("--role=%s", role),

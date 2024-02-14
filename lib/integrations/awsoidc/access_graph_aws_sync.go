@@ -31,7 +31,7 @@ import (
 
 const (
 	// defaultPolicyNameForTAGSync is the default name for the Inline TAG Policy added to the IntegrationRole.
-	defaultPolicyNameForTAGSync = "AccessGraphAWSSyncAccess"
+	defaultPolicyNameForTAGSync = "AccessGraphSyncAccess"
 )
 
 // AccessGraphAWSIAMConfigureRequest is a request to configure the required Policies to use the TAG AWS Sync.
@@ -40,7 +40,7 @@ type AccessGraphAWSIAMConfigureRequest struct {
 	IntegrationRole string
 
 	// IntegrationRoleTAGPolicy is the Policy Name that is created to allow access to call AWS APIs.
-	// Defaults to "AccessGraphAWSSyncAccess"
+	// Defaults to "AccessGraphSyncAccess"
 	IntegrationRoleTAGPolicy string
 }
 

@@ -48,7 +48,7 @@ func TestAccessGraphIAMConfigReqDefaults(t *testing.T) {
 			errCheck: require.NoError,
 			expected: AccessGraphAWSIAMConfigureRequest{
 				IntegrationRole:          "integrationrole",
-				IntegrationRoleTAGPolicy: "AccessGraphAWSSyncAccess",
+				IntegrationRoleTAGPolicy: "AccessGraphSyncAccess",
 			},
 		},
 

@@ -335,7 +335,8 @@ func StatementAccessGraphAWSSync() *Statement {
 			"rds:DescribeDBInstances",
 			"rds:DescribeDBClusters",
 			"rds:ListTagsForResource",
-			"rds:List*",
+			"rds:DescribeDBProxies",
+
 			// DynamoDB IAM
 			"dynamodb:ListTables",
 			"dynamodb:DescribeTable",
