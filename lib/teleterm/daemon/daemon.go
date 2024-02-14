@@ -276,6 +276,10 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 		return trace.Wrap(err)
 	}
 
+	if err := s.ClearCachedClientsForRoot(cluster.URI); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 

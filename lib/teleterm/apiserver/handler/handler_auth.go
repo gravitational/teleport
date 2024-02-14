@@ -37,6 +37,11 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 	// added by daemon.Service.ResolveClusterURI.
 	clusterClient.MFAPromptConstructor = nil
 
+	err = s.DaemonService.ClearCachedClientsForRoot(cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if req.Params == nil {
 		return nil, trace.BadParameter("missing login parameters")
 	}
