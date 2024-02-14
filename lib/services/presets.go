@@ -494,7 +494,7 @@ func NewSystemOktaAccessRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemOktaAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -530,7 +530,7 @@ func NewSystemOktaRequesterRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemOktaRequesterRoleName,
 			Namespace:   apidefaults.Namespace,
