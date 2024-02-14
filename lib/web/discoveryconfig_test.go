@@ -261,14 +261,15 @@ func TestDiscoveryConfig(t *testing.T) {
 			require.Equal(t, "dg01", discoveryConfigResp.DiscoveryGroup)
 			require.Equal(t, "dc01", discoveryConfigResp.Name)
 			require.NotNil(t, discoveryConfigResp.AccessGraph)
-			require.Equal(t, discoveryConfigResp.AccessGraph, &types.AccessGraphSync{
+			expected := &types.AccessGraphSync{
 				AWS: []*types.AccessGraphAWSSync{
 					{
 						Regions:     []string{"us-west-2"},
 						Integration: "integrationrole",
 					},
 				},
-			})
+			}
+			require.Equal(t, expected, discoveryConfigResp.AccessGraph)
 		})
 	})
 }
