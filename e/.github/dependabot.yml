@@ -38,7 +38,7 @@ updates:
       - zmb3
 
   - package-ecosystem: github-actions
-    directory: "/.github/actions"
+    directory: "/.github/workflows"
     schedule:
       interval: weekly
       day: monday
@@ -50,8 +50,47 @@ updates:
       - fheinecke
       - camscale
 
+  # Every custom action directory must be defined individually. See:
+  # * https://github.com/dependabot/dependabot-core/issues/6704
+  # * https://github.com/dependabot/dependabot-core/issues/2178
   - package-ecosystem: github-actions
-    directory: "/.github/workflows"
+    directory: "/.github/actions/checkout-teleport"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - wadells
+      - jentfoo
+      - fheinecke
+      - camscale
+  - package-ecosystem: github-actions
+    directory: "/.github/actions/deploy-os-package"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - wadells
+      - jentfoo
+      - fheinecke
+      - camscale
+  - package-ecosystem: github-actions
+    directory: "/.github/actions/load-gpg-key"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - wadells
+      - jentfoo
+      - fheinecke
+      - camscale
+  - package-ecosystem: github-actions
+    directory: "/.github/actions/parse-version"
     schedule:
       interval: weekly
       day: monday
