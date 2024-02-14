@@ -393,9 +393,16 @@ func (s *AccessRequestSuite) SetReasonPadding(padding int) {
 func (s *AccessRequestSuite) AnnotateRequesterRoleAccessRequests(ctx context.Context, annotationKey string, annotationValue []string) {
 	t := s.T()
 	t.Helper()
-	client := s.Ruler()
-	for _, roleName := range []string{OSSRequesterRoleName, AdvancedRequesterRoleName} {
-		role, err := client.GetRole(ctx, roleName)
+	adminClient := s.Ruler()
+
+	// If we're running in OSS, we have a single requester role, but if we're
+	// running against an enterprise server we also have the advanced requester.
+	roles := []string{OSSRequesterRoleName}
+	if s.TeleportFeatures().AdvancedAccessWorkflows {
+		roles = append(roles, AdvancedRequesterRoleName)
+	}
+	for _, roleName := range roles {
+		role, err := adminClient.GetRole(ctx, roleName)
 		require.NoError(t, err)
 		conditions := role.GetAccessRequestConditions(types.Allow)
 		if conditions.Annotations == nil {
@@ -403,7 +410,7 @@ func (s *AccessRequestSuite) AnnotateRequesterRoleAccessRequests(ctx context.Con
 		}
 		conditions.Annotations[annotationKey] = annotationValue
 		role.SetAccessRequestConditions(types.Allow, conditions)
-		_, err = client.UpdateRole(ctx, role)
+		_, err = adminClient.UpdateRole(ctx, role)
 		require.NoError(t, err)
 	}
 }
