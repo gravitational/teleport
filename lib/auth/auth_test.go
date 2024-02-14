@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -1963,11 +1964,10 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 				Code: events.CertificateCreateCode,
 			},
 			Identity: &apievents.Identity{
-				User:             "test-user",
-				Roles:            []string{"user:test-user"},
-				RouteToCluster:   "test.localhost",
-				TeleportCluster:  "test.localhost",
-				PrivateKeyPolicy: "none",
+				User:            "test-user",
+				Roles:           []string{"user:test-user"},
+				RouteToCluster:  "test.localhost",
+				TeleportCluster: "test.localhost",
 			},
 			CertificateType: events.CertificateTypeUser,
 			ClientMetadata: apievents.ClientMetadata{
