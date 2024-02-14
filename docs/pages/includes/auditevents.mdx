@@ -1,0 +1,3564 @@
+{/* 
+AUTOMATICALLY GENERATED FILE. Edit at:
+build.assets/tooling/cmd/gen-event-reference
+*/}
+
+### access_list.create
+
+is emitted when an access list is created
+
+**Event:** access_list.create
+
+**Code:** TAL001I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.create (failure)
+
+is emitted when an access list is created
+
+**Event:** access_list.create
+
+**Code:** TAL001E
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.delete
+
+is emitted when an access list is deleted
+
+**Event:** access_list.delete
+
+**Code:** TAL003I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.delete (failure)
+
+is emitted when an access list is deleted
+
+**Event:** access_list.delete
+
+**Code:** TAL003E
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.member.create
+
+is emitted when an access list member is created
+
+**Event:** access_list.member.create
+
+**Code:** TAL005I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_list_name|string|is the name of the access list the members are being added to or removed from|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|members|array|are all members affected by the access list membership change|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.member.create (failure)
+
+is emitted when an access list member is created
+
+**Event:** access_list.member.create
+
+**Code:** TAL005E
+
+|Field name|Type|Description|
+|---|---|---|
+|access_list_name|string|is the name of the access list the members are being added to or removed from|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|members|array|are all members affected by the access list membership change|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.member.delete
+
+is emitted when an access list member is deleted
+
+**Event:** access_list.member.delete
+
+**Code:** TAL007I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_list_name|string|is the name of the access list the members are being added to or removed from|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|members|array|are all members affected by the access list membership change|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.member.delete (failure)
+
+is emitted when an access list member is deleted
+
+**Event:** access_list.member.delete
+
+**Code:** TAL007E
+
+|Field name|Type|Description|
+|---|---|---|
+|access_list_name|string|is the name of the access list the members are being added to or removed from|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|members|array|are all members affected by the access list membership change|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.member.delete_all_for_access_list
+
+is emitted when all members are deleted for an access list
+
+**Event:** access_list.member.delete_all_for_access_list
+
+**Code:** TAL008I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_list_name|string|is the name of the access list the members are being added to or removed from|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|members|array|are all members affected by the access list membership change|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.member.delete_all_for_access_list (failure)
+
+is emitted when all members are deleted for an access list
+
+**Event:** access_list.member.delete_all_for_access_list
+
+**Code:** TAL008E
+
+|Field name|Type|Description|
+|---|---|---|
+|access_list_name|string|is the name of the access list the members are being added to or removed from|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|members|array|are all members affected by the access list membership change|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.member.update
+
+is emitted when an access list member is updated
+
+**Event:** access_list.member.update
+
+**Code:** TAL006I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_list_name|string|is the name of the access list the members are being added to or removed from|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|members|array|are all members affected by the access list membership change|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.member.update (failure)
+
+is emitted when an access list member is updated
+
+**Event:** access_list.member.update
+
+**Code:** TAL006E
+
+|Field name|Type|Description|
+|---|---|---|
+|access_list_name|string|is the name of the access list the members are being added to or removed from|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|members|array|are all members affected by the access list membership change|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.review
+
+is emitted when an access list is reviewed
+
+**Event:** access_list.review
+
+**Code:** TAL004I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|membership_requirements_changed|object|is populated if the memrship requirements have changed|
+|membership_requirements_changed.roles|array|are the roles that changed as part of a review|
+|membership_requirements_changed.traits|object|are the traits that changed as part of a review|
+|membership_requirements_changed.traits.key|string||
+|membership_requirements_changed.traits.value|string||
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|removed_members|array|are the members that were removed as part of the review|
+|review_day_of_month_changed|string|is populated if the review day of month has changed|
+|review_frequency_changed|string|is populated if the review frequency has changed|
+|review_id|string|is the ID of the review|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.review (failure)
+
+is emitted when an access list is reviewed
+
+**Event:** access_list.review
+
+**Code:** TAL004E
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|membership_requirements_changed|object|is populated if the memrship requirements have changed|
+|membership_requirements_changed.roles|array|are the roles that changed as part of a review|
+|membership_requirements_changed.traits|object|are the traits that changed as part of a review|
+|membership_requirements_changed.traits.key|string||
+|membership_requirements_changed.traits.value|string||
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|removed_members|array|are the members that were removed as part of the review|
+|review_day_of_month_changed|string|is populated if the review day of month has changed|
+|review_frequency_changed|string|is populated if the review frequency has changed|
+|review_id|string|is the ID of the review|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.update
+
+is emitted when an access list is updated
+
+**Event:** access_list.update
+
+**Code:** TAL002I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_list.update (failure)
+
+is emitted when an access list is updated
+
+**Event:** access_list.update
+
+**Code:** TAL002E
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|name|string|is a resource name|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### access_request.create
+
+is emitted when access request has been created or updated
+
+**Event:** access_request.create
+
+**Code:** T5000I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|annotations|object|is an optional set of attributes supplied by a plugin during approval/denial of the request|
+|assume_start_time|string|is the time the requested roles can be assumed|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|delegator|string|is used by teleport plugins to indicate the identity which caused them to update state|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|id|string|is access request ID|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|max_duration|string|indicates how long the access should be granted for|
+|name|string|is a resource name|
+|promoted_access_list_name|string|is the name of the access list that this request was promoted to. This field is only populated when the request is in the PROMOTED state|
+|proposed_state|string|is the state proposed by a review (only used in the access_request.review event variant)|
+|reason|string|is an optional description of why the request is being created or updated|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|resource_ids|array|is the set of resources to which access is being requested|
+|reviewer|string|is the author of the review (only used in the access_request.review event variant)|
+|roles|array|is a list of roles for the user|
+|state|string|is access request state (in the access_request.review variant of the event this represents the post-review state of the request)|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### access_request.delete
+
+is emitted when an access request has been deleted
+
+**Event:** access_request.delete
+
+**Code:** T5003I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|id|string|is access request ID|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### app.create
+
+is emitted when a new application resource is created
+
+**Event:** app.create
+
+**Code:** TAP03I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|app_labels|object|are the configured application labels|
+|app_labels.key|string||
+|app_labels.value|string||
+|app_name|string|is the configured application name|
+|app_public_addr|string|is the configured application public address|
+|app_uri|string|is the application endpoint|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### app.delete
+
+is emitted when an application resource is deleted
+
+**Event:** app.delete
+
+**Code:** TAP05I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### app.session.chunk
+
+is emitted at the start of a 5 minute chunk on each proxy. This chunk is used to buffer 5 minutes of audit events at a time for applications
+
+**Event:** app.session.chunk
+
+**Code:** T2008I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|app_labels|object|are the configured application labels|
+|app_labels.key|string||
+|app_labels.value|string||
+|app_name|string|is the configured application name|
+|app_public_addr|string|is the configured application public address|
+|app_uri|string|is the application endpoint|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|session_chunk_id|string|is the ID of the session that was created for this 5 minute application log chunk|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### app.session.dynamodb.request
+
+is emitted when a user executes a DynamoDB request via app access
+
+**Event:** app.session.dynamodb.request
+
+**Code:** T2013I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|app_labels|object|are the configured application labels|
+|app_labels.key|string||
+|app_labels.value|string||
+|app_name|string|is the configured application name|
+|app_public_addr|string|is the configured application public address|
+|app_uri|string|is the application endpoint|
+|aws_assumed_role|string|is the assumed role that signed this request|
+|aws_host|string|is the requested host of the AWS service|
+|aws_region|string|is the requested AWS region|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|aws_service|string|is the requested AWS service name|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|body|object|is the HTTP request json body. The Struct type is a wrapper around protobuf/types.Struct and is used to marshal the JSON body correctly|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|method|string|is the request HTTP method, like GET/POST/DELETE/etc|
+|path|string|is relative path in the URL|
+|raw_query|string|are the encoded query values|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|session_chunk_id|string|is the ID of the app session chunk that this request belongs to. This is more appropriate to include than the app session id, since it is the chunk id that is needed to play back the session chunk with tsh. The session chunk event already includes the app session id|
+|status_code|integer|the HTTP response code for the request|
+|target|string|is the API target in the X-Amz-Target header|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### app.session.end
+
+is emitted when an application session ends
+
+**Event:** app.session.end
+
+**Code:** T2011I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|app_labels|object|are the configured application labels|
+|app_labels.key|string||
+|app_labels.value|string||
+|app_name|string|is the configured application name|
+|app_public_addr|string|is the configured application public address|
+|app_uri|string|is the application endpoint|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### app.session.request
+
+is an HTTP request and response
+
+**Event:** app.session.request
+
+**Code:** T2009I
+
+|Field name|Type|Description|
+|---|---|---|
+|app_labels|object|are the configured application labels|
+|app_labels.key|string||
+|app_labels.value|string||
+|app_name|string|is the configured application name|
+|app_public_addr|string|is the configured application public address|
+|app_uri|string|is the application endpoint|
+|aws_assumed_role|string|is the assumed role that signed this request|
+|aws_host|string|is the requested host of the AWS service|
+|aws_region|string|is the requested AWS region|
+|aws_service|string|is the requested AWS service name|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|method|string|is the request HTTP method, like GET/POST/DELETE/etc|
+|path|string|is relative path in the URL|
+|raw_query|string|are the encoded query values|
+|status_code|integer|the HTTP response code for the request|
+|time|string|is event time|
+|uid|string|is a unique event identifier|
+
+### app.session.start
+
+is emitted when a user is issued an application certificate
+
+**Event:** app.session.start
+
+**Code:** T2007I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|app_labels|object|are the configured application labels|
+|app_labels.key|string||
+|app_labels.value|string||
+|app_name|string|is the configured application name|
+|app_public_addr|string|is the configured application public address|
+|app_uri|string|is the application endpoint|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|public_addr|string|is the public address of the application being requested. DELETE IN 10.0: this information is also present on the AppMetadata|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### app.update
+
+is emitted when an existing application resource is updated
+
+**Event:** app.update
+
+**Code:** TAP04I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|app_labels|object|are the configured application labels|
+|app_labels.key|string||
+|app_labels.value|string||
+|app_name|string|is the configured application name|
+|app_public_addr|string|is the configured application public address|
+|app_uri|string|is the application endpoint|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### auth (failure)
+
+is emitted upon a failed or successfull authentication attempt
+
+**Event:** auth
+
+**Code:** T3007W
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### billing.create_card
+
+is emitted when a user creates or updates a credit card
+
+**Event:** billing.create_card
+
+**Code:** TBL00I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### billing.delete_card
+
+is emitted when a user deletes a credit card
+
+**Event:** billing.delete_card
+
+**Code:** TBL01I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### billing.update_info
+
+is emitted when a user updates the billing information
+
+**Event:** billing.update_info
+
+**Code:** TBL03I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### bot.join
+
+records a bot join event
+
+**Event:** bot.join
+
+**Code:** TJ001I
+
+|Field name|Type|Description|
+|---|---|---|
+|attributes|object|is a map of attributes received from the join method provider|
+|bot_name|string|is the name of the bot which has joined|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|method|string|is the event field indicating what join method was used|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|token_name|string|is the name of the provision token used to join|
+|uid|string|is a unique event identifier|
+
+### cert.create
+
+is emitted when a certificate is issued
+
+**Event:** cert.create
+
+**Code:** TC000I
+
+|Field name|Type|Description|
+|---|---|---|
+|cert_type|string|is the type of certificate that was just issued|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|identity|object|is the identity associated with the certificate, as interpreted by Teleport|
+|identity.access_requests|array|is a list of UUIDs of active requests for this Identity|
+|identity.allowed_resource_ids|array|is the list of resources which the identity will be allowed to access. An empty list indicates that no resource-specific restrictions will be applied|
+|identity.aws_role_arns|array|is a list of allowed AWS role ARNs user can assume|
+|identity.azure_identities|array|is a list of allowed Azure identities user can assume|
+|identity.client_ip|string|is an observed IP of the client that this Identity represents|
+|identity.database_names|array|is a list of allowed database names|
+|identity.database_users|array|is a list of allowed database users|
+|identity.disallow_reissue|boolean|is a flag that, if set, instructs the auth server to deny any attempts to reissue new certificates while authenticated with this certificate|
+|identity.expires|string|specifies whenever the session will expire|
+|identity.gcp_service_accounts|array|is a list of allowed GCP service accounts user can assume|
+|identity.impersonator|string|is a username of a user impersonating this user|
+|identity.kubernetes_cluster|string|specifies the target kubernetes cluster for TLS identities. This can be empty on older Teleport clients|
+|identity.kubernetes_groups|array|is a list of Kubernetes groups allowed|
+|identity.kubernetes_users|array|is a list of Kubernetes users allowed|
+|identity.logins|array|is a list of Unix logins allowed|
+|identity.mfa_device_uuid|string|is the UUID of an MFA device when this Identity was confirmed immediately after an MFA check|
+|identity.prev_identity_expires|string|is the expiry time of the identity/cert that this identity/cert was derived from. It is used to determine a session's hard deadline in cases where both require_session_mfa and disconnect_expired_cert are enabled. See https://github.com/gravitational/teleport/issues/18544|
+|identity.private_key_policy|string|is the private key policy of the user's private key|
+|identity.roles|array|is a list of groups (Teleport roles) encoded in the identity|
+|identity.route_to_app|object|holds routing information for applications. Routing metadata allows Teleport web proxy to route HTTP requests to the appropriate cluster and Teleport application proxy within the cluster|
+|identity.route_to_app.aws_role_arn|string|is the AWS role to assume when accessing AWS API|
+|identity.route_to_app.azure_identity|string|is the Azure identity ot assume when accessing Azure API|
+|identity.route_to_app.cluster_name|string|is the cluster where the application resides|
+|identity.route_to_app.gcp_service_account|string|is the GCP service account to assume when accessing GCP API|
+|identity.route_to_app.name|string|is the application name certificate is being requested for|
+|identity.route_to_app.public_addr|string|is the application public address|
+|identity.route_to_app.session_id|string|is the ID of the application session|
+|identity.route_to_cluster|string|specifies the target cluster if present in the session|
+|identity.route_to_database|object|contains routing information for databases|
+|identity.route_to_database.database|string|is an optional database name to embed|
+|identity.route_to_database.protocol|string|is the type of the database the cert is for|
+|identity.route_to_database.service_name|string|is the Teleport database proxy service name the cert is for|
+|identity.route_to_database.username|string|is an optional database username to embed|
+|identity.teleport_cluster|string|is the name of the teleport cluster that this identity originated from. For TLS certs this may not be the same as cert issuer, in case of multi-hop requests that originate from a remote cluster|
+|identity.traits|object|hold claim data used to populate a role at runtime|
+|identity.usage|array|is a list of usage restrictions encoded in the identity|
+|identity.user|string|is a username or name of the node connection|
+|time|string|is event time|
+|uid|string|is a unique event identifier|
+
+### cert.generation_mismatch
+
+is emitted when a renewable certificate's generation counter fails to validate, possibly indicating a stolen certificate and an invalid renewal attempt
+
+**Event:** cert.generation_mismatch
+
+**Code:** TCB00W
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### client.disconnect
+
+is emitted when client is disconnected by the server due to inactivity or any other reason
+
+**Event:** client.disconnect
+
+**Code:** T3006I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|proto|string|specifies protocol that was captured|
+|reason|string|is a field that specifies reason for event, e.g. in disconnect event it explains why server disconnected the client|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### db.create
+
+is emitted when a new database resource is created
+
+**Event:** db.create
+
+**Code:** TDB03I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|db_aws_redshift_cluster_id|string|is cluster ID for Redshift databases|
+|db_aws_region|string|is AWS regions for AWS hosted databases|
+|db_gcp_instance_id|string|is instance ID for GCP hosted databases|
+|db_gcp_project_id|string|is project ID for GCP hosted databases|
+|db_labels|object|is the database resource labels|
+|db_labels.key|string||
+|db_labels.value|string||
+|db_name|string|is the name of the database a user is connecting to|
+|db_origin|string|is the database origin source|
+|db_protocol|string|is the database type, e.g. postgres or mysql|
+|db_roles|array|is a list of database roles for auto-provisioned users|
+|db_service|string|is the name of the database service proxying the database|
+|db_type|string|is the database type|
+|db_uri|string|is the database URI to connect to|
+|db_user|string|is the database username used to connect|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### db.delete
+
+is emitted when a database resource is deleted
+
+**Event:** db.delete
+
+**Code:** TDB05I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### db.session.end
+
+is emitted when a user ends the database session
+
+**Event:** db.session.end
+
+**Code:** TDB01I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|db_aws_redshift_cluster_id|string|is cluster ID for Redshift databases|
+|db_aws_region|string|is AWS regions for AWS hosted databases|
+|db_gcp_instance_id|string|is instance ID for GCP hosted databases|
+|db_gcp_project_id|string|is project ID for GCP hosted databases|
+|db_labels|object|is the database resource labels|
+|db_labels.key|string||
+|db_labels.value|string||
+|db_name|string|is the name of the database a user is connecting to|
+|db_origin|string|is the database origin source|
+|db_protocol|string|is the database type, e.g. postgres or mysql|
+|db_roles|array|is a list of database roles for auto-provisioned users|
+|db_service|string|is the name of the database service proxying the database|
+|db_type|string|is the database type|
+|db_uri|string|is the database URI to connect to|
+|db_user|string|is the database username used to connect|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### db.session.malformed_packet
+
+is emitted when a database sends a malformed packet
+
+**Event:** db.session.malformed_packet
+
+**Code:** TDB06I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|db_aws_redshift_cluster_id|string|is cluster ID for Redshift databases|
+|db_aws_region|string|is AWS regions for AWS hosted databases|
+|db_gcp_instance_id|string|is instance ID for GCP hosted databases|
+|db_gcp_project_id|string|is project ID for GCP hosted databases|
+|db_labels|object|is the database resource labels|
+|db_labels.key|string||
+|db_labels.value|string||
+|db_name|string|is the name of the database a user is connecting to|
+|db_origin|string|is the database origin source|
+|db_protocol|string|is the database type, e.g. postgres or mysql|
+|db_roles|array|is a list of database roles for auto-provisioned users|
+|db_service|string|is the name of the database service proxying the database|
+|db_type|string|is the database type|
+|db_uri|string|is the database URI to connect to|
+|db_user|string|is the database username used to connect|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### db.session.query
+
+is emitted when a user executes a database query
+
+**Event:** db.session.query
+
+**Code:** TDB02I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|db_aws_redshift_cluster_id|string|is cluster ID for Redshift databases|
+|db_aws_region|string|is AWS regions for AWS hosted databases|
+|db_gcp_instance_id|string|is instance ID for GCP hosted databases|
+|db_gcp_project_id|string|is project ID for GCP hosted databases|
+|db_labels|object|is the database resource labels|
+|db_labels.key|string||
+|db_labels.value|string||
+|db_name|string|is the name of the database a user is connecting to|
+|db_origin|string|is the database origin source|
+|db_protocol|string|is the database type, e.g. postgres or mysql|
+|db_query|string|is the executed query string|
+|db_query_parameters|array|are the query parameters for prepared statements|
+|db_roles|array|is a list of database roles for auto-provisioned users|
+|db_service|string|is the name of the database service proxying the database|
+|db_type|string|is the database type|
+|db_uri|string|is the database URI to connect to|
+|db_user|string|is the database username used to connect|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### db.session.start
+
+is emitted when a user connects to a database
+
+**Event:** db.session.start
+
+**Code:** TDB00I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|db_aws_redshift_cluster_id|string|is cluster ID for Redshift databases|
+|db_aws_region|string|is AWS regions for AWS hosted databases|
+|db_gcp_instance_id|string|is instance ID for GCP hosted databases|
+|db_gcp_project_id|string|is project ID for GCP hosted databases|
+|db_labels|object|is the database resource labels|
+|db_labels.key|string||
+|db_labels.value|string||
+|db_name|string|is the name of the database a user is connecting to|
+|db_origin|string|is the database origin source|
+|db_protocol|string|is the database type, e.g. postgres or mysql|
+|db_roles|array|is a list of database roles for auto-provisioned users|
+|db_service|string|is the name of the database service proxying the database|
+|db_type|string|is the database type|
+|db_uri|string|is the database URI to connect to|
+|db_user|string|is the database username used to connect|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### db.session.start (failure)
+
+is emitted when a user connects to a database
+
+**Event:** db.session.start
+
+**Code:** TDB00W
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|db_aws_redshift_cluster_id|string|is cluster ID for Redshift databases|
+|db_aws_region|string|is AWS regions for AWS hosted databases|
+|db_gcp_instance_id|string|is instance ID for GCP hosted databases|
+|db_gcp_project_id|string|is project ID for GCP hosted databases|
+|db_labels|object|is the database resource labels|
+|db_labels.key|string||
+|db_labels.value|string||
+|db_name|string|is the name of the database a user is connecting to|
+|db_origin|string|is the database origin source|
+|db_protocol|string|is the database type, e.g. postgres or mysql|
+|db_roles|array|is a list of database roles for auto-provisioned users|
+|db_service|string|is the name of the database service proxying the database|
+|db_type|string|is the database type|
+|db_uri|string|is the database URI to connect to|
+|db_user|string|is the database username used to connect|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### db.update
+
+is emitted when an existing database resource is updated
+
+**Event:** db.update
+
+**Code:** TDB04I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|db_aws_redshift_cluster_id|string|is cluster ID for Redshift databases|
+|db_aws_region|string|is AWS regions for AWS hosted databases|
+|db_gcp_instance_id|string|is instance ID for GCP hosted databases|
+|db_gcp_project_id|string|is project ID for GCP hosted databases|
+|db_labels|object|is the database resource labels|
+|db_labels.key|string||
+|db_labels.value|string||
+|db_name|string|is the name of the database a user is connecting to|
+|db_origin|string|is the database origin source|
+|db_protocol|string|is the database type, e.g. postgres or mysql|
+|db_roles|array|is a list of database roles for auto-provisioned users|
+|db_service|string|is the name of the database service proxying the database|
+|db_type|string|is the database type|
+|db_uri|string|is the database URI to connect to|
+|db_user|string|is the database username used to connect|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### desktop.clipboard.receive
+
+is emitted when Teleport receives clipboard data from a remote desktop
+
+**Event:** desktop.clipboard.receive
+
+**Code:** TDP03I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|desktop_addr|string|is the address of the desktop being accessed|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|length|integer|is the number of bytes of data received from the remote clipboard|
+|login|string|is OS login|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### desktop.clipboard.send
+
+is emitted when clipboard data is sent from a user's workstation to Teleport
+
+**Event:** desktop.clipboard.send
+
+**Code:** TDP02I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|desktop_addr|string|is the address of the desktop being accessed|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|length|integer|is the number of bytes of data sent|
+|login|string|is OS login|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### desktop.directory.read
+
+is emitted when Teleport attempts to read from a file in a shared directory at the behest of the remote desktop
+
+**Event:** desktop.directory.read
+
+**Code:** TDP05I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|desktop_addr|string|is the address of the desktop being accessed|
+|directory_id|integer|is the ID of the directory being shared (unique to the Windows Desktop Session)|
+|directory_name|string|is the name of the directory being shared|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|file_path|string|is the path within the shared directory where the file is located|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|length|integer|is the number of bytes read|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|offset|integer|is the offset the bytes were read from|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### desktop.directory.read (failure)
+
+is emitted when Teleport attempts to read from a file in a shared directory at the behest of the remote desktop
+
+**Event:** desktop.directory.read
+
+**Code:** TDP05W
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|desktop_addr|string|is the address of the desktop being accessed|
+|directory_id|integer|is the ID of the directory being shared (unique to the Windows Desktop Session)|
+|directory_name|string|is the name of the directory being shared|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|file_path|string|is the path within the shared directory where the file is located|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|length|integer|is the number of bytes read|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|offset|integer|is the offset the bytes were read from|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### desktop.directory.share
+
+is emitted when Teleport successfully begins sharing a new directory to a remote desktop
+
+**Event:** desktop.directory.share
+
+**Code:** TDP04I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|desktop_addr|string|is the address of the desktop being accessed|
+|directory_id|integer|is the ID of the directory being shared (unique to the Windows Desktop Session)|
+|directory_name|string|is the name of the directory being shared|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### desktop.directory.share (failure)
+
+is emitted when Teleport successfully begins sharing a new directory to a remote desktop
+
+**Event:** desktop.directory.share
+
+**Code:** TDP04W
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|desktop_addr|string|is the address of the desktop being accessed|
+|directory_id|integer|is the ID of the directory being shared (unique to the Windows Desktop Session)|
+|directory_name|string|is the name of the directory being shared|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### desktop.directory.write
+
+is emitted when Teleport attempts to write to a file in a shared directory at the behest of the remote desktop
+
+**Event:** desktop.directory.write
+
+**Code:** TDP06I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|desktop_addr|string|is the address of the desktop being accessed|
+|directory_id|integer|is the ID of the directory being shared (unique to the Windows Desktop Session)|
+|directory_name|string|is the name of the directory being shared|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|file_path|string|is the path within the shared directory where the file is located|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|length|integer|is the number of bytes written|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|offset|integer|is the offset the bytes were written to|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### desktop.directory.write (failure)
+
+is emitted when Teleport attempts to write to a file in a shared directory at the behest of the remote desktop
+
+**Event:** desktop.directory.write
+
+**Code:** TDP06W
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|desktop_addr|string|is the address of the desktop being accessed|
+|directory_id|integer|is the ID of the directory being shared (unique to the Windows Desktop Session)|
+|directory_name|string|is the name of the directory being shared|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|file_path|string|is the path within the shared directory where the file is located|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|length|integer|is the number of bytes written|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|offset|integer|is the offset the bytes were written to|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is a unique UUID of the session|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### exec
+
+specifies command exec event
+
+**Event:** exec
+
+**Code:** T3002I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|command|string|is the executed command name|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|exitCode|string|specifies command exit code|
+|exitError|string|is an optional exit error, set if command has failed|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|kubernetes_cluster|string|is a kubernetes cluster name|
+|kubernetes_container_image|string|is the image of the container within the pod|
+|kubernetes_container_name|string|is the name of the container within the pod|
+|kubernetes_groups|array|is a list of kubernetes groups for the user|
+|kubernetes_labels|object|are the labels (static and dynamic) of the kubernetes cluster the session occurred on|
+|kubernetes_labels.key|string||
+|kubernetes_labels.value|string||
+|kubernetes_node_name|string|is the node that runs the pod|
+|kubernetes_pod_name|string|is the name of the pod|
+|kubernetes_pod_namespace|string|is the namespace of the pod|
+|kubernetes_users|array|is a list of kubernetes usernames for the user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### exec (failure)
+
+specifies command exec event
+
+**Event:** exec
+
+**Code:** T3002E
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|command|string|is the executed command name|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|exitCode|string|specifies command exit code|
+|exitError|string|is an optional exit error, set if command has failed|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|kubernetes_cluster|string|is a kubernetes cluster name|
+|kubernetes_container_image|string|is the image of the container within the pod|
+|kubernetes_container_name|string|is the name of the container within the pod|
+|kubernetes_groups|array|is a list of kubernetes groups for the user|
+|kubernetes_labels|object|are the labels (static and dynamic) of the kubernetes cluster the session occurred on|
+|kubernetes_labels.key|string||
+|kubernetes_labels.value|string||
+|kubernetes_node_name|string|is the node that runs the pod|
+|kubernetes_pod_name|string|is the name of the pod|
+|kubernetes_pod_namespace|string|is the namespace of the pod|
+|kubernetes_users|array|is a list of kubernetes usernames for the user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### external_audit_storage.disable
+
+is emitted when External Audit Storage is disabled
+
+**Event:** external_audit_storage.disable
+
+**Code:** TEA002I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|details|object|holds details about the External Audit Storage configuration that was disabled|
+|details.athenaResultsUri|string|is the S3 path used to store temporary results generated by Athena|
+|details.athenaWorkgroup|string|is the workgroup used for Athena audit log queries|
+|details.auditEventsLongTermUri|string|is the S3 path used to store batched parquet files with audit events, partitioned by event date|
+|details.glueDatabase|string|is the database used for Athena audit log queries|
+|details.glueTable|string|is the table used for Athena audit log queries|
+|details.integrationName|string|is the name of the AWS OIDC integration used|
+|details.policyName|string|is the name of the IAM policy attached to the OIDC integration role|
+|details.region|string|is the AWS region where the infrastructure is hosted|
+|details.sessionRecordingsUri|string|is the S3 path used to store session recordings|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|name|string|is a resource name|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### external_audit_storage.enable
+
+is emitted when External Audit Storage is enabled
+
+**Event:** external_audit_storage.enable
+
+**Code:** TEA001I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|details|object|holds details about the External Audit Storage configuration that was enabled|
+|details.athenaResultsUri|string|is the S3 path used to store temporary results generated by Athena|
+|details.athenaWorkgroup|string|is the workgroup used for Athena audit log queries|
+|details.auditEventsLongTermUri|string|is the S3 path used to store batched parquet files with audit events, partitioned by event date|
+|details.glueDatabase|string|is the database used for Athena audit log queries|
+|details.glueTable|string|is the table used for Athena audit log queries|
+|details.integrationName|string|is the name of the AWS OIDC integration used|
+|details.policyName|string|is the name of the IAM policy attached to the OIDC integration role|
+|details.region|string|is the AWS region where the infrastructure is hosted|
+|details.sessionRecordingsUri|string|is the S3 path used to store session recordings|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|name|string|is a resource name|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### instance.join
+
+records an instance join event
+
+**Event:** instance.join
+
+**Code:** TJ002I
+
+|Field name|Type|Description|
+|---|---|---|
+|attributes|object|is a map of attributes received from the join method provider|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|host_id|string|is the unique host ID of the instance which attempted to join|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|method|string|is the event field indicating what join method was used|
+|node_name|string|is the name of the instance which attempted to join|
+|role|string|is the role that the node requested when attempting to join|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|token_expires|string|contain information about token expiration time. In case of static token the TokenExpiration time is to the Unix epoch start time|
+|token_name|string|is the name of the token used to join. This will be omitted for the 'token' join method where the token name is a secret value|
+|uid|string|is a unique event identifier|
+
+### join_token.create
+
+event is emitted when a provisioning token (a.k.a. join token) of any role is created
+
+**Event:** join_token.create
+
+**Code:** TJT00I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|join_method|string||
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|roles|array||
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### kube.create
+
+is emitted when a new kubernetes cluster resource is created
+
+**Event:** kube.create
+
+**Code:** T3010I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|kube_labels|object|are the configured cluster labels|
+|kube_labels.key|string||
+|kube_labels.value|string||
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### kube.delete
+
+is emitted when a kubernetes cluster resource is deleted
+
+**Event:** kube.delete
+
+**Code:** T3012I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### kube.request
+
+specifies a Kubernetes API request event
+
+**Event:** kube.request
+
+**Code:** T3009I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|kubernetes_cluster|string|is a kubernetes cluster name|
+|kubernetes_groups|array|is a list of kubernetes groups for the user|
+|kubernetes_labels|object|are the labels (static and dynamic) of the kubernetes cluster the session occurred on|
+|kubernetes_labels.key|string||
+|kubernetes_labels.value|string||
+|kubernetes_users|array|is a list of kubernetes usernames for the user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|request_path|string|is the raw request URL path|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|resource_api_group|string|is the resource API group|
+|resource_kind|string|is the API resource kind (e.g. "pod", "service", etc)|
+|resource_name|string|is the API resource name|
+|resource_namespace|string|is the resource namespace|
+|response_code|integer|is the HTTP response code for this request|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|verb|string|is the HTTP verb used for this request (e.g. GET, POST, etc)|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### kube.update
+
+is emitted when an existing kubernetes cluster resource is updated
+
+**Event:** kube.update
+
+**Code:** T3011I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|kube_labels|object|are the configured cluster labels|
+|kube_labels.key|string||
+|kube_labels.value|string||
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### login_rule.create
+
+is emitted when a login rule is created or updated
+
+**Event:** login_rule.create
+
+**Code:** TLR00I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### login_rule.delete
+
+is emitted when a login rule is deleted
+
+**Event:** login_rule.delete
+
+**Code:** TLR01I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### port
+
+is emitted when a user requests port forwarding
+
+**Event:** port
+
+**Code:** T3003I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr|string|is a target port forwarding address|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### port (failure)
+
+is emitted when a user requests port forwarding
+
+**Event:** port
+
+**Code:** T3003E
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr|string|is a target port forwarding address|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### saml.idp.auth
+
+is emitted when a user has attempted to authorize against the SAML IdP
+
+**Event:** saml.idp.auth
+
+**Code:** TSI000I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|service_provider_entity_id|string|is the entity ID of the service provider|
+|service_provider_shortcut|string|is the shortcut name of a service provider|
+|sid|string|is a unique UUID of the session|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### saml.idp.service.provider.create
+
+is emitted when a service provider has been added
+
+**Event:** saml.idp.service.provider.create
+
+**Code:** TSI001I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|name|string|is a resource name|
+|service_provider_entity_id|string|is the entity ID of the service provider|
+|service_provider_shortcut|string|is the shortcut name of a service provider|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### saml.idp.service.provider.create (failure)
+
+is emitted when a service provider has been added
+
+**Event:** saml.idp.service.provider.create
+
+**Code:** TSI001W
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|name|string|is a resource name|
+|service_provider_entity_id|string|is the entity ID of the service provider|
+|service_provider_shortcut|string|is the shortcut name of a service provider|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### saml.idp.service.provider.delete
+
+is emitted when a service provider has been deleted
+
+**Event:** saml.idp.service.provider.delete
+
+**Code:** TSI003I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|name|string|is a resource name|
+|service_provider_entity_id|string|is the entity ID of the service provider|
+|service_provider_shortcut|string|is the shortcut name of a service provider|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### saml.idp.service.provider.delete (failure)
+
+is emitted when a service provider has been deleted
+
+**Event:** saml.idp.service.provider.delete
+
+**Code:** TSI003W
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|name|string|is a resource name|
+|service_provider_entity_id|string|is the entity ID of the service provider|
+|service_provider_shortcut|string|is the shortcut name of a service provider|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### saml.idp.service.provider.delete_all
+
+is emitted when all service providers have been deleted
+
+**Event:** saml.idp.service.provider.delete_all
+
+**Code:** TSI004I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|name|string|is a resource name|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### saml.idp.service.provider.delete_all (failure)
+
+is emitted when all service providers have been deleted
+
+**Event:** saml.idp.service.provider.delete_all
+
+**Code:** TSI004W
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|name|string|is a resource name|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### saml.idp.service.provider.update
+
+is emitted when a service provider has been updated
+
+**Event:** saml.idp.service.provider.update
+
+**Code:** TSI002I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|name|string|is a resource name|
+|service_provider_entity_id|string|is the entity ID of the service provider|
+|service_provider_shortcut|string|is the shortcut name of a service provider|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### saml.idp.service.provider.update (failure)
+
+is emitted when a service provider has been updated
+
+**Event:** saml.idp.service.provider.update
+
+**Code:** TSI002W
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|name|string|is a resource name|
+|service_provider_entity_id|string|is the entity ID of the service provider|
+|service_provider_shortcut|string|is the shortcut name of a service provider|
+|time|string|is event time|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+
+### session.command
+
+is a session command event
+
+**Event:** session.command
+
+**Code:** T4000I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|argv|array|is the list of arguments to the program. Note, the first element does not contain the name of the process|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cgroup_id|integer|is the internal cgroupv2 ID of the event|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|path|string|is the full path to the executable|
+|pid|integer|is the ID of the process|
+|ppid|integer|is the PID of the parent process|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|program|string|is name of the executable|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|return_code|integer|is the return code of execve|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### session.connect
+
+is emitted when a non-Teleport connection is made over net.Dial
+
+**Event:** session.connect
+
+**Code:** T2010I
+
+|Field name|Type|Description|
+|---|---|---|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|namespace|string|is a namespace of the server event|
+|proto|string|specifies protocol that was captured|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|time|string|is event time|
+|uid|string|is a unique event identifier|
+
+### session.data
+
+is emitted to report session data usage
+
+**Event:** session.data
+
+**Code:** T2006I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|rx|integer|is the amount of bytes received|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|tx|integer|is the amount of bytes transmitted|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### session.disk
+
+is a session disk access event
+
+**Event:** session.disk
+
+**Code:** T4001I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cgroup_id|integer|is the internal cgroupv2 ID of the event|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|flags|integer|are the flags passed to open|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|path|string|is the full path to the executable|
+|pid|integer|is the ID of the process|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|program|string|is name of the executable|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|return_code|integer|is the return code of disk open|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### session.end
+
+is a session end event
+
+**Event:** session.end
+
+**Code:** T2004I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|enhanced_recording|boolean|is used to indicate if the recording was an enhanced recording or not|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|initial_command|array|is the command used to start this session|
+|interactive|boolean|is used to indicate if the session was interactive (has PTY attached) or not (exec session)|
+|kubernetes_cluster|string|is a kubernetes cluster name|
+|kubernetes_container_image|string|is the image of the container within the pod|
+|kubernetes_container_name|string|is the name of the container within the pod|
+|kubernetes_groups|array|is a list of kubernetes groups for the user|
+|kubernetes_labels|object|are the labels (static and dynamic) of the kubernetes cluster the session occurred on|
+|kubernetes_labels.key|string||
+|kubernetes_labels.value|string||
+|kubernetes_node_name|string|is the node that runs the pod|
+|kubernetes_pod_name|string|is the name of the pod|
+|kubernetes_pod_namespace|string|is the namespace of the pod|
+|kubernetes_users|array|is a list of kubernetes usernames for the user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|participants|array|is a list of participants in the session|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|session_recording|string|is the type of session recording|
+|session_start|string|is the timestamp at which the session began|
+|session_stop|string|is the timestamp at which the session ended|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### session.join
+
+emitted when another user joins a session
+
+**Event:** session.join
+
+**Code:** T2001I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|kubernetes_cluster|string|is a kubernetes cluster name|
+|kubernetes_groups|array|is a list of kubernetes groups for the user|
+|kubernetes_labels|object|are the labels (static and dynamic) of the kubernetes cluster the session occurred on|
+|kubernetes_labels.key|string||
+|kubernetes_labels.value|string||
+|kubernetes_users|array|is a list of kubernetes usernames for the user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### session.leave
+
+is emitted to report that a user left the session
+
+**Event:** session.leave
+
+**Code:** T2003I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### session.network
+
+is a network event
+
+**Event:** session.network
+
+**Code:** T4002I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|action|integer|denotes what happened in response to the event|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cgroup_id|integer|is the internal cgroupv2 ID of the event|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|dst_addr|string|is the destination IP address of the connection|
+|dst_port|integer|is the destination port of the connection|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|operation|integer|denotes what network operation was performed (e.g. connect)|
+|pid|integer|is the ID of the process|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|program|string|is name of the executable|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|sid|string|is a unique UUID of the session|
+|src_addr|string|is the source IP address of the connection|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|version|integer|is the version of TCP (4 or 6)|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### session.recording.access
+
+is emitted when a session recording is accessed, allowing session views to be included in the audit log
+
+**Event:** session.recording.access
+
+**Code:** T2012I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|sid|string|is the ID of the session|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### session.start
+
+is a session start event
+
+**Event:** session.start
+
+**Code:** T2000I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|forwarded_by|string|tells us if the metadata was sent by the node itself or by another node in it's place. We can't verify emit permissions fully for these events so care should be taken with them|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|initial_command|array|is the command used to start this session|
+|kubernetes_cluster|string|is a kubernetes cluster name|
+|kubernetes_container_image|string|is the image of the container within the pod|
+|kubernetes_container_name|string|is the name of the container within the pod|
+|kubernetes_groups|array|is a list of kubernetes groups for the user|
+|kubernetes_labels|object|are the labels (static and dynamic) of the kubernetes cluster the session occurred on|
+|kubernetes_labels.key|string||
+|kubernetes_labels.value|string||
+|kubernetes_node_name|string|is the node that runs the pod|
+|kubernetes_pod_name|string|is the name of the pod|
+|kubernetes_pod_namespace|string|is the namespace of the pod|
+|kubernetes_users|array|is a list of kubernetes usernames for the user|
+|login|string|is OS login|
+|namespace|string|is a namespace of the server event|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|server_addr|string|is the address of the server the session occurred on|
+|server_hostname|string|is the hostname of the server the session occurred on|
+|server_id|string|is the UUID of the server the session occurred on|
+|server_labels|object|are the labels (static and dynamic) of the server the session occurred on|
+|server_labels.key|string||
+|server_labels.value|string||
+|server_sub_kind|string|is the sub kind of the server the session occurred on|
+|session_recording|string|is the type of session recording|
+|sid|string|is a unique UUID of the session|
+|size|string|is expressed as 'W:H'|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### session.upload
+
+is a session upload
+
+**Event:** session.upload
+
+**Code:** T2005I
+
+|Field name|Type|Description|
+|---|---|---|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|private_key_policy|string|is the private key policy of the private key used to start this session|
+|sid|string|is a unique UUID of the session|
+|time|string|is event time|
+|uid|string|is a unique event identifier|
+|url|string|is where the url the session event data upload is at|
+|with_mfa|string|is a UUID of an MFA device used to start this session|
+
+### ssm.run
+
+is emitted after an AWS SSM document completes execution
+
+**Event:** ssm.run
+
+**Code:** TDS00I
+
+|Field name|Type|Description|
+|---|---|---|
+|account_id|string|is the id of the AWS account that ran the command|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|command_id|string|is the id of the SSM command that was run|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|exit_code|integer|is the exit code resulting from the script run|
+|instance_id|string|is the id of the EC2 instance the command was run on|
+|region|string|is the AWS region the command was ran in|
+|status|string|represents the success or failure status of a script run|
+|time|string|is event time|
+|uid|string|is a unique event identifier|
+
+### subsystem
+
+is emitted when a user requests a new subsystem
+
+**Event:** subsystem
+
+**Code:** T3001I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|exitError|string|contains error in case of unsucessfull attempt|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a subsystem name|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### subsystem (failure)
+
+is emitted when a user requests a new subsystem
+
+**Event:** subsystem
+
+**Code:** T3001E
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|exitError|string|contains error in case of unsucessfull attempt|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a subsystem name|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### trusted_cluster.create
+
+is the event for creating a trusted cluster
+
+**Event:** trusted_cluster.create
+
+**Code:** T7000I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### trusted_cluster.delete
+
+is the event for removing a trusted cluster
+
+**Event:** trusted_cluster.delete
+
+**Code:** T7001I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### trusted_cluster_token.create
+
+event is emitted (in addition to ProvisionTokenCreate) when a token of a "Trusted_cluster" role is created.  Deprecated: redundant, since we also emit ProvisionTokenCreate
+
+**Event:** trusted_cluster_token.create
+
+**Code:** T7002I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### user.create
+
+is emitted when the user is created or upserted
+
+**Event:** user.create
+
+**Code:** T1002I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|connector|string|is the connector used to create the user|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|roles|array|is a list of roles for the user|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### user.delete
+
+is emitted when a user gets deleted
+
+**Event:** user.delete
+
+**Code:** T1004I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|expires|string|is set if resource expires|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|name|string|is a resource name|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|ttl|string|is a TTL of reset password token represented as duration, e.g. "10m" used for compatibility purposes for some events, Expires should be used instead as it's more useful (contains exact expiration date/time)|
+|uid|string|is a unique event identifier|
+|updated_by|string|if set indicates the user who modified the resource|
+|user|string|is teleport user name|
+
+### user.password_change
+
+is emitted when the user changes their own password
+
+**Event:** user.password_change
+
+**Code:** T1005I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### x11-forward
+
+is emitted when a user requests X11 protocol forwarding
+
+**Event:** x11-forward
+
+**Code:** T3008I
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|
+
+### x11-forward (failure)
+
+is emitted when a user requests X11 protocol forwarding
+
+**Event:** x11-forward
+
+**Code:** T3008W
+
+|Field name|Type|Description|
+|---|---|---|
+|access_requests|array|are the IDs of access requests created by the user|
+|addr.local|string|is a target address on the host|
+|addr.remote|string|is a client (user's) address|
+|aws_role_arn|string|is AWS IAM role user assumes when accessing AWS console|
+|azure_identity|string|is the Azure identity user assumes when accessing Azure API|
+|cluster_name|string|identifies the originating teleport cluster|
+|code|string|is a unique event code|
+|ei|integer|is a monotonically incremented index in the event sequence|
+|error|string|includes system error message for the failed attempt|
+|event|string|is the event type|
+|gcp_service_account|string|is the GCP service account user assumes when accessing GCP API|
+|impersonator|string|is a user acting on behalf of another user|
+|login|string|is OS login|
+|message|string|is a user-friendly message for successfull or unsuccessfull auth attempt|
+|proto|string|specifies protocol that was captured|
+|required_private_key_policy|string|is the private key policy enforced for this login|
+|success|boolean|indicates the success or failure of the operation|
+|time|string|is event time|
+|trusted_device|object|contains information about the users' trusted device. Requires a registered and enrolled device to be used during authentication|
+|trusted_device.asset_tag|string|inventory identifier|
+|trusted_device.credential_id|string|credential identifier|
+|trusted_device.device_id|string|of the device|
+|trusted_device.device_origin|integer|origin|
+|trusted_device.os_type|integer|of the device|
+|uid|string|is a unique event identifier|
+|user|string|is teleport user name|

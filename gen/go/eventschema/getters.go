@@ -75,6 +75,12 @@ func QueryableEventList() (string, error) {
 	return sb.String(), nil
 }
 
+// AllEvents returns schema representations of all audit event protobuf
+// messages.
+func AllEventSchemas() map[string]*Event {
+	return events
+}
+
 // TableSchemaDetails describe Athena view schema.
 type TableSchemaDetails struct {
 	// Name is view name
