@@ -5450,3 +5450,43 @@ func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstr
 		}
 	}
 }
+
+func (g *GRPCServer) CreateAccessMonitoringRule(ctx context.Context, in *types.CreateAccessMonitoringRuleRequest) (*types.AccessMonitoringRuleV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	amr, err := auth.CreateAccessMonitoringRule(ctx, in)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return amr, nil
+}
+
+func (g *GRPCServer) DeleteAccessMonitoringRule(ctx context.Context, in *types.DeleteAccessMonitoringRuleRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.DeleteAccessMonitoringRule(ctx, in); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) UpsertAccessMonitoringRule(ctx context.Context, in *types.UpsertAccessMonitoringRuleRequest) (*types.AccessMonitoringRuleV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	amr, err := auth.UpsertAccessMonitoringRule(ctx, in)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return amr, nil
+}

@@ -774,6 +774,7 @@ type ClientI interface {
 	services.SAMLIdPSession
 	services.Integrations
 	types.Events
+	services.AccessMonitoringRules
 
 	types.WebSessionsGetter
 	types.WebTokensGetter

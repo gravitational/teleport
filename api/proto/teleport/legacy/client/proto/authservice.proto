@@ -3191,4 +3191,22 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // CreateAccessMonitoringRule creates the specified access monitoring rule.
+  rpc CreateAccessMonitoringRule(types.CreateAccessMonitoringRuleRequest) returns (types.AccessMonitoringRuleV1);
+
+  // UpdateAccessMonitoringRule updates the specified access monitoring rule.
+  rpc UpdateAccessMonitoringRule(types.UpdateAccessMonitoringRuleRequest) returns (types.AccessMonitoringRuleV1);
+
+  // UpsertAccessMonitoringRule upserts the specified access monitoring rule.
+  rpc UpsertAccessMonitoringRule(types.UpsertAccessMonitoringRuleRequest) returns (types.AccessMonitoringRuleV1);
+
+  // GetAccessMonitoringRule gets the specified access monitoring rule.
+  rpc GetAccessMonitoringRule(types.GetAccessMonitoringRuleRequest) returns (types.AccessMonitoringRuleV1);
+
+  // DeleteAccessMonitoringRule deletes the specified access monitoring rule.
+  rpc DeleteAccessMonitoringRule(types.DeleteAccessMonitoringRuleRequest) returns (google.protobuf.Empty);
+
+  // ListAccessMonitoringRule lists current access monitoring rules.
+  rpc ListAccessMonitoringRule(types.ListAccessMonitoringRulesRequest) returns (types.ListAccessMonitoringRulesResponse);
 }

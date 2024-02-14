@@ -7085,3 +7085,44 @@ func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks ser
 
 	return okta.CheckAccess(authzCtx, existingLock, verb)
 }
+
+func (a *ServerWithRoles) CreateAccessMonitoringRule(ctx context.Context, req *types.CreateAccessMonitoringRuleRequest) (*types.AccessMonitoringRuleV1, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAccessMonitoringRule, types.VerbCreate, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	amr, err := a.authServer.CreateAccessMonitoringRule(ctx, req.AccessMonitoringRule)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v1, ok := amr.(*types.AccessMonitoringRuleV1)
+	if !ok {
+		return nil, trace.BadParameter("invalid type of AccessMonitoringRule: %T", amr)
+	}
+	return v1, nil
+}
+
+func (a *ServerWithRoles) DeleteAccessMonitoringRule(ctx context.Context, req *types.DeleteAccessMonitoringRuleRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAccessMonitoringRule, types.VerbDelete, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteAccessMonitoringRule(ctx, req.ResourceName))
+
+}
+
+func (a *ServerWithRoles) UpsertAccessMonitoringRule(ctx context.Context, req *types.UpsertAccessMonitoringRuleRequest) (*types.AccessMonitoringRuleV1, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAccessMonitoringRule, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	amr, err := a.authServer.UpsertAccessMonitoringRule(ctx, req.AccessMonitoringRule)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	v1, ok := amr.(*types.AccessMonitoringRuleV1)
+	if !ok {
+		return nil, trace.BadParameter("invalid type of AccessMonitoringRule: %T", amr)
+	}
+	return v1, nil
+}

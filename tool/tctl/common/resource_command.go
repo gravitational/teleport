@@ -147,13 +147,15 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindSecurityReport:           rc.createSecurityReport,
 		types.KindServerInfo:               rc.createServerInfo,
 		types.KindBot:                      rc.createBot,
+		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:            rc.updateUser,
-		types.KindGithubConnector: rc.updateGithubConnector,
-		types.KindOIDCConnector:   rc.updateOIDCConnector,
-		types.KindSAMLConnector:   rc.updateSAMLConnector,
-		types.KindRole:            rc.updateRole,
+		types.KindUser:                 rc.updateUser,
+		types.KindGithubConnector:      rc.updateGithubConnector,
+		types.KindOIDCConnector:        rc.updateOIDCConnector,
+		types.KindSAMLConnector:        rc.updateSAMLConnector,
+		types.KindRole:                 rc.updateRole,
+		types.KindAccessMonitoringRule: rc.updateAccessMonitoringRule,
 	}
 	rc.config = config
 
@@ -1604,6 +1606,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Bot %q has been deleted\n", rc.ref.Name)
+	case types.KindAccessMonitoringRule:
+		if err := client.DeleteAccessMonitoringRule(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2711,6 +2718,50 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client auth
 	}
 
 	if err = client.SecReportsClient().UpsertSecurityReport(ctx, in); err != nil {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	amr, ok := in.(*types.AccessMonitoringRuleV1)
+	if !ok {
+		return trace.BadParameter("unexpected AccessMonitoringRule type %T", in)
+	}
+
+	if err := amr.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.CreateAccessMonitoringRule(ctx, amr); err != nil {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	amr, ok := in.(*types.AccessMonitoringRuleV1)
+	if !ok {
+		return trace.BadParameter("unexpected AccessMonitoringRule type %T", in)
+	}
+
+	if err := amr.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = client.UpdateAccessMonitoringRule(ctx, amr); err != nil {
 		if err != nil {
 			return trace.Wrap(err)
 		}

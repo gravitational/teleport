@@ -189,6 +189,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessListMemberParser()
 		case types.KindAccessListReview:
 			parser = newAccessListReviewParser()
+		case types.KindAccessMonitoringRule:
+			parser = newAccessMonitoringRuleParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1883,6 +1885,32 @@ func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, err
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }
+
+func newAccessMonitoringRuleParser() *AccessMonitoringRuleParser {
+	return &AccessMonitoringRuleParser{
+		baseParser: newBaseParser(backend.ExactKey(AccessMonitoringRulesPrefix)),
+	}
+}
+
+type AccessMonitoringRuleParser struct {
+	baseParser
+}
+
+func (p *AccessMonitoringRuleParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindAccessMonitoringRule, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalAccessMonitoringRule(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 
 func resourceHeader(event backend.Event, kind, version string, offset int) (types.Resource, error) {
 	name, err := base(event.Item.Key, offset)

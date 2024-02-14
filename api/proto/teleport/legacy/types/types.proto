@@ -6585,3 +6585,84 @@ message AccessGraphAWSSync {
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
 }
+
+// AccessMonitoringRule represents an access monitoring rule resources.
+message AccessMonitoringRuleV1 {
+  // Kind is a resource kind
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource sub kind, used in some resources
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is version
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the access resource's metadata
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is an AccessMonitoringRule specification
+  AccessMonitoringRuleSpec Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// AccessMonitoringRuleSpec is the access monitoring rule spec
+message AccessMonitoringRuleSpec {
+  // Subjects the rule operates on, can be a resource kind or a particular resource property.
+  repeated string Subjects = 1 [(gogoproto.jsontag) = "subjects,omitempty"];
+  // Desired state which the monitoring rule is attempting to bring the subjects matching the condition to.
+  repeated string States = 2 [(gogoproto.jsontag) = "states,omitempty"];
+  // Condition is a predicate expression that operates on the specified subject resources,
+  // and determines whether the subject will be moved into desired state.
+  string Condition = 3 [(gogoproto.jsontag) = "condition,omitempty"];
+  // Notification defines the plugin configuration for notifcations if rule is triggered.
+  PluginNotificationConfiguration Notification = 4 [(gogoproto.jsontag) = "notification,omitempty"];
+}
+
+message PluginNotificationConfiguration {
+  // Name is the name of the plugin to which this configuration should apply.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+  // Recipients is the list of recipients the plugin should notify.
+  repeated string Recipients = 2 [(gogoproto.jsontag) = "recipients"];
+}
+
+message CreateAccessMonitoringRuleRequest {
+  // AccessMonitoringRule is the specification of the rule to be created.
+  AccessMonitoringRuleV1 AccessMonitoringRule = 1 [(gogoproto.jsontag) = "access_monitoring_rule"];
+}
+
+message UpdateAccessMonitoringRuleRequest {
+  // AccessMonitoringRule is the specification of the rule to be updated.
+  AccessMonitoringRuleV1 AccessMonitoringRule = 1 [(gogoproto.jsontag) = "access_monitoring_rule"];
+}
+
+message UpsertAccessMonitoringRuleRequest {
+  // AccessMonitoringRule is the specification of the rule to be upsertd.
+  AccessMonitoringRuleV1 AccessMonitoringRule = 1 [(gogoproto.jsontag) = "access_monitoring_rule"];
+}
+
+message GetAccessMonitoringRuleRequest {
+  // ResourceName is the name of the rule to be returned.
+  string ResourceName = 1 [(gogoproto.jsontag) = "resource_name"];
+}
+
+message DeleteAccessMonitoringRuleRequest {
+  // ResourceName is the name of the rule to be removed.
+  string ResourceName = 1 [(gogoproto.jsontag) = "resource_name"];
+}
+
+message ListAccessMonitoringRulesRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int64 PageSize = 1 [(gogoproto.jsontag) = "page_size"];
+  // The next_page_token value returned from a previous List request, if any.
+  string PageToken = 2 [(gogoproto.jsontag) = "page_token"];
+}
+
+message ListAccessMonitoringRulesResponse {
+  // The page of AccessMonitoringRule that matched the request.
+  repeated AccessMonitoringRuleV1 AccessMonitoringRules = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
