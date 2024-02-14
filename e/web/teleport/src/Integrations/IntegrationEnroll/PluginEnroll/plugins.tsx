@@ -900,7 +900,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             behave in unexpected ways. Remove all other columns and statuses.
           </li>
           <li>
-            The Teleport Jira integration expects tasks your project board to
+            The Teleport Jira integration expects tasks in your project board to
             include a field called “teleportAccessRequestId”, which it uses to
             track individual access requests. This prevents users from tampering
             with or forging access requests. Follow the{' '}
@@ -1037,7 +1037,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
         <p>
           The Teleport integration with PagerDuty allows your team to treat
           Teleport permission requests as Pagerduty incidents and provides
-          Pagerduty saecial actions to approve or deny permission requests.
+          Pagerduty special actions to approve or deny permission requests.
         </p>
       </Text>
     ),
