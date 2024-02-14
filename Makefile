@@ -301,7 +301,6 @@ TELEPORT_ARGS ?= start
 teleport-hot-reload:
 	CompileDaemon \
 		--graceful-kill=true \
-		--exclude="node_modules" \
 		--exclude-dir=".git" \
 		--exclude-dir="build" \
 		--exclude-dir="e/build" \
