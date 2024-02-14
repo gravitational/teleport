@@ -107,7 +107,7 @@ func (f *LoginFlow) Begin(ctx context.Context, user string, challengeExtensions 
 	// Disallow passwordless through here.
 	// lf.begin() does other challengeExtensions checks, including `nil`.
 	if challengeExtensions != nil && challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN {
-		return nil, trace.BadParameter("the passwordless challenge scope can only be used via PasswordlessFlow")
+		return nil, trace.BadParameter("passwordless challenge scope is not allowed for MFA flows")
 	}
 
 	lf := &loginFlow{
