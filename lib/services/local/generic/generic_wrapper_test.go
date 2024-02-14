@@ -1,20 +1,18 @@
-/*
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package generic
 
@@ -29,13 +27,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// testResource for testing the generic service.
+// testResource for testing the generic service. Follows RFD 153.
 type testResource153 struct {
 	Metadata *headerv1.Metadata
 }
@@ -43,9 +40,6 @@ type testResource153 struct {
 func (t *testResource153) GetMetadata() *headerv1.Metadata {
 	return t.Metadata
 }
-
-var _ types.ResourceMetadata = (*testResource153)(nil)
-var _ Resource = (*resourceMetadataAdapter[*testResource153])(nil)
 
 func newTestResource153(name string) *testResource153 {
 	tr := &testResource153{
@@ -94,8 +88,8 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 	return &r, nil
 }
 
-// TestGenericCRUD153 tests backend operations with the generic service.
-func TestGenericCRUD153(t *testing.T) {
+// TestGenericWrapperCRUD tests backend operations with the generic service.
+func TestGenericWrapperCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	memBackend, err := memory.New(memory.Config{
@@ -106,7 +100,7 @@ func TestGenericCRUD153(t *testing.T) {
 
 	const backendPrefix = "generic_prefix"
 
-	service, err := NewService153[*testResource153](memBackend,
+	service, err := NewServiceWrapper[*testResource153](memBackend,
 		"generic resource",
 		backendPrefix,
 		marshalResource153,
