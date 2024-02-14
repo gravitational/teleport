@@ -496,7 +496,7 @@ func NewSystemOktaResourcesRole() types.Role {
 		Kind:    types.KindRole,
 		Version: types.V6,
 		Metadata: types.Metadata{
-			Name:        teleport.SystemOktaRequesterRoleName,
+			Name:        teleport.SystemOktaResourcesRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Request Okta resources",
 			Labels: map[string]string{
