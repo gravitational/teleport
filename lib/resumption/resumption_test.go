@@ -119,7 +119,7 @@ func TestResumption(t *testing.T) {
 			}
 
 			// the original connection is on localhost, which is distincly not 127.0.0.42
-			go resumableServer.sshServer(
+			go resumableServer.HandleConnection(
 				utils.NewConnWithSrcAddr(p1, &net.TCPAddr{IP: net.IPv4(127, 0, 0, 42), Port: 55555}),
 			)
 
