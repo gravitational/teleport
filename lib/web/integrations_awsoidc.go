@@ -890,7 +890,7 @@ func (h *Handler) accessGraphCloudSyncOIDC(w http.ResponseWriter, r *http.Reques
 	case "aws-iam":
 		return h.awsAccessGraphOIDCSync(w, r, p)
 	default:
-		return nil, trace.BadParameter("unsuported kind provided %q", kind)
+		return nil, trace.BadParameter("unsupported kind provided %q", kind)
 	}
 }
 
