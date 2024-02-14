@@ -12,13 +12,17 @@ on:
         description: "The version should be published"
         type: string
         required: true
+      environment:
+        description: GitHub environment to publish to.
+        type: string
+        default: publish-prod
 
 jobs:
-  setup:
+  publish:
     runs-on: ubuntu-latest
-    outputs:
-      ecr-username: "AWS"
-      ecr-password: ${{ steps.ecr-credentials.outputs.ecr-password }}
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
     steps:
       - name: Assume AWS ECR pull role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -26,42 +30,30 @@ jobs:
           role-skip-session-tagging: true
           aws-region: ${{ vars.ECR_PRIVATE_REPOS_REGION }}
           role-to-assume: ${{ vars.ECR_PROD_PULL_ROLE_ARN }}
-          role-session-name: "publish-release-server-${{ github.run_number }}"
+          role-session-name: "publish-release-server-${{ github.run_attempt }}"
           role-duration-seconds: 900
-      - name: Get credentials for pulling the rlzcli container image
-        id: ecr-credentials
-        run:
-          ECR_PASSWORD=$(aws ecr get-login-password)
-          if [ -z "$ECR_PASSWORD" ]; then
-            echo "Failed to get ECR password" >&2
-            exit 1
-          fi
 
-          echo "ecr-password=$ECR_PASSWORD" >> "$GITHUB_OUTPUT"
-  publish:
-    runs-on: ubuntu-latest
-    environment: "publish-prod" # TODO make this variable when stage env is introduced
-    needs:
-      - setup
-    container:
-      image: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
-      credentials:
-        username: ${{ needs.setup.outputs.ecr-username }}
-        password: ${{ needs.setup.outputs.ecr-password }}
-    env:
-      RELCLI_CERT: /tmp/releases.crt
-      RELCLI_KEY: /tmp/releases.key
-    steps:
-      - name: Write the cert and key to disk
+      - name: Log into ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Publish the release
         env:
-          RELEASES_CERT: ${{ secrets.RELEASES_CERT }}
+          DRONE_TAG: ${{ inputs.version }}
+          RELCLI_BASE_URL: ${{ vars.RELEASES_HOST }}
+          RELCLI_REPO: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli
+          RELCLI_LABEL: prod-a004819-20240213T215723
+          RELCLI_CERT: /tmp/releases.crt
+          RELCLI_KEY: /tmp/releases.key
+          RELEASES_CERT: ${{ vars.RELEASES_CERT }}
           RELEASES_KEY: ${{ secrets.RELEASES_KEY }}
         run: |
           printenv RELEASES_CERT > "$RELCLI_CERT"
           printenv RELEASES_KEY > "$RELCLI_KEY"
-      - name: Publish the release
-        env:
-          DRONE_REPO: ${{ inputs.oss-teleport-repo }}
-          DRONE_TAG: ${{ inputs.version }}
-          RELCLI_BASE_URL: ${{ vars.RELEASES_HOST }}
-        run: relcli auto_publish -f -v 6
+          # Use docker run instead of running the whole job in a container as running a
+          # job in a container requires the `tail` command be available and the relcli
+          # image does not have `tail` (GHA seems to run `tail -f /dev/null` when
+          # initializing a container to keep it alive between each step).
+          docker run \
+            -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+            -v "${RELCLI_CERT}":"${RELCLI_CERT}" -v "${RELCLI_KEY}":"${RELCLI_KEY}" \
+            "${RELCLI_REPO}:${RELCLI_LABEL}" auto_publish -f -v 6
