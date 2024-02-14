@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
+	"github.com/gravitational/teleport/lib/teleterm/services/remoteclientcache"
 )
 
 // Storage defines an interface for cluster profile storage.
@@ -69,6 +70,8 @@ type Config struct {
 	ConnectMyComputerNodeJoinWait     *connectmycomputer.NodeJoinWait
 	ConnectMyComputerNodeDelete       *connectmycomputer.NodeDelete
 	ConnectMyComputerNodeName         *connectmycomputer.NodeName
+
+	RemoteClientCache remoteclientcache.CacheI
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
@@ -138,6 +141,13 @@ func (c *Config) CheckAndSetDefaults() error {
 		}
 
 		c.ConnectMyComputerNodeName = nodeName
+	}
+
+	if c.RemoteClientCache == nil {
+		c.RemoteClientCache = remoteclientcache.New(remoteclientcache.Config{
+			Log:      c.Log,
+			Resolver: c.Storage,
+		})
 	}
 
 	return nil
