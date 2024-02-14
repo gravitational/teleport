@@ -37,15 +37,19 @@ const (
 	ClusterConfigService_GetClusterNetworkingConfig_FullMethodName    = "/teleport.clusterconfig.v1.ClusterConfigService/GetClusterNetworkingConfig"
 	ClusterConfigService_UpdateClusterNetworkingConfig_FullMethodName = "/teleport.clusterconfig.v1.ClusterConfigService/UpdateClusterNetworkingConfig"
 	ClusterConfigService_UpsertClusterNetworkingConfig_FullMethodName = "/teleport.clusterconfig.v1.ClusterConfigService/UpsertClusterNetworkingConfig"
-	ClusterConfigService_DeleteClusterNetworkingConfig_FullMethodName = "/teleport.clusterconfig.v1.ClusterConfigService/DeleteClusterNetworkingConfig"
+	ClusterConfigService_ResetClusterNetworkingConfig_FullMethodName  = "/teleport.clusterconfig.v1.ClusterConfigService/ResetClusterNetworkingConfig"
 	ClusterConfigService_GetSessionRecordingConfig_FullMethodName     = "/teleport.clusterconfig.v1.ClusterConfigService/GetSessionRecordingConfig"
 	ClusterConfigService_UpdateSessionRecordingConfig_FullMethodName  = "/teleport.clusterconfig.v1.ClusterConfigService/UpdateSessionRecordingConfig"
 	ClusterConfigService_UpsertSessionRecordingConfig_FullMethodName  = "/teleport.clusterconfig.v1.ClusterConfigService/UpsertSessionRecordingConfig"
-	ClusterConfigService_DeleteSessionRecordingConfig_FullMethodName  = "/teleport.clusterconfig.v1.ClusterConfigService/DeleteSessionRecordingConfig"
+	ClusterConfigService_ResetSessionRecordingConfig_FullMethodName   = "/teleport.clusterconfig.v1.ClusterConfigService/ResetSessionRecordingConfig"
 	ClusterConfigService_GetAuthPreference_FullMethodName             = "/teleport.clusterconfig.v1.ClusterConfigService/GetAuthPreference"
 	ClusterConfigService_UpdateAuthPreference_FullMethodName          = "/teleport.clusterconfig.v1.ClusterConfigService/UpdateAuthPreference"
 	ClusterConfigService_UpsertAuthPreference_FullMethodName          = "/teleport.clusterconfig.v1.ClusterConfigService/UpsertAuthPreference"
-	ClusterConfigService_DeleteAuthPreference_FullMethodName          = "/teleport.clusterconfig.v1.ClusterConfigService/DeleteAuthPreference"
+	ClusterConfigService_ResetAuthPreference_FullMethodName           = "/teleport.clusterconfig.v1.ClusterConfigService/ResetAuthPreference"
+	ClusterConfigService_GetClusterAuditConfig_FullMethodName         = "/teleport.clusterconfig.v1.ClusterConfigService/GetClusterAuditConfig"
+	ClusterConfigService_UpdateClusterAuditConfig_FullMethodName      = "/teleport.clusterconfig.v1.ClusterConfigService/UpdateClusterAuditConfig"
+	ClusterConfigService_UpsertClusterAuditConfig_FullMethodName      = "/teleport.clusterconfig.v1.ClusterConfigService/UpsertClusterAuditConfig"
+	ClusterConfigService_ResetClusterAuditConfig_FullMethodName       = "/teleport.clusterconfig.v1.ClusterConfigService/ResetClusterAuditConfig"
 )
 
 // ClusterConfigServiceClient is the client API for ClusterConfigService service.
@@ -58,24 +62,32 @@ type ClusterConfigServiceClient interface {
 	UpdateClusterNetworkingConfig(ctx context.Context, in *UpdateClusterNetworkingConfigRequest, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error)
 	// UpsertClusterNetworkingConfig overwrites the active cluster networking configuration.
 	UpsertClusterNetworkingConfig(ctx context.Context, in *UpsertClusterNetworkingConfigRequest, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error)
-	// DeleteClusterNetworkingConfig restores the active cluster networking configuration to default settings.
-	DeleteClusterNetworkingConfig(ctx context.Context, in *DeleteClusterNetworkingConfigRequest, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error)
+	// ResetClusterNetworkingConfig restores the active cluster networking configuration to default settings.
+	ResetClusterNetworkingConfig(ctx context.Context, in *ResetClusterNetworkingConfigRequest, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error)
 	// GetSessionRecordingConfig retrieves the active session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, in *GetSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error)
 	// UpdateSessionRecordingConfig updates the session recording configuration.
 	UpdateSessionRecordingConfig(ctx context.Context, in *UpdateSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error)
 	// UpsertSessionRecordingConfig overwrites the active session recording configuration.
 	UpsertSessionRecordingConfig(ctx context.Context, in *UpsertSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error)
-	// DeleteSessionRecordingConfig restores the active session recording configuration to default settings.
-	DeleteSessionRecordingConfig(ctx context.Context, in *DeleteSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error)
+	// ResetSessionRecordingConfig restores the active session recording configuration to default settings.
+	ResetSessionRecordingConfig(ctx context.Context, in *ResetSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error)
 	// GetAuthPreference retrieves the active auth preference.
 	GetAuthPreference(ctx context.Context, in *GetAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
 	// UpdateAuthPreference updates the auth preference.
 	UpdateAuthPreference(ctx context.Context, in *UpdateAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
 	// UpsertAuthPreference overwrites the active auth preference.
 	UpsertAuthPreference(ctx context.Context, in *UpsertAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
-	// DeleteAuthPreference restores the active auth preference to default settings.
-	DeleteAuthPreference(ctx context.Context, in *DeleteAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
+	// ResetAuthPreference restores the active auth preference to default settings.
+	ResetAuthPreference(ctx context.Context, in *ResetAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
+	// GetClusterAuditConfig retrieves the active cluster audit configuration.
+	GetClusterAuditConfig(ctx context.Context, in *GetClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
+	// UpdateClusterAuditConfig updates the cluster audit configuration..
+	UpdateClusterAuditConfig(ctx context.Context, in *UpdateClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
+	// UpsertClusterAuditConfig overwrites the active cluster audit configuration..
+	UpsertClusterAuditConfig(ctx context.Context, in *UpsertClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
+	// ResetClusterAuditConfig restores the active cluster audit configuration. to default settings.
+	ResetClusterAuditConfig(ctx context.Context, in *ResetClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
 }
 
 type clusterConfigServiceClient struct {
@@ -113,9 +125,9 @@ func (c *clusterConfigServiceClient) UpsertClusterNetworkingConfig(ctx context.C
 	return out, nil
 }
 
-func (c *clusterConfigServiceClient) DeleteClusterNetworkingConfig(ctx context.Context, in *DeleteClusterNetworkingConfigRequest, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error) {
+func (c *clusterConfigServiceClient) ResetClusterNetworkingConfig(ctx context.Context, in *ResetClusterNetworkingConfigRequest, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error) {
 	out := new(types.ClusterNetworkingConfigV2)
-	err := c.cc.Invoke(ctx, ClusterConfigService_DeleteClusterNetworkingConfig_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, ClusterConfigService_ResetClusterNetworkingConfig_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -149,9 +161,9 @@ func (c *clusterConfigServiceClient) UpsertSessionRecordingConfig(ctx context.Co
 	return out, nil
 }
 
-func (c *clusterConfigServiceClient) DeleteSessionRecordingConfig(ctx context.Context, in *DeleteSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error) {
+func (c *clusterConfigServiceClient) ResetSessionRecordingConfig(ctx context.Context, in *ResetSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.ClusterNetworkingConfigV2, error) {
 	out := new(types.ClusterNetworkingConfigV2)
-	err := c.cc.Invoke(ctx, ClusterConfigService_DeleteSessionRecordingConfig_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, ClusterConfigService_ResetSessionRecordingConfig_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -185,9 +197,45 @@ func (c *clusterConfigServiceClient) UpsertAuthPreference(ctx context.Context, i
 	return out, nil
 }
 
-func (c *clusterConfigServiceClient) DeleteAuthPreference(ctx context.Context, in *DeleteAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error) {
+func (c *clusterConfigServiceClient) ResetAuthPreference(ctx context.Context, in *ResetAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error) {
 	out := new(types.AuthPreferenceV2)
-	err := c.cc.Invoke(ctx, ClusterConfigService_DeleteAuthPreference_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, ClusterConfigService_ResetAuthPreference_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterConfigServiceClient) GetClusterAuditConfig(ctx context.Context, in *GetClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
+	out := new(types.ClusterAuditConfigV2)
+	err := c.cc.Invoke(ctx, ClusterConfigService_GetClusterAuditConfig_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterConfigServiceClient) UpdateClusterAuditConfig(ctx context.Context, in *UpdateClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
+	out := new(types.ClusterAuditConfigV2)
+	err := c.cc.Invoke(ctx, ClusterConfigService_UpdateClusterAuditConfig_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterConfigServiceClient) UpsertClusterAuditConfig(ctx context.Context, in *UpsertClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
+	out := new(types.ClusterAuditConfigV2)
+	err := c.cc.Invoke(ctx, ClusterConfigService_UpsertClusterAuditConfig_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterConfigServiceClient) ResetClusterAuditConfig(ctx context.Context, in *ResetClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error) {
+	out := new(types.ClusterAuditConfigV2)
+	err := c.cc.Invoke(ctx, ClusterConfigService_ResetClusterAuditConfig_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -204,24 +252,32 @@ type ClusterConfigServiceServer interface {
 	UpdateClusterNetworkingConfig(context.Context, *UpdateClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error)
 	// UpsertClusterNetworkingConfig overwrites the active cluster networking configuration.
 	UpsertClusterNetworkingConfig(context.Context, *UpsertClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error)
-	// DeleteClusterNetworkingConfig restores the active cluster networking configuration to default settings.
-	DeleteClusterNetworkingConfig(context.Context, *DeleteClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error)
+	// ResetClusterNetworkingConfig restores the active cluster networking configuration to default settings.
+	ResetClusterNetworkingConfig(context.Context, *ResetClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error)
 	// GetSessionRecordingConfig retrieves the active session recording configuration.
 	GetSessionRecordingConfig(context.Context, *GetSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error)
 	// UpdateSessionRecordingConfig updates the session recording configuration.
 	UpdateSessionRecordingConfig(context.Context, *UpdateSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error)
 	// UpsertSessionRecordingConfig overwrites the active session recording configuration.
 	UpsertSessionRecordingConfig(context.Context, *UpsertSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error)
-	// DeleteSessionRecordingConfig restores the active session recording configuration to default settings.
-	DeleteSessionRecordingConfig(context.Context, *DeleteSessionRecordingConfigRequest) (*types.ClusterNetworkingConfigV2, error)
+	// ResetSessionRecordingConfig restores the active session recording configuration to default settings.
+	ResetSessionRecordingConfig(context.Context, *ResetSessionRecordingConfigRequest) (*types.ClusterNetworkingConfigV2, error)
 	// GetAuthPreference retrieves the active auth preference.
 	GetAuthPreference(context.Context, *GetAuthPreferenceRequest) (*types.AuthPreferenceV2, error)
 	// UpdateAuthPreference updates the auth preference.
 	UpdateAuthPreference(context.Context, *UpdateAuthPreferenceRequest) (*types.AuthPreferenceV2, error)
 	// UpsertAuthPreference overwrites the active auth preference.
 	UpsertAuthPreference(context.Context, *UpsertAuthPreferenceRequest) (*types.AuthPreferenceV2, error)
-	// DeleteAuthPreference restores the active auth preference to default settings.
-	DeleteAuthPreference(context.Context, *DeleteAuthPreferenceRequest) (*types.AuthPreferenceV2, error)
+	// ResetAuthPreference restores the active auth preference to default settings.
+	ResetAuthPreference(context.Context, *ResetAuthPreferenceRequest) (*types.AuthPreferenceV2, error)
+	// GetClusterAuditConfig retrieves the active cluster audit configuration.
+	GetClusterAuditConfig(context.Context, *GetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error)
+	// UpdateClusterAuditConfig updates the cluster audit configuration..
+	UpdateClusterAuditConfig(context.Context, *UpdateClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error)
+	// UpsertClusterAuditConfig overwrites the active cluster audit configuration..
+	UpsertClusterAuditConfig(context.Context, *UpsertClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error)
+	// ResetClusterAuditConfig restores the active cluster audit configuration. to default settings.
+	ResetClusterAuditConfig(context.Context, *ResetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error)
 	mustEmbedUnimplementedClusterConfigServiceServer()
 }
 
@@ -238,8 +294,8 @@ func (UnimplementedClusterConfigServiceServer) UpdateClusterNetworkingConfig(con
 func (UnimplementedClusterConfigServiceServer) UpsertClusterNetworkingConfig(context.Context, *UpsertClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertClusterNetworkingConfig not implemented")
 }
-func (UnimplementedClusterConfigServiceServer) DeleteClusterNetworkingConfig(context.Context, *DeleteClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteClusterNetworkingConfig not implemented")
+func (UnimplementedClusterConfigServiceServer) ResetClusterNetworkingConfig(context.Context, *ResetClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetClusterNetworkingConfig not implemented")
 }
 func (UnimplementedClusterConfigServiceServer) GetSessionRecordingConfig(context.Context, *GetSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSessionRecordingConfig not implemented")
@@ -250,8 +306,8 @@ func (UnimplementedClusterConfigServiceServer) UpdateSessionRecordingConfig(cont
 func (UnimplementedClusterConfigServiceServer) UpsertSessionRecordingConfig(context.Context, *UpsertSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertSessionRecordingConfig not implemented")
 }
-func (UnimplementedClusterConfigServiceServer) DeleteSessionRecordingConfig(context.Context, *DeleteSessionRecordingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteSessionRecordingConfig not implemented")
+func (UnimplementedClusterConfigServiceServer) ResetSessionRecordingConfig(context.Context, *ResetSessionRecordingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetSessionRecordingConfig not implemented")
 }
 func (UnimplementedClusterConfigServiceServer) GetAuthPreference(context.Context, *GetAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAuthPreference not implemented")
@@ -262,8 +318,20 @@ func (UnimplementedClusterConfigServiceServer) UpdateAuthPreference(context.Cont
 func (UnimplementedClusterConfigServiceServer) UpsertAuthPreference(context.Context, *UpsertAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAuthPreference not implemented")
 }
-func (UnimplementedClusterConfigServiceServer) DeleteAuthPreference(context.Context, *DeleteAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteAuthPreference not implemented")
+func (UnimplementedClusterConfigServiceServer) ResetAuthPreference(context.Context, *ResetAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetAuthPreference not implemented")
+}
+func (UnimplementedClusterConfigServiceServer) GetClusterAuditConfig(context.Context, *GetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetClusterAuditConfig not implemented")
+}
+func (UnimplementedClusterConfigServiceServer) UpdateClusterAuditConfig(context.Context, *UpdateClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateClusterAuditConfig not implemented")
+}
+func (UnimplementedClusterConfigServiceServer) UpsertClusterAuditConfig(context.Context, *UpsertClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertClusterAuditConfig not implemented")
+}
+func (UnimplementedClusterConfigServiceServer) ResetClusterAuditConfig(context.Context, *ResetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetClusterAuditConfig not implemented")
 }
 func (UnimplementedClusterConfigServiceServer) mustEmbedUnimplementedClusterConfigServiceServer() {}
 
@@ -332,20 +400,20 @@ func _ClusterConfigService_UpsertClusterNetworkingConfig_Handler(srv interface{}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClusterConfigService_DeleteClusterNetworkingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteClusterNetworkingConfigRequest)
+func _ClusterConfigService_ResetClusterNetworkingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetClusterNetworkingConfigRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterConfigServiceServer).DeleteClusterNetworkingConfig(ctx, in)
+		return srv.(ClusterConfigServiceServer).ResetClusterNetworkingConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClusterConfigService_DeleteClusterNetworkingConfig_FullMethodName,
+		FullMethod: ClusterConfigService_ResetClusterNetworkingConfig_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterConfigServiceServer).DeleteClusterNetworkingConfig(ctx, req.(*DeleteClusterNetworkingConfigRequest))
+		return srv.(ClusterConfigServiceServer).ResetClusterNetworkingConfig(ctx, req.(*ResetClusterNetworkingConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -404,20 +472,20 @@ func _ClusterConfigService_UpsertSessionRecordingConfig_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClusterConfigService_DeleteSessionRecordingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteSessionRecordingConfigRequest)
+func _ClusterConfigService_ResetSessionRecordingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetSessionRecordingConfigRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterConfigServiceServer).DeleteSessionRecordingConfig(ctx, in)
+		return srv.(ClusterConfigServiceServer).ResetSessionRecordingConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClusterConfigService_DeleteSessionRecordingConfig_FullMethodName,
+		FullMethod: ClusterConfigService_ResetSessionRecordingConfig_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterConfigServiceServer).DeleteSessionRecordingConfig(ctx, req.(*DeleteSessionRecordingConfigRequest))
+		return srv.(ClusterConfigServiceServer).ResetSessionRecordingConfig(ctx, req.(*ResetSessionRecordingConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -476,20 +544,92 @@ func _ClusterConfigService_UpsertAuthPreference_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClusterConfigService_DeleteAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteAuthPreferenceRequest)
+func _ClusterConfigService_ResetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetAuthPreferenceRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClusterConfigServiceServer).DeleteAuthPreference(ctx, in)
+		return srv.(ClusterConfigServiceServer).ResetAuthPreference(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ClusterConfigService_DeleteAuthPreference_FullMethodName,
+		FullMethod: ClusterConfigService_ResetAuthPreference_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterConfigServiceServer).DeleteAuthPreference(ctx, req.(*DeleteAuthPreferenceRequest))
+		return srv.(ClusterConfigServiceServer).ResetAuthPreference(ctx, req.(*ResetAuthPreferenceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterConfigService_GetClusterAuditConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetClusterAuditConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterConfigServiceServer).GetClusterAuditConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterConfigService_GetClusterAuditConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterConfigServiceServer).GetClusterAuditConfig(ctx, req.(*GetClusterAuditConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterConfigService_UpdateClusterAuditConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateClusterAuditConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterConfigServiceServer).UpdateClusterAuditConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterConfigService_UpdateClusterAuditConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterConfigServiceServer).UpdateClusterAuditConfig(ctx, req.(*UpdateClusterAuditConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterConfigService_UpsertClusterAuditConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertClusterAuditConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterConfigServiceServer).UpsertClusterAuditConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterConfigService_UpsertClusterAuditConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterConfigServiceServer).UpsertClusterAuditConfig(ctx, req.(*UpsertClusterAuditConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterConfigService_ResetClusterAuditConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetClusterAuditConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterConfigServiceServer).ResetClusterAuditConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterConfigService_ResetClusterAuditConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterConfigServiceServer).ResetClusterAuditConfig(ctx, req.(*ResetClusterAuditConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -514,8 +654,8 @@ var ClusterConfigService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClusterConfigService_UpsertClusterNetworkingConfig_Handler,
 		},
 		{
-			MethodName: "DeleteClusterNetworkingConfig",
-			Handler:    _ClusterConfigService_DeleteClusterNetworkingConfig_Handler,
+			MethodName: "ResetClusterNetworkingConfig",
+			Handler:    _ClusterConfigService_ResetClusterNetworkingConfig_Handler,
 		},
 		{
 			MethodName: "GetSessionRecordingConfig",
@@ -530,8 +670,8 @@ var ClusterConfigService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClusterConfigService_UpsertSessionRecordingConfig_Handler,
 		},
 		{
-			MethodName: "DeleteSessionRecordingConfig",
-			Handler:    _ClusterConfigService_DeleteSessionRecordingConfig_Handler,
+			MethodName: "ResetSessionRecordingConfig",
+			Handler:    _ClusterConfigService_ResetSessionRecordingConfig_Handler,
 		},
 		{
 			MethodName: "GetAuthPreference",
@@ -546,8 +686,24 @@ var ClusterConfigService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ClusterConfigService_UpsertAuthPreference_Handler,
 		},
 		{
-			MethodName: "DeleteAuthPreference",
-			Handler:    _ClusterConfigService_DeleteAuthPreference_Handler,
+			MethodName: "ResetAuthPreference",
+			Handler:    _ClusterConfigService_ResetAuthPreference_Handler,
+		},
+		{
+			MethodName: "GetClusterAuditConfig",
+			Handler:    _ClusterConfigService_GetClusterAuditConfig_Handler,
+		},
+		{
+			MethodName: "UpdateClusterAuditConfig",
+			Handler:    _ClusterConfigService_UpdateClusterAuditConfig_Handler,
+		},
+		{
+			MethodName: "UpsertClusterAuditConfig",
+			Handler:    _ClusterConfigService_UpsertClusterAuditConfig_Handler,
+		},
+		{
+			MethodName: "ResetClusterAuditConfig",
+			Handler:    _ClusterConfigService_ResetClusterAuditConfig_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
