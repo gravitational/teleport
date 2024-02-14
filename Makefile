@@ -421,7 +421,7 @@ clean-ui:
 
 # RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
 $(RELEASE_DIR):
-	mkdir $@
+	mkdir -p $@
 
 .PHONY:
 export
@@ -468,6 +468,11 @@ build-archive: | $(RELEASE_DIR)
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	cp $(RELEASE).tar.gz $(RELEASE_DIR)
+	# linux-amd64 generates a centos7-compatible archive. Make a copy with the -centos7 label,
+	# for the releases page. We should probably drop that at some point.
+	$(if $(filter linux-amd64,$(OS)-$(ARCH)), \
+		cp $(RELEASE).tar.gz $(RELEASE_DIR)/$(subst amd64,amd64-centos7,$(RELEASE)).tar.gz \
+	)
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 
