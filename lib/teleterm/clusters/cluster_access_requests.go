@@ -194,10 +194,8 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, clt auth.ClientI, req
 	return trace.Wrap(err)
 }
 
-func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
-	var err error
-
-	err = AddMetadataToRetryableError(ctx, func() error {
+func (c *Cluster) AssumeRole(ctx context.Context, proxyClient *client.ProxyClient, req *api.AssumeRoleRequest) error {
+	err := AddMetadataToRetryableError(ctx, func() error {
 		params := client.ReissueParams{
 			AccessRequests:     req.AccessRequestIds,
 			DropAccessRequests: req.DropRequestIds,
@@ -212,16 +210,15 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		}
 		// When assuming a role, we want to drop all cached certs otherwise
 		// tsh will continue to use the old certs.
-		return c.clusterClient.ReissueUserCerts(ctx, client.CertCacheDrop, params)
+		return proxyClient.ReissueUserCerts(ctx, client.CertCacheDrop, params)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	err = c.clusterClient.SaveProfile(true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	return trace.Wrap(err)
+}
 
 func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
 	resourceIDsByCluster := accessrequest.GetResourceIDsByCluster(req)

@@ -751,12 +751,19 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		return trace.Wrap(err)
 	}
 
-	err = cluster.AssumeRole(ctx, req)
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	err = cluster.AssumeRole(ctx, proxyClient, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// We have to reconnect using the updated cert.
+	err = s.ClearCachedClientsForRoot(cluster.URI)
+	return trace.Wrap(err)
 }
 
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination.
