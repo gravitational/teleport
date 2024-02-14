@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
+	"github.com/gravitational/teleport/lib/teleterm/services/clientcache"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -55,7 +56,7 @@ type mockGatewayCreator struct {
 	tcpPortAllocator gateway.TCPPortAllocator
 }
 
-func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (gateway.Gateway, error) {
+func (m *mockGatewayCreator) CreateGateway(ctx context.Context, proxyClient *client.ProxyClient, params clusters.CreateGatewayParams) (gateway.Gateway, error) {
 	m.callCount++
 
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
@@ -272,6 +273,7 @@ func TestGatewayCRUD(t *testing.T) {
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
+				ClientCache:    &fakeClientCache{},
 			})
 			require.NoError(t, err)
 
@@ -450,6 +452,7 @@ func TestRetryWithRelogin(t *testing.T) {
 				},
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
+				ClientCache:    &fakeClientCache{},
 			})
 			require.NoError(t, err)
 
@@ -500,6 +503,7 @@ func TestImportantModalSemaphore(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
+		ClientCache:    &fakeClientCache{},
 	})
 	require.NoError(t, err)
 
@@ -648,6 +652,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
+		ClientCache:    &fakeClientCache{},
 	})
 	require.NoError(t, err)
 
@@ -723,4 +728,12 @@ type fakeStorage struct {
 
 func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	return &clusters.Cluster{}, &client.TeleportClient{}, nil
+}
+
+type fakeClientCache struct {
+	clientcache.Cache
+}
+
+func (f *fakeClientCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+	return &client.ProxyClient{}, nil
 }
