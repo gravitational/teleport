@@ -16,7 +16,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+      image: ghcr.io/gravitational/teleport-buildbox:teleport16
       env:
         GO_LINT_FLAGS: --timeout=30m
 
