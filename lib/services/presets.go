@@ -511,6 +511,9 @@ func NewSystemOktaResourcesRole() types.Role {
 				GroupLabels: types.Labels{
 					types.OriginLabel: []string{types.OriginOkta},
 				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindUserGroup, RO()),
+				},
 			},
 		},
 	}
