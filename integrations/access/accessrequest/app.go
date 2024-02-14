@@ -50,6 +50,9 @@ type App struct {
 	pluginData *pd.CompareAndSwap[PluginData]
 	bot        MessagingBot
 	job        lib.ServiceJob
+
+	// Swap to storing parsed conditions here.
+	accessMonitoringRule *types.AccessMonitoringRuleV1
 }
 
 // NewApp will create a new access request application.
@@ -71,6 +74,7 @@ func (a *App) Init(baseApp *common.BaseApp) error {
 		EncodePluginData,
 		DecodePluginData,
 	)
+	a.accessMonitoringRule = baseApp.AccessMonitoringRule
 
 	var ok bool
 	a.bot, ok = baseApp.Bot.(MessagingBot)
@@ -111,7 +115,9 @@ func (a *App) run(ctx context.Context) error {
 	job, err := watcherjob.NewJob(
 		a.apiClient,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
+			Watch: types.Watch{Kinds: []types.WatchKind{
+				{Kind: types.KindAccessRequest},
+			}},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
@@ -139,6 +145,7 @@ func (a *App) run(ctx context.Context) error {
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
 // call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
+
 	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
@@ -364,6 +371,11 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		}
 	}
 
+	if a.accessMonitoringRule.Spec.Notification != nil {
+		// PARSE NOTIFICATION RULE AND POPULATE RECIPIENTS HERE
+	}
+
+
 	validEmailSuggReviewers := []string{}
 	for _, reviewer := range req.GetSuggestedReviewers() {
 		if !lib.IsEmail(reviewer) {
@@ -453,3 +465,4 @@ func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]
 	}
 	return resourceNames, nil
 }
+
