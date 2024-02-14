@@ -409,8 +409,8 @@ async function sysClipboardGuard(
 }
 
 class KeyboardHandler {
-  private withheldDown: { [code: string]: boolean | undefined } = {};
-  private delayedUp: { [code: string]: NodeJS.Timeout | undefined } = {};
+  private withheldDown: Map<string, boolean> = new Map();
+  private delayedUp: Map<string, NodeJS.Timeout> = new Map();
   private isMac: boolean = getPlatform() === Platform.macOS;
 
   public handleKeyboardEvent(
@@ -441,7 +441,7 @@ class KeyboardHandler {
     if (this.isWitholdableOrDelayeable(e) && state === ButtonState.DOWN) {
       // Unlikely, but theoretically possible. In order to ensure correctness,
       // we clear any delayed up event for this key and handle it immediately.
-      const timeout = this.delayedUp[e.code];
+      const timeout = this.delayedUp.get(e.code);
       if (timeout) {
         clearTimeout(timeout);
         this.finishHandlingKeyboardEvent(cli, e, ButtonState.UP);
@@ -449,16 +449,26 @@ class KeyboardHandler {
 
       // Then we set the key down to be withheld until the next keydown or keyup,
       // or to never be sent if this cache is cleared onfocusout.
-      this.withheldDown[e.code] = true;
+      this.withheldDown.set(e.code, true);
 
       return true;
     } else if (this.isWitholdableOrDelayeable(e) && state === ButtonState.UP) {
+      // If we receive a delayed up event for a key that was already delayed,
+      // we log a warning. This should never happen, because we can only get an
+      // up event after a down, and we ensure the up cache is cleared when we
+      // handle a down event.
+      if (this.delayedUp.has(e.code)) {
+        console.warn(
+          'Received a delayed up event for a key that was already delayed. This should not happen.'
+        );
+      }
+
       const timeout = setTimeout(() => {
         this.finishHandlingKeyboardEvent(cli, e, ButtonState.UP);
       }, 10 /* ms */);
 
       // And add the timeout to the cache.
-      this.delayedUp[e.code] = timeout;
+      this.delayedUp.set(e.code, timeout);
 
       return true;
     }
@@ -493,7 +503,7 @@ class KeyboardHandler {
     }
 
     // If we're finishing handling for a withheld or delayed key, ensure
-    // that it's cleared from the cache (otherwise this will be a no-op).
+    // that it's cleared from the cache.
     this.clearWithholdingAndDelay(e.code);
   }
 
@@ -511,11 +521,11 @@ class KeyboardHandler {
    * This sends all currently withheld keys to the server.
    */
   private sendWithheldKeys(cli: TdpClient) {
-    for (const code in this.withheldDown) {
-      if (this.withheldDown[code] !== undefined) {
+    this.withheldDown.forEach((value, code) => {
+      if (value) {
         cli.sendKeyboardInput(code, ButtonState.DOWN);
       }
-    }
+    });
 
     this.clearAllWithheldDown();
   }
@@ -532,9 +542,7 @@ class KeyboardHandler {
    * @param code The key code to clear the cache for.
    */
   private clearWithheldDown(code: string) {
-    if (this.withheldDown[code] !== undefined) {
-      this.withheldDown[code] = undefined;
-    }
+    this.withheldDown.delete(code);
   }
 
   /**
@@ -545,9 +553,10 @@ class KeyboardHandler {
    * @param code The key code to clear the cache for.
    */
   private clearDelayedUp(code: string) {
-    if (this.delayedUp[code] !== undefined) {
-      clearTimeout(this.delayedUp[code]);
-      this.delayedUp[code] = undefined;
+    const timeout = this.delayedUp.get(code);
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+      this.delayedUp.delete(code);
     }
   }
 
@@ -567,19 +576,17 @@ class KeyboardHandler {
    * Clears the withheld down cache for all keys.
    */
   private clearAllWithheldDown() {
-    this.withheldDown = {};
+    this.withheldDown.clear();
   }
 
   /**
    * Clears the delayed up cache for all keys.
    */
   private clearAllDelayedUp() {
-    for (const code in this.delayedUp) {
-      if (this.delayedUp[code] !== undefined) {
-        clearTimeout(this.delayedUp[code]);
-      }
-    }
-    this.delayedUp = {};
+    this.delayedUp.forEach(timeout => {
+      clearTimeout(timeout);
+    });
+    this.delayedUp.clear();
   }
 
   private clearAllWithholdingAndDelay() {
