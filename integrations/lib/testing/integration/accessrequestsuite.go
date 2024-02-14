@@ -377,7 +377,7 @@ func (s *AccessRequestSuite) AnnotateRequesterRoleAccessRequests(ctx context.Con
 		}
 		conditions.Annotations[annotationKey] = annotationValue
 		role.SetAccessRequestConditions(types.Allow, conditions)
-		role, err = client.UpdateRole(ctx, role)
+		_, err = client.UpdateRole(ctx, role)
 		require.NoError(t, err)
 	}
 }
