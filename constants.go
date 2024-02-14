@@ -677,10 +677,10 @@ const (
 	// in that it allows for requesting longer lived access.
 	SystemOktaRequesterRoleName = "okta-requester"
 
-	// SystemOktaResourcesRoleName is the name of the system role that allows
+	// SystemOktaAccessRoleName is the name of the system role that allows
 	// access to Okta resources. This will be used by the Okta requester role to
 	// search for Okta resources.
-	SystemOktaResourcesRoleName = "okta-resources"
+	SystemOktaAccessRoleName = "okta-access"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

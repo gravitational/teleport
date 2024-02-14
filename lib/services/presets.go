@@ -484,10 +484,10 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 	}
 }
 
-// SystemOktaResourcesRoleName is the name of the system role that allows
+// SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
-func NewSystemOktaResourcesRole() types.Role {
+func NewSystemOktaAccessRole() types.Role {
 	if modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil
 	}
@@ -496,7 +496,7 @@ func NewSystemOktaResourcesRole() types.Role {
 		Kind:    types.KindRole,
 		Version: types.V6,
 		Metadata: types.Metadata{
-			Name:        teleport.SystemOktaResourcesRoleName,
+			Name:        teleport.SystemOktaAccessRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Request Okta resources",
 			Labels: map[string]string{
@@ -596,7 +596,7 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 	}
 
 	if enterprise {
-		conditions[teleport.SystemOktaResourcesRoleName] = types.RoleConditions{
+		conditions[teleport.SystemOktaAccessRoleName] = types.RoleConditions{
 			AppLabels:   types.Labels{types.OriginLabel: []string{types.OriginOkta}},
 			GroupLabels: types.Labels{types.OriginLabel: []string{types.OriginOkta}},
 		}
@@ -618,7 +618,7 @@ func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.Acce
 			},
 			teleport.SystemOktaRequesterRoleName: {
 				SearchAsRoles: []string{
-					teleport.SystemOktaResourcesRoleName,
+					teleport.SystemOktaAccessRoleName,
 				},
 				MaxDuration: types.NewDuration(maxAccessDuration),
 			},

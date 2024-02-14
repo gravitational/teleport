@@ -432,7 +432,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "okta resources (not enterprise)",
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
-					Name: teleport.SystemOktaResourcesRoleName,
+					Name: teleport.SystemOktaAccessRoleName,
 					Labels: map[string]string{
 						types.TeleportInternalResourceType: types.SystemResource,
 					},
@@ -445,7 +445,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "okta resources (enterprise)",
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
-					Name: teleport.SystemOktaResourcesRoleName,
+					Name: teleport.SystemOktaAccessRoleName,
 					Labels: map[string]string{
 						types.TeleportInternalResourceType: types.SystemResource,
 					},
@@ -455,7 +455,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Metadata: types.Metadata{
-					Name: teleport.SystemOktaResourcesRoleName,
+					Name: teleport.SystemOktaAccessRoleName,
 					Labels: map[string]string{
 						types.TeleportInternalResourceType: types.SystemResource,
 					},
@@ -476,7 +476,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "okta resources (enterprise, created by user)",
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
-					Name: teleport.SystemOktaResourcesRoleName,
+					Name: teleport.SystemOktaAccessRoleName,
 				},
 			},
 			enterprise:  true,

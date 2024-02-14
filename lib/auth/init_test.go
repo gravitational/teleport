@@ -797,7 +797,7 @@ func TestPresets(t *testing.T) {
 
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
-			teleport.SystemOktaResourcesRoleName,
+			teleport.SystemOktaAccessRoleName,
 			teleport.SystemOktaRequesterRoleName,
 		}
 

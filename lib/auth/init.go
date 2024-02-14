@@ -813,7 +813,7 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetDeviceAdminRole(),
 		services.NewPresetDeviceEnrollRole(),
 		services.NewPresetRequireTrustedDeviceRole(),
-		services.NewSystemOktaResourcesRole(),
+		services.NewSystemOktaAccessRole(),
 		services.NewSystemOktaRequesterRole(),
 	}
 
