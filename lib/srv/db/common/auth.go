@@ -307,6 +307,11 @@ func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) 
 		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating GCP auth token for %s.", sessionCtx)
+
+	serviceAccountName := sessionCtx.DatabaseUser
+	if !strings.HasSuffix(serviceAccountName, ".gserviceaccount.com") {
+		serviceAccountName = serviceAccountName + ".gserviceaccount.com"
+	}
 	resp, err := gcpIAM.GenerateAccessToken(ctx,
 		&gcpcredentialspb.GenerateAccessTokenRequest{
 			// From GenerateAccessToken docs:
@@ -314,7 +319,7 @@ func (a *dbAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) 
 			// The resource name of the service account for which the credentials
 			// are requested, in the following format:
 			//   projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}
-			Name: fmt.Sprintf("projects/-/serviceAccounts/%v.gserviceaccount.com", sessionCtx.DatabaseUser),
+			Name: fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccountName),
 			// From GenerateAccessToken docs:
 			//
 			// Code to identify the scopes to be included in the OAuth 2.0 access
