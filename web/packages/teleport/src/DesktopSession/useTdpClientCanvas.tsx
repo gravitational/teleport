@@ -409,84 +409,27 @@ async function sysClipboardGuard(
 }
 
 class KeyboardHandler {
-  withheldDown: { [code: string]: boolean | undefined } = {};
-  delayedUp: { [code: string]: NodeJS.Timeout | undefined } = {};
-  private isMac: boolean;
-
-  constructor() {
-    this.isMac = getPlatform() === Platform.macOS;
-  }
+  private withheldDown: { [code: string]: boolean | undefined } = {};
+  private delayedUp: { [code: string]: NodeJS.Timeout | undefined } = {};
+  private isMac: boolean = getPlatform() === Platform.macOS;
 
   public handleKeyboardEvent(
     cli: TdpClient,
     e: KeyboardEvent,
     state: ButtonState
   ) {
-    if (this.handleCapsLock(cli, e, state)) {
-      return;
-    }
-
+    // If this is a withheld or delayed key, handle it immediately and return.
     if (this.handleWithholdingAndDelay(cli, e, state)) {
       return;
     }
 
-    this.handleUnwithholding(cli, e, state);
-
-    cli.sendKeyboardInput(e.code, state);
-  }
-
-  /**
-   * Called when the canvas loses focus.
-   *
-   * This clears the withheld and delayed keys, so that they are not sent
-   * to the server when the canvas is out of focus.
-   */
-  public handleOnFocusOut() {
-    this.clearWithheldDown();
-    this.clearDelayedUp();
-  }
-
-  /**
-   * Special handler for the CapsLock key.
-   *
-   * On MacOS Edge/Chrome/Safari, each physical CapsLock DOWN-UP registers
-   * as either a single DOWN or single UP, with DOWN corresponding to
-   * "CapsLock on" and UP to "CapsLock off". On MacOS Firefox, it always
-   * registers as a DOWN.
-   *
-   * On Windows and Linux, all browsers treat CapsLock like a normal key.
-   *
-   * The remote Windows machine also treats CapsLock like a normal key, and
-   * expects a DOWN-UP whenever it's pressed.
-   *
-   * Returns true if the event was handled, false otherwise.
-   */
-  private handleCapsLock(
-    cli: TdpClient,
-    e: KeyboardEvent,
-    state: ButtonState
-  ): boolean {
-    if (e.code === 'CapsLock') {
-      if (this.isMac) {
-        // On Mac, every UP or DOWN given to us by the browser corresponds
-        // to a DOWN + UP on the remote machine.
-        cli.sendKeyboardInput('CapsLock', ButtonState.DOWN);
-        cli.sendKeyboardInput('CapsLock', ButtonState.UP);
-      } else {
-        // On Windows or Linux, we just pass the event through normally to the server.
-        cli.sendKeyboardInput('CapsLock', state);
-      }
-
-      return true;
-    }
-
-    return false;
+    this.finishHandlingKeyboardEvent(cli, e, state);
   }
 
   /**
    * Called before every keydown or keyup event. This witholds the
    * keys for which we want to see what the next event is before
-   * sending them on to the server.
+   * sending them on to the server, and sets up delayed up events.
    *
    * Returns true if the event was handled, false otherwise.
    */
@@ -495,15 +438,13 @@ class KeyboardHandler {
     e: KeyboardEvent,
     state: ButtonState
   ): boolean {
-    if (this.isWitholdableKey(e) && state === ButtonState.DOWN) {
+    if (this.isWitholdableOrDelayeable(e) && state === ButtonState.DOWN) {
       // Unlikely, but theoretically possible. In order to ensure correctness,
       // we clear any delayed up event for this key and handle it immediately.
       const timeout = this.delayedUp[e.code];
       if (timeout) {
         clearTimeout(timeout);
-        this.handleUnwithholding(cli, e, state);
-        cli.sendKeyboardInput(e.code, ButtonState.UP);
-        this.delayedUp[e.code] = undefined;
+        this.finishHandlingKeyboardEvent(cli, e, ButtonState.UP);
       }
 
       // Then we set the key down to be withheld until the next keydown or keyup,
@@ -511,12 +452,10 @@ class KeyboardHandler {
       this.withheldDown[e.code] = true;
 
       return true;
-    } else if (this.isWitholdableKey(e) && state === ButtonState.UP) {
+    } else if (this.isWitholdableOrDelayeable(e) && state === ButtonState.UP) {
       const timeout = setTimeout(() => {
-        this.handleUnwithholding(cli, e, state);
-        cli.sendKeyboardInput(e.code, ButtonState.UP);
-        this.delayedUp[e.code] = undefined;
-      }, 5 /* ms */);
+        this.finishHandlingKeyboardEvent(cli, e, ButtonState.UP);
+      }, 10 /* ms */);
 
       // And add the timeout to the cache.
       this.delayedUp[e.code] = timeout;
@@ -528,40 +467,123 @@ class KeyboardHandler {
   }
 
   /**
-   * Called after every keydown or keyup event. This sends any currently
-   * withheld keys to the server.
+   * Called to finish handling a keyboard event.
+   *
+   * For normal keys, this is called immediately.
+   * For withheld or delayed keys, this is called as the callback when
+   * another key is pressed or released (withheld) or after a delay (delayed).
    */
-  private handleUnwithholding(
+  private finishHandlingKeyboardEvent(
     cli: TdpClient,
     e: KeyboardEvent,
     state: ButtonState
-  ) {
-    if (this.shouldBeWithheld(e, state)) {
-      console.error('Unwithholding a key event that should have been withheld');
-      return;
+  ): void {
+    // Release any withheld keys before sending the current key.
+    this.sendWithheldKeys(cli);
+
+    // Special handling for CapsLock on Mac.
+    if (e.code === 'CapsLock' && this.isMac) {
+      // On Mac, every UP or DOWN given to us by the browser corresponds
+      // to a DOWN + UP on the remote machine for CapsLock.
+      cli.sendKeyboardInput('CapsLock', ButtonState.DOWN);
+      cli.sendKeyboardInput('CapsLock', ButtonState.UP);
+    } else {
+      // Otherwise, just pass the event through normally to the server.
+      cli.sendKeyboardInput(e.code, state);
     }
 
-    for (const code in this.withheldDown) {
-      cli.sendKeyboardInput(code, ButtonState.DOWN);
-      this.withheldDown[code] = undefined;
-    }
-
-    this.clearWithheldDown();
+    // If we're finishing handling for a withheld or delayed key, ensure
+    // that it's cleared from the cache (otherwise this will be a no-op).
+    this.clearWithholdingAndDelay(e.code);
   }
 
-  private isWitholdableKey(e: KeyboardEvent): boolean {
+  /**
+   * Called when the canvas loses focus.
+   *
+   * This clears the withheld and delayed keys, so that they are not sent
+   * to the server when the canvas is out of focus.
+   */
+  public handleOnFocusOut() {
+    this.clearAllWithholdingAndDelay();
+  }
+
+  /**
+   * This sends all currently withheld keys to the server.
+   */
+  private sendWithheldKeys(cli: TdpClient) {
+    for (const code in this.withheldDown) {
+      if (this.withheldDown[code] !== undefined) {
+        cli.sendKeyboardInput(code, ButtonState.DOWN);
+      }
+    }
+
+    this.clearAllWithheldDown();
+  }
+
+  private isWitholdableOrDelayeable(e: KeyboardEvent): boolean {
     return e.key === 'Meta' || e.key === 'Alt';
   }
 
-  private shouldBeWithheld(e: KeyboardEvent, state: ButtonState): boolean {
-    return this.isWitholdableKey(e) && state === ButtonState.DOWN;
+  /**
+   * Clears the withheld down cache for a single key.
+   *
+   * Calling this on a key that is not in the cache is a no-op.
+   *
+   * @param code The key code to clear the cache for.
+   */
+  private clearWithheldDown(code: string) {
+    if (this.withheldDown[code] !== undefined) {
+      this.withheldDown[code] = undefined;
+    }
   }
 
-  private clearWithheldDown() {
+  /**
+   * Clears the delayed up cache for a single key.
+   *
+   * Calling this on a key that is not in the cache is a no-op.
+   *
+   * @param code The key code to clear the cache for.
+   */
+  private clearDelayedUp(code: string) {
+    if (this.delayedUp[code] !== undefined) {
+      clearTimeout(this.delayedUp[code]);
+      this.delayedUp[code] = undefined;
+    }
+  }
+
+  /**
+   * Clears both caches for a single key.
+   *
+   * Calling this on a key that is not in the cache is a no-op.
+   *
+   * @param code The key code to clear the cache for.
+   */
+  private clearWithholdingAndDelay(code: string) {
+    this.clearWithheldDown(code);
+    this.clearDelayedUp(code);
+  }
+
+  /**
+   * Clears the withheld down cache for all keys.
+   */
+  private clearAllWithheldDown() {
     this.withheldDown = {};
   }
 
-  private clearDelayedUp() {
+  /**
+   * Clears the delayed up cache for all keys.
+   */
+  private clearAllDelayedUp() {
+    for (const code in this.delayedUp) {
+      if (this.delayedUp[code] !== undefined) {
+        clearTimeout(this.delayedUp[code]);
+      }
+    }
     this.delayedUp = {};
+  }
+
+  private clearAllWithholdingAndDelay() {
+    this.clearAllWithheldDown();
+    this.clearAllDelayedUp();
   }
 }
