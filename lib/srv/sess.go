@@ -1241,7 +1241,11 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	}
 
 	inReader, inWriter := io.Pipe()
+
+	s.mu.Lock()
 	s.inWriter = inWriter
+	s.mu.Unlock()
+
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 	s.BroadcastMessage("Creating session with ID: %v", s.id)
