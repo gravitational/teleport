@@ -85,6 +85,7 @@ func (c *Cluster) GetApps(ctx context.Context, r *api.GetAppsRequest) (*GetAppsR
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -179,6 +180,7 @@ func (c *Cluster) reissueAppCert(ctx context.Context, app types.Application) (tl
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

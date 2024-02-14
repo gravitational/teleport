@@ -1210,7 +1210,7 @@ func TestConnectToProxyCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	proxy, err := clt.ConnectToProxy(ctx)
-	require.Nil(t, proxy)
+	clusterClient, err := clt.ConnectToCluster(ctx)
+	require.Nil(t, clusterClient)
 	require.Error(t, err)
 }

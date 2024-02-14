@@ -566,6 +566,7 @@ func (s *Service) PromoteAccessRequest(ctx context.Context, rootClusterURI uri.R
 
 	var response *clusters.AccessRequest
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -602,6 +603,7 @@ func (s *Service) GetSuggestedAccessLists(ctx context.Context, rootClusterURI ur
 
 	var response []*accesslist.AccessList
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -830,6 +832,7 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 	}
 	response := &api.CreateConnectMyComputerRoleResponse{}
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -861,6 +864,7 @@ func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClus
 	}
 	var nodeToken string
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -887,6 +891,7 @@ func (s *Service) DeleteConnectMyComputerNode(ctx context.Context, req *api.Dele
 		return &api.DeleteConnectMyComputerNodeResponse{}, trace.Wrap(err)
 	}
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -927,6 +932,7 @@ func (s *Service) WaitForConnectMyComputerNodeJoin(ctx context.Context, rootClus
 
 	var server clusters.Server
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -960,6 +966,7 @@ func (s *Service) ListUnifiedResources(ctx context.Context, clusterURI uri.Resou
 	var resources *unifiedresources.ListResponse
 
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -994,6 +1001,7 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 	var preferences *api.UserPreferences
 
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := rootClusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1037,6 +1045,7 @@ func (s *Service) UpdateUserPreferences(ctx context.Context, clusterURI uri.Reso
 	var preferences *api.UserPreferences
 
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := rootClusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

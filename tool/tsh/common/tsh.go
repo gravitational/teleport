@@ -2209,6 +2209,7 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 		logger := log.WithField("cluster", profile.Cluster)
 
 		logger.Debug("Creating client...")
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxy, err := tc.ConnectToProxy(ctx)
 		if err != nil {
 			// log error and return nil so that results may still be retrieved
@@ -2978,16 +2979,22 @@ func onListClusters(cf *CLIConf) error {
 	var rootClusterName string
 	var leafClusters []types.RemoteCluster
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		proxyClient, err := tc.ConnectToProxy(cf.Context)
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return err
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		var rootErr, leafErr error
-		rootClusterName, rootErr = proxyClient.RootClusterName(cf.Context)
-		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
-		return trace.NewAggregate(rootErr, leafErr)
+		rootClusterName = clusterClient.RootClusterName()
+
+		rootAuthClient, err := clusterClient.ConnectToRootCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootAuthClient.Close()
+
+		leafClusters, err = rootAuthClient.GetRemoteClusters()
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)

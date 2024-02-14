@@ -450,11 +450,11 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			}, nil
 		})
 
-		proxyClient, err := teleportClient.ConnectToProxy(ctx)
+		clusterClient, err := teleportClient.ConnectToCluster(ctx)
 		require.NoError(t, err)
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
 		require.NoError(t, err)
 		defer rootAuthClient.Close()
 
