@@ -125,10 +125,8 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		Username: user,
 		Webauthn: wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
-	if len(req.OldPassword) > 0 {
-		authReq.Pass = &PassCreds{
-			Password: req.OldPassword,
-		}
+	authReq.Pass = &PassCreds{
+		Password: req.OldPassword,
 	}
 	if req.SecondFactorToken != "" {
 		authReq.OTP = &OTPCreds{
