@@ -48,12 +48,10 @@ type Kube struct {
 }
 
 // GetKubes returns a paginated kubes list
-func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKubesResponse, error) {
+func (c *Cluster) GetKubes(ctx context.Context, clt auth.ClientI, r *api.GetKubesRequest) (*GetKubesResponse, error) {
 	var (
-		page        apiclient.ResourcePage[types.KubeCluster]
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
+		page apiclient.ResourcePage[types.KubeCluster]
+		err  error
 	)
 
 	req := &proto.ListResourcesRequest{
@@ -68,20 +66,7 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		page, err = apiclient.GetResourcePage[types.KubeCluster](ctx, authClient, req)
+		page, err = apiclient.GetResourcePage[types.KubeCluster](ctx, clt, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -176,30 +161,15 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) (tls.
 	return cert, nil
 }
 
-func (c *Cluster) getKube(ctx context.Context, kubeCluster string) (types.KubeCluster, error) {
+func (c *Cluster) getKube(ctx context.Context, clt auth.ClientI, kubeCluster string) (types.KubeCluster, error) {
 	var kubeClusters []types.KubeCluster
 	err := AddMetadataToRetryableError(ctx, func() error {
-		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, authClient, proto.ListResourcesRequest{
+		var err error
+		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, clt, proto.ListResourcesRequest{
 			PredicateExpression: fmt.Sprintf("name == %q", kubeCluster),
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
-		return nil
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

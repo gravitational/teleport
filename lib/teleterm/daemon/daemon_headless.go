@@ -40,7 +40,12 @@ func (s *Service) UpdateHeadlessAuthenticationState(ctx context.Context, cluster
 		return trace.Wrap(err)
 	}
 
-	if err := cluster.UpdateHeadlessAuthenticationState(ctx, headlessID, types.HeadlessAuthenticationState(state)); err != nil {
+	rootProxyClient, err := s.GetCachedClient(ctx, cluster.URI.GetRootClusterURI())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := cluster.UpdateHeadlessAuthenticationState(ctx, rootProxyClient.CurrentCluster(), headlessID, types.HeadlessAuthenticationState(state)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -137,13 +142,19 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster, waitInit bool)
 	pendingWatcherInitializedOnce := sync.Once{}
 
 	watch := func() error {
-		pendingWatcher, closePendingWatcher, err := cluster.WatchPendingHeadlessAuthentications(watchCtx)
+		rootProxyClient, err := s.GetCachedClient(watchCtx, cluster.URI.GetRootClusterURI())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		rootClt := rootProxyClient.CurrentCluster()
+
+		pendingWatcher, closePendingWatcher, err := cluster.WatchPendingHeadlessAuthentications(watchCtx, rootClt)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer closePendingWatcher()
 
-		resolutionWatcher, closeResolutionWatcher, err := cluster.WatchHeadlessAuthentications(watchCtx)
+		resolutionWatcher, closeResolutionWatcher, err := cluster.WatchHeadlessAuthentications(watchCtx, rootClt)
 		if err != nil {
 			return trace.Wrap(err)
 		}
