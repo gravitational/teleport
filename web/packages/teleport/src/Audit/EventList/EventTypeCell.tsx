@@ -263,6 +263,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SECURITY_REPORT_RUN]: Icons.Info,
   [eventCodes.EXTERNAL_AUDIT_STORAGE_ENABLE]: Icons.Database,
   [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: Icons.Database,
+  [eventCodes.SPIFFE_SVID_ISSUED]: Icons.Keypair,
+  [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: Icons.Warning,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

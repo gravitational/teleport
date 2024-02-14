@@ -1372,76 +1372,31 @@ func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.User
 	return meta
 }
 
-// TODO(Joerger): replace with Authorize and authCtx.CheckAccessToResource
-// AuthorizeResourceWithVerbs will ensure that the user has access to the given verbs for the given kind.
-func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, resource types.Resource, verbs ...string) (*Context, error) {
-	authCtx, err := authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ruleCtx := &services.Context{
-		User:     authCtx.User,
-		Resource: resource,
-	}
-
-	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
-}
-
-// TODO(Joerger): replace with Authorize and authCtx.CheckAccessToKind
-// AuthorizeWithVerbs will ensure that the user has access to the given verbs for the given kind.
-func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, kind string, verbs ...string) (*Context, error) {
-	authCtx, err := authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ruleCtx := &services.Context{
-		User: authCtx.User,
-	}
-
-	return AuthorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
-}
-
-// TODO(Joerger): replace with authCtx.CheckAccessToRule
-// AuthorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
-func AuthorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
-	errs := make([]error, len(verbs))
-	for i, verb := range verbs {
-		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)
-	}
-
-	if err := trace.NewAggregate(errs...); err != nil {
-		return nil, err
-	}
-	return authCtx, nil
-}
-
 // CheckAccessToKind will ensure that the user has access to the given verbs for the given kind.
-func (c *Context) CheckAccessToKind(quiet bool, kind string, verb string, additionalVerbs ...string) error {
+func (c *Context) CheckAccessToKind(kind string, verb string, additionalVerbs ...string) error {
 	ruleCtx := &services.Context{
 		User: c.User,
 	}
 
-	return c.CheckAccessToRule(quiet, ruleCtx, kind, verb, additionalVerbs...)
+	return c.CheckAccessToRule(ruleCtx, kind, verb, additionalVerbs...)
 }
 
 // CheckAccessToResource will ensure that the user has access to the given verbs for the given resource.
-func (c *Context) CheckAccessToResource(quiet bool, resource types.Resource, verb string, additionalVerbs ...string) error {
+func (c *Context) CheckAccessToResource(resource types.Resource, verb string, additionalVerbs ...string) error {
 	ruleCtx := &services.Context{
 		User:     c.User,
 		Resource: resource,
 	}
 
-	return c.CheckAccessToRule(quiet, ruleCtx, resource.GetKind(), verb, additionalVerbs...)
+	return c.CheckAccessToRule(ruleCtx, resource.GetKind(), verb, additionalVerbs...)
 }
 
 // CheckAccessToRule will ensure that the user has access to the given verbs for the given [services.Context] and kind.
 // Prefer to use [Context.CheckAccessToKind] or [Context.CheckAccessToResource] for common checks.
-func (c *Context) CheckAccessToRule(quiet bool, ruleCtx *services.Context, kind string, verb string, additionalVerbs ...string) error {
+func (c *Context) CheckAccessToRule(ruleCtx *services.Context, kind string, verb string, additionalVerbs ...string) error {
 	var errs []error
 	for _, verb := range append(additionalVerbs, verb) {
-		if err := c.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet); err != nil {
+		if err := c.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1450,8 +1405,8 @@ func (c *Context) CheckAccessToRule(quiet bool, ruleCtx *services.Context, kind 
 }
 
 // AuthorizeAdminAction will ensure that the user is authorized to perform admin actions.
-func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
-	switch authCtx.AdminActionAuthState {
+func (c *Context) AuthorizeAdminAction() error {
+	switch c.AdminActionAuthState {
 	case AdminActionAuthMFAVerified, AdminActionAuthNotRequired:
 		return nil
 	}
@@ -1460,11 +1415,11 @@ func AuthorizeAdminAction(ctx context.Context, authCtx *Context) error {
 
 // AuthorizeAdminActionAllowReusedMFA will ensure that the user is authorized to perform
 // admin actions. Additionally, MFA challenges that allow reuse will be accepted.
-func AuthorizeAdminActionAllowReusedMFA(ctx context.Context, authCtx *Context) error {
-	if authCtx.AdminActionAuthState == AdminActionAuthMFAVerifiedWithReuse {
+func (c *Context) AuthorizeAdminActionAllowReusedMFA() error {
+	if c.AdminActionAuthState == AdminActionAuthMFAVerifiedWithReuse {
 		return nil
 	}
-	return AuthorizeAdminAction(ctx, authCtx)
+	return c.AuthorizeAdminAction()
 }
 
 // LocalUser is a local user

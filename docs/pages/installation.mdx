@@ -140,18 +140,18 @@ either:
   `(=teleport.version=)`.
 
 <Tabs>
-<TabItem label="Teleport Team/Community Edition" scope={["oss", "team"]}>
+<TabItem label="Teleport Community Edition" scope={["oss"]}>
 
 |Image name|Troubleshooting Tools?|Image base|
 |-|-|-|
 |`(=teleport.latest_oss_docker_image=)`|No|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
 |`(=teleport.latest_oss_debug_docker_image=)`|Yes|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
 
-For testing, we always recommend that you use the latest released version of
+For testing, we always recommend that you use the latest release version of
 Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 
 </TabItem>
-<TabItem label="Teleport Enterprise Cloud/Enterprise" scope={["cloud", "enterprise"]}>
+<TabItem label="Teleport Enterprise" scope={["enterprise"]}>
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
@@ -169,12 +169,23 @@ For testing, we always recommend that you use the latest release version of
 Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
 
 </TabItem>
+<TabItem label="Teleport Team/Teleport Enterprise Cloud" scope={["team", "cloud"]}>
+
+| Image name | Includes troubleshooting tools | Image base |
+| - | - | - |
+| `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-distroless-debug:(=cloud.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+
+For testing, we always recommend that you use the latest Cloud release version of
+Teleport Enterprise, which is currently `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)`.
+
+</TabItem>
 </Tabs>
 
 #### Interacting with Distroless Images
 
 Since version 15, Teleport images are based on Google's [Distroless](https://github.com/GoogleContainerTools/distroless) images.
-Those images don't contain any shell. 
+Those images don't contain any shell.
 
 To execute Teleport commands on containers based on these images, run commands similar to the following:
 

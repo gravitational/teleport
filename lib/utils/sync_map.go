@@ -18,7 +18,10 @@
 
 package utils
 
-import "sync"
+import (
+	"maps"
+	"sync"
+)
 
 // SyncMap is a generics version of a sync.Map.
 type SyncMap[K comparable, V any] struct {
@@ -58,4 +61,33 @@ func (s *SyncMap[K, V]) Delete(key K) {
 		return
 	}
 	delete(s.values, key)
+}
+
+// LoadAndDelete loads the value for a key and deletes it if it exists.
+func (s *SyncMap[K, V]) LoadAndDelete(key K) (value V, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.values == nil {
+		return value, false
+	}
+	value, ok = s.values[key]
+	if ok {
+		delete(s.values, key)
+	}
+	return value, ok
+}
+
+// Range calls a function sequentially for each key and value in the map. Note
+// that the map is not locked between evaluations of f.
+func (s *SyncMap[K, V]) Range(f func(key K, value V) bool) {
+	s.mu.RLock()
+	items := maps.Clone(s.values)
+	s.mu.RUnlock()
+
+	for key, value := range items {
+		if !f(key, value) {
+			return
+		}
+	}
 }

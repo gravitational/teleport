@@ -143,7 +143,7 @@ Ensure you have installed correct versions of necessary dependencies:
 * `Go` version from
   [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
 * If you wish to build the Rust-powered features like Desktop Access, see the
-  `Rust` and `Cargo` version in
+  `Rust` and `Cargo` versions in
   [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
   (search for `RUST_VERSION`)
 * For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
@@ -202,7 +202,7 @@ To build `tsh` with `libfido`:
     make build/tsh FIDO2=dynamic
     ```
 
-#### Build output and running locally
+#### Build output and run locally
 
 If the build succeeds, the installer will place the binaries in the `build` directory.
 
@@ -326,7 +326,7 @@ Why is a specific version of a module imported?
 
 ### Devbox Build (experimental)
 
-**Note**: Devbox support is still experimental. It's very possible things make not work as intended.
+**Note**: Devbox support is still experimental. It's very possible things may not work as intended.
 
 Teleport can be built using [devbox](https://www.jetpack.io/devbox). To use devbox, follow
 the instructions to install devbox [here](https://www.jetpack.io/devbox/docs/quickstart/) and
@@ -370,7 +370,7 @@ We offer a few different options for support. First of all, we try to provide cl
 ## Is Teleport Secure and Production-Ready?
 
 Yes -- Teleport is production-ready and designed to protect and facilitate
-access to the most precious and mission critical applications.
+access to the most precious and mission-critical applications.
 
 Teleport has completed several security audits from nationally and
 internationally recognized technology security companies. 
@@ -378,7 +378,7 @@ internationally recognized technology security companies.
 We publicize some of our audit results, security philosophy and related
 information on our [trust page](https://trust.goteleport.com/).
 
-You can see the list of companies who use Teleport in production on the Teleport
+You can see the list of companies that use Teleport in production on the Teleport
 [product page](https://goteleport.com/case-study/).
 
 ## Who Built Teleport?

@@ -3975,6 +3975,7 @@ message OneOf {
     events.ValidateMFAAuthResponse ValidateMFAAuthResponse = 147;
     events.OktaAccessListSync OktaAccessListSync = 148;
     events.DatabasePermissionUpdate DatabasePermissionUpdate = 149;
+    events.SPIFFESVIDIssued SPIFFESVIDIssued = 150;
   }
 }
 
@@ -5873,4 +5874,41 @@ message OktaAccessListSync {
 
   // NumAccessListMembers are the number of access list members that were created/updated.
   int32 numAccessListMembers = 9;
+}
+
+// SPIFFESVIDIssued is an event recorded when a SPIFFE SVID is issued.
+message SPIFFESVIDIssued {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SPIFFEID is the SPIFFE ID of the issued SVID
+  string SPIFFEID = 4 [(gogoproto.jsontag) = "spiffe_id"];
+  // DNSSANs is the list of DNS SANs in the issued SVID
+  repeated string DNSSANs = 5 [(gogoproto.jsontag) = "dns_sans"];
+  // IPSANs is the list of IP SANs in the issued SVID
+  repeated string IPSANs = 6 [(gogoproto.jsontag) = "ip_sans"];
+  // SVIDType is `jwt` or `x509
+  string SVIDType = 7 [(gogoproto.jsontag) = "svid_type"];
+  // SerialNumber is the serial number of the issued SVID
+  string SerialNumber = 8 [(gogoproto.jsontag) = "serial_number"];
+  // Hint is the hint of the issued SVID
+  string Hint = 9 [(gogoproto.jsontag) = "hint"];
 }

@@ -5,6 +5,7 @@ go 1.21
 require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/go-piv/piv-go v1.11.0
+	github.com/gobwas/ws v1.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
@@ -39,6 +40,8 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/gobwas/httphead v0.1.0 // indirect
+	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.0 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
