@@ -70,17 +70,14 @@ export default function useTdpClientCanvas(props: Props) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
 
-  /**
-   * Tracks whether the next keydown or keyup event should sync the
-   * local toggle key state to the remote machine.
-   *
-   * Set to true:
-   * - On component initialization, so keys are synced before the first keydown/keyup event.
-   * - On focusout, so keys are synced when the user returns to the window.
-   */
-  const syncBeforeNextKey = useRef(true);
-
   const keyboardHandler = useRef(new KeyboardHandler());
+  useEffect(() => {
+    // On unmount, clear all the timeouts on the keyboardHandler.
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      keyboardHandler.current.onUnmount();
+    };
+  }, []);
 
   useEffect(() => {
     const addr = cfg.api.desktopWsAddr
@@ -209,41 +206,7 @@ export default function useTdpClientCanvas(props: Props) {
     setWsConnection({ status: 'open' });
   };
 
-  /**
-   * Returns the ButtonState corresponding to the given `keyArg`.
-   *
-   * @param e The `KeyboardEvent`
-   * @param keyArg The key to check the state of. Valid values can be found [here](https://www.w3.org/TR/uievents-key/#keys-modifier)
-   */
-  const getModifierState = (e: KeyboardEvent, keyArg: string): ButtonState => {
-    return e.getModifierState(keyArg) ? ButtonState.DOWN : ButtonState.UP;
-  };
-
-  const getSyncKeys = (e: KeyboardEvent): SyncKeys => {
-    return {
-      scrollLockState: getModifierState(e, 'ScrollLock'),
-      numLockState: getModifierState(e, 'NumLock'),
-      capsLockState: getModifierState(e, 'CapsLock'),
-      kanaLockState: ButtonState.UP, // KanaLock is not supported, see https://www.w3.org/TR/uievents-key/#keys-modifier
-    };
-  };
-
-  /**
-   * Called before every keydown or keyup event.
-   *
-   * If syncBeforeNextKey is true, this function
-   * synchronizes the keys to the remote machine.
-   */
-  const handleSyncBeforeNextKey = (cli: TdpClient, e: KeyboardEvent) => {
-    if (syncBeforeNextKey.current === true) {
-      cli.sendSyncKeys(getSyncKeys(e));
-      syncBeforeNextKey.current = false;
-    }
-  };
-
   const canvasOnKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
-    e.preventDefault();
-    handleSyncBeforeNextKey(cli, e);
     keyboardHandler.current.handleKeyboardEvent(cli, e, ButtonState.DOWN);
 
     // The key codes in the if clause below are those that have been empirically determined not
@@ -259,14 +222,11 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   const canvasOnKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
-    e.preventDefault();
-    handleSyncBeforeNextKey(cli, e);
     keyboardHandler.current.handleKeyboardEvent(cli, e, ButtonState.UP);
   };
 
   const canvasOnFocusOut = () => {
-    keyboardHandler.current.handleOnFocusOut();
-    syncBeforeNextKey.current = true;
+    keyboardHandler.current.onFocusOut();
   };
 
   const canvasOnMouseMove = (
@@ -409,15 +369,36 @@ async function sysClipboardGuard(
 }
 
 class KeyboardHandler {
+  /**
+   * Cache for keys whose down event has been withheld until the next keydown or keyup,
+   * or to never be sent if this cache is cleared onfocusout.
+   */
   private withheldDown: Map<string, boolean> = new Map();
+  /**
+   * Cache for keys whose up event has been delayed for 10ms.
+   */
   private delayedUp: Map<string, NodeJS.Timeout> = new Map();
+  /**
+   * Tracks whether the next keydown or keyup event should sync the
+   * local toggle key state to the remote machine.
+   *
+   * Set to true:
+   * - On component initialization, so keys are synced before the first keydown/keyup event.
+   * - On focusout, so keys are synced when the user returns to the window.
+   */
+  private syncBeforeNextKey: boolean = true;
   private isMac: boolean = getPlatform() === Platform.macOS;
 
+  /**
+   * Primary method for handling keyboard events.
+   */
   public handleKeyboardEvent(
     cli: TdpClient,
     e: KeyboardEvent,
     state: ButtonState
   ) {
+    e.preventDefault();
+    this.handleSyncBeforeNextKey(cli, e);
     // If this is a withheld or delayed key, handle it immediately and return.
     if (this.handleWithholdingAndDelay(cli, e, state)) {
       return;
@@ -425,6 +406,35 @@ class KeyboardHandler {
 
     this.finishHandlingKeyboardEvent(cli, e, state);
   }
+
+  private handleSyncBeforeNextKey(cli: TdpClient, e: KeyboardEvent) {
+    if (this.syncBeforeNextKey === true) {
+      cli.sendSyncKeys(this.getSyncKeys(e));
+      this.syncBeforeNextKey = false;
+    }
+  }
+
+  private getSyncKeys = (e: KeyboardEvent): SyncKeys => {
+    return {
+      scrollLockState: this.getModifierState(e, 'ScrollLock'),
+      numLockState: this.getModifierState(e, 'NumLock'),
+      capsLockState: this.getModifierState(e, 'CapsLock'),
+      kanaLockState: ButtonState.UP, // KanaLock is not supported, see https://www.w3.org/TR/uievents-key/#keys-modifier
+    };
+  };
+
+  /**
+   * Returns the ButtonState corresponding to the given `keyArg`.
+   *
+   * @param e The `KeyboardEvent`
+   * @param keyArg The key to check the state of. Valid values can be found [here](https://www.w3.org/TR/uievents-key/#keys-modifier)
+   */
+  private getModifierState = (
+    e: KeyboardEvent,
+    keyArg: string
+  ): ButtonState => {
+    return e.getModifierState(keyArg) ? ButtonState.DOWN : ButtonState.UP;
+  };
 
   /**
    * Called before every keydown or keyup event. This witholds the
@@ -476,6 +486,10 @@ class KeyboardHandler {
     return false;
   }
 
+  private isWitholdableOrDelayeable(e: KeyboardEvent): boolean {
+    return e.key === 'Meta' || e.key === 'Alt';
+  }
+
   /**
    * Called to finish handling a keyboard event.
    *
@@ -508,16 +522,6 @@ class KeyboardHandler {
   }
 
   /**
-   * Called when the canvas loses focus.
-   *
-   * This clears the withheld and delayed keys, so that they are not sent
-   * to the server when the canvas is out of focus.
-   */
-  public handleOnFocusOut() {
-    this.clearAllWithholdingAndDelay();
-  }
-
-  /**
    * This sends all currently withheld keys to the server.
    */
   private sendWithheldKeys(cli: TdpClient) {
@@ -530,8 +534,23 @@ class KeyboardHandler {
     this.clearAllWithheldDown();
   }
 
-  private isWitholdableOrDelayeable(e: KeyboardEvent): boolean {
-    return e.key === 'Meta' || e.key === 'Alt';
+  /**
+   * Clears the withheld down cache for all keys.
+   */
+  private clearAllWithheldDown() {
+    this.withheldDown.clear();
+  }
+
+  /**
+   * Clears both caches for a single key.
+   *
+   * Calling this on a key that is not in the cache is a no-op.
+   *
+   * @param code The key code to clear the cache for.
+   */
+  private clearWithholdingAndDelay(code: string) {
+    this.clearWithheldDown(code);
+    this.clearDelayedUp(code);
   }
 
   /**
@@ -561,22 +580,26 @@ class KeyboardHandler {
   }
 
   /**
-   * Clears both caches for a single key.
+   * Called when the canvas loses focus.
    *
-   * Calling this on a key that is not in the cache is a no-op.
-   *
-   * @param code The key code to clear the cache for.
+   * This clears the withheld and delayed keys, so that they are not sent
+   * to the server when the canvas is out of focus.
    */
-  private clearWithholdingAndDelay(code: string) {
-    this.clearWithheldDown(code);
-    this.clearDelayedUp(code);
+  public onFocusOut() {
+    this.clearAllWithholdingAndDelay();
+    this.syncBeforeNextKey = true;
   }
 
   /**
-   * Clears the withheld down cache for all keys.
+   * To be called before unmounting the component.
    */
-  private clearAllWithheldDown() {
-    this.withheldDown.clear();
+  public onUnmount() {
+    this.clearAllDelayedUp();
+  }
+
+  private clearAllWithholdingAndDelay() {
+    this.clearAllWithheldDown();
+    this.clearAllDelayedUp();
   }
 
   /**
@@ -587,10 +610,5 @@ class KeyboardHandler {
       clearTimeout(timeout);
     });
     this.delayedUp.clear();
-  }
-
-  private clearAllWithholdingAndDelay() {
-    this.clearAllWithheldDown();
-    this.clearAllDelayedUp();
   }
 }
