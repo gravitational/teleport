@@ -243,7 +243,6 @@ export default function useTdpClientCanvas(props: Props) {
 
   const canvasOnKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
-    console.log('keydown', e.code, e.key, e.keyCode);
     handleSyncBeforeNextKey(cli, e);
     keyboardHandler.current.handleKeyboardEvent(cli, e, ButtonState.DOWN);
 
@@ -261,7 +260,6 @@ export default function useTdpClientCanvas(props: Props) {
 
   const canvasOnKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
-    console.log('keyup', e.code, e.key, e.keyCode);
     handleSyncBeforeNextKey(cli, e);
     keyboardHandler.current.handleKeyboardEvent(cli, e, ButtonState.UP);
   };
@@ -411,7 +409,8 @@ async function sysClipboardGuard(
 }
 
 class KeyboardHandler {
-  withheld: { [code: string]: ButtonState | undefined } = {};
+  withheldDown: { [code: string]: boolean | undefined } = {};
+  delayedUp: { [code: string]: NodeJS.Timeout | undefined } = {};
   private isMac: boolean;
 
   constructor() {
@@ -427,7 +426,7 @@ class KeyboardHandler {
       return;
     }
 
-    if (this.handleWithholding(e, state)) {
+    if (this.handleWithholdingAndDelay(cli, e, state)) {
       return;
     }
 
@@ -439,11 +438,12 @@ class KeyboardHandler {
   /**
    * Called when the canvas loses focus.
    *
-   * This clears the withheld keys, so that they don't get stuck in the
-   * down state if the user loses focus while holding them down.
+   * This clears the withheld and delayed keys, so that they are not sent
+   * to the server when the canvas is out of focus.
    */
   public handleOnFocusOut() {
-    this.withheld = {};
+    this.clearWithheldDown();
+    this.clearDelayedUp();
   }
 
   /**
@@ -490,9 +490,37 @@ class KeyboardHandler {
    *
    * Returns true if the event was handled, false otherwise.
    */
-  private handleWithholding(e: KeyboardEvent, state: ButtonState): boolean {
-    if (this.shouldBeWithheld(e, state)) {
-      this.withheld[e.code] = state;
+  private handleWithholdingAndDelay(
+    cli: TdpClient,
+    e: KeyboardEvent,
+    state: ButtonState
+  ): boolean {
+    if (this.isWitholdableKey(e) && state === ButtonState.DOWN) {
+      // Unlikely, but theoretically possible. In order to ensure correctness,
+      // we clear any delayed up event for this key and handle it immediately.
+      const timeout = this.delayedUp[e.code];
+      if (timeout) {
+        clearTimeout(timeout);
+        this.handleUnwithholding(cli, e, state);
+        cli.sendKeyboardInput(e.code, ButtonState.UP);
+        this.delayedUp[e.code] = undefined;
+      }
+
+      // Then we set the key down to be withheld until the next keydown or keyup,
+      // or to never be sent if this cache is cleared onfocusout.
+      this.withheldDown[e.code] = true;
+
+      return true;
+    } else if (this.isWitholdableKey(e) && state === ButtonState.UP) {
+      const timeout = setTimeout(() => {
+        this.handleUnwithholding(cli, e, state);
+        cli.sendKeyboardInput(e.code, ButtonState.UP);
+        this.delayedUp[e.code] = undefined;
+      }, 5 /* ms */);
+
+      // And add the timeout to the cache.
+      this.delayedUp[e.code] = timeout;
+
       return true;
     }
 
@@ -510,14 +538,15 @@ class KeyboardHandler {
   ) {
     if (this.shouldBeWithheld(e, state)) {
       console.error('Unwithholding a key event that should have been withheld');
-      throw new Error('internal application error');
+      return;
     }
 
-    for (const code in this.withheld) {
-      const witheldState = this.withheld[code];
-      cli.sendKeyboardInput(code, witheldState);
-      this.withheld[code] = undefined;
+    for (const code in this.withheldDown) {
+      cli.sendKeyboardInput(code, ButtonState.DOWN);
+      this.withheldDown[code] = undefined;
     }
+
+    this.clearWithheldDown();
   }
 
   private isWitholdableKey(e: KeyboardEvent): boolean {
@@ -526,5 +555,13 @@ class KeyboardHandler {
 
   private shouldBeWithheld(e: KeyboardEvent, state: ButtonState): boolean {
     return this.isWitholdableKey(e) && state === ButtonState.DOWN;
+  }
+
+  private clearWithheldDown() {
+    this.withheldDown = {};
+  }
+
+  private clearDelayedUp() {
+    this.delayedUp = {};
   }
 }
