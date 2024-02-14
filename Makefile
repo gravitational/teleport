@@ -300,7 +300,7 @@ TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
 teleport-hot-reload:
 	CompileDaemon \
-	  --graceful-kill=true \
+		--graceful-kill=true \
 		--exclude="node_modules" \
 		--exclude-dir=".git" \
 		--exclude-dir="build" \
