@@ -223,21 +223,29 @@ func (s *AccessRequestSuite) SetupSuite() {
 	reminderRole, err = adminClient.CreateRole(ctx, reminderRole)
 	require.NoError(t, err)
 
-	// Create the role for the plugin to automatically approve access requests
-	autoApprovalRole, err := types.NewRole("auto-approval-plugin", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			ReviewRequests: &types.AccessReviewConditions{
-				Roles: []string{RequestedRoleName},
+	pluginRoles := []string{pluginRole.GetName(), reminderRole.GetName()}
+
+	// Auto approval requires setting some fields that are enterprise-only.
+	// We must skip role creation in OSS, else it will fail.
+	if s.TeleportFeatures().AdvancedAccessWorkflows {
+		// Create the role for the plugin to automatically approve access requests
+		autoApprovalRole, err := types.NewRole("auto-approval-plugin", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					Roles: []string{RequestedRoleName},
+				},
 			},
-		},
-	})
-	require.NoError(t, err)
-	autoApprovalRole, err = adminClient.CreateRole(ctx, autoApprovalRole)
-	require.NoError(t, err)
+		})
+		require.NoError(t, err)
+		autoApprovalRole, err = adminClient.CreateRole(ctx, autoApprovalRole)
+		require.NoError(t, err)
+
+		pluginRoles = append(pluginRoles, autoApprovalRole.GetName())
+	}
 
 	pluginUser, err := types.NewUser(PluginUserName)
 	require.NoError(t, err)
-	pluginUser.SetRoles([]string{pluginRole.GetName(), reminderRole.GetName(), autoApprovalRole.GetName()})
+	pluginUser.SetRoles(pluginRoles)
 	pluginUser, err = adminClient.CreateUser(ctx, pluginUser)
 	require.NoError(t, err)
 
