@@ -38,6 +38,8 @@ import (
 
 // SQLAdminClient defines an interface providing access to the GCP Cloud SQL API.
 type SQLAdminClient interface {
+	// GetUser retrieves a resource containing information about a user.
+	GetUser(ctx context.Context, db types.Database, dbUser string) (*sqladmin.User, error)
 	// UpdateUser updates an existing user for the project/instance configured in a session.
 	UpdateUser(ctx context.Context, db types.Database, dbUser string, user *sqladmin.User) error
 	// GetDatabaseInstance returns database instance details for the project/instance
@@ -61,6 +63,17 @@ func NewSQLAdminClient(ctx context.Context) (SQLAdminClient, error) {
 // sqladmin.Service.
 type gcpSQLAdminClient struct {
 	service *sqladmin.Service
+}
+
+// GetUser retrieves a resource containing information about a user.
+func (g *gcpSQLAdminClient) GetUser(ctx context.Context, db types.Database, dbUser string) (*sqladmin.User, error) {
+	user, err := g.service.Users.Get(
+		db.GetGCP().ProjectID,
+		db.GetGCP().InstanceID,
+		dbUser,
+	).Host("%").Context(ctx).Do()
+	// TODO convert
+	return user, trace.Wrap(err)
 }
 
 // UpdateUser updates an existing user in a Cloud SQL for the project/instance
