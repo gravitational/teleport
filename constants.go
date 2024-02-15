@@ -222,6 +222,9 @@ const (
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
 
+	// ComponentTCTL is the "tctl" binary.
+	ComponentTCTL = "tctl"
+
 	// ComponentTBot is the "tbot" binary
 	ComponentTBot = "tbot"
 
