@@ -1710,6 +1710,13 @@
               "slug": "/reference/helm-reference/teleport-operator/"
             },
             {
+              "title": "teleport-access-graph",
+              "slug": "/reference/helm-reference/teleport-access-graph/",
+              "forScopes": [
+                "enterprise"
+              ]
+            },
+            {
               "title": "teleport-plugin-event-handler",
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
             },
