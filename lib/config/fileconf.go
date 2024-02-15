@@ -1235,7 +1235,7 @@ type HardwareKey struct {
 
 	// SerialNumberValidation contains optional settings for hardware key
 	// serial number validation, including whether it is enabled.
-	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"require_known_serial_number,omitempty"`
+	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"serial_number_validation,omitempty"`
 }
 
 func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
