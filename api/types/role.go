@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"path"
 	"slices"
 	"strings"
@@ -982,6 +983,13 @@ func (c *SPIFFERoleCondition) CheckAndSetDefaults() error {
 	}
 	if !strings.HasPrefix(c.Path, "/") {
 		return trace.BadParameter("path: should start with /")
+	}
+	for i, str := range c.IPSANs {
+		if _, _, err := net.ParseCIDR(str); err != nil {
+			return trace.BadParameter(
+				"validating ip_sans[%d]: %s", i, err.Error(),
+			)
+		}
 	}
 	return nil
 }

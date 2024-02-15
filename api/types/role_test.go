@@ -484,6 +484,23 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 			}),
 			requireError: requireBadParameterContains("path: should start with /"),
 		},
+		{
+			name: "spiffe: invalid ip cidr",
+			role: newRole(t, RoleSpecV6{
+				Allow: RoleConditions{
+					SPIFFE: []*SPIFFERoleCondition{
+						{
+							Path: "/foo",
+							IPSANs: []string{
+								"10.0.0.1/24",
+								"llama",
+							},
+						},
+					},
+				},
+			}),
+			requireError: requireBadParameterContains("validating ip_sans[1]: invalid CIDR address: llama"),
+		},
 	}
 
 	for _, tt := range tests {
