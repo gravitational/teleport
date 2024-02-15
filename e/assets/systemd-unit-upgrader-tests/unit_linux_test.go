@@ -492,6 +492,82 @@ teleport:
           output: text
           extra_fields: [level, timestamp, component, caller]`
 
+// TestProxyServerDoubleQuotes verifies the upgrader can parse the proxy address
+// surrounded by double quotes
+func TestProxyServerDoubleQuotes(t *testing.T) {
+	endpoint := NewUpgradeEndpoint("/v1/webapi/automaticupgrades/channel/stable/cloud")
+	endpoint.SetVersion("2.3.4")
+	endpoint.SetCritical("no")
+
+	listener, err := net.Listen("tcp4", "localhost:0")
+	require.NoError(t, err)
+
+	go endpoint.Serve(listener)
+	defer endpoint.Shutdown(context.Background())
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+
+	// set up basic test-case that should cause us to fire off an install attempt
+	tc := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"schedule":               currentSchedule(),
+			"state-version-override": "1.2.3", // overrides the upgrader's view of the currently installed teleport version
+		},
+		agentCfg: fmt.Sprintf(testAgentCfg, fmt.Sprintf("\"localhost:%s\"", port)),
+	}
+
+	out, err := tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	nop, ok := out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "2.3.4", nop.version)
+}
+
+// TestProxyServerSingleQuotes verifies the upgrader can parse the proxy address
+// surrounded by single quotes
+func TestProxyServerSingleQuotes(t *testing.T) {
+	endpoint := NewUpgradeEndpoint("/v1/webapi/automaticupgrades/channel/stable/cloud")
+	endpoint.SetVersion("2.3.4")
+	endpoint.SetCritical("no")
+
+	listener, err := net.Listen("tcp4", "localhost:0")
+	require.NoError(t, err)
+
+	go endpoint.Serve(listener)
+	defer endpoint.Shutdown(context.Background())
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+
+	// set up basic test-case that should cause us to fire off an install attempt
+	tc := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"schedule":               currentSchedule(),
+			"state-version-override": "1.2.3", // overrides the upgrader's view of the currently installed teleport version
+		},
+		agentCfg: fmt.Sprintf(testAgentCfg, fmt.Sprintf("'localhost:%s'", port)),
+	}
+
+	out, err := tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	nop, ok := out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "2.3.4", nop.version)
+}
+
 // TestUpgraderDetectProxyAddr verifies that the updater detects the proxy URL automatically
 func TestUpgraderDetectProxyAddr(t *testing.T) {
 	endpoint := NewUpgradeEndpoint("/v1/webapi/automaticupgrades/channel/stable/cloud")

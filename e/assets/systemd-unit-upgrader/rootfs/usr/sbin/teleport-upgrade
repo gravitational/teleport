@@ -97,8 +97,8 @@ get_endpoint() {
         return 0
     fi
 
-    # we try to parse the teleport config, it it fails we use the default
-    proxy_server="$(grep -oP '^\s+proxy_server:\s*([^\s#]+).*$' "$agent_conf" | sed 's/\s\+proxy_server:\s*\([^[:space:]#]\+\).*/\1/')"
+    # we try to parse the teleport config, if it fails we use the default
+    proxy_server="$(grep -oP '^\s+proxy_server:\s*([^\s#]+).*$' "$agent_conf" | sed 's/\s\+proxy_server:\s*\([^[:space:]#]\+\).*/\1/' | sed 's/\"//g' | sed "s/'//g")"
     if [ -z "$proxy_server" ]; then
         echo "$default_endpoint"
         return 0
