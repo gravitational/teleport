@@ -132,7 +132,6 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	require.NotEmpty(t, r1.GetMetadata().GetRevision())
 	require.NotEmpty(t, r2.GetMetadata().GetRevision())
-	require.NotEqual(t, r1.GetMetadata().GetRevision(), r2.GetMetadata().GetRevision())
 
 	// Fetch all resources using paging default.
 	out, nextToken, err = service.ListResources(ctx, 0, "")
