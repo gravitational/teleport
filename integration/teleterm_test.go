@@ -25,6 +25,7 @@ import (
 	"net"
 	"os/user"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -372,32 +373,44 @@ func testRemoteClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 		daemonService.Stop()
 	})
 
-	// The cache is empty, we will have to connect to proxy.
-	firstCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
-	require.NoError(t, err)
+	// Check if parallel calls trying to get a client will return the same one.
+	var wg sync.WaitGroup
+	concurrentCalls := 2
+	var parallelCallsForClient = make([]*client.ProxyClient, concurrentCalls)
+	for i := 0; i < concurrentCalls; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			concurrentCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+			assert.NoError(t, err)
+			parallelCallsForClient[i] = concurrentCallClient
+		}(i)
+	}
+	wg.Wait()
+	require.Equal(t, parallelCallsForClient[0], parallelCallsForClient[1])
 
 	// Since we have a client in the cache, it should be returned.
-	secondCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	thirdCallForClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
 	require.NoError(t, err)
-	require.Equal(t, firstCallClient, secondCallClient)
+	require.Equal(t, parallelCallsForClient[1], thirdCallForClient)
 
 	// Let's remove the client from the cache.
 	// The call to GetRemoteClient will
 	// connect to proxy and return a new client.
 	err = daemonService.InvalidateRemoteClientsForRoot(cluster.URI)
 	require.NoError(t, err)
-	thirdCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	forthCallForClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
 	require.NoError(t, err)
-	require.NotEqual(t, secondCallClient, thirdCallClient)
+	require.NotEqual(t, thirdCallForClient, forthCallForClient)
 
 	// After closing the client (from our or a remote side)
 	// it will be removed from the cache.
 	// The call to GetRemoteClient will connect to proxy and return a new client.
-	err = thirdCallClient.Close()
+	err = forthCallForClient.Close()
 	require.NoError(t, err)
-	forthCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	fifthCallForClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
 	require.NoError(t, err)
-	require.NotEqual(t, thirdCallClient, forthCallClient)
+	require.NotEqual(t, forthCallForClient, fifthCallForClient)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
