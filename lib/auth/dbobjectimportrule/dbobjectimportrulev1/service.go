@@ -192,6 +192,7 @@ func (rs *DatabaseObjectImportRuleService) UpdateDatabaseObjectImportRule(
 	return rule, nil
 }
 
+// UpsertDatabaseObjectImportRule creates a new DatabaseObjectImportRule or forcefully updates an existing DatabaseObjectImportRule.
 func (rs *DatabaseObjectImportRuleService) UpsertDatabaseObjectImportRule(ctx context.Context, req *pb.UpsertDatabaseObjectImportRuleRequest) (*pb.DatabaseObjectImportRule, error) {
 	err := rs.authorize(ctx, true, types.VerbUpdate, types.VerbCreate)
 	if err != nil {
