@@ -24,6 +24,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/label"
 )
 
 func TestNewDatabaseObjectImportRule(t *testing.T) {
@@ -35,7 +36,7 @@ func TestNewDatabaseObjectImportRule(t *testing.T) {
 		{
 			name: "valid rule",
 			spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-				DbLabels: types.Labels{"key": {"value"}}.ToProto(),
+				DbLabels: label.FromMap(map[string][]string{"key": {"value"}}),
 				Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
 			},
 			expectedError: nil,
@@ -71,7 +72,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 					Namespace: defaults.Namespace,
 				},
 				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-					DbLabels: types.Labels{"key": {"value"}}.ToProto(),
+					DbLabels: label.FromMap(map[string][]string{"key": {"value"}}),
 					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
 				},
 			},
@@ -156,7 +157,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 					Namespace: defaults.Namespace,
 				},
 				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-					DbLabels: types.Labels{"key": {"value"}}.ToProto(),
+					DbLabels: label.FromMap(map[string][]string{"key": {"value"}}),
 				},
 			},
 			expectedError: trace.BadParameter("missing mappings"),
