@@ -146,7 +146,8 @@ export function Bots() {
         <BotList
           attempt={crudAttempt}
           bots={bots}
-          disabledEdit={!flags.roles}
+          disabledEdit={!flags.roles || !flags.editBots}
+          disabledDelete={!flags.removeBots}
           roles={roles}
           onClose={onClose}
           onDelete={onDelete}
