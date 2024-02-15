@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,10 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TextSelectCopy } from './TextSelectCopy';
-import { TextSelectCopyMulti } from './TextSelectCopyMulti';
-
+import { TextSelectCopy, TextSelectCopyMulti } from 'design/TextSelectCopy';
+/**
+ * @deprecated Import from `design/TextSelectCopy`.
+ */
 export { TextSelectCopyMulti };
-// TODO (lisa): will remove this entirely after
-// TextSelectCopyMulti replaces existing use of TextSelectCopy.
+
+/**
+ * @deprecated Import from `design/TextSelectCopy`.
+ */
 export default TextSelectCopy;
