@@ -279,9 +279,8 @@ certificate or use a custom domain name.
 
 ### Where does Teleport Enterprise Cloud run?
 
-Teleport Enterprise Cloud is deployed within AWS, using S3 and DynamoDB for storage with AWS-managed encryption keys.
-See the [available regions](./architecture.mdx#auth-service) for the DynamoDB. [External Audit Storage](./external-audit-storage.mdx) allows
-for optionally storing audit events and session recordings on infrastructure in any AWS account.
+Teleport Cloud runs on Amazon Web Services (AWS). We run proxies in a variety 
+of regions all over the world, and allow customers to [select the region](./architecture.mdx#auth-service) where the data is stored.
 
 ### Are you using AWS-managed encryption keys, or CMKs via KMS?
 
