@@ -199,7 +199,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 				clt := baseClient(t, clusters)
 				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
 				require.True(t, ok)
-				mockClt.checkAgentAlreadyInstalled = func(getter genericclioptions.RESTClientGetter, logger logrus.FieldLogger) (bool, error) {
+				mockClt.checkAgentAlreadyInstalled = func(ctx context.Context, getter genericclioptions.RESTClientGetter, logger logrus.FieldLogger) (bool, error) {
 					return true, nil
 				}
 				return mockClt
@@ -418,7 +418,7 @@ type mockEnrollEKSClusterClient struct {
 	deleteAccessEntry          func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
 	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
 	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled func(genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
+	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, logrus.FieldLogger) (bool, error)
 	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, logrus.FieldLogger, EnrollEKSClustersRequest) error
 	createToken                func(ctx context.Context, token types.ProvisionToken) error
 }
@@ -465,9 +465,9 @@ func (m *mockEnrollEKSClusterClient) GetCallerIdentity(ctx context.Context, para
 	return &sts.GetCallerIdentityOutput{}, nil
 }
 
-func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
+func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(ctx context.Context, kubeconfig genericclioptions.RESTClientGetter, log logrus.FieldLogger) (bool, error) {
 	if m.checkAgentAlreadyInstalled != nil {
-		return m.checkAgentAlreadyInstalled(kubeconfig, log)
+		return m.checkAgentAlreadyInstalled(ctx, kubeconfig, log)
 	}
 	return false, nil
 }

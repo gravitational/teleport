@@ -1363,6 +1363,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 	)
 	defer span.End()
 
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1393,6 +1394,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	)
 	defer span.End()
 
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1414,13 +1416,14 @@ func (tc *TeleportClient) CreateAccessRequestV2(ctx context.Context, req types.A
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return proxyClient.CreateAccessRequestV2(ctx, req)
+	created, err := clusterClient.AuthClient.CreateAccessRequestV2(ctx, req)
+	return created, trace.Wrap(err)
 }
 
 // GetAccessRequests loads all access requests matching the supplied filter.
@@ -1436,13 +1439,14 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.Ac
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return proxyClient.GetAccessRequests(ctx, filter)
+	reqs, err := clusterClient.AuthClient.GetAccessRequests(ctx, filter)
+	return reqs, trace.Wrap(err)
 }
 
 // GetRole loads a role resource by name.
@@ -1457,13 +1461,14 @@ func (tc *TeleportClient) GetRole(ctx context.Context, name string) (types.Role,
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return proxyClient.GetRole(ctx, name)
+	role, err := clusterClient.AuthClient.GetRole(ctx, name)
+	return role, trace.Wrap(err)
 }
 
 // watchCloser is a wrapper around a services.Watcher
@@ -1490,20 +1495,19 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	watcher, err := proxyClient.NewWatcher(ctx, watch)
+	watcher, err := clusterClient.AuthClient.NewWatcher(ctx, watch)
 	if err != nil {
-		proxyClient.Close()
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(err, clusterClient.Close())
 	}
 
 	return watchCloser{
 		Watcher: watcher,
-		Closer:  proxyClient,
+		Closer:  clusterClient,
 	}, nil
 }
 
@@ -1517,6 +1521,7 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 	)
 	defer span.End()
 
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2041,13 +2046,13 @@ func (tc *TeleportClient) Play(ctx context.Context, sessionID string, speed floa
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return playSession(ctx, sessionID, speed, proxyClient.CurrentCluster())
+	return playSession(ctx, sessionID, speed, clusterClient.AuthClient)
 }
 
 const (
@@ -2365,18 +2370,19 @@ func (tc *TeleportClient) GetClusterAlerts(ctx context.Context, req types.GetClu
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	alerts, err := proxyClient.GetClusterAlerts(ctx, req)
+	alerts, err := clusterClient.AuthClient.GetClusterAlerts(ctx, req)
 	return alerts, trace.Wrap(err)
 }
 
 // ListNodesWithFiltersAllClusters returns a map of all nodes in all clusters connected to this proxy.
 func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (map[string][]types.Server, error) {
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2407,27 +2413,24 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	filter := customFilter
 	if filter == nil {
 		filter = tc.ResourceFilter(types.KindAppServer)
 	}
 
-	servers, err := proxyClient.FindAppServersByFilters(ctx, *filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
+	servers, err := client.GetAllResources[types.AppServer](ctx, clusterClient.AuthClient, filter)
+	return servers, trace.Wrap(err)
 }
 
 // listAppServersWithFiltersAllClusters returns a map of all app servers in all clusters connected to this proxy.
 func (tc *TeleportClient) listAppServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.AppServer, error) {
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2500,12 +2503,28 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.Create
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	return proxyClient.CreateAppSession(ctx, req)
+	defer clusterClient.Close()
+
+	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rootAuthClient.Close()
+
+	ws, err := rootAuthClient.CreateAppSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), rootAuthClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ws, nil
 }
 
 // GetAppSession returns an existing application access session.
@@ -2520,12 +2539,20 @@ func (tc *TeleportClient) GetAppSession(ctx context.Context, req types.GetAppSes
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	return proxyClient.GetAppSession(ctx, req)
+	defer clusterClient.Close()
+
+	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rootAuthClient.Close()
+
+	ws, err := rootAuthClient.GetAppSession(ctx, req)
+	return ws, trace.Wrap(err)
 }
 
 // DeleteAppSession removes the specified application access session.
@@ -2537,12 +2564,19 @@ func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	return proxyClient.DeleteAppSession(ctx, sessionID)
+	defer clusterClient.Close()
+
+	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootAuthClient.Close()
+
+	return trace.Wrap(rootAuthClient.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: sessionID}))
 }
 
 // ListDatabaseServersWithFilters returns all registered database proxy servers.
@@ -2554,27 +2588,24 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	filter := customFilter
 	if filter == nil {
 		filter = tc.ResourceFilter(types.KindDatabaseServer)
 	}
 
-	servers, err := proxyClient.FindDatabaseServersByFilters(ctx, *filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
+	servers, err := client.GetAllResources[types.DatabaseServer](ctx, clusterClient.AuthClient, filter)
+	return servers, trace.Wrap(err)
 }
 
 // listDatabaseServersWithFilters returns all registered database proxy servers across all clusters.
 func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.DatabaseServer, error) {
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2676,6 +2707,7 @@ func (tc *TeleportClient) ListKubernetesClustersWithFiltersAllClusters(ctx conte
 	)
 	defer span.End()
 
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	pc, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3113,6 +3145,9 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 // ConnectToProxy will dial to the proxy server and return a ProxyClient when
 // successful. If the passed in context is canceled, this function will return
 // a trace.ConnectionProblem right away.
+//
+// Deprecated: Use ConnectToCluster instead, it connects to the cluster via
+// gRPC instead of SSH to reduce latency.
 func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -4428,21 +4463,22 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	if !tc.Config.ProxySpecified() {
 		return nil, trace.BadParameter("proxy server is not specified")
 	}
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	// Get a client to the Auth Server.
-	clt, err := proxyClient.ConnectToCluster(ctx, clusterName)
+	clt, err := clusterClient.ConnectToCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
 
 	// Get the list of host certificates that this cluster knows about.
-	return clt.GetCertAuthorities(ctx, types.HostCA, false)
+	cas, err := clt.GetCertAuthorities(ctx, types.HostCA, false)
+	return cas, trace.Wrap(err)
 }
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
@@ -5113,20 +5149,14 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		),
 	)
 	defer span.End()
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	authClient := proxyClient.CurrentCluster()
-	defer authClient.Close()
+	defer clusterClient.Close()
 
-	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC,
-		pageSize, order, max, authClient)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sessions, nil
+	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC, pageSize, order, max, clusterClient.AuthClient)
+	return sessions, trace.Wrap(err)
 }
 
 func parseMFAMode(in string) (wancli.AuthenticatorAttachment, error) {
@@ -5225,13 +5255,13 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.BadParameter("proxy server is not specified")
 	}
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -45,6 +45,13 @@ export type Props = {
   name?: string;
   minMenuHeight?: number;
   components?: any;
+  /**
+   * customProps are any props that are not react-select
+   * default or option props and need to be accessed through a
+   * react-select custom component. `customProps` can be accessed
+   * through react-select prop `selectProps`.
+   * eg: `selectProps.customProps.<the-prop-name>`
+   */
   customProps?: Record<string, any>;
   menuPosition?: 'fixed' | 'absolute';
   inputValue?: string;
