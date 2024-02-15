@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -91,6 +93,12 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 // TestGenericWrapperCRUD tests backend operations with the generic service.
 func TestGenericWrapperCRUD(t *testing.T) {
 	ctx := context.Background()
+
+	ignoreUnexported := cmp.Options{
+		cmpopts.IgnoreUnexported(testResource153{}),
+		cmpopts.IgnoreUnexported(headerv1.Metadata{}),
+		cmpopts.IgnoreUnexported(timestamppb.Timestamp{}),
+	}
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -164,11 +172,11 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	// Try to fetch a resource that doesn't exist.
 	_, err = service.GetResource(ctx, "doesnotexist")
-	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
+	require.True(t, trace.IsNotFound(err))
 
 	// Try to create the same resource.
 	_, err = service.CreateResource(ctx, r1)
-	require.ErrorIs(t, err, trace.AlreadyExists(`generic resource "r1" already exists`))
+	require.True(t, trace.IsAlreadyExists(err))
 
 	// Update a resource.
 	r1.Metadata.Labels = map[string]string{"newlabel": "newvalue"}
@@ -176,14 +184,12 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetMetadata().GetName())
 	require.NoError(t, err)
-	//nolint:staticcheck // SA1019. Deprecated, but still needed.
-	r.Metadata.Id = r1.Metadata.Id
-	require.Equal(t, r1, r)
+	require.Empty(t, cmp.Diff(r1, r, cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"), ignoreUnexported))
 
 	// Update a resource that doesn't exist.
 	doesNotExist := newTestResource153("doesnotexist")
 	_, err = service.UpdateResource(ctx, doesNotExist)
-	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
+	require.True(t, trace.IsNotFound(err))
 
 	// Delete a resource.
 	err = service.DeleteResource(ctx, r1.GetMetadata().GetName())
@@ -199,11 +205,9 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
-	//nolint:staticcheck // SA1019. Deprecated, but still needed.
-	out[0].Metadata.Id = r1.Metadata.Id
-	//nolint:staticcheck // SA1019. Deprecated, but still needed.
-	out[1].Metadata.Id = r2.Metadata.Id
-	require.Equal(t, []*testResource153{r1, r2}, out)
+	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"),
+		ignoreUnexported))
 
 	// Upsert a resource (update).
 	r1.Metadata.Labels = map[string]string{"newerlabel": "newervalue"}
@@ -212,13 +216,11 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
-	//nolint:staticcheck // SA1019. Deprecated, but still needed.
-	out[0].Metadata.Id = r1.Metadata.Id
-	//nolint:staticcheck // SA1019. Deprecated, but still needed.
-	out[1].Metadata.Id = r2.Metadata.Id
-	require.Equal(t, []*testResource153{r1, r2}, out)
+	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Id"),
+		ignoreUnexported))
 
 	// Try to delete a resource that doesn't exist.
 	err = service.DeleteResource(ctx, "doesnotexist")
-	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
+	require.True(t, trace.IsNotFound(err))
 }
