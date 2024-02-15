@@ -666,6 +666,16 @@
           ]
         },
         {
+          "title": "Access Monitoring",
+          "slug": "/access-controls/access-monitoring/",
+          "forScopes": [
+            "team",
+            "cloud",
+            "enterprise",
+            "oss"
+          ]
+        },
+        {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
           "forScopes": [
