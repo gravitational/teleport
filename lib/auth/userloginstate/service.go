@@ -89,8 +89,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // GetUserLoginStates returns a list of all user login states.
 func (s *Service) GetUserLoginStates(ctx context.Context, _ *userloginstatev1.GetUserLoginStatesRequest) (*userloginstatev1.GetUserLoginStatesResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindUserLoginState, types.VerbRead, types.VerbList)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindUserLoginState, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -111,8 +115,12 @@ func (s *Service) GetUserLoginStates(ctx context.Context, _ *userloginstatev1.Ge
 
 // GetUserLoginState returns the specified user login state resource.
 func (s *Service) GetUserLoginState(ctx context.Context, req *userloginstatev1.GetUserLoginStateRequest) (*userloginstatev1.UserLoginState, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindUserLoginState, types.VerbRead)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindUserLoginState, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -126,8 +134,12 @@ func (s *Service) GetUserLoginState(ctx context.Context, req *userloginstatev1.G
 
 // UpsertUserLoginState creates or updates a user login state resource.
 func (s *Service) UpsertUserLoginState(ctx context.Context, req *userloginstatev1.UpsertUserLoginStateRequest) (*userloginstatev1.UserLoginState, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindUserLoginState, types.VerbCreate, types.VerbUpdate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindUserLoginState, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -146,8 +158,12 @@ func (s *Service) UpsertUserLoginState(ctx context.Context, req *userloginstatev
 
 // DeleteUserLoginState removes the specified user login state resource.
 func (s *Service) DeleteUserLoginState(ctx context.Context, req *userloginstatev1.DeleteUserLoginStateRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindUserLoginState, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindUserLoginState, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -161,8 +177,12 @@ func (s *Service) DeleteUserLoginState(ctx context.Context, req *userloginstatev
 
 // DeleteAllUserLoginStates removes all user login states.
 func (s *Service) DeleteAllUserLoginStates(ctx context.Context, _ *userloginstatev1.DeleteAllUserLoginStatesRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindUserLoginState, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindUserLoginState, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
