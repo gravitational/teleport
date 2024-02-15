@@ -43,6 +43,25 @@ func promoteBuildPipelines() []pipeline {
 	ociPipeline.Trigger.Target.Include = append(ociPipeline.Trigger.Target.Include, "promote-distroless")
 	promotePipelines = append(promotePipelines, ociPipeline)
 
+	tbotOCIPipeline := ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerPromote,
+		pipelineName: "promote-tbot-oci-distroless-images",
+		workflows: []ghaWorkflow{
+			{
+				name:              "promote-tbot-oci-distroless.yml",
+				timeout:           150 * time.Minute,
+				ref:               "${DRONE_TAG}",
+				shouldTagWorkflow: true,
+				inputs: map[string]string{
+					"release-source-tag": "${DRONE_TAG}",
+				},
+			},
+		},
+	})
+	tbotOCIPipeline.Trigger.Target.Include = append(tbotOCIPipeline.Trigger.Target.Include, "promote-tbot-distroless")
+	promotePipelines = append(promotePipelines, tbotOCIPipeline)
+
 	amiPipeline := ghaBuildPipeline(ghaBuildType{
 		buildType:    buildType{os: "linux", fips: false},
 		trigger:      triggerPromote,
