@@ -29,11 +29,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// MarshalFunc is a type signature for a marshaling function.
-type MarshalFunc[T types.Resource] func(T, ...services.MarshalOption) ([]byte, error)
+// Resource represents a Teleport resource that may be generically
+// persisted into the backend.
+type Resource interface {
+	GetName() string
+}
 
-// UnmarshalFunc is a type signature for an unmarshaling function.
-type UnmarshalFunc[T types.Resource] func([]byte, ...services.MarshalOption) (T, error)
+// MarshalFunc is a type signature for a marshaling function, which converts from T to []byte, while respecting specified options.
+type MarshalFunc[T any] func(T, ...services.MarshalOption) ([]byte, error)
+
+// UnmarshalFunc is a type signature for an unmarshalling function, which converts from []byte to T, while respecting specified options.
+type UnmarshalFunc[T any] func([]byte, ...services.MarshalOption) (T, error)
 
 // ServiceConfig is the configuration for the service configuration.
 type ServiceConfig[T types.Resource] struct {
