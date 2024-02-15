@@ -7424,10 +7424,12 @@ type SPIFFERoleCondition struct {
 	// trust domain and should start with a leading slash.
 	//
 	// The matcher by default allows '*' to be used to indicate zero or more of
-	// any character. Prepend '^' and append '$' to enable matching using the
-	// Go regex syntax instead.
+	// any character. Prepend '^' and append '$' to instead switch to matching
+	// using the Go regex syntax.
 	//
-	// Example: /svc/foo/*/bar would match /svc/foo/baz/bar
+	// Example:
+	// - /svc/foo/*/bar would match /svc/foo/baz/bar
+	// - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar
 	Path string `protobuf:"bytes,1,opt,name=Path,proto3" json:"path,omitempty"`
 	// DNSSANs specifies matchers for the SPIFFE ID DNS SANs.
 	//
@@ -7435,8 +7437,8 @@ type SPIFFERoleCondition struct {
 	// any match, the condition is considered to be met.
 	//
 	// The matcher by default allows '*' to be used to indicate zero or more of
-	// any character. Prepend '^' and append '$' to enable matching using the
-	// Go regex syntax instead.
+	// any character. Prepend '^' and append '$' to instead switch to matching
+	// using the Go regex syntax.
 	//
 	// Example: *.example.com would match foo.example.com
 	DNSSANs []string `protobuf:"bytes,2,rep,name=DNSSANs,proto3" json:"dns_sans,omitempty"`
