@@ -149,6 +149,10 @@ func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.Proxy
 			c.mu.Lock()
 			defer c.mu.Unlock()
 
+			if c.clients[clusterURI] != proxyClient {
+				return
+			}
+
 			delete(c.clients, clusterURI)
 			c.log.WithError(err).Infof("Remote client to %q has been closed and removed from cache.", clusterURI)
 		}
