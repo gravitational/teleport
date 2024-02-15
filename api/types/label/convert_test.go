@@ -53,7 +53,7 @@ func TestFromMap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := FromMap(tt.in)
-			require.Equal(t, tt.want, got)
+			require.ElementsMatch(t, tt.want, got)
 		})
 	}
 }
