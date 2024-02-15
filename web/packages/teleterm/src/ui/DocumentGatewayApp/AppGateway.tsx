@@ -24,8 +24,9 @@ import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import { TextSelectCopy } from 'design/TextSelectCopy';
+
 import { Gateway } from 'teleterm/services/tshd/types';
-import { CliCommand } from 'teleterm/ui/DocumentGateway/CliCommand';
 
 import { PortFieldInput } from '../components/FieldInputs';
 
@@ -35,10 +36,8 @@ export function AppGateway(props: {
   changePort(port: string): void;
   changePortAttempt: Attempt<void>;
   disconnect(): void;
-  copyCliCommandToClipboard(): void;
 }) {
   const formRef = useRef<HTMLFormElement>();
-  const cliCommandPreview = props.gateway.gatewayCliCommand.preview;
 
   const { changePort } = props;
   const handleChangePort = useMemo(() => {
@@ -48,6 +47,8 @@ export function AppGateway(props: {
       }
     }, 1000);
   }, [changePort]);
+
+  const link = `${props.gateway.protocol.toLowerCase()}://${props.gateway.localAddress}:${props.gateway.localPort}`;
 
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
@@ -72,27 +73,13 @@ export function AppGateway(props: {
           />
         </Validation>
       </Flex>
-      {cliCommandPreview && (
-        <CliCommand
-          cliCommand={cliCommandPreview}
-          isLoading={props.changePortAttempt.status === 'processing'}
-          buttonText="Copy"
-          onButtonClick={props.copyCliCommandToClipboard}
-        />
-      )}
+      <Text>Access the app at:</Text>
+      <TextSelectCopy my={1} text={link} bash={false} />
       {props.changePortAttempt.status === 'error' && (
         <Alert>
           Could not change the port number: {props.changePortAttempt.statusText}
         </Alert>
       )}
-      <Text>
-        Access the app at{' '}
-        <code>
-          {props.gateway.protocol.toLowerCase()}://{props.gateway.localAddress}:
-          {props.gateway.localPort}
-        </code>
-        .
-      </Text>
       <Text>
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}
