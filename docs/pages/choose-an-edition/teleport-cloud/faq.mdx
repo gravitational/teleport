@@ -219,8 +219,8 @@ Below you can see sample output of `tctl get nodes --format=text`. Note the
 $ tctl get nodes --format=text
 Host     UUID                                 Public Address Labels Version
 -------- ------------------------------------ -------------- ------ ----------
-server01 46d8cad0-8967-4815-a01a-77aae62c34fe 127.0.0.1:3022        12.0.0
-server02 c33b5513-a9eb-463b-8f1b-1f209afe5b4f 127.0.0.1:3122        12.0.0
+server01 46d8cad0-8967-4815-a01a-77aae62c34fe                       (=teleport.version=)
+server02 c33b5513-a9eb-463b-8f1b-1f209afe5b4f                       (=teleport.version=)
 ```
 
 ## Architecture and networking
@@ -279,8 +279,9 @@ certificate or use a custom domain name.
 
 ### Where does Teleport Enterprise Cloud run?
 
-Teleport Enterprise Cloud is deployed within AWS, using S3 and DynamoDB for storage with AWS-managed encryption keys. All data is currently hosted in us-west-2.
-Currently there is no option to select an alternative region for storage.
+Teleport Enterprise Cloud is deployed within AWS, using S3 and DynamoDB for storage with AWS-managed encryption keys.
+See the [available regions](./architecture.mdx#auth-service) for the DynamoDB. [External Audit Storage](./external-audit-storage.mdx) allows
+for optionally storing audit events and session recordings on infrastructure in any AWS account.
 
 ### Are you using AWS-managed encryption keys, or CMKs via KMS?
 
