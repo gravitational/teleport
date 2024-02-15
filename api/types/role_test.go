@@ -467,6 +467,15 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 			requireError: require.NoError,
 		},
 		{
+			name: "spiffe: valid regex path",
+			role: newRole(t, RoleSpecV6{
+				Allow: RoleConditions{
+					SPIFFE: []*SPIFFERoleCondition{{Path: `^\/svc\/foo\/.*\/bar$`}},
+				},
+			}),
+			requireError: require.NoError,
+		},
+		{
 			name: "spiffe: missing path",
 			role: newRole(t, RoleSpecV6{
 				Allow: RoleConditions{

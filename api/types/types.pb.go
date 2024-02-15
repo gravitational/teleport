@@ -7420,20 +7420,37 @@ var xxx_messageInfo_RoleConditions proto.InternalMessageInfo
 // denied to generate. The Path matcher is required, and is evaluated first. If,
 // the Path does not match then the other matcher fields are not evaluated.
 type SPIFFERoleCondition struct {
-	// Path specifies a globby style matcher for the SPIFFE ID path. It should not
-	// include the trust domain and should start with a leading slash.
-	// Matching:
-	// - '*' matches zero or more characters.
-	// - '?' matches any single character.
+	// Path specifies a matcher for the SPIFFE ID path. It should not include the
+	// trust domain and should start with a leading slash.
+	//
+	// The matcher by default allows '*' to be used to indicate zero or more of
+	// any character. Prepend '^' and append '$' to enable matching using the
+	// Go regex syntax instead.
+	//
 	// Example: /svc/foo/*/bar would match /svc/foo/baz/bar
 	Path string `protobuf:"bytes,1,opt,name=Path,proto3" json:"path,omitempty"`
-	// DNS specifies a globby style matcher for the SPIFFE ID DNS SAN.
-	// Matching:
-	// - '*' matches zero or more characters.
-	// - '?' matches any single character.
+	// DNSSANs specifies matchers for the SPIFFE ID DNS SANs.
+	//
+	// Each requested DNS SAN is compared against all matchers configured and if
+	// any match, the condition is considered to be met.
+	//
+	// The matcher by default allows '*' to be used to indicate zero or more of
+	// any character. Prepend '^' and append '$' to enable matching using the
+	// Go regex syntax instead.
+	//
+	// Example: *.example.com would match foo.example.com
 	DNSSANs []string `protobuf:"bytes,2,rep,name=DNSSANs,proto3" json:"dns_sans,omitempty"`
-	// IPSANs specifies a matcher IP SANs which have been requested in the SVID.
-	// It supports IPv4 and IPv6.
+	// IPSANs specifies matchers for the SPIFFE ID IP SANs.
+	//
+	// Each requested IP SAN is compared against all matchers configured and if
+	// any match, the condition is considered to be met.
+	//
+	// The matchers should be specified using CIDR notation, it supports IPv4 and
+	// IPv6.
+	//
+	// Examples:
+	// - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255
+	// - 10.0.0.42/32 would match only 10.0.0.42
 	IPSANs               []string `protobuf:"bytes,3,rep,name=IPSANs,proto3" json:"ip_sans,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

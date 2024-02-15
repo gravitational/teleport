@@ -981,8 +981,11 @@ func (c *SPIFFERoleCondition) CheckAndSetDefaults() error {
 	if c.Path == "" {
 		return trace.BadParameter("path: should be non-empty")
 	}
-	if !strings.HasPrefix(c.Path, "/") {
-		return trace.BadParameter("path: should start with /")
+	isRegex := strings.HasPrefix(c.Path, "^") && strings.HasSuffix(c.Path, "$")
+	if !(strings.HasPrefix(c.Path, "/") || isRegex) {
+		return trace.BadParameter(
+			"path: should start with / or be a regex expression starting with ^ and ending with $",
+		)
 	}
 	for i, str := range c.IPSANs {
 		if _, _, err := net.ParseCIDR(str); err != nil {

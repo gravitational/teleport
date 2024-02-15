@@ -8638,6 +8638,41 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			requireErr: require.NoError,
 		},
 		{
+			name: "regex success",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs: []string{
+				"foo.example.com",
+				"foo.example.net",
+			},
+			ipSANs: []net.IP{
+				{10, 0, 0, 32},
+			},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						// Non-matching condition.
+						Path:    "/bar/boo",
+						DNSSANs: []string{},
+						IPSANs:  []string{},
+					},
+					{
+						Path: `^\/foo\/.*$`,
+						DNSSANs: []string{
+							"foo.example.com",
+							"*.example.net",
+						},
+						IPSANs: []string{
+							"10.0.0.1/8",
+						},
+					},
+				}, []*types.SPIFFERoleCondition{}),
+			},
+
+			requireErr: require.NoError,
+		},
+		{
 			name: "explicit deny - id path",
 
 			spiffeIDPath: "/foo/bar",
@@ -8654,6 +8689,29 @@ func TestCheckSPIFFESVID(t *testing.T) {
 				}, []*types.SPIFFERoleCondition{
 					{
 						Path: "/foo/bar",
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "explicit deny - id path regex",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs:       []net.IP{},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path:    "/foo/*",
+						DNSSANs: []string{},
+						IPSANs:  []string{},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: `^\/foo\/bar$`,
 					},
 				}),
 			},
@@ -8729,6 +8787,23 @@ func TestCheckSPIFFESVID(t *testing.T) {
 				makeRole([]*types.SPIFFERoleCondition{
 					{
 						Path: "/bar/*",
+					},
+				}, []*types.SPIFFERoleCondition{}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "implicit deny - no match regex",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs:       []net.IP{},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path: `^\/bar\/.*$`,
 					},
 				}, []*types.SPIFFERoleCondition{}),
 			},
