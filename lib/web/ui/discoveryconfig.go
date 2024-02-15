@@ -37,6 +37,8 @@ type DiscoveryConfig struct {
 	GCP []types.GCPMatcher `json:"gcpMatchers,omitempty"`
 	// Kube is a list of matchers for AWS resources.
 	Kube []types.KubernetesMatcher `json:"kube,omitempty"`
+	// AccessGraph is the configuration for the Access Graph Cloud sync.
+	AccessGraph *types.AccessGraphSync `json:"accessGraph,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -65,6 +67,8 @@ type UpdateDiscoveryConfigRequest struct {
 	GCP []types.GCPMatcher `json:"gcpMatchers,omitempty"`
 	// Kube is a list of matchers for AWS resources.
 	Kube []types.KubernetesMatcher `json:"kube,omitempty"`
+	// AccessGraph is the configuration for the Access Graph Cloud sync.
+	AccessGraph *types.AccessGraphSync `json:"accessGraph,omitempty"`
 }
 
 // CheckAndSetDefaults checks if the provided values are valid.
@@ -106,5 +110,6 @@ func MakeDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig) DiscoveryConfig {
 		Azure:          dc.Spec.Azure,
 		GCP:            dc.Spec.GCP,
 		Kube:           dc.Spec.Kube,
+		AccessGraph:    dc.Spec.AccessGraph,
 	}
 }
