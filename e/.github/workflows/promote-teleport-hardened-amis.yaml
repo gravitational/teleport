@@ -1,19 +1,16 @@
 name: Promote Hardened Teleport AMIs
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       oss-teleport-repo:
-        description: |
-          The name of the OSS teleport repo to checkout
-        required: false
+        description: The name of the OSS teleport repo to checkout.
         type: string
-        default: "gravitational/teleport"
+        default: gravitational/teleport
 
       oss-teleport-ref:
-        description: |
-          Git SHA, tag or branch of the revision of OSS teleport to build
-        required: true
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
         type: string
+        required: true
 
       release-source-tag:
         description: |
@@ -21,26 +18,40 @@ on:
           will be inferred form the `oss-teleport-ref` by assuming that it's
           a standard Teleport release tag in the form vX.Y.Z.
         type: string
-        default: ""
 
       promotion-role-arn:
-        description: |
-          ARN of the role that grants promotion rights
-        required: true
+        description: ARN of the role that grants promotion rights.
         type: string
         default: arn:aws:iam::146628656107:role/teleport-ami-promotion-gha
 
       dest-ami-regions:
-        description: |
-          A comma-separated list of AWS regions to search for the AMIs.
+        description: A comma-separated list of AWS regions to search for the AMIs.
         type: string
         default: eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
 
       workflow-tag:
-        description: |
-          Tag used to identify workflow runs spawned by this event
+        description: Tag used to identify workflow runs spawned by this event.
         type: string
-        default: ""
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      release-source-tag:
+        type: string
+      promotion-role-arn:
+        type: string
+        default: arn:aws:iam::146628656107:role/teleport-ami-promotion-gha
+      dest-ami-regions:
+        type: string
+        default: eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
+      workflow-tag:
+        type: string
 
 run-name: 'Promote Hardened AMIs for Teleport ${{ inputs.release-source-tag }}'
 

@@ -70,7 +70,7 @@ run-name: "Promote OCI image ${{ inputs.pending-repository }}:${{ inputs.pending
 
 jobs:
   promote-image: 
-    name: "Promote ${{ inputs.pending-tag }}"
+    name: "Promote ${{ inputs.pending-repository }}"
     runs-on: ubuntu-latest
     steps:
       - name: Install cosign

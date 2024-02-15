@@ -1,19 +1,31 @@
 ---
 name: Publish releases via the Release service
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       oss-teleport-repo:
-        description: "The name of the OSS teleport repo to publish the release for"
-        required: false
-        default: "gravitational/teleport"
+        description: The name of the OSS teleport repo to publish the release for.
         type: string
+        default: gravitational/teleport
       version:
-        description: "The version should be published"
+        description: The version should be published.
         type: string
         required: true
       environment:
         description: GitHub environment to publish to.
+        type: string
+        default: publish-prod
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      version:
+        type: string
+        required: true
+      environment:
         type: string
         default: publish-prod
 

@@ -1,20 +1,31 @@
 ---
 name: Publish Teleport OS packages to OS repos
 on:
+  workflow_call:
+    inputs:
+      artifact-version:
+        description: The tag associated with the artifact to deploy (eg. v1.2.3).
+        type: string
+        required: true
+      environment:
+        description: Environment to deploy the package to.
+        type: string # Cannot use type "environment" in workflow_call input params.
+        required: true
+      workflow-tag:
+        description: Tag used to identify workflow runs spawned by this event.
+        type: string
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch: 
     inputs:
       artifact-version:
-        required: true
-        description: "The tag associated with the artifact to deploy (eg. v1.2.3)"
         type: string
+        required: true
       environment:
-        description: "Environment to deploy the package to"
-        type: environment
+        type: environment # Note: different type to workflow_call param.
         required: true
       workflow-tag:
-        description: Tag used to identify workflow runs spawned by this event
         type: string
-        default: ""
 
 jobs:
   deploy-teleport-artifacts:
@@ -36,6 +47,7 @@ jobs:
           - name: Teleport-ent-updater
             version-channel: cloud
             package-name-filter: teleport-ent-updater-*
+    name: ${{ matrix.repo-type }} ${{ matrix.deployment-config.name }} ${{ matrix.deployment-config.version-channel }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4

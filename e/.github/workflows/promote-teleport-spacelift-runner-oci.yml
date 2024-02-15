@@ -1,6 +1,6 @@
 name: Promote Teleport Spacelift Runner Images
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       pending-registry:
         description: |
@@ -8,40 +8,52 @@ on:
           pending release images, formatted for use with Docker (that is,
           like an URI, not the AWS ARN). 
         type: string
-        required: true
         default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
 
       release-source-tag:
-        description: "The semver version tag of the Teleport revision that we're building."
-        required: true
+        description: The semver version tag of the Teleport revision that we're building.
         type: string
+        required: true
 
       promotion-role-arn:
-        description: |
-          ARN of the role that grants promotion rights
-        required: true
+        description: ARN of the role that grants promotion rights.
         type: string
         default: arn:aws:iam::146628656107:role/teleport-oci-promotion-gha
 
       validation-key-url:
-        description: |
-          URL of the key used to validate internal Teleport images.
-        required: true
+        description: URL of the key used to validate internal Teleport images.
         type: string
         default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
 
       production-signing-key-url:
-        description: |
-          URL of the key used to sign the production images as Official Teleport images.
-        required: true
+        description: URL of the key used to sign the production images as Official Teleport images.
         type: string
         default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-production-signing
 
       workflow-tag:
-        description: |
-          Tag used to identify workflow runs spawned by this event
+        description: Tag used to identify workflow runs spawned by this event.
         type: string
-        default: ""
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      pending-registry:
+        type: string
+        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
+      release-source-tag:
+        type: string
+        required: true
+      promotion-role-arn:
+        type: string
+        default: arn:aws:iam::146628656107:role/teleport-oci-promotion-gha
+      validation-key-url:
+        type: string
+        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
+      production-signing-key-url:
+        type: string
+        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-production-signing
+      workflow-tag:
+        type: string
 
 run-name: 'Promote OCI images for Teleport Spacelift Runner ${{ inputs.release-source-tag }}'
 

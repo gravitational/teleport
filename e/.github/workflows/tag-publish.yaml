@@ -1,16 +1,154 @@
-# This is a placeholder workflow and will be replaced once the appropriate
-# functionality passes code review.
-#
-# Dispatching workflow calls to a GHA workflow on a branch requires that a
-# workflow file with the correct name exists in the default branch, even
-# if that workflow bears no resemblance to the target workflow
+# Publish a build of the Teleport release artifacts.
 
 name: Publish Tag Build
+run-name: Publish Tag Build of ${{ inputs.oss-teleport-repo }}@${{ inputs.oss-teleport-ref }}${{ inputs.teleport-version && format(' ({0})', inputs.teleport-version) }}
 on:
   workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        description: The name of the OSS teleport repo to checkout.
+        type: string
+        default: gravitational/teleport
+
+      oss-teleport-ref:
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+        type: string
+        required: true
+
+      teleport-version:
+        description: |
+          The tag/semver of the version to publish. If the oss-teleport-ref
+          input is not a version tag, this input must be provided.
+        type: string
+
+      environment:
+        description: GitHub environment to publish to.
+        type: string
+        default: publish-prod
+
 jobs:
-  dummy:
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.determine-version.outputs.full }}
     steps:
-      - name: Greeting
-        run: echo "This is a dummy build to placate GitHub."
+      - name: Determine Teleport version
+        id: determine-version
+        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        with:
+          ref: ${{ inputs.oss-teleport-ref }}
+          version: ${{ inputs.teleport-version }}
+
+  publish-distroless-oci:
+    name: Publish distroless OCI images
+    # TODO(camscale): Update called workflow to use environments
+    if: inputs.environment == 'publish-prod' # no publish-stage available
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/promote-teleport-oci-distroless.yml
+    with:
+      release-source-tag: ${{ needs.setup.outputs.version }}
+
+  publish-hardened-amis:
+    name: Publish hardened AMIs
+    # TODO(camscale): Update called workflow to use environments
+    if: inputs.environment == 'publish-prod' # no publish-stage available
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/promote-teleport-hardened-amis.yaml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      release-source-tag: ${{ needs.setup.outputs.version }}
+
+  publish-helm:
+    name: Publish helm charts
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-helm.yaml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      environment: ${{ inputs.environment }}
+
+  publish-to-houston:
+    name: Publish to Houston
+    # TODO(camscale): Update called workflow to use environments
+    if: inputs.environment == 'publish-prod' # no publish-stage available
+    needs: setup
+    secrets: inherit
+    permissions:
+      id-token: write
+    uses: ./.github/workflows/publish-to-houston.yaml
+    with:
+      teleport-version: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
+  publish-kube-agent-updater-oci:
+    name: Publish kube agent updater OCI images
+    # TODO(camscale): Update called workflow to use environments
+    if: inputs.environment == 'publish-prod' # no publish-stage available
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/promote-teleport-kube-agent-updater-oci.yml
+    with:
+      release-source-tag: ${{ needs.setup.outputs.version }}
+
+  publish-os-packages:
+    name: Publish OS Packages
+    needs: setup
+    secrets: inherit
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/publish-os-packages.yaml
+    with:
+      artifact-version: ${{ needs.setup.outputs.version }}
+      # TODO(camscale): Update called workflow to use publish-prod/stage environments
+      environment: development # XXX Change to production
+
+  publish-spacelift-runner:
+    name: Publish spacelift runner OCI image
+    # TODO(camscale): Update called workflow to use environments
+    if: inputs.environment == 'publish-prod' # no publish-stage available
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/promote-teleport-spacelift-runner-oci.yml
+    with:
+      release-source-tag: ${{ needs.setup.outputs.version }}
+
+  publish-release:
+    name: Publish release
+    # TODO(camscale): Update called workflow to use environments
+    if: inputs.environment == 'publish-prod' # no publish-stage available
+    needs:
+      - setup
+      - publish-distroless-oci
+      - publish-hardened-amis
+      - publish-helm
+      - publish-to-houston
+      - publish-kube-agent-updater-oci
+      - publish-os-packages
+      - publish-spacelift-runner
+    secrets: inherit
+    permissions:
+      id-token: write
+    uses: ./.github/workflows/publish-release-server.yaml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      version: "v${{ needs.setup.outputs.version }}"

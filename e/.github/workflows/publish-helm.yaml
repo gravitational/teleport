@@ -1,19 +1,17 @@
 ---
 name: Publish helm charts
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       oss-teleport-repo:
-        description: |
-          The name of the OSS teleport repo to checkout
+        description: The name of the OSS teleport repo to checkout.
         type: string
-        default: "gravitational/teleport"
+        default: gravitational/teleport
 
       oss-teleport-ref:
-        description: |
-          Git SHA, tag or branch of the revision of OSS teleport to build
-        required: true
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
         type: string
+        required: true
 
       environment:
         description: GitHub environment to publish to.
@@ -21,8 +19,22 @@ on:
         default: publish-prod
 
       workflow-tag:
-        description: |
-          Tag used to identify workflow runs spawned by this event
+        description: Tag used to identify workflow runs spawned by this event.
+        type: string
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      environment:
+        type: string
+        default: publish-prod
+      workflow-tag:
         type: string
 
 jobs:

@@ -1,7 +1,7 @@
 ---
 name: Publish release artifacts to Houston
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       teleport-version:
         description: |
@@ -16,6 +16,17 @@ on:
 
       workflow-tag:
         description: Tag used to identify workflow runs spawned by this event.
+        type: string
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      teleport-version:
+        type: string
+      environment:
+        type: string
+        default: publish-prod
+      workflow-tag:
         type: string
 
 jobs:
