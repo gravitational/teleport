@@ -55,30 +55,14 @@ func New(c Config) *Cache {
 // Get returns a proxy client from the cache if there is one,
 // otherwise it dials the remote server.
 func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
-	cltI, err, _ := c.group.Do(clusterURI.String(), func() (interface{}, error) {
-		cluster, clusterClient, err := c.ResolveCluster(clusterURI)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	groupClt, err, _ := c.group.Do(clusterURI.String(), func() (any, error) {
+		if proxyClient := c.getFromCache(clusterURI); proxyClient != nil {
+			return proxyClient, nil
 		}
 
-		// Check if we already have a cached client for this cluster and a valid cert.
-		// Theoretically, we don't have to check the validity
-		// because auth server will disconnect expired clients.
-		// However, by default, it isn't done immediately
-		// (until it is enabled with disconnect_expired_cert on cluster) and to keep
-		// the previous behavior, we need to check the cert.
-		//
-		// If the cert is expired, we will remove the client and make an attempt
-		// to connect to proxy which will fail with an appropriate error.
-		proxyClient := c.getFromCache(clusterURI)
-		if proxyClient != nil {
-			if cluster.Connected() {
-				return proxyClient, nil
-			}
-			err := c.InvalidateForRootCluster(clusterURI.GetRootClusterURI())
-			if err != nil {
-				c.log.WithError(err).Errorf("Failed to invalidate expired remote client for %q.", clusterURI)
-			}
+		_, clusterClient, err := c.ResolveCluster(clusterURI)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 		newProxyClient, err := clusterClient.ConnectToProxy(ctx)
@@ -89,9 +73,8 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 		// We'll save the remote client in the cache, so we don't have to
 		// build a new connection next time.
 		// All remote clients will be closed when the daemon exits.
-		err = c.addToCache(clusterURI, newProxyClient)
-		if err != nil {
-			c.log.WithError(err).Errorf("Failed to add remote client for %q to cache.", clusterURI)
+		if err = c.addToCache(clusterURI, newProxyClient); err != nil {
+			c.log.WithError(err).Errorf("An error occurred while adding remote client for %q to cache.", clusterURI)
 		} else {
 			c.log.Infof("Added remote client for %q to cache.", clusterURI)
 		}
@@ -102,9 +85,9 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 		return nil, trace.Wrap(err)
 	}
 
-	clt, ok := cltI.(*client.ProxyClient)
+	clt, ok := groupClt.(*client.ProxyClient)
 	if !ok {
-		return nil, trace.BadParameter("unexpected type %T received for proxy client", cltI)
+		return nil, trace.BadParameter("unexpected type %T received for proxy client", groupClt)
 	}
 
 	return clt, nil

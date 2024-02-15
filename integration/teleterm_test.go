@@ -390,23 +390,14 @@ func testRemoteClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	require.NoError(t, err)
 	require.NotEqual(t, secondCallClient, thirdCallClient)
 
-	// Let the cert expire. We'll choose 24 hours to make sure we go above
-	// any cert durations that could be chosen here.
-	// This will only expire the local cert, not the remote session.
-	// The call to GetRemoteClient will connect to proxy and return a new client.
-	storageFakeClock.Advance(time.Hour * 24)
-	fourthCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
-	require.NoError(t, err)
-	require.NotEqual(t, thirdCallClient, fourthCallClient)
-
 	// After closing the client (from our or a remote side)
 	// it will be removed from the cache.
 	// The call to GetRemoteClient will connect to proxy and return a new client.
-	err = fourthCallClient.Close()
+	err = thirdCallClient.Close()
 	require.NoError(t, err)
-	fifthCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	forthCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
 	require.NoError(t, err)
-	require.NotEqual(t, fourthCallClient, fifthCallClient)
+	require.NotEqual(t, thirdCallClient, forthCallClient)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
