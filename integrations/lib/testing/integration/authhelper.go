@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -46,6 +46,8 @@ type OSSAuthHelper struct {
 }
 
 // StartServer implements the AuthHelper interface.
+// The function takes care of registering client and server close function
+// on the t.Cleanup() stack.
 func (a *OSSAuthHelper) StartServer(t *testing.T) *client.Client {
 	a.dir = t.TempDir()
 	authServer, err := libauth.NewTestAuthServer(libauth.TestAuthServerConfig{
@@ -76,14 +78,27 @@ func (a *OSSAuthHelper) StartServer(t *testing.T) *client.Client {
 
 	authClient, err := server.NewClient(libauth.TestAdmin())
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authClient.Close())
+	})
 
 	return authClient.APIClient
 }
 
 // ServerAddr implements the AuthHelper interface.
 // It returns the server address, including the port.
+// For example, "192.0.2.1:25" or "[2001:db8::1]:80"
 func (a *OSSAuthHelper) ServerAddr() string {
 	return a.server.Addr().String()
+}
+
+type userCerts struct {
+	// PEM-encoded private key (the same private key is used for both SSH and TLS)
+	privateKey []byte
+	// SSH certs formatted following the Authorized-key format
+	ssh []byte
+	// PEM-encoded TLS certs
+	tls []byte
 }
 
 // getUserCerts generates a private key for the user and has the auth sign a TLS and an SSH certificate.
@@ -91,7 +106,7 @@ func (a *OSSAuthHelper) ServerAddr() string {
 // - the PEM-encoded private key
 // - the Authorized-key formatted SSH cert
 // - the PEM-encoded TLS cert
-func (a *OSSAuthHelper) getUserCerts(t *testing.T, user types.User) ([]byte, []byte, []byte) {
+func (a *OSSAuthHelper) getUserCerts(t *testing.T, user types.User) userCerts {
 	auth := a.server.Auth()
 
 	clusterName, err := auth.GetClusterName()
@@ -119,7 +134,7 @@ func (a *OSSAuthHelper) getUserCerts(t *testing.T, user types.User) ([]byte, []b
 		},
 	)
 
-	return pemKey, sshCert, tlsCert
+	return userCerts{pemKey, sshCert, tlsCert}
 }
 
 // CredentialsForUser implements the AuthHelper interface.
@@ -129,8 +144,8 @@ func (a *OSSAuthHelper) CredentialsForUser(t *testing.T, ctx context.Context, us
 	clusterName, err := auth.GetClusterName()
 	require.NoError(t, err)
 
-	pemKey, _, tlsCert := a.getUserCerts(t, user)
-	cert, err := keys.X509KeyPair(tlsCert, pemKey)
+	certs := a.getUserCerts(t, user)
+	cert, err := keys.X509KeyPair(certs.tls, certs.privateKey)
 	require.NoError(t, err)
 
 	pool := x509.NewCertPool()
@@ -160,7 +175,7 @@ func (a *OSSAuthHelper) SignIdentityForUser(t *testing.T, ctx context.Context, u
 	clusterName, err := auth.GetClusterName()
 	require.NoError(t, err)
 
-	pemKey, sshCert, tlsCert := a.getUserCerts(t, user)
+	certs := a.getUserCerts(t, user)
 
 	var tlsCAs, sshCAs [][]byte
 	ca, err := auth.GetCertAuthority(ctx, types.CertAuthID{
@@ -180,10 +195,10 @@ func (a *OSSAuthHelper) SignIdentityForUser(t *testing.T, ctx context.Context, u
 	}
 
 	id := &identityfile.IdentityFile{
-		PrivateKey: pemKey,
+		PrivateKey: certs.privateKey,
 		Certs: identityfile.Certs{
-			TLS: tlsCert,
-			SSH: sshCert,
+			TLS: certs.tls,
+			SSH: certs.ssh,
 		},
 		CACerts: identityfile.CACerts{
 			TLS: tlsCAs,
