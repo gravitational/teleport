@@ -156,6 +156,14 @@ $ tsh db logout example-postgres
 $ tsh db logout
 ```
 
+## Reference
+
+This section defines specific functions of using Teleport with Postgres. 
+
+| Function | Description | Session Type | Limitations |
+| - | - | - | - |
+| `ctrl+C` | The keyboard combination of Ctrl+C can be used to kill the current psql query without stopping the psql program. | `tsh db connect` or `tsh proxy db` | Cannot be used with `tsh db login` sessions |
+
 ## Next steps
 
 - Set up [automatic database user provisioning](../auto-user-provisioning/postgres.mdx).
