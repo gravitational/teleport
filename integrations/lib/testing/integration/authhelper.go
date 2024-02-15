@@ -24,6 +24,12 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
@@ -31,10 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	"testing"
-	"time"
 )
 
 // OSSAuthHelper implements the AuthHelper interface.
