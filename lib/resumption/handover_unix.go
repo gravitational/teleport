@@ -34,7 +34,13 @@ import (
 )
 
 func sockPath(dataDir string, token resumptionToken) string {
-	return filepath.Join(dataDir, "handover", fmt.Sprintf("%x.sock", sha256.Sum256(token[:])))
+	hash := sha256.Sum256(token[:])
+	// unix domain sockets are limited to 108 or 104 characters, so spending 64
+	// for the full sha256 hash is a bit too much; truncating the hash to 128
+	// bits still gives us more than enough headroom to just assume that we'll
+	// have no collisions (a probability of one in a quintillion with 26 billion
+	// concurrent connections)
+	return filepath.Join(dataDir, "handover", fmt.Sprintf("%x.sock", hash[:16]))
 }
 
 func sockDir(dataDir string) string {
