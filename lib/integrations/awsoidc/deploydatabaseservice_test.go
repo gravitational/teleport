@@ -185,7 +185,6 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					*tt.expected,
 					r,
-					//cmpopts.IgnoreFields(DeployDatabaseServiceRequest{}),
 					cmpopts.IgnoreUnexported(DeployDatabaseServiceRequest{}),
 				))
 			}
