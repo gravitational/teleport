@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -267,19 +268,20 @@ func TestServer_ChangePassword(t *testing.T) {
 func TestServer_ChangePassword_FailsWithoutOldPassword(t *testing.T) {
 	t.Parallel()
 
-	srv := newTestTLSServer(t)
-	mfa := configureForMFA(t, srv)
-	authServer := srv.Auth()
+	server := newTestTLSServer(t)
+	mfa := configureForMFA(t, server)
+	authServer := server.Auth()
 	ctx := context.Background()
 
 	username := mfa.User
 	newPass := []byte("capybarasarecool123")
 
-	clt, err := srv.NewClient(TestUser(username))
+	userClient, err := server.NewClient(TestUser(username))
 	require.NoError(t, err)
+	defer userClient.Close()
 
 	// Acquire and solve an MFA challenge.
-	mfaChallenge, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+	mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
@@ -297,10 +299,14 @@ func TestServer_ChangePassword_FailsWithoutOldPassword(t *testing.T) {
 		NewPassword: newPass,
 		Webauthn:    mfaResp.GetWebauthn(),
 	}
-	require.Error(t, authServer.ChangePassword(ctx, req), "changing password")
+	err = authServer.ChangePassword(ctx, req)
+	assert.True(t,
+		trace.IsAccessDenied(err),
+		"ChangePassword error mismatch, want=AccessDenied, got=%v (%T)",
+		err, trace.Unwrap(err))
 
 	// Did the password change take effect?
-	require.Error(t, authServer.checkPasswordWOToken(username, newPass), "password was changed")
+	assert.Error(t, authServer.checkPasswordWOToken(username, newPass), "password was changed")
 }
 
 func TestChangeUserAuthentication(t *testing.T) {
