@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	eventtypes "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -63,6 +64,66 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestRejectedClients(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_REJECT_OLD_CLIENTS", "yes")
+
+	server, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:         t.TempDir(),
+		ClusterName: "cluster",
+		Clock:       clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"}, nil)
+	require.NoError(t, err)
+
+	tlsServer, err := server.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	tlsConfig, err := tlsServer.ClientTLSConfig(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	clt, err := NewClient(client.Config{
+		DialInBackground: true,
+		Addrs:            []string{tlsServer.Addr().String()},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+	})
+	require.NoError(t, err)
+	defer clt.Close()
+
+	t.Run("reject old version", func(t *testing.T) {
+		version := teleport.MinClientSemVersion
+		version.Major--
+		ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
+		ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+			metadata.VersionKey: version.String(),
+		})
+		resp, err := clt.Ping(ctx)
+		require.True(t, trace.IsConnectionProblem(err))
+		require.Equal(t, proto.PingResponse{}, resp)
+	})
+
+	t.Run("allow valid versions", func(t *testing.T) {
+		version := teleport.MinClientSemVersion
+		version.Major--
+		for i := 0; i < 5; i++ {
+			version.Major++
+
+			ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
+			ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+				metadata.VersionKey: version.String(),
+			})
+			resp, err := clt.Ping(ctx)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+		}
+	})
+}
 
 // TestRemoteBuiltinRole tests remote builtin role
 // that gets mapped to remote proxy readonly role

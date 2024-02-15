@@ -108,7 +108,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -6838,9 +6837,9 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 					}
 
 					foundTrace = true
-					require.Equal(t, expectedTrace.Status.String(), returnedTrace.Status)
-					require.Equal(t, expectedTrace.Details, returnedTrace.Details)
-					require.Contains(t, expectedTrace.Error, returnedTrace.Error)
+					require.Equal(t, returnedTrace.Status, expectedTrace.Status.String())
+					require.Equal(t, returnedTrace.Details, expectedTrace.Details)
+					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
 				}
 
 				require.True(t, foundTrace, expectedTrace)
@@ -7436,7 +7435,7 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 	u := url.URL{
 		Host:   s.url().Host,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut),
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", currentSiteShortcut),
 	}
 	data, err := json.Marshal(req)
 	if err != nil {
@@ -7445,7 +7444,6 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 
 	q := u.Query()
 	q.Set("params", string(data))
-	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -7469,6 +7467,10 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 			io.Copy(&sb, resp.Body)
 		}
 		return nil, nil, trace.Wrap(err, sb.String())
+	}
+
+	if err := makeAuthReqOverWS(ws, pack.session.Token); err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	ty, raw, err := ws.ReadMessage()
@@ -8266,7 +8268,7 @@ func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", currentSiteShortcut),
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", currentSiteShortcut),
 	}
 
 	requestData := TerminalRequest{
@@ -8308,6 +8310,9 @@ func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session
 		require.NoError(t, resp.Body.Close())
 	})
 
+	err = makeAuthReqOverWS(ws, pack.session.Token)
+	require.NoError(t, err)
+
 	ty, raw, err := ws.ReadMessage()
 	require.NoError(t, err)
 	require.Equal(t, websocket.BinaryMessage, ty)
@@ -8320,18 +8325,38 @@ func (r *testProxy) makeTerminal(t *testing.T, pack *authPack, sessionID session
 	return ws, sessResp.Session
 }
 
+func makeAuthReqOverWS(ws *websocket.Conn, token string) error {
+	authReq, err := json.Marshal(struct {
+		Token string `json:"token"`
+	}{Token: token})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := ws.WriteMessage(websocket.TextMessage, authReq); err != nil {
+		return trace.Wrap(err)
+	}
+	_, authRes, err := ws.ReadMessage()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !strings.Contains(string(authRes), `"status":"ok"`) {
+		return trace.AccessDenied("unexpected response")
+	}
+	return nil
+}
+
 func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID session.ID, addr net.Addr) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/webapi/sites/%s/desktops/%s/connect", currentSiteShortcut, "desktop1"),
+		Path:   fmt.Sprintf("/webapi/sites/%s/desktops/%s/connect/ws", currentSiteShortcut, "desktop1"),
 	}
 
 	q := u.Query()
 	q.Set("username", "marek")
 	q.Set("width", "100")
 	q.Set("height", "100")
-	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
 	dialer := websocket.Dialer{}
@@ -8346,6 +8371,10 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, sessionID s
 
 	ws, resp, err := dialer.Dial(u.String(), header)
 	require.NoError(t, err)
+
+	err = makeAuthReqOverWS(ws, pack.session.Token)
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		require.NoError(t, ws.Close())
 		require.NoError(t, resp.Body.Close())
@@ -9169,74 +9198,6 @@ func TestLogout(t *testing.T) {
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
 }
 
-// TestSAMlSessionClearedOnLogout tests if SAML IdP session is cleared on logout.
-func TestSAMlSessionClearedOnLogout(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	env := newWebPack(t, 2)
-
-	const user = "llama"
-	const samlSessionID = "saml_session_id"
-
-	// create logged in session
-	pack := env.proxies[0].authPack(t, user, nil /* roles */)
-
-	// manually add SAML IdP session. The actual SAML IdP session and session cookie is set
-	// by the SAML IdP and the code to do that is on teleport.e.
-	_, err := env.proxies[0].client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
-		SessionID:   samlSessionID,
-		Username:    pack.user,
-		SAMLSession: &types.SAMLSessionData{ID: samlSessionID},
-	})
-	require.NoError(t, err)
-	// add SAML session session cookie to authenticated client pack.
-	jar, err := cookiejar.New(nil)
-	require.NoError(t, err)
-	setSAMLCookie := &http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    samlSessionID,
-		MaxAge:   int(time.Second) * 5,
-		HttpOnly: true,
-		Secure:   true,
-		Path:     "/",
-	}
-	jar.SetCookies(&env.proxies[0].webURL, append(pack.cookies, setSAMLCookie))
-	pack2 := env.proxies[0].newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
-
-	samlSession, err := env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
-		SessionID: samlSessionID,
-	})
-	require.NoError(t, err)
-	require.Equal(t, user, samlSession.GetUser())
-	require.Equal(t, samlSessionID, samlSession.GetSAMLSession().ID)
-
-	// logout from web. The saml session needs to be deleted and the proxy should
-	// respond with SAML session cookie with empty value.
-	resp, err := pack2.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
-	require.NoError(t, err)
-	require.True(t, hasEmptySAMLSessionCookieValue(resp.Cookies()))
-	_, err = env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
-		SessionID: samlSessionID,
-	})
-	require.ErrorContains(t, err, `key "/saml_idp/sessions/saml_session_id" is not found`)
-}
-
-func hasEmptySAMLSessionCookieValue(cookies []*http.Cookie) bool {
-	samlCookieString := (&http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-	}).String()
-	for _, cookie := range cookies {
-		if cookie.String() == samlCookieString {
-			return true
-		}
-	}
-	return false
-}
-
 // initGRPCServer creates a gRPC server serving on the provided listener.
 func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	clusterName := env.server.ClusterName()
@@ -9336,6 +9297,111 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 		},
 		TotalCount: 2,
 	}, nil
+}
+
+func TestWebSocketAuthenticateRequest(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	proxy.handler.handler.wsIODeadline = time.Second
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+	for _, tc := range []struct {
+		name              string
+		serverExpectError string
+		expectResponse    wsStatus
+		token             string
+		writeTimeout      func()
+		readTimeout       func()
+	}{
+		{
+			name: "valid token",
+			expectResponse: wsStatus{
+				Type:   "create_session_response",
+				Status: "ok",
+			},
+			token: pack.session.Token,
+		},
+		{
+			name:              "invalid token",
+			serverExpectError: "not found",
+			expectResponse: wsStatus{
+				Type:    "create_session_response",
+				Status:  "error",
+				Message: "invalid token",
+			},
+			token: "honk",
+		},
+		{
+			name:              "server read timeout",
+			serverExpectError: "i/o timeout",
+			token:             pack.session.Token,
+			readTimeout: func() {
+				<-time.After(wsIODeadline * 3)
+			},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				sctx, ws, err := proxy.handler.handler.AuthenticateRequestWS(w, r)
+				if err != nil {
+					if tc.serverExpectError == "" {
+						t.Errorf("unexpected error: %v", err)
+					}
+					if !strings.Contains(err.Error(), tc.serverExpectError) {
+						t.Errorf("unexpected error: %v", err)
+						return
+					}
+					return
+				}
+				t.Cleanup(func() { ws.Close() })
+				if err == nil && tc.serverExpectError != "" {
+					t.Errorf("expected error, got nil")
+					return
+				}
+
+				clt, err := sctx.GetClient()
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+					return
+				}
+				_, err = clt.GetDomainName(ctx)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+					return
+				}
+			}))
+
+			header := http.Header{}
+			for _, cookie := range pack.cookies {
+				header.Add("Cookie", cookie.String())
+			}
+
+			u := strings.Replace(server.URL, "http:", "ws:", 1)
+			conn, resp, err := websocket.DefaultDialer.Dial(u, header)
+			require.NoError(t, err)
+			t.Cleanup(func() { conn.Close() })
+			t.Cleanup(func() { resp.Body.Close() })
+
+			if tc.readTimeout != nil {
+				tc.readTimeout()
+			}
+			err = conn.WriteJSON(wsBearerToken{
+				Token: tc.token,
+			})
+			require.NoError(t, err)
+			if tc.readTimeout != nil {
+				return // Reading will fail as the server will have closed the connection
+			}
+
+			var status wsStatus
+			err = conn.ReadJSON(&status)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectResponse, status)
+		})
+	}
 }
 
 // TestSimultaneousAuthenticateRequest ensures that multiple authenticated
