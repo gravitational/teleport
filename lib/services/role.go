@@ -1806,22 +1806,6 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 	return constants.SessionRecordingModeBestEffort
 }
 
-// globMatch performs simple a simple glob-style match test on a string.
-// - '*' matches zero or more characters.
-// - '?' matches any single character.
-// It returns true if a match is detected.
-func globMatch(pattern, str string) (bool, error) {
-	pattern = regexp.QuoteMeta(pattern)
-	pattern = strings.ReplaceAll(pattern, `\*`, ".*")
-	pattern = strings.ReplaceAll(pattern, `\?`, ".")
-	pattern = "^" + pattern + "$"
-	matched, err := regexp.MatchString(pattern, str)
-	if err != nil {
-		return false, trace.Wrap(err, "compiling glob regex for %q", pattern)
-	}
-	return matched, nil
-}
-
 func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {
 	for i := range s {
 		match, err := f(s[i])
