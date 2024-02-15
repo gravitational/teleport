@@ -967,9 +967,25 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Okta Service Hosted Integration",
+              "slug": "/application-access/okta/hosted-guide/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
               "title": "Architecture",
               "slug": "/application-access/okta/architecture/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Synchronization and SCIM",
+              "slug": "/application-access/okta/sync-scim/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "Reference",

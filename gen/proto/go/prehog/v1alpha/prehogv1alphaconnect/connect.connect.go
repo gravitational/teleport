@@ -22,9 +22,9 @@
 package prehogv1alphaconnect
 
 import (
+	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	connect_go "github.com/bufbuild/connect-go"
 	v1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	http "net/http"
 	strings "strings"
@@ -35,7 +35,7 @@ import (
 // generated with a version of connect newer than the one compiled into your binary. You can fix the
 // problem by either regenerating this code with an older version of connect or updating the connect
 // version compiled into your binary.
-const _ = connect_go.IsAtLeastVersion0_1_0
+const _ = connect.IsAtLeastVersion1_13_0
 
 const (
 	// ConnectReportingServiceName is the fully-qualified name of the ConnectReportingService service.
@@ -55,9 +55,15 @@ const (
 	ConnectReportingServiceSubmitConnectEventProcedure = "/prehog.v1alpha.ConnectReportingService/SubmitConnectEvent"
 )
 
+// These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
+var (
+	connectReportingServiceServiceDescriptor                  = v1alpha.File_prehog_v1alpha_connect_proto.Services().ByName("ConnectReportingService")
+	connectReportingServiceSubmitConnectEventMethodDescriptor = connectReportingServiceServiceDescriptor.Methods().ByName("SubmitConnectEvent")
+)
+
 // ConnectReportingServiceClient is a client for the prehog.v1alpha.ConnectReportingService service.
 type ConnectReportingServiceClient interface {
-	SubmitConnectEvent(context.Context, *connect_go.Request[v1alpha.SubmitConnectEventRequest]) (*connect_go.Response[v1alpha.SubmitConnectEventResponse], error)
+	SubmitConnectEvent(context.Context, *connect.Request[v1alpha.SubmitConnectEventRequest]) (*connect.Response[v1alpha.SubmitConnectEventResponse], error)
 }
 
 // NewConnectReportingServiceClient constructs a client for the
@@ -67,31 +73,32 @@ type ConnectReportingServiceClient interface {
 //
 // The URL supplied here should be the base URL for the Connect or gRPC server (for example,
 // http://api.acme.com or https://acme.com/grpc).
-func NewConnectReportingServiceClient(httpClient connect_go.HTTPClient, baseURL string, opts ...connect_go.ClientOption) ConnectReportingServiceClient {
+func NewConnectReportingServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) ConnectReportingServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return &connectReportingServiceClient{
-		submitConnectEvent: connect_go.NewClient[v1alpha.SubmitConnectEventRequest, v1alpha.SubmitConnectEventResponse](
+		submitConnectEvent: connect.NewClient[v1alpha.SubmitConnectEventRequest, v1alpha.SubmitConnectEventResponse](
 			httpClient,
 			baseURL+ConnectReportingServiceSubmitConnectEventProcedure,
-			opts...,
+			connect.WithSchema(connectReportingServiceSubmitConnectEventMethodDescriptor),
+			connect.WithClientOptions(opts...),
 		),
 	}
 }
 
 // connectReportingServiceClient implements ConnectReportingServiceClient.
 type connectReportingServiceClient struct {
-	submitConnectEvent *connect_go.Client[v1alpha.SubmitConnectEventRequest, v1alpha.SubmitConnectEventResponse]
+	submitConnectEvent *connect.Client[v1alpha.SubmitConnectEventRequest, v1alpha.SubmitConnectEventResponse]
 }
 
 // SubmitConnectEvent calls prehog.v1alpha.ConnectReportingService.SubmitConnectEvent.
-func (c *connectReportingServiceClient) SubmitConnectEvent(ctx context.Context, req *connect_go.Request[v1alpha.SubmitConnectEventRequest]) (*connect_go.Response[v1alpha.SubmitConnectEventResponse], error) {
+func (c *connectReportingServiceClient) SubmitConnectEvent(ctx context.Context, req *connect.Request[v1alpha.SubmitConnectEventRequest]) (*connect.Response[v1alpha.SubmitConnectEventResponse], error) {
 	return c.submitConnectEvent.CallUnary(ctx, req)
 }
 
 // ConnectReportingServiceHandler is an implementation of the prehog.v1alpha.ConnectReportingService
 // service.
 type ConnectReportingServiceHandler interface {
-	SubmitConnectEvent(context.Context, *connect_go.Request[v1alpha.SubmitConnectEventRequest]) (*connect_go.Response[v1alpha.SubmitConnectEventResponse], error)
+	SubmitConnectEvent(context.Context, *connect.Request[v1alpha.SubmitConnectEventRequest]) (*connect.Response[v1alpha.SubmitConnectEventResponse], error)
 }
 
 // NewConnectReportingServiceHandler builds an HTTP handler from the service implementation. It
@@ -99,11 +106,12 @@ type ConnectReportingServiceHandler interface {
 //
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
-func NewConnectReportingServiceHandler(svc ConnectReportingServiceHandler, opts ...connect_go.HandlerOption) (string, http.Handler) {
-	connectReportingServiceSubmitConnectEventHandler := connect_go.NewUnaryHandler(
+func NewConnectReportingServiceHandler(svc ConnectReportingServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	connectReportingServiceSubmitConnectEventHandler := connect.NewUnaryHandler(
 		ConnectReportingServiceSubmitConnectEventProcedure,
 		svc.SubmitConnectEvent,
-		opts...,
+		connect.WithSchema(connectReportingServiceSubmitConnectEventMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
 	)
 	return "/prehog.v1alpha.ConnectReportingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -118,6 +126,6 @@ func NewConnectReportingServiceHandler(svc ConnectReportingServiceHandler, opts 
 // UnimplementedConnectReportingServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedConnectReportingServiceHandler struct{}
 
-func (UnimplementedConnectReportingServiceHandler) SubmitConnectEvent(context.Context, *connect_go.Request[v1alpha.SubmitConnectEventRequest]) (*connect_go.Response[v1alpha.SubmitConnectEventResponse], error) {
-	return nil, connect_go.NewError(connect_go.CodeUnimplemented, errors.New("prehog.v1alpha.ConnectReportingService.SubmitConnectEvent is not implemented"))
+func (UnimplementedConnectReportingServiceHandler) SubmitConnectEvent(context.Context, *connect.Request[v1alpha.SubmitConnectEventRequest]) (*connect.Response[v1alpha.SubmitConnectEventResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("prehog.v1alpha.ConnectReportingService.SubmitConnectEvent is not implemented"))
 }
