@@ -276,30 +276,11 @@ func grpcCredentials(config servicecfg.AccessGraphConfig, certs []tls.Certificat
 }
 
 func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error {
-	if cfg.Matchers.AccessGraph != nil && len(cfg.Matchers.AccessGraph.AWS) > 0 {
-		for _, awsFetcher := range cfg.Matchers.AccessGraph.AWS {
-			var assumeRole *aws_sync.AssumeRole
-			if awsFetcher.AssumeRole != nil {
-				assumeRole = &aws_sync.AssumeRole{
-					RoleARN:    awsFetcher.AssumeRole.RoleARN,
-					ExternalID: awsFetcher.AssumeRole.ExternalID,
-				}
-			}
-			fetcher, err := aws_sync.NewAWSFetcher(
-				ctx,
-				aws_sync.Config{
-					CloudClients: s.CloudClients,
-					AssumeRole:   assumeRole,
-					Regions:      awsFetcher.Regions,
-					Integration:  awsFetcher.Integration,
-				},
-			)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			s.staticTAGSyncFetchers = append(s.staticTAGSyncFetchers, fetcher)
-		}
+	fetchers, err := s.accessGraphFetchersFromMatchers(ctx, cfg.Matchers)
+	if err != nil {
+		s.Log.WithError(err).Error("Error initializing access graph fetchers")
 	}
+	s.staticTAGSyncFetchers = fetchers
 
 	if cfg.AccessGraphConfig.Enabled {
 		go func() {
@@ -319,4 +300,39 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 		}()
 	}
 	return nil
+}
+
+// accessGraphFetchersFromMatchers converts Matchers into a set of AWS Sync Fetchers.
+func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers Matchers) ([]aws_sync.AWSSync, error) {
+	var fetchers []aws_sync.AWSSync
+	var errs []error
+	if matchers.AccessGraph == nil {
+		return fetchers, nil
+	}
+
+	for _, awsFetcher := range matchers.AccessGraph.AWS {
+		var assumeRole *aws_sync.AssumeRole
+		if awsFetcher.AssumeRole != nil {
+			assumeRole = &aws_sync.AssumeRole{
+				RoleARN:    awsFetcher.AssumeRole.RoleARN,
+				ExternalID: awsFetcher.AssumeRole.ExternalID,
+			}
+		}
+		fetcher, err := aws_sync.NewAWSFetcher(
+			ctx,
+			aws_sync.Config{
+				CloudClients: s.CloudClients,
+				AssumeRole:   assumeRole,
+				Regions:      awsFetcher.Regions,
+				Integration:  awsFetcher.Integration,
+			},
+		)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		fetchers = append(fetchers, fetcher)
+	}
+
+	return fetchers, trace.NewAggregate(errs...)
 }
