@@ -491,6 +491,13 @@
               "forScopes": [
                 "enterprise"
               ]
+            },
+            {
+              "title": "TAG for Self-Hosted Clusters with Helm",
+              "slug": "/access-controls/access-graph/self-hosted-helm/",
+              "forScopes": [
+                "enterprise"
+              ]
             }
           ]
         },
