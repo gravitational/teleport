@@ -27,6 +27,7 @@ The primary commands for the `teleport` CLI are as follows:
 | `teleport db start` | Starts the Teleport Database Service. |
 | `teleport help` | Outputs guidance for using Teleport commands. |
 | `teleport install systemd` | Creates a systemd unit file, used to configure and install a `teleport` service daemon. |
+| `teleport join openssh` | Registers an OpenSSH server with Teleport. |
 | `teleport node configure` | Generates a configuration YAML file for a Teleport Node accessed via SSH. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
 | `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](../config.mdx). |
 | `teleport status` | Prints the status of the current active Teleport SSH session. |
@@ -111,4 +112,3 @@ sudo teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080
     --app-uri="http://localhost:8080" \
     --labels=group=dev
 ```
-
