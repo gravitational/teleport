@@ -29,18 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-// CacheI defines an interface for proxy client cache.
-type CacheI interface {
-	// Get returns a proxy client from the cache if there is one,
-	// otherwise it dials the remote server.
-	Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error)
-	// InvalidateForRootCluster closes and removes clients from the cache
-	// for the root cluster and its leaf clusters.
-	InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error
-	// Close closes and removes all clients.
-	Close() error
-}
-
 // Cache stores remote clients keyed by cluster URI.
 // Safe for concurrent access.
 // Closes all clients and wipes the cache on Close.
@@ -64,6 +52,8 @@ func New(c Config) *Cache {
 	}
 }
 
+// Get returns a proxy client from the cache if there is one,
+// otherwise it dials the remote server.
 func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
 	cltI, err, _ := c.group.Do(clusterURI.String(), func() (interface{}, error) {
 		cluster, clusterClient, err := c.ResolveCluster(clusterURI)
@@ -120,6 +110,8 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 	return clt, nil
 }
 
+// InvalidateForRootCluster closes and removes clients from the cache
+// for the root cluster and its leaf clusters.
 func (c *Cache) InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -144,6 +136,7 @@ func (c *Cache) InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error {
 
 }
 
+// Close closes and removes all clients.
 func (c *Cache) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

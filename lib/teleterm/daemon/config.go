@@ -71,7 +71,13 @@ type Config struct {
 	ConnectMyComputerNodeDelete       *connectmycomputer.NodeDelete
 	ConnectMyComputerNodeName         *connectmycomputer.NodeName
 
-	RemoteClientCache remoteclientcache.CacheI
+	RemoteClientCache RemoteClientCache
+}
+
+type RemoteClientCache interface {
+	Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error)
+	InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error
+	Close() error
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
