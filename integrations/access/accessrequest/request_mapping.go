@@ -7,58 +7,62 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// mappableRequestSpec holds user details that can be mapped in an
+// accessRequestExpressionEnv holds user details that can be mapped in an
 // access request condition assertion.
-type mappableRequestSpec struct {
+type accessRequestExpressionEnv struct {
 	// e.g access_request.spec.roles.contains('prod-rw') && !access_request.status.notified
 	Roles       []string
-	Notified    string
+	Notified    bool
 	Annotations map[string][]string
 }
 
-// evaluationEnv defines mappable attrbutes for predicate expression evaluation context.
-type evaluationEnv struct {
-	roles       expression.Set
-	notified    expression.Set
-	annotations expression.Dict
+type accessRequestExpression typical.Expression[accessRequestExpressionEnv, any]
+
+func parseAccessRequestExpression(expr string) (accessRequestExpression, error) {
+	parsedExpr, err := newRequestConditionParser().Parse(expr)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing label expression")
+	}
+	return parsedExpr, nil
 }
 
-func newRequestConditionParser() *typical.Parser[evaluationEnv, any] {
+func newRequestConditionParser() *typical.Parser[accessRequestExpressionEnv, any] {
 	typicalEnvVar := map[string]typical.Variable{
 		"true":  true,
 		"false": false,
-		"access_request.spec.roles": typical.DynamicVariable[evaluationEnv](func(env evaluationEnv) (expression.Set, error) {
-			return env.roles, nil
+		"access_request.spec.roles": typical.DynamicVariable[accessRequestExpressionEnv](func(env accessRequestExpressionEnv) (expression.Set, error) {
+			return expression.NewSet(env.Roles...), nil
 		}),
-		"access_request.status.notified": typical.DynamicVariable[evaluationEnv](func(env evaluationEnv) (expression.Set, error) {
-			return env.notified, nil
+		"access_request.status.notified": typical.DynamicVariable[accessRequestExpressionEnv](func(env accessRequestExpressionEnv) (bool, error) {
+			return env.Notified, nil
 		}),
-		"access_request.spec.system_annotations": typical.DynamicMap[evaluationEnv, expression.Set](func(env evaluationEnv) (expression.Dict, error) {
-			return env.annotations, nil
+		"access_request.spec.system_annotations": typical.DynamicMap[accessRequestExpressionEnv, expression.Set](func(env accessRequestExpressionEnv) (expression.Dict, error) {
+			return expression.DictFromStringSliceMap(env.Annotations), nil
 		}),
 	}
 	// TODO: Replace defaultParserSpec in new traits expression parser with more limited one
-	requestConditionParser, err := expression.NewTraitsExpressionParser[evaluationEnv](typicalEnvVar)
+	requestConditionParser, err := expression.NewTraitsExpressionParser[accessRequestExpressionEnv](typicalEnvVar)
 	if err != nil {
 		panic(trace.Wrap(err, "creating request condition parser (this is a bug)"))
 	}
 	return requestConditionParser
 }
 
-func newEvaluationEnv(mappableRequest mappableRequestSpec) evaluationEnv {
-	return evaluationEnv{
-		roles:       expression.NewSet(mappableRequest.Roles...),
-		notified:    expression.NewSet(mappableRequest.Notified),
-		annotations: expression.DictFromStringSliceMap(mappableRequest.Annotations),
+func matchAccessRequest(expr string, req types.AccessRequest) (bool, error) {
+	parsedExpr, err := parseAccessRequestExpression(expr)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
-}
-
-func evaluateRequest(condition string, req types.AccessRequest) (bool, error) {
-	// mrs := mappableRequestSpec{
-	// 	Roles: req.GetRoles(),
-	// 	Annotations: req.GetSystemAnnotations(),
-	// }
-	// evalEnv := newEvaluationEnv(mrs)
-
+	match, err := parsedExpr.Evaluate(accessRequestExpressionEnv{
+		Roles: req.GetRoles(),
+		// Notified: ..., // <-- This field doesn't exist yet in request object.
+		Annotations: req.GetSystemAnnotations(),
+	})
+	if err != nil {
+		return false, trace.Wrap(err, "evaluating label expression %q", expr)
+	}
+	if matched, ok := match.(bool); ok && matched {
+		return true, nil
+	}
 	return false, nil
 }
