@@ -287,6 +287,16 @@ Do not run debug container images in production environments.
 Heavy container images will continue to be published for Teleport 13 and 14
 throughout the remainder of these releases' lifecycle.
 
+##### Helm cluster chart FIPS mode changes
+
+The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
+
+Instead, you should use the following values file configuration:
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
+localAuth: false
+
+```
+
 ##### Multi-architecture Teleport Operator images
 
 Teleport Operator container images will no longer be published with architecture
@@ -367,7 +377,19 @@ The operator now joins using a Kubernetes ServiceAccount token. To validate the
 token, the Teleport Auth Service must have access to the `TokenReview` API. The
 chart configures this for you since v12, unless you disabled `rbac` creation.
 
-##### Resource version is now mandatory and immutable in the Terraform provider
+##### Helm cluster chart FIPS mode changes
+
+The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
+
+Instead, you should use the following values file configuration:
+
+```
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
+localAuth: false
+
+```
+
+#### Resource version is now mandatory and immutable in the Terraform provider
 
 Starting with Teleport 15, each Terraform resource must have its version
 specified. Before version 15, Terraform was picking the latest version available
