@@ -1090,6 +1090,7 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+	KindRole,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.

@@ -1120,7 +1120,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 			currentRoles:       []string{"db-response-team"},
 			requestRoles:       []string{"db-admins"},
 			requestResourceIDs: nil,
-			expectError:        trace.BadParameter(`user "test-user" can not request role "db-admins"`),
+			expectError:        trace.BadParameter(`user "test-user" cannot request role "db-admins"`),
 		},
 		{
 			desc:               "deny search",
@@ -1158,7 +1158,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 			currentRoles:       []string{"db-response-team"},
 			requestResourceIDs: resourceIDs,
 			requestRoles:       []string{"splunk-admins"},
-			expectError:        trace.BadParameter(`user "test-user" can not request role "splunk-admins"`),
+			expectError:        trace.BadParameter(`user "test-user" cannot request role "splunk-admins"`),
 		},
 		{
 			desc:               "no allowed roles",
