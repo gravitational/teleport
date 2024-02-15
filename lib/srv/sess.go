@@ -1207,7 +1207,11 @@ func (s *session) launch() {
 // current session.
 func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *ServerContext) error {
 	inReader, inWriter := io.Pipe()
+
+	s.mu.Lock()
 	s.inWriter = inWriter
+	s.mu.Unlock()
+
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 	s.BroadcastMessage("Creating session with ID: %v", s.id)

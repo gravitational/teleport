@@ -1146,6 +1146,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(ctx, proxyAddr),
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
+		DialOpts:                   proxy.teleportClient.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1224,6 +1225,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		DialOpts:             proxy.teleportClient.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

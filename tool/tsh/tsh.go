@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -2006,8 +2007,6 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprint(os.Stderr, "Did you know? Teleport Connect offers the power of tsh in a desktop app.\nLearn more at https://goteleport.com/docs/connect-your-client/teleport-connect/\n\n")
-
 	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
 	}, types.AlertSeverity_LOW); err != nil {
@@ -3505,6 +3504,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
 
+	c.DialOpts = append(c.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTSH))
 	c.Tracer = cf.tracer
 
 	// Force the use of proxy template below.
