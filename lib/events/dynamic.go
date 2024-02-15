@@ -357,6 +357,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.CreateMFAAuthChallenge{}
 	case ValidateMFAAuthResponseEvent:
 		e = &events.ValidateMFAAuthResponse{}
+	case SPIFFESVIDIssuedEvent:
+		e = &events.SPIFFESVIDIssued{}
 
 	case UnknownEvent:
 		e = &events.Unknown{}
