@@ -23,14 +23,14 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
+	apilabels "github.com/gravitational/teleport/api/types/label"
 )
 
 func TestMarshalDatabaseObjectImportRuleRoundTrip(t *testing.T) {
 	spec := &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
 		Priority: 30,
-		DbLabels: types.Labels{"env": {"staging"}}.ToProto(),
+		DbLabels: apilabels.FromMap(map[string][]string{"env": {"staging", "prod"}, "owner_org": {"trading"}}),
 		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
 			{
 				Scope: &dbobjectimportrulev1.DatabaseObjectImportScope{

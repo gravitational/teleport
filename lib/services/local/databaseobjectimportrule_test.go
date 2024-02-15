@@ -26,11 +26,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	databaseobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
+	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -51,7 +52,7 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	// Create a couple import rules.
 	importRule1, err := databaseobjectimportrule.NewDatabaseObjectImportRule("r1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
 		Priority: 10,
-		DbLabels: types.Labels{"env": {"dev"}}.ToProto(),
+		DbLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
 		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
 			{
 				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
@@ -65,9 +66,10 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
 	importRule2, err := databaseobjectimportrule.NewDatabaseObjectImportRule("r2", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
 		Priority: 20,
-		DbLabels: types.Labels{"env": {"prod"}}.ToProto(),
+		DbLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
 		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
 			{
 				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
@@ -116,12 +118,14 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 			break
 		}
 	}
-	require.Equal(t, []*databaseobjectimportrulev1.DatabaseObjectImportRule{importRule1, importRule2}, paginatedOut)
+
+	require.True(t, proto.Equal(importRule1, paginatedOut[0]))
+	require.True(t, proto.Equal(importRule2, paginatedOut[1]))
 
 	// Fetch a specific import rule.
 	importRule, err = service.GetDatabaseObjectImportRule(ctx, importRule2.Metadata.GetName())
 	require.NoError(t, err)
-	require.Equal(t, importRule2, importRule)
+	require.True(t, proto.Equal(importRule2, importRule))
 
 	// Try to fetch an import rule that doesn't exist.
 	_, err = service.GetDatabaseObjectImportRule(ctx, "doesnotexist")
@@ -139,7 +143,7 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 	//nolint:staticcheck // SA1019. Deprecated, but still needed.
 	importRule.Metadata.Id = importRule1.Metadata.Id
-	require.Equal(t, importRule1, importRule)
+	require.True(t, proto.Equal(importRule1, importRule))
 
 	// Delete an import rule
 	err = service.DeleteDatabaseObjectImportRule(ctx, importRule1.GetMetadata().GetName())
@@ -147,7 +151,7 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	out, nextToken, err = service.ListDatabaseObjectImportRules(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
-	require.Equal(t, []*databaseobjectimportrulev1.DatabaseObjectImportRule{importRule2}, out)
+	require.True(t, proto.Equal(importRule2, out[0]))
 
 	// Try to delete an import rule that doesn't exist.
 	err = service.DeleteDatabaseObjectImportRule(ctx, "doesnotexist")

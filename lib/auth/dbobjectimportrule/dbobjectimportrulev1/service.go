@@ -65,7 +65,9 @@ func NewDatabaseObjectImportRuleService(cfg DatabaseObjectImportRuleServiceConfi
 
 // DatabaseObjectImportRuleService implements the teleport.dbobjectimportrule.v1.DatabaseObjectImportRuleService RPC service.
 type DatabaseObjectImportRuleService struct {
-	pb.UnimplementedDatabaseObjectImportRuleServiceServer
+	// UnsafeDatabaseObjectImportRuleServiceServer is embedded to opt out of forward compatibility for this service.
+	// Added methods to DatabaseObjectImportRuleServiceServer will result in compilation errors, which is what we want.
+	pb.UnsafeDatabaseObjectImportRuleServiceServer
 
 	backend    Backend
 	authorizer authz.Authorizer
@@ -160,11 +162,12 @@ func UpsertDatabaseObjectImportRule(
 	ctx context.Context,
 	backend Backend,
 	rule *pb.DatabaseObjectImportRule,
-) error {
+) (*pb.DatabaseObjectImportRule, error) {
 	if err := databaseobjectimportrule.ValidateDatabaseObjectImportRule(rule); err != nil {
-		return trace.Wrap(err, "validating rule")
+		return nil, trace.Wrap(err, "validating rule")
 	}
-	return trace.Wrap(backend.UpsertDatabaseObjectImportRule(ctx, rule), "upserting rule")
+	out, err := backend.UpsertDatabaseObjectImportRule(ctx, rule)
+	return out, trace.Wrap(err)
 }
 
 // UpdateDatabaseObjectImportRule updates an existing DatabaseObjectImportRule. It will throw an error if the DatabaseObjectImportRule does
@@ -183,6 +186,18 @@ func (rs *DatabaseObjectImportRuleService) UpdateDatabaseObjectImportRule(
 	}
 
 	rule, err := rs.backend.UpdateDatabaseObjectImportRule(ctx, req.Rule)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rule, nil
+}
+
+func (rs *DatabaseObjectImportRuleService) UpsertDatabaseObjectImportRule(ctx context.Context, req *pb.UpsertDatabaseObjectImportRuleRequest) (*pb.DatabaseObjectImportRule, error) {
+	err := rs.authorize(ctx, true, types.VerbUpdate, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rule, err := UpsertDatabaseObjectImportRule(ctx, rs.backend, req.GetRule())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
