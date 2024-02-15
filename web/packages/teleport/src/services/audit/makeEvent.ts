@@ -1712,6 +1712,18 @@ export const formatters: Formatters = {
     format: ({ updated_by }) =>
       `User [${updated_by}] disabled External Audit Storage`,
   },
+  [eventCodes.SPIFFE_SVID_ISSUED]: {
+    type: 'spiffe.svid.issued',
+    desc: 'SPIFFE SVID Issued',
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] issued SPIFFE SVID [${spiffe_id}]`,
+  },
+  [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: {
+    type: 'spiffe.svid.issued',
+    desc: 'SPIFFE SVID Issued Failure',
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',

@@ -8,10 +8,10 @@
           "title": "Get Started with Teleport",
           "slug": "/"
         },
-	{
-	  "title": "Documentation Overview",
-	  "slug": "/documentation-overview/"
-	},
+        {
+          "title": "Documentation Overview",
+          "slug": "/documentation-overview/"
+        },
         {
           "title": "Core Concepts",
           "slug": "/core-concepts/"
@@ -20,50 +20,50 @@
           "title": "Installation",
           "slug": "/installation/"
         },
-	{
-	  "title": "Upgrading",
-	  "slug": "/upgrading/",
-	  "entries": [
-	    {
-	      "title": "Compatibility Overview",
-	      "slug": "/upgrading/overview/"
-	    },
-	    {
-	      "title": "Teleport Cloud Agents (Linux)",
-	      "slug": "/upgrading/cloud-linux/",
-	      "forScopes": ["cloud", "team"]
-	    },
-	    {
-	      "title": "Teleport Cloud Agents (Kubernetes)",
-	      "slug": "/upgrading/cloud-kubernetes/",
-	      "forScopes": ["cloud", "team"]
-	    },
+        {
+          "title": "Upgrading",
+          "slug": "/upgrading/",
+          "entries": [
+            {
+              "title": "Compatibility Overview",
+              "slug": "/upgrading/overview/"
+            },
+            {
+              "title": "Teleport Cloud Agents (Linux)",
+              "slug": "/upgrading/cloud-linux/",
+              "forScopes": ["cloud", "team"]
+            },
+            {
+              "title": "Teleport Cloud Agents (Kubernetes)",
+              "slug": "/upgrading/cloud-kubernetes/",
+              "forScopes": ["cloud", "team"]
+            },
             {
               "title": "Self-Hosted Linux",
               "slug": "/upgrading/self-hosted-linux/",
               "forScopes": ["enterprise", "oss"]
             },
-	    {
-	      "title": "Self-Hosted Kubernetes",
-	      "slug": "/upgrading/self-hosted-kubernetes/",
-	      "forScopes": ["enterprise", "oss"]
-	    },
+            {
+              "title": "Self-Hosted Kubernetes",
+              "slug": "/upgrading/self-hosted-kubernetes/",
+              "forScopes": ["enterprise", "oss"]
+            },
             {
               "title": "Self-Hosted Automatic Upgrades",
               "slug": "/upgrading/self-hosted-automatic-agent-updates/",
               "forScopes": ["enterprise"]
             }
-	  ]
-	},
+          ]
+        },
         {
           "title": "FAQ",
           "slug": "/faq/"
         },
-	{
-	  "title": "Usage Reporting and Billing",
-	  "slug": "/usage-billing/",
-	  "forScopes": ["cloud", "team", "enterprise"]
-	},
+        {
+          "title": "Usage Reporting and Billing",
+          "slug": "/usage-billing/",
+          "forScopes": ["cloud", "team", "enterprise"]
+        },
         {
           "title": "Upcoming Releases",
           "slug": "/upcoming-releases/"
@@ -90,7 +90,7 @@
         {
           "title": "Teleport Team",
           "slug": "/choose-an-edition/teleport-team/",
-	  "forScopes": ["team"]
+          "forScopes": ["team"]
         },
         {
           "title": "Teleport Enterprise Cloud",
@@ -509,11 +509,11 @@
               "slug": "/access-controls/access-requests/resource-requests/",
               "forScopes": ["enterprise", "cloud"]
             },
-	    {
-	      "title": "Configure Access Requests",
+            {
+              "title": "Configure Access Requests",
               "slug": "/access-controls/access-requests/access-request-configuration/",
               "forScopes": ["enterprise", "cloud"]
-	    },
+            },
             {
               "title": "Access Requests in Teleport Community Edition",
               "slug": "/access-controls/access-requests/oss-role-requests/",
@@ -604,29 +604,37 @@
           "title": "Introduction",
           "slug": "/management/introduction/"
         },
-	{
-	  "title": "Using Dynamic Resources",
-	  "slug": "/management/dynamic-resources/",
-	  "entries": [
-	    {
-          "title": "Kubernetes Operator",
-          "slug": "/management/dynamic-resources/teleport-operator/"
-        },
         {
-          "title": "Kubernetes Operator in teleport-cluster Helm chart",
-          "slug": "/management/dynamic-resources/teleport-operator-helm/",
-          "forScopes": ["oss","enterprise"]
+          "title": "Using Dynamic Resources",
+          "slug": "/management/dynamic-resources/",
+          "entries": [
+            {
+              "title": "Managing Users and Roles",
+              "slug": "/management/dynamic-resources/user-and-role/"
+            },
+            {
+              "title": "Managing Access Lists",
+              "slug": "/management/dynamic-resources/access-list/"
+            },
+            {
+              "title": "Kubernetes Operator",
+              "slug": "/management/dynamic-resources/teleport-operator/"
+            },
+            {
+              "title": "Kubernetes Operator in teleport-cluster Helm chart",
+              "slug": "/management/dynamic-resources/teleport-operator-helm/",
+              "forScopes": ["oss","enterprise"]
+            },
+            {
+              "title": "Standalone Kubernetes Operator",
+              "slug": "/management/dynamic-resources/teleport-operator-standalone/"
+            },
+            {
+              "title": "Terraform Provider",
+              "slug": "/management/dynamic-resources/terraform-provider/"
+            }
+          ]
         },
-        {
-          "title": "Standalone Kubernetes Operator",
-          "slug": "/management/dynamic-resources/teleport-operator-standalone/"
-        },
-        {
-          "title": "Terraform Provider",
-          "slug": "/management/dynamic-resources/terraform-provider/"
-        }
-	  ]
-	},
         {
           "title": "Admin Guides",
           "slug": "/management/admin/",
@@ -864,24 +872,24 @@
           "title": "Getting Started",
           "slug": "/application-access/getting-started/"
         },
-	{
-	    "title": "Enroll Kubernetes Applications",
-	    "slug": "/application-access/enroll-kubernetes-applications/",
-	    "entries":[
-		{
-		    "title": "Get Started",
-		    "slug": "/application-access/enroll-kubernetes-applications/get-started/"
-		},
-		{
-		    "title": "Architecture",
-		    "slug": "/application-access/enroll-kubernetes-applications/architecture/"
-		},
-		{
-		    "title": "Reference",
-		    "slug": "/application-access/enroll-kubernetes-applications/reference/"
-		}
-	    ]
-	},
+        {
+          "title": "Enroll Kubernetes Applications",
+          "slug": "/application-access/enroll-kubernetes-applications/",
+          "entries":[
+            {
+              "title": "Get Started",
+              "slug": "/application-access/enroll-kubernetes-applications/get-started/"
+            },
+            {
+              "title": "Architecture",
+              "slug": "/application-access/enroll-kubernetes-applications/architecture/"
+            },
+            {
+              "title": "Reference",
+              "slug": "/application-access/enroll-kubernetes-applications/reference/"
+            }
+          ]
+        },
         {
           "title": "Securing Cloud Provider APIs",
           "slug": "/application-access/cloud-apis/",
@@ -1548,10 +1556,10 @@
               "title": "Telemetry",
               "slug": "/machine-id/reference/telemetry/"
             },
-	    {
-	    	"title": "Upgrading to v14",
-	    	"slug": "/machine-id/reference/v14-upgrade-guide/"
-	    }
+            {
+              "title": "Upgrading to v14",
+              "slug": "/machine-id/reference/v14-upgrade-guide/"
+            }
           ]
         },
         {
@@ -1615,23 +1623,23 @@
           "title": "Command Line",
           "slug": "/reference/cli/",
           "entries": [
-	      {
-	      	  "title": "teleport",
-	      	  "slug": "/reference/cli/teleport/"
-	      },
-	      {
-	      	  "title": "tsh",
-	      	  "slug": "/reference/cli/tsh/"
-	      },
-	      {
-	      	  "title": "tctl",
-	      	  "slug": "/reference/cli/tctl/"
-	      },
-	      {
-	      	  "title": "tbot",
-	      	  "slug": "/reference/cli/tbot/"
-	      }
-	  ]
+            {
+              "title": "teleport",
+              "slug": "/reference/cli/teleport/"
+            },
+            {
+              "title": "tsh",
+              "slug": "/reference/cli/tsh/"
+            },
+            {
+              "title": "tctl",
+              "slug": "/reference/cli/tctl/"
+            },
+            {
+              "title": "tbot",
+              "slug": "/reference/cli/tbot/"
+            }
+          ]
         },
         {
           "title": "Metrics",
@@ -1671,6 +1679,10 @@
           "slug": "/reference/signals/"
         },
         {
+          "title": "User Types",
+          "slug": "/reference/user-types/"
+        },
+        {
           "title": "Helm Charts",
           "slug": "/reference/helm-reference/",
           "entries": [
@@ -1678,9 +1690,9 @@
               "title": "teleport-cluster",
               "slug": "/reference/helm-reference/teleport-cluster/",
               "forScopes": [
-              	  "oss",
-              	  "enterprise"
-	      ]
+                "oss",
+                "enterprise"
+              ]
             },
             {
               "title": "teleport-kube-agent",

@@ -76,13 +76,14 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 		return nil, trace.BadParameter("mfa challenges with scope %s cannot allow reuse", challengeExtensions.Scope)
 	}
 
-	passwordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
-	if user == "" && !passwordless {
+	// discoverableLogin identifies logins started with an unknown/empty user.
+	discoverableLogin := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+	if user == "" && !discoverableLogin {
 		return nil, trace.BadParameter("user required")
 	}
 
 	var u *webUser
-	if passwordless {
+	if discoverableLogin {
 		u = &webUser{} // Issue anonymous challenge.
 	} else {
 		webID, err := f.getWebID(ctx, user)
@@ -149,12 +150,19 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 			wantypes.AppIDExtension: f.U2F.AppID,
 		}))
 	}
+	// Set the user verification requirement, if present, only for
+	// non-discoverable logins.
+	// For discoverable logins we rely on the wan.WebAuthn default set below.
+	if !discoverableLogin && challengeExtensions.UserVerificationRequirement != "" {
+		uvr := protocol.UserVerificationRequirement(challengeExtensions.UserVerificationRequirement)
+		opts = append(opts, wan.WithUserVerification(uvr))
+	}
 
 	// Create the WebAuthn object and issue a new challenge.
 	web, err := newWebAuthn(webAuthnParams{
 		cfg:                     f.Webauthn,
 		rpID:                    f.Webauthn.RPID,
-		requireUserVerification: passwordless,
+		requireUserVerification: discoverableLogin,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -162,7 +170,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 
 	var assertion *protocol.CredentialAssertion
 	var sessionData *wan.SessionData
-	if passwordless {
+	if discoverableLogin {
 		assertion, sessionData, err = web.BeginDiscoverableLogin(opts...)
 	} else {
 		assertion, sessionData, err = web.BeginLogin(u, opts...)
@@ -212,10 +220,10 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
 
-	passwordless := requiredExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+	discoverableLogin := requiredExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	switch {
-	case user == "" && !passwordless:
+	case user == "" && !discoverableLogin:
 		return nil, trace.BadParameter("user required")
 	case resp == nil:
 		// resp != nil is good enough to proceed, we leave remaining validations to
@@ -235,7 +243,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 
 	var webID []byte
-	if passwordless {
+	if discoverableLogin {
 		webID = parsedResp.Response.UserHandle
 		if len(webID) == 0 {
 			return nil, trace.BadParameter("webauthn user handle required for passwordless")
@@ -301,6 +309,17 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		return nil, trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context")
 	}
 
+	// Verify (and possibly correct) the user verification requirement.
+	// A mismatch here could indicate a programming error or even foul play.
+	uvr := protocol.UserVerificationRequirement(requiredExtensions.UserVerificationRequirement)
+	if (discoverableLogin || uvr == protocol.VerificationRequired) && sd.UserVerification != string(protocol.VerificationRequired) {
+		// This is not a failure yet, but will likely become one.
+		sd.UserVerification = string(protocol.VerificationRequired)
+		log.Warnf(""+
+			"WebAuthn: User verification required by extensions but not by challenge. "+
+			"Increased SessionData.UserVerification to %s.", sd.UserVerification)
+	}
+
 	sessionData := wantypes.SessionDataToProtocol(sd)
 
 	// Make sure _all_ credentials in the session are accounted for by the user.
@@ -320,14 +339,14 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		cfg:                     f.Webauthn,
 		rpID:                    rpID,
 		origin:                  origin,
-		requireUserVerification: passwordless,
+		requireUserVerification: discoverableLogin,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var credential *wan.Credential
-	if passwordless {
+	if discoverableLogin {
 		discoverUser := func(_, _ []byte) (wan.User, error) { return u, nil }
 		credential, err = web.ValidateDiscoverableLogin(discoverUser, *sessionData, parsedResp)
 	} else {
