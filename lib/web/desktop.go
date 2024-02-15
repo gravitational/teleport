@@ -34,6 +34,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
@@ -58,7 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
-// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>
+// GET /webapi/sites/:site/desktops/:desktopName/connect/ws?username=<username>
 func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -426,10 +427,34 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (conn net.C
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
 func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
+	profileWdsBandwidth := false // Note to reviewers: this variable should always be false in production.
+	var start time.Time
+	var bytesReadFromWds int64
+	var bytesWrittenToWds int64
+
+	if profileWdsBandwidth {
+		start = time.Now()
+	}
+
 	var closeOnce sync.Once
 	close := func() {
 		ws.Close()
 		wds.Close()
+		if profileWdsBandwidth {
+			duration := time.Since(start)
+			bytesReadPerSec := float64(bytesReadFromWds) / duration.Seconds()
+			bytesWrittenPerSec := float64(bytesWrittenToWds) / duration.Seconds()
+			totalBandwidth := float64(bytesReadFromWds+bytesWrittenToWds) / duration.Seconds()
+
+			log.Printf("TDP websocket closed. Read %v bytes from wds, wrote %v bytes to wds, in %v. Bytes read/sec: %v, bytes written/sec: %v, Total bandwidth over wds: %v",
+				bytesReadFromWds,
+				bytesWrittenToWds,
+				duration,
+				bytesReadPerSec,
+				bytesWrittenPerSec,
+				totalBandwidth,
+			)
+		}
 	}
 
 	errs := make(chan error, 2)
@@ -480,6 +505,11 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				errs <- err
 				return
 			}
+
+			if profileWdsBandwidth {
+				bytesReadFromWds += int64(len(encoded))
+			}
+
 			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
@@ -512,9 +542,14 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				return
 			}
 
-			if _, err := wds.Write(buf.Bytes()); err != nil {
+			n, err := wds.Write(buf.Bytes())
+			if err != nil {
 				errs <- trace.Wrap(err, "sending TDP message to desktop agent")
 				return
+			}
+
+			if profileWdsBandwidth {
+				bytesWrittenToWds += int64(n)
 			}
 		}
 	}()
