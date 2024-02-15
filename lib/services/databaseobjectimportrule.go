@@ -22,11 +22,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DatabaseObjectImportRules manages DatabaseObjectImportRule resources.
@@ -35,7 +35,7 @@ type DatabaseObjectImportRules interface {
 	CreateDatabaseObjectImportRule(ctx context.Context, rule *dbobjectimportrulev1.DatabaseObjectImportRule) (*dbobjectimportrulev1.DatabaseObjectImportRule, error)
 
 	// UpsertDatabaseObjectImportRule creates a new DatabaseObjectImportRule or forcefully updates an existing DatabaseObjectImportRule.
-	UpsertDatabaseObjectImportRule(ctx context.Context, rule *dbobjectimportrulev1.DatabaseObjectImportRule) error
+	UpsertDatabaseObjectImportRule(ctx context.Context, rule *dbobjectimportrulev1.DatabaseObjectImportRule) (*dbobjectimportrulev1.DatabaseObjectImportRule, error)
 
 	// GetDatabaseObjectImportRule will get a DatabaseObjectImportRule resource by name.
 	GetDatabaseObjectImportRule(ctx context.Context, name string) (*dbobjectimportrulev1.DatabaseObjectImportRule, error)
@@ -56,14 +56,13 @@ func MarshalDatabaseObjectImportRule(rule *dbobjectimportrulev1.DatabaseObjectIm
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if !cfg.PreserveResourceID {
 		rule = proto.Clone(rule).(*dbobjectimportrulev1.DatabaseObjectImportRule)
 		//nolint:staticcheck // SA1019. Deprecated, but still needed.
 		rule.Metadata.Id = 0
 		rule.Metadata.Revision = ""
 	}
-	data, err := protojson.Marshal(rule)
+	data, err := utils.FastMarshal(rule)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,8 +79,9 @@ func UnmarshalDatabaseObjectImportRule(data []byte, opts ...MarshalOption) (*dbo
 		return nil, trace.Wrap(err)
 	}
 	var obj dbobjectimportrulev1.DatabaseObjectImportRule
-	if err := protojson.Unmarshal(data, &obj); err != nil {
-		return nil, trace.BadParameter(err.Error())
+	err = utils.FastUnmarshal(data, &obj)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if cfg.ID != 0 {
 		//nolint:staticcheck // SA1019. Id is deprecated, but still needed.

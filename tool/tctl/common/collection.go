@@ -1184,7 +1184,7 @@ func (c *databaseObjectImportRuleCollection) writeText(w io.Writer, verbose bool
 			b.GetMetadata().GetName(),
 			fmt.Sprintf("%v", b.GetSpec().GetPriority()),
 			fmt.Sprintf("%v", len(b.GetSpec().GetMappings())),
-			fmt.Sprintf("%v", len(b.GetSpec().GetDbLabels().Values)),
+			fmt.Sprintf("%v", len(b.GetSpec().GetDbLabels())),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

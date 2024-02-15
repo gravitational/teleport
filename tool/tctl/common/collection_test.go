@@ -32,6 +32,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/databaseobjectimportrule"
+	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -257,7 +258,10 @@ func TestDatabaseImportRuleCollection_writeText(t *testing.T) {
 	mkRule := func(name string) *dbobjectimportrulev1.DatabaseObjectImportRule {
 		r, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
 			Priority: 123,
-			DbLabels: types.Labels{"foo": {"bar"}, "beast": {"dragon", "phoenix"}}.ToProto(),
+			DbLabels: label.FromMap(map[string][]string{
+				"foo":   {"bar"},
+				"beast": {"dragon", "phoenix"},
+			}),
 			Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
 				{
 					Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{

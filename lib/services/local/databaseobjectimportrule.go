@@ -37,9 +37,9 @@ type databaseObjectImportRuleService struct {
 
 var _ services.DatabaseObjectImportRules = (*databaseObjectImportRuleService)(nil)
 
-func (s *databaseObjectImportRuleService) UpsertDatabaseObjectImportRule(ctx context.Context, rule *databaseobjectimportrulev1.DatabaseObjectImportRule) error {
-	_, err := s.service.UpsertResource(ctx, rule)
-	return trace.Wrap(err)
+func (s *databaseObjectImportRuleService) UpsertDatabaseObjectImportRule(ctx context.Context, rule *databaseobjectimportrulev1.DatabaseObjectImportRule) (*databaseobjectimportrulev1.DatabaseObjectImportRule, error) {
+	out, err := s.service.UpsertResource(ctx, rule)
+	return out, trace.Wrap(err)
 }
 
 func (s *databaseObjectImportRuleService) UpdateDatabaseObjectImportRule(ctx context.Context, rule *databaseobjectimportrulev1.DatabaseObjectImportRule) (*databaseobjectimportrulev1.DatabaseObjectImportRule, error) {

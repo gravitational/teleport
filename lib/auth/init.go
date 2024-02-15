@@ -1472,7 +1472,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case *machineidv1pb.Bot:
 			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
 		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:
-			err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r)
+			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}
