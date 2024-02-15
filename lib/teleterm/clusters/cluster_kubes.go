@@ -68,6 +68,7 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -125,6 +126,7 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) (tls.
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -177,6 +179,7 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) (tls.
 func (c *Cluster) getKube(ctx context.Context, kubeCluster string) (types.KubeCluster, error) {
 	var kubeClusters []types.KubeCluster
 	err := AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
