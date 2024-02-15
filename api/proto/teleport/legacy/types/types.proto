@@ -3016,7 +3016,7 @@ message SPIFFERoleCondition {
   // - '?' matches any single character.
   // Example: /svc/foo/*/bar would match /svc/foo/baz/bar
   string Path = 1 [(gogoproto.jsontag) = "path,omitempty"];
-  // DNS specifies a globby style matcher for the SPIFFE ID DNS SAN.
+  // DNSSANs specifies a globby style matcher for the SPIFFE ID DNS SAN.
   // Matching:
   // - '*' matches zero or more characters.
   // - '?' matches any single character.
