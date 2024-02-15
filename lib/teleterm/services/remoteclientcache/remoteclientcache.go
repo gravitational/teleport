@@ -99,13 +99,14 @@ func (c *Cache) InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	errors := make([]error, 0, len(c.clients))
-	deleted := make([]uri.ResourceURI, 0, len(c.clients))
+	var (
+		errors  []error
+		deleted []uri.ResourceURI
+	)
 
 	for resourceURI, clt := range c.clients {
 		if resourceURI.GetRootClusterURI() == rootClusterURI {
-			err := clt.Close()
-			if err != nil {
+			if err := clt.Close(); err != nil {
 				errors = append(errors, err)
 			}
 			deleted = append(deleted, resourceURI.GetClusterURI())
@@ -124,11 +125,11 @@ func (c *Cache) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	errors := make([]error, 0, len(c.clients))
+	var errors []error
 	for _, clt := range c.clients {
 		errors = append(errors, clt.Close())
 	}
-	c.clients = make(map[uri.ResourceURI]*client.ProxyClient)
+	clear(c.clients)
 
 	return trace.NewAggregate(errors...)
 }
@@ -144,8 +145,7 @@ func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.Proxy
 	c.clients[clusterURI] = proxyClient
 
 	go func() {
-		err := proxyClient.Client.Wait()
-		if err != nil {
+		if err := proxyClient.Client.Wait(); err != nil {
 			c.mu.Lock()
 			defer c.mu.Unlock()
 
