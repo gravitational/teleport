@@ -687,7 +687,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// TODO(Joerger): DELETE IN 17.0.0
 	c.CheckSetPIVSlot()
 
-	if hk, err := c.GetHardwareKey(); err == nil {
+	if hk, err := c.GetHardwareKey(); err == nil && hk.PIVSlot != "" {
 		if err := keys.PIVSlot(hk.PIVSlot).Validate(); err != nil {
 			return trace.Wrap(err)
 		}
