@@ -20,7 +20,6 @@ package awsoidc
 
 import (
 	"context"
-	"log"
 	"net/url"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -28,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
