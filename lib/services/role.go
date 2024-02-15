@@ -1830,11 +1830,11 @@ func matchSPIFFESVIDConditions(
 ) (bool, error) {
 	return contains(conds, func(cond *types.SPIFFERoleCondition) (bool, error) {
 		// Match SPIFFE ID path.
-		expr, err := utils.CompileExpression(cond.Path)
+		match, err := utils.MatchString(spiffeIDPath, cond.Path)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		if !expr.MatchString(spiffeIDPath) {
+		if !match {
 			// No match - skip to next condition.
 			return false, nil
 		}
@@ -1843,11 +1843,11 @@ func matchSPIFFESVIDConditions(
 		// condition.
 		for _, dnsSAN := range dnsSANs {
 			match, err := contains(cond.DNSSANs, func(s string) (bool, error) {
-				expr, err := utils.CompileExpression(s)
+				match, err := utils.MatchString(dnsSAN, s)
 				if err != nil {
 					return false, trace.Wrap(err)
 				}
-				return expr.MatchString(dnsSAN), nil
+				return match, nil
 			})
 			if err != nil {
 				return false, trace.Wrap(err)
