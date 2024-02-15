@@ -245,7 +245,8 @@ The chart configures this for you since v12, unless you disabled `rbac` creation
 
 The teleport-cluster chart no longer uses versionOverride and extraArgs to set FIPS mode. 
 
-Instead, the Values file should set the following:
+Instead, you should use the following values file configuration:
+
 ```
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
 localAuth: false
