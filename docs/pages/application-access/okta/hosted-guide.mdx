@@ -90,6 +90,69 @@ Once the initial enrollment has completed, and if Teleport Identity
 is enabled, the enrollment workflow will guide you through enabling SCIM
 provisioning as well.
 
+## Configure Access List Synchronization
+
+If Teleport Identity is enabled, you will show you a guide to configure importing
+User Groups and Direct Application Assignments as access lists. This will ensure
+that permissions in Okta are modeled properly in Teleport, allowing Teleport users
+to see the same Okta applications that they would when viewing the Okta dashboard.
+
+### Configuring Default Owners
+
+![Set Default Owners](../../../img/enterprise/plugins/okta/okta-access-list-default-owners.png)
+
+Access lists must have owners, so the first step of setting up Okta Access List
+Synchronization is setting default owners for our new access lists. You can select
+any number of default owners and free-form enter the owners if they do not yet exist
+in the system. These owners can be later changed and will not be overwritten by the
+Okta Access List synchronization process.
+
+### Importing Okta User Groups as Access Lists
+
+![Import Okta User Groups](../../../img/enterprise/plugins/okta/okta-access-list-import-user-groups-all.png)
+
+After configurating default owners, you can customize which Okta User Groups should
+be imported. By default, all user groups will be imported. If you would like more
+control, you can uncheck the "Import All User Groups" checkbox at the top right of
+of the panel and configure multiple filters which will be matched against the group
+names.  For more information on filter syntax, please refer to the Import Filters section
+below.
+
+<Admonition type="note">
+Only Okta User Groups with assignments will be imported as an Access List. If an Okta User
+Group has no assignments, it will not be imported until it has assignments.
+</Admonition>
+
+### Importing Okta Application Assignments as Access Lists
+
+![Import Okta Application Assignments](../../../img/enterprise/plugins/okta/okta-access-list-import-applications.png)
+
+In addition to importing Okta User Groups, you can also import direct application
+assignments within Okta as Access Lists as well. This behaves in exactly the same way
+as user groups.
+
+<Admonition type="note">
+Only Okta Applications with assignments will be imported as an Access List. If an Okta
+Application has no assignments, it will not be imported until it has assignments.
+</Admonition>
+
+### Import Filters
+
+Filters are supported as glob syntax and regex syntax. Glob syntax are strings with
+wildcards in them that represent arbitrary values where the wildcards go. For example,
+to a glob that matches names with a prefix of "app" and a suffix of "salesforce" would
+look like `app*salesforce`.
+
+You can also use raw regular expressions so long as the filter string is prefixed with `^`
+and ends with `*`. This will support the Google RE2 regular expression syntax as defined
+[https://github.com/google/re2/wiki/Syntax](here).
+
+When filters are added, the results of the user group or application list will update with
+the results of your filter applied. This allows you to see what will be imported at this
+particular time.
+
+![Filtering Okta User Groups](../../../img/enterprise/plugins/okta/okta-access-list-group-filtering.png)
+
 ## Configuring SCIM provisioning
 
 If Teleport Identity is enabled, the enrollment workflow will now show you a
@@ -157,6 +220,25 @@ if the Okta integration is re-enrolled.
 
 To permanently delete the SAML connector, navigate to the `Auth Connectors`
 page in the Teleport UI and delete it from there.
+
+### Access Lists
+
+<Admonition type="warning">
+If the hosted integration is still active, removing Okta sourced Access Lists
+could revoke Okta access from users in your organization. Please exercise caution
+when cleaning up Access Lists!
+</Admonition>
+
+All Access Lists imported by the the hosted integration will remain until they
+are deleted by a Teleport Administrator. That is, they will **_not_** be deleted
+when the hosted integration is deleted.
+
+The easiest way to clean these up is through the use of `tctl`. A batch command
+like this will remove all Okta sourced access lists in a system:
+
+```
+tctl get access_lists --format json | jq '.[] | select(.metadata.labels["teleport.dev/origin"] == "okta") | .metadata.name' -r | xargs -I{} tctl rm "access_list/{}"
+```
 
 ### Users
 

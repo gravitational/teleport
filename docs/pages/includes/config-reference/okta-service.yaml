@@ -9,3 +9,27 @@ okta_service:
 
   # Points to a file with the API token as its contents on the local filesystem.
   api_token_path: /path/to/api/token
+
+  # General synchronization settings.
+  sync:
+    # The time between synchronization of applications and groups. Defaults to 30 minutes.
+    app_group_sync_period: 30m
+
+    # Enables access list synchronization. Default is 'no'
+    sync_access_lists: "yes"
+
+    # Default owners for access list sychronization. These users will be automatically assigned
+    # as owners to the synchronized access lists. These can be changed later.
+    default_owners:
+    - owner1
+    - owner2
+
+    # Only groups with names that match the following filters will be synchronized as access lists.
+    group_filters:
+    - salesforce* # Glob syntax.
+    - ^.*salesforce.*$ # Regex syntax.
+
+    # Only groups with names that match the following filters will be synchronized as access lists.
+    app_filters:
+    - salesforce* # Glob syntax.
+    - ^.*salesforce.*$ # Regex syntax.
