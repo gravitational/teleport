@@ -2640,7 +2640,7 @@ export const events = [
   },
   {
     cluster_name: 'im-a-cluster-name',
-    code: 'TV001I',
+    code: 'TV005I',
     device: {
       asset_tag: 'M2CQVQV64R',
       device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
@@ -2654,64 +2654,7 @@ export const events = [
     time: '2023-01-12T19:28:36.842Z',
     uid: '94d33b77-82cd-4558-8893-0320699bf755',
     user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV002I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: true,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV003I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: true,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV004I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: true,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+      user: 'this user wont render properly',
     },
   },
   {
@@ -2730,45 +2673,7 @@ export const events = [
     time: '2023-01-12T19:28:36.842Z',
     uid: '94d33b77-82cd-4558-8893-0320699bf755',
     user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV006I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: false,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV007I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: true,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+      user: 'this user wont render properly',
     },
   },
   {
