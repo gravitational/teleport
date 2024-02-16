@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,18 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import {
+  TextSelectCopy,
+  TextSelectCopyMulti,
+} from 'shared/components/TextSelectCopy';
+/**
+ * @deprecated Import from `shared/TextSelectCopy`.
+ */
+export { TextSelectCopyMulti };
 
-import { TextSelectCopy as Component } from './TextSelectCopy';
-
-export default {
-  title: 'Teleport/TextSelectCopy',
-};
-
-export const BashCommand = () => {
-  return <Component text="some bash command" />;
-};
-
-export const NonBash = () => {
-  return <Component text="some text to be copied" bash={false} />;
-};
+/**
+ * @deprecated Import from `shared/TextSelectCopy`.
+ */
+export default TextSelectCopy;
