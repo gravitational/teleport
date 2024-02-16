@@ -259,11 +259,11 @@ spec:
    env: prod
 ```
 
-In this case, any resource that matches `env:prod` label will be assigned to this resource group. 
+In this case, any resource that matches `env:prod` label will be assigned to this resource group. We will use the same label matching algorithm as in 
 
 This will let administrators to gradually migrate their existing flat infrastructure to resource groups one.
 
-Such centralized assignment will also ensure that one resource can be only assigned to one resource group at a time.
+One resource can be assigned to multiple resource groups at a time, or none. 
 
 In some cases it makes sense to specify parent resource group inline:
 
@@ -273,14 +273,28 @@ spec:
   parent_resource_group: /env/prod
 ```
 
-Centralized assignment should take precedence over any resource based one, in case of a conflict. 
-By default all resources are assigned to the root - a cluster.
+By default, if unspecified, a resource is a member of a root-level - `/` cluster resource group. If specified by the resource, it won't be a member of a root `/` resource group.
 
-Resource groups are hierarchical, and we can refer to the lab resource group by its full path as `/env/prod/lab`. 
+Resource groups are hierarchical, and we can refer to the `lab` resource group by its full path as `/env/prod/lab`. 
 
 Most Teleport resources, with some exceptions, like users, SSO connectors can be a member of a resource group. 
 
 We will list those resources separately below.
+
+##### Default Resource groups via auto-discovery
+
+Teleport can create resource groups if admins turn on auto discovery. This will significanly simplify configuration. 
+
+Here are some of the resource groups that Teleport Discovery service will create:
+
+* For AWS, Teleport discovery service will place each computing resource in `/aws/[account-id]/[region]/[resource-type]/[resource-id]`.
+  + When EKS auto-discovery is on, this hierarchy will include discovered apps - `/aws/account-id/[region]/k8s/[cluster-name]/namespaces/[namespace]/[app-id]`
+* For Azure, Teleport will use Azure's hierarchy - `/azure/[management-group]/[subscription]/[resource-group]/[resource-type]/[resource-id]`
+* For GCP, we will use GCP hierarchy of `/gcp/[organization]/[folder]/[project]/[resource-type]/[resource-id]`
+
+Discovery service will create and remove these hierarchies based on the cloud state, and will create resources with `parent_resource_group` field to place them in those resource groups.
+
+If users are not happy with a default hierarchy, they can create a different one.
 
 #### Access Lists
 
@@ -326,7 +340,7 @@ metadata:
 spec:
   desc: "Access list for lab engineers"
   # this grant applies only at the scope of the resource group `/env/prod/lab`
-  scope: ‘/env/prod/lab`
+  scopes: [‘/env/prod/lab']
   grants:
     roles: [access]
   members:
@@ -344,12 +358,12 @@ kind: role
 metadata:
  name: access
 spec:
-  grantable_scope: '/env/prod`
+  grantable_scopes: ['/env/prod`]
 ```
 
 Grantable scope specifies maximum scope this role can be granted on. 
 
-**Important:** By default, if the `grantable_scope` is missing, we assume empty scope - that will prevent the role from being granted on any scopes. When migrating existing roles, we would set `/` - root scope to avoid breaking the cluster. 
+**Important:** By default, if the `grantable_scopes` are missing, we assume empty scope - that will prevent the role from being granted on any scopes. When migrating existing roles, we would set `/` - root scope to avoid breaking the cluster. 
 
 To sum it up, any role is granted to a set of users present in the access list, to a set of resources specified in the resource group.
 
@@ -408,7 +422,7 @@ kind: role
 metadata:
   name: lab-admin
 spec:
-  grantable_scope: /env/prod/lab
+  grantable_scopes: ['/env/prod/lab']
   parent_resource_group: /env/prod/lab
 ```
 
@@ -449,7 +463,10 @@ spec:
     - App
 ```
 
-Join tokens created by roles granted within a scope must have `parent_resource_group` equal to this scope `/dev` or a more specific scope, e.g. `/dev/lab`
+Join tokens created by roles granted within a scope must have `parent_resource_group` equal to this scope `/dev` or a more specific scope, e.g. `/dev/lab`. 
+
+**Note:** To implement this, the token can be exchanged for the host certificate with `parent_resource_id` encoded in it. This way nodes can't set the nodes to any resource groups other than the parent.
+By default, all existing join tokens will use `/` as a default resource group.
 
 #### Access Requests
 
@@ -479,7 +496,7 @@ Here is a list of resources that can’t be created at scopes:
 * Cluster auth preference
 * Join tokens for roles Proxy, Auth
 
-### Features we will depreciate over time
+### Features we will deprecate over time
 
 All existing Teleport features will keep working with no changes, however, with this design we plan to deprecate:
 
