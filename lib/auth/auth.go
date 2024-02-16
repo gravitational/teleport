@@ -2501,7 +2501,14 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			return nil, trace.Wrap(err)
 		}
 
-		if hksn, err := authPref.GetHardwareKeySerialNumberValidation(); err == nil && hksn.Enabled {
+		var validateSerialNumber bool
+		hksnv, err := authPref.GetHardwareKeySerialNumberValidation()
+		if err == nil {
+			validateSerialNumber = hksnv.Enabled
+		}
+
+		// Validate the serial number if enabled, unless this is a web session.
+		if validateSerialNumber && attestedKeyPolicy != keys.PrivateKeyPolicyWebSession {
 			const defaultSerialNumberTraitName = "hardware_key_serial_numbers"
 			// Note: currently only yubikeys are supported as hardware keys. If we extend
 			// support to more hardware keys, we can add prefixes to serial numbers.
@@ -2509,7 +2516,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			// When prefixes are added, we can default to assuming that serial numbers
 			// without prefixes are for yubikeys, meaning there will be no backwards
 			// compatibility issues.
-			serialNumberTraitName := hksn.SerialNumberTraitName
+			serialNumberTraitName := hksnv.SerialNumberTraitName
 			if serialNumberTraitName == "" {
 				serialNumberTraitName = defaultSerialNumberTraitName
 			}
