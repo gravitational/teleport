@@ -18,7 +18,15 @@
 
 import { useMemo, useRef } from 'react';
 
-import { Flex, Text, ButtonSecondary, Link, Box, Alert } from 'design';
+import {
+  Flex,
+  Text,
+  ButtonSecondary,
+  Link,
+  Box,
+  Alert,
+  Indicator,
+} from 'design';
 
 import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
@@ -63,7 +71,7 @@ export function AppGateway(props: {
           Close Connection
         </ButtonSecondary>
       </Flex>
-      <Flex as="form" ref={formRef}>
+      <Flex as="form" ref={formRef} gap={2}>
         <Validation>
           <PortFieldInput
             label="Port"
@@ -72,6 +80,15 @@ export function AppGateway(props: {
             mb={2}
           />
         </Validation>
+        {props.changePortAttempt.status === 'processing' && (
+          <Indicator
+            size="large"
+            pt={3} // aligns the spinner to be at the center of the port input
+            css={`
+              display: flex;
+            `}
+          />
+        )}
       </Flex>
       <Text>Access the app at:</Text>
       <TextSelectCopy my={1} text={link} bash={false} />
