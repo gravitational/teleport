@@ -6335,6 +6335,13 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
 func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
+	// Device trust: authorize device before issuing a privileged token without an MFA response.
+	if mfaResp := req.GetExistingMFAResponse(); mfaResp == nil || (mfaResp.GetTOTP() == nil && mfaResp.GetWebauthn() == nil) {
+		if err := a.authorizeDevice(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return a.authServer.CreatePrivilegeToken(ctx, req)
 }
 
@@ -6346,12 +6353,27 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 		if !authz.IsLocalOrRemoteUser(a.context) {
 			return nil, trace.BadParameter("only end users are allowed issue registration challenges without a privilege token")
 		}
+		// Device trust: authorize device before issuing a register challenge without an MFA response or token.
+		if req.ExistingMFAResponse.GetTOTP() == nil && req.ExistingMFAResponse.GetWebauthn() == nil {
+			if err := a.authorizeDevice(ctx); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 	}
 
 	// The following serve as means of authentication for this RPC:
 	//   - privilege token (or equivalent)
 	//   - authenticated user using non-Proxy identity
 	return a.authServer.CreateRegisterChallenge(ctx, req)
+}
+
+func (a *ServerWithRoles) authorizeDevice(ctx context.Context) error {
+	authPref, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	return trace.Wrap(err)
 }
 
 // GetAccountRecoveryCodes is implemented by AuthService.GetAccountRecoveryCodes.
