@@ -47,7 +47,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	require.NoError(t, err)
 	role, err := types.NewRole("svid-issuer", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			SPIFFE: []*types.SPIFFERoleConditions{
+			SPIFFE: []*types.SPIFFERoleCondition{
 				{
 					Path:    "/alpha/*",
 					DNSSANs: []string{"*.alpha.example.com"},
@@ -65,7 +65,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 			},
 		},
 		Deny: types.RoleConditions{
-			SPIFFE: []*types.SPIFFERoleConditions{
+			SPIFFE: []*types.SPIFFERoleCondition{
 				{
 					Path:    "/alpha/forbidden",
 					DNSSANs: []string{"*"},
