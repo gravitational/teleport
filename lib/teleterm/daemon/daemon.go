@@ -448,8 +448,7 @@ func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (*exec.Cmd, erro
 		return cmd, trace.Wrap(err)
 
 	case targetURI.IsApp():
-		cmd, err := cmd.NewAppCLICommand(gateway)
-		return cmd, trace.Wrap(err)
+		return exec.Command(""), nil
 
 	default:
 		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
