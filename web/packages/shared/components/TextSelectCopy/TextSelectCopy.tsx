@@ -23,6 +23,8 @@ import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 import { ButtonPrimary, Box, Flex } from 'design';
 
+import { wait } from 'shared/utils/wait';
+
 export function TextSelectCopy({
   text,
   fontFamily,
@@ -33,10 +35,25 @@ export function TextSelectCopy({
 }: Props) {
   const font = fontFamily || useTheme().fonts.mono;
   const ref = useRef();
+  const abortControllerRef = useRef<AbortController>();
   const [copyCmd, setCopyCmd] = useState(() => 'Copy');
 
   function onCopyClick() {
-    copyToClipboard(text).then(() => setCopyCmd('Copied'));
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    copyToClipboard(text)
+      .then(() => {
+        setCopyCmd('Copied');
+
+        return wait(1_000, signal);
+      })
+      .then(
+        () => setCopyCmd('Copy'),
+        () => {} // Noop on abort.
+      );
+
     selectElementContent(ref.current);
     onCopy && onCopy();
   }
