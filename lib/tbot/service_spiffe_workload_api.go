@@ -301,30 +301,36 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 
 	// Watch for CA rotations, fetch new trust bundle and update the client
 	eg.Go(func() error {
-		reloadCh, unsubscribe := s.rootReloadBroadcaster.subscribe()
-		defer unsubscribe()
-		for {
-			select {
-			case <-egCtx.Done():
-				return nil
-			case <-reloadCh:
-			}
-
-			s.log.Info("CA rotation detected, fetching trust bundle")
-			tb, err := fetchBundle(ctx, s.client)
-			if err != nil {
-				s.log.WithError(err).Error("Failed to fetch trust bundle")
-				// TODO: Limited retry behaviour
-				return err
-			}
-			s.log.Info("Fetched new trust bundle, propagating to subscribed workloads")
-			s.setTrustBundle(tb)
-			// Alert active streaming RPCs to renew their trust bundles
-			s.trustBundleBroadcast.broadcast()
-		}
+		return s.handleCARotations(egCtx)
 	})
 
 	return trace.Wrap(eg.Wait())
+}
+
+// handleCARotations listens on a channel subscribed to the bot's CA watcher and
+// refetches the trust bundle when a rotation is detected.
+func (s *SPIFFEWorkloadAPIService) handleCARotations(ctx context.Context) error {
+	reloadCh, unsubscribe := s.rootReloadBroadcaster.subscribe()
+	defer unsubscribe()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-reloadCh:
+		}
+
+		s.log.Info("CA rotation detected, fetching trust bundle")
+		tb, err := fetchBundle(ctx, s.client)
+		if err != nil {
+			s.log.WithError(err).Error("Failed to fetch trust bundle")
+			// TODO: Limited retry behaviour
+			return err
+		}
+		s.log.Info("Fetched new trust bundle, propagating to subscribed workloads")
+		s.setTrustBundle(tb)
+		// Alert active streaming RPCs to renew their trust bundles
+		s.trustBundleBroadcast.broadcast()
+	}
 }
 
 // FetchX509SVID generates and returns the X.509 SVIDs available to a workload.
@@ -377,6 +383,10 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 				// Required. ASN.1 DER encoded X.509 bundle for the trust domain.
 				Bundle: trustBundle,
 				Hint:   svidRes.Hint,
+			}
+			cert, err := x509.ParseCertificate(svidRes.Certificate)
+			if err != nil {
+				return trace.Wrap(err, "parsing returned cert")
 			}
 			s.log.WithFields(logrus.Fields{
 				// TODO: Ensure this meets the requirements set out in the RFD
