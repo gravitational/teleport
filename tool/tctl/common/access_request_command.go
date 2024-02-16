@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -159,9 +158,11 @@ func (c *AccessRequestCommand) List(ctx context.Context, client auth.ClientI) er
 			activeReqs = append(activeReqs, req)
 		}
 	}
-	sort.Slice(activeReqs, func(i, j int) bool {
-		return activeReqs[i].GetCreationTime().After(activeReqs[j].GetCreationTime())
-	})
+	/*
+		sort.Slice(activeReqs, func(i, j int) bool {
+			return activeReqs[i].GetCreationTime().After(activeReqs[j].GetCreationTime())
+		})
+	*/
 
 	if err := printRequestsOverview(activeReqs, c.format); err != nil {
 		return trace.Wrap(err)

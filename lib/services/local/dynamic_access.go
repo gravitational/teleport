@@ -21,11 +21,14 @@ package local
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/siddontang/go/log"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -196,6 +199,10 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 }
 
 func (s *DynamicAccessService) GetAccessRequest(ctx context.Context, name string) (types.AccessRequest, error) {
+	return s.getAccessRequest(ctx, name)
+}
+
+func (s *DynamicAccessService) getAccessRequest(ctx context.Context, name string) (*types.AccessRequestV3, error) {
 	item, err := s.Get(ctx, accessRequestKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -254,6 +261,129 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 		requests = append(requests, req)
 	}
 	return requests, nil
+}
+
+func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	const (
+		maxPageSize     = 16_000
+		defaultPageSize = 1_000
+	)
+
+	if req.Limit == 0 {
+		req.Limit = defaultPageSize
+	}
+
+	if req.Limit > maxPageSize {
+		return nil, trace.BadParameter("page size of %d is too large", req.Limit)
+	}
+
+	if req.Filter == nil {
+		req.Filter = &types.AccessRequestFilter{}
+	}
+
+	var rsp proto.ListAccessRequestsResponse
+
+	// Filters that specify an ID are a special case since they match exactly zero or one requests.
+	if req.Filter.ID != "" {
+		accessRequest, err := s.getAccessRequest(ctx, req.Filter.ID)
+		if err != nil {
+			// A filter with zero matches is still a success, it just
+			// happens to return an empty page.
+			if trace.IsNotFound(err) {
+				return &rsp, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+		if !req.Filter.Match(accessRequest) {
+			// A filter with zero matches is still a success, it just
+			// happens to return an empty page.
+			return &rsp, nil
+		}
+		rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
+		return &rsp, nil
+	}
+
+	switch req.Sort {
+	case proto.AccessRequestSort_DEFAULT:
+		// continue with default path
+	case proto.AccessRequestSort_STATE:
+		return s.listAccessRequestsByState(ctx, req)
+	default:
+		return nil, trace.BadParameter("unsupported access request sort parameter %v", req.Sort)
+	}
+
+	startKey := backend.ExactKey(accessRequestsPrefix)
+	if req.StartKey != "" {
+		startKey = backend.ExactKey(accessRequestsPrefix, req.StartKey)
+	}
+	endKey := backend.RangeEnd(backend.ExactKey(accessRequestsPrefix))
+
+	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, int(req.Limit+1), func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(rsp.AccessRequests) > int(req.Limit) {
+				return true, nil
+			}
+
+			if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+				// Item represents a different resource type in the
+				// same namespace.
+				continue
+			}
+
+			accessRequest, err := itemToAccessRequest(item)
+			if err != nil {
+				log.Warnf("Failed to unmarshal access request at %q: %v", item.Key, err)
+				continue
+			}
+
+			if !req.Filter.Match(accessRequest) {
+				continue
+			}
+
+			rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
+		}
+
+		return len(rsp.AccessRequests) > int(req.Limit), nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(rsp.AccessRequests) > int(req.Limit) {
+		rsp.NextKey = rsp.AccessRequests[req.Limit].GetName()
+		rsp.AccessRequests = rsp.AccessRequests[:req.Limit]
+	}
+
+	return &rsp, nil
+}
+
+func stateSortKey[T types.AccessRequest](req T) string {
+	return fmt.Sprintf("%s/%s", req.GetState(), req.GetName())
+}
+
+func (s *DynamicAccessService) listAccessRequestsByState(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	allRequests, err := s.GetAccessRequests(ctx, *req.Filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	slices.SortFunc(allRequests, func(a, b types.AccessRequest) int {
+		//return stateSortKey(a) < stateSortKey(b)
+		panic("TODO")
+	})
+
+	var rsp proto.ListAccessRequestsResponse
+	for _, accessRequest := range allRequests {
+		panic("TODO:  pagination")
+
+		reqV3, ok := accessRequest.(*types.AccessRequestV3)
+		if !ok {
+			log.Warnf("Skipping access request of unexpected type: %T", accessRequest)
+			continue
+		}
+		rsp.AccessRequests = append(rsp.AccessRequests, reqV3)
+	}
+
+	panic("TODO")
 }
 
 // DeleteAccessRequest deletes an access request.
@@ -354,7 +484,7 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 	}, nil
 }
 
-func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (types.AccessRequest, error) {
+func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*types.AccessRequestV3, error) {
 	opts = append(
 		opts,
 		services.WithResourceID(item.ID),

@@ -2375,6 +2375,77 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 	return filtered, nil
 }
 
+func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	// ensure filter is non-nil
+	if req.Filter == nil {
+		req.Filter = &types.AccessRequestFilter{}
+	}
+
+	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
+		// Users are allowed to read + list their own access requests and
+		// requests they are allowed to review, unless access was *explicitly*
+		// denied. This means deny rules block the action but allow rules are
+		// not required.
+		if services.IsAccessExplicitlyDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// nil err means the user has explicit read + list permissions and can
+		// get all requests.
+		return a.authServer.ListAccessRequests(ctx, req)
+	}
+
+	// users can always view their own access requests unless the read or list
+	// verbs are explicitly denied
+	if req.Filter.User != "" && a.currentUserAction(req.Filter.User) == nil {
+		return a.authServer.ListAccessRequests(ctx, req)
+	}
+
+	// user does not have read/list permissions and is not specifically requesting only
+	// their own requests.  we therefore subselect the filter results to show only those requests
+	// that the user *is* allowed to see (specifically, their own requests + requests that they
+	// are allowed to review).
+	identity := a.context.Identity.GetIdentity()
+	checker, err := services.NewReviewPermissionChecker(
+		ctx,
+		a.authServer,
+		a.context.User.GetName(),
+		&identity,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// unless the user has allow directives for reviewing, they will never be able to
+	// see any requests other than their own.
+	if !checker.HasAllowDirectives() {
+		if req.Filter.User != "" {
+			// filter specifies a user, but it wasn't caught by the preceding exception,
+			// so just return nothing.
+			return &proto.ListAccessRequestsResponse{}, nil
+		}
+		req.Filter.User = a.context.User.GetName()
+		return a.authServer.ListAccessRequests(ctx, req)
+	}
+
+	accessRequests, nextKey, err := a.authServer.IterateAccessRequests(ctx, req, func(accessRequest *types.AccessRequestV3) (ok bool, err error) {
+		if accessRequest.GetUser() == a.context.User.GetName() {
+			return true, nil
+		}
+
+		return checker.CanReviewRequest(accessRequest)
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.ListAccessRequestsResponse{
+		AccessRequests: accessRequests,
+		NextKey:        nextKey,
+	}, nil
+}
+
 func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
 		// An exception is made to allow users to create *pending* access requests
@@ -2392,7 +2463,7 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 	}
 
 	// ensure request ID is set server-side
-	req.SetName(uuid.NewString())
+	req.SetName(uuid.Must(uuid.NewV7()).String())
 
 	resp, err := a.authServer.CreateAccessRequestV2(ctx, req, a.context.Identity.GetIdentity())
 	return resp, trace.Wrap(err)

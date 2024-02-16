@@ -2422,6 +2422,44 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
+// AccessRequestSort determines access request sort order.
+enum AccessRequestSort {
+  // DEFAULT sorts access requests by creation time, as implied by the access request's uuid
+  // field (access requests use uuidv7 for their IDs, which naturally sort lexographically
+  // by time). This is equivalent to the natural sort order used in the backend, and therefore
+  // the most reliably performant sort order.
+  DEFAULT = 0;
+
+  // STATE sorts access requests by their state (PENDING, APPROVED, etc).
+  STATE = 1;
+}
+
+// ListAccessRequestsRequest encodes the parameters for a paginated access request lookup.
+message ListAccessRequestsRequest {
+  // Filter matches access requests.
+  types.AccessRequestFilter Filter = 1;
+
+  // Sort determines the sort order of returned access requests.
+  AccessRequestSort Sort = 2;
+
+  // Limit is the maximum amount of requests per page.
+  int32 Limit = 3;
+
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had LastKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 4;
+}
+
+// ListAccessRequestResponse is a page of access requests.
+message ListAccessRequestsResponse {
+  // AccessRequests is a page of access requests.
+  repeated types.AccessRequestV3 AccessRequests = 1;
+
+  // NextKey will serve as the StartKey for the next page of requests.
+  string NextKey = 2;
+}
+
 // AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
 message AccessRequestAllowedPromotionRequest {
   // AccessRequest is the access request to get promotions for.
@@ -2520,6 +2558,10 @@ service AuthService {
 
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
+
+  // ListAccessRequests gets access requests with pagination and sorting.
+  rpc ListAccessRequests(ListAccessRequestsRequest) returns (ListAccessRequestsResponse);
+
   // CreateAccessRequest creates a new access request.
   // Deprecated: use CreateAccessRequestV2 instead.
   // DELETE IN v15.0.0.

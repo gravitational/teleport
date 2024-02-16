@@ -4470,6 +4470,64 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	return a.Services.DeleteNamespace(namespace)
 }
 
+func (a *Server) IterateAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) (bool, error)) ([]*types.AccessRequestV3, string, error) {
+	const (
+		maxIterations   = 100_000
+		defaultPageSize = 1_000
+	)
+
+	if req.Limit == 0 {
+		req.Limit = defaultPageSize
+	}
+
+	pageSize := req.Limit
+	req.Limit++
+
+	var filtered []*types.AccessRequestV3
+	var iterations int
+Outer:
+	for {
+		iterations++
+		if iterations > maxIterations {
+			return nil, "", trace.Errorf("too many access request page iterations (%d), this is likely a bug", maxIterations)
+		}
+
+		rsp, err := a.ListAccessRequests(ctx, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+	Inner:
+		for _, accessRequest := range rsp.AccessRequests {
+			ok, err := match(accessRequest)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			if !ok {
+				continue Inner
+			}
+			filtered = append(filtered, accessRequest)
+			if len(filtered) == int(req.Limit) {
+				break Outer
+			}
+		}
+
+		if rsp.NextKey == "" {
+			break Outer
+		}
+
+		req.StartKey = rsp.NextKey
+	}
+
+	var nextKey string
+	if len(filtered) == int(req.Limit) {
+		nextKey = filtered[pageSize].GetName()
+		filtered = filtered[:pageSize]
+	}
+
+	return filtered, nextKey, nil
+}
+
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
 	now := a.clock.Now().UTC()
 

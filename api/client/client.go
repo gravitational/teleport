@@ -1150,6 +1150,12 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 	return reqs, nil
 }
 
+// ListAccessRequests is a paginated access request getter.
+func (c *Client) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	rsp, err := c.grpc.ListAccessRequests(ctx, req)
+	return rsp, trace.Wrap(err)
+}
+
 // CreateAccessRequestV2 registers a new access request with the auth server.
 func (c *Client) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	r, ok := req.(*types.AccessRequestV3)
