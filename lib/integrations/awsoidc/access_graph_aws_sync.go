@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
@@ -108,6 +108,6 @@ func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	log.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleTAGPolicy, req.IntegrationRole)
+	logrus.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleTAGPolicy, req.IntegrationRole)
 	return nil
 }
