@@ -30,6 +30,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -43,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -240,6 +243,12 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	defer s.client.Close()
 	s.log.Info("Initialized Workload API endpoint")
 
+	srvMetrics := metrics.CreateGRPCServerMetrics(
+		true, prometheus.Labels{},
+	)
+	if err := metrics.RegisterPrometheusCollectors(srvMetrics); err != nil {
+		return trace.Wrap(err)
+	}
 	srv := grpc.NewServer(
 		grpc.Creds(
 			// SPEC (SPIFFE_Workload_endpoint) 3. Transport:
@@ -249,10 +258,12 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 			insecure.NewCredentials(),
 		),
 		grpc.ChainUnaryInterceptor(
-		// TODO: Interceptors
+			recovery.UnaryServerInterceptor(),
+			srvMetrics.UnaryServerInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
-		// TODO: Interceptors
+			recovery.StreamServerInterceptor(),
+			srvMetrics.StreamServerInterceptor(),
 		),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
