@@ -28,6 +28,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -35,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TestTransportCredentials_Check validates the returned values
@@ -306,18 +309,121 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 	}
 }
 
+type fakeUserGetter struct {
+	identity authz.IdentityGetter
+}
+
+func (f fakeUserGetter) GetUser(tls.ConnectionState) (authz.IdentityGetter, error) {
+	return f.identity, nil
+}
+
+func TestTransportCredentialsDisconnection(t *testing.T) {
+	cases := []struct {
+		name   string
+		expiry time.Duration
+	}{
+		{
+			name: "no expiry",
+		},
+		{
+			name:   "closed on expiry",
+			expiry: time.Hour,
+		},
+		{
+			name:   "already expired",
+			expiry: -time.Hour,
+		},
+	}
+
+	// Assert that the connections remain open.
+	connectionOpenAssertion := func(t *testing.T, conn *fakeConn) {
+		assert.False(t, conn.closed.Load())
+	}
+
+	// Assert that the connections are eventually closed.
+	connectionClosedAssertion := func(t *testing.T, conn *fakeConn) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			assert.True(t, conn.closed.Load())
+		}, 5*time.Second, 100*time.Millisecond)
+	}
+
+	pref := types.DefaultAuthPreference()
+	pref.SetDisconnectExpiredCert(true)
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			clock := clockwork.NewFakeClock()
+			conn := &fakeConn{}
+
+			var expiry time.Time
+			if test.expiry != 0 {
+				expiry = clock.Now().Add(test.expiry)
+			}
+			identity := TestIdentity{
+				I: authz.LocalUser{
+					Username: "llama",
+					Identity: tlsca.Identity{Username: "llama", Expires: expiry},
+				},
+			}
+
+			creds, err := NewTransportCredentials(TransportCredentialsConfig{
+				TransportCredentials: credentials.NewTLS(&tls.Config{}),
+				Authorizer:           &fakeAuthorizer{checker: &fakeChecker{}, identity: identity.I},
+				UserGetter: fakeUserGetter{
+					identity: identity.I,
+				},
+				Clock:             clock,
+				GetAuthPreference: func(ctx context.Context) (types.AuthPreference, error) { return pref, nil },
+			})
+			require.NoError(t, err, "creating transport credentials")
+
+			validatedConn, _, err := creds.validateIdentity(conn, &credentials.TLSInfo{State: tls.ConnectionState{}})
+			switch {
+			case test.expiry == 0:
+				require.NoError(t, err)
+				require.NotNil(t, validatedConn)
+
+				connectionOpenAssertion(t, conn)
+				clock.Advance(time.Hour)
+				connectionOpenAssertion(t, conn)
+			case test.expiry < 0:
+				require.NoError(t, err)
+				require.NotNil(t, validatedConn)
+
+				connectionClosedAssertion(t, conn)
+			default:
+				require.NoError(t, err)
+				require.NotNil(t, validatedConn)
+
+				connectionOpenAssertion(t, conn)
+				clock.BlockUntil(1)
+				clock.Advance(test.expiry)
+				connectionClosedAssertion(t, conn)
+			}
+		})
+	}
+}
+
 type fakeChecker struct {
 	services.AccessChecker
-	maxConnections int64
+	maxConnections    int64
+	disconnectExpired *bool
 }
 
 func (c *fakeChecker) MaxConnections() int64 {
 	return c.maxConnections
 }
 
+func (c *fakeChecker) AdjustDisconnectExpiredCert(b bool) bool {
+	if c.disconnectExpired == nil {
+		return b
+	}
+	return *c.disconnectExpired
+}
+
 type fakeAuthorizer struct {
 	authorizeError error
 	checker        services.AccessChecker
+	identity       authz.IdentityGetter
 }
 
 func (a *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
@@ -330,9 +436,15 @@ func (a *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 		return nil, err
 	}
 
+	identity := a.identity
+	if identity == nil {
+		identity = TestUser(user.GetName()).I
+	}
+
 	return &authz.Context{
-		User:    user,
-		Checker: a.checker,
+		User:     user,
+		Checker:  a.checker,
+		Identity: identity,
 	}, nil
 }
 
