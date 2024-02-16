@@ -31,23 +31,27 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
-// TODO
 func isDBUserGCPServiceAccount(dbUser string) bool {
 	if strings.Contains(dbUser, "@") {
-		if strings.HasSuffix(dbUser, ".iam") || strings.HasSuffix(dbUser, ".iam.gserviceaccount.com") {
+		switch {
+		// Example: mysql-iam-user@my-project-id.iam
+		// This format is used to align with PostgreSQL.
+		case strings.HasSuffix(dbUser, ".iam"):
+			return true
+		// Example: mysql-iam-user@my-project-id..gserviceaccount.com
+		case strings.HasSuffix(dbUser, ".iam.gserviceaccount.com"):
 			return true
 		}
 	}
 	return false
 }
 
-// TODO
-func getInDatabaseUserFromGCPServiceAccount(serviceAccountName string) string {
+func gcpServiceAccountToDatabaseUser(serviceAccountName string) string {
 	user, _, _ := strings.Cut(serviceAccountName, "@")
 	return user
 }
 
-func makeGCPServiceAccountFromInDatabaseUser(sessionCtx *common.Session) string {
+func databaseUserToGCPServiceAccount(sessionCtx *common.Session) string {
 	return fmt.Sprintf("%s@%s.iam.gserviceaccount.com", sessionCtx.DatabaseUser, sessionCtx.Database.GetGCP().ProjectID)
 }
 
@@ -85,22 +89,23 @@ func (e *Engine) getGCPUserAndPassword(ctx context.Context, sessionCtx *common.S
 		"CLOUD_IAM_GROUP_SERVICE_ACCOUNT":
 		return e.getGCPIAMUserAndPassword(
 			ctx,
-			sessionCtx.WithUser(makeGCPServiceAccountFromInDatabaseUser(sessionCtx)),
+			sessionCtx.WithUser(databaseUserToGCPServiceAccount(sessionCtx)),
 		)
 
 	default:
-		return "", "", trace.BadParameter("GCP MySQL user type %q not supported")
+		return "", "", trace.BadParameter("GCP MySQL user type %q not supported", user.Type)
 	}
 }
 
 func (e *Engine) getGCPIAMUserAndPassword(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
 	e.Log.WithField("session", sessionCtx).Debug("Authenticating GCP MySQL with IAM auth.")
 
+	// Note that sessionCtx.DatabaseUser is the service account.
 	password, err := e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	return getInDatabaseUserFromGCPServiceAccount(sessionCtx.DatabaseUser), password, nil
+	return gcpServiceAccountToDatabaseUser(sessionCtx.DatabaseUser), password, nil
 }
 
 func (e *Engine) getGCPPasswordUserAndPassword(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
