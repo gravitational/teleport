@@ -247,6 +247,72 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 	}, nil
 }
 
+// ListSecurityGroups returns a paginated list of SecurityGroups.
+func (s *AWSOIDCService) ListSecurityGroups(ctx context.Context, req *integrationpb.ListSecurityGroupsRequest) (*integrationpb.ListSecurityGroupsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listSGsClient, err := awsoidc.NewListSecurityGroupsClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listSGsResp, err := awsoidc.ListSecurityGroups(ctx, listSGsClient, awsoidc.ListSecurityGroupsRequest{
+		VPCID:     req.VpcId,
+		NextToken: req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sgList := make([]*integrationpb.SecurityGroup, 0, len(listSGsResp.SecurityGroups))
+	for _, sg := range listSGsResp.SecurityGroups {
+		sgList = append(sgList, &integrationpb.SecurityGroup{
+			Name:          sg.Name,
+			Id:            sg.ID,
+			Description:   sg.Description,
+			InboundRules:  convertSecurityGroupRulesToProto(sg.InboundRules),
+			OutboundRules: convertSecurityGroupRulesToProto(sg.OutboundRules),
+		})
+	}
+
+	return &integrationpb.ListSecurityGroupsResponse{
+		SecurityGroups: sgList,
+		NextToken:      listSGsResp.NextToken,
+	}, nil
+}
+
+func convertSecurityGroupRulesToProto(inRules []awsoidc.SecurityGroupRule) []*integrationpb.SecurityGroupRule {
+	out := make([]*integrationpb.SecurityGroupRule, 0, len(inRules))
+	for _, r := range inRules {
+		cidrs := make([]*integrationpb.SecurityGroupRuleCIDR, 0, len(r.CIDRs))
+		for _, cidr := range r.CIDRs {
+			cidrs = append(cidrs, &integrationpb.SecurityGroupRuleCIDR{
+				Cidr:        cidr.CIDR,
+				Description: cidr.Description,
+			})
+		}
+		out = append(out, &integrationpb.SecurityGroupRule{
+			IpProtocol: r.IPProtocol,
+			FromPort:   int32(r.FromPort),
+			ToPort:     int32(r.ToPort),
+			Cidrs:      cidrs,
+		})
+	}
+	return out
+}
+
 // DeployDatabaseService deploys Database Services into Amazon ECS.
 func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integrationpb.DeployDatabaseServiceRequest) (*integrationpb.DeployDatabaseServiceResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
