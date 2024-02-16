@@ -216,7 +216,8 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 	for _, db := range listDBsResp.Databases {
 		dbV3, ok := db.(*types.DatabaseV3)
 		if !ok {
-			return nil, trace.BadParameter("unsupported database type %T", db)
+			s.logger.Warnf("Skipping %s because conversion (%T) to DatabaseV3 failed: %v", db.GetName(), db, err)
+			continue
 		}
 		dbList = append(dbList, dbV3)
 	}
