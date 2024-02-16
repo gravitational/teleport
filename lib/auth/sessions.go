@@ -68,7 +68,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := a.generateUserCert(certRequest{
+	certs, err := a.generateUserCert(ctx, certRequest{
 		user:           user,
 		loginIP:        identity.LoginIP,
 		publicKey:      publicKey,
@@ -286,7 +286,7 @@ func (a *Server) CreateSessionCert(user services.UserState, sessionTTL time.Dura
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(certRequest{
+	certs, err := a.generateUserCert(ctx, certRequest{
 		user:                 userState,
 		ttl:                  sessionTTL,
 		publicKey:            publicKey,

@@ -15,6 +15,7 @@ import Logger from 'shared/libs/logger';
 
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import Codec, {
   MessageType,
@@ -63,12 +64,12 @@ export enum TdpClientEvent {
 }
 
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
-// sending client commands, and recieving and processing server messages. Its creator is responsible for
+// sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
 export default class Client extends EventEmitterWebAuthnSender {
   protected codec: Codec;
-  protected socket: WebSocket | undefined;
+  protected socket: AuthenticatedWebSocket | undefined;
   private socketAddr: string;
   private sdManager: SharedDirectoryManager;
 
@@ -83,7 +84,7 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   // Connect to the websocket and register websocket event handlers.
   init() {
-    this.socket = new WebSocket(this.socketAddr);
+    this.socket = new AuthenticatedWebSocket(this.socketAddr);
     this.socket.binaryType = 'arraybuffer';
 
     this.socket.onopen = () => {

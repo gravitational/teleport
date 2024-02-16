@@ -22,7 +22,7 @@ import { getPlatformType } from 'design/platform';
 
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
 import { ClipboardData, PngFrame } from 'teleport/lib/tdp/codec';
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import { getHostName } from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { Sha256Digest } from 'teleport/lib/util';
 
@@ -58,7 +58,6 @@ export default function useTdpClientCanvas(props: Props) {
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':desktopName', desktopName)
-      .replace(':token', getAccessToken())
       .replace(':username', username)
       .replace(':width', width.toString())
       .replace(':height', height.toString());

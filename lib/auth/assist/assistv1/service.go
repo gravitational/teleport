@@ -99,8 +99,12 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *Service) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbCreate)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -114,8 +118,12 @@ func (a *Service) CreateAssistantConversation(ctx context.Context, req *assist.C
 
 // UpdateAssistantConversationInfo updates the conversation info for a conversation.
 func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, req *assist.UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbUpdate)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -133,8 +141,12 @@ func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, req *assi
 
 // GetAssistantConversations returns all conversations started by a user.
 func (a *Service) GetAssistantConversations(ctx context.Context, req *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbList)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -148,8 +160,12 @@ func (a *Service) GetAssistantConversations(ctx context.Context, req *assist.Get
 
 // DeleteAssistantConversation deletes a conversation entry and associated messages from the backend.
 func (a *Service) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) (*emptypb.Empty, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbDelete)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -162,8 +178,12 @@ func (a *Service) DeleteAssistantConversation(ctx context.Context, req *assist.D
 
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *Service) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbRead)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -177,8 +197,12 @@ func (a *Service) GetAssistantMessages(ctx context.Context, req *assist.GetAssis
 
 // CreateAssistantMessage adds the message to the backend.
 func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.CreateAssistantMessageRequest) (*emptypb.Empty, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbCreate)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindAssistant, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -236,8 +260,12 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 		return nil, trace.BadParameter("resource kind %v is not supported", msg.Kind)
 	}
 
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, msg.Kind, types.VerbRead, types.VerbList)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, msg.Kind, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

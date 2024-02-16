@@ -27,8 +27,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 )
+
+func dummyGenerateTeleportConfigString(proxyHostPort, iamTokenName string, resourceMatcherLabels types.Labels) (string, error) {
+	return "", nil
+}
 
 func TestDeployServiceRequest(t *testing.T) {
 	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
@@ -45,7 +48,8 @@ func TestDeployServiceRequest(t *testing.T) {
 			IntegrationName:               "teleportdev",
 			DeploymentMode:                DatabaseServiceDeploymentMode,
 			DatabaseResourceMatcherLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DeployServiceConfigString:     deployserviceconfig.GenerateTeleportConfigString,
+			DeployServiceConfigString:     dummyGenerateTeleportConfigString,
+			DeploymentJoinTokenName:       "discover-aws-oidc-iam-token",
 		}
 	}
 
@@ -139,17 +143,17 @@ func TestDeployServiceRequest(t *testing.T) {
 			req:      baseReqFn,
 			errCheck: require.NoError,
 			reqWithDefaults: DeployServiceRequest{
-				TeleportClusterName:  "mycluster",
-				TeleportVersionTag:   teleport.Version,
-				Region:               "r",
-				SubnetIDs:            []string{"1"},
-				TaskRoleARN:          "arn",
-				ClusterName:          stringPointer("mycluster-teleport"),
-				ServiceName:          stringPointer("mycluster-teleport-database-service"),
-				TaskName:             stringPointer("mycluster-teleport-database-service"),
-				TeleportIAMTokenName: "discover-aws-oidc-iam-token",
-				IntegrationName:      "teleportdev",
-				ProxyServerHostPort:  "proxy.example.com:3080",
+				TeleportClusterName:     "mycluster",
+				TeleportVersionTag:      teleport.Version,
+				Region:                  "r",
+				SubnetIDs:               []string{"1"},
+				TaskRoleARN:             "arn",
+				ClusterName:             stringPointer("mycluster-teleport"),
+				ServiceName:             stringPointer("mycluster-teleport-database-service"),
+				TaskName:                stringPointer("mycluster-teleport-database-service"),
+				DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
+				IntegrationName:         "teleportdev",
+				ProxyServerHostPort:     "proxy.example.com:3080",
 				ResourceCreationTags: AWSTags{
 					"teleport.dev/origin":      "integration_awsoidc",
 					"teleport.dev/cluster":     "mycluster",
@@ -157,7 +161,7 @@ func TestDeployServiceRequest(t *testing.T) {
 				},
 				DeploymentMode:                DatabaseServiceDeploymentMode,
 				DatabaseResourceMatcherLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DeployServiceConfigString:     deployserviceconfig.GenerateTeleportConfigString,
+				DeployServiceConfigString:     dummyGenerateTeleportConfigString,
 			},
 		},
 	} {

@@ -43,6 +43,7 @@ import (
 	"github.com/mailgun/timetools"
 	"github.com/moby/term"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -327,18 +328,35 @@ func TestTerminalSizeRequest(t *testing.T) {
 
 		require.NoError(t, se.Shell(ctx))
 
-		expectedSize := term.Winsize{Height: 100, Width: 200}
-		require.NoError(t, se.WindowChange(ctx, int(expectedSize.Height), int(expectedSize.Width)))
-
 		sessions, err := f.ssh.srv.termHandlers.SessionRegistry.SessionTrackerService.GetActiveSessionTrackers(ctx)
 		require.NoError(t, err)
 		require.Len(t, sessions, 1)
 
-		ok, resp, err := f.ssh.clt.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte(sessions[0].GetSessionID()))
+		sessionID := sessions[0].GetSessionID()
+
+		expectedSize := term.Winsize{Height: 100, Width: 200}
+
+		// Explicitly set the window size to the expected value.
+		require.NoError(t, se.WindowChange(ctx, int(expectedSize.Height), int(expectedSize.Width)))
+
+		// Wait for the window change request to be reflected in the session before
+		// initiating the client request for the window size to prevent flakiness.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			size, err := f.ssh.srv.termHandlers.SessionRegistry.GetTerminalSize(sessionID)
+			if assert.NoError(t, err) {
+				return
+			}
+			assert.Empty(t, cmp.Diff(expectedSize, size, cmp.AllowUnexported(term.Winsize{})))
+		}, 10*time.Second, 100*time.Millisecond)
+
+		// Send a request for the window size now that we know the window change
+		// request was honored.
+		ok, resp, err := f.ssh.clt.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte(sessionID))
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.NotNil(t, resp)
 
+		// Assert that the window size matches the expected dimensions.
 		var ws term.Winsize
 		require.NoError(t, json.Unmarshal(resp, &ws))
 		require.Empty(t, cmp.Diff(expectedSize, ws, cmp.AllowUnexported(term.Winsize{})))

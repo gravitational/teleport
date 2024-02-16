@@ -27,7 +27,6 @@ import (
 	"gopkg.in/dnaeon/go-vcr.v3/recorder"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 )
 
 func TestDeployDBService(t *testing.T) {
@@ -96,7 +95,8 @@ func TestDeployDBService(t *testing.T) {
 			DatabaseResourceMatcherLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
 			},
-			DeployServiceConfigString: deployserviceconfig.GenerateTeleportConfigString,
+			DeploymentJoinTokenName:   "my-iam-join-token",
+			DeployServiceConfigString: dummyGenerateTeleportConfigString,
 		}
 	}
 
@@ -119,7 +119,7 @@ func TestDeployDBService(t *testing.T) {
 
 	iamJoinToken := &types.ProvisionTokenV2{
 		Metadata: types.Metadata{
-			Name: defaultTeleportIAMTokenName,
+			Name: "some-token-name",
 		},
 		Spec: types.ProvisionTokenSpecV2{
 			JoinMethod: types.JoinMethodIAM,

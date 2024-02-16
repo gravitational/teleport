@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-export { StepNavigation } from './StepNavigation';
+export { Navigation } from './Navigation';
 export { StepTitle, StepsContainer } from './Shared';
 export { Bullet } from './Bullet';
