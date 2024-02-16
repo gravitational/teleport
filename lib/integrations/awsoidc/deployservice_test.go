@@ -27,8 +27,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 )
+
+func dummyGenerateTeleportConfigString(proxyHostPort, iamTokenName string, resourceMatcherLabels types.Labels) (string, error) {
+	return "", nil
+}
 
 func TestDeployServiceRequest(t *testing.T) {
 	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
@@ -45,7 +48,7 @@ func TestDeployServiceRequest(t *testing.T) {
 			IntegrationName:               "teleportdev",
 			DeploymentMode:                DatabaseServiceDeploymentMode,
 			DatabaseResourceMatcherLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DeployServiceConfigString:     deployserviceconfig.GenerateTeleportConfigString,
+			DeployServiceConfigString:     dummyGenerateTeleportConfigString,
 		}
 	}
 
@@ -157,7 +160,7 @@ func TestDeployServiceRequest(t *testing.T) {
 				},
 				DeploymentMode:                DatabaseServiceDeploymentMode,
 				DatabaseResourceMatcherLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DeployServiceConfigString:     deployserviceconfig.GenerateTeleportConfigString,
+				DeployServiceConfigString:     dummyGenerateTeleportConfigString,
 			},
 		},
 	} {

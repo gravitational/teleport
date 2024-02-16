@@ -19,9 +19,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/service/rds"
-	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -471,27 +468,14 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	}
 
 	vpcs := []string{"vpc-1", "vpc-2", "vpc-3", "vpc-4", "vpc-5"}
-	rdss := []rdsTypes.DBInstance{}
+	rdss := []*types.DatabaseV3{}
 	for _, vpc := range vpcs {
-		rdss = append(rdss, rdsTypes.DBInstance{
-			DBInstanceStatus:     aws.String("available"),
-			DBInstanceIdentifier: aws.String(fmt.Sprintf("db-%v", vpc)),
-			DbiResourceId:        aws.String("db-123"),
-			Engine:               aws.String("postgres"),
-			DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
-
-			Endpoint: &rdsTypes.Endpoint{
-				Address: aws.String("endpoint.amazonaws.com"),
-				Port:    *aws.Int32(5432),
-			},
-			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
-				Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String(fmt.Sprintf("subnet-for-%s", vpc))}},
-				VpcId:   aws.String(vpc),
-			},
-		})
+		rdss = append(rdss,
+			mustCreateRDS(t, types.RDS{
+				VPCID: vpc,
+			}),
+		)
 	}
-
-	mockListClient := mockListDatabasesClient{dbInstances: rdss}
 
 	// Double check we start with 0 db svcs.
 	s, err := env.server.Auth().ListResources(ctx, proto.ListResourcesRequest{
@@ -501,7 +485,7 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	require.Empty(t, s.Resources)
 
 	// All vpc's required.
-	resp, err := awsOIDCRequiredVPCSHelper(ctx, req, mockListClient, clt)
+	resp, err := awsOIDCRequiredVPCSHelper(ctx, clt, req, rdss)
 	require.NoError(t, err)
 	require.Len(t, resp.VPCMapOfSubnets, 5)
 	require.ElementsMatch(t, vpcs, extractKeysFn(resp))
@@ -539,7 +523,7 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	require.Len(t, s.Resources, 4)
 
 	// Test that only 3 vpcs are required.
-	resp, err = awsOIDCRequiredVPCSHelper(ctx, req, mockListClient, clt)
+	resp, err = awsOIDCRequiredVPCSHelper(ctx, clt, req, rdss)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"vpc-2", "vpc-3", "vpc-4"}, extractKeysFn(resp))
 
@@ -549,7 +533,7 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 	upsertDbSvcFn("vpc-4", nil)
 
 	// Test no required vpcs.
-	resp, err = awsOIDCRequiredVPCSHelper(ctx, req, mockListClient, clt)
+	resp, err = awsOIDCRequiredVPCSHelper(ctx, clt, req, rdss)
 	require.NoError(t, err)
 	require.Empty(t, resp.VPCMapOfSubnets)
 }
@@ -559,85 +543,39 @@ func TestAWSOIDCRequiredVPCSHelper_CombinedSubnetsForAVpcID(t *testing.T) {
 	env := newWebPack(t, 1)
 	clt := env.proxies[0].client
 
-	rdss := []rdsTypes.DBInstance{
-		{
-			DBInstanceStatus:     aws.String("available"),
-			DBInstanceIdentifier: aws.String("id-vpc1"),
-			DbiResourceId:        aws.String("db-123"),
-			Engine:               aws.String("postgres"),
-			DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
+	rdsVPC1 := mustCreateRDS(t, types.RDS{
+		VPCID:   "vpc-1",
+		Subnets: []string{"subnet1", "subnet2"},
+	})
+	rdsVPC1a := mustCreateRDS(t, types.RDS{
+		VPCID:   "vpc-1",
+		Subnets: []string{"subnet2", "subnet3", "subnet4", "subnet1"},
+	})
 
-			Endpoint: &rdsTypes.Endpoint{
-				Address: aws.String("endpoint.amazonaws.com"),
-				Port:    *aws.Int32(5432),
-			},
-			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
-				Subnets: []rdsTypes.Subnet{
-					{SubnetIdentifier: aws.String("subnet1")},
-					{SubnetIdentifier: aws.String("subnet2")},
-				},
-				VpcId: aws.String("vpc-1"),
-			},
-		},
-		{
-			DBInstanceStatus:     aws.String("available"),
-			DBInstanceIdentifier: aws.String("id-vpc1a"),
-			DbiResourceId:        aws.String("db-123"),
-			Engine:               aws.String("postgres"),
-			DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
+	rdsVPC2 := mustCreateRDS(t, types.RDS{
+		VPCID:   "vpc-2",
+		Subnets: []string{"subnet8"},
+	})
 
-			Endpoint: &rdsTypes.Endpoint{
-				Address: aws.String("endpoint.amazonaws.com"),
-				Port:    *aws.Int32(5432),
-			},
-			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
-				Subnets: []rdsTypes.Subnet{
-					{SubnetIdentifier: aws.String("subnet2")},
-					{SubnetIdentifier: aws.String("subnet3")},
-					{SubnetIdentifier: aws.String("subnet4")},
-					{SubnetIdentifier: aws.String("subnet1")},
-				},
-				VpcId: aws.String("vpc-1"),
-			},
-		},
-		{
-			DBInstanceStatus:     aws.String("available"),
-			DBInstanceIdentifier: aws.String("id-vpc2"),
-			DbiResourceId:        aws.String("db-123"),
-			Engine:               aws.String("postgres"),
-			DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
+	rdss := []*types.DatabaseV3{rdsVPC1, rdsVPC1a, rdsVPC2}
 
-			Endpoint: &rdsTypes.Endpoint{
-				Address: aws.String("endpoint.amazonaws.com"),
-				Port:    *aws.Int32(5432),
-			},
-			DBSubnetGroup: &rdsTypes.DBSubnetGroup{
-				Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet8")}},
-
-				VpcId: aws.String("vpc-2"),
-			},
-		},
-	}
-
-	mockListClient := mockListDatabasesClient{dbInstances: rdss}
-
-	resp, err := awsOIDCRequiredVPCSHelper(ctx, ui.AWSOIDCRequiredVPCSRequest{Region: "us-east-1"}, mockListClient, clt)
+	resp, err := awsOIDCRequiredVPCSHelper(ctx, clt, ui.AWSOIDCRequiredVPCSRequest{Region: "us-east-1"}, rdss)
 	require.NoError(t, err)
 	require.Len(t, resp.VPCMapOfSubnets, 2)
 	require.ElementsMatch(t, []string{"subnet1", "subnet2", "subnet3", "subnet4"}, resp.VPCMapOfSubnets["vpc-1"])
 	require.ElementsMatch(t, []string{"subnet8"}, resp.VPCMapOfSubnets["vpc-2"])
 }
 
-type mockListDatabasesClient struct {
-	dbInstances []rdsTypes.DBInstance
-}
-
-func (m mockListDatabasesClient) DescribeDBInstances(ctx context.Context, params *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error) {
-	return &rds.DescribeDBInstancesOutput{
-		DBInstances: m.dbInstances,
-	}, nil
-}
-
-func (m mockListDatabasesClient) DescribeDBClusters(ctx context.Context, params *rds.DescribeDBClustersInput, optFns ...func(*rds.Options)) (*rds.DescribeDBClustersOutput, error) {
-	return &rds.DescribeDBClustersOutput{}, nil
+func mustCreateRDS(t *testing.T, awsRDS types.RDS) *types.DatabaseV3 {
+	rdsDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "x",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "endpoint.amazonaws.com:5432",
+		AWS: types.AWS{
+			RDS: awsRDS,
+		},
+	})
+	require.NoError(t, err)
+	return rdsDB
 }
