@@ -1,5 +1,22 @@
 # Changelog
 
+## 14.3.5 (02/16/24)
+
+* Fixed a potential panic in the `tsh status` command. [#38304](https://github.com/gravitational/teleport/pull/38304)
+* Fixed locking SSO user in the setup access step of the RDS auto discover flow in the web UI. [#38284](https://github.com/gravitational/teleport/pull/38284)
+* Optionally permit the auth server to terminate client connections from unsupported versions. [#38186](https://github.com/gravitational/teleport/pull/38186)
+* Removed access tokens from URL parameters, preventing them from being leaked to intermediary systems that may log them in plaintext. [#38070](https://github.com/gravitational/teleport/pull/38070)
+* Added option to validate hardware key serial numbers with hardware key support. [#38069](https://github.com/gravitational/teleport/pull/38069)
+* Forced agents to terminate Auth connections if joining fails. [#38004](https://github.com/gravitational/teleport/pull/38004)
+* Added a tsh sessions ls command to list active sessions. [#37970](https://github.com/gravitational/teleport/pull/37970)
+* Improved error handling when idle desktop connections are terminated. [#37956](https://github.com/gravitational/teleport/pull/37956)
+* Updated Go to 1.21.7. [#37848](https://github.com/gravitational/teleport/pull/37848)
+* Discover flow now starts two instances of DatabaseServices when setting up access to Amazon RDS. [#37804](https://github.com/gravitational/teleport/pull/37804)
+* Fixed incorrect resizing of CLI apps in Teleport Connect on Windows. [#37799](https://github.com/gravitational/teleport/pull/37799)
+* Fixed handling of non-registered U2F keys. [#37722](https://github.com/gravitational/teleport/pull/37722)
+* Fixed memory leak in tbot caused by never closing reverse tunnel address resolvers. [#37719](https://github.com/gravitational/teleport/pull/37719)
+* Fixed app redirection loop on browser's incognito mode and 3rd party cookie block. [#37692](https://github.com/gravitational/teleport/pull/37692)
+
 ## 14.3.4 (02/01/24)
 
 * Skip `tsh` AppID pre-flight check whenever possible. [#37643](https://github.com/gravitational/teleport/pull/37643)
