@@ -24,8 +24,10 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"math/big"
 	"net"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -236,12 +238,12 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		return trace.BadParameter("workload identity has not been enabled")
 	}
 
-	s.log.Info("Initializing Workload API endpoint")
+	s.log.Info("Completing pre-run initialization")
 	if err := s.setup(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	defer s.client.Close()
-	s.log.Info("Initialized Workload API endpoint")
+	s.log.Info("Completed pre-run initialization")
 
 	srvMetrics := metrics.CreateGRPCServerMetrics(
 		true, prometheus.Labels{},
@@ -276,7 +278,7 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	}
 	defer func() {
 		if err := lis.Close(); err != nil {
-			s.log.WithError(err).Error("closing listener")
+			s.log.WithError(err).Error("Encountered error closing listener")
 		}
 	}()
 	s.log.WithField("addr", lis.Addr().String()).Info("Listener opened for Workload API endpoint")
@@ -286,21 +288,22 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		)
 	}
 
+	// Set off the long running tasks in an errgroup
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
+		// Start the gRPC server
 		return srv.Serve(lis)
 	})
-	// Shutdown the server when the context is cancelled
 	eg.Go(func() error {
+		// Shutdown the server when the context is cancelled
 		<-egCtx.Done()
 		s.log.Info("Shutting down Workload API endpoint")
 		srv.Stop()
 		s.log.Debug("Shut down Workload API endpoint")
 		return nil
 	})
-
-	// Watch for CA rotations, fetch new trust bundle and update the client
 	eg.Go(func() error {
+		// Handle CA rotations
 		return s.handleCARotations(egCtx)
 	})
 
@@ -333,6 +336,85 @@ func (s *SPIFFEWorkloadAPIService) handleCARotations(ctx context.Context) error 
 	}
 }
 
+func serialString(serial *big.Int) string {
+	hex := serial.Text(16)
+	if len(hex)%2 == 1 {
+		hex = "0" + hex
+	}
+
+	out := strings.Builder{}
+	for i := 0; i < len(hex); i += 2 {
+		if i != 0 {
+			out.WriteString(":")
+		}
+		out.WriteString(hex[i : i+2])
+	}
+	return out.String()
+}
+
+func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(ctx context.Context) ([]*workloadpb.X509SVID, error) {
+	// Fetch this once at the start and share it across all SVIDs to reduce
+	// contention on the mutex and to ensure that all SVIDs are using the
+	// same trust bundle.
+	trustBundle := s.getTrustBundle()
+	// TODO(noah): We should probably take inspiration from SPIRE agent's
+	// behaviour of pre-fetching the SVIDs rather than doing this for
+	// every request.
+	res, privateKey, err := config.GenerateSVID(
+		ctx,
+		s.client.WorkloadIdentityServiceClient(),
+		s.cfg.SVIDs,
+		// For TTL, we use the one globally configured.
+		s.botCfg.CertificateTTL,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert the private key to PKCS#8 format as per SPIFFE spec.
+	x509SvidKey, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert responses from the Teleport API to the SPIFFE Workload API
+	// format.
+	svids := make([]*workloadpb.X509SVID, len(res.Svids))
+	for i, svidRes := range res.Svids {
+		svids[i] = &workloadpb.X509SVID{
+			// Required. The SPIFFE ID of the SVID in this entry
+			SpiffeId: svidRes.SpiffeId,
+			// Required. ASN.1 DER encoded certificate chain. MAY include
+			// intermediates, the leaf certificate (or SVID itself) MUST come first.
+			X509Svid: svidRes.Certificate,
+			// Required. ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted.
+			X509SvidKey: x509SvidKey,
+			// Required. ASN.1 DER encoded X.509 bundle for the trust domain.
+			Bundle: trustBundle,
+			Hint:   svidRes.Hint,
+		}
+		cert, err := x509.ParseCertificate(svidRes.Certificate)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing issued svid received from server")
+		}
+		// Log a message which correlates with the audit log entry and can
+		// provide additional metadata about the client.
+		s.log.WithFields(logrus.Fields{
+			"svid_type":     "x509",
+			"spiffe_id":     svidRes.SpiffeId,
+			"serial_number": serialString(cert.SerialNumber),
+			"hint":          svidRes.Hint,
+			"not_after":     cert.NotAfter,
+			"not_before":    cert.NotBefore,
+			"dns_sans":      cert.DNSNames,
+			"ip_sans":       cert.IPAddresses,
+			"serial":        cert.SerialNumber,
+		}).Info("Issued SVID for workload")
+	}
+
+	return svids, nil
+}
+
 // FetchX509SVID generates and returns the X.509 SVIDs available to a workload.
 // It is a streaming RPC, and sends renewed SVIDs to the client before they
 // expire.
@@ -342,61 +424,13 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 ) error {
 	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
 	defer unsubscribe()
+	s.log.Info("FetchX509SVID stream opened by workload")
+	defer s.log.Info("FetchX509SVID stream has closed")
 
 	for {
-		// Fetch this once at the start and share it across all SVIDs to reduce
-		// contention on the mutex and to ensure that all SVIDs are using the
-		// same trust bundle.
-		trustBundle := s.getTrustBundle()
-		// TODO: We should probably take inspiration from SPIRE agent's
-		// behaviour of pre-fetching the SVIDs rather than doing this for
-		// every request.
-		res, privateKey, err := config.GenerateSVID(
-			srv.Context(),
-			s.client.WorkloadIdentityServiceClient(),
-			s.cfg.SVIDs,
-			// For TTL, we use the one globally configured.
-			s.botCfg.CertificateTTL,
-		)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		s.log.Info("Starting to issue X509 SVIDs to workload")
 
-		// Convert the private key to PKCS#8 format as per SPIFFE spec.
-		x509SvidKey, err := x509.MarshalPKCS8PrivateKey(privateKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Convert responses from the Teleport API to the SPIFFE Workload API
-		// format.
-		svids := make([]*workloadpb.X509SVID, len(res.Svids))
-		for i, svidRes := range res.Svids {
-			svids[i] = &workloadpb.X509SVID{
-				// Required. The SPIFFE ID of the SVID in this entry
-				SpiffeId: svidRes.SpiffeId,
-				// Required. ASN.1 DER encoded certificate chain. MAY include
-				// intermediates, the leaf certificate (or SVID itself) MUST come first.
-				X509Svid: svidRes.Certificate,
-				// Required. ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted.
-				X509SvidKey: x509SvidKey,
-				// Required. ASN.1 DER encoded X.509 bundle for the trust domain.
-				Bundle: trustBundle,
-				Hint:   svidRes.Hint,
-			}
-			cert, err := x509.ParseCertificate(svidRes.Certificate)
-			if err != nil {
-				return trace.Wrap(err, "parsing returned cert")
-			}
-			s.log.WithFields(logrus.Fields{
-				// TODO: Ensure this meets the requirements set out in the RFD
-				// E.g we should match the fields available in the Teleport
-				// audit log.
-				"spiffe_id": svidRes.SpiffeId,
-				"hint":      svidRes.Hint,
-			}).Info("Sending X.509 SVID to workload")
-		}
-
+		svids, err := s.fetchX509SVIDs(srv.Context())
 		err = srv.Send(&workloadpb.X509SVIDResponse{
 			Svids: svids,
 		})
@@ -405,7 +439,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		}
 
 		s.log.Debug(
-			"Finished sending SVIDs to workload. Waiting for next renewal interval or CA rotation",
+			"Finished issuing SVIDs to workload. Waiting for next renewal interval or CA rotation",
 		)
 
 		select {
@@ -430,6 +464,8 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 	_ *workloadpb.X509BundlesRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchX509BundlesServer,
 ) error {
+	s.log.Info("FetchX509Bundles stream opened by workload")
+	defer s.log.Info("FetchX509Bundles stream has closed")
 	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
 	defer unsubscribe()
 
