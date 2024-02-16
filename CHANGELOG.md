@@ -9,7 +9,6 @@
 * Improved the stability of Teleport during graceful upgrades. [#38145](https://github.com/gravitational/teleport/pull/38145)
 * Added the ability to view and manage Machine ID bots from the UI. [#38122](https://github.com/gravitational/teleport/pull/38122)
 * Fixed a bug that prevented desktop clipboard sharing from working when large amounts of text are placed on the clipboard. [#38120](https://github.com/gravitational/teleport/pull/38120)
-* Fixed Opsgenie plugin creating alerts based on incorrect annotation. Action required for Opsgenie plugin users. [#38105](https://github.com/gravitational/teleport/pull/38105)
 * Added option to validate hardware key serial numbers with hardware key support. [#38068](https://github.com/gravitational/teleport/pull/38068)
 * Removed access tokens from URL parameters, preventing them from being leaked to intermediary systems that may log them in plaintext. [#38032](https://github.com/gravitational/teleport/pull/38032)
 * Forced agents to terminate Auth connections if joining fails. [#38005](https://github.com/gravitational/teleport/pull/38005)
