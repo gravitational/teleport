@@ -1,5 +1,22 @@
 # Changelog
 
+## 15.0.2 (02/15/24)
+
+* Fixed a potential panic in the `tsh status` command. [#38305](https://github.com/gravitational/teleport/pull/38305)
+* Fixed SSO user locking in the setup access step of the RDS auto discover flow in the web UI. [#38283](https://github.com/gravitational/teleport/pull/38283)
+* Optionally permit the auth server to terminate client connections from unsupported versions. [#38182](https://github.com/gravitational/teleport/pull/38182)
+* Fixed Assist obstructing the user dropdown menu when in docked mode. [#38156](https://github.com/gravitational/teleport/pull/38156)
+* Improved the stability of Teleport during graceful upgrades. [#38145](https://github.com/gravitational/teleport/pull/38145)
+* Added the ability to view and manage Machine ID bots from the UI. [#38122](https://github.com/gravitational/teleport/pull/38122)
+* Fixed a bug that prevented desktop clipboard sharing from working when large amounts of text are placed on the clipboard. [#38120](https://github.com/gravitational/teleport/pull/38120)
+* Added option to validate hardware key serial numbers with hardware key support. [#38068](https://github.com/gravitational/teleport/pull/38068)
+* Removed access tokens from URL parameters, preventing them from being leaked to intermediary systems that may log them in plaintext. [#38032](https://github.com/gravitational/teleport/pull/38032)
+* Forced agents to terminate Auth connections if joining fails. [#38005](https://github.com/gravitational/teleport/pull/38005)
+* Added a tsh sessions ls command to list active sessions. [#37969](https://github.com/gravitational/teleport/pull/37969)
+* Improved error handling when idle desktop connections are terminated. [#37955](https://github.com/gravitational/teleport/pull/37955)
+* Updated Go to 1.21.7. [#37846](https://github.com/gravitational/teleport/pull/37846)
+* Discover flow now starts two instances of DatabaseServices when setting up access to Amazon RDS. [#37805](https://github.com/gravitational/teleport/pull/37805)
+
 ## 15.0.1 (02/06/24)
 
 * Correctly handle non-registered U2F keys. [#37720](https://github.com/gravitational/teleport/pull/37720)
