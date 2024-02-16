@@ -895,10 +895,26 @@ export const formatters: Formatters = {
       )}] in database [${db_name}] on [${db_service}] failed`,
   },
   [eventCodes.DATABASE_SESSION_MALFORMED_PACKET]: {
-    type: 'db.session.malformed_packet"',
+    type: 'db.session.malformed_packet',
     desc: 'Database Malformed Packet',
     format: ({ user, db_service, db_name }) =>
       `Received malformed packet from [${user}] in [${db_name}] on database [${db_service}]`,
+  },
+  [eventCodes.DATABASE_SESSION_PERMISSIONS_UPDATE]: {
+    type: ' db.session.permissions.update',
+    desc: 'Database Permissions Update',
+    format: ({ user, db_service, db_name, permission_summary }) => {
+      console.log(permission_summary);
+      const summary = permission_summary
+        .map(p => {
+          const details = Object.entries(p.counts)
+            .map(([key, value]) => `${key}:${value}`)
+            .join(',');
+          return `${p.permission}:${details}`;
+        })
+        .join('; ');
+      return `User permissions [${user}] in [${db_name}] on database [${db_service}]: ${summary}`;
+    },
   },
   [eventCodes.DATABASE_CREATED]: {
     type: 'db.create',
@@ -1695,6 +1711,18 @@ export const formatters: Formatters = {
     desc: 'External Audit Storage Disabled',
     format: ({ updated_by }) =>
       `User [${updated_by}] disabled External Audit Storage`,
+  },
+  [eventCodes.SPIFFE_SVID_ISSUED]: {
+    type: 'spiffe.svid.issued',
+    desc: 'SPIFFE SVID Issued',
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] issued SPIFFE SVID [${spiffe_id}]`,
+  },
+  [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: {
+    type: 'spiffe.svid.issued',
+    desc: 'SPIFFE SVID Issued Failure',
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

@@ -359,10 +359,15 @@ func profileFromFile(filePath string) (*Profile, error) {
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	var p *Profile
+	var p Profile
 	if err := yaml.Unmarshal(bytes, &p); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if p.Name() == "" {
+		return nil, trace.NotFound("invalid or empty profile at %q", filePath)
+	}
+
 	p.Dir = filepath.Dir(filePath)
 
 	// Older versions of tsh did not always store the cluster name in the
@@ -371,7 +376,7 @@ func profileFromFile(filePath string) (*Profile, error) {
 	if p.SiteName == "" {
 		p.SiteName = p.Name()
 	}
-	return p, nil
+	return &p, nil
 }
 
 // SaveToDir saves this profile to the specified directory.

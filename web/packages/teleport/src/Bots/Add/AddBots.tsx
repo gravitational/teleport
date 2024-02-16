@@ -23,7 +23,7 @@ import cfg from 'teleport/config';
 
 import { FeatureBox } from 'teleport/components/Layout';
 
-import { BotType } from '../types';
+import { BotFlowType } from '../types';
 
 import GitHubActionsFlow from './GitHubActions';
 import { AddBotsPicker } from './AddBotsPicker';
@@ -33,7 +33,7 @@ export function AddBots() {
     <FeatureBox>
       <Switch>
         <Route
-          path={cfg.getBotsNewRoute(BotType.GitHubActions)}
+          path={cfg.getBotsNewRoute(BotFlowType.GitHubActions)}
           component={GitHubActionsFlow}
         />
         <Route path={cfg.getBotsNewRoute()} component={AddBotsPicker} />

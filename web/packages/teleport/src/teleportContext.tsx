@@ -216,6 +216,8 @@ class TeleportContext implements types.Context {
       externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
       listBots: userContext.getBotsAccess().list,
       addBots: userContext.getBotsAccess().create,
+      editBots: userContext.getBotsAccess().edit,
+      removeBots: userContext.getBotsAccess().remove,
     };
   }
 }
@@ -253,6 +255,8 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   externalAuditStorage: false,
   addBots: false,
   listBots: false,
+  editBots: false,
+  removeBots: false,
 };
 
 export default TeleportContext;

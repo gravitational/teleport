@@ -108,8 +108,12 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, contextCA, readVerb)
+	authzCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err = authzCtx.CheckAccessToResource(contextCA, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -120,8 +124,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, ca, readVerb)
-	if err != nil {
+	if err = authzCtx.CheckAccessToResource(ca, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -141,8 +144,12 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 		verbs = append(verbs, types.VerbRead)
 	}
 
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, verbs...)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, verbs[0], verbs[1:]...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -167,12 +174,16 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 
 // DeleteCertAuthority deletes the matching cert authority.
 func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCertAuthorityRequest) (*emptypb.Empty, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -193,13 +204,17 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 		return nil, trace.Wrap(err)
 	}
 
-	authzCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbCreate, types.VerbUpdate)
+	authzCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := authzCtx.CheckAccessToResource(req.CertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authzCtx); err != nil {
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -212,12 +227,16 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 
 // RotateCertAuthority rotates a cert authority.
 func (s *Service) RotateCertAuthority(ctx context.Context, req *trustpb.RotateCertAuthorityRequest) (*trustpb.RotateCertAuthorityResponse, error) {
-	authzCtx, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbCreate, types.VerbUpdate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, authzCtx); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -259,12 +278,16 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 		return nil, trace.Wrap(err)
 	}
 
-	authzCtx, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbRotate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.IsLocalOrRemoteService(*authzCtx) {
+	if err := authCtx.CheckAccessToResource(req.CertAuthority, types.VerbRotate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteService(*authCtx) {
 		return nil, trace.AccessDenied("this request can be only executed by an internal Teleport service")
 	}
 
@@ -329,7 +352,7 @@ func (s *Service) GenerateHostCert(
 	// resource type.
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, s.logger, err)
+		return nil, trace.Wrap(err)
 	}
 	ruleCtx := &services.Context{
 		User: authCtx.User,
@@ -342,16 +365,11 @@ func (s *Service) GenerateHostCert(
 			TTL:         req.Ttl.AsDuration(),
 		},
 	}
-	_, err = authz.AuthorizeContextWithVerbs(
-		ctx,
-		s.logger,
-		authCtx,
-		false,
+	if err = authCtx.CheckAccessToRule(
 		ruleCtx,
 		types.KindHostCert,
 		types.VerbCreate,
-	)
-	if err != nil {
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

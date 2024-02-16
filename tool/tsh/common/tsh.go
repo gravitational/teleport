@@ -2022,8 +2022,6 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprint(os.Stderr, "Did you know? Teleport Connect offers the power of tsh in a desktop app.\nLearn more at https://goteleport.com/docs/connect-your-client/teleport-connect/\n\n")
-
 	// NOTE: we currently print all alerts that are marked as `on-login`, because we
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
@@ -2224,6 +2222,7 @@ func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 		logger := log.WithField("cluster", profile.Cluster)
 
 		logger.Debug("Creating client...")
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxy, err := tc.ConnectToProxy(ctx)
 		if err != nil {
 			// log error and return nil so that results may still be retrieved
@@ -2993,16 +2992,22 @@ func onListClusters(cf *CLIConf) error {
 	var rootClusterName string
 	var leafClusters []types.RemoteCluster
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		proxyClient, err := tc.ConnectToProxy(cf.Context)
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return err
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		var rootErr, leafErr error
-		rootClusterName, rootErr = proxyClient.RootClusterName(cf.Context)
-		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
-		return trace.NewAggregate(rootErr, leafErr)
+		rootClusterName = clusterClient.RootClusterName()
+
+		rootAuthClient, err := clusterClient.ConnectToRootCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootAuthClient.Close()
+
+		leafClusters, err = rootAuthClient.GetRemoteClusters()
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -30,6 +30,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
+const (
+	// DefaultTeleportIAMTokenName is the default Teleport IAM Token to use when it's not specified.
+	DefaultTeleportIAMTokenName = "discover-aws-oidc-iam-token"
+)
+
 // GenerateTeleportConfigString creates a teleport.yaml configuration that the agent
 // deployed in a ECS Cluster (using Fargate) will use.
 //
