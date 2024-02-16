@@ -54,7 +54,7 @@ func NewDatabaseObjectImportRuleService(cfg DatabaseObjectImportRuleServiceConfi
 		return nil, trace.BadParameter("backend service is required")
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(trace.Component, "DatabaseObjectImportRule.service")
+		cfg.Logger = logrus.WithField(trace.Component, "db_obj_import_rule")
 	}
 	return &DatabaseObjectImportRuleService{
 		logger:     cfg.Logger,
