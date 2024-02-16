@@ -318,7 +318,7 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
