@@ -38,8 +38,8 @@ func TestHandover(t *testing.T) {
 
 	sshServer := discardingSSHServer(t)
 	hostID := uuid.NewString()
+	// unix domain socket names have a very tight length limit
 	dataDir := shortTempDir(t)
-	t.Logf("using temporary data dir %q", dataDir)
 
 	s1 := NewSSHServerWrapper(SSHServerWrapperConfig{
 		SSHServer: sshServer,
