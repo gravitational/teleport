@@ -97,9 +97,9 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	// Make a list of all proxied databases.
-	databases := make([]types.Database, 0, len(page.Resources))
+	databases := make([]*types.DatabaseV3, 0, len(page.Resources))
 	for _, server := range page.Resources {
-		databases = append(databases, server.GetDatabase())
+		databases = append(databases, server.GetDatabase().Copy())
 	}
 
 	accessChecker, err := sctx.GetUserAccessChecker()

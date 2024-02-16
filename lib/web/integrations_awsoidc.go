@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -49,32 +51,30 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listDBsClient, err := awsoidc.NewListDatabasesClient(ctx, awsClientReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := awsoidc.ListDatabases(ctx,
-		listDBsClient,
-		awsoidc.ListDatabasesRequest{
-			Region:    req.Region,
-			NextToken: req.NextToken,
-			Engines:   req.Engines,
-			RDSType:   req.RDSType,
-		},
-	)
+	listDatabasesResp, err := clt.IntegrationAWSOIDCClient().ListDatabases(ctx, &integrationv1.ListDatabasesRequest{
+		Integration: integrationName,
+		Region:      req.Region,
+		RdsType:     req.RDSType,
+		Engines:     req.Engines,
+		NextToken:   req.NextToken,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ui.AWSOIDCListDatabasesResponse{
-		NextToken: resp.NextToken,
-		Databases: ui.MakeDatabases(resp.Databases, nil, nil),
+		NextToken: listDatabasesResp.NextToken,
+		Databases: ui.MakeDatabases(listDatabasesResp.Databases, nil, nil),
 	}, nil
 }
 
@@ -447,14 +447,9 @@ func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	listDBsClient, err := awsoidc.NewListDatabasesClient(ctx, awsClientReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, site)
@@ -462,22 +457,73 @@ func (h *Handler) awsOIDCRequiredDatabasesVPCS(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := awsOIDCRequiredVPCSHelper(ctx, req, listDBsClient, clt)
+	respAllDatabases, err := awsOIDCListAllDatabases(ctx, clt, integrationName, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(respAllDatabases) == 0 {
+		return nil, trace.BadParameter("there are no available RDS instances or clusters found in region %q", req.Region)
+	}
+
+	resp, err := awsOIDCRequiredVPCSHelper(ctx, clt, req, respAllDatabases)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
 }
 
-func awsOIDCRequiredVPCSHelper(ctx context.Context, req ui.AWSOIDCRequiredVPCSRequest, listDBsClient awsoidc.ListDatabasesClient, clt auth.ClientI) (*ui.AWSOIDCRequiredVPCSResponse, error) {
-	resp, err := awsoidc.ListAllDatabases(ctx, listDBsClient, req.Region)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(resp.Databases) == 0 {
-		return nil, trace.BadParameter("there are no available RDS instances or clusters found in region %q", req.Region)
+func awsOIDCListAllDatabases(ctx context.Context, clt auth.ClientI, integration, region string) ([]*types.DatabaseV3, error) {
+	nextToken := ""
+	var fetchedRDSs []*types.DatabaseV3
+
+	// Get all rds instances.
+	for {
+		resp, err := clt.IntegrationAWSOIDCClient().ListDatabases(ctx, &integrationv1.ListDatabasesRequest{
+			Integration: integration,
+			Region:      region,
+			RdsType:     services.RDSDescribeTypeInstance,
+			Engines:     []string{services.RDSEngineMySQL, services.RDSEngineMariaDB, services.RDSEnginePostgres},
+			NextToken:   nextToken,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		fetchedRDSs = append(fetchedRDSs, resp.Databases...)
+		nextToken = resp.NextToken
+
+		if len(nextToken) == 0 {
+			break
+		}
 	}
 
+	// Get all rds clusters.
+	nextToken = ""
+	for {
+		resp, err := clt.IntegrationAWSOIDCClient().ListDatabases(ctx, &integrationv1.ListDatabasesRequest{
+			Integration: integration,
+			Region:      region,
+			RdsType:     services.RDSDescribeTypeCluster,
+			Engines:     []string{services.RDSEngineAuroraMySQL, services.RDSEngineAuroraPostgres},
+			NextToken:   nextToken,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		fetchedRDSs = append(fetchedRDSs, resp.Databases...)
+		nextToken = resp.NextToken
+
+		if len(nextToken) == 0 {
+			break
+		}
+	}
+
+	return fetchedRDSs, nil
+}
+
+func awsOIDCRequiredVPCSHelper(ctx context.Context, clt auth.ClientI, req ui.AWSOIDCRequiredVPCSRequest, fetchedRDSs []*types.DatabaseV3) (*ui.AWSOIDCRequiredVPCSResponse, error) {
 	// Get all database services with ecs/fargate metadata label.
 	nextToken := ""
 	fetchedDbSvcs := []types.DatabaseService{}
@@ -501,7 +547,7 @@ func awsOIDCRequiredVPCSHelper(ctx context.Context, req ui.AWSOIDCRequiredVPCSRe
 
 	// Construct map of VPCs and its subnets.
 	vpcLookup := map[string][]string{}
-	for _, db := range resp.Databases {
+	for _, db := range fetchedRDSs {
 		rds := db.GetAWS().RDS
 		vpcId := rds.VPCID
 		if _, found := vpcLookup[vpcId]; !found {
