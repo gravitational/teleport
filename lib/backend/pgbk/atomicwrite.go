@@ -25,7 +25,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 )
