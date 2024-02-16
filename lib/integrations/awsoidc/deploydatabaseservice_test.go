@@ -51,14 +51,14 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 			TeleportClusterName: "mycluster",
 			Region:              "r",
 			TaskRoleARN:         "arn",
-			ProxyServerHostPort: "proxy.example.com:3080",
 			IntegrationName:     "teleportdev",
 			Deployments: []DeployDatabaseServiceRequestDeployment{{
-				VPCID:            "vpc-123",
-				SubnetIDs:        []string{"subnet-1", "subnet-2"},
-				SecurityGroupIDs: []string{"sg-1", "sg-2"},
+				VPCID:               "vpc-123",
+				SubnetIDs:           []string{"subnet-1", "subnet-2"},
+				SecurityGroupIDs:    []string{"sg-1", "sg-2"},
+				DeployServiceConfig: "teleport.yaml-base64",
 			}},
-			CreateDeployServiceConfig: dummyGenerateTeleportConfigString,
+			DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 		}
 	}
 
@@ -121,6 +121,15 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParamErrFn,
 		},
 		{
+			name: "empty teleport config",
+			req: func() DeployDatabaseServiceRequest {
+				r := baseReqFn()
+				r.Deployments[0].DeployServiceConfig = ""
+				return r
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
 			name: "empty vpc id",
 			req: func() DeployDatabaseServiceRequest {
 				r := baseReqFn()
@@ -148,20 +157,19 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				Region:              "r",
 				TaskRoleARN:         "arn",
 				IntegrationName:     "teleportdev",
-				ProxyServerHostPort: "proxy.example.com:3080",
 				ResourceCreationTags: AWSTags{
 					"teleport.dev/origin":      "integration_awsoidc",
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "teleportdev",
 				},
 				Deployments: []DeployDatabaseServiceRequestDeployment{{
-					VPCID:            "vpc-123",
-					SubnetIDs:        []string{"subnet-1", "subnet-2"},
-					SecurityGroupIDs: []string{"sg-1", "sg-2"},
+					VPCID:               "vpc-123",
+					SubnetIDs:           []string{"subnet-1", "subnet-2"},
+					SecurityGroupIDs:    []string{"sg-1", "sg-2"},
+					DeployServiceConfig: "teleport.yaml-base64",
 				}},
-				ecsClusterName:              "mycluster-teleport",
-				teleportIAMTokenNameForTask: "discover-aws-oidc-iam-token",
-				CreateDeployServiceConfig:   dummyGenerateTeleportConfigString,
+				ecsClusterName:          "mycluster-teleport",
+				DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 			},
 		},
 	} {
@@ -177,7 +185,6 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					*tt.expected,
 					r,
-					cmpopts.IgnoreFields(DeployDatabaseServiceRequest{}, "CreateDeployServiceConfig"),
 					cmpopts.IgnoreUnexported(DeployDatabaseServiceRequest{}),
 				))
 			}
@@ -394,15 +401,14 @@ func TestDeployDatabaseService(t *testing.T) {
 			Region:              "us-east-1",
 			TaskRoleARN:         "my-role",
 			TeleportClusterName: "cluster-name",
-			ProxyServerHostPort: "proxy.example.com:3080",
 			IntegrationName:     "my-integration",
 			Deployments: []DeployDatabaseServiceRequestDeployment{
 				{
-					VPCID:     "vpc-123",
-					SubnetIDs: []string{"subnet-1", "subnet-2"},
+					VPCID:               "vpc-123",
+					SubnetIDs:           []string{"subnet-1", "subnet-2"},
+					DeployServiceConfig: "teleport.yaml-base64",
 				},
 			},
-			CreateDeployServiceConfig: dummyGenerateTeleportConfigString,
 		})
 		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %+v", err)
 	})
@@ -417,18 +423,18 @@ func TestDeployDatabaseService(t *testing.T) {
 		resp, err := DeployDatabaseService(ctx,
 			mockClient,
 			DeployDatabaseServiceRequest{
-				Region:              "us-east-1",
-				TaskRoleARN:         "my-role",
-				TeleportClusterName: "cluster-name",
-				ProxyServerHostPort: "proxy.example.com:3080",
-				IntegrationName:     "my-integration",
+				Region:                  "us-east-1",
+				TaskRoleARN:             "my-role",
+				TeleportClusterName:     "cluster-name",
+				IntegrationName:         "my-integration",
+				DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 				Deployments: []DeployDatabaseServiceRequestDeployment{
 					{
-						VPCID:     "vpc-123",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-123",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 				},
-				CreateDeployServiceConfig: dummyGenerateTeleportConfigString,
 			},
 		)
 		require.NoError(t, err)
@@ -450,30 +456,33 @@ func TestDeployDatabaseService(t *testing.T) {
 		resp, err := DeployDatabaseService(ctx,
 			mockClient,
 			DeployDatabaseServiceRequest{
-				Region:              "us-east-1",
-				TaskRoleARN:         "my-role",
-				TeleportClusterName: "cluster-name",
-				ProxyServerHostPort: "proxy.example.com:3080",
-				IntegrationName:     "my-integration",
+				Region:                  "us-east-1",
+				TaskRoleARN:             "my-role",
+				TeleportClusterName:     "cluster-name",
+				IntegrationName:         "my-integration",
+				DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 				Deployments: []DeployDatabaseServiceRequestDeployment{
 					{
-						VPCID:     "vpc-001",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-001",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 					{
-						VPCID:     "vpc-002",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-002",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 					{
-						VPCID:     "vpc-003",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-003",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 					{
-						VPCID:     "vpc-004",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-004",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 				},
-				CreateDeployServiceConfig: dummyGenerateTeleportConfigString,
 			},
 		)
 		require.NoError(t, err)
@@ -525,18 +534,18 @@ func TestDeployDatabaseService(t *testing.T) {
 				iamTokenMissing: true,
 			},
 			DeployDatabaseServiceRequest{
-				Region:              "us-east-1",
-				TaskRoleARN:         "my-role",
-				TeleportClusterName: "cluster-name",
-				ProxyServerHostPort: "proxy.example.com:3080",
-				IntegrationName:     "my-integration",
+				Region:                  "us-east-1",
+				TaskRoleARN:             "my-role",
+				TeleportClusterName:     "cluster-name",
+				IntegrationName:         "my-integration",
+				DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 				Deployments: []DeployDatabaseServiceRequestDeployment{
 					{
-						VPCID:     "vpc-123",
-						SubnetIDs: []string{"subnet-1", "subnet-2"},
+						VPCID:               "vpc-123",
+						SubnetIDs:           []string{"subnet-1", "subnet-2"},
+						DeployServiceConfig: "teleport.yaml-base64",
 					},
 				},
-				CreateDeployServiceConfig: dummyGenerateTeleportConfigString,
 			},
 		)
 		require.NoError(t, err)
