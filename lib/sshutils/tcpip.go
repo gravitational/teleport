@@ -76,9 +76,13 @@ type CancelTCPIPForwardReq struct {
 	Port uint32
 }
 
+type channelOpener interface {
+	OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error)
+}
+
 // StartRemoteListener listens on the given listener and forwards any accepted
 // connections over a new "forwarded-tcpip" channel.
-func StartRemoteListener(ctx context.Context, ccx *ConnectionContext, srcAddr, dstAddr string, listener net.Listener) error {
+func StartRemoteListener(ctx context.Context, sshConn channelOpener, srcAddr, dstAddr string, listener net.Listener) error {
 	srcHost, srcPort, err := SplitHostPort(srcAddr)
 	if err != nil {
 		return trace.Wrap(err)
@@ -104,10 +108,10 @@ func StartRemoteListener(ctx context.Context, ccx *ConnectionContext, srcAddr, d
 			conn, err := listener.Accept()
 			if err != nil {
 				log.WithError(err).Warn("failed to accept connection")
-				continue
+				return
 			}
 
-			ch, rch, err := ccx.ServerConn.OpenChannel(teleport.ChanForwardedTCPIP, reqBytes)
+			ch, rch, err := sshConn.OpenChannel(teleport.ChanForwardedTCPIP, reqBytes)
 			if err != nil {
 				log.WithError(err).Warn("failed to open channel")
 				continue
