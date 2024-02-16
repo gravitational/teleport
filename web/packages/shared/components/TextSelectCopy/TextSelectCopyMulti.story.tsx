@@ -21,7 +21,7 @@ import React from 'react';
 import { TextSelectCopyMulti as Component } from './TextSelectCopyMulti';
 
 export default {
-  title: 'Design/TextSelectCopy/Multi',
+  title: 'Shared/TextSelectCopy/Multi',
 };
 
 export const BashMulti = () => {

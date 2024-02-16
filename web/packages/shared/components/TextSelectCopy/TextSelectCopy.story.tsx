@@ -21,7 +21,7 @@ import React from 'react';
 import { TextSelectCopy as Component } from './TextSelectCopy';
 
 export default {
-  title: 'Design/TextSelectCopy',
+  title: 'Shared/TextSelectCopy',
 };
 
 export const BashCommand = () => {
