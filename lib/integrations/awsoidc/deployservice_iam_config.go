@@ -245,7 +245,7 @@ func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMCo
 		return trace.Wrap(convertedErr)
 	}
 
-	logrus.Printf("TaskRole: Boundary Policy %q created.\n", req.TaskRoleBoundaryPolicyName)
+	logrus.Infof("TaskRole: Boundary Policy %q created.\n", req.TaskRoleBoundaryPolicyName)
 	return nil
 }
 
@@ -275,7 +275,7 @@ func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, re
 		return trace.Wrap(convertedErr)
 	}
 
-	logrus.Printf("TaskRole: Role %q created with Boundary %q.\n", req.TaskRole, policyARNForRoleBoundary)
+	logrus.Infof("TaskRole: Role %q created with Boundary %q.\n", req.TaskRole, policyARNForRoleBoundary)
 	return nil
 }
 
@@ -302,7 +302,7 @@ func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClien
 		return trace.Wrap(err)
 	}
 
-	logrus.Printf("TaskRole: IAM Policy %q added to Role %q.\n", req.TaskRole, req.TaskRole)
+	logrus.Infof("TaskRole: IAM Policy %q added to Role %q.\n", req.TaskRole, req.TaskRole)
 	return nil
 }
 
@@ -331,6 +331,6 @@ func addPolicyToIntegrationRole(ctx context.Context, clt DeployServiceIAMConfigu
 		return trace.Wrap(err)
 	}
 
-	logrus.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleDeployServicePolicy, req.IntegrationRole)
+	logrus.Infof("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleDeployServicePolicy, req.IntegrationRole)
 	return nil
 }

@@ -129,6 +129,6 @@ func ConfigureEKSIAM(ctx context.Context, clt EKSIAMConfigureClient, req EKSIAMC
 		return trace.Wrap(err)
 	}
 
-	logrus.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleEKSPolicy, req.IntegrationRole)
+	logrus.Infof("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleEKSPolicy, req.IntegrationRole)
 	return nil
 }

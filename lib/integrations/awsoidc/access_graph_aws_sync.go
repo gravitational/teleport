@@ -108,6 +108,6 @@ func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	logrus.Printf("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleTAGPolicy, req.IntegrationRole)
+	logrus.Infof("IntegrationRole: IAM Policy %q added to Role %q\n", req.IntegrationRoleTAGPolicy, req.IntegrationRole)
 	return nil
 }
