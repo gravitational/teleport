@@ -33,3 +33,8 @@ This will send a SIGTERM signal to the postgres backend process for that query:
 ```sql
 SELECT pg_terminate_backend(<PID>);
 ```
+
+See the PostgreSQL documentation on
+[admin functions](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADMIN-SIGNAL)
+for more information about the `pg_cancel_backend` and `pg_terminate_backend`
+functions.
