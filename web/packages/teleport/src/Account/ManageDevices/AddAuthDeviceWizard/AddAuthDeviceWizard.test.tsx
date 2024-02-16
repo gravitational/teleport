@@ -129,7 +129,7 @@ describe('flow without reauthentication', () => {
     });
 
     const saveStep = within(screen.getByTestId('save-step'));
-    await user.type(saveStep.getByLabelText('Passkey Nickname'), 'new-mfa');
+    await user.type(saveStep.getByLabelText('MFA Method Name'), 'new-mfa');
     await user.click(
       saveStep.getByRole('button', { name: 'Save the MFA method' })
     );
@@ -158,7 +158,7 @@ describe('flow without reauthentication', () => {
     );
 
     const saveStep = within(screen.getByTestId('save-step'));
-    await user.type(saveStep.getByLabelText('Passkey Nickname'), 'new-mfa');
+    await user.type(saveStep.getByLabelText('MFA Method Name'), 'new-mfa');
     await user.type(saveStep.getByLabelText(/Authenticator Code/), '345678');
     await user.click(
       saveStep.getByRole('button', { name: 'Save the MFA method' })

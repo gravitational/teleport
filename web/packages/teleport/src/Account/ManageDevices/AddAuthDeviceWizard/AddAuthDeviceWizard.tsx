@@ -445,7 +445,11 @@ export function SaveDeviceStep({
         {({ validator }) => (
           <form onSubmit={e => onSave(e, validator)}>
             <FieldInput
-              label="Passkey Nickname"
+              label={
+                usage === 'passwordless'
+                  ? 'Passkey Nickname'
+                  : 'MFA Method Name'
+              }
               rule={requiredField('Passkey nickname is required')}
               value={deviceName}
               placeholder="ex. my-macbookpro"
