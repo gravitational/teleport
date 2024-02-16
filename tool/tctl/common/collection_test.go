@@ -258,7 +258,7 @@ func TestDatabaseImportRuleCollection_writeText(t *testing.T) {
 	mkRule := func(name string) *dbobjectimportrulev1.DatabaseObjectImportRule {
 		r, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
 			Priority: 123,
-			DbLabels: label.FromMap(map[string][]string{
+			DatabaseLabels: label.FromMap(map[string][]string{
 				"foo":   {"bar"},
 				"beast": {"dragon", "phoenix"},
 			}),

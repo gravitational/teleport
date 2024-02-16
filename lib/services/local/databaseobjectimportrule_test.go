@@ -51,8 +51,8 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 
 	// Create a couple import rules.
 	importRule1, err := databaseobjectimportrule.NewDatabaseObjectImportRule("r1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
-		Priority: 10,
-		DbLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
+		Priority:       10,
+		DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
 		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
 			{
 				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
@@ -68,8 +68,8 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	importRule2, err := databaseobjectimportrule.NewDatabaseObjectImportRule("r2", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
-		Priority: 20,
-		DbLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
+		Priority:       20,
+		DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
 		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
 			{
 				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
