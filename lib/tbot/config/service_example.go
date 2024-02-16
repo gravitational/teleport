@@ -19,8 +19,6 @@
 package config
 
 import (
-	"fmt"
-
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
@@ -50,10 +48,6 @@ func (s *ExampleService) UnmarshalYAML(node *yaml.Node) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-func (s *ExampleService) String() string {
-	return fmt.Sprintf("%s:%s", ExampleServiceType, s.Message)
 }
 
 func (s *ExampleService) CheckAndSetDefaults() error {

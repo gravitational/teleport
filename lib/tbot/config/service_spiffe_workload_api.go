@@ -19,8 +19,6 @@
 package config
 
 import (
-	"fmt"
-
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
@@ -32,8 +30,10 @@ const SPIFFEWorkloadAPIServiceType = "spiffe-workload-api"
 type SPIFFEWorkloadAPIService struct {
 	// Listen is the address on which the SPIFFE Workload API server should
 	// listen. This should either be prefixed with "unix://" or "tcp://".
-	Listen string        `yaml:"listen"`
-	SVIDs  []SVIDRequest `yaml:"svids"`
+	Listen string `yaml:"listen"`
+	// SVIDs is the list of SVIDs that the SPIFFE Workload API server should
+	// provide.
+	SVIDs []SVIDRequest `yaml:"svids"`
 }
 
 func (s *SPIFFEWorkloadAPIService) Type() string {
@@ -52,10 +52,6 @@ func (s *SPIFFEWorkloadAPIService) UnmarshalYAML(node *yaml.Node) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-func (s *SPIFFEWorkloadAPIService) String() string {
-	return fmt.Sprintf("%s", SPIFFEWorkloadAPIServiceType)
 }
 
 func (s *SPIFFEWorkloadAPIService) CheckAndSetDefaults() error {

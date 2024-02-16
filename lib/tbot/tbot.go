@@ -221,7 +221,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
 		case *config.SPIFFEWorkloadAPIService:
-			services = append(services, &SPIFFEWorkloadAPIService{
+			svc := &SPIFFEWorkloadAPIService{
 				botIdentitySrc:        b,
 				botCfg:                b.cfg,
 				cfg:                   svcCfg,
@@ -230,10 +230,11 @@ func (b *Bot) Run(ctx context.Context) error {
 				trustBundleBroadcast: &channelBroadcaster{
 					chanSet: map[chan struct{}]struct{}{},
 				},
-				log: b.log.WithField(
-					trace.Component, teleport.Component(componentTBot, "svc", svcCfg.String()),
-				),
-			})
+			}
+			svc.log = b.log.WithField(
+				trace.Component, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
 		case *config.ExampleService:
 			services = append(services, &ExampleService{
 				cfg: svcCfg,

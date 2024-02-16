@@ -55,7 +55,15 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// SPIFFEWorkloadAPIService does things!!
+// SPIFFEWorkloadAPIService implements a gRPC server that fulfils the SPIFFE
+// Workload API specification. It provides X509 SVIDs and trust bundles to
+// workloads that connect over the configured listener.
+//
+// Sources:
+// - https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Workload_Endpoint.md
+// - https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Workload_API.md
+// - https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md
+// - https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md
 type SPIFFEWorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
@@ -87,6 +95,8 @@ func (s *SPIFFEWorkloadAPIService) setTrustBundle(trustBundle []byte) {
 	s.trustBundleMu.Lock()
 	s.trustBundle = trustBundle
 	s.trustBundleMu.Unlock()
+	// Alert active streaming RPCs to renew their trust bundles
+	s.trustBundleBroadcast.broadcast()
 }
 
 func (s *SPIFFEWorkloadAPIService) getTrustBundle() []byte {
@@ -297,9 +307,9 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	eg.Go(func() error {
 		// Shutdown the server when the context is cancelled
 		<-egCtx.Done()
-		s.log.Info("Shutting down Workload API endpoint")
+		s.log.Debug("Shutting down Workload API endpoint")
 		srv.Stop()
-		s.log.Debug("Shut down Workload API endpoint")
+		s.log.Info("Shut down Workload API endpoint")
 		return nil
 	})
 	eg.Go(func() error {
@@ -329,13 +339,13 @@ func (s *SPIFFEWorkloadAPIService) handleCARotations(ctx context.Context) error 
 			// TODO: Limited retry behaviour
 			return err
 		}
-		s.log.Info("Fetched new trust bundle, propagating to subscribed workloads")
+		s.log.Info("Fetched new trust bundle")
 		s.setTrustBundle(tb)
-		// Alert active streaming RPCs to renew their trust bundles
-		s.trustBundleBroadcast.broadcast()
 	}
 }
 
+// serialString returns a human-readable colon-separated string of the serial
+// number in hex.
 func serialString(serial *big.Int) string {
 	hex := serial.Text(16)
 	if len(hex)%2 == 1 {
@@ -352,7 +362,11 @@ func serialString(serial *big.Int) string {
 	return out.String()
 }
 
-func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(ctx context.Context) ([]*workloadpb.X509SVID, error) {
+// fetchX509SVIDs fetches the X.509 SVIDs for the bot's configured SVIDs and
+// returns them in the SPIFFE Workload API format.
+func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
+	ctx context.Context,
+) ([]*workloadpb.X509SVID, error) {
 	// Fetch this once at the start and share it across all SVIDs to reduce
 	// contention on the mutex and to ensure that all SVIDs are using the
 	// same trust bundle.
@@ -372,7 +386,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(ctx context.Context) ([]*workl
 	}
 
 	// Convert the private key to PKCS#8 format as per SPIFFE spec.
-	x509SvidKey, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	pkcs8PrivateKey, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -388,7 +402,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(ctx context.Context) ([]*workl
 			// intermediates, the leaf certificate (or SVID itself) MUST come first.
 			X509Svid: svidRes.Certificate,
 			// Required. ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted.
-			X509SvidKey: x509SvidKey,
+			X509SvidKey: pkcs8PrivateKey,
 			// Required. ASN.1 DER encoded X.509 bundle for the trust domain.
 			Bundle: trustBundle,
 			Hint:   svidRes.Hint,
@@ -418,6 +432,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(ctx context.Context) ([]*workl
 // FetchX509SVID generates and returns the X.509 SVIDs available to a workload.
 // It is a streaming RPC, and sends renewed SVIDs to the client before they
 // expire.
+// Implements the SPIFFE Workload API FetchX509SVID method.
 func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	_ *workloadpb.X509SVIDRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchX509SVIDServer,
@@ -431,13 +446,15 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		s.log.Info("Starting to issue X509 SVIDs to workload")
 
 		svids, err := s.fetchX509SVIDs(srv.Context())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		err = srv.Send(&workloadpb.X509SVIDResponse{
 			Svids: svids,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		s.log.Debug(
 			"Finished issuing SVIDs to workload. Waiting for next renewal interval or CA rotation",
 		)
@@ -460,6 +477,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 // FetchX509Bundles returns the trust bundle for the trust domain. It is a
 // streaming RPC, and will send rotated trust bundles to the client for as long
 // as the client is connected.
+// Implements the SPIFFE Workload API FetchX509SVID method.
 func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 	_ *workloadpb.X509BundlesRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchX509BundlesServer,
@@ -492,6 +510,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 	}
 }
 
+// FetchJWTSVID implements the SPIFFE Workload API FetchJWTSVID method.
 func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 	ctx context.Context,
 	req *workloadpb.JWTSVIDRequest,
@@ -500,6 +519,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 	return nil, trace.NotImplemented("method not implemented")
 }
 
+// FetchJWTBundles implements the SPIFFE Workload API FetchJWTBundles method.
 func (s *SPIFFEWorkloadAPIService) FetchJWTBundles(
 	req *workloadpb.JWTBundlesRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchJWTBundlesServer,
@@ -508,6 +528,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTBundles(
 	return trace.NotImplemented("method not implemented")
 }
 
+// ValidateJWTSVID implements the SPIFFE Workload API ValidateJWTSVID method.
 func (s *SPIFFEWorkloadAPIService) ValidateJWTSVID(
 	ctx context.Context,
 	req *workloadpb.ValidateJWTSVIDRequest,
@@ -516,6 +537,8 @@ func (s *SPIFFEWorkloadAPIService) ValidateJWTSVID(
 	return nil, trace.NotImplemented("method not implemented")
 }
 
+// String returns a human-readable string that can uniquely identify the
+// service.
 func (s *SPIFFEWorkloadAPIService) String() string {
-	return fmt.Sprintf("%s", config.SPIFFEWorkloadAPIServiceType)
+	return fmt.Sprintf("%s:%s", config.SPIFFEWorkloadAPIServiceType, s.cfg.Listen)
 }

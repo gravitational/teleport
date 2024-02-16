@@ -53,14 +53,24 @@ const (
 	svidTrustBundlePEMPath = "svid_bundle.pem"
 )
 
+// SVIDRequestSANs is the configuration for the SANs of a single SVID request.
 type SVIDRequestSANs struct {
+	// DNS is the list of DNS names that are requested to be included in the SVID.
 	DNS []string `yaml:"dns,omitempty"`
-	IP  []string `yaml:"ip,omitempty"`
+	// IP is the list of IP addresses that are requested to be included in the SVID.
+	// These can be IPv4 or IPv6 addresses.
+	IP []string `yaml:"ip,omitempty"`
 }
 
+// SVIDRequest is the configuration for a single SVID request.
 type SVIDRequest struct {
-	Path string          `yaml:"path,omitempty"`
-	Hint string          `yaml:"hint,omitempty"`
+	// Path is the SPIFFE ID path of the SVID. It should be prefixed with "/".
+	Path string `yaml:"path,omitempty"`
+	// Hint is the hint for the SVID that will be provided to consumers of the
+	// SVID to help them identify it.
+	Hint string `yaml:"hint,omitempty"`
+	// SANS is the Subject Alternative Names that are requested to be included
+	// in the SVID.
 	SANS SVIDRequestSANs `yaml:"sans,omitempty"`
 }
 
@@ -82,7 +92,7 @@ func (o *SVIDRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// SPIFFESVIDOutput TODO
+// SPIFFESVIDOutput is the configuration for the SPIFFE SVID output.
 // Emulates the output of https://github.com/spiffe/spiffe-helper
 type SPIFFESVIDOutput struct {
 	// Destination is where the credentials should be written to.

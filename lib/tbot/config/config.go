@@ -395,7 +395,6 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 // ServiceConfig is an interface over the various service configurations.
 type ServiceConfig interface {
 	Type() string
-	String() string
 	CheckAndSetDefaults() error
 }
 
