@@ -16,13 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TextSelectCopy, TextSelectCopyMulti } from 'design/TextSelectCopy';
+import {
+  TextSelectCopy,
+  TextSelectCopyMulti,
+} from 'shared/components/TextSelectCopy';
 /**
- * @deprecated Import from `design/TextSelectCopy`.
+ * @deprecated Import from `shared/TextSelectCopy`.
  */
 export { TextSelectCopyMulti };
 
 /**
- * @deprecated Import from `design/TextSelectCopy`.
+ * @deprecated Import from `shared/TextSelectCopy`.
  */
 export default TextSelectCopy;

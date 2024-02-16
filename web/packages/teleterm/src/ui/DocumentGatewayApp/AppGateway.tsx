@@ -24,7 +24,7 @@ import Validation from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
-import { TextSelectCopy } from 'design/TextSelectCopy';
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 
 import { Gateway } from 'teleterm/services/tshd/types';
 

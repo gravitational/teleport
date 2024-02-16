@@ -19,12 +19,12 @@
 import React, { useRef } from 'react';
 import styled from 'styled-components';
 
-import { saveOnDisk } from 'shared/utils/saveOnDisk';
-
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 import { ButtonSecondary, Box, Flex } from 'design';
 import { Copy, Check, Download } from 'design/Icon';
+
+import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
 const ONE_SECOND_IN_MS = 1000;
 
