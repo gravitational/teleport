@@ -95,6 +95,7 @@ func TestDeployDBService(t *testing.T) {
 			DatabaseResourceMatcherLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
 			},
+			DeploymentJoinTokenName:   "my-iam-join-token",
 			DeployServiceConfigString: dummyGenerateTeleportConfigString,
 		}
 	}
@@ -118,7 +119,7 @@ func TestDeployDBService(t *testing.T) {
 
 	iamJoinToken := &types.ProvisionTokenV2{
 		Metadata: types.Metadata{
-			Name: defaultTeleportIAMTokenName,
+			Name: "some-token-name",
 		},
 		Spec: types.ProvisionTokenSpecV2{
 			JoinMethod: types.JoinMethodIAM,

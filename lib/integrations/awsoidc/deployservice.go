@@ -52,9 +52,6 @@ var (
 )
 
 const (
-	// defaultTeleportIAMTokenName is the default Teleport IAM Token to use when it's not specified.
-	defaultTeleportIAMTokenName = "discover-aws-oidc-iam-token"
-
 	// distrolessTeleportOSS is the distroless image of the OSS version of Teleport
 	distrolessTeleportOSS = "public.ecr.aws/gravitational/teleport-distroless"
 	// distrolessTeleportEnt is the distroless image of the Enterprise version of Teleport
@@ -133,10 +130,8 @@ type DeployServiceRequest struct {
 	// TeleportClusterName is the Teleport Cluster Name, used to create default names for Cluster, Service and Task.
 	TeleportClusterName string
 
-	// TeleportIAMTokenNameis the Teleport IAM Token to use in the deployed Service.
-	// Optional.
-	// Defaults to discover-aws-oidc-iam-token
-	TeleportIAMTokenName string
+	// DeploymentJoinTokenName is the Teleport IAM Token to use in the deployed Service.
+	DeploymentJoinTokenName string
 
 	// ProxyServerHostPort is the Teleport Proxy's Public.
 	ProxyServerHostPort string
@@ -215,8 +210,8 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		r.TeleportVersionTag = teleport.Version
 	}
 
-	if r.TeleportIAMTokenName == "" {
-		r.TeleportIAMTokenName = defaultTeleportIAMTokenName
+	if r.DeploymentJoinTokenName == "" {
+		return trace.BadParameter("deployment join token name is required")
 	}
 
 	if r.DeploymentMode == "" {
@@ -429,7 +424,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 	}
 
 	upsertTokenReq := upsertIAMJoinTokenRequest{
-		tokenName:      req.TeleportIAMTokenName,
+		tokenName:      req.DeploymentJoinTokenName,
 		accountID:      req.AccountID,
 		region:         req.Region,
 		iamRole:        req.TaskRoleARN,
@@ -439,7 +434,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		return nil, trace.Wrap(err)
 	}
 
-	teleportConfigString, err := req.DeployServiceConfigString(req.ProxyServerHostPort, req.TeleportIAMTokenName, req.DatabaseResourceMatcherLabels)
+	teleportConfigString, err := req.DeployServiceConfigString(req.ProxyServerHostPort, req.DeploymentJoinTokenName, req.DatabaseResourceMatcherLabels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

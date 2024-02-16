@@ -104,6 +104,7 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integr
 type AWSOIDCServiceConfig struct {
 	IntegrationService *Service
 	Authorizer         authz.Authorizer
+	Cache              CacheAWSOIDC
 	Logger             *logrus.Entry
 }
 
@@ -116,6 +117,10 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 
 	if s.IntegrationService == nil {
 		return trace.BadParameter("integration service is required")
+	}
+
+	if s.Cache == nil {
+		return trace.BadParameter("cache is required")
 	}
 
 	if s.Logger == nil {
@@ -132,6 +137,19 @@ type AWSOIDCService struct {
 	integrationService *Service
 	authorizer         authz.Authorizer
 	logger             *logrus.Entry
+	cache              CacheAWSOIDC
+}
+
+// CacheAWSOIDC is the subset of the cached resources that the Service queries.
+type CacheAWSOIDC interface {
+	// GetToken returns a provision token by name.
+	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+
+	// UpsertToken creates or updates a provision token.
+	UpsertToken(ctx context.Context, token types.ProvisionToken) error
+
+	// GetClusterName returns the current cluster name.
+	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
 }
 
 // NewAWSOIDCService returns a new AWSOIDCService.
@@ -144,6 +162,7 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 		integrationService: cfg.IntegrationService,
 		logger:             cfg.Logger,
 		authorizer:         cfg.Authorizer,
+		cache:              cfg.Cache,
 	}, nil
 }
 
@@ -179,7 +198,7 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 	}, nil
 }
 
-// ListIntegrations returns a paginated list of Databases.
+// ListDatabases returns a paginated list of Databases.
 func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.ListDatabasesRequest) (*integrationpb.ListDatabasesResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -223,5 +242,60 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 	return &integrationpb.ListDatabasesResponse{
 		Databases: dbList,
 		NextToken: listDBsResp.NextToken,
+	}, nil
+}
+
+// DeployDatabaseService deploys Database Services into Amazon ECS.
+func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integrationpb.DeployDatabaseServiceRequest) (*integrationpb.DeployDatabaseServiceResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployments := make([]awsoidc.DeployDatabaseServiceRequestDeployment, 0, len(req.Deployments))
+	for _, d := range req.Deployments {
+		deployments = append(deployments, awsoidc.DeployDatabaseServiceRequestDeployment{
+			VPCID:               d.VpcId,
+			SubnetIDs:           d.SubnetIds,
+			SecurityGroupIDs:    d.SecurityGroups,
+			DeployServiceConfig: d.TeleportConfigString,
+		})
+	}
+
+	deployDBResp, err := awsoidc.DeployDatabaseService(ctx, deployServiceClient, awsoidc.DeployDatabaseServiceRequest{
+		Region:                  req.Region,
+		TaskRoleARN:             req.TaskRoleArn,
+		TeleportVersionTag:      req.TeleportVersion,
+		DeploymentJoinTokenName: req.DeploymentJoinTokenName,
+		Deployments:             deployments,
+		TeleportClusterName:     clusterName.GetClusterName(),
+		IntegrationName:         req.Integration,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &integrationpb.DeployDatabaseServiceResponse{
+		ClusterArn:          deployDBResp.ClusterARN,
+		ClusterDashboardUrl: deployDBResp.ClusterDashboardURL,
 	}, nil
 }
