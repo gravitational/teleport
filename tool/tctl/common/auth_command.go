@@ -101,7 +101,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.config = config
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs).").Hidden()
-	a.authExport = auth.Command("export", "Export public cluster (CA) keys to stdout.")
+	a.authExport = auth.Command("export", "Export public cluster CA certificates to stdout.")
 	a.authExport.Flag("keys", "if set, will print private keys").BoolVar(&a.exportPrivateKeys)
 	a.authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&a.exportAuthorityFingerprint)
 	a.authExport.Flag("compat", "export certificates compatible with specific version of Teleport").StringVar(&a.compatVersion)
@@ -577,7 +577,7 @@ var (
 	// dbAuthSignTpl is printed when user generates credentials for a self-hosted database.
 	dbAuthSignTpl = template.Must(template.New("").Parse(
 		`{{if .tarOutput }}
-To unpack the tar archive, pipe the output of tctl to 'tar x'. For example: 
+To unpack the tar archive, pipe the output of tctl to 'tar x'. For example:
 
 $ tctl auth sign ${FLAGS} | tar -xv
 {{else}}
@@ -602,7 +602,7 @@ ssl-ca=/path/to/{{.output}}.cas
 	// mongoAuthSignTpl is printed when user generates credentials for a MongoDB database.
 	mongoAuthSignTpl = template.Must(template.New("").Parse(
 		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
+To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example:
 
 $ tctl auth sign ${FLAGS} | tar -x
 {{- else -}}
@@ -630,13 +630,13 @@ cockroach start \
 
 	redisAuthSignTpl = template.Must(template.New("").Parse(
 		`{{- if .tarOutput }}
-Unpack the tar archive by piping the output of tctl to 'tar x'. For example: 
+Unpack the tar archive by piping the output of tctl to 'tar x'. For example:
 
 $ tctl auth sign ${CERT_FLAGS} | tar -xv
 {{else}}
 Database credentials have been written to {{.files}}.
-{{end}}	
-	
+{{end}}
+
 To enable mutual TLS on your Redis server, add the following to your redis.conf:
 
 tls-ca-cert-file /path/to/{{.output}}.cas
@@ -653,7 +653,7 @@ https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-pu
 
 	elasticsearchAuthSignTpl = template.Must(template.New("").Parse(
 		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
+To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example:
 
 $ tctl auth sign ${FLAGS} | tar -x
 {{- else -}}
@@ -681,7 +681,7 @@ https://www.elastic.co/guide/en/elasticsearch/reference/current/security-setting
 
 	cassandraAuthSignTpl = template.Must(template.New("").Parse(
 		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
+To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example:
 
 $ tctl auth sign ${FLAGS} | tar -x
 {{- else -}}
@@ -706,7 +706,7 @@ client_encryption_options:
 
 	oracleAuthSignTpl = template.Must(template.New("").Parse(
 		`{{- if .tarOutput -}}
-To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example: 
+To unpack the tar archive, pipe the output of tctl to 'tar -x'. For example:
 
 $ tctl auth sign ${FLAGS} | tar -x
 {{- end }}
