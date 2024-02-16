@@ -33,6 +33,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	AWSOIDCService_ListEICE_FullMethodName              = "/teleport.integration.v1.AWSOIDCService/ListEICE"
 	AWSOIDCService_ListDatabases_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
 	AWSOIDCService_ListSecurityGroups_FullMethodName    = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
 	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
@@ -43,6 +44,9 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AWSOIDCServiceClient interface {
+	// ListEICE returns a list of EC2 Instance Connect Endpoints.
+	// An optional NextToken that can be used to fetch the next page.
+	ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error)
 	// ListDatabases calls the following AWS API:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
@@ -62,6 +66,15 @@ type aWSOIDCServiceClient struct {
 
 func NewAWSOIDCServiceClient(cc grpc.ClientConnInterface) AWSOIDCServiceClient {
 	return &aWSOIDCServiceClient{cc}
+}
+
+func (c *aWSOIDCServiceClient) ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error) {
+	out := new(ListEICEResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListEICE_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *aWSOIDCServiceClient) ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error) {
@@ -104,6 +117,9 @@ func (c *aWSOIDCServiceClient) ListEC2(ctx context.Context, in *ListEC2Request, 
 // All implementations must embed UnimplementedAWSOIDCServiceServer
 // for forward compatibility
 type AWSOIDCServiceServer interface {
+	// ListEICE returns a list of EC2 Instance Connect Endpoints.
+	// An optional NextToken that can be used to fetch the next page.
+	ListEICE(context.Context, *ListEICERequest) (*ListEICEResponse, error)
 	// ListDatabases calls the following AWS API:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
@@ -122,6 +138,9 @@ type AWSOIDCServiceServer interface {
 type UnimplementedAWSOIDCServiceServer struct {
 }
 
+func (UnimplementedAWSOIDCServiceServer) ListEICE(context.Context, *ListEICERequest) (*ListEICEResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListEICE not implemented")
+}
 func (UnimplementedAWSOIDCServiceServer) ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabases not implemented")
 }
@@ -145,6 +164,24 @@ type UnsafeAWSOIDCServiceServer interface {
 
 func RegisterAWSOIDCServiceServer(s grpc.ServiceRegistrar, srv AWSOIDCServiceServer) {
 	s.RegisterService(&AWSOIDCService_ServiceDesc, srv)
+}
+
+func _AWSOIDCService_ListEICE_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEICERequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListEICE(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListEICE_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListEICE(ctx, req.(*ListEICERequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _AWSOIDCService_ListDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -226,6 +263,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.integration.v1.AWSOIDCService",
 	HandlerType: (*AWSOIDCServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListEICE",
+			Handler:    _AWSOIDCService_ListEICE_Handler,
+		},
 		{
 			MethodName: "ListDatabases",
 			Handler:    _AWSOIDCService_ListDatabases_Handler,

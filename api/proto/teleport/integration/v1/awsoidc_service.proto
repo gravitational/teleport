@@ -22,6 +22,10 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 
 // AWSOIDCService provides access to AWS APIs using the AWS OIDC Integration.
 service AWSOIDCService {
+  // ListEICE returns a list of EC2 Instance Connect Endpoints.
+  // An optional NextToken that can be used to fetch the next page.
+  rpc ListEICE(ListEICERequest) returns (ListEICEResponse);
+
   // ListDatabases calls the following AWS API:
   // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
   // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
@@ -36,6 +40,48 @@ service AWSOIDCService {
 
   // ListEC2 lists the EC2 instances of the AWS account per region.
   rpc ListEC2(ListEC2Request) returns (ListEC2Response);
+}
+
+// ListEICERequest is a request for a paginated list of AWS EC2 Instance Connect Endpoints.
+message ListEICERequest {
+  // Integration is the AWS OIDC Integration name.
+  string integration = 1;
+  // Region is the AWS Region
+  string region = 2;
+  // VPCIDs is used to filter for EICEs of those VPCs.
+  repeated string vpc_ids = 3;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 4;
+}
+
+// EC2InstanceConnectEndpoint is a representation of a Amazon VPC EC2 Instance Connect Endpoint.
+message EC2InstanceConnectEndpoint {
+  // Name is the endpoint name.
+  string name = 1;
+  // State is the endpoint state.
+  // Known values:
+  // create-in-progress | create-complete | create-failed | delete-in-progress | delete-complete | delete-failed
+  string state = 2;
+  // StateMessage contains a message describing the sate of the EICE.
+  string state_message = 3;
+  // DashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
+  string dashboard_link = 4;
+  // SubnetID is the subnet used by the endpoint.
+  string subnet_id = 5;
+  // VPCID is the VPC ID where the Endpoint is created.
+  string vpc_id = 6;
+}
+
+// ListEICEResponse contains a page of AWS EC2 Instance Connect Endpoints.
+message ListEICEResponse {
+  // EC2ICEs contains the page of EC2 Instance Connect Endpoints.
+  repeated EC2InstanceConnectEndpoint ec2ices = 1;
+  // DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
+  string dashboard_link = 2;
+  // NextToken is used for pagination.
+  // If non-empty, it can be used to request the next page.
+  string next_token = 3;
 }
 
 // ListDatabasesRequest is a request for a paginated list of AWS Databases.
