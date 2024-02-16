@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,28 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package cmd
+import { TextSelectCopy } from './TextSelectCopy';
+import { TextSelectCopyMulti } from './TextSelectCopyMulti';
 
-import (
-	"os/exec"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
-)
-
-// NewAppCLICommand creates CLI commands for app gateways.
-func NewAppCLICommand(g gateway.Gateway) (*exec.Cmd, error) {
-	app, err := gateway.AsApp(g)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if g.Protocol() == types.ApplicationProtocolTCP {
-		return exec.Command(""), nil
-	}
-
-	cmd := exec.Command("curl", app.LocalProxyURL())
-	return cmd, nil
-}
+// TODO (lisa): will remove TextSelectCopy entirely after
+// TextSelectCopyMulti replaces existing use of TextSelectCopy.
+export { TextSelectCopyMulti, TextSelectCopy };

@@ -16,10 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TextSelectCopy } from './TextSelectCopy';
-import { TextSelectCopyMulti } from './TextSelectCopyMulti';
+import React from 'react';
 
-export { TextSelectCopyMulti };
-// TODO (lisa): will remove this entirely after
-// TextSelectCopyMulti replaces existing use of TextSelectCopy.
-export default TextSelectCopy;
+import { TextSelectCopy as Component } from './TextSelectCopy';
+
+export default {
+  title: 'Shared/TextSelectCopy',
+};
+
+export const BashCommand = () => {
+  return <Component text="some bash command" />;
+};
+
+export const NonBash = () => {
+  return <Component text="some text to be copied" bash={false} />;
+};
