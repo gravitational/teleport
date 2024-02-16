@@ -100,6 +100,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Cross} text="Cross" />
     <IconBox IconCmpt={Icon.Database} text="Database" />
     <IconBox IconCmpt={Icon.Desktop} text="Desktop" />
+    <IconBox IconCmpt={Icon.DeviceMobileCamera} text="DeviceMobileCamera" />
     <IconBox IconCmpt={Icon.Devices} text="Devices" />
     <IconBox IconCmpt={Icon.Download} text="Download" />
     <IconBox IconCmpt={Icon.Earth} text="Earth" />
@@ -110,6 +111,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.EqualizersVertical} text="EqualizersVertical" />
     <IconBox IconCmpt={Icon.Expand} text="Expand" />
     <IconBox IconCmpt={Icon.Facebook} text="Facebook" />
+    <IconBox IconCmpt={Icon.FingerprintSimple} text="FingerprintSimple" />
     <IconBox IconCmpt={Icon.Floppy} text="Floppy" />
     <IconBox IconCmpt={Icon.FlowArrow} text="FlowArrow" />
     <IconBox IconCmpt={Icon.FolderPlus} text="FolderPlus" />
@@ -194,6 +196,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.User} text="User" />
     <IconBox IconCmpt={Icon.UserAdd} text="UserAdd" />
     <IconBox IconCmpt={Icon.UserCircleGear} text="UserCircleGear" />
+    <IconBox IconCmpt={Icon.UserFocus} text="UserFocus" />
     <IconBox IconCmpt={Icon.UserIdBadge} text="UserIdBadge" />
     <IconBox IconCmpt={Icon.UserList} text="UserList" />
     <IconBox IconCmpt={Icon.Users} text="Users" />
