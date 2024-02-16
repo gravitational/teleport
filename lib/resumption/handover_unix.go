@@ -21,8 +21,8 @@ package resumption
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -35,12 +35,12 @@ import (
 
 func sockPath(dataDir string, token resumptionToken) string {
 	hash := sha256.Sum256(token[:])
-	// unix domain sockets are limited to 108 or 104 characters, so spending 64
-	// for the full sha256 hash is a bit too much; truncating the hash to 128
-	// bits still gives us more than enough headroom to just assume that we'll
-	// have no collisions (a probability of one in a quintillion with 26 billion
-	// concurrent connections)
-	return filepath.Join(dataDir, "handover", fmt.Sprintf("%x.sock", hash[:16]))
+	// unix domain sockets are limited to 108 or 104 characters, so the full
+	// sha256 hash is a bit too much (64 bytes in hex or 44 in b64); truncating
+	// the hash to 128 bits still gives us more than enough headroom to just
+	// assume that we'll have no collisions (a probability of one in a
+	// quintillion with 26 billion concurrent connections)
+	return filepath.Join(dataDir, "handover", base64.RawURLEncoding.EncodeToString(hash[:16]))
 }
 
 func sockDir(dataDir string) string {
