@@ -552,31 +552,61 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listSGClient, err := awsoidc.NewListSecurityGroupsClient(ctx, awsClientReq)
+	listResp, err := clt.IntegrationAWSOIDCClient().ListSecurityGroups(ctx, &integrationv1.ListSecurityGroupsRequest{
+		Integration: integrationName,
+		Region:      req.Region,
+		VpcId:       req.VPCID,
+		NextToken:   req.NextToken,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := awsoidc.ListSecurityGroups(ctx,
-		listSGClient,
-		awsoidc.ListSecurityGroupsRequest{
-			VPCID:     req.VPCID,
-			NextToken: req.NextToken,
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	sgs := make([]awsoidc.SecurityGroup, 0, len(listResp.SecurityGroups))
+	for _, sg := range listResp.SecurityGroups {
+		sgs = append(sgs, awsoidc.SecurityGroup{
+			Name:          sg.Name,
+			ID:            sg.Id,
+			Description:   sg.Description,
+			InboundRules:  awsOIDCSecurityGroupsRulesConverter(sg.InboundRules),
+			OutboundRules: awsOIDCSecurityGroupsRulesConverter(sg.OutboundRules),
+		})
 	}
 
 	return ui.AWSOIDCListSecurityGroupsResponse{
-		NextToken:      resp.NextToken,
-		SecurityGroups: resp.SecurityGroups,
+		NextToken:      listResp.NextToken,
+		SecurityGroups: sgs,
 	}, nil
+}
+
+func awsOIDCSecurityGroupsRulesConverter(inRules []*integrationv1.SecurityGroupRule) []awsoidc.SecurityGroupRule {
+	out := make([]awsoidc.SecurityGroupRule, 0, len(inRules))
+	for _, r := range inRules {
+		cidrs := make([]awsoidc.CIDR, 0, len(r.Cidrs))
+		for _, cidr := range r.Cidrs {
+			cidrs = append(cidrs, awsoidc.CIDR{
+				CIDR:        cidr.Cidr,
+				Description: cidr.Description,
+			})
+		}
+		out = append(out, awsoidc.SecurityGroupRule{
+			IPProtocol: r.IpProtocol,
+			FromPort:   int(r.FromPort),
+			ToPort:     int(r.ToPort),
+			CIDRs:      cidrs,
+		})
+	}
+	return out
 }
 
 // awsOIDCRequiredDatabasesVPCS returns a map of required VPC's and its subnets.
