@@ -18,6 +18,8 @@
 
 import React from 'react';
 
+import { wait } from 'shared/utils/wait';
+
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp/DocumentGatewayApp';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -61,6 +63,9 @@ export function Online() {
       accessRequests: undefined,
     };
   });
+
+  appContext.tshd.setGatewayLocalPort = (uri, localPort) =>
+    wait(800).then(() => ({ ...gateway, localPort }));
 
   return (
     <MockAppContextProvider appContext={appContext}>
