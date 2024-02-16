@@ -244,23 +244,17 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		grpc.Creds(
 			// SPEC (SPIFFE_Workload_endpoint) 3. Transport:
 			// - Transport Layer Security MUST NOT be required
-			// TODO(noah): We should optionally provide TLS support here.
+			// TODO(noah): We should optionally provide TLS support here down
+			// the road.
 			insecure.NewCredentials(),
 		),
 		grpc.ChainUnaryInterceptor(
 		// TODO: Interceptors
-		// - Logging
-		// - Panic
 		),
-
 		grpc.ChainStreamInterceptor(
 		// TODO: Interceptors
-		// - Logging
-		// - Panic
 		),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		// TODO: Security best-practices in terms of max conns, max streams
-		// max message size. etc, you know the dealio.
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
