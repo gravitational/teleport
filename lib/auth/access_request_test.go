@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"sort"
@@ -31,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -63,7 +65,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir: t.TempDir(),
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, "%s", trace.DebugReport(err))
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
 	tlsServer, err := testAuthServer.NewTestTLSServer()
@@ -192,6 +194,202 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("role refresh with bogus request ID", func(t *testing.T) { testRoleRefreshWithBogusRequestID(t, testPack) })
 	t.Run("bot user approver", func(t *testing.T) { testBotAccessRequestReview(t, testPack) })
 	t.Run("deny", func(t *testing.T) { testAccessRequestDenyRules(t, testPack) })
+	t.Run("list", func(t *testing.T) { testListAccessRequests(t, testPack) })
+}
+
+// testListAccessRequests tests some basic functionality of the ListAccessRequests API, including access-control,
+// filtering, sort, and pagination.
+func testListAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
+	const (
+		requestsPerUser = 1_000
+		pageSize        = 7
+	)
+
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	userA, userB := "lister-a", "lister-b"
+	roleA, roleB := userA+"-role", userB+"-role"
+	rroleA, rroleB := userA+"-rrole", userB+"-rrole"
+
+	roles := map[string]types.RoleSpecV6{
+		roleA: {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{rroleA},
+				},
+			},
+		},
+		roleB: {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{rroleB},
+				},
+			},
+		},
+		rroleA: {},
+		rroleB: {},
+	}
+
+	for roleName, roleSpec := range roles {
+		role, err := types.NewRole(roleName, roleSpec)
+		require.NoError(t, err)
+		_, err = testPack.tlsServer.Auth().UpsertRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	for userName, roleName := range map[string]string{userA: roleA, userB: roleB} {
+		user, err := types.NewUser(userName)
+		require.NoError(t, err)
+		user.SetRoles([]string{roleName})
+		_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
+		require.NoError(t, err)
+	}
+
+	clientA, err := testPack.tlsServer.NewClient(TestUser(userA))
+	require.NoError(t, err)
+
+	clientB, err := testPack.tlsServer.NewClient(TestUser(userB))
+	require.NoError(t, err)
+
+	// orderedIDs is a list of all access request IDs in order of creation (used to
+	// verify sort order).
+	var orderedIDs []string
+
+	// userAOrderedIDs is the list of all access request IDs associated with user A (used
+	// to verify sort order).
+	var userAOrderedIDs []string
+
+	for i := 0; i < requestsPerUser; i++ {
+		reqA, err := services.NewAccessRequest(userA, rroleA)
+		require.NoError(t, err)
+		rr, err := clientA.CreateAccessRequestV2(ctx, reqA)
+		require.NoError(t, err)
+		orderedIDs = append(orderedIDs, rr.GetName())
+		userAOrderedIDs = append(userAOrderedIDs, rr.GetName())
+	}
+
+	for i := 0; i < requestsPerUser; i++ {
+		reqB, err := services.NewAccessRequest(userB, rroleB)
+		require.NoError(t, err)
+		rr, err := clientB.CreateAccessRequestV2(ctx, reqB)
+		require.NoError(t, err)
+		orderedIDs = append(orderedIDs, rr.GetName())
+	}
+
+	var reqs []*types.AccessRequestV3
+	var nextKey string
+	for {
+		rsp, err := testPack.tlsServer.Auth().ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+			Limit:    pageSize,
+			StartKey: nextKey,
+		})
+		require.NoError(t, err)
+
+		reqs = append(reqs, rsp.AccessRequests...)
+
+		nextKey = rsp.NextKey
+		if nextKey == "" {
+			break
+		}
+
+		require.Len(t, rsp.AccessRequests, pageSize)
+	}
+
+	// this test shares a backend with some others, so subselect the set of IDs we observe
+	// that are from out expected set when reading all requests.
+	var observedIDs []string
+Outer:
+	for _, req := range reqs {
+		for _, id := range orderedIDs {
+			if req.GetName() == id {
+				observedIDs = append(observedIDs, req.GetName())
+				continue Outer
+			}
+		}
+	}
+
+	// verify that we observed the requests in the same order that they were created (i.e. that the
+	// default sort order is ascending and time-based).
+	require.Equal(t, orderedIDs, observedIDs)
+
+	// check that explicit filtering is applied
+	reqs = nil
+	nextKey = ""
+	for {
+		rsp, err := testPack.tlsServer.Auth().ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+			Filter: &types.AccessRequestFilter{
+				User: userB,
+			},
+			Limit:    pageSize,
+			StartKey: nextKey,
+		})
+		require.NoError(t, err)
+
+		reqs = append(reqs, rsp.AccessRequests...)
+
+		nextKey = rsp.NextKey
+		if nextKey == "" {
+			break
+		}
+
+		require.Len(t, rsp.AccessRequests, pageSize)
+	}
+	require.Len(t, reqs, requestsPerUser)
+
+	// verify that access-control filtering is applied
+	for _, clt := range []ClientI{clientA, clientB} {
+		reqs = nil
+		nextKey = ""
+		for {
+			rsp, err := clt.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+				Limit:    pageSize,
+				StartKey: nextKey,
+			})
+			require.NoError(t, err)
+
+			reqs = append(reqs, rsp.AccessRequests...)
+
+			nextKey = rsp.NextKey
+			if nextKey == "" {
+				break
+			}
+
+			require.Len(t, rsp.AccessRequests, pageSize)
+		}
+
+		require.Len(t, reqs, requestsPerUser)
+	}
+
+	// verify that custom sort index/ordering is honored
+	reqs = nil
+	nextKey = ""
+	for {
+		rsp, err := clientA.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+			Sort:       proto.AccessRequestSort_STATE,
+			Descending: true,
+			Limit:      pageSize,
+			StartKey:   nextKey,
+		})
+		require.NoError(t, err)
+
+		reqs = append(reqs, rsp.AccessRequests...)
+
+		nextKey = rsp.NextKey
+		if nextKey == "" {
+			break
+		}
+
+		require.Len(t, rsp.AccessRequests, pageSize)
+	}
+
+	require.True(t, slices.IsSortedFunc(reqs, func(a, b *types.AccessRequestV3) int {
+		// state sort index sorts by the string representation of state. note that we
+		// flip `a` and `b` to assert Descending ordering.
+		return cmp.Compare(b.GetState().String(), a.GetState().String())
+	}))
 }
 
 func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
