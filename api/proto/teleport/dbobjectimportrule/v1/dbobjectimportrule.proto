@@ -47,11 +47,14 @@ message DatabaseObjectImportRuleSpec {
   // If two rules apply the same label, then the value applied with the rule with the highest priority wins.
   int32 priority = 1;
 
+  reserved 2;
+  reserved "db_labels";
+
   // db_labels is a set of labels matched against database labels.
-  repeated teleport.label.v1.Label db_labels = 2;
+  repeated teleport.label.v1.Label database_labels = 3;
 
   // mappings is a list of matches that will map match conditions to labels.
-  repeated DatabaseObjectImportRuleMapping mappings = 3;
+  repeated DatabaseObjectImportRuleMapping mappings = 4;
 }
 
 // DatabaseObjectImportRuleMapping is the mapping between object properties and labels that will be added to the object.

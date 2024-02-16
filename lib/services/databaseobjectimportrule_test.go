@@ -29,8 +29,8 @@ import (
 
 func TestMarshalDatabaseObjectImportRuleRoundTrip(t *testing.T) {
 	spec := &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-		Priority: 30,
-		DbLabels: apilabels.FromMap(map[string][]string{"env": {"staging", "prod"}, "owner_org": {"trading"}}),
+		Priority:       30,
+		DatabaseLabels: apilabels.FromMap(map[string][]string{"env": {"staging", "prod"}, "owner_org": {"trading"}}),
 		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
 			{
 				Scope: &dbobjectimportrulev1.DatabaseObjectImportScope{
