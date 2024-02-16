@@ -45,31 +45,6 @@ const documentGateway: types.DocumentGateway = {
 
 const rootClusterUri = '/clusters/bar';
 
-export function Offline() {
-  const offlineDocumentGateway = { ...documentGateway, gatewayUri: undefined };
-  const appContext = new MockAppContext();
-  appContext.clustersService.createGateway = () =>
-    Promise.reject(new Error('failed to create gateway'));
-
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: rootClusterUri,
-      documents: [offlineDocumentGateway],
-      location: offlineDocumentGateway.uri,
-      accessRequests: undefined,
-    };
-  });
-
-  return (
-    <MockAppContextProvider appContext={appContext}>
-      <MockWorkspaceContextProvider>
-        <DocumentGatewayApp doc={offlineDocumentGateway} visible={true} />
-      </MockWorkspaceContextProvider>
-    </MockAppContextProvider>
-  );
-}
-
 export function Online() {
   const appContext = new MockAppContext();
   appContext.clustersService.createGateway = () => Promise.resolve(gateway);
@@ -91,6 +66,31 @@ export function Online() {
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider>
         <DocumentGatewayApp doc={documentGateway} visible={true} />
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+}
+
+export function Offline() {
+  const offlineDocumentGateway = { ...documentGateway, gatewayUri: undefined };
+  const appContext = new MockAppContext();
+  appContext.clustersService.createGateway = () =>
+    Promise.reject(new Error('failed to create gateway'));
+
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = rootClusterUri;
+    draftState.workspaces[rootClusterUri] = {
+      localClusterUri: rootClusterUri,
+      documents: [offlineDocumentGateway],
+      location: offlineDocumentGateway.uri,
+      accessRequests: undefined,
+    };
+  });
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider>
+        <DocumentGatewayApp doc={offlineDocumentGateway} visible={true} />
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );
