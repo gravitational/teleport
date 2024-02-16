@@ -135,6 +135,10 @@ func TestCreateBot(t *testing.T) {
 				Bot: &machineidv1pb.Bot{
 					Metadata: &headerv1.Metadata{
 						Name: "success",
+						Labels: map[string]string{
+							"my-label":       "my-value",
+							"my-other-label": "my-other-value",
+						},
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -158,6 +162,10 @@ func TestCreateBot(t *testing.T) {
 				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "success",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
@@ -182,6 +190,8 @@ func TestCreateBot(t *testing.T) {
 					Labels: map[string]string{
 						types.BotLabel:           "success",
 						types.BotGenerationLabel: "0",
+						"my-label":               "my-value",
+						"my-other-label":         "my-other-value",
 					},
 				},
 				Spec: types.UserSpecV2{
@@ -341,6 +351,25 @@ func TestCreateBot(t *testing.T) {
 			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "spec: must be non-nil")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
+		{
+			name: "validation - empty role",
+			user: botCreator.GetName(),
+			req: &machineidv1pb.CreateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "empty-string-role",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles:  []string{"foo", "", "bar"},
+						Traits: []*machineidv1pb.Trait{},
+					},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
@@ -672,6 +701,28 @@ func TestUpdateBot(t *testing.T) {
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
+		{
+			name: "validation - empty string role",
+			user: botUpdaterUser.GetName(),
+			req: &machineidv1pb.UpdateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: preExistingBot.Metadata.Name,
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles:  []string{"foo", "", "bar"},
+						Traits: []*machineidv1pb.Trait{},
+					},
+				},
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"spec.roles"},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -746,6 +797,10 @@ func TestUpsertBot(t *testing.T) {
 		Bot: &machineidv1pb.Bot{
 			Metadata: &headerv1.Metadata{
 				Name: "pre-existing",
+				Labels: map[string]string{
+					"my-label":       "my-value",
+					"my-other-label": "my-other-value",
+				},
 			},
 			Spec: &machineidv1pb.BotSpec{
 				Roles: []string{testRole.GetName()},
@@ -783,6 +838,10 @@ func TestUpsertBot(t *testing.T) {
 				Bot: &machineidv1pb.Bot{
 					Metadata: &headerv1.Metadata{
 						Name: "new",
+						Labels: map[string]string{
+							"my-label":       "my-value",
+							"my-other-label": "my-other-value",
+						},
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -802,6 +861,10 @@ func TestUpsertBot(t *testing.T) {
 				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "new",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
@@ -826,6 +889,8 @@ func TestUpsertBot(t *testing.T) {
 					Labels: map[string]string{
 						types.BotLabel:           "new",
 						types.BotGenerationLabel: "0",
+						"my-label":               "my-value",
+						"my-other-label":         "my-other-value",
 					},
 				},
 				Spec: types.UserSpecV2{
@@ -882,6 +947,8 @@ func TestUpsertBot(t *testing.T) {
 					Labels: map[string]string{
 						types.BotLabel:           "pre-existing",
 						types.BotGenerationLabel: "1337",
+						"my-label":               "my-value",
+						"my-other-label":         "my-other-value",
 					},
 				},
 				Spec: types.UserSpecV2{
@@ -973,6 +1040,25 @@ func TestUpsertBot(t *testing.T) {
 				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
+		{
+			name: "validation - empty role",
+			user: botCreator.GetName(),
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "empty-string-role",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles:  []string{"foo", "", "bar"},
+						Traits: []*machineidv1pb.Trait{},
+					},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "spec.roles: must not contain empty strings")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1045,6 +1131,10 @@ func TestGetBot(t *testing.T) {
 			Bot: &machineidv1pb.Bot{
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
@@ -1152,6 +1242,10 @@ func TestListBots(t *testing.T) {
 			Bot: &machineidv1pb.Bot{
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},

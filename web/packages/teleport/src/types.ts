@@ -56,6 +56,7 @@ export enum NavTitle {
 
   // Access Management
   Users = 'Users',
+  Bots = 'Bots',
   Roles = 'User Roles',
   AuthConnectors = 'Auth Connectors',
   Integrations = 'Integrations',
@@ -176,6 +177,10 @@ export interface FeatureFlags {
   managementSection: boolean;
   accessGraph: boolean;
   externalAuditStorage: boolean;
+  listBots: boolean;
+  addBots: boolean;
+  editBots: boolean;
+  removeBots: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

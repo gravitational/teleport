@@ -16,7 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Navigation } from './Navigation';
-export { StepTitle, StepsContainer } from './Shared';
-export { Bullet } from './Bullet';
-export type { Props as BulletProps } from './Bullet';
+import React from 'react';
+
+import { botsFixture } from 'teleport/Bots/fixtures';
+import { BotList } from 'teleport/Bots/List/BotList';
+
+export default {
+  title: 'Teleport/Bots',
+};
+
+export const List = () => {
+  return (
+    <BotList
+      attempt={{ status: '' }}
+      bots={botsFixture}
+      disabledEdit={false}
+      disabledDelete={false}
+      onClose={() => {}}
+      onDelete={() => {}}
+      onEdit={() => {}}
+      roles={[]}
+      selectedBot={null}
+      selectedRoles={[]}
+      setSelectedBot={() => {}}
+      setSelectedRoles={() => {}}
+    />
+  );
+};

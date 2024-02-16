@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Navigation } from './Navigation';
-export { StepTitle, StepsContainer } from './Shared';
-export { Bullet } from './Bullet';
-export type { Props as BulletProps } from './Bullet';
+import React from 'react';
+
+import { Switch, Route } from 'teleport/components/Router';
+import cfg from 'teleport/config';
+
+import { FeatureBox } from 'teleport/components/Layout';
+
+import { BotFlowType } from '../types';
+
+import GitHubActionsFlow from './GitHubActions';
+import { AddBotsPicker } from './AddBotsPicker';
+
+export function AddBots() {
+  return (
+    <FeatureBox>
+      <Switch>
+        <Route
+          path={cfg.getBotsNewRoute(BotFlowType.GitHubActions)}
+          component={GitHubActionsFlow}
+        />
+        <Route path={cfg.getBotsNewRoute()} component={AddBotsPicker} />
+      </Switch>
+    </FeatureBox>
+  );
+}
