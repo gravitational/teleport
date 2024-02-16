@@ -31,6 +31,7 @@ import React, { useState, useEffect, FormEvent } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
@@ -46,7 +47,7 @@ interface AddAuthDeviceWizardProps {
   /** MFA type setting, as configured in the cluster's configuration. */
   auth2faType: Auth2faType;
   /**
-   * A privilege token that may have been created previously; if not empty, the
+   * A privilege token that may have been created previously; if present, the
    * reauthentication step will be skipped.
    */
   privilegeToken?: string;
@@ -182,6 +183,7 @@ export function ReauthenticateStep({
               name="mfaOption"
               options={mfaOptions}
               value={mfaOption}
+              autoFocus
               flexDirection="row"
               gap={3}
               onChange={o => {
@@ -197,7 +199,6 @@ export function ReauthenticateStep({
                 autoComplete="one-time-code"
                 value={authCode}
                 placeholder="123 456"
-                autoFocus
                 onChange={onAuthCodeChanged}
                 readonly={attempt.status === 'processing'}
               />
@@ -310,6 +311,7 @@ function CreateMfaBox({
         name="mfaOption"
         options={mfaOptions}
         value={newMfaDeviceType}
+        autoFocus
         flexDirection="row"
         gap={3}
         onChange={o => {
@@ -324,15 +326,12 @@ function CreateMfaBox({
 }
 
 function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
-  const fetchQrCodeAttempt = useAttempt('');
-  const [qrCode, setQrCode] = useState('');
+  const [fetchQrCodeAttempt, fetchQrCode] = useAsync((privilegeToken: string) =>
+    auth.createMfaRegistrationChallenge(privilegeToken, 'totp')
+  );
 
   useEffect(() => {
-    fetchQrCodeAttempt.run(() =>
-      auth
-        .createMfaRegistrationChallenge(privilegeToken, 'totp')
-        .then(res => setQrCode(res.qrCode))
-    );
+    fetchQrCode(privilegeToken);
   }, []);
 
   return (
@@ -346,10 +345,15 @@ function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
       `}
     >
       <Flex height="168px" justifyContent="center" alignItems="center">
-        {fetchQrCodeAttempt.attempt.status === 'processing' && <Indicator />}
-        {fetchQrCodeAttempt.attempt.status === 'success' && (
+        {fetchQrCodeAttempt.status === 'error' && (
+          <OutlineDanger>
+            Could not load the QR code. {fetchQrCodeAttempt.statusText}
+          </OutlineDanger>
+        )}
+        {fetchQrCodeAttempt.status === 'processing' && <Indicator />}
+        {fetchQrCodeAttempt.status === 'success' && (
           <Image
-            src={`data:image/png;base64,${qrCode}`}
+            src={`data:image/png;base64,${fetchQrCodeAttempt.data.qrCode}`}
             height="100%"
             style={{
               boxSizing: 'border-box',

@@ -47,9 +47,6 @@ export function CreatePasskey() {
   return <CreateDeviceStep {...stepProps} usage="passwordless" />;
 }
 
-const dummyQrCode =
-  'iVBORw0KGgoAAAANSUhEUgAAAB0AAAAdAQMAAABsXfVMAAAABlBMVEUAAAD///+l2Z/dAAAAAnRSTlP//8i138cAAAAJcEhZcwAACxIAAAsSAdLdfvwAAABrSURBVAiZY/gPBAxoxAcxh3qG71fv1zN8iQ8EEReBRACQ+H4ZKPZBFCj7/3v9f4aPU9vqGX4kFtUzfG5mBLK2aNUz/PM3AsmqAk2RNQTquLYLqDdG/z/QlGAgES4CFLu4GygrXF2Pbi+IAADZqFQFAjXZWgAAAABJRU5ErkJggg==';
-
 export function CreateMfaHardwareDevice() {
   return (
     <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="webauthn" />
@@ -70,6 +67,23 @@ CreateMfaAppQrCodeLoading.parameters = {
   },
 };
 
+export function CreateMfaAppQrCodeFailed() {
+  return <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="otp" />;
+}
+CreateMfaAppQrCodeFailed.parameters = {
+  msw: {
+    handlers: [
+      rest.post(
+        cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'),
+        (req, res, ctx) => res(ctx.status(500))
+      ),
+    ],
+  },
+};
+
+const dummyQrCode =
+  'iVBORw0KGgoAAAANSUhEUgAAAB0AAAAdAQMAAABsXfVMAAAABlBMVEUAAAD///+l2Z/dAAAAAnRSTlP//8i138cAAAAJcEhZcwAACxIAAAsSAdLdfvwAAABrSURBVAiZY/gPBAxoxAcxh3qG71fv1zN8iQ8EEReBRACQ+H4ZKPZBFCj7/3v9f4aPU9vqGX4kFtUzfG5mBLK2aNUz/PM3AsmqAk2RNQTquLYLqDdG/z/QlGAgES4CFLu4GygrXF2Pbi+IAADZqFQFAjXZWgAAAABJRU5ErkJggg==';
+
 export function CreateMfaApp() {
   return <CreateDeviceStep {...stepProps} usage="mfa" newMfaDeviceType="otp" />;
 }
@@ -83,8 +97,6 @@ CreateMfaApp.parameters = {
     ],
   },
 };
-
-console.log(cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'));
 
 export function SavePasskey() {
   return <SaveDeviceStep {...stepProps} usage="passwordless" />;
