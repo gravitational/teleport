@@ -67,6 +67,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -972,6 +973,123 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 					test.assertErr(t, err)
 				})
 			}
+		})
+	}
+}
+
+// Test that device trust is required for a user registering their first MFA device.
+func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+	})
+
+	testServer := newTestTLSServer(t)
+
+	ctx := context.Background()
+	authServer := testServer.Auth()
+
+	// Create a user for testing.
+	user, role, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+	username := user.GetName()
+	_, err = authServer.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// Create clients with and without device extensions.
+	clientWithoutDevice, err := testServer.NewClient(TestUser(username))
+	require.NoError(t, err, "NewClient failed")
+
+	clientWithDevice, err := testServer.NewClient(
+		TestUserWithDeviceExtensions(username, tlsca.DeviceExtensions{
+			DeviceID:     "deviceid1",
+			AssetTag:     "assettag1",
+			CredentialID: "credentialid1",
+		}))
+	require.NoError(t, err, "NewClient failed")
+
+	// updateAuthPref is a helper used throughout the test.
+	updateAuthPref := func(t *testing.T, modify func(ap types.AuthPreference)) {
+		authPref, err := authServer.GetAuthPreference(ctx)
+		require.NoError(t, err, "GetAuthPreference failed")
+
+		modify(authPref)
+
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPref),
+			"SetAuthPreference failed")
+	}
+
+	// Enable webauthn
+	updateAuthPref(t, func(authPref types.AuthPreference) {
+		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetWebauthn(&types.Webauthn{
+			RPID: "localhost",
+		})
+	})
+
+	assertSuccess := func(t *testing.T, err error) {
+		assert.NoError(t, err)
+	}
+	assertAccessDenied := func(t *testing.T, err error) {
+		assert.ErrorIs(t, err, dtauthz.ErrTrustedDeviceRequired)
+	}
+
+	tests := []struct {
+		name               string
+		clusterDeviceMode  string
+		client             *Client
+		skipLoginCerts     bool // aka non-MFA issuance.
+		skipSingleUseCerts bool // aka MFA/streaming issuance.
+		assertErr          func(t *testing.T, err error)
+	}{
+		{
+			name:              "mode=optional without extensions",
+			clusterDeviceMode: constants.DeviceTrustModeOptional,
+			client:            clientWithoutDevice,
+			assertErr:         assertSuccess,
+		},
+		{
+			name:              "mode=optional with extensions",
+			clusterDeviceMode: constants.DeviceTrustModeOptional,
+			client:            clientWithDevice,
+			assertErr:         assertSuccess,
+		},
+		{
+			name:              "nok: mode=required without extensions",
+			clusterDeviceMode: constants.DeviceTrustModeRequired,
+			client:            clientWithoutDevice,
+			assertErr:         assertAccessDenied,
+		},
+		{
+			name:              "mode=required with extensions",
+			clusterDeviceMode: constants.DeviceTrustModeRequired,
+			client:            clientWithDevice,
+			assertErr:         assertSuccess,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			updateAuthPref(t, func(ap types.AuthPreference) {
+				ap.SetDeviceTrust(&types.DeviceTrust{
+					Mode: test.clusterDeviceMode,
+				})
+			})
+
+			t.Run("CreatePrivilegeTokenRequest", func(t *testing.T) {
+				_, err := test.client.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
+					ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
+				})
+				test.assertErr(t, err)
+			})
+
+			t.Run("CreateRegisterChallenge", func(t *testing.T) {
+				_, err := test.client.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
+					DeviceType:          proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage:         proto.DeviceUsage_DEVICE_USAGE_MFA,
+				})
+				test.assertErr(t, err)
+			})
 		})
 	}
 }
