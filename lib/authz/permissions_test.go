@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
@@ -51,6 +52,64 @@ import (
 const (
 	clusterName = "test-cluster"
 )
+
+func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	now := clock.Now()
+	inAnHour := clock.Now().Add(time.Hour)
+
+	for _, test := range []struct {
+		name                    string
+		expires                 time.Time
+		previousIdentityExpires time.Time
+		mfaVerified             bool
+		disconnectExpiredCert   bool
+		expected                time.Time
+	}{
+		{
+			name:                    "mfa overrides expires when set",
+			expires:                 now,
+			previousIdentityExpires: inAnHour,
+			mfaVerified:             true,
+			disconnectExpiredCert:   true,
+			expected:                inAnHour,
+		},
+		{
+			name:                  "expires returned when mfa unset",
+			expires:               now,
+			mfaVerified:           false,
+			disconnectExpiredCert: true,
+			expected:              now,
+		},
+		{
+			name:                    "unset when disconnectExpiredCert is false",
+			expires:                 now,
+			previousIdentityExpires: inAnHour,
+			mfaVerified:             true,
+			disconnectExpiredCert:   false,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var mfaVerified string
+			if test.mfaVerified {
+				mfaVerified = "1234"
+			}
+			identity := tlsca.Identity{
+				Expires:                 test.expires,
+				PreviousIdentityExpires: test.previousIdentityExpires,
+				MFAVerified:             mfaVerified,
+			}
+
+			authPref := types.DefaultAuthPreference()
+			authPref.SetDisconnectExpiredCert(test.disconnectExpiredCert)
+
+			ctx := Context{Checker: &fakeCtxChecker{}, Identity: WrapIdentity(identity)}
+
+			got := ctx.GetDisconnectCertExpiry(authPref)
+			require.Equal(t, test.expected, got)
+		})
+	}
+}
 
 func TestContextLockTargets(t *testing.T) {
 	t.Parallel()
@@ -1033,6 +1092,10 @@ type fakeCtxChecker struct {
 
 func (c *fakeCtxChecker) GetAccessState(_ types.AuthPreference) services.AccessState {
 	return c.state
+}
+
+func (c *fakeCtxChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
+	return disconnect
 }
 
 type testClient struct {
