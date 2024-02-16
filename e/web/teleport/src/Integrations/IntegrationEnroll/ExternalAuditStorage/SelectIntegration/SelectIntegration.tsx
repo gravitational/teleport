@@ -77,8 +77,8 @@ export function SelectIntegration() {
       {!hasAccess && (
         <Alert mt="4">
           <Text>
-            Insuficient permissions. Reach out to your Teleport administrator to
-            request permissions to list and read{' '}
+            Insufficient permissions. Reach out to your Teleport administrator
+            to request permissions to list and read{' '}
             <Text bold style={{ display: 'inline' }}>
               integrations
             </Text>

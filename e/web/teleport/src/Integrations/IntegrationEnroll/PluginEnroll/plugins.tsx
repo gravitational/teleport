@@ -528,7 +528,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             type="password"
             onChange={e => setToken(e.target.value)}
             placeholder="abc-def...-123"
-            toolTipContent="API Key is used to request to Opsgenie REST API and requires the permissons: 'Read Access' and 'Create and Update Access'"
+            toolTipContent="API Key is used to request to Opsgenie REST API and requires the permissions: 'Read Access' and 'Create and Update Access'"
             mb={3}
           />
           <FieldInput
@@ -1141,7 +1141,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             PagerDuty to manage.
           </p>
           <p>
-            For more infomation, consult the <em>Define RBAC Resources</em>{' '}
+            For more information, consult the <em>Define RBAC Resources</em>{' '}
             section of the Teleport{' '}
             <Link
               target="_blank"
