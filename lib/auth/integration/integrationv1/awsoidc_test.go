@@ -26,6 +26,7 @@ import (
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -76,4 +77,39 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 		Issuer:   publicURL + "3",
 	})
 	require.Error(t, err)
+}
+
+func TestConvertSecurityGroupRulesToProto(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		in       []awsoidc.SecurityGroupRule
+		expected []*integrationv1.SecurityGroupRule
+	}{
+		{
+			name: "valid",
+			in: []awsoidc.SecurityGroupRule{{
+				IPProtocol: "tcp",
+				FromPort:   8080,
+				ToPort:     8081,
+				CIDRs: []awsoidc.CIDR{{
+					CIDR:        "10.10.10.0/24",
+					Description: "cidr x",
+				}},
+			}},
+			expected: []*integrationv1.SecurityGroupRule{{
+				IpProtocol: "tcp",
+				FromPort:   8080,
+				ToPort:     8081,
+				Cidrs: []*integrationv1.SecurityGroupRuleCIDR{{
+					Cidr:        "10.10.10.0/24",
+					Description: "cidr x",
+				}},
+			}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			out := convertSecurityGroupRulesToProto(tt.in)
+			require.Equal(t, tt.expected, out)
+		})
+	}
 }

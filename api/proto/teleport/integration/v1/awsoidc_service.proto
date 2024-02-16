@@ -28,6 +28,9 @@ service AWSOIDCService {
   // It returns a list of Databases and an optional NextToken that can be used to fetch the next page
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
 
+  // ListSecurityGroups returns a list of AWS VPC SecurityGroups.
+  rpc ListSecurityGroups(ListSecurityGroupsRequest) returns (ListSecurityGroupsResponse);
+
   // DeployDatabaseService deploys a Database Services to Amazon ECS.
   rpc DeployDatabaseService(DeployDatabaseServiceRequest) returns (DeployDatabaseServiceResponse);
 }
@@ -52,6 +55,68 @@ message ListDatabasesRequest {
 message ListDatabasesResponse {
   // Databases contains the page of Databases.
   repeated types.DatabaseV3 databases = 1;
+  // NextToken is used for pagination.
+  // If non-empty, it can be used to request the next page.
+  string next_token = 2;
+}
+
+// ListSecurityGroupsRequest is a request for a paginated list of AWS SecurityGroups.
+message ListSecurityGroupsRequest {
+  // Integration is the AWS OIDC Integration name.
+  string integration = 1;
+  // Region is the AWS Region
+  string region = 2;
+  // VPCID is the VPC ID for listing SecurityGroups.
+  string vpc_id = 3;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 4;
+}
+
+// CIDR has a CIDR (IP Range) and a description for the value.
+message SecurityGroupRuleCIDR {
+  // CIDR is the IP range using CIDR notation.
+  string cidr = 1;
+  // Description contains a small text describing the CIDR.
+  string description = 2;
+}
+
+// SecurityGroupRule is a representation of a SecurityGroupRule.
+// Either for Inbound or Outbound rules.
+message SecurityGroupRule {
+  // IPProtocol is the protocol used to describe the rule.
+  // If the rule applies to all protocols, the "all" value is used.
+  // The IP protocol name ( tcp , udp , icmp , icmpv6 ) or number (see Protocol
+  // Numbers (http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)).
+  string ip_protocol = 1;
+  // FromPort is the inclusive start of the Port range for the Rule.
+  int32 from_port = 2;
+  // ToPort is the inclusive end of the Port range for the Rule.
+  int32 to_port = 3;
+  // CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
+  repeated SecurityGroupRuleCIDR cidrs = 4;
+}
+
+// SecurityGroup is a representation of a SecurityGroup
+message SecurityGroup {
+  // Name is the SecurityGroup name.
+  string name = 1;
+  // ID is the SecurityGroup ID.
+  string id = 2;
+  // Description is a small description of the SecurityGroup.
+  string description = 3;
+  // InboundRules describe the Security Group Inbound Rules.
+  // The CIDR of each rule represents the source IP that the rule applies to.
+  repeated SecurityGroupRule inbound_rules = 4;
+  // OutboundRules describe the Security Group Outbound Rules.
+  // The CIDR of each rule represents the destination IP that the rule applies to.
+  repeated SecurityGroupRule outbound_rules = 5;
+}
+
+// ListSecurityGroupsResponse contains a page of AWS SecurityGroups.
+message ListSecurityGroupsResponse {
+  // SecurityGroups contains the page of SecurityGroups.
+  repeated SecurityGroup security_groups = 1;
   // NextToken is used for pagination.
   // If non-empty, it can be used to request the next page.
   string next_token = 2;

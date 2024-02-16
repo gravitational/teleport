@@ -29,7 +29,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -676,4 +678,39 @@ func mustCreateRDS(t *testing.T, awsRDS types.RDS) *types.DatabaseV3 {
 	})
 	require.NoError(t, err)
 	return rdsDB
+}
+
+func TestAWSOIDCSecurityGroupsRulesConverter(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		in       []*integrationv1.SecurityGroupRule
+		expected []awsoidc.SecurityGroupRule
+	}{
+		{
+			name: "valid",
+			in: []*integrationv1.SecurityGroupRule{{
+				IpProtocol: "tcp",
+				FromPort:   8080,
+				ToPort:     8081,
+				Cidrs: []*integrationv1.SecurityGroupRuleCIDR{{
+					Cidr:        "10.10.10.0/24",
+					Description: "cidr x",
+				}},
+			}},
+			expected: []awsoidc.SecurityGroupRule{{
+				IPProtocol: "tcp",
+				FromPort:   8080,
+				ToPort:     8081,
+				CIDRs: []awsoidc.CIDR{{
+					CIDR:        "10.10.10.0/24",
+					Description: "cidr x",
+				}},
+			}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			out := awsOIDCSecurityGroupsRulesConverter(tt.in)
+			require.Equal(t, tt.expected, out)
+		})
+	}
 }
