@@ -937,7 +937,7 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx authz.Context, req
 		kubeClusterName:       kubeCluster,
 		kubeResource:          kubeResource,
 		certExpires:           identity.Expires,
-		disconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(roles, authPref, &identity),
+		disconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
