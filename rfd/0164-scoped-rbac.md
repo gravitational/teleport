@@ -406,6 +406,52 @@ spec:
 
 **Note:** While it’s tempting to support scope templates, we will push this out of the scope of this RFD.
 
+
+#### The Access verb
+
+Alice would like to create a role that denies access to all apps in some scope. To achieve this without labels, we introduce a new verb `access`:
+
+```yaml
+kind: role
+metadata:
+   name: no-apps
+spec:
+  deny:
+      rules:
+      - resources: [app]
+        verbs: [access]
+```
+
+When granted at scope, the role above will deny access to any apps in this scope.
+
+We will use `access` verb during migration. The following V7 and V8 roles are equivalent:
+
+```yaml
+kind: role
+version: V7
+metadata:
+   name: all-apps
+spec:
+  app_labels:
+    '*': '*'
+```
+
+```yaml
+kind: role
+version: V8
+metadata:
+   name: all-apps
+spec:
+  allow:
+    rules:
+    - resources: [app]
+      verbs: [access]
+```
+
+We will use the verb `access` for any supported resource, `node`, `k8s`, `db`, `app`, `desktop`, etc.
+
+Most of Teleport's preset roles have labels `*`: `*`, so migration will be straightforward.
+
 #### Roles and Access Lists in resource groups
 
 A special case is when a role or an access list is assigned to a certain resource group.  
@@ -951,7 +997,7 @@ TODO: question for a scale team on implementation details for backends.
 
 We will release a new versions of resources in multiple phases:
 
-* `RoleV8` will introduce `parent_resource_group` and `grantable_scope`, `create_time`, `update_time`. `RoleV9` will remove `node_labels`,  `node_labels_expression`. Users can gradually migrate to new versions, first by leveraging scopes and resoruce groups, and then removing labels matching. For new `RoleV8` roles by default, if the `grantable_scope` is missing, we assume empty scope - that will prevent the role from being granted on any scopes. When migrating existing roles from `V7`, we would set `/` - root scope to avoid breaking the cluster. 
+* `RoleV8` will introduce `parent_resource_group` and `grantable_scope`, `create_time`, `update_time`. `RoleV9` will remove `node_labels`,  `node_labels_expression`. Users can gradually migrate to new versions, first by leveraging scopes and resoruce groups, and then removing labels matching. For new `RoleV8` roles by default, if the `grantable_scope` is missing, we assume empty scope - that will prevent the role from being granted on any scopes. When migrating existing roles from `V7`, we would set `/` - root scope to avoid breaking the cluster. When migrating preset roles, we will replace `app_labels` with verb `access` when possible. See "The access verb" section for details.
 * Access List `V2` will also introduce `create_time` and `update_time`,  `scope` and `member_lists`.
 * We will craete a new resrouce `ResourceGroup` referenced in this RFD `V1` will have `create_time` and `update_time`.
 * The connector resources `saml` and `oidc` will loose `attributes_to_roles` and `claims_to_roles` respectively in their `V3`.
