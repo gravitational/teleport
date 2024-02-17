@@ -539,6 +539,7 @@ Here is a list of resources that can’t be created at scopes:
 
 * SSO connectors
 * Users
+* Bots
 * Clusters
 * Login rules
 * Devices
