@@ -28,20 +28,17 @@ since it must execute these commands in order to create transient users:
 
 ## Step 1/3. Configure a role
 
-First, create a role with `create_host_user_mode` set to `drop`, `insecure-drop`, or `keep`.
+First, create a role with `create_host_user_mode` set to `insecure-drop`, or `keep`.
 
+  - `keep` will create permanent users on the host at login time. This is the
+    recommended host user creation mode.
   - `insecure-drop` will create transient users that are deleted once the session ends.
-  - `drop` is the same as `insecure-drop` except it also creates a home directory for the user.
-    It exists only for backwards compatibility; newly configured services should use
-    `insecure-drop` instead.
-  - `keep` will create permanent users on the host at login time.
-
-Note that with the `drop` and `insecure-drop` modes, it is possible for a created
-user to get the same UID as a previously deleted user, which would give the new user
-access to all of the old user's files if they are not deleted.
 
 <Admonition type="note">
-  `drop` mode will be removed in Teleport 15.
+  With the `insecure-drop` mode, it is possible for a created user to get the
+  same UID as a previously deleted user, which would give the new user access
+  to all of the old user's files if they are not deleted. Prefer `keep` mode
+  unless you really need users to be removed.
 </Admonition>
 
 The following role specification will allow users to log in as `nginxrestarter` on
