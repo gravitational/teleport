@@ -358,10 +358,10 @@ kind: role
 metadata:
  name: access
 spec:
-  grantable_scopes: ['/env/prod`]
+  grantable_scopes: ['/env/prod']
 ```
 
-Grantable scope specifies maximum scope this role can be granted on. 
+Grantable scopes specifiy maximum scope this role can be granted on. 
 
 **Important:** By default, if the `grantable_scopes` are missing, we assume empty scope - that will prevent the role from being granted on any scopes. When migrating existing roles, we would set `/` - root scope to avoid breaking the cluster. 
 
@@ -431,7 +431,7 @@ kind: access_list
 metadata:
   name: lab-personnel
 spec:
-  grants_scope: /env/prod/lab
+  scopes: ['/env/prod/lab']
   parent_resource_group: /env/prod/lab
 ```
 
@@ -448,7 +448,9 @@ We will apply the same invariants to any other resources created within a scope.
 
 #### Scoped Join Tokens
 
-Join tokens with a `parent_resource_group` will bind any resource using this join method to the resource group specified in `parent_resource_group` or a more specific one. 
+Join tokens with `scopes` present will limit the resource groups the resources can join to.
+
+For example, Teleport service using the scoped token below will only be able to join the resource group `dev`
 
 ```yaml
 # token.yaml
@@ -457,13 +459,15 @@ version: v2
 metadata:
   name: my-token-name
 spec:
-  parent_resource_group: '/dev'
+  scopes: ['/dev']
   roles: 
     - Node
     - App
 ```
 
-Join tokens created by roles granted within a scope must have `parent_resource_group` equal to this scope `/dev` or a more specific scope, e.g. `/dev/lab`. 
+Join tokens with a `parent_resource_group` set can only have scope equal to this resource group.
+
+Join tokens created by roles granted within a scope must have `parent_resource_group` and `scopes` equal to this scope `/dev` or a more specific scope, e.g. `/dev/lab`. 
 
 **Note:** To implement this, the token can be exchanged for the host certificate with `parent_resource_id` encoded in it. This way nodes can't set the nodes to any resource groups other than the parent.
 By default, all existing join tokens will use `/` as a default resource group.
@@ -968,6 +972,7 @@ Teleport Discover should integrate with scopes by importing AWS accounts, GCP, A
 
 ## Security
 
-Access Lists grants will not result in roles and traits encoded in certificates. Instead, grants will be evaluated at each point of access.
+* Access Lists grants will not result in roles and traits encoded in certificates. Instead, grants will be evaluated at each point of access.
+* Creating or modifying resource groups and Access Lists is a potentially disruptive action, and we will protect it with MFA check similarly to other administrative actions. See [Admin Actions RFD 131](https://github.com/gravitational/teleport/blob/master/rfd/0131-adminitrative-actions-mfa.md) for details.
 
 
