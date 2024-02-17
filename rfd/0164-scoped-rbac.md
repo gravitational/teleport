@@ -188,7 +188,7 @@ spec:
      # the next line instructs Teleport
      # to assign users to roles `admin-1` if his SAML "group" 
      # attribute equals 'ssh_admin_1':
-     - { name: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
+   - { name: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
 ```
 
 This creates several security and scalability issues:
@@ -626,7 +626,7 @@ spec:
     roles: [access]
     traits:
       'internal.logins' : 'root'
-  scope: '/dev/lab`
+  scopes: ['/dev/lab']
   members:
     - bob@example.com
 ```
@@ -661,7 +661,7 @@ spec:
     roles: [access]
     traits:
       'internal.logins' : 'root'
-  scope:  '/k8s/namespaces/default`
+  scopes:  ['/k8s/namespaces/default']
   members:
     - bob@example.com
 ```
@@ -709,10 +709,10 @@ metadata:
 spec:
   grants: 
     roles: [requester, reviewer]
-  scope:  '/dev`
+  scopes:  ['/dev']
   members:
     - bob@example.com
- - alice@example.com
+    - alice@example.com
 ```
 
 In this case, `bob@example.com` and `alice@example.com` will get an ability to search, request and review requests, but only in the scope of any resource in `/dev` resource group.
@@ -746,7 +746,7 @@ metadata:
 spec:
   grants: 
     roles: [requester, reviewer]
-  scope:  '/dev`
+  scopes:  ['/dev']
   member_lists:
     - dev-team
 ---
@@ -756,7 +756,7 @@ metadata:
 spec:
   grants: 
     roles: [requester, reviewer]
-  scope:  '/prod`
+  scopes:  ['/prod']
   member_lists:
     - dev-team
 ```
@@ -784,9 +784,9 @@ metadata:
 spec:
   grants: 
     roles: [impersonator]
-  scope:  '/dev`
+  scopes:  ['/dev']
   members:
-    -  alice@example.com
+    - alice@example.com
     - ketanji@example.com
 ```
 
@@ -806,7 +806,7 @@ kind: access_list
 metadata:
   name: scoped-dev-admin-dev
 spec:
-  scope: '/dev/lab`
+  scopes: ['/dev/lab']
   grants: 
   roles: [editor, auditor]
   members:
@@ -834,7 +834,7 @@ metadata:
   name: scoped-dev-admin-dev-access
 spec:
   parent_resource_group: '/dev/lab'
-  scope: '/dev/lab`
+  scopes: ['/dev/lab']
   grants: 
   roles: [access]
   members:
@@ -869,7 +869,7 @@ metadata:
 spec:
   grants: 
     roles: [access-with-agent-forward]
-  scope:  '/dev/lab`
+  scopes:  ['/dev/lab']
   members:
     - bob@example.com
 ```
@@ -901,7 +901,7 @@ spec:
   traits:
     - 'internal.logins': 'root'
   identity: 'alice@example.com'
-  scope: '/dev/lab`
+  scopes: ['/dev/lab']
 ```
 
 We will also assume that resource groups, roles `V8` and Access Lists `V2` all have `create_time` and `update_time` fields.
