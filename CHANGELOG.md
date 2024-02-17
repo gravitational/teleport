@@ -1,6 +1,6 @@
 # Changelog
 
-## 14.3.5 (02/16/24)
+## 14.3.6 (02/16/24)
 
 * Fixed a potential panic in the `tsh status` command. [#38304](https://github.com/gravitational/teleport/pull/38304)
 * Fixed locking SSO user in the setup access step of the RDS auto discover flow in the web UI. [#38284](https://github.com/gravitational/teleport/pull/38284)
