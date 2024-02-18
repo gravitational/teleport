@@ -24,7 +24,7 @@ by signing up for a [Teleport Team trial](https://goteleport.com/signup/).
 - Helm >= (=helm.version=)
 - A running Teleport Enterprise cluster v14.3.4 or later.
   - For the purposes of this guide, we assume that the Teleport cluster is set up
-    [using a Helm chart](../../deploy-a-cluster/helm-deployments.mdx)
+    [using the `teleport-cluster` Helm chart](../../deploy-a-cluster/helm-deployments.mdx)
     in the same Kubernetes cluster that will be used to deploy Teleport Access Graph .
 - An updated `license.pem` with Teleport Policy enabled.
 - A PostgreSQL database server v14 or later.
@@ -157,7 +157,7 @@ $ kubectl -n teleport create configmap teleport-access-graph-ca \
     --from-file=ca.pem=./certs/ca.crt
 ```
 
-Then, update the values for the deployment of the [teleport-cluster](../reference/helm-reference/teleport-cluster/) Helm chart as follows:
+Then, update the values for the deployment of the `teleport-cluster` Helm chart as follows:
 
 ```yaml
 auth:
