@@ -908,6 +908,10 @@ spec:
   # when set, this grant will be evaluated only when users specify access request,
   # and this grant is issued as a part of access request
   access_request_id: 'bc8ca931-fec9-4b15-9a6f-20c13c5641a9'
+  # resource_uuids is used for search based access requests and further limits access to specific resources,
+  # if those are allowed by granted roles in the given scopes.
+  resource_uuids:
+  - 'e99dcc3b-11ba-4b87-96c5-c3f1e886e9ec'
 ```
 
 We will also assume that resource groups, roles `V8` and Access Lists `V2` all have `create_time` and `update_time` fields.
@@ -953,6 +957,10 @@ metadata:
 spec:
   # this grant is issued as a part of access request
   access_request_id: 'bc8ca931-fec9-4b15-9a6f-20c13c5641a9'
+  # resource_uuids is used for search based access requests and further limits access to specific resources,
+  # if those are allowed by granted roles in the given scopes.
+  resource_uuids:
+  - 'e99dcc3b-11ba-4b87-96c5-c3f1e886e9ec'
 ```
 
 Teleport will only evaluate those grants when user's certificate has `access-request-id` in the certificate extension.
