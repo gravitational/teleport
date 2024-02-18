@@ -878,7 +878,9 @@ This will let bob to ssh with agent forwarding on into hosts in scope of /dev/la
 
 ## Implementation
 
-Teleport will stop issuing new certificate extensions for access granted by Access Lists or Access Requests. Instead, Teleport will create and distribute internal `Grant` resources. These resources will be used by Teleport only and will never be exposed to users.
+Teleport will stop issuing new certificate extensions for access granted by Access Lists or Access Requests. 
+
+Instead, Teleport will create and distribute internal `Grant` resources. These resources will be used by Teleport only and will never be exposed to users.
 
 Here is a high-level structure of an internal `grant` resource:
 
@@ -902,6 +904,10 @@ spec:
     - 'internal.logins': 'root'
   identity: 'alice@example.com'
   scopes: ['/dev/lab']
+  # not all grants need to be always evaluated,
+  # when set, this grant will be evaluated only when users specify access request,
+  # and this grant is issued as a part of access request
+  access_request_id: 'bc8ca931-fec9-4b15-9a6f-20c13c5641a9'
 ```
 
 We will also assume that resource groups, roles `V8` and Access Lists `V2` all have `create_time` and `update_time` fields.
@@ -933,6 +939,26 @@ We will also store `ResourceGroup` as a hierarchy:
 Every time we add or remove a resource, we update the `_root` of the hierarchy with the timestamp.
 
 When stored this way, each part of Teleport can subscribe and fetch grants for resource groups relevant to it, and would know when the grant hierarchy or resource hierarchy was last updated.
+
+### Grants and access requests
+
+When access request is approved, Teleport will create a grant with `access_request_id` set to the approved access request id:
+
+```yaml
+kind: grant
+version: v1
+metadata:
+  # name is a unique random identifier uuid-v4 of this grant 
+  name: bc8ca931-fec9-4b13-9a6f-20c13c5835a7
+spec:
+  # this grant is issued as a part of access request
+  access_request_id: 'bc8ca931-fec9-4b15-9a6f-20c13c5641a9'
+```
+
+Teleport will only evaluate those grants when user's certificate has `access-request-id` in the certificate extension.
+
+Instead of `assumed-role` and `resource-uuids` extensions issued in certificates and described in [RFD 0059 Search Based Access Requests](https://github.com/gravitational/teleport/blob/master/rfd/0059-search-based-access-requests.md#certificate-issuance-and-rbac), Teleport will issue a certificate with new extension `access-request-id: [bc8ca931-fec9-4b15-9a6f-20c13c5641a9]`
+that will evaluate grants assigned to the identity at the matching scope and access request ids.
 
 ### The "New enemy" problem
 
