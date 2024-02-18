@@ -42,7 +42,7 @@ SOFTWARE.
 
 import React from 'react';
 
-import { SVGIcon, SVGIconProps } from 'design/SVGIcon';
+import { Icon, IconProps } from '../Icon';
 
 /*
 
@@ -50,9 +50,9 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Bots({ size = 24, fill }: SVGIconProps) {
+export function Bots({ size = 24, color, ...otherProps }: IconProps) {
   return (
-    <SVGIcon viewBox="0 0 24 20" size={size} fill={fill}>
+    <Icon size={size} color={color} className="icon icon-bots" {...otherProps}>
       <path
         fillRule="evenodd"
         clipRule="evenodd"
@@ -65,6 +65,6 @@ export function Bots({ size = 24, fill }: SVGIconProps) {
         clipRule="evenodd"
         d="M12.75 1.5C12.75 1.08579 12.4142 0.75 12 0.75C11.5858 0.75 11.25 1.08579 11.25 1.5V4.5H5.25C3.59315 4.5 2.25 5.84315 2.25 7.5V18C2.25 19.6569 3.59315 21 5.25 21H18.75C20.4069 21 21.75 19.6569 21.75 18V7.5C21.75 5.84315 20.4069 4.5 18.75 4.5H12.75V1.5ZM5.25 6C4.42157 6 3.75 6.67157 3.75 7.5V18C3.75 18.8284 4.42157 19.5 5.25 19.5H18.75C19.5784 19.5 20.25 18.8284 20.25 18V7.5C20.25 6.67157 19.5784 6 18.75 6H5.25Z"
       />
-    </SVGIcon>
+    </Icon>
   );
 }

@@ -129,10 +129,8 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		Username: user,
 		Webauthn: wantypes.CredentialAssertionResponseFromProto(req.Webauthn),
 	}
-	if len(req.OldPassword) > 0 {
-		authReq.Pass = &PassCreds{
-			Password: req.OldPassword,
-		}
+	authReq.Pass = &PassCreds{
+		Password: req.OldPassword,
 	}
 	if req.SecondFactorToken != "" {
 		authReq.OTP = &OTPCreds{
@@ -244,6 +242,9 @@ func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 		}
 		return dev, nil
 	}
+	// This message is relied upon by the Web UI in
+	// web/packages/teleport/src/Account/ManageDevices/AddAuthDeviceWizard/AddAuthDeviceWizard.tsx/RequthenticateStep().
+	// Please keep these in sync.
 	return nil, trace.AccessDenied("invalid totp token")
 }
 

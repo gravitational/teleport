@@ -62,6 +62,7 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

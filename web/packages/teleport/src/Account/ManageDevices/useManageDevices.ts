@@ -33,6 +33,7 @@ export default function useManageDevices(ctx: Ctx) {
   const [restrictNewDeviceUsage, setRestrictNewDeviceUsage] = useState<
     DeviceUsage | undefined
   >(undefined);
+  const [passkeyWizardVisible, setPasskeyWizardVisible] = useState(false);
 
   // This is a restricted privilege token that can only be used to add a device, in case
   // the user has no devices yet and thus can't authenticate using the ReAuthenticate dialog
@@ -41,6 +42,7 @@ export default function useManageDevices(ctx: Ctx) {
   const isReAuthenticateVisible = !token && isDialogVisible;
   const isRemoveDeviceVisible = token && deviceToRemove && isDialogVisible;
   const isAddDeviceVisible = token && !deviceToRemove && isDialogVisible;
+  const isReauthenticationRequired = !token;
 
   function fetchDevices() {
     fetchDevicesAttempt.run(() =>
@@ -69,6 +71,25 @@ export default function useManageDevices(ctx: Ctx) {
     }
   }
 
+  function onAddPasskey() {
+    if (devices.length === 0) {
+      createRestrictedTokenAttempt.run(() =>
+        auth.createRestrictedPrivilegeToken().then(token => {
+          setToken(token);
+          setPasskeyWizardVisible(true);
+        })
+      );
+    } else {
+      setPasskeyWizardVisible(true);
+    }
+  }
+
+  function onPasskeyAdded() {
+    fetchDevices();
+    setPasskeyWizardVisible(false);
+    setToken(null);
+  }
+
   function hideAddDevice() {
     setIsDialogVisible(false);
     setToken(null);
@@ -89,6 +110,10 @@ export default function useManageDevices(ctx: Ctx) {
     setIsDialogVisible(false);
   }
 
+  function closePasskeyWizard() {
+    setPasskeyWizardVisible(false);
+  }
+
   useEffect(() => fetchDevices(), []);
 
   return {
@@ -97,6 +122,8 @@ export default function useManageDevices(ctx: Ctx) {
     setToken,
     onAddDevice,
     onRemoveDevice,
+    onAddPasskey,
+    onPasskeyAdded,
     deviceToRemove,
     fetchDevices,
     removeDevice,
@@ -105,9 +132,12 @@ export default function useManageDevices(ctx: Ctx) {
     isReAuthenticateVisible,
     isAddDeviceVisible,
     isRemoveDeviceVisible,
+    isReauthenticationRequired,
+    passkeyWizardVisible,
     hideReAuthenticate,
     hideAddDevice,
     hideRemoveDevice,
+    closePasskeyWizard,
     mfaDisabled: cfg.getAuth2faType() === 'off',
     restrictNewDeviceUsage,
   };

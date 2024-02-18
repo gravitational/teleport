@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -1498,7 +1499,8 @@ func TestCheckAccessToServer(t *testing.T) {
 				{server: serverWorker, login: "root", hasAccess: true},
 				{server: serverDB, login: "root", hasAccess: true},
 			},
-		}, {
+		},
+		{
 			name: "cluster requires hardware key pin, MFA not verified",
 			roles: []*types.RoleV6{
 				newRole(func(r *types.RoleV6) {
@@ -1532,7 +1534,8 @@ func TestCheckAccessToServer(t *testing.T) {
 				{server: serverWorker, login: "root", hasAccess: true},
 				{server: serverDB, login: "root", hasAccess: true},
 			},
-		}, {
+		},
+		{
 			name: "cluster requires hardware key touch and pin, MFA not verified",
 			roles: []*types.RoleV6{
 				newRole(func(r *types.RoleV6) {
@@ -2388,7 +2391,7 @@ func TestCheckRuleAccess(t *testing.T) {
 		}
 		for j, check := range tc.checks {
 			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb, false)
+			result := set.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
 			if check.hasAccess {
 				require.NoError(t, result, comment)
 			} else {
@@ -2583,14 +2586,13 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			params := test.params
-			const silent = true
 			for _, verb := range params.verbs {
-				err := test.roles.CheckAccessToRule(&params.ctx, params.namespace, params.resource, verb, silent)
+				err := test.roles.CheckAccessToRule(&params.ctx, params.namespace, params.resource, verb)
 				if gotAccess, wantAccess := err == nil, test.wantRuleAccess; gotAccess != wantAccess {
 					t.Errorf("CheckAccessToRule(verb=%q) returned err = %v=q, wantAccess = %v", verb, err, wantAccess)
 				}
 
-				err = test.roles.GuessIfAccessIsPossible(&params.ctx, params.namespace, params.resource, verb, silent)
+				err = test.roles.GuessIfAccessIsPossible(&params.ctx, params.namespace, params.resource, verb)
 				if gotAccess, wantAccess := err == nil, test.wantGuessAccess; gotAccess != wantAccess {
 					t.Errorf("GuessIfAccessIsPossible(verb=%q) returned err = %q, wantAccess = %v", verb, err, wantAccess)
 				}
@@ -8573,4 +8575,257 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestCheckSPIFFESVID(t *testing.T) {
+	t.Parallel()
+
+	makeRole := func(allow []*types.SPIFFERoleCondition, deny []*types.SPIFFERoleCondition) types.Role {
+		role, err := types.NewRole(uuid.NewString(), types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				SPIFFE: allow,
+			},
+			Deny: types.RoleConditions{
+				SPIFFE: deny,
+			},
+		})
+		require.NoError(t, err)
+		return role
+	}
+	tests := []struct {
+		name  string
+		roles []types.Role
+
+		spiffeIDPath string
+		dnsSANs      []string
+		ipSANs       []net.IP
+
+		requireErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "simple success",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs: []string{
+				"foo.example.com",
+				"foo.example.net",
+			},
+			ipSANs: []net.IP{
+				{10, 0, 0, 32},
+			},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						// Non-matching condition.
+						Path:    "/bar/boo",
+						DNSSANs: []string{},
+						IPSANs:  []string{},
+					},
+					{
+						Path: "/foo/*",
+						DNSSANs: []string{
+							"foo.example.com",
+							"*.example.net",
+						},
+						IPSANs: []string{
+							"10.0.0.1/8",
+						},
+					},
+				}, []*types.SPIFFERoleCondition{}),
+			},
+
+			requireErr: require.NoError,
+		},
+		{
+			name: "regex success",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs: []string{
+				"foo.example.com",
+				"foo.example.net",
+			},
+			ipSANs: []net.IP{
+				{10, 0, 0, 32},
+			},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						// Non-matching condition.
+						Path:    "/bar/boo",
+						DNSSANs: []string{},
+						IPSANs:  []string{},
+					},
+					{
+						Path: `^\/foo\/.*$`,
+						DNSSANs: []string{
+							"foo.example.com",
+							"*.example.net",
+						},
+						IPSANs: []string{
+							"10.0.0.1/8",
+						},
+					},
+				}, []*types.SPIFFERoleCondition{}),
+			},
+
+			requireErr: require.NoError,
+		},
+		{
+			name: "explicit deny - id path",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs:       []net.IP{},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path:    "/foo/*",
+						DNSSANs: []string{},
+						IPSANs:  []string{},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: "/foo/bar",
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "explicit deny - id path regex",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs:       []net.IP{},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path:    "/foo/*",
+						DNSSANs: []string{},
+						IPSANs:  []string{},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: `^\/foo\/bar$`,
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "explicit deny - ip san",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs: []net.IP{
+				{10, 0, 0, 42},
+			},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path:    "/foo/*",
+						DNSSANs: []string{},
+						IPSANs:  []string{"10.0.0.1/8"},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: "/*",
+						IPSANs: []string{
+							"10.0.0.42/32",
+						},
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "explicit deny - dns san",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs: []string{
+				"foo.example.com",
+			},
+			ipSANs: []net.IP{},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path: "/foo/*",
+						DNSSANs: []string{
+							"*",
+						},
+						IPSANs: []string{},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: "/*",
+						DNSSANs: []string{
+							"foo.example.com",
+						},
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "implicit deny - no match",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs:       []net.IP{},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path: "/bar/*",
+					},
+				}, []*types.SPIFFERoleCondition{}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "implicit deny - no match regex",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs:       []net.IP{},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path: `^\/bar\/.*$`,
+					},
+				}, []*types.SPIFFERoleCondition{}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name:  "no roles",
+			roles: []types.Role{},
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs:       []net.IP{},
+
+			requireErr: requireAccessDenied,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accessChecker := makeAccessCheckerWithRoleSet(tt.roles)
+			err := accessChecker.CheckSPIFFESVID(tt.spiffeIDPath, tt.dnsSANs, tt.ipSANs)
+			tt.requireErr(t, err)
+		})
+	}
 }

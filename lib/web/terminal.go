@@ -1095,6 +1095,14 @@ func (t *WSStream) writeError(msg string) {
 	}
 }
 
+func isOKWebsocketCloseError(err error) bool {
+	return websocket.IsCloseError(err,
+		websocket.CloseAbnormalClosure,
+		websocket.CloseGoingAway,
+		websocket.CloseNormalClosure,
+	)
+}
+
 func (t *WSStream) processMessages(ctx context.Context) {
 	defer func() {
 		t.close()
@@ -1108,8 +1116,7 @@ func (t *WSStream) processMessages(ctx context.Context) {
 		default:
 			ty, bytes, err := t.ws.ReadMessage()
 			if err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
-					websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || isOKWebsocketCloseError(err) {
 					return
 				}
 
