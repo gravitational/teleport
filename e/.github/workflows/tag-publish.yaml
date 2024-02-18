@@ -30,6 +30,7 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     outputs:
+      pre-release: ${{ steps.determine-version.outputs.pre-release }}
       version: ${{ steps.determine-version.outputs.full }}
     steps:
       - name: Determine Teleport version
@@ -106,6 +107,18 @@ jobs:
     with:
       release-source-tag: ${{ needs.setup.outputs.version }}
 
+  publish-operator-oci:
+    name: Publish operator OCIs
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-operator-oci.yaml
+    with:
+      teleport-version: ${{ needs.setup.outputs.version }}
+      environment: ${{ inputs.environment }}
+
   publish-os-packages:
     name: Publish OS Packages
     needs: setup
@@ -117,7 +130,7 @@ jobs:
     with:
       artifact-version: ${{ needs.setup.outputs.version }}
       # TODO(camscale): Update called workflow to use publish-prod/stage environments
-      environment: development # XXX Change to production
+      environment: ${{ needs.setup.outputs.pre-release && 'development' || 'production' }}
 
   publish-spacelift-runner:
     name: Publish spacelift runner OCI image

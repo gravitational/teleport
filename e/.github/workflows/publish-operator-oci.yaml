@@ -1,10 +1,9 @@
 name: Publish Operator OCI images
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       teleport-version:
-        description: |
-          The semver version of Teleport version that we're publishing.
+        description: The semver version of Teleport version that we're publishing.
         type: string
         required: true
 
@@ -14,8 +13,20 @@ on:
         default: publish-prod
 
       workflow-tag:
-        description: |
-          Tag used to identify workflow runs spawned by this event
+        description: Tag used to identify workflow runs spawned by this event.
+        type: string
+
+  workflow_dispatch:
+    inputs:
+      teleport-version:
+        type: string
+        required: true
+
+      environment:
+        type: string
+        default: publish-prod
+
+      workflow-tag:
         type: string
 
 jobs:
@@ -34,7 +45,7 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
-       
+
       - name: Assume AWS Promotion Role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
@@ -44,14 +55,17 @@ jobs:
           # Promotion should take roughly a minute, so 15 mins gives us plenty
           # of leeway (and is the miminum value we can ask for).
           role-duration-seconds: 900
-     
+
       - name: Login to Source ECR Registry
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
       - name: Login to Destination ECR Registry
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
         with:
-          registry-type: ${{ startsWith('public.ecr.aws', vars.OPERATOR_PUBLISH_ECR_REPO) && 'public' || 'private' }}
+          registry-type: public
+        env:
+          # GetAuthorizationToken command is only supported in us-east-1.
+          AWS_REGION: us-east-1
 
       - name: Publish Multi-arch Images
         env:
