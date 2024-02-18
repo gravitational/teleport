@@ -27,6 +27,9 @@ service AWSOIDCService {
   // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
   // It returns a list of Databases and an optional NextToken that can be used to fetch the next page
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+
+  // DeployDatabaseService deploys a Database Services to Amazon ECS.
+  rpc DeployDatabaseService(DeployDatabaseServiceRequest) returns (DeployDatabaseServiceResponse);
 }
 
 // ListDatabasesRequest is a request for a paginated list of AWS Databases.
@@ -52,4 +55,45 @@ message ListDatabasesResponse {
   // NextToken is used for pagination.
   // If non-empty, it can be used to request the next page.
   string next_token = 2;
+}
+
+// DeployDatabaseServiceRequest is a request to deploy .
+message DeployDatabaseServiceRequest {
+  // Integration is the AWS OIDC Integration name.
+  string integration = 1;
+  // Region is the AWS Region
+  string region = 2;
+  // TaskRoleARN is the AWS IAM Role received by the deployed service.
+  string task_role_arn = 3;
+  // TeleportVersion is the teleport version to be deployed.
+  // This is used to fetch the correct tag for the teleport container image.
+  // Eg, 14.3.4 (no "v" prefix)
+  string teleport_version = 4;
+  // DeploymentJoinTokenName is the Teleport IAM Join Token to be used by the deployed
+  // service to join the cluster.
+  string deployment_join_token_name = 5;
+  // Deployments is a list of services that will be deployed.
+  repeated DeployDatabaseServiceDeployment deployments = 6;
+}
+
+// DeployDatabaseServiceDeployment represents a single deployment.
+message DeployDatabaseServiceDeployment {
+  // TeleportConfigString is the teleport.yaml configuration (base64 encoded) used by teleport.
+  string teleport_config_string = 1;
+  // VpcId is the VPCID where the service is going to be deployed.
+  string vpc_id = 2;
+  // SubnetIds are the subnets for the network configuration.
+  // They must belong to the VpcId above.
+  repeated string subnet_ids = 3;
+  // SecurityGroups are the SecurityGroup IDs to associate with this particular deployment.
+  // If empty, the default security group for the VPC is going to be used.
+  repeated string security_groups = 4;
+}
+
+// DeployDatabaseServiceResponse contains information about the deployed service.
+message DeployDatabaseServiceResponse {
+  // ClusterArn identifies the cluster where the deployment was made.
+  string cluster_arn = 1;
+  // ClusterDashboardUrl is the URL for Amazon Web Console that links directly to the Amazon ECS Cluster.
+  string cluster_dashboard_url = 2;
 }

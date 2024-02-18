@@ -248,7 +248,8 @@ Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
 
 ## tctl auth export
 
-Export public cluster (CA) keys to stdout:
+Exports public cluster CA certificates. This is useful for configuring
+external systems to trust certificates issued by Teleport.
 
 ```code
 $ tctl auth export [<flags>]
@@ -281,7 +282,7 @@ $ tctl auth export
 # Filter by fingerprint
 $ tctl auth export --fingerprint=SHA256:8xu5kh1CbHCZRrGuitbQd4hM+d9V+I7YA1mUwA/2tAo
 # Export tls certs only
-$ tctl auth export --type tls
+$ tctl auth export --type=tls-host
 ```
 
 ## tctl auth rotate
