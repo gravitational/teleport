@@ -141,7 +141,7 @@ clusterHostCAs:
 Finally, deploy the TAG service using Helm:
 
 ```code
-$ helm install -n teleport-access-graph -f tag-values.yaml teleport-access-graph teleport/teleport-access-graph
+$ helm install -n teleport-access-graph -f tag-values.yaml --version (=access_graph.version=) teleport-access-graph teleport/teleport-access-graph
 $ kubectl -n teleport-access-graph rollout status deployment/teleport-access-graph # Wait for the deployment to succeed
 ```
 
