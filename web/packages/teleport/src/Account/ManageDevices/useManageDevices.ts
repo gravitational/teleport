@@ -23,6 +23,10 @@ import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 import { DeviceUsage, MfaDevice } from 'teleport/services/mfa';
+import { storageService } from 'teleport/services/storageService';
+
+const useNewAddAuthDeviceDialog =
+  storageService.isNewAddAuthDeviceDialogEnabled();
 
 export default function useManageDevices(ctx: Ctx) {
   const [devices, setDevices] = useState<MfaDevice[]>([]);
@@ -58,29 +62,19 @@ export default function useManageDevices(ctx: Ctx) {
   }
 
   function onAddDevice(restrictUsage?: DeviceUsage) {
+    const showDialog = useNewAddAuthDeviceDialog
+      ? setPasskeyWizardVisible
+      : setIsDialogVisible;
     setRestrictNewDeviceUsage(restrictUsage);
     if (devices.length === 0) {
       createRestrictedTokenAttempt.run(() =>
         auth.createRestrictedPrivilegeToken().then(token => {
           setToken(token);
-          setIsDialogVisible(true);
+          showDialog(true);
         })
       );
     } else {
-      setIsDialogVisible(true);
-    }
-  }
-
-  function onAddPasskey() {
-    if (devices.length === 0) {
-      createRestrictedTokenAttempt.run(() =>
-        auth.createRestrictedPrivilegeToken().then(token => {
-          setToken(token);
-          setPasskeyWizardVisible(true);
-        })
-      );
-    } else {
-      setPasskeyWizardVisible(true);
+      showDialog(true);
     }
   }
 
@@ -122,7 +116,6 @@ export default function useManageDevices(ctx: Ctx) {
     setToken,
     onAddDevice,
     onRemoveDevice,
-    onAddPasskey,
     onPasskeyAdded,
     deviceToRemove,
     fetchDevices,
