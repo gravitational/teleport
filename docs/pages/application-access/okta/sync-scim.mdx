@@ -11,7 +11,7 @@ a Teleport cluster.
 
 Teleport uses two complimentary methods for synchronizing Teleport resources with
 an upstream Okta Organization:
- - the Okta integration [synchronization process](./architecture)
+ - the Okta integration [synchronization process](./architecture.mdx)
  - provisioning via SCIM 
 
 On the whole, it doesn't matter to the wider Teleport system which method was
@@ -38,9 +38,9 @@ users are considered "eligible".
 All hosted Okta integrations are configured to restrict their pool of users to
 a specific Okta application.
 
-The integration [enrolment process](./hosted-guide/) creates an Okta SAML
+The integration [enrolment process](./hosted-guide.mdx) creates an Okta SAML
 Application to use as the identity provider for a new
-[SAML Authentication Connector](../../access-controls/sso/okta/). The enrolment
+[SAML Authentication Connector](../../access-controls/sso/okta.mdx). The enrolment
 process automatically configures the Okta integration to use this same
 application, giving the Okta administrator a single point of integration to
 administer and secure.
@@ -92,12 +92,12 @@ resources.
 In the case where
  1. the synchronization process detects that an Okta user has been deactivated
     or suspended, or 
- 2. the Okta organization explicitly disables the account via SCIM, 
+ 1. the Okta organization explicitly disables the account via SCIM, 
  
 The Okta integration will immediately delete the corresponding Teleport
 account and create a temporary Teleport user lock. The user lock will 
- * terminate any active Teleport sessions, and
- * prevent the disabled user from accessing any Teleport resources with
+ - terminate any active Teleport sessions, and
+ - prevent the disabled user from accessing any Teleport resources with
    credentials issued before their Teleport account was deleted.
 
 The user lock will expire after the maximum possible credential lifetime, plus

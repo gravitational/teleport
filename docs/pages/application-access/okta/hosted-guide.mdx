@@ -81,8 +81,8 @@ On the left sidebar, click **Enroll New Integration** to visit the
 ![Enroll an Access Request plugin](../../../img/enterprise/plugins/enroll.png)
 
 Select the Okta tile, and then Teleport will then ask for  
- * your Okta organization URL, and 
- * the OKta API token described above.
+ - your Okta organization URL, and 
+ - the OKta API token described above.
  
 Click **Connect** to continue.
 
@@ -101,7 +101,7 @@ As a concrete example, when using SCIM a user deactivation in Okta will be
 reflected in Teleport within seconds, rather than the tens of minutes it might
 take when waiting for an Okta synchronization pass.
 
-For more information, see the [Okta Synchronization and SCIM](./sync-scim) guide.
+For more information, see the [Okta Synchronization and SCIM](./sync-scim.mdx) guide.
 
 To recap the enrollment "Set Up SCIM" guide:
 
@@ -144,14 +144,14 @@ To recap the enrollment "Set Up SCIM" guide:
 ![Configure SCIM Provisioning](../../../img/enterprise/plugins/okta/scim-provisioning.png)
 
 For more information about how the Okta integration manages Teleport resources,
-see the Okta [Architecture](./architecture/) and [Synchronization with Okta and SCIM](./sync-scim/)
+see the Okta [Architecture](./architecture.mdx) and [Synchronization with Okta and SCIM](./sync-scim.mdx)
 guides.
 
 ## Deleting a hosted Okta integration
 
 ### SAML Connector
 
-The SAML connector created during the enrollment process is **_not_** deleted
+The SAML connector created during the enrollment process is ***not*** deleted
 when the hosted Okta integration is deleted, and will automatically be re-used
 if the Okta integration is re-enrolled.
 
@@ -171,7 +171,7 @@ to delete the corresponding Teleport accounts. Once the Teleport accounts have
 been automatically deleted you can proceed to delete the integration.
 
 Teleport user accounts can also be manually deleted with `tctl`. For more
-information, see the Teleport [Local Users](../../management/admin/users/#deleting-users)
+information, see the Teleport [Local Users](../../management/admin/users.mdx#deleting-users)
 guide.
 
 <Admonition type="note">
