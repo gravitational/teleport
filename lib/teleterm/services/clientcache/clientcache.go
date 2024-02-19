@@ -74,7 +74,7 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 		// We'll save the remote client in the cache, so we don't have to
 		// build a new connection next time.
 		// All remote clients will be closed when the daemon exits.
-		if err = c.addToCache(clusterURI, newProxyClient); err != nil {
+		if err := c.addToCache(clusterURI, newProxyClient); err != nil {
 			c.log.WithError(err).Errorf("An error occurred while adding remote client for %q to cache.", clusterURI)
 		} else {
 			c.log.Infof("Added remote client for %q to cache.", clusterURI)
