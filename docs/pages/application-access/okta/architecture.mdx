@@ -24,8 +24,9 @@ manage assignments.
 ### Synchronization
 
 The synchronization process runs periodically in the Okta Service, occurring every
-10 minutes. This service will import both Okta applications and user groups into
-Teleport, cleaning up any resources that no longer exist in Okta.
+10 minutes. This service will import Okta applications, user groups and (if 
+Teleport Identity is enabled) Okta users into Teleport, cleaning up any 
+resources that no longer exist in Okta.
 
 #### Okta Import Rules
 
