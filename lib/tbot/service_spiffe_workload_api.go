@@ -41,6 +41,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -261,7 +262,9 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 	s.log.Info("Completed pre-run initialization")
 
 	srvMetrics := metrics.CreateGRPCServerMetrics(
-		true, prometheus.Labels{},
+		true, prometheus.Labels{
+			teleport.TagServer: "tbot-spiffe-workload-api",
+		},
 	)
 	if err := metrics.RegisterPrometheusCollectors(srvMetrics); err != nil {
 		return trace.Wrap(err)
@@ -343,8 +346,7 @@ func (s *SPIFFEWorkloadAPIService) handleCARotations(ctx context.Context) error 
 		tb, err := fetchBundle(ctx, s.client)
 		if err != nil {
 			s.log.WithError(err).Error("Failed to fetch trust bundle")
-			// TODO: Limited retry behaviour
-			return err
+			return trace.Wrap(err)
 		}
 		s.log.Info("Fetched new trust bundle")
 		s.setTrustBundle(tb)

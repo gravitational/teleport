@@ -487,6 +487,7 @@ require (
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yuin/gopher-lua v1.1.0 // indirect
+	github.com/zeebo/errs v1.3.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	github.com/zmap/zcrypto v0.0.0-20230310154051-c8b263fd8300 // indirect
 	github.com/zmap/zlint/v3 v3.5.0 // indirect
