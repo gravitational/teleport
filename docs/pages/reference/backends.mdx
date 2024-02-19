@@ -36,7 +36,7 @@ run in a highly available fashion.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
-## Auth Server State
+## Auth Service State
 
 To run multiple instances of the Teleport Auth Service, you must switch to one of
 the high-availability secrets backend listed below first.
@@ -57,7 +57,7 @@ be paid to keeping their configuration identical. Settings like `cluster_name`,
 `tokens`, `storage`, etc. must be the same.
 </Admonition>
 
-## Proxy Server State
+## Proxy Service State
 
 The Teleport Proxy is stateless which makes running multiple instances trivial.
 
@@ -123,8 +123,8 @@ To configure Teleport for using etcd as a storage backend:
   - You can use [this script provided by
     etcd](https://github.com/etcd-io/etcd/tree/master/hack/tls-setup) if you
     don't already have a TLS setup.
-- Configure all Teleport Auth servers to use etcd in the "storage" section of the config file as shown below.
-- Deploy several auth servers connected to etcd backend.
+- Configure all Teleport Auth Service instances to use etcd in the "storage" section of the config file as shown below.
+- Deploy several Auth Service instances connected to etcd backend.
 - Deploy several Proxy Service instances that have `auth_server` pointed to the auth server to connect to.
 
 ```yaml
@@ -860,7 +860,7 @@ teleport:
   audit log in DynamoDB and the session recordings **must** be stored in an S3
   bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file system for the audit log, i.e.
-  `/var/lib/teleport/log` on an auth server.
+  `/var/lib/teleport/log` on an Auth Service instance.
 
 The optional `GET` parameters shown below control how Teleport interacts with a DynamoDB endpoint.
 
@@ -919,7 +919,7 @@ Config option priority is applied in the following order:
 
 Google Cloud Storage (GCS) can be used as storage for recorded
 sessions. GCS cannot store the audit log or the cluster state. Below is an
-example of how to configure a Teleport auth server to store the recorded
+example of how to configure a Teleport Auth Service to store the recorded
 sessions in a GCS bucket.
 
 ```yaml
@@ -1014,7 +1014,7 @@ teleport:
 - Audit log settings above are optional. If specified, Teleport will store the audit log in Firestore
   and the session recordings **must** be stored in a GCS bucket, i.e. both `audit_xxx` settings must
   be present. If they are not set, Teleport will default to a local filesystem for the audit log, i.e.
-  `/var/lib/teleport/log` on an auth server.
+  `/var/lib/teleport/log` on an Auth Service instance.
 
 ## Azure Blob Storage (Preview)
 
@@ -1040,7 +1040,7 @@ teleport:
 
 Azure Blob Storage can be used as storage for recorded sessions. Azure Blob
 Storage cannot store the audit log or the cluster state. Below is an example of
-how to configure a Teleport auth server to store the recorded sessions in an
+how to configure a Teleport Auth Service instance to store the recorded sessions in an
 Azure Blob Storage storage account.
 
 ```yaml
@@ -1143,7 +1143,7 @@ teleport:
 ```
 
 The SQLite backend and other required data will be written to the Teleport data directory.
-The data directory location for Teleport by default is `/var/lib/teleport`. To modify
+By default, Teleport's data directory is `/var/lib/teleport`. To modify
 the location set the `data_dir` value within the Teleport configuration file.
 
 ```yaml
