@@ -44,6 +44,13 @@ type Cache struct {
 	group singleflight.Group
 }
 
+// Config describes the client cache configuration.
+type Config struct {
+	clusters.Resolver
+	Log *logrus.Entry
+}
+
+// New creates an instance of Cache.
 func New(c Config) *Cache {
 	return &Cache{
 		log:      c.Log,
@@ -167,9 +174,4 @@ func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ProxyClient {
 
 	remoteClt := c.clients[clusterURI]
 	return remoteClt
-}
-
-type Config struct {
-	clusters.Resolver
-	Log *logrus.Entry
 }
