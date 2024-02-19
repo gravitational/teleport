@@ -54,6 +54,10 @@ ssh_service:
        # /cgroup2.
        cgroup_path: /cgroup2
 
+       # Optional: Controls the path inside cgroupv2 hierarchy where Teleport
+       # cgroups will be placed. Default value: /teleport
+       root_path: /teleport
+
     # Configures PAM integration. See our PAM guide for more details
     # (https://goteleport.com/docs/features/ssh-pam/).
     pam:
