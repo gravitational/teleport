@@ -153,7 +153,7 @@ the Teleport Auth Service will need a copy of the certificate of the CA that iss
 Create a ConfigMap containing the CA certificate as follows:
 
 ```code
-$ kubectl -n teleport create configmap teleport-access-graph-ca \
+$ kubectl -n <Var name="teleport-cluster-namespace" /> create configmap teleport-access-graph-ca \
     --from-file=ca.pem=./certs/ca.crt
 ```
 
@@ -189,10 +189,11 @@ Finally, redeploy the Helm chart (assuming the values are stored in `values-tele
 Once the Auth Service changes succeed, restart the Proxy Service.
 
 ```code
-$ helm upgrade -n teleport -f values-teleport.yaml --version <version> teleport teleport/teleport-cluster 
-$ kubectl -n teleport rollout status deployment/teleport-auth   # Wait for the deployment to succeed
-$ kubectl -n teleport rollout restart deployment/teleport-proxy 
-$ kubectl -n teleport rollout status deployment/teleport-proxy  # Wait for the deployment to succeed
+$ helm upgrade -n <Var name="teleport-cluster-namespace" /> -f values-teleport.yaml \
+  --version <version> <Var name="teleport-cluster-deployment-name" /> teleport/teleport-cluster
+$ kubectl -n <Var name="teleport-cluster-namespace" /> rollout status deployment/teleport-auth   # Wait for the deployment to succeed
+$ kubectl -n <Var name="teleport-cluster-namespace" /> rollout restart deployment/teleport-proxy
+$ kubectl -n <Var name="teleport-cluster-namespace" /> rollout status deployment/teleport-proxy  # Wait for the deployment to succeed
 ```
 
 ## Step 4/4. View the Access Graph in the Web UI
