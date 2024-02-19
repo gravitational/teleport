@@ -110,6 +110,11 @@ func GenerateSVID(
 	reqs []SVIDRequest,
 	ttl time.Duration,
 ) (*machineidv1pb.SignX509SVIDsResponse, *rsa.PrivateKey, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"GenerateSVID",
+	)
+	defer span.End()
 	privateKey, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

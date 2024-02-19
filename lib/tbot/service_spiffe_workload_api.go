@@ -126,6 +126,9 @@ func fetchBundle(ctx context.Context, c auth.ClientI) ([]byte, error) {
 // trust domain, fetching the initial trust bundle and creating an impersonated
 // client.
 func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/setup")
+	defer span.End()
+
 	botIdentity := s.botIdentitySrc.BotIdentity()
 	client, err := clientForIdentity(
 		ctx, s.log, s.botCfg, botIdentity, s.resolver,
@@ -244,6 +247,8 @@ func createListener(addr string) (net.Listener, error) {
 }
 
 func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/Run")
+	defer span.End()
 	if !experiment.Enabled() {
 		return trace.BadParameter("workload identity has not been enabled")
 	}
@@ -323,6 +328,8 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 // handleCARotations listens on a channel subscribed to the bot's CA watcher and
 // refetches the trust bundle when a rotation is detected.
 func (s *SPIFFEWorkloadAPIService) handleCARotations(ctx context.Context) error {
+	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/handleCARotations")
+	defer span.End()
 	reloadCh, unsubscribe := s.rootReloadBroadcaster.subscribe()
 	defer unsubscribe()
 	for {
@@ -367,6 +374,8 @@ func serialString(serial *big.Int) string {
 func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	ctx context.Context,
 ) ([]*workloadpb.X509SVID, error) {
+	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/fetchX509SVIDs")
+	defer span.End()
 	// Fetch this once at the start and share it across all SVIDs to reduce
 	// contention on the mutex and to ensure that all SVIDs are using the
 	// same trust bundle.
