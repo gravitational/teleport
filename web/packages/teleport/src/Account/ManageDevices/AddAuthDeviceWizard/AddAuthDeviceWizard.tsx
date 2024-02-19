@@ -17,13 +17,14 @@
  */
 
 import { OutlineDanger } from 'design/Alert/Alert';
+import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
+import * as Icon from 'design/Icon';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import Link from 'design/Link';
-import { SingleRowBox } from 'design/MultiRowBox';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
 import Text from 'design/Text';
@@ -35,6 +36,7 @@ import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
+import styled from 'styled-components';
 
 import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
@@ -168,10 +170,11 @@ export function ReauthenticateStep({
 
   return (
     <div ref={refCallback} data-testid="reauthenticate-step">
-      <Text typography="body2">
-        Step {stepIndex + 1} of {flowLength}
-      </Text>
-      <Text typography="h4">Verify Identity</Text>
+      <DialogHeader
+        stepIndex={stepIndex}
+        flowLength={flowLength}
+        title="Verify Identity"
+      />
       {attempt.status === 'failed' && (
         <OutlineDanger>{errorMessage}</OutlineDanger>
       )}
@@ -186,6 +189,7 @@ export function ReauthenticateStep({
               autoFocus
               flexDirection="row"
               gap={3}
+              mb={4}
               onChange={o => {
                 setMfaOption(o as Auth2faType);
                 clearAttempt();
@@ -203,8 +207,14 @@ export function ReauthenticateStep({
                 readonly={attempt.status === 'processing'}
               />
             )}
-            <ButtonPrimary type="submit">Verify my identity</ButtonPrimary>
-            <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
+            <Flex gap={2}>
+              <ButtonPrimary block={true} type="submit">
+                Verify my identity
+              </ButtonPrimary>
+              <ButtonSecondary block={true} onClick={onClose}>
+                Cancel
+              </ButtonSecondary>
+            </Flex>
           </form>
         )}
       </Validation>
@@ -255,12 +265,14 @@ export function CreateDeviceStep({
 
   return (
     <div ref={refCallback} data-testid="create-step">
-      <Text typography="body2">
-        Step {stepIndex + 1} of {flowLength}
-      </Text>
-      <Text typography="h4">
-        {usage === 'passwordless' ? 'Create a Passkey' : 'Create an MFA Method'}
-      </Text>
+      <DialogHeader
+        stepIndex={stepIndex}
+        flowLength={flowLength}
+        title={
+          usage === 'passwordless' ? 'Create a Passkey' : 'Create an MFA Method'
+        }
+      />
+
       {createPasskeyAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{createPasskeyAttempt.attempt.statusText}</OutlineDanger>
       )}
@@ -273,14 +285,22 @@ export function CreateDeviceStep({
           onNewMfaDeviceTypeChange={onNewMfaDeviceTypeChange}
         />
       )}
-      <ButtonPrimary onClick={onCreate}>
-        {usage === 'passwordless' ? 'Create a passkey' : 'Create an MFA method'}
-      </ButtonPrimary>
-      {stepIndex === 0 ? (
-        <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
-      ) : (
-        <ButtonSecondary onClick={prev}>Back</ButtonSecondary>
-      )}
+      <Flex gap={2}>
+        <ButtonPrimary block={true} onClick={onCreate}>
+          {usage === 'passwordless'
+            ? 'Create a passkey'
+            : 'Create an MFA method'}
+        </ButtonPrimary>
+        {stepIndex === 0 ? (
+          <ButtonSecondary block={true} onClick={onClose}>
+            Cancel
+          </ButtonSecondary>
+        ) : (
+          <ButtonSecondary block={true} onClick={prev}>
+            Back
+          </ButtonSecondary>
+        )}
+      </Flex>
     </div>
   );
 }
@@ -314,6 +334,7 @@ function CreateMfaBox({
         autoFocus
         flexDirection="row"
         gap={3}
+        mb={4}
         onChange={o => {
           onNewMfaDeviceTypeChange(o as Auth2faType);
         }}
@@ -338,11 +359,10 @@ function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
     <Flex
       flexDirection="column"
       borderRadius={8}
-      p={3}
+      gap={4}
+      p={4}
       mb={4}
-      css={`
-        background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
-      `}
+      bg="interactive.tonal.neutral.0"
     >
       <Flex height="168px" justifyContent="center" alignItems="center">
         {fetchQrCodeAttempt.status === 'error' && (
@@ -358,6 +378,7 @@ function QrCodeBox({ privilegeToken }: { privilegeToken: string }) {
             style={{
               boxSizing: 'border-box',
               border: '8px solid white',
+              borderRadius: '8px',
             }}
           />
         )}
@@ -436,12 +457,14 @@ export function SaveDeviceStep({
 
   return (
     <div ref={refCallback} data-testid="save-step">
-      <Text typography="body2">
-        Step {stepIndex + 1} of {flowLength}
-      </Text>
-      <Text typography="h4">
-        {usage === 'passwordless' ? 'Save the Passkey' : 'Save the MFA method'}
-      </Text>
+      <DialogHeader
+        stepIndex={stepIndex}
+        flowLength={flowLength}
+        title={
+          usage === 'passwordless' ? 'Save the Passkey' : 'Save the MFA method'
+        }
+      />
+
       {saveAttempt.attempt.status === 'failed' && (
         <OutlineDanger>{saveAttempt.attempt.statusText}</OutlineDanger>
       )}
@@ -475,12 +498,16 @@ export function SaveDeviceStep({
                 readonly={saveAttempt.attempt.status === 'processing'}
               />
             )}
-            <ButtonPrimary type="submit">
-              {usage === 'passwordless'
-                ? 'Save the Passkey'
-                : 'Save the MFA method'}
-            </ButtonPrimary>
-            <ButtonSecondary onClick={prev}>Back</ButtonSecondary>
+            <Flex gap={2}>
+              <ButtonPrimary block={true} type="submit">
+                {usage === 'passwordless'
+                  ? 'Save the Passkey'
+                  : 'Save the MFA method'}
+              </ButtonPrimary>
+              <ButtonSecondary block={true} onClick={prev}>
+                Back
+              </ButtonSecondary>
+            </Flex>
           </form>
         )}
       </Validation>
@@ -488,17 +515,63 @@ export function SaveDeviceStep({
   );
 }
 
+function DialogHeader({
+  stepIndex,
+  flowLength,
+  title,
+}: {
+  stepIndex: number;
+  flowLength: number;
+  title: string;
+}) {
+  return (
+    <Box mb={4}>
+      <Text typography="body1">
+        Step {stepIndex + 1} of {flowLength}
+      </Text>
+      <Text typography="h4">{title}</Text>
+    </Box>
+  );
+}
+
 function PasskeyBlurb() {
   return (
-    <SingleRowBox>
+    <Box
+      mb={4}
+      border={1}
+      borderColor="interactive.tonal.neutral.2"
+      borderRadius={3}
+      p={3}
+    >
+      <OverlappingChip>
+        <Icon.FingerprintSimple p={2} />
+      </OverlappingChip>
+      <OverlappingChip>
+        <Icon.UsbDrive p={2} />
+      </OverlappingChip>
+      <OverlappingChip>
+        <Icon.UserFocus p={2} />
+      </OverlappingChip>
+      <OverlappingChip>
+        <Icon.DeviceMobileCamera p={2} />
+      </OverlappingChip>
       <p>
         Teleport supports passkeys, a password replacement that validates your
         identity using touch, facial recognition, a device password, or a PIN.
       </p>
-      <p>
+      <p style={{ marginBottom: 0 }}>
         Passkeys can be used to sign in as a simple and secure alternative to
         your password and multi-factor credentials.
       </p>
-    </SingleRowBox>
+    </Box>
   );
 }
+
+const OverlappingChip = styled.span`
+  display: inline-block;
+  background: ${props => props.theme.colors.levels.surface};
+  border: ${props => props.theme.borders[1]};
+  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
+  border-radius: 50%;
+  margin-right: -6px;
+`;
