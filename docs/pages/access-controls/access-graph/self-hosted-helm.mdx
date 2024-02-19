@@ -153,7 +153,7 @@ the Auth Service configuration needs to be updated with:
 - The path to the CA which issued the TAG service TLS certificate.
   - This path must refer to a volume containing the CA, mounted on the Teleport pods.
   - Specifying the CA certificate file can be skipped if you are using a CA that is already trusted by the Teleport cluster
-    (e.g. via the [`tls.existingCASecretName` option](../../reference/helm-reference/teleport-cluster/#tlsexistingcasecretname)),
+    (e.g. via the [`tls.existingCASecretName` option](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)),
     or if the certificate was issued by a CA included in the [Mozilla CA Certificate List](https://wiki.mozilla.org/CA/Included_Certificates).
 
 Create a ConfigMap containing the CA certificate as follows:
