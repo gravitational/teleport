@@ -23,6 +23,10 @@ import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 import { DeviceUsage, MfaDevice } from 'teleport/services/mfa';
+import { storageService } from 'teleport/services/storageService';
+
+const useNewAddAuthDeviceDialog =
+  storageService.isNewAddAuthDeviceDialogEnabled();
 
 export default function useManageDevices(ctx: Ctx) {
   const [devices, setDevices] = useState<MfaDevice[]>([]);
@@ -33,6 +37,7 @@ export default function useManageDevices(ctx: Ctx) {
   const [restrictNewDeviceUsage, setRestrictNewDeviceUsage] = useState<
     DeviceUsage | undefined
   >(undefined);
+  const [passkeyWizardVisible, setPasskeyWizardVisible] = useState(false);
 
   // This is a restricted privilege token that can only be used to add a device, in case
   // the user has no devices yet and thus can't authenticate using the ReAuthenticate dialog
@@ -41,6 +46,7 @@ export default function useManageDevices(ctx: Ctx) {
   const isReAuthenticateVisible = !token && isDialogVisible;
   const isRemoveDeviceVisible = token && deviceToRemove && isDialogVisible;
   const isAddDeviceVisible = token && !deviceToRemove && isDialogVisible;
+  const isReauthenticationRequired = !token;
 
   function fetchDevices() {
     fetchDevicesAttempt.run(() =>
@@ -56,17 +62,26 @@ export default function useManageDevices(ctx: Ctx) {
   }
 
   function onAddDevice(restrictUsage?: DeviceUsage) {
+    const showDialog = useNewAddAuthDeviceDialog
+      ? setPasskeyWizardVisible
+      : setIsDialogVisible;
     setRestrictNewDeviceUsage(restrictUsage);
     if (devices.length === 0) {
       createRestrictedTokenAttempt.run(() =>
         auth.createRestrictedPrivilegeToken().then(token => {
           setToken(token);
-          setIsDialogVisible(true);
+          showDialog(true);
         })
       );
     } else {
-      setIsDialogVisible(true);
+      showDialog(true);
     }
+  }
+
+  function onPasskeyAdded() {
+    fetchDevices();
+    setPasskeyWizardVisible(false);
+    setToken(null);
   }
 
   function hideAddDevice() {
@@ -89,6 +104,10 @@ export default function useManageDevices(ctx: Ctx) {
     setIsDialogVisible(false);
   }
 
+  function closePasskeyWizard() {
+    setPasskeyWizardVisible(false);
+  }
+
   useEffect(() => fetchDevices(), []);
 
   return {
@@ -97,6 +116,7 @@ export default function useManageDevices(ctx: Ctx) {
     setToken,
     onAddDevice,
     onRemoveDevice,
+    onPasskeyAdded,
     deviceToRemove,
     fetchDevices,
     removeDevice,
@@ -105,9 +125,12 @@ export default function useManageDevices(ctx: Ctx) {
     isReAuthenticateVisible,
     isAddDeviceVisible,
     isRemoveDeviceVisible,
+    isReauthenticationRequired,
+    passkeyWizardVisible,
     hideReAuthenticate,
     hideAddDevice,
     hideRemoveDevice,
+    closePasskeyWizard,
     mfaDisabled: cfg.getAuth2faType() === 'off',
     restrictNewDeviceUsage,
   };

@@ -7,6 +7,18 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
+      # The latest otel version contains a data race. Ignore any updates until the issue
+      # is resolved.
+      - dependency-name: go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws
+      - dependency-name: go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
+      - dependency-name: go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
+      - dependency-name: go.opentelemetry.io/otel
+      - dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace
+      - dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc
+      - dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp
+      - dependency-name: go.opentelemetry.io/otel/metric
+      - dependency-name: go.opentelemetry.io/otel/sdk
+      - dependency-name: go.opentelemetry.io/otel/trace
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf
@@ -180,7 +192,24 @@ updates:
       - "no-changelog"
 
   - package-ecosystem: github-actions
-    directory: "/"
+    directory: "/.github/workflows"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    reviewers:
+      - wadells
+      - jentfoo
+      - fheinecke
+      - camscale
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "no-changelog"
+
+  - package-ecosystem: github-actions
+    directory: "/.github/actions"
     schedule:
       interval: weekly
       day: monday

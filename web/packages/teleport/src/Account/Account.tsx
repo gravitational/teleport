@@ -41,6 +41,7 @@ import useManageDevices, {
 import AddDevice from './ManageDevices/AddDevice';
 import { ActionButton, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
+import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
@@ -104,6 +105,7 @@ export function Account({
   setToken,
   onAddDevice,
   onRemoveDevice,
+  onPasskeyAdded,
   deviceToRemove,
   fetchDevices,
   removeDevice,
@@ -112,9 +114,11 @@ export function Account({
   isReAuthenticateVisible,
   isAddDeviceVisible,
   isRemoveDeviceVisible,
+  passkeyWizardVisible,
   hideReAuthenticate,
   hideAddDevice,
   hideRemoveDevice,
+  closePasskeyWizard,
   isSso,
   canAddMFA,
   canAddPasskeys,
@@ -168,6 +172,11 @@ export function Account({
 
   function onPasswordChange() {
     addNotification('info', 'Your password has been changed.');
+  }
+
+  function onAddPasskeySuccess() {
+    addNotification('info', 'Passkey successfully saved.');
+    onPasskeyAdded();
   }
 
   return (
@@ -269,6 +278,16 @@ export function Account({
           name={deviceToRemove.name}
           onRemove={removeDevice}
           onClose={hideRemoveDevice}
+        />
+      )}
+
+      {passkeyWizardVisible && (
+        <AddAuthDeviceWizard
+          usage={restrictNewDeviceUsage}
+          auth2faType={cfg.getAuth2faType()}
+          privilegeToken={token}
+          onClose={closePasskeyWizard}
+          onSuccess={onAddPasskeySuccess}
         />
       )}
 

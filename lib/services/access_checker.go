@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"net"
 	"slices"
 	"strings"
 	"time"
@@ -59,7 +60,7 @@ type AccessChecker interface {
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
 
 	// CheckAccessToRule checks access to a rule within a namespace.
-	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string, silent bool) error
+	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string) error
 
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.
@@ -259,6 +260,11 @@ type AccessChecker interface {
 	//
 	// - types.KindWindowsDesktop
 	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
+
+	// CheckSPIFFESVID checks if the role set has access to generating the
+	// requested SPIFFE ID. Returns an error if the role set does not have the
+	// ability to generate the requested SVID.
+	CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) error
 }
 
 // AccessInfo hold information about an identity necessary to check whether that

@@ -16,16 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { BotList } from 'teleport/Bots/List/BotList';
 import { BotListProps } from 'teleport/Bots/types';
 import { botsFixture } from 'teleport/Bots/fixtures';
+import { BotUiFlow } from 'teleport/services/bot/types';
 
 const makeProps = (): BotListProps => ({
   attempt: { status: '' },
   bots: botsFixture,
   disabledEdit: false,
+  disabledDelete: false,
   onClose: () => {},
   onDelete: () => {},
   onEdit: () => {},
@@ -49,4 +51,50 @@ test('renders table with bots', () => {
       expect(screen.getByText(role)).toBeInTheDocument();
     });
   });
+});
+
+test('renders View options if type is github actions ssh', async () => {
+  const bot = {
+    namespace: '',
+    description: '',
+    labels: null,
+    revision: '',
+    traits: [],
+    status: '',
+    subKind: '',
+    version: '',
+    kind: 'kind',
+    name: 'github-actions-bot',
+    roles: [],
+    type: BotUiFlow.GitHubActionsSsh,
+  };
+
+  const props = makeProps();
+  props.bots = [bot];
+  render(<BotList {...props} />);
+  await fireEvent.click(await screen.findByText('OPTIONS'));
+  expect(screen.getByText('View...')).toBeInTheDocument();
+});
+
+test('doesnt renders View options if bot type is not github actions', async () => {
+  const bot = {
+    namespace: '',
+    description: '',
+    labels: null,
+    revision: '',
+    traits: [],
+    status: '',
+    subKind: '',
+    version: '',
+    kind: 'kind',
+    name: 'github-actions-bot',
+    roles: [],
+    type: null,
+  };
+
+  const props = makeProps();
+  props.bots = [bot];
+  render(<BotList {...props} />);
+  await fireEvent.click(await screen.findByText('OPTIONS'));
+  expect(screen.queryByText('View...')).not.toBeInTheDocument();
 });

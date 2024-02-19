@@ -66,6 +66,7 @@ func FromProto(msg *discoveryconfigv1.DiscoveryConfig) (*discoveryconfig.Discove
 			Azure:          azureMatchers,
 			GCP:            gcpMatchers,
 			Kube:           kubeMatchers,
+			AccessGraph:    msg.Spec.AccessGraph,
 		},
 	)
 
@@ -103,6 +104,7 @@ func ToProto(discoveryConfig *discoveryconfig.DiscoveryConfig) *discoveryconfigv
 			Azure:          azureMatchers,
 			Gcp:            gcpMatchers,
 			Kube:           kubeMatchers,
+			AccessGraph:    discoveryConfig.Spec.AccessGraph,
 		},
 	}
 }

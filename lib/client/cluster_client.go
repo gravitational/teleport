@@ -54,6 +54,15 @@ func (c *ClusterClient) ClusterName() string {
 	return c.cluster
 }
 
+// RootClusterName returns the name of the root cluster. If the
+// client is connected directly to the root cluster, then this
+// returns the same value as [ClusterClient.ClusterName]. If
+// the client is connected to a leaf cluster, this returns the
+// root cluster associated with the leaf.
+func (c *ClusterClient) RootClusterName() string {
+	return c.root
+}
+
 // CurrentCluster returns an authenticated auth server client for the local cluster.
 // The returned auth server client does not need to be closed, it will be closed
 // when the ClusterClient is closed.

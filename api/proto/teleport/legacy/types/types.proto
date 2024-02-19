@@ -3000,6 +3000,49 @@ message RoleConditions {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "db_permissions,omitempty"
   ];
+  // SPIFFE is used to allow or deny access to a role holder to generating a
+  // SPIFFE SVID.
+  repeated SPIFFERoleCondition SPIFFE = 39 [(gogoproto.jsontag) = "spiffe,omitempty"];
+}
+
+// SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
+// denied to generate. The Path matcher is required, and is evaluated first. If,
+// the Path does not match then the other matcher fields are not evaluated.
+message SPIFFERoleCondition {
+  // Path specifies a matcher for the SPIFFE ID path. It should not include the
+  // trust domain and should start with a leading slash.
+  //
+  // The matcher by default allows '*' to be used to indicate zero or more of
+  // any character. Prepend '^' and append '$' to instead switch to matching
+  // using the Go regex syntax.
+  //
+  // Example:
+  // - /svc/foo/*/bar would match /svc/foo/baz/bar
+  // - ^\/svc\/foo\/.*\/bar$ would match /svc/foo/baz/bar
+  string Path = 1 [(gogoproto.jsontag) = "path,omitempty"];
+  // DNSSANs specifies matchers for the SPIFFE ID DNS SANs.
+  //
+  // Each requested DNS SAN is compared against all matchers configured and if
+  // any match, the condition is considered to be met.
+  //
+  // The matcher by default allows '*' to be used to indicate zero or more of
+  // any character. Prepend '^' and append '$' to instead switch to matching
+  // using the Go regex syntax.
+  //
+  // Example: *.example.com would match foo.example.com
+  repeated string DNSSANs = 2 [(gogoproto.jsontag) = "dns_sans,omitempty"];
+  // IPSANs specifies matchers for the SPIFFE ID IP SANs.
+  //
+  // Each requested IP SAN is compared against all matchers configured and if
+  // any match, the condition is considered to be met.
+  //
+  // The matchers should be specified using CIDR notation, it supports IPv4 and
+  // IPv6.
+  //
+  // Examples:
+  // - 10.0.0.0/24 would match 10.0.0.0 to 10.255.255.255
+  // - 10.0.0.42/32 would match only 10.0.0.42
+  repeated string IPSANs = 3 [(gogoproto.jsontag) = "ip_sans,omitempty"];
 }
 
 // DatabasePermission specifies the database object permission for the user.
@@ -4952,6 +4995,15 @@ message WindowsDesktopSpecV3 {
   // NonAD marks this desktop as a standalone host that is
   // not joined to an Active Directory domain.
   bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];
+  // ScreenSize specifies the size of the screen to use for sessions
+  // on this host. In most cases this should be unspecified, in which
+  // case Teleport will fill the browser window.
+  Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
+}
+
+message Resolution {
+  uint32 Width = 1 [(gogoproto.jsontag) = "width,omitempty"];
+  uint32 Height = 2 [(gogoproto.jsontag) = "height,omitempty"];
 }
 
 // RegisterUsingTokenRequest is a request to register with the auth server using
@@ -6568,4 +6620,20 @@ message OktaOptions {
     (gogoproto.jsontag) = "sync_period,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+}
+
+// AccessGraphSync is a configuration for Access Graph service.
+message AccessGraphSync {
+  // AWS is a configuration for AWS Access Graph service poll service.
+  repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+// AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
+message AccessGraphAWSSync {
+  // Regions are AWS regions to import resources from.
+  repeated string Regions = 1 [(gogoproto.jsontag) = "regions,omitempty"];
+  // AssumeRoleARN is the AWS role to assume for database discovery.
+  AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
 }

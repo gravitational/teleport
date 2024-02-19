@@ -4,10 +4,11 @@ description: How to manage dynamic resources using the Teleport Terraform provid
 videoBanner: YgNHD4SS8dg
 ---
 
-This guide demonstrates how to:
+This guide demonstrates how to: Set up the Terraform provider for Teleport on
+Linux and macOS.
 
-- Set up the Terraform provider for Teleport on Linux and macOS.
-- Configure Teleport users and roles using the Terraform provider.
+For instructions on managing users and roles via Terraform, read
+the ["Managing users and roles with IaC" guide](./user-and-role.mdx).
 
 For instructions on managing the Teleport dynamic resources as code using
 GitOps, read the guide to using the Teleport Terraform provider with [Spacelift
@@ -79,6 +80,7 @@ To prepare credentials for a local Teleport user:
            - token
            - trusted_cluster
            - user
+           - access_list
            verbs: ['list','create','read','update','delete']
    version: v7
    ---
@@ -96,7 +98,9 @@ To prepare credentials for a local Teleport user:
 1. Create the `terraform` user and role by running the following command:
 
    ```code
-   $ tctl create terraform.yaml
+   $ tctl create -f terraform.yaml
+   role 'terraform' has been created
+   user "terraform" has been created
    ```
 
    The `terraform` user can't sign in to get credentials, so you must have another user
@@ -125,7 +129,8 @@ the following content into the `terraform-impersonator.yaml` file:
 1. Create the `terraform-impersonator` role by running the following command:
 
    ```code
-   $ tctl create terraform-impersonator.yaml
+   $ tctl create -f terraform-impersonator.yaml
+   role 'terraform-impersonator' has been created
    ```
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="terraform-impersonator"!)
@@ -142,24 +147,25 @@ the following content into the `terraform-impersonator.yaml` file:
 
 To prepare a Terraform configuration file:
 
-1. Create a new file called `main.tf` and open it in an editor.
+1. Create a new file called `provider.tf` and open it in an editor.
 
-1. Define an example user and role using Terraform by pasting the following content into the `main.tf` file:
+1. Use the Teleport Terraform provider and connect it to your Teleport cluster 
+   by pasting the following content into the `provider.tf` file:
 
    <Tabs>
    <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
    ```hcl
-   (!examples/resources/terraform/terraform-user-role-cloud.tf!)
+   (!examples/resources/terraform/provider-cloud.tf!)
    ```
    </TabItem>
    <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
    ```hcl
-   (!examples/resources/terraform/terraform-user-role-self-hosted.tf!)
+   (!examples/resources/terraform/provider-self-hosted.tf!)
    ```
    </TabItem>
    </Tabs>
 
-## Step 3/3. Apply the configuration
+## Step 3/3. Validate the configuration
 
 To apply the configuration:
 
@@ -167,18 +173,18 @@ To apply the configuration:
 
    ```code
    $ ls
-   # main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
+   # provider.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
    ```
 
-1. Initialize the working directory that contains Terraform configuration files by running the
-following command:
+1. Initialize the working directory that contains Terraform configuration files
+   by running the following command:
 
    ```code
    $ terraform init
    ```
 
 1. Execute the Terraform plan defined in the configuration file by running the
-following command:
+   following command:
 
    ```code
    $ terraform apply
@@ -186,5 +192,7 @@ following command:
 
 ## Next steps
 
+- Follow [the user and role IaC guide](./user-and-role.mdx) to use the Terraform
+  Provider to create Teleport users and grant them roles.
 - Explore the full list of supported [Terraform provider resources](../../reference/terraform-provider.mdx).
 - Read more about [impersonation](../../access-controls/guides/impersonation.mdx).
