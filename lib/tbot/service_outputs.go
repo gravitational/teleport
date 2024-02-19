@@ -661,7 +661,8 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 // requests for the same information. This is shared between all of the
 // outputs.
 type outputRenewalCache struct {
-	client auth.ClientI
+	client    auth.ClientI
+	certCache *caRotationService
 
 	cfg *config.BotConfig
 	mu  sync.Mutex
@@ -671,33 +672,18 @@ type outputRenewalCache struct {
 	_proxyPong *webclient.PingResponse
 }
 
-func (orc *outputRenewalCache) getCertAuthorities(
-	ctx context.Context, caType types.CertAuthType,
-) ([]types.CertAuthority, error) {
-	if cas := orc._cas[caType]; len(cas) > 0 {
-		return cas, nil
-	}
-
-	cas, err := orc.client.GetCertAuthorities(ctx, caType, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if orc._cas == nil {
-		orc._cas = map[types.CertAuthType][]types.CertAuthority{}
-	}
-	orc._cas[caType] = cas
-	return cas, nil
-}
-
-// GetCertAuthorities returns the possibly cached CAs of the given type and
-// requests them from the server if unavailable.
+// GetCertAuthorities
 func (orc *outputRenewalCache) GetCertAuthorities(
 	ctx context.Context, caType types.CertAuthType,
 ) ([]types.CertAuthority, error) {
-	orc.mu.Lock()
-	defer orc.mu.Unlock()
-	return orc.getCertAuthorities(ctx, caType)
+	return orc.certCache.GetCertAuthorities(ctx, caType, false)
+}
+
+// GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
+func (orc *outputProvider) GetCertAuthority(
+	ctx context.Context, id types.CertAuthID, loadKeys bool,
+) (types.CertAuthority, error) {
+	return orc.certCache.GetCertAuthority(ctx, id, loadKeys)
 }
 
 func (orc *outputRenewalCache) authPing(ctx context.Context) (*proto.PingResponse, error) {
@@ -784,11 +770,6 @@ func (op *outputProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]t
 // GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
 func (op *outputProvider) GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
 	return op.impersonatedClient.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
-}
-
-// GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
-func (op *outputProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	return op.impersonatedClient.GetCertAuthority(ctx, id, loadKeys)
 }
 
 // chooseOneDatabase chooses one matched database by name, or tries to choose
