@@ -59,23 +59,12 @@ type identityService struct {
 	resolver          reversetunnelclient.Resolver
 
 	mu     sync.Mutex
-	_ident *identity.Identity
+	client auth.ClientI
+	facade *identity.Facade
 }
 
 func (s *identityService) String() string {
 	return "identity"
-}
-
-func (s *identityService) setIdent(i *identity.Identity) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s._ident = i
-}
-
-func (s *identityService) ident() *identity.Identity {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s._ident
 }
 
 func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
@@ -84,6 +73,18 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 	}
 
 	return !bytes.Equal(identityBytes, configTokenBytes)
+}
+
+func (s *identityService) getIdentity() *identity.Identity {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.facade.Get()
+}
+
+func (s *identityService) getClient() auth.ClientI {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.client
 }
 
 // loadIdentityFromStore attempts to load a persisted identity from a store.
@@ -130,7 +131,7 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 	return loadedIdent, nil
 }
 
-// Initialize attempts to loaad an existing identity from the bot's storage.
+// Initialize attempts to load an existing identity from the bot's storage.
 // If an identity is found, it is checked against the configured onboarding
 // settings. It is then renewed and persisted.
 //
@@ -160,7 +161,8 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		if err := checkIdentity(s.log, loadedIdent); err != nil {
 			return trace.Wrap(err)
 		}
-		authClient, err := clientForIdentity(ctx, s.log, s.cfg, loadedIdent, s.resolver)
+		facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, loadedIdent)
+		authClient, err := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -190,22 +192,29 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	testClient, err := clientForIdentity(ctx, s.log, s.cfg, newIdentity, s.resolver)
+	s.facade = identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, newIdentity)
+	c, err := clientForFacade(ctx, s.log, s.cfg, s.facade, s.resolver)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer testClient.Close()
-
-	s.setIdent(newIdentity)
+	s.client = c
 
 	// Attempt a request to make sure our client works so we can exit early if
 	// we are in a bad state.
-	if _, err := testClient.Ping(ctx); err != nil {
+	if _, err := c.Ping(ctx); err != nil {
 		return trace.Wrap(err, "unable to communicate with auth server")
 	}
 	s.log.Info("Identity initialized successfully.")
 
 	return nil
+}
+
+func (s *identityService) Close() error {
+	c := s.getClient()
+	if c == nil {
+		return nil
+	}
+	return trace.Wrap(c.Close())
 }
 
 func (s *identityService) Run(ctx context.Context) error {
@@ -281,7 +290,7 @@ func (s *identityService) renew(
 	ctx, span := tracer.Start(ctx, "identityService/renew")
 	defer span.End()
 
-	currentIdentity := s.ident()
+	currentIdentity := s.facade.Get()
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(ctx, botDestination); err != nil {
 		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
@@ -292,7 +301,10 @@ func (s *identityService) renew(
 	if s.cfg.Onboarding.RenewableJoinMethod() {
 		// When using a renewable join method, we use GenerateUserCerts to
 		// request a new certificate using our current identity.
-		authClient, err := clientForIdentity(ctx, s.log, s.cfg, currentIdentity, s.resolver)
+		// We explicitly create a new client here to ensure that the latest
+		// identity is being used!
+		facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, currentIdentity)
+		authClient, err := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
 		if err != nil {
 			return trace.Wrap(err, "creating auth client")
 		}
@@ -313,7 +325,7 @@ func (s *identityService) renew(
 	}
 
 	s.log.WithField("identity", describeTLSIdentity(s.log, newIdentity)).Info("Fetched new bot identity.")
-	s.setIdent(newIdentity)
+	s.facade.Set(newIdentity)
 
 	if err := identity.SaveIdentity(ctx, newIdentity, botDestination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err, "saving new identity")
