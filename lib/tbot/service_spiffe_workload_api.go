@@ -106,10 +106,19 @@ func (s *SPIFFEWorkloadAPIService) getTrustBundle() []byte {
 	return s.trustBundle
 }
 
-func fetchBundle(ctx context.Context, c auth.ClientI) ([]byte, error) {
-	cas, err := c.GetCertAuthorities(ctx, types.SPIFFECA, false)
+func (s *SPIFFEWorkloadAPIService) fetchBundle(ctx context.Context) error {
+	botIdentity := s.botIdentitySrc.BotIdentity()
+	client, err := clientForIdentity(
+		ctx, s.log, s.botCfg, botIdentity, s.resolver,
+	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
+	}
+	defer client.Close()
+
+	cas, err := client.GetCertAuthorities(ctx, types.SPIFFECA, false)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	trustBundleBytes := &bytes.Buffer{}
 	for _, ca := range cas {
@@ -120,7 +129,10 @@ func fetchBundle(ctx context.Context, c auth.ClientI) ([]byte, error) {
 			trustBundleBytes.Write(block.Bytes)
 		}
 	}
-	return trustBundleBytes.Bytes(), nil
+
+	s.log.Info("Fetched new trust bundle")
+	s.setTrustBundle(trustBundleBytes.Bytes())
+	return nil
 }
 
 // setup initializes the service, performing tasks such as determining the
@@ -130,6 +142,10 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/setup")
 	defer span.End()
 
+	if err := s.fetchBundle(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	botIdentity := s.botIdentitySrc.BotIdentity()
 	client, err := clientForIdentity(
 		ctx, s.log, s.botCfg, botIdentity, s.resolver,
@@ -138,14 +154,6 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	defer client.Close()
-
-	// Fetch the trust bundle first, this'll let us cache it and avoid fetching
-	// it on every request.
-	trustBundleBytes, err := fetchBundle(ctx, client)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.setTrustBundle(trustBundleBytes)
 
 	authPing, err := client.Ping(ctx)
 	if err != nil {
@@ -343,13 +351,10 @@ func (s *SPIFFEWorkloadAPIService) handleCARotations(ctx context.Context) error 
 		}
 
 		s.log.Info("CA rotation detected, fetching trust bundle")
-		tb, err := fetchBundle(ctx, s.client)
+		err := s.fetchBundle(ctx)
 		if err != nil {
-			s.log.WithError(err).Error("Failed to fetch trust bundle")
-			return trace.Wrap(err)
+			return trace.Wrap(err, "updating trust bundle")
 		}
-		s.log.Info("Fetched new trust bundle")
-		s.setTrustBundle(tb)
 	}
 }
 
