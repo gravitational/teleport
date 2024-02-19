@@ -1307,12 +1307,16 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	proxyClient, err := client.ConnectToProxy(context.Background())
+
+	clusterClient, err := client.ConnectToCluster(ctx)
 	require.NoError(t, err)
+	defer clusterClient.Close()
 
 	// Dial root auth service.
-	rootAuthClient, err := proxyClient.ConnectToAuthServiceThroughALPNSNIProxy(ctx, "root.example.com", "")
+	rootAuthClient, err := clusterClient.ConnectToCluster(ctx, "root.example.com")
 	require.NoError(t, err)
+	defer rootAuthClient.Close()
+
 	pr, err := rootAuthClient.Ping(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "root.example.com", pr.ClusterName)
@@ -1320,8 +1324,10 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dial leaf auth service.
-	leafAuthClient, err := proxyClient.ConnectToAuthServiceThroughALPNSNIProxy(ctx, "leaf.example.com", "")
+	leafAuthClient, err := clusterClient.ConnectToCluster(ctx, "leaf.example.com")
 	require.NoError(t, err)
+	defer leafAuthClient.Close()
+
 	pr, err = leafAuthClient.Ping(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "leaf.example.com", pr.ClusterName)
