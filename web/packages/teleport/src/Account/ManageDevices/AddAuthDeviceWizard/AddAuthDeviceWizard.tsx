@@ -25,7 +25,6 @@ import * as Icon from 'design/Icon';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import Link from 'design/Link';
-import { SingleRowBox } from 'design/MultiRowBox';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
 import Text from 'design/Text';
