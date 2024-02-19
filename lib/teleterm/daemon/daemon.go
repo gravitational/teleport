@@ -756,7 +756,7 @@ func (s *Service) Stop() {
 
 	s.StopHeadlessWatchers()
 
-	if err := s.cfg.RemoteClientCache.Close(); err != nil {
+	if err := s.cfg.ClientCache.Close(); err != nil {
 		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
 	}
 
@@ -1087,16 +1087,16 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 	return nil, false
 }
 
-// GetRemoteClient returns a proxy client from the cache if it exists,
+// GetCachedClient returns a proxy client from the cache if it exists,
 // otherwise it dials the remote server.
-func (s *Service) GetRemoteClient(ctx context.Context, resourceURI uri.ResourceURI) (*client.ProxyClient, error) {
-	return s.cfg.RemoteClientCache.Get(ctx, resourceURI)
+func (s *Service) GetCachedClient(ctx context.Context, resourceURI uri.ResourceURI) (*client.ProxyClient, error) {
+	return s.cfg.ClientCache.Get(ctx, resourceURI)
 }
 
-// InvalidateRemoteClientsForRoot closes and removes clients from the cache
+// InvalidateCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
-func (s *Service) InvalidateRemoteClientsForRoot(resourceURI uri.ResourceURI) error {
-	return s.cfg.RemoteClientCache.InvalidateForRootCluster(resourceURI)
+func (s *Service) InvalidateCachedClientsForRoot(resourceURI uri.ResourceURI) error {
+	return s.cfg.ClientCache.InvalidateForRootCluster(resourceURI)
 }
 
 // Service is the daemon service

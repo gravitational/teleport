@@ -29,8 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/services/clientcache"
 	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
-	"github.com/gravitational/teleport/lib/teleterm/services/remoteclientcache"
 )
 
 // Storage defines an interface for cluster profile storage.
@@ -71,10 +71,10 @@ type Config struct {
 	ConnectMyComputerNodeDelete       *connectmycomputer.NodeDelete
 	ConnectMyComputerNodeName         *connectmycomputer.NodeName
 
-	RemoteClientCache RemoteClientCache
+	ClientCache ClientCache
 }
 
-type RemoteClientCache interface {
+type ClientCache interface {
 	Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error)
 	InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error
 	Close() error
@@ -149,8 +149,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.ConnectMyComputerNodeName = nodeName
 	}
 
-	if c.RemoteClientCache == nil {
-		c.RemoteClientCache = remoteclientcache.New(remoteclientcache.Config{
+	if c.ClientCache == nil {
+		c.ClientCache = clientcache.New(clientcache.Config{
 			Log:      c.Log,
 			Resolver: c.Storage,
 		})

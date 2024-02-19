@@ -381,7 +381,7 @@ func testRemoteClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			concurrentCallClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+			concurrentCallClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 			assert.NoError(t, err)
 			parallelCallsForClient[i] = concurrentCallClient
 		}(i)
@@ -390,25 +390,25 @@ func testRemoteClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	require.Equal(t, parallelCallsForClient[0], parallelCallsForClient[1])
 
 	// Since we have a client in the cache, it should be returned.
-	thirdCallForClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
 	require.Equal(t, parallelCallsForClient[1], thirdCallForClient)
 
 	// Let's remove the client from the cache.
-	// The call to GetRemoteClient will
+	// The call to GetCachedClient will
 	// connect to proxy and return a new client.
-	err = daemonService.InvalidateRemoteClientsForRoot(cluster.URI)
+	err = daemonService.InvalidateCachedClientsForRoot(cluster.URI)
 	require.NoError(t, err)
-	forthCallForClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	forthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
 	require.NotEqual(t, thirdCallForClient, forthCallForClient)
 
 	// After closing the client (from our or a remote side)
 	// it will be removed from the cache.
-	// The call to GetRemoteClient will connect to proxy and return a new client.
+	// The call to GetCachedClient will connect to proxy and return a new client.
 	err = forthCallForClient.Close()
 	require.NoError(t, err)
-	fifthCallForClient, err := daemonService.GetRemoteClient(ctx, cluster.URI)
+	fifthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
 	require.NotEqual(t, forthCallForClient, fifthCallForClient)
 }
