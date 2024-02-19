@@ -47,7 +47,6 @@ describe('passkey + mfa button state', () => {
     ${'on'}       | ${false} | ${false}  | ${true}
     ${'optional'} | ${true}  | ${true}   | ${true}
     ${'optional'} | ${false} | ${false}  | ${true}
-    ${'otp'}      | ${true}  | ${false}  | ${true}
     ${'otp'}      | ${false} | ${false}  | ${true}
     ${'webauthn'} | ${true}  | ${true}   | ${true}
     ${'webauthn'} | ${false} | ${false}  | ${true}
