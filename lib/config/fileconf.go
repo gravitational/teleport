@@ -1558,6 +1558,7 @@ type BPF struct {
 	CgroupPath string `yaml:"cgroup_path"`
 
 	// RootPath root directory for the Teleport cgroups.
+	// Optional, defaults to /teleport
 	RootPath string `yaml:"root_path"`
 }
 
