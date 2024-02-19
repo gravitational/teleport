@@ -250,7 +250,20 @@ func TestBotConfig_YAML(t *testing.T) {
 						},
 					},
 				},
-				Services: []bot.Service{
+				Services: []ServiceConfig{
+					&SPIFFEWorkloadAPIService{
+						Listen: "unix:///var/run/spiffe.sock",
+						SVIDs: []SVIDRequest{
+							{
+								Path: "/bar",
+								Hint: "my hint",
+								SANS: SVIDRequestSANs{
+									DNS: []string{"foo.bar"},
+									IP:  []string{"10.0.0.1"},
+								},
+							},
+						},
+					},
 					&ExampleService{
 						Message: "llama",
 					},
