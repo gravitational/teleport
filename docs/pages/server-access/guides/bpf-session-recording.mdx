@@ -163,6 +163,10 @@ ssh_service:
     # Optional: Controls where cgroupv2 hierarchy is mounted. Default value:
     # /cgroup2.
     cgroup_path: /cgroup2
+
+    # Optional: Controls the path inside cgroupv2 hierarchy where Teleport
+    # cgroups will be placed. Default value: /teleport
+    root_path: /teleport
 ```
 
 ### Start Teleport on your Node
