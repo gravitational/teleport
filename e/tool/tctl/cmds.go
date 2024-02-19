@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/gravitational/teleport/e/tool/tctl/accessmonitoring"
 	"github.com/gravitational/teleport/e/tool/tctl/sso/configure"
 	"github.com/gravitational/teleport/e/tool/tctl/sso/tester"
 	"github.com/gravitational/teleport/tool/tctl/common"
@@ -13,6 +12,5 @@ func ENTCommands() []common.CLICommand {
 	return []common.CLICommand{
 		&configure.SSOConfigureCommandE{},
 		&tester.SSOTestCommandE{},
-		&accessmonitoring.Command{},
 	}
 }
