@@ -61,7 +61,6 @@ func New(c Config) *Cache {
 
 // Get returns a proxy client from the cache if there is one,
 // otherwise it dials the remote server.
-// TODO(gzdunek): Return client.ClusterClient instead of client.ProxyClient.
 func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
 	groupClt, err, _ := c.group.Do(clusterURI.String(), func() (any, error) {
 		if proxyClient := c.getFromCache(clusterURI); proxyClient != nil {
@@ -73,6 +72,7 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 			return nil, trace.Wrap(err)
 		}
 
+		//nolint:staticcheck // SA1019. TODO(gzdunek): Update to use client.ClusterClient.
 		newProxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
