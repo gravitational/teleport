@@ -149,10 +149,10 @@ $ kubectl -n teleport-access-graph rollout status deployment/teleport-access-gra
 
 To enable connectivity between the Teleport Auth Service and the Teleport Access Graph Service,
 the Auth Service configuration needs to be updated with:
-* The TAG service address
-* The path to the CA which issued the TAG service TLS certificate.
-  * This path must refer to a volume containing the CA, mounted on the Teleport pods.
-  * Specifying the CA certificate file can be skipped if you are using a CA that is already trusted by the Teleport cluster
+- The TAG service address
+- The path to the CA which issued the TAG service TLS certificate.
+  - This path must refer to a volume containing the CA, mounted on the Teleport pods.
+  - Specifying the CA certificate file can be skipped if you are using a CA that is already trusted by the Teleport cluster
     (e.g. via the [`tls.existingCASecretName` option](../../reference/helm-reference/teleport-cluster/#tlsexistingcasecretname)),
     or if the certificate was issued by a CA included in the [Mozilla CA Certificate List](https://wiki.mozilla.org/CA/Included_Certificates).
 
@@ -190,8 +190,8 @@ extraVolumeMounts:
 ```
 
 If not using the `teleport-cluster` Helm chart, you will need to do the equivalent changes to your Teleport cluster deployment:
-* Add the `access_graph:` section at the top-level of the YAML config file for the Teleport Auth Service.
-* Mount the created ConfigMap as a volume so that the Auth Service can read the CA certificate.
+- Add the `access_graph:` section at the top-level of the YAML config file for the Teleport Auth Service.
+- Mount the created ConfigMap as a volume so that the Auth Service can read the CA certificate.
 
 Finally, redeploy the Helm chart (assuming the values are stored in `values-teleport.yaml`).
 Once the Auth Service changes succeed, restart the Proxy Service.
