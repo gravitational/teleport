@@ -147,8 +147,14 @@ $ kubectl -n teleport-access-graph rollout status deployment/teleport-access-gra
 
 ## Step 3/4. Update the Teleport Auth Service configuration
 
-Unless you are using a public Certificate Authority to issue the server certificate for TAG,
-the Teleport Auth Service will need a copy of the certificate of the CA that issued the server certificate.
+To enable connectivity between the Teleport Auth Service and the Teleport Access Graph Service,
+the Auth Service configuration needs to be updated with:
+* The TAG service address
+* The path to the CA which issued the TAG service TLS certificate.
+  * This path must refer to a volume containing the CA, mounted on the Teleport pods.
+  * Specifying the CA certificate file can be skipped if you are using a CA that is already trusted by the Teleport cluster
+    (e.g. via the [`tls.existingCASecretName` option](../../reference/helm-reference/teleport-cluster/#tlsexistingcasecretname)),
+    or if the certificate was issued by a CA included in the [Mozilla CA Certificate List](https://wiki.mozilla.org/CA/Included_Certificates).
 
 Create a ConfigMap containing the CA certificate as follows:
 
@@ -168,9 +174,11 @@ auth:
     access_graph:
       enabled: true
       endpoint: teleport-access-graph.teleport-access-graph.svc.cluster.local:443
+      # Omit the `ca` key if your Teleport cluster already trusts the issuing CA.
       ca: /var/run/access-graph/ca.pem
 
 # Provide the TAG CA to the Teleport Auth Service as a volume.
+# Omit all of the below if your Teleport cluster already trusts the issuing CA.
 extraVolumes:
   - name: tag-ca
     configMap:
