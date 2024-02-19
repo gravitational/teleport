@@ -221,8 +221,14 @@ func (b *Bot) Run(ctx context.Context) error {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
 		case *config.SPIFFEWorkloadAPIService:
+			// Create a credential output for the SPIFFE Workload API service to
+			// use as a source of an impersonated identity.
+			svcIdentity := &config.UnstableClientCredentialOutput{}
+			b.cfg.Outputs = append(b.cfg.Outputs, svcIdentity)
+
 			svc := &SPIFFEWorkloadAPIService{
 				botIdentitySrc:        b,
+				svcIdentity:           svcIdentity,
 				botCfg:                b.cfg,
 				cfg:                   svcCfg,
 				resolver:              resolver,
@@ -418,6 +424,18 @@ func clientForIdentity(
 	// rather than recreating it. Right now the blocker to that is handling the
 	// generation field on the certificate.
 	facade := identity.NewFacade(cfg.FIPS, cfg.Insecure, id)
+	return clientForFacade(ctx, log, cfg, facade, resolver)
+}
+
+func clientForFacade(
+	ctx context.Context,
+	log logrus.FieldLogger,
+	cfg *config.BotConfig,
+	facade *identity.Facade,
+	resolver reversetunnelclient.Resolver) (auth.ClientI, error) {
+	ctx, span := tracer.Start(ctx, "clientForFacade")
+	defer span.End()
+
 	tlsConfig, err := facade.TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)

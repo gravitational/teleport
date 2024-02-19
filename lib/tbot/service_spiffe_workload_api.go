@@ -42,21 +42,17 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/experiment"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// SPIFFEWorkloadAPIService implements a gRPC server that fulfils the SPIFFE
+// SPIFFEWorkloadAPIService implements a gRPC server that fulfills the SPIFFE
 // Workload API specification. It provides X509 SVIDs and trust bundles to
 // workloads that connect over the configured listener.
 //
@@ -68,6 +64,7 @@ import (
 type SPIFFEWorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
+	svcIdentity    *config.UnstableClientCredentialOutput
 	botCfg         *config.BotConfig
 	cfg            *config.SPIFFEWorkloadAPIService
 	log            logrus.FieldLogger
@@ -81,7 +78,6 @@ type SPIFFEWorkloadAPIService struct {
 	trustBundleBroadcast *channelBroadcaster
 
 	// client holds the impersonated client for the service
-	// TODO: Rotations/Renewals/Protection
 	client auth.ClientI
 
 	trustDomain string
@@ -138,103 +134,45 @@ func (s *SPIFFEWorkloadAPIService) fetchBundle(ctx context.Context) error {
 // setup initializes the service, performing tasks such as determining the
 // trust domain, fetching the initial trust bundle and creating an impersonated
 // client.
-func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) error {
+func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/setup")
 	defer span.End()
 
-	if err := s.fetchBundle(ctx); err != nil {
+	// Wait for the impersonated identity to be ready for us to consume here.
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(10 * time.Second):
+		return trace.BadParameter("timeout waiting for identity to be ready")
+	case <-s.svcIdentity.Ready():
+	}
+	facade, err := s.svcIdentity.Facade()
+	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	botIdentity := s.botIdentitySrc.BotIdentity()
-	client, err := clientForIdentity(
-		ctx, s.log, s.botCfg, botIdentity, s.resolver,
+	client, err := clientForFacade(
+		ctx, s.log, s.botCfg, facade, s.resolver,
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer client.Close()
+	s.client = client
+	// Closure is managed by the caller if this function succeeds. But if it
+	// fails, we need to close the client.
+	defer func() {
+		if err != nil {
+			client.Close()
+		}
+	}()
 
+	if err := s.fetchBundle(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 	authPing, err := client.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	s.trustDomain = authPing.ClusterName
-
-	// Now we need to create a role impersonated identity to leverage the roles
-	// that are assigned to the bot.
-	// TODO: Debaddify this - based loosely on outputsService.generateIdentity
-	// TODO: need to handle renewal etc
-	privateKey, publicKey, err := native.GenerateKeyPair()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	roles, err := fetchDefaultRoles(ctx, client, botIdentity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:      publicKey,
-		Username:       botIdentity.X509Cert.Subject.CommonName,
-		Expires:        time.Now().Add(s.botCfg.CertificateTTL),
-		RoleRequests:   roles,
-		RouteToCluster: botIdentity.ClusterName,
-
-		// Make sure to specify this is an impersonated cert request. If unset,
-		// auth cannot differentiate renewable vs impersonated requests when
-		// len(roleRequests) == 0.
-		UseRoleRequests: true,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// The root CA included with the returned user certs will only contain the
-	// Teleport User CA. We'll also need the host CA for future API calls.
-	localCA, err := client.GetClusterCACert(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	caCerts, err := tlsca.ParseCertificatePEMs(localCA.TLSCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Append the host CAs from the auth server.
-	for _, cert := range caCerts {
-		pemBytes, err := tlsca.MarshalCertificatePEM(cert)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certs.TLSCACerts = append(certs.TLSCACerts, pemBytes)
-	}
-
-	// Do not trust SSH CA certs as returned by GenerateUserCerts() with an
-	// impersonated identity. It only returns the SSH UserCA in this context,
-	// but we also need the HostCA and can't directly set `includeHostCA` as
-	// part of the UserCertsRequest.
-	// Instead, copy the SSHCACerts from the primary identity.
-	certs.SSHCACerts = botIdentity.SSHCACertBytes
-
-	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: privateKey,
-		PublicKeyBytes:  publicKey,
-	}, certs)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	impersonatedClient, err := clientForIdentity(
-		ctx, s.log, s.botCfg, newIdentity, s.resolver,
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.client = impersonatedClient
-	// Closure is managed by caller of setup
 
 	return nil
 }
@@ -321,7 +259,7 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		return srv.Serve(lis)
 	})
 	eg.Go(func() error {
-		// Shutdown the server when the context is cancelled
+		// Shutdown the server when the context is canceled
 		<-egCtx.Done()
 		s.log.Debug("Shutting down Workload API endpoint")
 		srv.Stop()
@@ -388,7 +326,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	// same trust bundle.
 	trustBundle := s.getTrustBundle()
 	// TODO(noah): We should probably take inspiration from SPIRE agent's
-	// behaviour of pre-fetching the SVIDs rather than doing this for
+	// behavior of pre-fetching the SVIDs rather than doing this for
 	// every request.
 	res, privateKey, err := config.GenerateSVID(
 		ctx,

@@ -686,8 +686,8 @@ func TestBotSPIFFEWorkloadAPI(t *testing.T) {
 		ctx,
 		workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
 	)
-	defer source.Close()
 	require.NoError(t, err)
+	defer source.Close()
 
 	svid, err := source.GetX509SVID()
 	require.NoError(t, err)
