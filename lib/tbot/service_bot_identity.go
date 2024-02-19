@@ -63,6 +63,18 @@ type identityService struct {
 	facade *identity.Facade
 }
 
+func (s *identityService) GetIdentity() *identity.Identity {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.facade.Get()
+}
+
+func (s *identityService) GetClient() auth.ClientI {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.client
+}
+
 func (s *identityService) String() string {
 	return "identity"
 }
@@ -73,18 +85,6 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 	}
 
 	return !bytes.Equal(identityBytes, configTokenBytes)
-}
-
-func (s *identityService) getIdentity() *identity.Identity {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.facade.Get()
-}
-
-func (s *identityService) getClient() auth.ClientI {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.client
 }
 
 // loadIdentityFromStore attempts to load a persisted identity from a store.
@@ -192,12 +192,16 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	s.facade = identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, newIdentity)
+	// Create the facaded client we can share with other components of tbot.
+	facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, newIdentity)
 	c, err := clientForFacade(ctx, s.log, s.cfg, s.facade, s.resolver)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.mu.Lock()
 	s.client = c
+	s.facade = facade
+	s.mu.Unlock()
 
 	// Attempt a request to make sure our client works so we can exit early if
 	// we are in a bad state.
@@ -210,11 +214,10 @@ func (s *identityService) Initialize(ctx context.Context) error {
 }
 
 func (s *identityService) Close() error {
-	c := s.getClient()
-	if c == nil {
+	if s.client == nil {
 		return nil
 	}
-	return trace.Wrap(c.Close())
+	return trace.Wrap(s.client.Close())
 }
 
 func (s *identityService) Run(ctx context.Context) error {

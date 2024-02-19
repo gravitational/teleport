@@ -87,7 +87,7 @@ type getBotIdentityFn func() *identity.Identity
 // BotIdentity returns the bot's own identity. This will return nil if the bot
 // has not been started.
 func (b *Bot) BotIdentity() *identity.Identity {
-	return b.botIdentitySvc.getIdentity()
+	return b.botIdentitySvc.GetIdentity()
 }
 
 func (b *Bot) Run(ctx context.Context) error {
@@ -174,8 +174,8 @@ func (b *Bot) Run(ctx context.Context) error {
 		})
 	}
 	services = append(services, &outputsService{
-		getBotIdentity: b.botIdentitySvc.getIdentity,
-		botClient:      b.botIdentitySvc.getClient(),
+		getBotIdentity: b.botIdentitySvc.GetIdentity,
+		botClient:      b.botIdentitySvc.GetClient(),
 		cfg:            b.cfg,
 		resolver:       resolver,
 		log: b.log.WithField(
@@ -184,8 +184,8 @@ func (b *Bot) Run(ctx context.Context) error {
 		reloadBroadcaster: reloadBroadcaster,
 	})
 	services = append(services, &caRotationService{
-		getBotIdentity: b.botIdentitySvc.getIdentity,
-		botClient:      b.botIdentitySvc.getClient(),
+		getBotIdentity: b.botIdentitySvc.GetIdentity,
+		botClient:      b.botIdentitySvc.GetClient(),
 		log: b.log.WithField(
 			trace.Component, teleport.Component(componentTBot, "ca-rotation"),
 		),
