@@ -69,6 +69,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI uri.ResourceURI) (*Data
 func (c *Cluster) getAllDatabases(ctx context.Context) ([]Database, error) {
 	var dbs []types.Database
 	err := AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -120,6 +121,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -205,6 +207,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

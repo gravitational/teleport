@@ -2068,3 +2068,10 @@ const (
 	// sqlServerSchema is the SQL Server schema.
 	sqlServerSchema = "mssql"
 )
+
+const (
+	// RDSDescribeTypeInstance is used to filter for Instances type of RDS DBs when describing RDS Databases.
+	RDSDescribeTypeInstance = "instance"
+	// RDSDescribeTypeCluster is used to filter for Clusters type of RDS DBs when describing RDS Databases.
+	RDSDescribeTypeCluster = "cluster"
+)

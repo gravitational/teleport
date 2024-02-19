@@ -299,7 +299,17 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
 teleport-hot-reload:
-	CompileDaemon --graceful-kill=true --exclude-dir=".git" --exclude-dir="node_modules" --build="make $(BUILDDIR)/teleport" --command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
+	CompileDaemon \
+		--graceful-kill=true \
+		--exclude-dir=".git" \
+		--exclude-dir="build" \
+		--exclude-dir="e/build" \
+		--exclude-dir="e/web/*/node_modules" \
+		--exclude-dir="node_modules" \
+		--exclude-dir="target" \
+		--exclude-dir="web/packages/*/node_modules" \
+		--build="make $(BUILDDIR)/teleport" \
+		--command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
 
 # NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
 # 		we can use this Makefile for native Windows builds.
