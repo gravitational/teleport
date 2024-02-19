@@ -234,7 +234,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     icon: oktaIcon, // TODO(lisa): update all these icons to SVGIcon for theme friendly
     url: 'https://goteleport.com/docs/application-access/okta/guide/',
     cloudHostable: true,
-    selfHostable: false,
+    selfHostable: true,
     fullName: 'Okta Integration',
     views: () => {
       if (cfg.oss.isIgsEnabled) {

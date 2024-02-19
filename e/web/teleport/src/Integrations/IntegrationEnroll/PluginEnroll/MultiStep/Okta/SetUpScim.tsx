@@ -119,7 +119,24 @@ export function SetUpScim() {
               ]}
             />
           </Box>
-
+          <Text mt={3}>
+            Click <Mark>Save</Mark>
+          </Text>
+        </StyledBox>
+        <StyledBox>
+          <Text bold>Step 3: Configure SCIM Provisioning</Text>
+          <Text>
+            Staying on the <Mark>Provisioning</Mark> tab, go to the new{' '}
+            <Mark>To App</Mark> Settings page and click <Mark>Edit</Mark>.
+          </Text>
+          <Text>
+            Check the following checkboxes:
+            <ul>
+              <li>Create Users</li>
+              <li>Update User Attributes</li>
+              <li>Deactivate Users</li>
+            </ul>
+          </Text>
           <Text mt={3}>
             Click <Mark>Save</Mark>
           </Text>
