@@ -86,7 +86,7 @@ RELEASE_TARGET ?= release
 # The awk command looks for the first line that has "docker" in the second (DRIVER) column.
 # -F '[ *]+': there may be an asterisk between the first and second column if that record is the default,
 # so just subsume the asterisk into the field separator.
-DOCKER_BUILDER_NAME = $(shell docker buildx ls 2>/dev/null | awk -F '[ *]+' '$$2 == "docker" {print $$1}')
+DOCKER_BUILDER_NAME ?= $(shell docker buildx ls 2>/dev/null | awk -F '[ *]+' '$$2 == "docker" {print $$1}')
 
 .PHONY:print-docker-builder-name
 print-docker-builder-name:
