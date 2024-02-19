@@ -209,16 +209,12 @@ export function ReauthenticateStep({
               />
             )}
             <Flex gap={2}>
-              <Box flex="1">
-                <ButtonPrimary block={true} type="submit">
-                  Verify my identity
-                </ButtonPrimary>
-              </Box>
-              <Box flex="1">
-                <ButtonSecondary block={true} onClick={onClose}>
-                  Cancel
-                </ButtonSecondary>
-              </Box>
+              <ButtonPrimary block={true} type="submit">
+                Verify my identity
+              </ButtonPrimary>
+              <ButtonSecondary block={true} onClick={onClose}>
+                Cancel
+              </ButtonSecondary>
             </Flex>
           </form>
         )}
@@ -291,24 +287,20 @@ export function CreateDeviceStep({
         />
       )}
       <Flex gap={2}>
-        <Box flex="1">
-          <ButtonPrimary block={true} onClick={onCreate}>
-            {usage === 'passwordless'
-              ? 'Create a passkey'
-              : 'Create an MFA method'}
-          </ButtonPrimary>
-        </Box>
-        <Box flex="1">
-          {stepIndex === 0 ? (
-            <ButtonSecondary block={true} onClick={onClose}>
-              Cancel
-            </ButtonSecondary>
-          ) : (
-            <ButtonSecondary block={true} onClick={prev}>
-              Back
-            </ButtonSecondary>
-          )}
-        </Box>
+        <ButtonPrimary block={true} onClick={onCreate}>
+          {usage === 'passwordless'
+            ? 'Create a passkey'
+            : 'Create an MFA method'}
+        </ButtonPrimary>
+        {stepIndex === 0 ? (
+          <ButtonSecondary block={true} onClick={onClose}>
+            Cancel
+          </ButtonSecondary>
+        ) : (
+          <ButtonSecondary block={true} onClick={prev}>
+            Back
+          </ButtonSecondary>
+        )}
       </Flex>
     </div>
   );
@@ -508,18 +500,14 @@ export function SaveDeviceStep({
               />
             )}
             <Flex gap={2}>
-              <Box flex="1">
-                <ButtonPrimary block={true} type="submit">
-                  {usage === 'passwordless'
-                    ? 'Save the Passkey'
-                    : 'Save the MFA method'}
-                </ButtonPrimary>
-              </Box>
-              <Box flex="1">
-                <ButtonSecondary block={true} onClick={prev}>
-                  Back
-                </ButtonSecondary>
-              </Box>
+              <ButtonPrimary block={true} type="submit">
+                {usage === 'passwordless'
+                  ? 'Save the Passkey'
+                  : 'Save the MFA method'}
+              </ButtonPrimary>
+              <ButtonSecondary block={true} onClick={prev}>
+                Back
+              </ButtonSecondary>
             </Flex>
           </form>
         )}
