@@ -90,7 +90,8 @@ func (a *Server) setLabelsOnNodes(ctx context.Context, nodes []types.Server) (fa
 	for _, node := range nodes {
 		// EICE Node labels can't be updated using the Inventory Control Stream because there's no reverse tunnel.
 		// Labels are updated by the DiscoveryService during 'Server.handleEC2Instances'.
-		if node.GetSubKind() == types.SubKindOpenSSHEICENode {
+		// The same is valid for OpenSSH Nodes.
+		if node.IsOpenSSHNode() {
 			continue
 		}
 
