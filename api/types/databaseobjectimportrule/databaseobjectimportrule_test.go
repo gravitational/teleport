@@ -133,7 +133,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 			expectedError: trace.BadParameter("missing spec"),
 		},
 		{
-			name: "missing db_labels",
+			name: "missing database_labels",
 			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
 				Kind:    types.KindDatabaseObjectImportRule,
 				Version: types.V1,
@@ -145,7 +145,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
 				},
 			},
-			expectedError: trace.BadParameter("missing db_labels"),
+			expectedError: trace.BadParameter("missing database_labels"),
 		},
 		{
 			name: "missing mappings",

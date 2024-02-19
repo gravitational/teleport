@@ -1645,7 +1645,7 @@ metadata:
   name: import_all_staging_tables
   namespace: default
 spec:
-  db_labels:
+  database_labels:
   - name: env
     values:
     - staging
