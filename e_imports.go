@@ -47,6 +47,7 @@ xargs go list -find -f '{{if (and
 */
 
 import (
+	_ "connectrpc.com/connect"
 	_ "github.com/alecthomas/kingpin/v2"
 	_ "github.com/aws/aws-sdk-go-v2/aws"
 	_ "github.com/aws/aws-sdk-go-v2/config"
@@ -58,7 +59,6 @@ import (
 	_ "github.com/aws/aws-sdk-go-v2/service/sts"
 	_ "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	_ "github.com/beevik/etree"
-	_ "github.com/bufbuild/connect-go"
 	_ "github.com/coreos/go-oidc/jose"
 	_ "github.com/coreos/go-oidc/oauth2"
 	_ "github.com/coreos/go-oidc/oidc"
