@@ -263,6 +263,8 @@ export const eventCodes = {
   OKTA_ASSIGNMENT_CLEANUP_FAILURE: 'TOK005E',
   OKTA_ACCESS_LIST_SYNC: 'TOK006I',
   OKTA_ACCESS_LIST_SYNC_FAILURE: 'TOK006E',
+  OKTA_USER_SYNC: 'TOK007I',
+  OKTA_USER_SYNC_FAILURE: 'TOK007E',
   ACCESS_LIST_CREATE: 'TAL001I',
   ACCESS_LIST_CREATE_FAILURE: 'TAL001E',
   ACCESS_LIST_UPDATE: 'TAL002I',
@@ -1405,6 +1407,12 @@ export type RawEvents = {
       name: string;
       source: string;
     }
+  >;
+  [eventCodes.OKTA_USER_SYNC]: RawEvent<
+    typeof eventCodes.OKTA_USER_SYNC
+  >;
+  [eventCodes.OKTA_USER_SYNC_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_USER_SYNC_FAILURE
   >;
   [eventCodes.OKTA_ACCESS_LIST_SYNC]: RawEvent<
     typeof eventCodes.OKTA_ACCESS_LIST_SYNC

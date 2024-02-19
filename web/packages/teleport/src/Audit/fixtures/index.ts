@@ -3026,6 +3026,16 @@ export const events = [
     user: 'mike',
   },
   {
+    code: 'TOK007I',
+    event: 'okta.user.sync',
+    time: '2023-05-08T19:21:36.144Z',
+  },
+  {
+    code: 'TOK007E',
+    event: 'okta.user.sync',
+    time: '2023-05-08T19:21:36.144Z',
+  },
+  {
     code: 'TOK006I',
     event: 'okta.access_list.sync',
     time: '2023-05-08T19:21:36.144Z',

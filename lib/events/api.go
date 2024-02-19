@@ -684,6 +684,9 @@ const (
 	// OktaAccessListSyncEvent is emitted when an access list synchronization has completed.
 	OktaAccessListSyncEvent = "okta.access_list.sync"
 
+	// OktaUserSyncEvent is emitted when an access list synchronization has completed.
+	OktaUserSyncEvent = "okta.user.sync"
+
 	// AccessListCreateEvent is emitted when an access list is created.
 	AccessListCreateEvent = "access_list.create"
 
