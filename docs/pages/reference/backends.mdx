@@ -1141,3 +1141,12 @@ teleport:
     sync: NORMAL
     journal: WAL
 ```
+
+The SQLite backend and other required data will be written to the Teleport data directory.
+The data directory location for Teleport by default is `/var/lib/teleport`. To modify
+the location set the `data_dir` value within the Teleport configuration file.
+
+```yaml
+teleport:
+  data_dir: /var/lib/teleport_datadir
+```
