@@ -653,6 +653,13 @@
               "forScopes": [
                 "enterprise"
               ]
+            },
+            {
+              "title": "TAG for Self-Hosted Clusters with Helm",
+              "slug": "/access-controls/access-graph/self-hosted-helm/",
+              "forScopes": [
+                "enterprise"
+              ]
             }
           ]
         },
@@ -1953,6 +1960,13 @@
               "slug": "/reference/helm-reference/teleport-kube-agent/"
             },
             {
+              "title": "teleport-access-graph",
+              "slug": "/reference/helm-reference/teleport-access-graph/",
+              "forScopes": [
+                "enterprise"
+              ]
+            },
+            {
               "title": "teleport-plugin-event-handler",
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
             },
@@ -2069,7 +2083,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.9.1"
+      "version": "1.13.0"
     },
     "ansible": {
       "min_version": "2.9.6"
