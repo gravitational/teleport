@@ -39,6 +39,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -71,22 +72,25 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var proxy *client.ProxyClient
+	var clusterClient *client.ClusterClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		proxy, err = tc.ConnectToProxy(cf.Context)
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxy.Close()
+	defer clusterClient.Close()
 
-	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.ResourceFilter(types.KindDatabaseServer), tc.SiteName)
+	servers, err := apiclient.GetAllResources[types.DatabaseServer](cf.Context, clusterClient.AuthClient, tc.ResourceFilter(types.KindDatabaseServer))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	accessChecker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
+	databases := types.DatabaseServers(servers).ToDatabases()
+	types.DeduplicateDatabases(databases)
+
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
@@ -887,21 +891,22 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		return nil
 	}
 
-	var proxy *client.ProxyClient
+	var clusterClient *client.ClusterClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		proxy, err = tc.ConnectToProxy(cf.Context)
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxy.Close()
+	defer clusterClient.Close()
 
 	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	checker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
+
+	checker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1308,15 +1313,11 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 // isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
 // requires MFA.
 func isMFADatabaseAccessRequired(ctx context.Context, tc *client.TeleportClient, database tlsca.RouteToDatabase) (bool, error) {
-	proxy, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	cluster, err := proxy.ConnectToCluster(ctx, tc.SiteName)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	defer cluster.Close()
+	defer clusterClient.Close()
 
 	dbParam := proto.RouteToDatabase{
 		ServiceName: database.ServiceName,
@@ -1324,7 +1325,7 @@ func isMFADatabaseAccessRequired(ctx context.Context, tc *client.TeleportClient,
 		Username:    database.Username,
 		Database:    database.Database,
 	}
-	mfaResp, err := cluster.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+	mfaResp, err := clusterClient.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 		Target: &proto.IsMFARequiredRequest_Database{
 			Database: &dbParam,
 		},

@@ -30,6 +30,7 @@ import (
 
 // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
 func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context) (watcher types.Watcher, close func(), err error) {
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -59,6 +60,7 @@ func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context) (watc
 
 // WatchHeadlessAuthentications watches the backend for headless authentication events for the user.
 func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context) (watcher types.Watcher, close func(), err error) {
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -99,6 +101,7 @@ func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context) (watcher typ
 // MFA will be prompted when updating to the approve state.
 func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, headlessID string, state types.HeadlessAuthenticationState) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

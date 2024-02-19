@@ -34,8 +34,6 @@ import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import cfg from 'teleport/config';
 
-import { storageService } from 'teleport/services/storageService';
-
 import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
   State as ManageDevicesState,
@@ -44,9 +42,6 @@ import AddDevice from './ManageDevices/AddDevice';
 import { ActionButton, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
 import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
-
-const useNewAddAuthDeviceDialog =
-  storageService.isNewAddAuthDeviceDialogEnabled();
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
@@ -110,7 +105,6 @@ export function Account({
   setToken,
   onAddDevice,
   onRemoveDevice,
-  onAddPasskey,
   onPasskeyAdded,
   deviceToRemove,
   fetchDevices,
@@ -206,11 +200,7 @@ export function Account({
                         ? 'Passwordless authentication is disabled'
                         : ''
                     }
-                    onClick={() =>
-                      useNewAddAuthDeviceDialog
-                        ? onAddPasskey()
-                        : onAddDevice('passwordless')
-                    }
+                    onClick={() => onAddDevice('passwordless')}
                   >
                     <Icon.Add size={20} />
                     Add a Passkey
@@ -293,6 +283,8 @@ export function Account({
 
       {passkeyWizardVisible && (
         <AddAuthDeviceWizard
+          usage={restrictNewDeviceUsage}
+          auth2faType={cfg.getAuth2faType()}
           privilegeToken={token}
           onClose={closePasskeyWizard}
           onSuccess={onAddPasskeySuccess}
