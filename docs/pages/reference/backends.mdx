@@ -107,7 +107,7 @@ and user records will be stored.
   title="IMPORTANT"
 >
   `etcd` can only currently be used to store Teleport's internal database in a
-  highly-available way. This will allow you to have multiple auth servers in your
+  highly-available way. This will allow you to have multiple Auth Service instances in your
   cluster for an High Availability deployment, but it will not also store Teleport audit events
   for you in the same way that [DynamoDB](#dynamodb) or
   [Firestore](#firestore) will. `etcd` is not designed to handle large volumes of time series data like audit events.
@@ -125,7 +125,7 @@ To configure Teleport for using etcd as a storage backend:
     don't already have a TLS setup.
 - Configure all Teleport Auth Service instances to use etcd in the "storage" section of the config file as shown below.
 - Deploy several Auth Service instances connected to etcd backend.
-- Deploy several Proxy Service instances that have `auth_server` pointed to the auth server to connect to.
+- Deploy several Proxy Service instances that have `auth_server` pointed to the Auth Service to connect to.
 
 ```yaml
 teleport:
