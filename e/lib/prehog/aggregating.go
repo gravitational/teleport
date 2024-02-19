@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"net/http"
 
-	"github.com/bufbuild/connect-go"
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -49,7 +49,7 @@ func NewUsageReportsSubmitter(clientCert *tls.Certificate, cipherSuites []uint16
 	return func(ctx context.Context, req *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error) {
 		resp, err := clt.SubmitUsageReports(ctx, connect.NewRequest(req))
 		if err != nil {
-			// TODO(espadolini): convert bufbuild/connect-go errors similarly to [trail.FromGRPC]
+			// TODO(espadolini): convert connectrpc.com/connect errors similarly to [trail.FromGRPC]
 			return uuid.Nil, trace.Wrap(err)
 		}
 		batchUUID, err := uuid.FromBytes(resp.Msg.GetBatchUuid())
