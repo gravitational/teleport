@@ -33,21 +33,37 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	AWSOIDCService_ListEICE_FullMethodName              = "/teleport.integration.v1.AWSOIDCService/ListEICE"
 	AWSOIDCService_ListDatabases_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
+	AWSOIDCService_ListSecurityGroups_FullMethodName    = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
 	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
+	AWSOIDCService_ListEC2_FullMethodName               = "/teleport.integration.v1.AWSOIDCService/ListEC2"
 )
 
 // AWSOIDCServiceClient is the client API for AWSOIDCService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AWSOIDCServiceClient interface {
+	// ListEICE returns a list of EC2 Instance Connect Endpoints.
+	// An optional NextToken that can be used to fetch the next page.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
+	ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error)
 	// ListDatabases calls the following AWS API:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
 	// It returns a list of Databases and an optional NextToken that can be used to fetch the next page
 	ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error)
+	// ListSecurityGroups returns a list of AWS VPC SecurityGroups.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html
+	ListSecurityGroups(ctx context.Context, in *ListSecurityGroupsRequest, opts ...grpc.CallOption) (*ListSecurityGroupsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(ctx context.Context, in *DeployDatabaseServiceRequest, opts ...grpc.CallOption) (*DeployDatabaseServiceResponse, error)
+	// ListEC2 lists the EC2 instances of the AWS account per region.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
+	ListEC2(ctx context.Context, in *ListEC2Request, opts ...grpc.CallOption) (*ListEC2Response, error)
 }
 
 type aWSOIDCServiceClient struct {
@@ -58,9 +74,27 @@ func NewAWSOIDCServiceClient(cc grpc.ClientConnInterface) AWSOIDCServiceClient {
 	return &aWSOIDCServiceClient{cc}
 }
 
+func (c *aWSOIDCServiceClient) ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error) {
+	out := new(ListEICEResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListEICE_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *aWSOIDCServiceClient) ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error) {
 	out := new(ListDatabasesResponse)
 	err := c.cc.Invoke(ctx, AWSOIDCService_ListDatabases_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aWSOIDCServiceClient) ListSecurityGroups(ctx context.Context, in *ListSecurityGroupsRequest, opts ...grpc.CallOption) (*ListSecurityGroupsResponse, error) {
+	out := new(ListSecurityGroupsResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListSecurityGroups_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -76,17 +110,39 @@ func (c *aWSOIDCServiceClient) DeployDatabaseService(ctx context.Context, in *De
 	return out, nil
 }
 
+func (c *aWSOIDCServiceClient) ListEC2(ctx context.Context, in *ListEC2Request, opts ...grpc.CallOption) (*ListEC2Response, error) {
+	out := new(ListEC2Response)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListEC2_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AWSOIDCServiceServer is the server API for AWSOIDCService service.
 // All implementations must embed UnimplementedAWSOIDCServiceServer
 // for forward compatibility
 type AWSOIDCServiceServer interface {
+	// ListEICE returns a list of EC2 Instance Connect Endpoints.
+	// An optional NextToken that can be used to fetch the next page.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
+	ListEICE(context.Context, *ListEICERequest) (*ListEICEResponse, error)
 	// ListDatabases calls the following AWS API:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
 	// It returns a list of Databases and an optional NextToken that can be used to fetch the next page
 	ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error)
+	// ListSecurityGroups returns a list of AWS VPC SecurityGroups.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html
+	ListSecurityGroups(context.Context, *ListSecurityGroupsRequest) (*ListSecurityGroupsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error)
+	// ListEC2 lists the EC2 instances of the AWS account per region.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
+	ListEC2(context.Context, *ListEC2Request) (*ListEC2Response, error)
 	mustEmbedUnimplementedAWSOIDCServiceServer()
 }
 
@@ -94,11 +150,20 @@ type AWSOIDCServiceServer interface {
 type UnimplementedAWSOIDCServiceServer struct {
 }
 
+func (UnimplementedAWSOIDCServiceServer) ListEICE(context.Context, *ListEICERequest) (*ListEICEResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListEICE not implemented")
+}
 func (UnimplementedAWSOIDCServiceServer) ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabases not implemented")
 }
+func (UnimplementedAWSOIDCServiceServer) ListSecurityGroups(context.Context, *ListSecurityGroupsRequest) (*ListSecurityGroupsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSecurityGroups not implemented")
+}
 func (UnimplementedAWSOIDCServiceServer) DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeployDatabaseService not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) ListEC2(context.Context, *ListEC2Request) (*ListEC2Response, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListEC2 not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) mustEmbedUnimplementedAWSOIDCServiceServer() {}
 
@@ -111,6 +176,24 @@ type UnsafeAWSOIDCServiceServer interface {
 
 func RegisterAWSOIDCServiceServer(s grpc.ServiceRegistrar, srv AWSOIDCServiceServer) {
 	s.RegisterService(&AWSOIDCService_ServiceDesc, srv)
+}
+
+func _AWSOIDCService_ListEICE_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEICERequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListEICE(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListEICE_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListEICE(ctx, req.(*ListEICERequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _AWSOIDCService_ListDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -127,6 +210,24 @@ func _AWSOIDCService_ListDatabases_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AWSOIDCServiceServer).ListDatabases(ctx, req.(*ListDatabasesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AWSOIDCService_ListSecurityGroups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSecurityGroupsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListSecurityGroups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListSecurityGroups_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListSecurityGroups(ctx, req.(*ListSecurityGroupsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -149,6 +250,24 @@ func _AWSOIDCService_DeployDatabaseService_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AWSOIDCService_ListEC2_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEC2Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListEC2(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListEC2_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListEC2(ctx, req.(*ListEC2Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AWSOIDCService_ServiceDesc is the grpc.ServiceDesc for AWSOIDCService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -157,12 +276,24 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AWSOIDCServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "ListEICE",
+			Handler:    _AWSOIDCService_ListEICE_Handler,
+		},
+		{
 			MethodName: "ListDatabases",
 			Handler:    _AWSOIDCService_ListDatabases_Handler,
 		},
 		{
+			MethodName: "ListSecurityGroups",
+			Handler:    _AWSOIDCService_ListSecurityGroups_Handler,
+		},
+		{
 			MethodName: "DeployDatabaseService",
 			Handler:    _AWSOIDCService_DeployDatabaseService_Handler,
+		},
+		{
+			MethodName: "ListEC2",
+			Handler:    _AWSOIDCService_ListEC2_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

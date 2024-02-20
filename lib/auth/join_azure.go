@@ -281,7 +281,7 @@ func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken
 	return vm, nil
 }
 
-func checkAzureAllowRules(vm *azure.VirtualMachine, allowRules []*types.ProvisionTokenSpecV2Azure_Rule) error {
+func checkAzureAllowRules(vm *azure.VirtualMachine, token string, allowRules []*types.ProvisionTokenSpecV2Azure_Rule) error {
 	for _, rule := range allowRules {
 		if rule.Subscription != vm.Subscription {
 			continue
@@ -293,7 +293,7 @@ func checkAzureAllowRules(vm *azure.VirtualMachine, allowRules []*types.Provisio
 		}
 		return nil
 	}
-	return trace.AccessDenied("instance did not match any allow rules")
+	return trace.AccessDenied("instance %v did not match any allow rules in token %v", vm.Name, token)
 }
 
 func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *proto.RegisterUsingAzureMethodRequest, cfg *azureRegisterConfig) error {
@@ -322,7 +322,7 @@ func (a *Server) checkAzureRequest(ctx context.Context, challenge string, req *p
 		return trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
 	}
 
-	if err := checkAzureAllowRules(vm, token.Spec.Azure.Allow); err != nil {
+	if err := checkAzureAllowRules(vm, token.GetName(), token.Spec.Azure.Allow); err != nil {
 		return trace.Wrap(err)
 	}
 

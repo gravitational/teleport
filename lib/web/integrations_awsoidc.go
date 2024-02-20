@@ -506,40 +506,41 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listResp, err := clt.IntegrationAWSOIDCClient().ListEC2(ctx, &integrationv1.ListEC2Request{
+		Integration: integrationName,
+		Region:      req.Region,
+		NextToken:   req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	listEC2Client, err := awsoidc.NewListEC2Client(ctx, awsClientReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := awsoidc.ListEC2(ctx,
-		listEC2Client,
-		awsoidc.ListEC2Request{
-			Integration: awsClientReq.IntegrationName,
-			Region:      req.Region,
-			NextToken:   req.NextToken,
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := ui.MakeServers(h.auth.clusterName, resp.Servers, accessChecker)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	servers := make([]ui.Server, 0, len(listResp.Servers))
+	for _, s := range listResp.Servers {
+		serverUI, err := ui.MakeServer(h.auth.clusterName, s, accessChecker)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers = append(servers, serverUI)
 	}
 
 	return ui.AWSOIDCListEC2Response{
-		NextToken: resp.NextToken,
+		NextToken: listResp.NextToken,
 		Servers:   servers,
 	}, nil
 }
@@ -553,31 +554,61 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listSGClient, err := awsoidc.NewListSecurityGroupsClient(ctx, awsClientReq)
+	listResp, err := clt.IntegrationAWSOIDCClient().ListSecurityGroups(ctx, &integrationv1.ListSecurityGroupsRequest{
+		Integration: integrationName,
+		Region:      req.Region,
+		VpcId:       req.VPCID,
+		NextToken:   req.NextToken,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := awsoidc.ListSecurityGroups(ctx,
-		listSGClient,
-		awsoidc.ListSecurityGroupsRequest{
-			VPCID:     req.VPCID,
-			NextToken: req.NextToken,
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	sgs := make([]awsoidc.SecurityGroup, 0, len(listResp.SecurityGroups))
+	for _, sg := range listResp.SecurityGroups {
+		sgs = append(sgs, awsoidc.SecurityGroup{
+			Name:          sg.Name,
+			ID:            sg.Id,
+			Description:   sg.Description,
+			InboundRules:  awsOIDCSecurityGroupsRulesConverter(sg.InboundRules),
+			OutboundRules: awsOIDCSecurityGroupsRulesConverter(sg.OutboundRules),
+		})
 	}
 
 	return ui.AWSOIDCListSecurityGroupsResponse{
-		NextToken:      resp.NextToken,
-		SecurityGroups: resp.SecurityGroups,
+		NextToken:      listResp.NextToken,
+		SecurityGroups: sgs,
 	}, nil
+}
+
+func awsOIDCSecurityGroupsRulesConverter(inRules []*integrationv1.SecurityGroupRule) []awsoidc.SecurityGroupRule {
+	out := make([]awsoidc.SecurityGroupRule, 0, len(inRules))
+	for _, r := range inRules {
+		cidrs := make([]awsoidc.CIDR, 0, len(r.Cidrs))
+		for _, cidr := range r.Cidrs {
+			cidrs = append(cidrs, awsoidc.CIDR{
+				CIDR:        cidr.Cidr,
+				Description: cidr.Description,
+			})
+		}
+		out = append(out, awsoidc.SecurityGroupRule{
+			IPProtocol: r.IpProtocol,
+			FromPort:   int(r.FromPort),
+			ToPort:     int(r.ToPort),
+			CIDRs:      cidrs,
+		})
+	}
+	return out
 }
 
 // awsOIDCRequiredDatabasesVPCS returns a map of required VPC's and its subnets.
@@ -747,12 +778,12 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	listEC2ICEClient, err := awsoidc.NewListEC2ICEClient(ctx, awsClientReq)
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -762,22 +793,32 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		vpcIds = []string{req.VPCID}
 	}
 
-	resp, err := awsoidc.ListEC2ICE(ctx,
-		listEC2ICEClient,
-		awsoidc.ListEC2ICERequest{
-			Region:    req.Region,
-			VPCIDs:    vpcIds,
-			NextToken: req.NextToken,
-		},
-	)
+	resp, err := clt.IntegrationAWSOIDCClient().ListEICE(ctx, &integrationv1.ListEICERequest{
+		Integration: integrationName,
+		Region:      req.Region,
+		VpcIds:      vpcIds,
+		NextToken:   req.NextToken,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	endpoints := make([]awsoidc.EC2InstanceConnectEndpoint, 0, len(resp.Ec2Ices))
+	for _, e := range resp.Ec2Ices {
+		endpoints = append(endpoints, awsoidc.EC2InstanceConnectEndpoint{
+			Name:          e.Name,
+			State:         e.State,
+			StateMessage:  e.StateMessage,
+			DashboardLink: e.DashboardLink,
+			SubnetID:      e.SubnetId,
+			VPCID:         e.VpcId,
+		})
 	}
 
 	return ui.AWSOIDCListEC2ICEResponse{
 		NextToken:     resp.NextToken,
 		DashboardLink: resp.DashboardLink,
-		EC2ICEs:       resp.EC2ICEs,
+		EC2ICEs:       endpoints,
 	}, nil
 }
 
