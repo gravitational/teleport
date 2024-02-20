@@ -3029,6 +3029,9 @@ export const events = [
     code: 'TOK007I',
     event: 'okta.user.sync',
     time: '2023-05-08T19:21:36.144Z',
+    num_users_created: 5,
+    num_users_deleted: 1,
+    num_users_modified: 7,
   },
   {
     code: 'TOK007E',

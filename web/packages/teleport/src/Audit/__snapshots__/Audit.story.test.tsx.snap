@@ -1863,7 +1863,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Okta user synchronization successfully completed
+            [5] users added, [7] users updated, [1] users deleted
           </td>
           <td
             style="min-width: 120px;"

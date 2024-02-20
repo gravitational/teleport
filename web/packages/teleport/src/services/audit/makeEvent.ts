@@ -1570,7 +1570,8 @@ export const formatters: Formatters = {
   [eventCodes.OKTA_USER_SYNC]: {
     type: 'okta.user.sync',
     desc: 'Okta user synchronization completed',
-    format: () => `Okta user synchronization successfully completed`,
+    format: ({ num_users_created, num_users_modified, num_users_deleted }) =>
+      `[${num_users_created}] users added, [${num_users_modified}] users updated, [${num_users_deleted}] users deleted`,
   },
   [eventCodes.OKTA_USER_SYNC_FAILURE]: {
     type: 'okta.user.sync',

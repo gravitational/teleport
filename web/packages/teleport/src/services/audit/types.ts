@@ -1408,7 +1408,14 @@ export type RawEvents = {
       source: string;
     }
   >;
-  [eventCodes.OKTA_USER_SYNC]: RawEvent<typeof eventCodes.OKTA_USER_SYNC>;
+  [eventCodes.OKTA_USER_SYNC]: RawEvent<
+    typeof eventCodes.OKTA_USER_SYNC,
+    {
+      num_users_created: number;
+      num_users_modified: number;
+      num_users_deleted: number;
+    }
+  >;
   [eventCodes.OKTA_USER_SYNC_FAILURE]: RawEvent<
     typeof eventCodes.OKTA_USER_SYNC_FAILURE
   >;
