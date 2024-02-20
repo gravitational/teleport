@@ -117,7 +117,7 @@ func (s *EmailSuite) TestNewThreads() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 
-	// Test execution: create an access request, add 2 suggeste reviewers
+	// Test execution: create an access request, add 2 suggested reviewers
 	userName := integration.RequesterOSSUserName
 	request := s.CreateAccessRequest(ctx, userName, []string{integration.Reviewer1UserName, integration.Reviewer2UserName})
 

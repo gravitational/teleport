@@ -18,10 +18,12 @@ package testlib
 
 import (
 	"context"
-	"github.com/gravitational/teleport/integrations/access/email"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/integrations/access/email"
 )
 
 func (s *EmailSuite) checkPluginData(ctx context.Context, reqID string, cond func(email.PluginData) bool) email.PluginData {
