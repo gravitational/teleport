@@ -176,6 +176,10 @@ const mockAccessList = {
       roles: ['access', 'editor'],
       traits: { fruit: ['apple'] },
     },
+    owner_grants: {
+      roles: ['admin', 'almighty'],
+      traits: { status: ['pro'] },
+    },
     audit: {
       recurrence: {
         frequency: ReviewFrequency.OneMonth,

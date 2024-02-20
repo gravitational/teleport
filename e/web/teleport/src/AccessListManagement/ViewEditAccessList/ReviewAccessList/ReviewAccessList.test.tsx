@@ -173,6 +173,11 @@ const mockAccessList: AccessListModified = {
     traits: { os: ['window'] },
     ...convertToTraitConvenience({ os: ['window'] }),
   },
+  ownerGrants: {
+    roles: ['admin'],
+    traits: { status: ['root'] },
+    ...convertToTraitConvenience({ status: ['root'] }),
+  },
   ownershipRequires: {
     roles: ['admin'],
     traits: { power: ['admin-trait'] },

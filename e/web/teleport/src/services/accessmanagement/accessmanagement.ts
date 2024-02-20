@@ -102,6 +102,12 @@ export const accessManagementService = {
             traits: req.grants.traits,
           }
         : original.grants,
+      owner_grants: req.ownerGrants
+        ? {
+            roles: req.ownerGrants.roles,
+            traits: req.ownerGrants.traits,
+          }
+        : original.ownerGrants,
       members: req.members
         ? req.members.map(m => ({
             name: m.name,
@@ -171,6 +177,10 @@ function makeAccessList(json: any): AccessList {
     grants: {
       roles: spec.grants?.roles?.sort() || [],
       traits: makeTraits(spec.grants?.traits),
+    },
+    ownerGrants: {
+      roles: spec.owner_grants?.roles?.sort() || [],
+      traits: makeTraits(spec.owner_grants?.traits),
     },
     audit: {
       recurrence: {

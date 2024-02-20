@@ -93,6 +93,11 @@ const mockAccessListFull: AccessListModified = {
     traits: { os: ['window'] },
     ...convertToTraitConvenience({ os: ['window'] }),
   },
+  ownerGrants: {
+    roles: ['admin', 'root'],
+    traits: { os: ['mac'] },
+    ...convertToTraitConvenience({ os: ['mac'] }),
+  },
   ownershipRequires: {
     roles: ['admin'],
     traits: { power: ['admin-trait'] },
@@ -142,6 +147,7 @@ const mockAccessListSparse: AccessListModified = {
     nextDate: addWeeks(new Date(), 1),
   },
   grants: { roles: ['access'], traits: {}, traitLabels: [], traitList: [] },
+  ownerGrants: { roles: ['admin'], traits: {}, traitLabels: [], traitList: [] },
   ownershipRequires: { roles: [], traits: {}, traitLabels: [], traitList: [] },
   owners: [],
   members: [],

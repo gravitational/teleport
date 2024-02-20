@@ -85,6 +85,11 @@ export function CreateAccessList() {
     traitsToGrant: [],
   });
 
+  const [ownerGrant, setOwnerGrant] = useState<Grant>({
+    rolesToGrant: [],
+    traitsToGrant: [],
+  });
+
   const [owners, setOwners] = useState<Owners>({
     selectedRolesRequired: [],
     eligibleOwners: [],
@@ -200,6 +205,10 @@ export function CreateAccessList() {
           roles: grant.rolesToGrant.map(r => r.value),
           traits: convertTraitLabelsToAllUserTraits(grant.traitsToGrant),
         },
+        owner_grants: {
+          roles: ownerGrant.rolesToGrant.map(r => r.value),
+          traits: convertTraitLabelsToAllUserTraits(ownerGrant.traitsToGrant),
+        },
         audit: {
           recurrence: {
             frequency: convertReviewFrequencyIntoBackendParsableValue(
@@ -259,7 +268,7 @@ export function CreateAccessList() {
               width="540px"
               style={featureLimitReached ? featureLimitReachedBlurCss : null}
             >
-              <Box mb={6}>
+              <Box mb={8}>
                 <SpecSection
                   spec={spec}
                   setSpec={setSpec}
@@ -268,12 +277,23 @@ export function CreateAccessList() {
                   }
                 />
               </Box>
-              <Box mb={8}>
+              <Box mb={5}>
                 <GrantSection
                   grant={grant}
                   setGrant={setGrant}
                   roleOptions={roleOptions}
                   isDisabled={createAttempt.status === 'processing'}
+                  title="Permissions Granted to List Members"
+                />
+              </Box>
+              <Box mb={8}>
+                <GrantSection
+                  grant={ownerGrant}
+                  setGrant={setOwnerGrant}
+                  roleOptions={roleOptions}
+                  isDisabled={createAttempt.status === 'processing'}
+                  title="Permissions Granted to List Owners"
+                  isOptional={true}
                 />
               </Box>
               <Box mb={8}>

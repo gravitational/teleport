@@ -37,7 +37,8 @@ export type AccessList = {
   title: string; // friendly name of id
   description?: string;
   audit: AccessListAudit;
-  grants: AccessListGrant;
+  grants: AccessListGrant; // memberGrant
+  ownerGrants: AccessListGrant;
   // membershipRequires describes the requirements for a user to be a member of the access list.
   // For a membership to an access list to be effective, the user must meet the requirements of
   // membershipRequires and must be in the members list.
@@ -123,6 +124,7 @@ export type UpsertAccessListRequest = {
   description?: string;
   grants: AccessListGrant;
   owners: OwnerRequest[];
+  owner_grants: AccessListGrant;
   ownership_requires: AccessListRequires;
   membership_requires?: AccessListRequires;
   members?: MemberRequest[];

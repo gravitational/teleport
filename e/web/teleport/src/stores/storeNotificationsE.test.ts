@@ -187,7 +187,7 @@ test('remove an existing notification (no longer due in two weeks)', async () =>
   expect(notices.find(n => n.id === dueToday.id)).toBeFalsy();
 });
 
-const dueToday = {
+const dueToday: AccessList = {
   id: 'due-today',
   title: 'due today',
   audit: {
@@ -198,11 +198,12 @@ const dueToday = {
     nextDate: new Date(),
   },
   grants: { roles: [], traits: {} },
+  ownerGrants: { roles: [], traits: {} },
   ownershipRequires: { roles: [], traits: {} },
   owners: [{ name: 'alpaca' }],
 };
 
-const pastDue = {
+const pastDue: AccessList = {
   id: 'past-due',
   title: 'past-due',
   audit: {
@@ -213,11 +214,12 @@ const pastDue = {
     nextDate: subWeeks(new Date(), 2),
   },
   grants: { roles: [], traits: {} },
+  ownerGrants: { roles: [], traits: {} },
   ownershipRequires: { roles: [], traits: {} },
   owners: [{ name: 'apple' }],
 };
 
-const dueInOneWeek = {
+const dueInOneWeek: AccessList = {
   id: 'due-in-one-week',
   title: 'due in one week',
   audit: {
@@ -228,11 +230,12 @@ const dueInOneWeek = {
     nextDate: addWeeks(new Date(), 1),
   },
   grants: { roles: [], traits: {} },
+  ownerGrants: { roles: [], traits: {} },
   ownershipRequires: { roles: [], traits: {} },
   owners: [{ name: 'alpaca' }, { name: 'llama' }],
 };
 
-const dueInTwoWeeks = {
+const dueInTwoWeeks: AccessList = {
   id: 'due-in-two-weeks',
   title: 'due in two weeks',
   audit: {
@@ -243,6 +246,7 @@ const dueInTwoWeeks = {
     nextDate: addWeeks(new Date(), 2),
   },
   grants: { roles: [], traits: {} },
+  ownerGrants: { roles: [], traits: {} },
   ownershipRequires: { roles: [], traits: {} },
   owners: [{ name: 'alpaca' }, { name: 'llama' }],
 };
@@ -260,6 +264,7 @@ const mocks: AccessList[] = [
       nextDate: addWeeks(new Date(), 3),
     }, // not require review
     grants: { roles: [], traits: {} },
+    ownerGrants: { roles: [], traits: {} },
     ownershipRequires: { roles: [], traits: {} },
     owners: [{ name: 'alpaca' }, { name: 'llama' }],
   },
@@ -276,6 +281,7 @@ const mocks: AccessList[] = [
       nextDate: addWeeks(new Date(), 4),
     }, // not require review
     grants: { roles: [], traits: {} },
+    ownerGrants: { roles: [], traits: {} },
     ownershipRequires: { roles: [], traits: {} },
     owners: [],
   },
@@ -294,6 +300,7 @@ const mocksForLlama: AccessList[] = [
       nextDate: addWeeks(new Date(), 4),
     }, // not require review
     grants: { roles: [], traits: {} },
+    ownerGrants: { roles: [], traits: {} },
     ownershipRequires: { roles: [], traits: {} },
     owners: [{ name: 'llama' }],
   },
@@ -309,6 +316,7 @@ const mocksForLlama: AccessList[] = [
       nextDate: addWeeks(new Date(), 3),
     }, // not require review
     grants: { roles: [], traits: {} },
+    ownerGrants: { roles: [], traits: {} },
     ownershipRequires: { roles: [], traits: {} },
     owners: [{ name: 'llama' }],
   },

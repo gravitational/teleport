@@ -28,6 +28,7 @@ import { AccessCard } from './AccessCard';
 
 export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
   grants: AccessListGrant & { traitList: string[] };
+  ownerGrants: AccessListGrant & { traitList: string[] };
   needsReviewBy: Date | null;
 };
 
@@ -60,16 +61,26 @@ export function AccessLists() {
         // Process traits.
         const todayDate = new Date();
         const updatedAccessList = fetchedLists.map(r => {
-          const traitList = [];
-          const definedTraitKeys = Object.keys(r.grants.traits);
-          if (definedTraitKeys.length > 0) {
-            definedTraitKeys.forEach(key => {
-              traitList.push(makeTraitLabel(key, r.grants.traits[key]));
+          const memberTraitList = [];
+          const memberTraitKeys = Object.keys(r.grants.traits);
+          if (memberTraitKeys.length > 0) {
+            memberTraitKeys.forEach(key => {
+              memberTraitList.push(makeTraitLabel(key, r.grants.traits[key]));
+            });
+          }
+          const ownerTraitList = [];
+          const ownerTraitKeys = Object.keys(r.ownerGrants.traits);
+          if (ownerTraitKeys.length > 0) {
+            ownerTraitKeys.forEach(key => {
+              ownerTraitList.push(
+                makeTraitLabel(key, r.ownerGrants.traits[key])
+              );
             });
           }
           return {
             ...r,
-            grants: { ...r.grants, traitList: traitList.sort() },
+            grants: { ...r.grants, traitList: memberTraitList.sort() },
+            ownerGrants: { ...r.ownerGrants, traitList: ownerTraitList.sort() },
             needsReviewBy: accessListRequiresReview({
               todayDate,
               reviewDate: r.audit.nextDate,

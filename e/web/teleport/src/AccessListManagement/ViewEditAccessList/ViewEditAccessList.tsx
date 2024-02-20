@@ -53,6 +53,7 @@ export type AccessListModified = AccessList & {
   membershipRequires: AccessListRequiresWithTraitConvenience;
   ownershipRequires: AccessListRequiresWithTraitConvenience;
   grants: AccessListGrantWithTraitConvenience;
+  ownerGrants: AccessListGrantWithTraitConvenience;
   requiresReview: boolean;
 };
 
@@ -87,6 +88,10 @@ export function ViewEditAccessList() {
           grants: {
             ...fetchedAccessList.grants,
             ...convertToTraitConvenience(fetchedAccessList.grants.traits),
+          },
+          ownerGrants: {
+            ...fetchedAccessList.ownerGrants,
+            ...convertToTraitConvenience(fetchedAccessList.ownerGrants.traits),
           },
           ownershipRequires: {
             ...fetchedAccessList.ownershipRequires,

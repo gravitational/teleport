@@ -21,7 +21,7 @@ import { RuleFunc, noopRule } from './rules';
 // exist in the backend yet.
 export type HybridUserOption = Option<User | string>;
 export type UserOption = Option<User>;
-export type EditKind = 'Member' | 'Owner' | 'Grants';
+export type EditKind = 'Member' | 'Owner' | 'Grants' | 'OwnerGrants';
 
 // TODO(lisa): would benefit moving it to shared package
 // similar to FieldInput and FieldSelect
@@ -39,7 +39,7 @@ export function FieldSelectAndCreatableWrapper<T>({
   const hasError = Boolean(!valid);
   const labelText = hasError ? message : label;
   return (
-    <Box mb={4}>
+    <Box mb={3}>
       {label && (
         <LabelInput htmlFor={'select'} hasError={hasError}>
           {labelText}

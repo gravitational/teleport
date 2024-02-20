@@ -48,6 +48,9 @@ export function EditEligibilityOrGrantRoles({
   } else if (editKind === 'Owner') {
     existingRoles = accessList.ownershipRequires.roles;
     trait = accessList.ownershipRequires;
+  } else if (editKind === 'OwnerGrants') {
+    existingRoles = accessList.ownerGrants.roles;
+    trait = accessList.ownerGrants;
   }
   const { attempt, setAttempt } = useAttempt('');
   const [traitLabels, setTraitLabels] = useState<TraitLabel[]>(
@@ -82,6 +85,10 @@ export function EditEligibilityOrGrantRoles({
       req = {
         grants: { roles, traits },
       };
+    } else if (editKind === 'OwnerGrants') {
+      req = {
+        ownerGrants: { roles, traits },
+      };
     }
 
     // We don't need to setAttempt to "success"
@@ -99,12 +106,14 @@ export function EditEligibilityOrGrantRoles({
       );
   }
 
-  let dialogTitle = 'Edit Permissions Granted';
-  let editBtnTitle = 'Edit Permissions Granted';
+  let dialogTitle = 'Edit Granted Member Permissions';
+  let editBtnTitle = 'Save Permissions';
 
-  if (editKind !== 'Grants') {
+  if (editKind === 'OwnerGrants') {
+    dialogTitle = 'Edit Granted Owner Permissions';
+  } else if (editKind === 'Member' || editKind === 'Owner') {
     dialogTitle = `Edit ${editKind} Eligibility`;
-    editBtnTitle = `Edit ${editKind} Eligibility`;
+    editBtnTitle = `Save Eligibility`;
   }
 
   return (

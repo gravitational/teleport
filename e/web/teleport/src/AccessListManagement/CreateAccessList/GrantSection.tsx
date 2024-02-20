@@ -11,6 +11,8 @@ type Props = {
   setGrant(g: Grant): void;
   isDisabled: boolean;
   roleOptions: Option[];
+  title: string;
+  isOptional?: boolean;
 };
 
 export type Grant = {
@@ -23,11 +25,13 @@ export const GrantSection = ({
   setGrant,
   isDisabled,
   roleOptions,
+  title,
+  isOptional = false,
 }: Props) => {
   return (
     <>
-      <Text fontSize="18px" mb={4}>
-        Permissions Granted to List Members
+      <Text fontSize="18px" mb={2}>
+        {title}
       </Text>
       <EligibilityOrGrantRolesFieldSelectAndCreate
         options={roleOptions}
@@ -37,9 +41,9 @@ export const GrantSection = ({
         }
         selected={grant.rolesToGrant}
         editKind="Grants"
-        optional={grant.traitsToGrant.length > 0}
+        optional={grant.traitsToGrant.length > 0 || isOptional}
       />
-      <Box mb={3} mt={3}>
+      <Box mb={3}>
         <TraitsCreator
           kind="Grants"
           traitLabels={grant.traitsToGrant}

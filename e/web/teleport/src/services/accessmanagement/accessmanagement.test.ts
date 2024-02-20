@@ -34,6 +34,10 @@ test('fetch access lists, empty responses does not throw error', async () => {
         roles: [],
         traits: {},
       },
+      ownerGrants: {
+        roles: [],
+        traits: {},
+      },
       audit: {
         recurrence: {
           dayOfMonth: 0,
@@ -64,6 +68,7 @@ test('fetch an access list, empty response does not throw error', async () => {
     },
     description: '',
     grants: { roles: [], traits: {} },
+    ownerGrants: { roles: [], traits: {} },
     id: '',
     members: [],
     membersCount: undefined,
@@ -105,6 +110,10 @@ test('fetch an access list', async () => {
         grants: {
           roles: ['access'],
           traits: { fruit: ['apple'] },
+        },
+        owner_grants: {
+          roles: ['admin'],
+          traits: { fruit: ['pro'] },
         },
         membership_requires: {
           roles: ['intern'],
@@ -151,6 +160,10 @@ test('fetch an access list', async () => {
       roles: ['access'],
       traits: { fruit: ['apple'] },
     },
+    ownerGrants: {
+      roles: ['admin'],
+      traits: { fruit: ['pro'] },
+    },
     membershipRequires: {
       roles: ['intern'],
       traits: { fruit: ['banana'] },
@@ -196,6 +209,10 @@ describe('update an access list', () => {
       roles: ['access'],
       traits: { fruit: ['apple'] },
     },
+    ownerGrants: {
+      roles: ['admin'],
+      traits: { status: ['pro'] },
+    },
     membershipRequires: {
       roles: ['intern'],
       traits: { fruit: ['banana'] },
@@ -238,6 +255,10 @@ describe('update an access list', () => {
     grants: {
       roles: ['access'],
       traits: { fruit: ['apple'] },
+    },
+    owner_grants: {
+      roles: ['admin'],
+      traits: { status: ['pro'] },
     },
     membership_requires: {
       roles: ['intern'],
@@ -314,6 +335,22 @@ describe('update an access list', () => {
         grants: {
           roles: ['different-role1', 'different-role2'],
           traits: { different1: ['different'], different2: ['different2'] },
+        },
+      },
+    },
+    {
+      case: 'modify owner_grants',
+      reqToUpdate: {
+        ownerGrants: {
+          roles: ['different-role5', 'different-role6'],
+          traits: { different1: ['different1'], different2: ['different3'] },
+        },
+      },
+      constructed: {
+        ...madeForAccessListUpdate,
+        owner_grants: {
+          roles: ['different-role5', 'different-role6'],
+          traits: { different1: ['different1'], different2: ['different3'] },
         },
       },
     },

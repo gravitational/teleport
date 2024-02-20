@@ -31,7 +31,8 @@ export function Specs({
   canEditSpecs,
   fetchAccessList,
 }: Props) {
-  const { membershipRequires, ownershipRequires, grants, audit } = accessList;
+  const { membershipRequires, ownershipRequires, grants, audit, ownerGrants } =
+    accessList;
   const [editPermKind, setEditPermKind] = useState<EditKind>();
   const [showEditAudit, setShowEditAudit] = useState(false);
 
@@ -91,24 +92,52 @@ export function Specs({
         </Flex>
 
         {/* Permissions granted section */}
-        <Box width="40%">
-          <Flex mb={2} alignItems="center" mt="-4px">
-            <UserIdBadge mt="2px" />
-            <Text ml={1} fontSize={4} mr={1}>
+        <Flex width="40%" mr={4} alignItems="flex-start">
+          <UserIdBadge mt="2px" />
+          <Box>
+            <Text ml={1} fontSize={4} mb={2}>
               Permissions Granted
             </Text>
-            <ButtonPencil
-              title={editBtnTitle}
-              onClick={() => setEditPermKind('Grants')}
-              disabled={!canEditSpecs}
-            />
-          </Flex>
-          <RoleAndTraitLabels
-            roles={grants.roles}
-            traits={grants.traitList}
-            required={true}
-          />
-        </Box>
+
+            {/* Owners grant section */}
+            <Box mb={3} ml={1}>
+              <Flex alignItems="center">
+                <Text bold mr={1}>
+                  List Owners
+                </Text>
+                <ButtonPencil
+                  title={editBtnTitle}
+                  onClick={() => setEditPermKind('OwnerGrants')}
+                  disabled={!canEditSpecs}
+                />
+              </Flex>
+              <RoleAndTraitLabels
+                roles={ownerGrants.roles}
+                traits={ownerGrants.traitList}
+                required={true}
+              />
+            </Box>
+
+            {/* Members grant section */}
+            <Box ml={1}>
+              <Flex alignItems="center">
+                <Text bold mr={1}>
+                  Members
+                </Text>
+                <ButtonPencil
+                  title={editBtnTitle}
+                  onClick={() => setEditPermKind('Grants')}
+                  disabled={!canEditSpecs}
+                />
+              </Flex>
+              <RoleAndTraitLabels
+                roles={grants.roles}
+                traits={grants.traitList}
+                required={true}
+              />
+            </Box>
+          </Box>
+        </Flex>
 
         {/* Audit section */}
         <Box width="20%">

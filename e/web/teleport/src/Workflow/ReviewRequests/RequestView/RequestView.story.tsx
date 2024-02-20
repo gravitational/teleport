@@ -218,6 +218,10 @@ const suggestedAccessLists: AccessList[] = [
       roles: ['access', 'editor'],
       traits: { fruit: ['apple'], drink: ['mocha', 'latte', 'capppuccino'] },
     },
+    ownerGrants: {
+      roles: ['admin', 'root'],
+      traits: { status: ['pro'] },
+    },
     membershipRequires: {
       roles: ['intern'],
       traits: { fruit: ['banana'] },
@@ -271,6 +275,10 @@ const suggestedAccessLists: AccessList[] = [
         'devices',
       ],
       traits: { fruit: ['apple'] },
+    },
+    ownerGrants: {
+      roles: ['admin', 'root'],
+      traits: { status: ['pro'] },
     },
     membershipRequires: {
       roles: ['intern'],
