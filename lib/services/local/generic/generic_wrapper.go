@@ -18,6 +18,7 @@ package generic
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -62,6 +63,28 @@ type ServiceWrapper[T types.ResourceMetadata] struct {
 	service *Service[resourceMetadataAdapter[T]]
 }
 
+// WithPrefix will return a service wrapper with the given parts appended to the backend prefix.
+func (s ServiceWrapper[T]) WithPrefix(parts ...string) (*ServiceWrapper[T], error) {
+	if len(parts) == 0 {
+		return &s, nil
+	}
+
+	cfg := &ServiceConfig[resourceMetadataAdapter[T]]{
+		Backend:       s.service.backend,
+		ResourceKind:  s.service.resourceKind,
+		BackendPrefix: strings.Join(append([]string{s.service.backendPrefix}, parts...), string(backend.Separator)),
+		MarshalFunc:   s.service.marshalFunc,
+		UnmarshalFunc: s.service.unmarshalFunc,
+	}
+
+	service, err := NewService[resourceMetadataAdapter[T]](cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ServiceWrapper[T]{service: service}, nil
+}
+
 // UpsertResource upserts a resource.
 func (s ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.UpsertResource(ctx, newResourceMetadataAdapter(resource))
@@ -89,6 +112,12 @@ func (s ServiceWrapper[T]) GetResource(ctx context.Context, name string) (resour
 // DeleteResource removes the specified resource.
 func (s ServiceWrapper[T]) DeleteResource(ctx context.Context, name string) error {
 	return trace.Wrap(s.service.DeleteResource(ctx, name))
+}
+
+// DeleteAllResources removes all resources.
+func (s ServiceWrapper[T]) DeleteAllResources(ctx context.Context) error {
+	startKey := backend.ExactKey(s.service.backendPrefix)
+	return trace.Wrap(s.service.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // ListResources returns a paginated list of resources.
