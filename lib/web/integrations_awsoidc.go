@@ -178,6 +178,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		IntegrationName:               awsClientReq.IntegrationName,
 		DatabaseResourceMatcherLabels: databaseAgentMatcherLabels,
 		DeployServiceConfigString:     deployserviceconfig.GenerateTeleportConfigString,
+		DeploymentJoinTokenName:       deployserviceconfig.DefaultTeleportIAMTokenName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -200,17 +201,12 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -226,32 +222,44 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
 	}
 
-	deployments := make([]awsoidc.DeployDatabaseServiceRequestDeployment, 0, len(req.Deployments))
+	iamTokenName := deployserviceconfig.DefaultTeleportIAMTokenName
+	deployments := make([]*integrationv1.DeployDatabaseServiceDeployment, 0, len(req.Deployments))
 	for _, d := range req.Deployments {
-		deployments = append(deployments, awsoidc.DeployDatabaseServiceRequestDeployment{
-			VPCID:            d.VPCID,
-			SubnetIDs:        d.SubnetIDs,
-			SecurityGroupIDs: d.SecurityGroups,
+		teleportConfigString, err := deployserviceconfig.GenerateTeleportConfigString(
+			h.PublicProxyAddr(),
+			iamTokenName,
+			types.Labels{
+				types.DiscoveryLabelVPCID:  []string{d.VPCID},
+				types.DiscoveryLabelRegion: []string{req.Region},
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		deployments = append(deployments, &integrationv1.DeployDatabaseServiceDeployment{
+			VpcId:                d.VPCID,
+			SubnetIds:            d.SubnetIDs,
+			SecurityGroups:       d.SecurityGroups,
+			TeleportConfigString: teleportConfigString,
 		})
 	}
 
-	deployServiceResp, err := awsoidc.DeployDatabaseService(ctx, deployServiceClient, awsoidc.DeployDatabaseServiceRequest{
-		Region:                    req.Region,
-		TaskRoleARN:               req.TaskRoleARN,
-		ProxyServerHostPort:       h.PublicProxyAddr(),
-		TeleportClusterName:       h.auth.clusterName,
-		TeleportVersionTag:        teleportVersionTag,
-		IntegrationName:           awsClientReq.IntegrationName,
-		Deployments:               deployments,
-		CreateDeployServiceConfig: deployserviceconfig.GenerateTeleportConfigString,
+	deployServiceResp, err := clt.IntegrationAWSOIDCClient().DeployDatabaseService(ctx, &integrationv1.DeployDatabaseServiceRequest{
+		Integration:             integrationName,
+		Region:                  req.Region,
+		TaskRoleArn:             req.TaskRoleARN,
+		Deployments:             deployments,
+		TeleportVersion:         teleportVersionTag,
+		DeploymentJoinTokenName: deployserviceconfig.DefaultTeleportIAMTokenName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ui.AWSOIDCDeployDatabaseServiceResponse{
-		ClusterARN:          deployServiceResp.ClusterARN,
-		ClusterDashboardURL: deployServiceResp.ClusterDashboardURL,
+		ClusterARN:          deployServiceResp.ClusterArn,
+		ClusterDashboardURL: deployServiceResp.ClusterDashboardUrl,
 	}, nil
 }
 
