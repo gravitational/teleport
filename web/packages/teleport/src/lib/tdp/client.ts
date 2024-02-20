@@ -350,8 +350,8 @@ export default class Client extends EventEmitterWebAuthnSender {
         (responseFrame: ArrayBuffer) => {
           this.sendRDPResponsePDU(responseFrame);
         },
-        (data: ImageData|boolean, hotspot_x?: number, hotspot_y?: number) => {
-          this.emit(TdpClientEvent.POINTER, {data, hotspot_x, hotspot_y});
+        (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
+          this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
         }
       );
     } catch (e) {
