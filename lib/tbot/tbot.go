@@ -163,7 +163,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 	defer func() {
 		if err := b.botIdentitySvc.Close(); err != nil {
-			b.log.WithError(err).Error("Failed to close bot identity service.")
+			b.log.WithError(err).Error("Failed to close bot identity service")
 		}
 	}()
 	services = append(services, b.botIdentitySvc)
