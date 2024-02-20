@@ -154,7 +154,7 @@ export function Account({
     const message =
       newDeviceUsage === 'passwordless'
         ? 'Passkey successfully saved.'
-        : 'MFA successfully saved.';
+        : 'MFA device successfully saved.';
     addNotification('info', message);
     onDeviceAdded();
   }
