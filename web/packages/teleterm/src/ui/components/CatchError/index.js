@@ -14,5 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import CatchError from './CatchError';
-export default CatchError;
+export { CatchError } from './CatchError';

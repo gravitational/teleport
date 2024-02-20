@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -72,6 +73,176 @@ func hasAuditEventCount(want int) eventCheckFn {
 
 // TestAuthPOST tests the handler of POST /x-teleport-auth.
 func TestAuthPOST(t *testing.T) {
+	secretToken := "012ac605867e5a7d693cd6f49c7ff0fb"
+	cookieID := "cookie-name"
+	stateValue := fmt.Sprintf("%s_%s", secretToken, cookieID)
+	appCookieValue := "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b"
+
+	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+	// Generate CA TLS key and cert with the cluster and application DNS.
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc            string
+		sessionError    error
+		outStatusCode   int
+		makeRequestBody func(types.WebSession) fragmentRequest
+		getEventChecks  func(types.WebSession) []eventCheckFn
+	}{
+		{
+			desc: "success",
+			makeRequestBody: func(appSession types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: appSession.GetBearerToken(),
+				}
+			},
+			outStatusCode: http.StatusOK,
+			getEventChecks: func(types.WebSession) []eventCheckFn {
+				return []eventCheckFn{hasAuditEventCount(0)}
+			},
+		},
+		{
+			desc: "missing state token in request",
+			makeRequestBody: func(appSession types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         "",
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: appSession.GetBearerToken(),
+				}
+			},
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(types.WebSession) []eventCheckFn {
+				return []eventCheckFn{
+					hasAuditEventCount(1),
+					hasAuditEvent(0, &apievents.AuthAttempt{
+						Metadata: apievents.Metadata{
+							Type: events.AuthAttemptEvent,
+							Code: events.AuthAttemptFailureCode,
+						},
+						UserMetadata: apievents.UserMetadata{
+							User: "unknown",
+						},
+						Status: apievents.Status{
+							Success: false,
+							Error:   "Failed app access authentication: missing required fields in JSON request body",
+						},
+					}),
+				}
+			},
+		},
+		{
+			desc: "missing subject session token in request",
+			makeRequestBody: func(ws types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: "",
+				}
+			},
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(appSession types.WebSession) []eventCheckFn {
+				return []eventCheckFn{
+					hasAuditEventCount(1),
+					hasAuditEvent(0, &apievents.AuthAttempt{
+						Metadata: apievents.Metadata{
+							Type: events.AuthAttemptEvent,
+							Code: events.AuthAttemptFailureCode,
+						},
+						UserMetadata: apievents.UserMetadata{
+							User: "unknown",
+						},
+						Status: apievents.Status{
+							Success: false,
+							Error:   "Failed app access authentication: missing required fields in JSON request body",
+						},
+					}),
+				}
+			},
+		},
+		{
+			desc: "subject session token in request does not match",
+			makeRequestBody: func(ws types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: "foobar",
+				}
+			},
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(appSession types.WebSession) []eventCheckFn {
+				return []eventCheckFn{
+					hasAuditEventCount(1),
+					hasAuditEvent(0, &apievents.AuthAttempt{
+						Metadata: apievents.Metadata{
+							Type: events.AuthAttemptEvent,
+							Code: events.AuthAttemptFailureCode,
+						},
+						UserMetadata: apievents.UserMetadata{
+							Login: appSession.GetUser(),
+							User:  "unknown",
+						},
+						Status: apievents.Status{
+							Success: false,
+							Error:   "Failed app access authentication: subject session token does not match",
+						},
+					}),
+				}
+			},
+		},
+		{
+			desc: "invalid session",
+			makeRequestBody: func(appSession types.WebSession) fragmentRequest {
+				return fragmentRequest{
+					StateValue:         stateValue,
+					CookieValue:        appCookieValue,
+					SubjectCookieValue: appSession.GetBearerToken(),
+				}
+			},
+			sessionError:  trace.NotFound("invalid session"),
+			outStatusCode: http.StatusForbidden,
+			getEventChecks: func(types.WebSession) []eventCheckFn {
+				return []eventCheckFn{hasAuditEventCount(0)}
+			},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr)
+			authClient := &mockAuthClient{
+				sessionError: test.sessionError,
+				appSession:   appSession,
+			}
+			p := setup(t, fakeClock, authClient, nil, nil)
+
+			reqBody := test.makeRequestBody(appSession)
+			req, err := json.Marshal(reqBody)
+			require.NoError(t, err)
+
+			status, _ := p.makeRequest(t, "POST", "/x-teleport-auth", req, []http.Cookie{{
+				Name:  fmt.Sprintf("%s_%s", AuthStateCookieName, cookieID),
+				Value: secretToken,
+			}})
+			require.Equal(t, status, test.outStatusCode)
+			for _, check := range test.getEventChecks(appSession) {
+				check(t, authClient.emittedEvents)
+			}
+		})
+	}
+}
+
+// DELETE IN 17.0
+func TestAuthPOST_Legacy(t *testing.T) {
 	const (
 		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b" // random value we set in the header and expect to get back as a cookie
 	)
@@ -145,12 +316,38 @@ func TestAuthPOST(t *testing.T) {
 						Code: events.AuthAttemptFailureCode,
 					},
 					UserMetadata: apievents.UserMetadata{
-						Login: appSession.GetUser(),
-						User:  "unknown",
+						User: "unknown",
 					},
 					Status: apievents.Status{
 						Success: false,
-						Error:   "subject session token is not set",
+						Error:   "Failed app access authentication: missing X-Subject-Cookie-Value header",
+					},
+				}),
+			},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+		{
+			desc: "missing subject session token in request",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com",
+				"X-Subject-Cookie-Value": "foobar",
+			},
+			outStatusCode: http.StatusForbidden,
+			eventChecks: []eventCheckFn{
+				hasAuditEventCount(1),
+				hasAuditEvent(0, &apievents.AuthAttempt{
+					Metadata: apievents.Metadata{
+						Type: events.AuthAttemptEvent,
+						Code: events.AuthAttemptFailureCode,
+					},
+					UserMetadata: apievents.UserMetadata{
+						User: "unknown",
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "Failed app access authentication: missing X-Cookie-Value header",
 					},
 				}),
 			},
@@ -179,7 +376,7 @@ func TestAuthPOST(t *testing.T) {
 					},
 					Status: apievents.Status{
 						Success: false,
-						Error:   "subject session token does not match",
+						Error:   "Failed app access authentication: subject session token does not match",
 					},
 				}),
 			},
@@ -266,6 +463,39 @@ func TestAuthPOST(t *testing.T) {
 			}
 		})
 	}
+}
+
+// DELETE IN 17.0
+func (p *testServer) makeRequestWithHeaders(t *testing.T, endpoint string, headers map[string]string) *http.Response {
+	u := url.URL{
+		Scheme: p.serverURL.Scheme,
+		Host:   p.serverURL.Host,
+		Path:   endpoint,
+	}
+	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
+	require.NoError(t, err)
+
+	for key, value := range headers {
+		req.Header.Add(key, value)
+	}
+
+	// Issue request.
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	return resp
 }
 
 func TestHasName(t *testing.T) {
@@ -530,6 +760,7 @@ func (p *testServer) makeRequest(t *testing.T, method, endpoint string, reqBody 
 	}
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(reqBody))
 	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
 
 	// Attach the cookie.
 	for _, c := range cookies {
@@ -558,38 +789,6 @@ func (p *testServer) makeRequest(t *testing.T, method, endpoint string, reqBody 
 	return resp.StatusCode, string(content)
 }
 
-func (p *testServer) makeRequestWithHeaders(t *testing.T, endpoint string, headers map[string]string) *http.Response {
-	u := url.URL{
-		Scheme: p.serverURL.Scheme,
-		Host:   p.serverURL.Host,
-		Path:   endpoint,
-	}
-	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
-	require.NoError(t, err)
-
-	for key, value := range headers {
-		req.Header.Add(key, value)
-	}
-
-	// Issue request.
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-
-	return resp
-}
-
 type mockAuthClient struct {
 	auth.ClientI
 	clusterName   string
@@ -611,6 +810,10 @@ func (c *mockAuthClient) EmitAuditEvent(ctx context.Context, event apievents.Aud
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.emittedEvents = append(c.emittedEvents, event)
+	return nil
+}
+
+func (c *mockAuthClient) DeleteAppSession(ctx context.Context, r types.DeleteAppSessionRequest) error {
 	return nil
 }
 
@@ -740,10 +943,12 @@ func createAppServer(t *testing.T, publicAddr string) types.AppServer {
 
 func TestMakeAppRedirectURL(t *testing.T) {
 	for _, test := range []struct {
-		name        string
-		reqURL      string
-		expectedURL string
+		name             string
+		reqURL           string
+		expectedURL      string
+		launderURLParams launcherURLParams
 	}{
+		// with launcherURLParams empty (will be empty if user did not launch app from our web UI)
 		{
 			name:        "OK - no path",
 			reqURL:      "https://grafana.localhost",
@@ -789,12 +994,44 @@ func TestMakeAppRedirectURL(t *testing.T) {
 			reqURL:      "https://grafana.localhost/alerting /list?search=state:inactive type:alerting health:nodata",
 			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Falerting+%2Flist&query=search%3Dstate%3Ainactive+type%3Aalerting+health%3Anodata",
 		},
+
+		// with launcherURLParams (defined if user used the "launcher" button from our web UI)
+		{
+			name: "OK - with clusterId and publicAddr",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost?path=&state=abc123",
+		},
+		{
+			name: "OK - with clusterId, publicAddr, and arn",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=&state=abc123",
+		},
+		{
+			name: "OK - with clusterId, publicAddr, arn and path",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
+				path:        "/foo/bar?qux=qex",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&state=abc123",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, test.reqURL, nil)
 			require.NoError(t, err)
 
-			urlStr := makeAppRedirectURL(req, "proxy.com", "grafana.localhost")
+			urlStr := makeAppRedirectURL(req, "proxy.com", "grafana.localhost", test.launderURLParams)
 			require.Equal(t, test.expectedURL, urlStr)
 		})
 	}

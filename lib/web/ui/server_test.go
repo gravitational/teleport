@@ -502,8 +502,10 @@ func TestSortedLabels(t *testing.T) {
 			clusterName: "cluster1",
 			servers: []types.Server{
 				makeTestServer(t, "server1", map[string]string{
+					"teleport.dev/origin":   "config-file",
 					"aws/asdfasdf":          "hello",
 					"simple":                "value1",
+					"ultra-cool-label":      "value1",
 					"teleport.internal/app": "app1",
 				}),
 			},
@@ -512,6 +514,14 @@ func TestSortedLabels(t *testing.T) {
 					{
 						Name:  "simple",
 						Value: "value1",
+					},
+					{
+						Name:  "ultra-cool-label",
+						Value: "value1",
+					},
+					{
+						Name:  "teleport.dev/origin",
+						Value: "config-file",
 					},
 					{
 						Name:  "aws/asdfasdf",

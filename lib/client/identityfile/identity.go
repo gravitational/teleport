@@ -721,6 +721,12 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 		if parsedIdent.RouteToApp.Name != "" {
 			key.AppTLSCerts[parsedIdent.RouteToApp.Name] = ident.Certs.TLS
 		}
+
+		// If this identity file has any kubernetes certs, copy it into the
+		// KubeTLSCerts map.
+		if parsedIdent.KubernetesCluster != "" {
+			key.KubeTLSCerts[parsedIdent.KubernetesCluster] = ident.Certs.TLS
+		}
 	} else {
 		key.Username, err = key.CertUsername()
 		if err != nil {

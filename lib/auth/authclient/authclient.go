@@ -26,11 +26,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -53,8 +53,13 @@ type Config struct {
 	// PromptAdminRequestMFA is used to prompt the user for MFA on admin requests when needed.
 	// If nil, the client will not prompt for MFA.
 	PromptAdminRequestMFA func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	// DialOpts define options for dialing the client connection.
+	DialOpts []grpc.DialOption
 	// Insecure turns off TLS certificate verification when enabled.
 	Insecure bool
+	// Resolver is used to identify the reverse tunnel address when connecting via
+	// the proxy.
+	Resolver reversetunnelclient.Resolver
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -96,6 +101,7 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (auth.ClientI, error
 		InsecureAddressDiscovery: cfg.Insecure,
 		DialTimeout:              cfg.DialTimeout,
 		PromptAdminRequestMFA:    cfg.PromptAdminRequestMFA,
+		DialOpts:                 cfg.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -115,25 +121,11 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 	// If direct dial failed, we may have a proxy address in
 	// cfg.AuthServers. Try connecting to the reverse tunnel
 	// endpoint and make a client over that.
-	//
-	// TODO(nic): this logic should be implemented once and reused in IoT
-	// nodes.
-	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: cfg.AuthServers[0].String(),
-		Insecure:  cfg.Insecure,
-		Timeout:   cfg.DialTimeout,
-	})
-
-	resolver, err := reversetunnelclient.CachingResolver(ctx, resolver, nil /* clock */)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 	// within an SSH tunnel.
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
-		Resolver:              resolver,
+		Resolver:              cfg.Resolver,
 		ClientConfig:          cfg.SSH,
 		Log:                   cfg.Log,
 		InsecureSkipTLSVerify: cfg.Insecure,
@@ -148,6 +140,7 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 			apiclient.LoadTLS(cfg.TLS),
 		},
 		PromptAdminRequestMFA: cfg.PromptAdminRequestMFA,
+		DialOpts:              cfg.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -1302,8 +1302,8 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 	lockTargets := []types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
-		{Node: serverID},
-		{Node: auth.HostFQDN(serverID, clusterName)},
+		{Node: serverID, ServerID: serverID},
+		{Node: auth.HostFQDN(serverID, clusterName), ServerID: auth.HostFQDN(serverID, clusterName)},
 	}
 	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})

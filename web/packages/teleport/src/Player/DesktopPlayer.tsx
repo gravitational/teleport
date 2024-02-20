@@ -21,7 +21,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import { PlayerClient, PlayerClientEvent } from 'teleport/lib/tdp';
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import { getHostName } from 'teleport/services/api';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 
 import { ProgressBarDesktop } from './ProgressBar';
@@ -110,7 +110,6 @@ const useDesktopPlayer = ({
           .replace(':fqdn', getHostName())
           .replace(':clusterId', clusterId)
           .replace(':sid', sid)
-          .replace(':token', getAccessToken())
       )
     );
   }, [clusterId, sid]);

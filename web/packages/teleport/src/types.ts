@@ -154,6 +154,7 @@ export interface FeatureFlags {
   accessRequests: boolean;
   newAccessRequest: boolean;
   downloadCenter: boolean;
+  supportLink: boolean;
   discover: boolean;
   plugins: boolean;
   integrations: boolean;
@@ -189,3 +190,11 @@ export enum RecommendationStatus {
   Notify = 'NOTIFY',
   Done = 'DONE',
 }
+
+// WebsocketStatus is used to indicate the auth status from a
+// websocket connection
+export type WebsocketStatus = {
+  type: string;
+  status: string;
+  message?: string;
+};

@@ -91,6 +91,10 @@ type Features struct {
 	CustomTheme string
 
 	// AccessGraph enables the usage of access graph.
+	// NOTE: this is a legacy flag that is currently used to signal
+	// that Access Graph integration is *enabled* on a cluster.
+	// *Access* to the feature is gated on the `Policy` flag.
+	// TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
 	AccessGraph bool
 	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
 	// access list, access request, access monitoring, device trust.
@@ -101,6 +105,9 @@ type Features struct {
 	AccessMonitoring AccessMonitoringFeature
 	// ProductType describes the product being used.
 	ProductType ProductType
+	// Policy holds settings for the Teleport Policy feature set.
+	// At the time of writing, this includes Teleport Access Graph (TAG).
+	Policy PolicyFeature
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -145,6 +152,11 @@ type AccessMonitoringFeature struct {
 	MaxReportRangeLimit int
 }
 
+type PolicyFeature struct {
+	// Enabled is set to `true` if Teleport Policy is enabled in the license.
+	Enabled bool
+}
+
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
 	return &proto.Features{
@@ -181,6 +193,9 @@ func (f Features) ToProto() *proto.Features {
 		},
 		AccessList: &proto.AccessListFeature{
 			CreateLimit: int32(f.AccessList.CreateLimit),
+		},
+		Policy: &proto.PolicyFeature{
+			Enabled: f.Policy.Enabled,
 		},
 	}
 }
@@ -258,7 +273,7 @@ type Modules interface {
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
-	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
+	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
@@ -360,9 +375,9 @@ func (p *defaultModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
-	return keys.PrivateKeyPolicyNone, nil
+	return nil, trace.NotFound("no attestation data for the given key")
 }
 
 // GenerateAccessRequestPromotions is a noop since OSS teleport does not support generating access list promotions.

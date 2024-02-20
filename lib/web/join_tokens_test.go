@@ -970,7 +970,7 @@ func TestJoinScript(t *testing.T) {
 	}
 
 	t.Run("direct download links", func(t *testing.T) {
-		getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
+		getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://cdn\.teleport\.dev/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
 
 		t.Run("oss", func(t *testing.T) {
 			// Using the OSS Version, all the links must contain only teleport as package name.
@@ -979,9 +979,9 @@ func TestJoinScript(t *testing.T) {
 
 			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
 			require.ElementsMatch(t, matches, []string{
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
 			})
 			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport'")
 			require.Contains(t, script, "TELEPORT_ARCHIVE_PATH='teleport'")
@@ -995,9 +995,9 @@ func TestJoinScript(t *testing.T) {
 
 			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
 			require.ElementsMatch(t, matches, []string{
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
-				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+				"https://cdn.teleport.dev/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
 			})
 			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport-ent'")
 			require.Contains(t, script, "TELEPORT_ARCHIVE_PATH='teleport-ent'")

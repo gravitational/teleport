@@ -137,7 +137,7 @@ describe('location state', () => {
     ).toHaveLength(SERVERS.length);
 
     // we assert three databases for servers because the naming convention includes "server"
-    expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(3);
+    expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(4);
 
     expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
     expect(

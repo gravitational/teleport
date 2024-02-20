@@ -84,7 +84,12 @@ func NewReconciler[T Reconciled](cfg ReconcilerConfig[T]) (*Reconciler[T], error
 	}
 	return &Reconciler[T]{
 		cfg: cfg,
-		log: cfg.Log,
+		// We do a WithFields here to force this into a *logrus.Entry, which has the ability to
+		// log at the Trace level. If we were to change this in ReconcilerConfig, we'd have to
+		// refactor existing code to use *logrus.Entry instead of logrus.FieldLogger, and with
+		// the eventual change to slog, it seems easier to do this for now until this can be
+		// changed to slog.
+		log: cfg.Log.WithFields(nil),
 	}, nil
 }
 
@@ -95,7 +100,7 @@ func NewReconciler[T Reconciled](cfg ReconcilerConfig[T]) (*Reconciler[T], error
 // to enable dynamically registered resources.
 type Reconciler[T Reconciled] struct {
 	cfg ReconcilerConfig[T]
-	log logrus.FieldLogger
+	log *logrus.Entry
 }
 
 // Reconcile reconciles currently registered resources with new resources and
@@ -190,6 +195,6 @@ func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources
 		return nil
 	}
 
-	r.log.Debugf("%v %v is already registered.", kind, name)
+	r.log.Tracef("%v %v is already registered.", kind, name)
 	return nil
 }

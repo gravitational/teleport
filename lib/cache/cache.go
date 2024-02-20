@@ -112,6 +112,7 @@ func makeAllKnownCAsFilter() types.CertAuthorityFilter {
 // ForAuth sets up watch configuration for the auth server
 func ForAuth(cfg Config) Config {
 	cfg.target = "auth"
+	cfg.EnableRelativeExpiry = true
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindClusterName},
@@ -739,6 +740,9 @@ type Config struct {
 	// healthy even if some of the requested resource kinds aren't
 	// supported by the event source.
 	DisablePartialHealth bool
+	// EnableRelativeExpiry turns on purging expired items from the cache even
+	// if delete events have not been received from the backend.
+	EnableRelativeExpiry bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1280,18 +1284,14 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 
 	retry.Reset()
 
-	// only enable relative node expiry if the cache is configured
-	// to watch for types.KindNode
+	// Only enable relative node expiry for the auth cache.
 	relativeExpiryInterval := interval.NewNoop()
-	for _, watch := range c.Config.Watches {
-		if watch.Kind == types.KindNode {
-			relativeExpiryInterval = interval.New(interval.Config{
-				Duration:      c.Config.RelativeExpiryCheckInterval,
-				FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
-				Jitter:        retryutils.NewSeventhJitter(),
-			})
-			break
-		}
+	if c.EnableRelativeExpiry {
+		relativeExpiryInterval = interval.New(interval.Config{
+			Duration:      c.Config.RelativeExpiryCheckInterval,
+			FirstDuration: utils.HalfJitter(c.Config.RelativeExpiryCheckInterval),
+			Jitter:        retryutils.NewSeventhJitter(),
+		})
 	}
 	defer relativeExpiryInterval.Stop()
 
@@ -1344,8 +1344,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 				}
 			}
 
-			err = c.processEvent(ctx, event, true)
-			if err != nil {
+			if err := c.processEvent(ctx, event); err != nil {
 				return trace.Wrap(err)
 			}
 			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
@@ -1438,7 +1437,7 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 				Kind:     types.KindNode,
 				Metadata: node.GetMetadata(),
 			},
-		}, false); err != nil {
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -1605,9 +1604,9 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 }
 
 // processEvent hands the event off to the appropriate collection for processing. Any
-// resources which were not registered are ignored. If processing completed successfully
-// and emit is true the event will be emitted via the fanout.
-func (c *Cache) processEvent(ctx context.Context, event types.Event, emit bool) error {
+// resources which were not registered are ignored. If processing completed successfully,
+// the event will be emitted via the fanout.
+func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections.byKind[resourceKind]
 	if !ok {
@@ -1617,14 +1616,14 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event, emit bool) 
 	if err := collection.processEvent(ctx, event); err != nil {
 		return trace.Wrap(err)
 	}
-	if emit {
-		c.eventsFanout.Emit(event)
-		if !isHighVolumeResource(resourceKind.kind) {
-			c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
-				f.Emit(event)
-			})
-		}
+
+	c.eventsFanout.Emit(event)
+	if !isHighVolumeResource(resourceKind.kind) {
+		c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
+			f.Emit(event)
+		})
 	}
+
 	return nil
 }
 
@@ -2270,6 +2269,19 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 	}
 
 	return sess, trace.Wrap(err)
+}
+
+// ListAppSessions returns a page of application web sessions.
+func (c *Cache) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAppSessions")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.appSessions)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAppSessions(ctx, pageSize, pageToken, user)
 }
 
 // GetSnowflakeSession gets Snowflake web session.

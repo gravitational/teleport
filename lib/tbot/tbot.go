@@ -26,12 +26,16 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -106,9 +110,21 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	resolver, err := reversetunnelclient.CachingResolver(
+		ctx,
+		reversetunnelclient.WebClientResolver(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: b.cfg.AuthServer,
+			Insecure:  b.cfg.Insecure,
+		}),
+		nil /* clock */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create an error group to manage all the services lifetimes.
 	eg, egCtx := errgroup.WithContext(ctx)
-	services := []bot.Service{}
+	var services []bot.Service
 
 	// ReloadBroadcaster allows multiple entities to trigger a reload of
 	// all services. This allows os signals and other events such as CA
@@ -135,6 +151,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	b.botIdentitySvc = &identityService{
 		cfg:               b.cfg,
 		reloadBroadcaster: reloadBroadcaster,
+		resolver:          resolver,
 		log: b.log.WithField(
 			trace.Component, teleport.Component(componentTBot, "identity"),
 		),
@@ -159,6 +176,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	services = append(services, &outputsService{
 		botIdentitySrc: b,
 		cfg:            b.cfg,
+		resolver:       resolver,
 		log: b.log.WithField(
 			trace.Component, teleport.Component(componentTBot, "outputs"),
 		),
@@ -167,6 +185,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	services = append(services, &caRotationService{
 		botIdentitySrc: b,
 		cfg:            b.cfg,
+		resolver:       resolver,
 		log: b.log.WithField(
 			trace.Component, teleport.Component(componentTBot, "ca-rotation"),
 		),
@@ -336,6 +355,7 @@ func clientForIdentity(
 	log logrus.FieldLogger,
 	cfg *config.BotConfig,
 	id *identity.Identity,
+	resolver reversetunnelclient.Resolver,
 ) (auth.ClientI, error) {
 	ctx, span := tracer.Start(ctx, "clientForIdentity")
 	defer span.End()
@@ -368,6 +388,8 @@ func clientForIdentity(
 		AuthServers: []utils.NetAddr{*authAddr},
 		Log:         log,
 		Insecure:    cfg.Insecure,
+		Resolver:    resolver,
+		DialOpts:    []grpc.DialOption{metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTBot)},
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)

@@ -375,7 +375,7 @@ Ingest:
 	}
 
 	if len(resourcePresences) > 0 {
-		r.persistResourcePresence(ctx, userActivityStartTime, resourcePresences)
+		r.persistResourcePresence(ctx, resourceUsageStartTime, resourcePresences)
 	}
 
 	wg.Wait()

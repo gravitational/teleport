@@ -18,7 +18,6 @@ package authz
 
 import (
 	"context"
-	"errors"
 	"net"
 	"testing"
 	"time"
@@ -26,14 +25,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -323,7 +320,7 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			name:       "nok: user without extensions and mode=required",
 			deviceMode: constants.DeviceTrustModeRequired,
 			user:       userWithoutExtensions,
-			wantErr:    "unauthorized device",
+			wantErr:    "access denied",
 		},
 		{
 			name:               "device authorization disabled",
@@ -599,104 +596,6 @@ func TestCheckIPPinning(t *testing.T) {
 	}
 }
 
-func TestAuthorizeWithVerbs(t *testing.T) {
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	accessService := local.NewAccessService(backend)
-
-	role, err := types.NewRole("test", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindUser},
-					Verbs:     []string{types.ActionRead},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	err = accessService.CreateRole(context.Background(), role)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name         string
-		delegate     Authorizer
-		kind         string
-		verbs        []string
-		errAssertion require.ErrorAssertionFunc
-	}{
-		{
-			name: "regular auth",
-			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
-				return &Context{}, nil
-			}),
-			errAssertion: require.NoError,
-		},
-		{
-			name: "regular auth with verbs",
-			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
-				accessChecker, err := services.NewAccessChecker(&services.AccessInfo{
-					Roles: []string{"test"},
-				}, "test-cluster", accessService)
-				require.NoError(t, err)
-				return &Context{
-					Checker: accessChecker,
-				}, nil
-			}),
-			kind:         types.KindUser,
-			verbs:        []string{types.VerbRead},
-			errAssertion: require.NoError,
-		},
-		{
-			name: "connection problem",
-			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
-				return nil, trace.ConnectionProblem(errors.New("err msg"), "err msg")
-			}),
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.True(t, trace.IsConnectionProblem(err))
-				require.Equal(t, "failed to connect to the database", err.Error())
-			},
-		},
-		{
-			name: "not found",
-			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
-				return nil, trace.NotFound("err msg")
-			}),
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.True(t, trace.IsNotFound(err))
-				require.Equal(t, "access denied\n\taccess denied\n\t\terr msg", trace.UserMessage(err))
-			},
-		},
-		{
-			name: "access denied",
-			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
-				return nil, trace.AccessDenied("access denied")
-			}),
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.ErrorIs(t, err, trace.AccessDenied("access denied"))
-			},
-		},
-		{
-			name: "private key policy error",
-			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
-				return nil, keys.NewPrivateKeyPolicyError("error")
-			}),
-			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
-				require.ErrorIs(t, err, keys.NewPrivateKeyPolicyError("error"))
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
-			log := logrus.New()
-			_, err = AuthorizeWithVerbs(ctx, log, test.delegate, true, test.kind, test.verbs...)
-			test.errAssertion(t, ConvertAuthorizerError(ctx, log, err))
-		})
-	}
-}
-
 func TestRoleSetForBuiltinRoles(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -743,6 +642,89 @@ func TestConnectionMetadata(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.Empty(t, cmp.Diff(test.expectedConnectionMetadata, ConnectionMetadata(test.ctx)))
+		})
+	}
+}
+
+func TestIsUserFunctions(t *testing.T) {
+	localIdentity := Context{Identity: LocalUser{}}
+	remoteIdentity := Context{Identity: RemoteUser{}}
+	systemIdentity := Context{
+		Identity: BuiltinRole{
+			Role: types.RoleProxy,
+		},
+	}
+
+	tests := []struct {
+		funcName, scenario string
+		isUserFunc         func(Context) bool
+		authCtx            Context
+		want               bool
+	}{
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "local user",
+			isUserFunc: IsLocalUser,
+			authCtx:    localIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "remote user",
+			isUserFunc: IsLocalUser,
+			authCtx:    remoteIdentity,
+		},
+		{
+			funcName:   "IsLocalUser",
+			scenario:   "system user",
+			isUserFunc: IsLocalUser,
+			authCtx:    systemIdentity,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "local user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    localIdentity,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "remote user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    remoteIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsRemoteUser",
+			scenario:   "system user",
+			isUserFunc: IsRemoteUser,
+			authCtx:    systemIdentity,
+		},
+
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "local user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    localIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "remote user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    remoteIdentity,
+			want:       true,
+		},
+		{
+			funcName:   "IsLocalOrRemoteUser",
+			scenario:   "system user",
+			isUserFunc: IsLocalOrRemoteUser,
+			authCtx:    systemIdentity,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.funcName+"/"+test.scenario, func(t *testing.T) {
+			got := test.isUserFunc(test.authCtx)
+			assert.Equal(t, test.want, got, "%s mismatch", test.funcName)
 		})
 	}
 }

@@ -82,10 +82,7 @@ func (s sortedLabels) Less(i, j int) bool {
 	labelA := strings.ToLower(s[i].Name)
 	labelB := strings.ToLower(s[j].Name)
 
-	// types.CloudLabelPrefixes are label names that we want to always be at the end of
-	// the sorted labels list to reduce visual clutter. This will generally be automatically
-	// discovered cloud provider labels such as azure/aks-managed-createOperationID=123123123123
-	for _, sortName := range types.CloudLabelPrefixes {
+	for _, sortName := range types.BackSortedLabelPrefixes {
 		name := strings.ToLower(sortName)
 		if strings.Contains(labelA, name) && !strings.Contains(labelB, name) {
 			return false // labelA should be at the end
@@ -372,7 +369,7 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []types.Database, dbUsers, dbNames []string) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
 		db := MakeDatabase(database, dbUsers, dbNames)

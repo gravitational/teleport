@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package accessgraph.v1alpha;
 
+import "accessgraph/v1alpha/aws.proto";
 import "accessgraph/v1alpha/graph.proto";
 import "accessgraph/v1alpha/resources.proto";
 
@@ -62,6 +63,11 @@ service AccessGraphService {
   // 2.a. If rotation succeeds, authenticate via the new authority B and call ReplaceCAs([B]) -- delete the previous CA
   // 2.b. If rotation is rolled back, authenticate via the old authority A and call ReplaceCAs([A]) -- delete the candidate CA
   rpc ReplaceCAs(ReplaceCAsRequest) returns (ReplaceCAsResponse);
+  // AWSEventsStream is a stream of commands to the AWS importer.
+  // Teleport Discovery Service creates a stream to the access graph service
+  // and pushes all AWS resources and following events to it.
+  // This stream is used to sync the access graph with the AWS database state.
+  rpc AWSEventsStream(stream AWSEventsStreamRequest) returns (AWSEventsStreamResponse);
 }
 
 // QueryRequest is a request to query the access graph.
@@ -142,3 +148,25 @@ message ReplaceCAsRequest {
 
 // ReplaceCAsResponse is the response for ReplaceCAs.
 message ReplaceCAsResponse {}
+
+// AWSEventsStreamRequest is a request to send commands to the AWS importer.
+// This command is used to sync the access graph with the AWS database state.
+message AWSEventsStreamRequest {
+  // operation contains the desired operation
+  oneof operation {
+    // sync is a command to sync the access graph with the Teleport database state.
+    // it's issued once Teleport finishes syncing all resources with the database.
+    AWSSyncOperation sync = 1;
+    // upsert is a command to put a resource into the access graph or update it.
+    AWSResourceList upsert = 2;
+    // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+    AWSResourceList delete = 3;
+  }
+}
+
+// AWSSyncOperation is a command that Teleport sends to the access graph service
+// at the end of the sync process.
+message AWSSyncOperation {}
+
+// AWSEventsStreamResponse is the response from AWSEventsStream.
+message AWSEventsStreamResponse {}

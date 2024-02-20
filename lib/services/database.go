@@ -333,7 +333,7 @@ func ValidateSQLServerURI(uri string) error {
 
 	parsedURI, err := url.Parse(uri)
 	if err != nil {
-		return trace.BadParameter("unabled to parse database address: %s", err)
+		return trace.BadParameter("unable to parse database address: %s", err)
 	}
 
 	if parsedURI.Scheme != sqlServerSchema {
@@ -2082,4 +2082,11 @@ const (
 	azureSQLServerDefaultPort = 1433
 	// sqlServerSchema is the SQL Server schema.
 	sqlServerSchema = "mssql"
+)
+
+const (
+	// RDSDescribeTypeInstance is used to filter for Instances type of RDS DBs when describing RDS Databases.
+	RDSDescribeTypeInstance = "instance"
+	// RDSDescribeTypeCluster is used to filter for Clusters type of RDS DBs when describing RDS Databases.
+	RDSDescribeTypeCluster = "cluster"
 )

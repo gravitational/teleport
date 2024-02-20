@@ -272,8 +272,8 @@ func TestComputeLockTargets(t *testing.T) {
 		want := []types.LockTarget{
 			{User: identityCtx.TeleportUser},
 			{Login: identityCtx.Login},
-			{Node: serverID},
-			{Node: serverID + "." + clusterName},
+			{Node: serverID, ServerID: serverID},
+			{Node: serverID + "." + clusterName, ServerID: serverID + "." + clusterName},
 			{MFADevice: mfaDevice},
 			{Device: trustedDevice},
 		}

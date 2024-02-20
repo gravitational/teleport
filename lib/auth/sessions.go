@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -67,7 +68,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := a.generateUserCert(certRequest{
+	certs, err := a.generateUserCert(ctx, certRequest{
 		user:           user,
 		loginIP:        identity.LoginIP,
 		publicKey:      publicKey,
@@ -95,11 +96,11 @@ func (a *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	}
 
 	// Create services.WebSession for this session.
-	sessionID, err := utils.CryptoRandomHex(SessionTokenBytes)
+	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearer, err := utils.CryptoRandomHex(SessionTokenBytes)
+	bearer, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -285,7 +286,7 @@ func (a *Server) CreateSessionCert(user services.UserState, sessionTTL time.Dura
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(certRequest{
+	certs, err := a.generateUserCert(ctx, certRequest{
 		user:                 userState,
 		ttl:                  sessionTTL,
 		publicKey:            publicKey,
@@ -322,7 +323,7 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	ttl := checker.AdjustSessionTTL(identity.Expires.Sub(a.clock.Now()))
 
 	// Create services.WebSession for this session.
-	sessionID, err := utils.CryptoRandomHex(SessionTokenBytes)
+	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

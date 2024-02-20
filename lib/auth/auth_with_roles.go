@@ -282,7 +282,7 @@ func (a *ServerWithRoles) integrationsService() (*integrationv1.Service, error) 
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:   a.authServer.Cache,
+		Cache:   a.authServer,
 		Backend: a.authServer.Services,
 	})
 	if err != nil {
@@ -391,19 +391,13 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
 	igSvc, err := a.integrationsService()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
-		Issuer: req.Issuer,
-	})
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -3255,7 +3249,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	certs, err := a.authServer.generateUserCert(certReq)
+	certs, err := a.authServer.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6405,8 +6399,11 @@ func (a *ServerWithRoles) GetLicense(ctx context.Context) (string, error) {
 
 // ListReleases return Teleport Enterprise releases
 func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, error) {
-	if err := a.action(apidefaults.Namespace, types.KindDownload, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
+	// on Cloud, any user is allowed to list releases
+	if !modules.GetModules().Features().Cloud {
+		if err := a.action(apidefaults.Namespace, types.KindDownload, types.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.releaseService.ListReleases(ctx)

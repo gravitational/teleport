@@ -43,7 +43,7 @@ func TestIntegrationJSONMarshalCycle(t *testing.T) {
 	err = json.Unmarshal(bs, &ig2)
 	require.NoError(t, err)
 
-	require.Equal(t, ig, &ig2)
+	require.Equal(t, &ig2, ig)
 }
 
 func TestIntegrationCheckAndSetDefaults(t *testing.T) {

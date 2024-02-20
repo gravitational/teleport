@@ -120,13 +120,16 @@ exports[`render multi bash texts 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 48px;
+  padding-right: 40px;
   padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
   position: relative;
+  overflow: scroll;
 }
 
 .c5 {
@@ -135,7 +138,7 @@ exports[`render multi bash texts 1`] = `
 
 .c6 {
   box-sizing: border-box;
-  padding-right: 16px;
+  padding-right: 8px;
   position: absolute;
   right: 0px;
 }
@@ -510,13 +513,16 @@ exports[`render multi bash texts with comment 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 48px;
+  padding-right: 40px;
   padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
   position: relative;
+  overflow: scroll;
 }
 
 .c6 {
@@ -525,7 +531,7 @@ exports[`render multi bash texts with comment 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  padding-right: 16px;
+  padding-right: 8px;
   position: absolute;
   right: 0px;
 }
@@ -902,13 +908,16 @@ exports[`render non bash single text 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 48px;
+  padding-right: 40px;
   padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
   position: relative;
+  overflow: scroll;
 }
 
 .c4 {
@@ -917,7 +926,7 @@ exports[`render non bash single text 1`] = `
 
 .c5 {
   box-sizing: border-box;
-  padding-right: 16px;
+  padding-right: 8px;
   position: absolute;
   right: 0px;
 }
@@ -1121,13 +1130,16 @@ exports[`render single bash text 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 48px;
+  padding-right: 40px;
   padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
   position: relative;
+  overflow: scroll;
 }
 
 .c5 {
@@ -1136,7 +1148,7 @@ exports[`render single bash text 1`] = `
 
 .c6 {
   box-sizing: border-box;
-  padding-right: 16px;
+  padding-right: 8px;
   position: absolute;
   right: 0px;
 }
@@ -1349,13 +1361,16 @@ exports[`render single bash text with comment 1`] = `
 
 .c0 {
   box-sizing: border-box;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
   padding-left: 16px;
-  padding-right: 48px;
+  padding-right: 40px;
   padding-top: 8px;
+  min-height: 50px;
+  max-height: none;
   background-color: #010B1C;
   border-radius: 4px;
   position: relative;
+  overflow: scroll;
 }
 
 .c6 {
@@ -1364,7 +1379,7 @@ exports[`render single bash text with comment 1`] = `
 
 .c7 {
   box-sizing: border-box;
-  padding-right: 16px;
+  padding-right: 8px;
   position: absolute;
   right: 0px;
 }

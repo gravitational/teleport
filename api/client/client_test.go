@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -32,8 +34,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -47,10 +51,19 @@ func TestMain(m *testing.M) {
 
 type pingService struct {
 	*proto.UnimplementedAuthServiceServer
+	userAgentFromLastCallValue atomic.Value
 }
 
 func (s *pingService) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
+	s.userAgentFromLastCallValue.Store(metadata.UserAgentFromContext(ctx))
 	return &proto.PingResponse{}, nil
+}
+
+func (s *pingService) userAgentFromLastCall() string {
+	if userAgent, ok := s.userAgentFromLastCallValue.Load().(string); ok {
+		return userAgent
+	}
+	return ""
 }
 
 func TestNew(t *testing.T) {
@@ -120,11 +133,13 @@ func TestNewDialBackground(t *testing.T) {
 	l, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	addr := l.Addr().String()
-	srv := newMockServer(t, addr, &pingService{})
+	ping := &pingService{}
+	srv := newMockServer(t, addr, ping)
 
 	// Create client before the server is listening.
 	cfg := srv.clientCfg()
 	cfg.DialInBackground = true
+	cfg.DialOpts = append(cfg.DialOpts, metadata.WithUserAgentFromTeleportComponent("api-client-test"))
 	clt, err := New(ctx, cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
@@ -142,6 +157,10 @@ func TestNewDialBackground(t *testing.T) {
 	// requests to the server should succeed.
 	_, err = clt.Ping(ctx)
 	require.NoError(t, err)
+
+	// Verify user agent.
+	expectUserAgentPrefix := fmt.Sprintf("api-client-test/%v grpc-go/", api.Version)
+	require.True(t, strings.HasPrefix(ping.userAgentFromLastCall(), expectUserAgentPrefix))
 }
 
 func TestWaitForConnectionReady(t *testing.T) {
@@ -502,7 +521,7 @@ func TestListResources(t *testing.T) {
 				ResourceType: test.resourceType,
 			})
 			require.Error(t, err)
-			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 		})
 	}
 
@@ -528,7 +547,7 @@ func testGetResources[T types.ResourceWithLabels](t *testing.T, clt *Client, kin
 		ResourceType: kind,
 	})
 	require.Error(t, err)
-	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+	require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 
 	// Test getting a page of resources
 	page, err := GetResourcePage[T](ctx, clt, &proto.ListResourcesRequest{
@@ -636,7 +655,7 @@ func TestGetResourcesWithFilters(t *testing.T) {
 				ResourceType: test.resourceType,
 			})
 			require.Error(t, err)
-			require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+			require.True(t, trace.IsLimitExceeded(err), "trace.IsLimitExceeded failed: err=%v (%T)", err, trace.Unwrap(err))
 
 			// Test getting all resources by chunks to handle limit exceeded.
 			resources, err := GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{

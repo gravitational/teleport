@@ -4362,6 +4362,11 @@ func TestDiscoveryConfig(t *testing.T) {
 						"service_accounts": []string{"a@example.com", "b@example.com"},
 					},
 				}
+				cfg["version"] = "v3"
+				cfg["teleport"].(cfgMap)["proxy_server"] = "example.com"
+				cfg["proxy_service"] = cfgMap{
+					"enabled": "no",
+				}
 			},
 			expectedGCPMatchers: []types.GCPMatcher{{
 				Types:     []string{"gce"},
@@ -4375,9 +4380,10 @@ func TestDiscoveryConfig(t *testing.T) {
 				ProjectIDs:      []string{"p1", "p2"},
 				ServiceAccounts: []string{"a@example.com", "b@example.com"},
 				Params: &types.InstallerParams{
-					JoinMethod: types.JoinMethodGCP,
-					JoinToken:  types.GCPInviteTokenName,
-					ScriptName: installers.InstallerScriptName,
+					JoinMethod:      types.JoinMethodGCP,
+					JoinToken:       types.GCPInviteTokenName,
+					ScriptName:      installers.InstallerScriptName,
+					PublicProxyAddr: "example.com",
 				},
 			}},
 		},
@@ -4690,6 +4696,11 @@ func TestDiscoveryConfig(t *testing.T) {
 						},
 					},
 				}
+				cfg["version"] = "v3"
+				cfg["teleport"].(cfgMap)["proxy_server"] = "example.com"
+				cfg["proxy_service"] = cfgMap{
+					"enabled": "no",
+				}
 			},
 			expectedAzureMatchers: []types.AzureMatcher{{
 				Types:          []string{"vm"},
@@ -4700,10 +4711,11 @@ func TestDiscoveryConfig(t *testing.T) {
 					"discover_teleport": []string{"yes"},
 				},
 				Params: &types.InstallerParams{
-					JoinMethod: "azure",
-					JoinToken:  "azure-discovery-token",
-					ScriptName: "default-installer",
-					Azure:      &types.AzureInstallerParams{},
+					JoinMethod:      "azure",
+					JoinToken:       "azure-discovery-token",
+					ScriptName:      "default-installer",
+					PublicProxyAddr: "example.com",
+					Azure:           &types.AzureInstallerParams{},
 				},
 			}},
 		},

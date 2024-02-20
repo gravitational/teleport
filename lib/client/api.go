@@ -590,7 +590,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	for _, o := range opts {
 		o(&opt)
 	}
-	log.Debugf("Activating relogin on %v.", fnErr)
+	log.Debugf("Activating relogin on error=%q (type=%T)", fnErr, trace.Unwrap(fnErr))
 
 	if keys.IsPrivateKeyPolicyError(fnErr) {
 		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
@@ -661,11 +661,26 @@ func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
 	}
 }
 
+// IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
-	// Assume that failed handshake is a result of expired credentials.
-	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) ||
-		trace.IsBadParameter(err) || trace.IsTrustError(err) ||
-		keys.IsPrivateKeyPolicyError(err) || IsNoCredentialsError(err)
+	// Ignore any failures resulting from RPCs.
+	// These were all materialized as status.Error here before
+	// https://github.com/gravitational/teleport/pull/30578.
+	var remoteErr *interceptors.RemoteError
+	if errors.As(err, &remoteErr) {
+		return false
+	}
+
+	return keys.IsPrivateKeyPolicyError(err) ||
+		// TODO(codingllama): Retrying BadParameter is a terrible idea.
+		//  We should fix this and remove the RemoteError condition above as well.
+		//  Any retriable error should be explicitly marked as such.
+		trace.IsBadParameter(err) ||
+		trace.IsTrustError(err) ||
+		utils.IsCertExpiredError(err) ||
+		// Assume that failed handshake is a result of expired credentials.
+		utils.IsHandshakeFailedError(err) ||
+		IsNoCredentialsError(err)
 }
 
 // GetProfile gets the profile for the specified proxy address, or
@@ -1932,8 +1947,13 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
-	if session.GetSessionKind() != types.SSHSessionKind {
-		return trace.BadParameter("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
+	switch kind := session.GetSessionKind(); kind {
+	case types.KubernetesSessionKind:
+		return trace.BadParameter("session joining for Kubernetes is supported with the command tsh kube join")
+	case types.SSHSessionKind:
+		// continue
+	default:
+		return trace.BadParameter("session joining is not supported for %v sessions", kind)
 	}
 	if types.IsOpenSSHNodeSubKind(session.GetTargetSubKind()) {
 		return trace.BadParameter("session joining is only supported for Teleport nodes, not OpenSSH nodes")
@@ -3864,10 +3884,6 @@ func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) e
 	// The current private key was rejected due to an unmet key policy requirement.
 	fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", policy)
 
-	if tc.PIVSlot != "" {
-		return trace.BadParameter("Private key in specified slot %q does not meet the private key policy requirement %q.", tc.PIVSlot, policy)
-	}
-
 	// Set the private key policy to the expected value and re-login.
 	tc.PrivateKeyPolicy = policy
 	return nil
@@ -4196,12 +4212,14 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	if tc.CheckVersions && pr.MinClientVersion != "" {
 		if err := utils.CheckVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
 			fmt.Fprintf(tc.Stderr, `
-			WARNING
-			Detected potentially incompatible client and server versions.
-			Minimum client version supported by the server is %v but you are using %v.
-			Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
-			Future versions of tsh will fail when incompatible versions are detected.
-			`, pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is %v but you are using %v.
+Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+				pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
 		}
 	}
 

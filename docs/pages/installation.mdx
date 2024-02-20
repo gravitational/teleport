@@ -85,17 +85,6 @@ Currently supported distributions (and `ID`) are:
 <Tabs>
 <TabItem scope="oss" label="Teleport Community Edition">
 
-<Details title="Using APT or YUM for versions prior to Teleport 10?" scopeOnly={false}>
-
-If you've previously installed Teleport via the APT
-repo at `https://deb.releases.teleport.dev/`, you can upgrade by
-re-running the "Debian/Ubuntu (DEB)" install instructions above.
-
-The legacy APT repo at `https://deb.releases.teleport.dev/` will not receive updates
-past Teleport 14 and will be turned off after Teleport 14 is no longer supported.
-
-</Details>
-
 Check the [Downloads](https://goteleport.com/download/) page for the most
 up-to-date information.
 
@@ -157,14 +146,14 @@ either:
   `(=teleport.version=)`.
 
 <Tabs>
-<TabItem label="Teleport Team/Community Edition" scope={["oss", "team"]}>
+<TabItem label="Teleport Community Edition" scope={["oss"]}>
 
 |Image name|Troubleshooting Tools?|Image base|
 |-|-|-|
 |`(=teleport.latest_oss_docker_image=)`|No|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
 |`(=teleport.latest_oss_debug_docker_image=)`|Yes|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
 
-For testing, we always recommend that you use the latest released version of
+For testing, we always recommend that you use the latest release version of
 Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 
 [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)-based images are available from
@@ -173,7 +162,7 @@ repository](https://gallery.ecr.aws/gravitational/teleport-ent).  Their use is
 considered deprecated, and they may be removed in future releases.
 
 </TabItem>
-<TabItem label="Teleport Enterprise Cloud/Enterprise" scope={["cloud", "enterprise"]}>
+<TabItem label="Teleport Enterprise" scope={["enterprise"]}>
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
@@ -192,6 +181,17 @@ Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
 
 [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)-based images for non-FIPS
 Teleport are available from our [Legacy Amazon ECR Public repository](https://gallery.ecr.aws/gravitational/teleport-ent).
+
+</TabItem>
+<TabItem label="Teleport Team/Teleport Enterprise Cloud" scope={["team", "cloud"]}>
+
+| Image name | Includes troubleshooting tools | Image base |
+| - | - | - |
+| `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-distroless-debug:(=cloud.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+
+For testing, we always recommend that you use the latest Cloud release version of
+Teleport Enterprise, which is currently `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)`.
 
 </TabItem>
 </Tabs>
@@ -515,7 +515,7 @@ $ export version=v(=teleport.version=)
 $ export os=linux
 # '386' 'arm' on linux or 'amd64' for all distros
 $ export arch=amd64
-$ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha256
+$ curl https://cdn.teleport.dev/teleport-$version-$os-$arch-bin.tar.gz.sha256
 # <checksum> <filename>
 ```
 

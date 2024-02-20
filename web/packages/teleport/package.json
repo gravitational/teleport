@@ -19,9 +19,11 @@
   "dependencies": {
     "@gravitational/design": "1.0.0",
     "@gravitational/shared": "1.0.0",
-    "xterm": "^5.0.0",
-    "xterm-addon-fit": "^0.7.0",
-    "xterm-addon-web-links": "^0.8.0"
+    "xterm": "^5.3.0",
+    "xterm-addon-canvas": "^0.5.0",
+    "xterm-addon-fit": "^0.8.0",
+    "xterm-addon-web-links": "^0.9.0",
+    "xterm-addon-webgl": "^0.16.0"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",

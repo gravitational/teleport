@@ -17,22 +17,19 @@
 import React from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import styled from 'styled-components';
-
-import { Failed } from 'design/CardError';
 
 import { AppInitializer } from 'teleterm/ui/AppInitializer';
 
-import CatchError from './components/CatchError';
+import { CatchError } from './components/CatchError';
+import { StyledApp } from './components/App';
 import AppContextProvider from './appContextProvider';
 import AppContext from './appContext';
-import { StaticThemeProvider, ThemeProvider } from './ThemeProvider';
-import { darkTheme } from './ThemeProvider/theme';
+import { ThemeProvider } from './ThemeProvider';
 
 export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
   return (
-    <StyledApp>
-      <CatchError>
+    <CatchError>
+      <StyledApp>
         <DndProvider backend={HTML5Backend}>
           <AppContextProvider value={ctx}>
             <ThemeProvider>
@@ -40,27 +37,7 @@ export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
             </ThemeProvider>
           </AppContextProvider>
         </DndProvider>
-      </CatchError>
-    </StyledApp>
+      </StyledApp>
+    </CatchError>
   );
 };
-
-export const FailedApp = (props: { message: string }) => {
-  return (
-    <StyledApp>
-      <StaticThemeProvider theme={darkTheme}>
-        <Failed alignSelf={'baseline'} message={props.message} />
-      </StaticThemeProvider>
-    </StyledApp>
-  );
-};
-
-const StyledApp = styled.div`
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-`;
