@@ -17,8 +17,6 @@ jobs:
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport16
-      env:
-        GO_LINT_FLAGS: --timeout=30m
 
     steps:
       - name: Checkout OSS Teleport
@@ -26,6 +24,13 @@ jobs:
         with:
           repository: gravitational/teleport  # This may need to be updated
           ref: ${{ github.base_ref }}
+
+      - name: Set linter version
+        run: |
+          echo GOLANGCI_LINT_VERSION=$(cd build.assets; make print-golangci-lint-version) >> $GITHUB_ENV
+      - name: Print linter version
+        run: |
+          echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION"
 
       - name: Checkout Enterprise Teleport
         uses: actions/checkout@v4
@@ -37,6 +42,6 @@ jobs:
 
       - uses: golangci/golangci-lint-action@3cfe3a4abbb849e10058ce4af15d205b6da42804 # v4.0.0
         with:
-          version: v1.56.1
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --out-format=colored-line-number
           skip-cache: true
