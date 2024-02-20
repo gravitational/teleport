@@ -1582,12 +1582,6 @@ spec:
 	require.NoError(t, err)
 }
 
-func TestCreateUser(t *testing.T) {
-	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, utils.NewLoggerForTests(), fc, fds)
-	testCreateUser(t, fc)
-}
-
 func testCreateUser(t *testing.T, fc *config.FileConfig) {
 	// Ensure that our test user does not exist
 	_, err := runResourceCommand(t, fc, []string{"get", types.KindUser + "/llama", "--format=json"})
