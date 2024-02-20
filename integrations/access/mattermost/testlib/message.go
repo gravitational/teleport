@@ -16,17 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package mattermost
+package testlib
 
 import (
-	"context"
-	"sync/atomic"
-
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
+	"github.com/gravitational/teleport/integrations/access/mattermost"
 )
 
-type MattermostPostSlice []Post
+type MattermostPostSlice []mattermost.Post
 type MattermostDataPostSet map[accessrequest.MessageData]struct{}
 
 func (slice MattermostPostSlice) Len() int {
@@ -51,21 +48,4 @@ func (set MattermostDataPostSet) Add(msg accessrequest.MessageData) {
 func (set MattermostDataPostSet) Contains(msg accessrequest.MessageData) bool {
 	_, ok := set[msg]
 	return ok
-}
-
-type fakeStatusSink struct {
-	status atomic.Pointer[types.PluginStatus]
-}
-
-func (s *fakeStatusSink) Emit(_ context.Context, status types.PluginStatus) error {
-	s.status.Store(&status)
-	return nil
-}
-
-func (s *fakeStatusSink) Get() types.PluginStatus {
-	status := s.status.Load()
-	if status == nil {
-		panic("expected status to be set, but it has not been")
-	}
-	return *status
 }
