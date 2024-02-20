@@ -42,10 +42,13 @@ type ListEICERequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Integration is the AWS OIDC Integration name.
+	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	// Region is the AWS Region
+	// Required.
 	Region string `protobuf:"bytes,2,opt,name=region,proto3" json:"region,omitempty"`
 	// VPCIDs is used to filter for EICEs of those VPCs.
+	// Required.
 	VpcIds []string `protobuf:"bytes,3,rep,name=vpc_ids,json=vpcIds,proto3" json:"vpc_ids,omitempty"`
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
@@ -124,7 +127,7 @@ type EC2InstanceConnectEndpoint struct {
 	// Known values:
 	// create-in-progress | create-complete | create-failed | delete-in-progress | delete-complete | delete-failed
 	State string `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
-	// StateMessage contains a message describing the sate of the EICE.
+	// StateMessage contains a message describing the state of the EICE.
 	StateMessage string `protobuf:"bytes,3,opt,name=state_message,json=stateMessage,proto3" json:"state_message,omitempty"`
 	// DashboardLink is a URL to AWS Console where the user can see the EC2 Instance Connect Endpoint.
 	DashboardLink string `protobuf:"bytes,4,opt,name=dashboard_link,json=dashboardLink,proto3" json:"dashboard_link,omitempty"`
@@ -283,13 +286,17 @@ type ListDatabasesRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Integration is the AWS OIDC Integration name.
+	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	// Region is the AWS Region
+	// Required.
 	Region string `protobuf:"bytes,2,opt,name=region,proto3" json:"region,omitempty"`
 	// RDSType is either instance or cluster (for Aurora DBs).
+	// Required.
 	RdsType string `protobuf:"bytes,3,opt,name=rds_type,json=rdsType,proto3" json:"rds_type,omitempty"`
 	// Engines filters the returned Databases based on their engine.
 	// Eg, mysql, postgres, mariadb, aurora, aurora-mysql, aurora-postgresql
+	// Required.
 	Engines []string `protobuf:"bytes,4,rep,name=engines,proto3" json:"engines,omitempty"`
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
@@ -429,10 +436,13 @@ type ListSecurityGroupsRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Integration is the AWS OIDC Integration name.
+	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	// Region is the AWS Region
+	// Required.
 	Region string `protobuf:"bytes,2,opt,name=region,proto3" json:"region,omitempty"`
 	// VPCID is the VPC ID for listing SecurityGroups.
+	// Required.
 	VpcId string `protobuf:"bytes,3,opt,name=vpc_id,json=vpcId,proto3" json:"vpc_id,omitempty"`
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
@@ -790,17 +800,22 @@ type DeployDatabaseServiceRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Integration is the AWS OIDC Integration name.
+	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	// Region is the AWS Region
+	// Required.
 	Region string `protobuf:"bytes,2,opt,name=region,proto3" json:"region,omitempty"`
 	// TaskRoleARN is the AWS IAM Role received by the deployed service.
+	// Required.
 	TaskRoleArn string `protobuf:"bytes,3,opt,name=task_role_arn,json=taskRoleArn,proto3" json:"task_role_arn,omitempty"`
 	// TeleportVersion is the teleport version to be deployed.
 	// This is used to fetch the correct tag for the teleport container image.
 	// Eg, 14.3.4 (no "v" prefix)
+	// Required.
 	TeleportVersion string `protobuf:"bytes,4,opt,name=teleport_version,json=teleportVersion,proto3" json:"teleport_version,omitempty"`
 	// DeploymentJoinTokenName is the Teleport IAM Join Token to be used by the deployed
 	// service to join the cluster.
+	// Required.
 	DeploymentJoinTokenName string `protobuf:"bytes,5,opt,name=deployment_join_token_name,json=deploymentJoinTokenName,proto3" json:"deployment_join_token_name,omitempty"`
 	// Deployments is a list of services that will be deployed.
 	Deployments []*DeployDatabaseServiceDeployment `protobuf:"bytes,6,rep,name=deployments,proto3" json:"deployments,omitempty"`
@@ -887,11 +902,14 @@ type DeployDatabaseServiceDeployment struct {
 	unknownFields protoimpl.UnknownFields
 
 	// TeleportConfigString is the teleport.yaml configuration (base64 encoded) used by teleport.
+	// Required.
 	TeleportConfigString string `protobuf:"bytes,1,opt,name=teleport_config_string,json=teleportConfigString,proto3" json:"teleport_config_string,omitempty"`
 	// VpcId is the VPCID where the service is going to be deployed.
+	// Required.
 	VpcId string `protobuf:"bytes,2,opt,name=vpc_id,json=vpcId,proto3" json:"vpc_id,omitempty"`
 	// SubnetIds are the subnets for the network configuration.
 	// They must belong to the VpcId above.
+	// Required.
 	SubnetIds []string `protobuf:"bytes,3,rep,name=subnet_ids,json=subnetIds,proto3" json:"subnet_ids,omitempty"`
 	// SecurityGroups are the SecurityGroup IDs to associate with this particular deployment.
 	// If empty, the default security group for the VPC is going to be used.
@@ -1023,8 +1041,10 @@ type ListEC2Request struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Integration is the AWS OIDC Integration name.
+	// Required.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	// Region is the AWS Region
+	// Required.
 	Region string `protobuf:"bytes,2,opt,name=region,proto3" json:"region,omitempty"`
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.

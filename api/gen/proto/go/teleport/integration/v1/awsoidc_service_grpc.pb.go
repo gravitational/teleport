@@ -46,6 +46,8 @@ const (
 type AWSOIDCServiceClient interface {
 	// ListEICE returns a list of EC2 Instance Connect Endpoints.
 	// An optional NextToken that can be used to fetch the next page.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
 	ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error)
 	// ListDatabases calls the following AWS API:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
@@ -53,10 +55,14 @@ type AWSOIDCServiceClient interface {
 	// It returns a list of Databases and an optional NextToken that can be used to fetch the next page
 	ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error)
 	// ListSecurityGroups returns a list of AWS VPC SecurityGroups.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html
 	ListSecurityGroups(ctx context.Context, in *ListSecurityGroupsRequest, opts ...grpc.CallOption) (*ListSecurityGroupsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(ctx context.Context, in *DeployDatabaseServiceRequest, opts ...grpc.CallOption) (*DeployDatabaseServiceResponse, error)
 	// ListEC2 lists the EC2 instances of the AWS account per region.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
 	ListEC2(ctx context.Context, in *ListEC2Request, opts ...grpc.CallOption) (*ListEC2Response, error)
 }
 
@@ -119,6 +125,8 @@ func (c *aWSOIDCServiceClient) ListEC2(ctx context.Context, in *ListEC2Request, 
 type AWSOIDCServiceServer interface {
 	// ListEICE returns a list of EC2 Instance Connect Endpoints.
 	// An optional NextToken that can be used to fetch the next page.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
 	ListEICE(context.Context, *ListEICERequest) (*ListEICEResponse, error)
 	// ListDatabases calls the following AWS API:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
@@ -126,10 +134,14 @@ type AWSOIDCServiceServer interface {
 	// It returns a list of Databases and an optional NextToken that can be used to fetch the next page
 	ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error)
 	// ListSecurityGroups returns a list of AWS VPC SecurityGroups.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html
 	ListSecurityGroups(context.Context, *ListSecurityGroupsRequest) (*ListSecurityGroupsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error)
 	// ListEC2 lists the EC2 instances of the AWS account per region.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
 	ListEC2(context.Context, *ListEC2Request) (*ListEC2Response, error)
 	mustEmbedUnimplementedAWSOIDCServiceServer()
 }
