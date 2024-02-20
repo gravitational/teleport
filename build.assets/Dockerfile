@@ -282,7 +282,7 @@ RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.12.1
+RUN go install github.com/daixiang0/gci@v0.12.3
 
 # Install golangci-lint.
 ARG GOLANGCI_LINT_VERSION # eg, v1.56.1
