@@ -33,9 +33,8 @@ import (
 // Safe for concurrent access.
 // Closes all clients and wipes the cache on Clear.
 type Cache struct {
-	clusters.Resolver
+	cfg Config
 	mu  sync.Mutex
-	log *logrus.Entry
 	// clients keep mapping between cluster URI
 	// (both root and leaf) and proxy clients
 	clients map[uri.ResourceURI]*client.ProxyClient
@@ -46,16 +45,15 @@ type Cache struct {
 
 // Config describes the client cache configuration.
 type Config struct {
-	clusters.Resolver
-	Log *logrus.Entry
+	Resolver clusters.Resolver
+	Log      *logrus.Entry
 }
 
 // New creates an instance of Cache.
 func New(c Config) *Cache {
 	return &Cache{
-		log:      c.Log,
-		clients:  make(map[uri.ResourceURI]*client.ProxyClient),
-		Resolver: c.Resolver,
+		cfg:     c,
+		clients: make(map[uri.ResourceURI]*client.ProxyClient),
 	}
 }
 
@@ -68,7 +66,7 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 			return fromCache, nil
 		}
 
-		_, clusterClient, err := c.ResolveCluster(clusterURI)
+		_, clusterClient, err := c.cfg.Resolver.ResolveCluster(clusterURI)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -86,7 +84,7 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 			return nil, trace.NewAggregate(err, newProxyClient.Close())
 		}
 
-		c.log.WithField("cluster", clusterURI).Info("Added client to cache.")
+		c.cfg.Log.WithField("cluster", clusterURI).Info("Added client to cache.")
 
 		return newProxyClient, nil
 	})
@@ -123,7 +121,7 @@ func (c *Cache) InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error {
 		}
 	}
 
-	c.log.WithField("cluster", rootClusterURI).WithField("clients", deleted).Info("Invalidated cached clients for root cluster.")
+	c.cfg.Log.WithField("cluster", rootClusterURI).WithField("clients", deleted).Info("Invalidated cached clients for root cluster.")
 
 	return trace.NewAggregate(errors...)
 
@@ -168,7 +166,7 @@ func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.Proxy
 		}
 
 		delete(c.clients, clusterURI)
-		c.log.WithField("cluster", clusterURI).WithError(err).Info("Connection has been closed, removed client from cache.")
+		c.cfg.Log.WithField("cluster", clusterURI).WithError(err).Info("Connection has been closed, removed client from cache.")
 	}()
 	return trace.Wrap(err)
 }
