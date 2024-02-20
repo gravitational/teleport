@@ -65,7 +65,7 @@ export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
     <Account
       isSso={isSso}
       canAddPasskeys={canAddPasskeys}
-      canAddMFA={canAddMFA}
+      canAddMFA={canAddMfa}
       {...manageDevicesState}
       enterpriseComponent={enterpriseComponent}
     />
