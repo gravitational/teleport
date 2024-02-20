@@ -214,10 +214,11 @@ func (s *identityService) Initialize(ctx context.Context) error {
 }
 
 func (s *identityService) Close() error {
-	if s.client == nil {
+	c := s.GetClient()
+	if c == nil {
 		return nil
 	}
-	return trace.Wrap(s.client.Close())
+	return trace.Wrap(c.Close())
 }
 
 func (s *identityService) Run(ctx context.Context) error {
