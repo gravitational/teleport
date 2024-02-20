@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,20 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package slack
+package testlib
 
 import (
-	"github.com/gravitational/teleport/integrations/access/common"
+	"testing"
+
+	"github.com/stretchr/testify/suite"
+
+	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
-const (
-	// slackPluginName is used to tag Slack GenericPluginData and as a Delegator in Audit log.
-	slackPluginName = "slack"
-)
-
-// NewSlackApp initializes a new teleport-slack app and returns it.
-func NewSlackApp(conf *Config) *common.BaseApp {
-	app := common.NewApp(conf, slackPluginName)
-	app.Clock = conf.Clock
-	return app
+func TestSlackPluginOSS(t *testing.T) {
+	slackSuite := &SlackSuite{
+		AccessRequestSuite: &integration.AccessRequestSuite{
+			AuthHelper: &integration.OSSAuthHelper{},
+		},
+	}
+	suite.Run(t, slackSuite)
 }
