@@ -34,8 +34,8 @@ resource "helm_release" "teleport" {
       "format" = "json"
       "level"  = "DEBUG"
     }
-    "extraArgs" = ["--debug"]
-    "image" = "public.ecr.aws/gravitational/teleport-distroless-debug"
+    "extraArgs"       = ["--debug"]
+    "image"           = "public.ecr.aws/gravitational/teleport-distroless-debug"
     "enterpriseImage" = "public.ecr.aws/gravitational/teleport-ent-distroless-debug"
 
     "proxyListenerMode" = "multiplex"
