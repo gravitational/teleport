@@ -299,3 +299,49 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		ClusterDashboardUrl: deployDBResp.ClusterDashboardURL,
 	}, nil
 }
+
+// ListEC2 returns a paginated list of AWS EC2 instances.
+func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2Request) (*integrationpb.ListEC2Response, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEC2Client, err := awsoidc.NewListEC2Client(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEC2Resp, err := awsoidc.ListEC2(ctx, listEC2Client, awsoidc.ListEC2Request{
+		Region:      req.Region,
+		Integration: req.Integration,
+		NextToken:   req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverList := make([]*types.ServerV2, 0, len(listEC2Resp.Servers))
+	for _, server := range listEC2Resp.Servers {
+		serverV2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.Warnf("Skipping %s because conversion (%T) to ServerV2 failed: %v", server.GetName(), server, err)
+			continue
+		}
+		serverList = append(serverList, serverV2)
+	}
+
+	return &integrationpb.ListEC2Response{
+		Servers:   serverList,
+		NextToken: listEC2Resp.NextToken,
+	}, nil
+}
