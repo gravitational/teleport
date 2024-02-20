@@ -47,7 +47,7 @@ runs:
       run: npm install uuid@9.0.0
       shell: bash
     - name: Deploy package to `stable/cloud` ${{ inputs.repo-type }} repos
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       # Composite actions specifically don't get input env vars populated, so
       # they must be populated here so that Github's action library can
       # parse them correctly
