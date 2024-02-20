@@ -13,35 +13,31 @@ import {
 } from 'teleport/services/integrations';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import userService from 'teleport/services/user';
+import { ApiError } from 'teleport/services/api/parseError';
 
 import { pluginsService } from 'e-teleport/services/plugins';
 
 import { PluginEnroll } from './PluginEnroll';
 
+jest.mock('shared/libs/logger', () => {
+  const mockLogger = {
+    error: jest.fn(),
+    warn: jest.fn(),
+  };
+
+  return {
+    create: () => mockLogger,
+  };
+});
+
 const defaultIgsFlag = cfg.isIgsEnabled;
 
-describe('slack and okta PluginEnroll.tsx', () => {
-  let mockedCreatePlugin;
-  let mockedValidatePlugin;
+describe('slack PluginEnroll.tsx', () => {
   beforeEach(() => {
     jest
       .spyOn(userEventService, 'captureIntegrationEnrollEvent')
       .mockImplementation();
-
-    mockedCreatePlugin = jest
-      .spyOn(pluginsService, 'createPlugin')
-      .mockResolvedValue({
-        resourceType: 'plugin',
-        name: 'okta',
-        details: 'some-detail',
-        statusCode: IntegrationStatusCode.Running,
-        kind: 'okta',
-        spec: {},
-      });
-
-    mockedValidatePlugin = jest
-      .spyOn(pluginsService, 'validatePlugin')
-      .mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -87,31 +83,52 @@ describe('slack and okta PluginEnroll.tsx', () => {
       },
     });
   });
+});
 
-  test('enroll failed state', async () => {
-    const eventId = 'c6b794e1-afcf-4e16-ac5b';
+describe('okta PluginEnroll.tsx', () => {
+  let mockedCreatePlugin;
+  let mockedValidatePlugin;
+  let mockedGetOktaGroups;
+  let mockedGetOktaApps;
+  beforeEach(() => {
+    jest
+      .spyOn(userEventService, 'captureIntegrationEnrollEvent')
+      .mockImplementation();
 
-    renderPluginEnroll(
-      'slack',
-      `event_id=${eventId}&error=some-error&error_description=some%20error%20description`
-    );
+    mockedCreatePlugin = jest
+      .spyOn(pluginsService, 'createPlugin')
+      .mockResolvedValue({
+        resourceType: 'plugin',
+        name: 'okta',
+        details: 'some-detail',
+        statusCode: IntegrationStatusCode.Running,
+        kind: 'okta',
+        spec: {},
+      });
 
-    expect(screen.getByText(/unable to connect Slack/i)).toBeInTheDocument();
-    expect(
-      userEventService.captureIntegrationEnrollEvent
-    ).not.toHaveBeenCalled();
+    mockedValidatePlugin = jest
+      .spyOn(pluginsService, 'validatePlugin')
+      .mockResolvedValue(null);
 
-    // Test that the correct error param is extracted correctly.
-    expect(screen.getByText(/some error description/i)).toBeInTheDocument();
+    jest
+      .spyOn(userService, 'fetchUsers')
+      .mockResolvedValue([{ name: 'apple', roles: [] }]);
 
-    // Test closing the dialog, renders the slack page.
-    await userEvent.click(screen.getByRole('button', { name: /close/i }));
-    expect(
-      screen.getByText(/Slack access request notifications/i)
-    ).toBeInTheDocument();
+    mockedGetOktaApps = jest
+      .spyOn(pluginsService, 'getPluginConfigOktaApps')
+      .mockResolvedValue([{ name: 'Airbase' }]);
+
+    mockedGetOktaGroups = jest
+      .spyOn(pluginsService, 'getPluginConfigOktaGroups')
+      .mockResolvedValue([{ name: 'group-1', description: 'group 1 desc' }]);
   });
 
-  test('okta flow without igs enabled', async () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+    cfg.isIgsEnabled = defaultIgsFlag;
+  });
+
+  test('okta flow without igs enabled, only the first step is allowed', async () => {
     cfg.isIgsEnabled = false;
 
     renderPluginEnroll('okta');
@@ -167,7 +184,7 @@ describe('slack and okta PluginEnroll.tsx', () => {
     expect(screen.getByText(/integrated successfully/i)).toBeInTheDocument();
   });
 
-  test('okta flow with igs enabled', async () => {
+  test('okta flow with igs enabled, default (no custom filters)', async () => {
     cfg.isIgsEnabled = true;
 
     renderPluginEnroll('okta');
@@ -178,24 +195,13 @@ describe('slack and okta PluginEnroll.tsx', () => {
       screen.queryByText(/integrated successfully/i)
     ).not.toBeInTheDocument();
 
-    // Test input field.
-    const orgUrlInput = screen.getByPlaceholderText(
-      /examplecompanyname.okta.com/i
-    );
-    fireEvent.change(orgUrlInput, { target: { value: 'some-org-url.com' } });
-
-    const tokenInput = screen.getByPlaceholderText(
-      /00QCjAl4MlV-WPXM...0HmjFx-vbGua/i
-    );
-    fireEvent.change(tokenInput, { target: { value: 'some-token-value' } });
+    fillInFirstStepInputs();
 
     // Test plugin validation api call.
-    await userEvent.click(
-      screen.getByRole('button', { name: /connect okta/i })
-    );
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
 
     const testFormData = new FormData();
-    testFormData.append('orgURL', 'some-org-url.com');
+    testFormData.append('orgURL', 'https://some-org-url.com');
     testFormData.append('apiToken', 'some-token-value');
 
     expect(pluginsService.validatePlugin).toHaveBeenCalledTimes(1);
@@ -207,6 +213,29 @@ describe('slack and okta PluginEnroll.tsx', () => {
       testFormData.get('apiToken')
     );
 
+    // Test user group  screen is rendered.
+    expect(
+      screen.getByText(
+        /Configure Syncing of User Groups and Direct Assignments/i
+      )
+    ).toBeInTheDocument();
+
+    // Test all the okta tables rendered.
+    await screen.findByText(/airbase/i);
+    expect(screen.getByText(/airbase/i)).toBeInTheDocument();
+
+    await screen.findByText(/group-1/i);
+    expect(screen.getByText(/group-1/i)).toBeInTheDocument();
+
+    // Select the first user from dropdown.
+    const users = screen.getByText(/type a username/i);
+    fireEvent.keyDown(users, { key: 'ArrowDown' });
+    fireEvent.keyDown(users, { key: 'Enter' });
+
+    const btns = screen.getAllByRole('button', { name: /next/i });
+    await userEvent.click(btns[btns.length - 1]);
+
+    // Test okta install api call.
     expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
     calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
     expect(calledWithFormData.get('orgURL')).toEqual(
@@ -216,6 +245,11 @@ describe('slack and okta PluginEnroll.tsx', () => {
       testFormData.get('apiToken')
     );
     expect(calledWithFormData.get('scimToken')).not.toBeFalsy();
+    expect(calledWithFormData.get('appFilters')).toBeNull();
+    expect(calledWithFormData.get('groupFilters')).toBeNull();
+    expect(calledWithFormData.get('defaultOwners')).toBe(
+      JSON.stringify(['apple'])
+    );
 
     // Test Scim view rendered.
     expect(screen.getByText(/okta scim/i)).toBeInTheDocument();
@@ -228,23 +262,129 @@ describe('slack and okta PluginEnroll.tsx', () => {
     expect(screen.getByText(/integrated successfully/i)).toBeInTheDocument();
   });
 
+  test('okta flow with igs enabled, with app & group custom filters', async () => {
+    cfg.isIgsEnabled = true;
+
+    renderPluginEnroll('okta');
+    fillInFirstStepInputs();
+
+    // Go to next step.
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+
+    // Wait for okta tables to render.
+    await screen.findByText(/airbase/i);
+    await screen.findByText(/group-1/i);
+
+    // Select the first user from dropdown.
+    const users = screen.getByText(/type a username/i);
+    fireEvent.keyDown(users, { key: 'ArrowDown' });
+    fireEvent.keyDown(users, { key: 'Enter' });
+
+    // Define a group filter.
+    fireEvent.click(screen.getByText(/import all user groups/i));
+    const groupFilter = screen.getByLabelText('input-group');
+    fireEvent.change(groupFilter, { target: { value: '^group*' } });
+    fireEvent.keyDown(groupFilter, { key: 'Enter' });
+
+    // Define a app filter.
+    fireEvent.click(screen.getAllByText(/import all direct assignments/i)[0]);
+    const appFilter = screen.getByLabelText('input-app');
+    fireEvent.change(appFilter, { target: { value: 'app-*' } });
+    fireEvent.keyDown(appFilter, { key: 'Enter' });
+
+    // Test okta install api call.
+    const btns = screen.getAllByRole('button', { name: /next/i });
+    await userEvent.click(btns[btns.length - 1]);
+    const calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+    expect(calledWithFormData.get('groupFilters')).toBe(
+      JSON.stringify(['^group*'])
+    );
+    expect(calledWithFormData.get('appFilters')).toBe(
+      JSON.stringify(['app-*'])
+    );
+  });
+
+  test('okta flow with igs enabled, skipping step', async () => {
+    cfg.isIgsEnabled = true;
+
+    renderPluginEnroll('okta');
+    fillInFirstStepInputs();
+
+    // Go to next step.
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+
+    // Wait for okta tables to render.
+    await screen.findByText(/airbase/i);
+    await screen.findByText(/group-1/i);
+
+    await userEvent.click(screen.getByRole('button', { name: /skip/i }));
+
+    const calledWithFormData = mockedValidatePlugin.mock.calls[0][0];
+    expect(calledWithFormData.get('groupFilters')).toBeNull();
+    expect(calledWithFormData.get('appFilters')).toBeNull();
+    expect(calledWithFormData.get('defaultOwners')).toBeNull();
+  });
+
+  test('okta flow with igs enabled, custom filter error handling', async () => {
+    cfg.isIgsEnabled = true;
+
+    renderPluginEnroll('okta');
+    fillInFirstStepInputs();
+
+    // Go to next step.
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+
+    await screen.findByText(/group name/i);
+    await screen.findByText(/airbase/i);
+
+    jest.resetAllMocks();
+    mockedGetOktaApps = jest
+      .spyOn(pluginsService, 'getPluginConfigOktaApps')
+      .mockRejectedValue(
+        new ApiError('invalid filter app-', { status: 400 } as Response)
+      );
+    mockedGetOktaGroups = jest
+      .spyOn(pluginsService, 'getPluginConfigOktaGroups')
+      .mockRejectedValue(
+        new ApiError('invalid filter group-', { status: 400 } as Response)
+      );
+
+    // Select the first user from dropdown.
+    const users = screen.getByText(/type a username/i);
+    fireEvent.keyDown(users, { key: 'ArrowDown' });
+    fireEvent.keyDown(users, { key: 'Enter' });
+
+    // Define a invalid group filter.
+    fireEvent.click(screen.getByText(/import all user groups/i));
+    const groupFilter = screen.getByLabelText('input-group');
+    fireEvent.change(groupFilter, { target: { value: 'group-' } });
+    fireEvent.keyDown(groupFilter, { key: 'Enter' });
+
+    expect(mockedGetOktaGroups).toHaveBeenCalledTimes(1);
+    await screen.findByText(/the following filters are invalid: group-/i);
+
+    // Define a invalid app filter.
+    fireEvent.click(screen.getByText(/import all direct assignments/i));
+    const appFilter = screen.getByLabelText('input-app');
+    fireEvent.change(appFilter, { target: { value: 'app-' } });
+    fireEvent.keyDown(appFilter, { key: 'Enter' });
+
+    expect(mockedGetOktaApps).toHaveBeenCalledTimes(1);
+    await screen.findByText(/the following filters are invalid: app-/i);
+
+    // Invalid states prevent user from going to next step.
+    const btns = screen.getAllByRole('button', { name: /next/i });
+    await userEvent.click(btns[btns.length - 1]);
+    expect(mockedCreatePlugin).not.toHaveBeenCalled();
+  });
+
   test('okta validation error', async () => {
     jest
       .spyOn(pluginsService, 'validatePlugin')
       .mockRejectedValue(new Error('some validation error'));
 
     renderPluginEnroll('okta');
-
-    // Enter input field.
-    const orgUrlInput = screen.getByPlaceholderText(
-      /examplecompanyname.okta.com/i
-    );
-    fireEvent.change(orgUrlInput, { target: { value: 'some-org-url.com' } });
-
-    const tokenInput = screen.getByPlaceholderText(
-      /00QCjAl4MlV-WPXM...0HmjFx-vbGua/i
-    );
-    fireEvent.change(tokenInput, { target: { value: 'some-token-value' } });
+    fillInFirstStepInputs();
 
     // Test the api call error.
     await userEvent.click(
@@ -264,17 +404,7 @@ describe('slack and okta PluginEnroll.tsx', () => {
       .mockRejectedValue(new Error('some create error'));
 
     renderPluginEnroll('okta');
-
-    // Enter input field.
-    const orgUrlInput = screen.getByPlaceholderText(
-      /examplecompanyname.okta.com/i
-    );
-    fireEvent.change(orgUrlInput, { target: { value: 'some-org-url.com' } });
-
-    const tokenInput = screen.getByPlaceholderText(
-      /00QCjAl4MlV-WPXM...0HmjFx-vbGua/i
-    );
-    fireEvent.change(tokenInput, { target: { value: 'some-token-value' } });
+    fillInFirstStepInputs();
 
     // Test the api call error.
     await userEvent.click(
@@ -288,6 +418,20 @@ describe('slack and okta PluginEnroll.tsx', () => {
     expect(screen.getByText(/some create error/i)).toBeInTheDocument();
   });
 });
+
+function fillInFirstStepInputs() {
+  // Enter input fields
+
+  const orgUrlInput = screen.getByPlaceholderText(
+    /examplecompanyname.okta.com/i
+  );
+  fireEvent.change(orgUrlInput, { target: { value: 'some-org-url.com' } });
+
+  const tokenInput = screen.getByPlaceholderText(
+    /00QCjAl4MlV-WPXM...0HmjFx-vbGua/i
+  );
+  fireEvent.change(tokenInput, { target: { value: 'some-token-value' } });
+}
 
 function renderPluginEnroll(pluginType: PluginKind, search?: string) {
   const ctx = createTeleportContext();

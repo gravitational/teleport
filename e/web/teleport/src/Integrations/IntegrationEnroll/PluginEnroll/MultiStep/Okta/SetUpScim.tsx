@@ -11,6 +11,8 @@ import cfg from 'teleport/config';
 import { Header } from '../Shared';
 import { usePlugin } from '../usePlugin';
 
+import { FormDataField } from './types';
+
 export function SetUpScim() {
   const { nextStep, formData, installedPlugin } = usePlugin<PluginOktaSpec>();
 
@@ -26,12 +28,9 @@ export function SetUpScim() {
   // Construct okta app "admin" URL.
   // Admin URL's have `-admin` before the domain's `okta.com`.
   let orgUrl = formData
-    .get('orgURL')
+    .get(FormDataField.OrgUrl)
     .toString()
-    .replace(/.okta.com$/, '');
-  if (!orgUrl.startsWith('http')) {
-    orgUrl = `https://${orgUrl}`;
-  }
+    .replace(/.okta.com[/]?$/, '');
   const appUrl = `${orgUrl}-admin.okta.com/admin/app/${installedPlugin.spec.oktaAppName}/instance/${installedPlugin.spec.oktaAppId}/#tab-general`;
 
   return (
@@ -55,8 +54,9 @@ export function SetUpScim() {
             </Link>
           </Text>
           <Text mt={2}>
-            Click <Mark>Edit</Mark> under <Mark>App Settings</Mark> and check
-            the <Mark>Enable SCIM provisioning</Mark> checkbox and click{' '}
+            On <Mark>General</Mark> tab, click <Mark>Edit</Mark> under{' '}
+            <Mark>App Settings</Mark> and check the{' '}
+            <Mark>Enable SCIM provisioning</Mark> checkbox and click{' '}
             <Mark>Save</Mark>
           </Text>
         </StyledBox>

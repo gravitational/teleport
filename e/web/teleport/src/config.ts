@@ -95,6 +95,11 @@ const cfg = {
     pluginPath: '/v1/enterprise/plugin/:name?',
     pluginValidatePath: '/v1/enterprise/plugins/validate',
 
+    okta: {
+      groups: '/v1/enterprise/pluginconfig/okta/groups',
+      apps: '/v1/enterprise/pluginconfig/okta/apps',
+    },
+
     samlIdpPath: '/v1/enterprise/samlidp',
     // samlIdPMetadataValuesPath is served by SAML IdP.
     samlIdPMetadataValuesPath: '/enterprise/saml-idp/metadata-values',

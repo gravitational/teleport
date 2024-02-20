@@ -30,6 +30,8 @@ import cfg from 'e-teleport/config';
 import { SetUpScim } from './MultiStep/Okta/SetUpScim';
 import { PluginEnrollSuccess } from './MultiStep/PluginEnrollSuccess';
 import { CreateOkta } from './MultiStep/Okta/CreateOkta';
+import { ImportUserGroupsAndApps } from './MultiStep/Okta/ImportUserGroupsAndApps/ImportUserGroupsAndApps';
+import { FormDataField } from './MultiStep/Okta/types';
 
 export type View = BaseView<{
   title: string;
@@ -240,6 +242,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       if (cfg.oss.isIgsEnabled) {
         return [
           { title: 'Connect Okta', component: CreateOkta },
+          { title: 'Import', component: ImportUserGroupsAndApps },
           { title: 'Set Up SCIM', component: SetUpScim },
           { title: 'Finished', component: PluginEnrollSuccess, hide: true },
         ];
@@ -387,7 +390,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           <FieldInput
             width="500px"
             label="Okta Domain"
-            name="orgURL" // must be the same name as expected by the backend as form value
+            name={FormDataField.OrgUrl}
             rule={requiredField('Okta domain Required')}
             value={url}
             onChange={e => setUrl(e.target.value)}
@@ -398,7 +401,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           <FieldInput
             width="500px"
             label="API Token"
-            name="apiToken" // must be the same name as expected by the backend as form value
+            name={FormDataField.ApiToken}
             type="password"
             rule={requiredField('API Token Required')}
             value={token}

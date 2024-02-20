@@ -1,28 +1,29 @@
 import React, { useState } from 'react';
 
-import { Plugin } from 'teleport/services/integrations';
-
 import { usePlugin } from '../../MultiStep/usePlugin';
 import { SubmittablePluginForm } from '../../SubmittablePluginForm';
 import { Header } from '../../MultiStep/Shared';
 
+import { FormDataField } from './types';
+
 export function CreateOkta() {
-  const { selectedPlugin, eventId, setFormData, nextStep, setInstalledPlugin } =
-    usePlugin();
+  const { selectedPlugin, eventId, setFormData, nextStep } = usePlugin();
 
   const [scimToken] = useState(() => crypto.randomUUID());
 
   function handleSetFormData(formData: FormData) {
+    let orgUrl = formData.get(FormDataField.OrgUrl).toString();
+
+    if (!orgUrl.startsWith('http://') && !orgUrl.startsWith('https://')) {
+      orgUrl = `https://${orgUrl}`;
+    }
+    formData.set(FormDataField.OrgUrl, orgUrl);
+
     // `scimToken` is the expected backend form name.
     // Do not change.
-    formData.append('scimToken', scimToken);
+    formData.set(FormDataField.ScimToken, scimToken);
+
     setFormData(formData);
-
-    return formData;
-  }
-
-  function setStaticPluginResponse(createdPlugin: Plugin) {
-    setInstalledPlugin(createdPlugin);
     nextStep();
   }
 
@@ -32,7 +33,6 @@ export function CreateOkta() {
       eventId={eventId}
       CustomTitle={<Header header="Features" />}
       setFormData={handleSetFormData}
-      setStaticPluginResponse={setStaticPluginResponse}
     />
   );
 }

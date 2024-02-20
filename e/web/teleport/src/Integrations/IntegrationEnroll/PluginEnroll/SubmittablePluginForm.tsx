@@ -37,7 +37,7 @@ export function SubmittablePluginForm({
    * eg: okta plugin installation can have more than this step
    * if IGS is enabled.
    */
-  setFormData?(formData: FormData): FormData;
+  setFormData?(formData: FormData);
   CustomTitle?: JSX.Element;
 }) {
   const { attempt, setAttempt } = useAttempt(''); // only for non-oauth submissions.
@@ -67,7 +67,11 @@ export function SubmittablePluginForm({
         }
 
         if (setFormData) {
-          formData = setFormData(formData);
+          setFormData(formData);
+        }
+
+        if (!setStaticPluginResponse) {
+          return;
         }
 
         // Send off the conventional fetch request to finish plugin
@@ -94,6 +98,8 @@ export function SubmittablePluginForm({
       userSelect: 'none',
     };
   }
+
+  const isPartOfMultiStep = setFormData && !setStaticPluginResponse;
 
   return (
     <Box mt={CustomTitle ? 0 : 3} style={{ position: 'relative' }}>
@@ -182,7 +188,7 @@ export function SubmittablePluginForm({
                     mr={3}
                     disabled={attempt.status === 'processing'}
                   >
-                    Connect {plugin.name}
+                    {isPartOfMultiStep ? 'Next' : `Connect ${plugin.name}`}
                   </ButtonPrimary>
                   <ButtonSecondary
                     as={Link}

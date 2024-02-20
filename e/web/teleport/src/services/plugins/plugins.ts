@@ -1,10 +1,10 @@
 import api from 'teleport/services/api';
-
 import { CtaEvent } from 'teleport/services/userEvent';
-
 import auth from 'teleport/services/auth/auth';
 
 import cfg from 'e-teleport/config';
+
+import { PluginConfigOktaGroup, PluginConfigOktaApp } from './types';
 
 import type { Plugin, PluginKind } from 'teleport/services/integrations';
 
@@ -31,6 +31,20 @@ export const pluginsService = {
 
   async deletePlugin(name: string): Promise<void> {
     await api.delete(cfg.getPluginUrl(name));
+  },
+
+  getPluginConfigOktaGroups(
+    formData: FormData
+  ): Promise<PluginConfigOktaGroup[]> {
+    return api
+      .postFormData(cfg.api.okta.groups, formData)
+      .then(resp => resp || []);
+  },
+
+  getPluginConfigOktaApps(formData: FormData): Promise<PluginConfigOktaApp[]> {
+    return api
+      .postFormData(cfg.api.okta.apps, formData)
+      .then(resp => resp || []);
   },
 };
 
