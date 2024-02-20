@@ -31,7 +31,7 @@ import (
 
 // Cache stores remote clients keyed by cluster URI.
 // Safe for concurrent access.
-// Closes all clients and wipes the cache on Close.
+// Closes all clients and wipes the cache on Clear.
 type Cache struct {
 	clusters.Resolver
 	mu  sync.Mutex
@@ -59,8 +59,9 @@ func New(c Config) *Cache {
 	}
 }
 
-// Get returns a proxy client from the cache if there is one,
+// Get returns a client from the cache if there is one,
 // otherwise it dials the remote server.
+// The caller should not close the returned client.
 func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
 	groupClt, err, _ := c.group.Do(clusterURI.String(), func() (any, error) {
 		if fromCache := c.getFromCache(clusterURI); fromCache != nil {
@@ -154,6 +155,9 @@ func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.Proxy
 	}
 	c.clients[clusterURI] = proxyClient
 
+	// This goroutine removes the connection from the cache when
+	// it is unexpectedly interrupted (for example, by the remote site).
+	// It will also react to client.Close() called from our side, but it will be noop.
 	go func() {
 		err := proxyClient.Client.Wait()
 		c.mu.Lock()
