@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,30 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package mattermost
+package testlib
 
 import (
 	"context"
-	"os/user"
 	"regexp"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/mattermost"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
@@ -49,256 +46,99 @@ var msgFieldRegexp = regexp.MustCompile(`(?im)^\*\*([a-zA-Z ]+)\*\*:\ +(.+)$`)
 var requestReasonRegexp = regexp.MustCompile("(?im)^\\*\\*Reason\\*\\*:\\ ```\\n(.*?)```(.*?)$")
 var resolutionReasonRegexp = regexp.MustCompile("(?im)^\\*\\*Resolution reason\\*\\*:\\ ```\\n(.*?)```(.*?)$")
 
+// MattermostSuite is the Mattermost access plugin test suite.
+// It implements the testify.TestingSuite interface.
 type MattermostSuite struct {
-	integration.Suite
-	appConfig *Config
-	userNames struct {
-		ruler     string
-		requestor string
-		reviewer1 string
-		reviewer2 string
-		plugin    string
-	}
+	*integration.AccessRequestSuite
+	appConfig      *mattermost.Config
 	raceNumber     int
 	fakeMattermost *FakeMattermost
-	fakeStatusSink *fakeStatusSink
-	mmUser         User
+	fakeStatusSink *integration.FakeStatusSink
 
-	clients          map[string]*integration.Client
-	teleportFeatures *proto.Features
-	teleportConfig   lib.TeleportConfig
+	requesterMattermostUser mattermost.User
+	reviewer1MattermostUser mattermost.User
+	reviewer2MattermostUser mattermost.User
 }
 
-func TestMattermost(t *testing.T) { suite.Run(t, &MattermostSuite{}) }
-
-func (s *MattermostSuite) SetupSuite() {
-	var err error
-	t := s.T()
-
-	logger.Init()
-	err = logger.Setup(logger.Config{Severity: "debug"})
-	require.NoError(t, err)
-	s.raceNumber = runtime.GOMAXPROCS(0)
-	me, err := user.Current()
-	require.NoError(t, err)
-
-	// We set such a big timeout because integration.NewFromEnv could start
-	// downloading a Teleport *-bin.tar.gz file which can take a long time.
-	ctx := s.SetContextTimeout(2 * time.Minute)
-
-	teleport, err := integration.NewFromEnv(ctx)
-	require.NoError(t, err)
-	t.Cleanup(teleport.Close)
-
-	auth, err := teleport.NewAuthService()
-	require.NoError(t, err)
-	s.StartApp(auth)
-
-	s.clients = make(map[string]*integration.Client)
-
-	// Set up the user who has an access to all kinds of resources.
-
-	s.userNames.ruler = me.Username + "-ruler@example.com"
-	client, err := teleport.MakeAdmin(ctx, auth, s.userNames.ruler)
-	require.NoError(t, err)
-	s.clients[s.userNames.ruler] = client
-
-	// Get the server features.
-
-	pong, err := client.Ping(ctx)
-	require.NoError(t, err)
-	teleportFeatures := pong.GetServerFeatures()
-
-	var bootstrap integration.Bootstrap
-
-	// Set up user who can request the access to role "editor".
-
-	conditions := types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"editor"}}}
-	if teleportFeatures.AdvancedAccessWorkflows {
-		conditions.Request.Thresholds = []types.AccessReviewThreshold{types.AccessReviewThreshold{Approve: 2, Deny: 2}}
-	}
-	role, err := bootstrap.AddRole("foo", types.RoleSpecV6{Allow: conditions})
-	require.NoError(t, err)
-
-	user, err := bootstrap.AddUserWithRoles(me.Username+"@example.com", role.GetName())
-	require.NoError(t, err)
-	s.userNames.requestor = user.GetName()
-
-	// Set up TWO users who can review access requests to role "editor".
-
-	conditions = types.RoleConditions{}
-	if teleportFeatures.AdvancedAccessWorkflows {
-		conditions.ReviewRequests = &types.AccessReviewConditions{Roles: []string{"editor"}}
-	}
-	role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{Allow: conditions})
-	require.NoError(t, err)
-
-	user, err = bootstrap.AddUserWithRoles(me.Username+"-reviewer1@example.com", role.GetName())
-	require.NoError(t, err)
-	s.userNames.reviewer1 = user.GetName()
-
-	user, err = bootstrap.AddUserWithRoles(me.Username+"-reviewer2@example.com", role.GetName())
-	require.NoError(t, err)
-	s.userNames.reviewer2 = user.GetName()
-
-	// Set up plugin user.
-
-	role, err = bootstrap.AddRole("access-mattermost", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				types.NewRule("access_request", []string{"list", "read"}),
-				types.NewRule("access_plugin_data", []string{"update"}),
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	user, err = bootstrap.AddUserWithRoles("access-mattermost", role.GetName())
-	require.NoError(t, err)
-	s.userNames.plugin = user.GetName()
-
-	// Bake all the resources.
-
-	err = teleport.Bootstrap(ctx, auth, bootstrap.Resources())
-	require.NoError(t, err)
-
-	// Initialize the clients.
-
-	client, err = teleport.NewClient(ctx, auth, s.userNames.requestor)
-	require.NoError(t, err)
-	s.clients[s.userNames.requestor] = client
-
-	if teleportFeatures.AdvancedAccessWorkflows {
-		client, err = teleport.NewClient(ctx, auth, s.userNames.reviewer1)
-		require.NoError(t, err)
-		s.clients[s.userNames.reviewer1] = client
-
-		client, err = teleport.NewClient(ctx, auth, s.userNames.reviewer2)
-		require.NoError(t, err)
-		s.clients[s.userNames.reviewer2] = client
-	}
-
-	identityPath, err := teleport.Sign(ctx, auth, s.userNames.plugin)
-	require.NoError(t, err)
-
-	s.teleportConfig.Addr = auth.AuthAddr().String()
-	s.teleportConfig.Identity = identityPath
-	s.teleportFeatures = teleportFeatures
-}
-
+// SetupTest starts a fake Mattermost and generates the plugin configuration.
+// It is run for each test.
 func (s *MattermostSuite) SetupTest() {
 	t := s.T()
 
 	err := logger.Setup(logger.Config{Severity: "debug"})
 	require.NoError(t, err)
+	s.raceNumber = runtime.GOMAXPROCS(0)
 
-	s.fakeMattermost = NewFakeMattermost(User{Username: "bot", Email: "bot@example.com"}, s.raceNumber)
+	s.fakeMattermost = NewFakeMattermost(mattermost.User{Username: "bot", Email: "bot@example.com"}, s.raceNumber)
 	t.Cleanup(s.fakeMattermost.Close)
 
-	s.mmUser = s.fakeMattermost.StoreUser(User{
-		FirstName: "User",
-		LastName:  "Test",
-		Username:  "Vladimir",
-		Email:     s.userNames.requestor,
-	})
+	// load fixtures in the fake Mattermost
+	s.requesterMattermostUser = s.fakeMattermost.StoreUser(mattermost.User{Email: integration.Requester1UserName})
+	s.reviewer1MattermostUser = s.fakeMattermost.StoreUser(mattermost.User{Email: integration.Reviewer1UserName})
+	s.reviewer2MattermostUser = s.fakeMattermost.StoreUser(mattermost.User{Email: integration.Reviewer2UserName})
 
-	s.fakeStatusSink = &fakeStatusSink{}
+	s.fakeStatusSink = &integration.FakeStatusSink{}
 
-	var conf Config
-	conf.Teleport = s.teleportConfig
+	var conf mattermost.Config
+	conf.Teleport = s.TeleportConfig()
 	conf.Mattermost.Token = "000000"
 	conf.Mattermost.URL = s.fakeMattermost.URL()
 	conf.StatusSink = s.fakeStatusSink
 
 	s.appConfig = &conf
-	s.SetContextTimeout(5 * time.Second)
 }
 
+// startApp starts the Mattermost plugin, waits for it to become ready and returns,
 func (s *MattermostSuite) startApp() {
 	t := s.T()
 	t.Helper()
 
-	app := NewMattermostApp(s.appConfig)
-	s.StartApp(app)
+	app := mattermost.NewMattermostApp(s.appConfig)
+	s.RunAndWaitReady(t, app)
 }
 
-func (s *MattermostSuite) ruler() *integration.Client {
-	return s.clients[s.userNames.ruler]
-}
-
-func (s *MattermostSuite) requestor() *integration.Client {
-	return s.clients[s.userNames.requestor]
-}
-
-func (s *MattermostSuite) reviewer1() *integration.Client {
-	return s.clients[s.userNames.reviewer1]
-}
-
-func (s *MattermostSuite) reviewer2() *integration.Client {
-	return s.clients[s.userNames.reviewer2]
-}
-
-func (s *MattermostSuite) newAccessRequest(reviewers []User) types.AccessRequest {
-	t := s.T()
-	t.Helper()
-
-	req, err := types.NewAccessRequest(uuid.New().String(), s.userNames.requestor, "editor")
-	require.NoError(t, err)
-	// max size of request was decreased here: https://github.com/gravitational/teleport/pull/13298
-	req.SetRequestReason("because of " + strings.Repeat("A", 4000))
-	var suggestedReviewers []string
-	for _, user := range reviewers {
-		suggestedReviewers = append(suggestedReviewers, user.Email)
-	}
-	req.SetSuggestedReviewers(suggestedReviewers)
-	return req
-}
-
-func (s *MattermostSuite) createAccessRequest(reviewers []User) types.AccessRequest {
-	t := s.T()
-	t.Helper()
-
-	req := s.newAccessRequest(reviewers)
-	out, err := s.requestor().CreateAccessRequestV2(s.Context(), req)
-	require.NoError(s.T(), err)
-	return out
-}
-
-func (s *MattermostSuite) checkPluginData(reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
-	t := s.T()
-	t.Helper()
-
-	for {
-		rawData, err := s.ruler().PollAccessRequestPluginData(s.Context(), "mattermost", reqID)
-		require.NoError(t, err)
-		data, err := accessrequest.DecodePluginData(rawData)
-		require.NoError(t, err)
-		if cond(data) {
-			return data
-		}
-	}
-}
-
+// TestMattermostMessagePosting validates that a message is sent to each recipient
+// specified in the plugin's configuration and optional reviewers.
+// It also checks that the message content is correct, even when the reason
+// is too large.
 func (s *MattermostSuite) TestMattermostMessagePosting() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
-	reviewer1 := s.fakeMattermost.StoreUser(User{Email: s.userNames.reviewer1})
-	reviewer2 := s.fakeMattermost.StoreUser(User{Email: s.userNames.reviewer2})
-	directChannel1 := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer1)
-	directChannel2 := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer2)
+	// max size of request was decreased here: https://github.com/gravitational/teleport/pull/13298
+	s.SetReasonPadding(4000)
+
+	// Reviewer 1 is a recipient because they're in the config
+	s.appConfig.Recipients = common.RawRecipientsMap{
+		integration.RequestedRoleName: []string{
+			s.reviewer1MattermostUser.Email,
+		},
+		"*": []string{"fallback"},
+	}
+
+	directChannel1 := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser)
+	directChannel2 := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer2MattermostUser)
 
 	s.startApp()
-	request := s.createAccessRequest([]User{reviewer2, reviewer1})
 
-	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
+	// Test execution: we send an access request
+	userName := integration.RequesterOSSUserName
+	// Reviewer 2 is a recipient because they're in the suggested reviewers
+	req := s.CreateAccessRequest(ctx, userName, []string{s.reviewer2MattermostUser.Email})
+
+	// We expect 2 messages to be sent by the plugin: one for each recipient.
+	// We check if the stored plugin data makes sense.
+	pluginData := s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
 
-	var posts []Post
+	// Then we check that our fake Mattermost has received the messages.
+	var posts []mattermost.Post
 	postSet := make(MattermostDataPostSet)
 	for i := 0; i < 2; i++ {
-		post, err := s.fakeMattermost.CheckNewPost(s.Context())
+		post, err := s.fakeMattermost.CheckNewPost(ctx)
 		require.NoError(t, err, "no new messages posted")
 		postSet.Add(accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.ID})
 		posts = append(posts, post)
@@ -308,19 +148,19 @@ func (s *MattermostSuite) TestMattermostMessagePosting() {
 	assert.Contains(t, postSet, pluginData.SentMessages[0])
 	assert.Contains(t, postSet, pluginData.SentMessages[1])
 
+	// Finally, we validate the messages content
 	sort.Sort(MattermostPostSlice(posts))
-
 	assert.Equal(t, directChannel1.ID, posts[0].ChannelID)
 	assert.Equal(t, directChannel2.ID, posts[1].ChannelID)
 
 	post := posts[0]
 	reqID, err := parsePostField(post, "Request ID")
 	require.NoError(t, err)
-	assert.Equal(t, request.GetName(), reqID)
+	assert.Equal(t, req.GetName(), reqID)
 
 	username, err := parsePostField(post, "User")
 	require.NoError(t, err)
-	assert.Equal(t, s.userNames.requestor, username)
+	assert.Equal(t, integration.RequesterOSSUserName, username)
 
 	matches := requestReasonRegexp.FindAllStringSubmatch(post.Message, -1)
 	require.Len(t, matches, 1)
@@ -334,23 +174,30 @@ func (s *MattermostSuite) TestMattermostMessagePosting() {
 	assert.Equal(t, types.PluginStatusCode_RUNNING, s.fakeStatusSink.Get().GetCode())
 }
 
+// TestApproval tests that when a request is approved, its corresponding message
+// is updated to reflect the new request state.
 func (s *MattermostSuite) TestApproval() {
 	t := s.T()
-
-	reviewer := s.fakeMattermost.StoreUser(User{Email: s.userNames.reviewer1})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
 	s.startApp()
 
-	req := s.createAccessRequest([]User{reviewer})
-	post, err := s.fakeMattermost.CheckNewPost(s.Context())
+	// Test setup: we create an access request and wait for its message
+	userName := integration.RequesterOSSUserName
+	req := s.CreateAccessRequest(ctx, userName, []string{s.reviewer1MattermostUser.Email})
+
+	post, err := s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err, "no new messages posted")
-	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer).ID
+	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser).ID
 	assert.Equal(t, directChannelID, post.ChannelID)
 
-	err = s.ruler().ApproveAccessRequest(s.Context(), req.GetName(), "okay")
+	// Test execution: we approve the request
+	err = s.Ruler().ApproveAccessRequest(ctx, req.GetName(), "okay")
 	require.NoError(t, err)
 
-	postUpdate, err := s.fakeMattermost.CheckPostUpdate(s.Context())
+	// Validating the plugin updated the message to reflect that it got approved
+	postUpdate, err := s.fakeMattermost.CheckPostUpdate(ctx)
 	require.NoError(t, err, "no messages updated")
 	assert.Equal(t, post.ID, postUpdate.ID)
 	assert.Equal(t, post.ChannelID, postUpdate.ChannelID)
@@ -366,24 +213,30 @@ func (s *MattermostSuite) TestApproval() {
 	assert.Equal(t, "", matches[0][2])
 }
 
+// TestDenial tests that when a request is denied, its corresponding message
+// is updated to reflect the new request state.
 func (s *MattermostSuite) TestDenial() {
 	t := s.T()
-
-	reviewer := s.fakeMattermost.StoreUser(User{Email: s.userNames.reviewer1})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
 	s.startApp()
 
-	req := s.createAccessRequest([]User{reviewer})
-	post, err := s.fakeMattermost.CheckNewPost(s.Context())
+	// Test setup: we create an access request and wait for its message
+	userName := integration.RequesterOSSUserName
+	req := s.CreateAccessRequest(ctx, userName, []string{s.reviewer1MattermostUser.Email})
+
+	post, err := s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err, "no new messages posted")
-	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer).ID
+	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser).ID
 	assert.Equal(t, directChannelID, post.ChannelID)
 
-	// max size of request was decreased here: https://github.com/gravitational/teleport/pull/13298
-	err = s.ruler().DenyAccessRequest(s.Context(), req.GetName(), "not okay "+strings.Repeat("A", 4000))
+	// Test execution: we approve the request
+	err = s.Ruler().DenyAccessRequest(ctx, req.GetName(), "not okay "+strings.Repeat("A", 4000))
 	require.NoError(t, err)
 
-	postUpdate, err := s.fakeMattermost.CheckPostUpdate(s.Context())
+	// Validating the plugin updated the message to reflect that it got denied
+	postUpdate, err := s.fakeMattermost.CheckPostUpdate(ctx)
 	require.NoError(t, err, "no messages updated")
 	assert.Equal(t, post.ID, postUpdate.ID)
 	assert.Equal(t, post.ChannelID, postUpdate.ChannelID)
@@ -399,110 +252,125 @@ func (s *MattermostSuite) TestDenial() {
 	assert.Equal(t, " (truncated)", matches[0][2])
 }
 
+// TestReviewComments tests that that update messages are sent after the access
+// request is reviewed. Each review should trigger a new message.
 func (s *MattermostSuite) TestReviewComments() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.TeleportFeatures().AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
-	reviewer := s.fakeMattermost.StoreUser(User{Email: s.userNames.reviewer1})
-	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer).ID
+	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser).ID
 
 	s.startApp()
 
-	req := s.createAccessRequest([]User{reviewer})
-	s.checkPluginData(req.GetName(), func(data accessrequest.PluginData) bool {
+	// Test setup: we create an access request and wait for its message
+	userName := integration.Requester1UserName
+	req := s.CreateAccessRequest(ctx, userName, []string{s.reviewer1MattermostUser.Email})
+
+	s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
-	post, err := s.fakeMattermost.CheckNewPost(s.Context())
+	post, err := s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, directChannelID, post.ChannelID)
 
-	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer1,
+	// Test execution: we submit a review and validate an update is posted
+	err = s.Reviewer1().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer1UserName,
 		ProposedState: types.RequestState_APPROVED,
 		Created:       time.Now(),
 		Reason:        "okay",
 	})
 	require.NoError(t, err)
 
-	comment, err := s.fakeMattermost.CheckNewPost(s.Context())
+	comment, err := s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, post.ChannelID, comment.ChannelID)
 	assert.Equal(t, post.ID, comment.RootID)
-	assert.Contains(t, comment.Message, s.userNames.reviewer1+" reviewed the request", "comment must contain a review author")
+	assert.Contains(t, comment.Message, integration.Reviewer1UserName+" reviewed the request", "comment must contain a review author")
 	assert.Contains(t, comment.Message, "Resolution: ✅ APPROVED", "comment must contain a proposed state")
 	assert.Contains(t, comment.Message, "Reason: ```\nokay```", "comment must contain a reason")
 
-	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer2,
+	// Test execution: we submit a second review and validate an update is posted
+	err = s.Reviewer2().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer2UserName,
 		ProposedState: types.RequestState_DENIED,
 		Created:       time.Now(),
 		Reason:        "not okay",
 	})
 	require.NoError(t, err)
 
-	comment, err = s.fakeMattermost.CheckNewPost(s.Context())
+	comment, err = s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, post.ChannelID, comment.ChannelID)
 	assert.Equal(t, post.ID, comment.RootID)
-	assert.Contains(t, comment.Message, s.userNames.reviewer2+" reviewed the request", "comment must contain a review author")
+	assert.Contains(t, comment.Message, integration.Reviewer2UserName+" reviewed the request", "comment must contain a review author")
 	assert.Contains(t, comment.Message, "Resolution: ❌ DENIED", "comment must contain a proposed state")
 	assert.Contains(t, comment.Message, "Reason: ```\nnot okay```", "comment must contain a reason")
 }
 
+// TestApprovalByReview tests that the message is updated after the access request
+// is reviewed and approved.
 func (s *MattermostSuite) TestApprovalByReview() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.TeleportFeatures().AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
-	reviewer := s.fakeMattermost.StoreUser(User{Email: s.userNames.reviewer1})
-
 	s.startApp()
 
-	req := s.createAccessRequest([]User{reviewer})
-	post, err := s.fakeMattermost.CheckNewPost(s.Context())
+	// Test setup: we create an access request and wait for its Discord message
+	userName := integration.Requester1UserName
+	req := s.CreateAccessRequest(ctx, userName, []string{s.reviewer1MattermostUser.Email})
+	post, err := s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err, "no new messages posted")
-	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer).ID
+	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser).ID
 	assert.Equal(t, directChannelID, post.ChannelID)
 
-	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer1,
+	// Test execution: we submit a review and validate an update is posted
+	err = s.Reviewer1().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer1UserName,
 		ProposedState: types.RequestState_APPROVED,
 		Created:       time.Now(),
 		Reason:        "okay",
 	})
 	require.NoError(t, err)
 
-	comment, err := s.fakeMattermost.CheckNewPost(s.Context())
+	comment, err := s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, post.ChannelID, comment.ChannelID)
 	assert.Equal(t, post.ID, comment.RootID)
-	assert.Contains(t, comment.Message, s.userNames.reviewer1+" reviewed the request", "comment must contain a review author")
+	assert.Contains(t, comment.Message, integration.Reviewer1UserName+" reviewed the request", "comment must contain a review author")
 
-	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer2,
+	// Test execution: we submit a second review and validate an update is posted
+	err = s.Reviewer2().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer2UserName,
 		ProposedState: types.RequestState_APPROVED,
 		Created:       time.Now(),
 		Reason:        "finally okay",
 	})
 	require.NoError(t, err)
 
-	comment, err = s.fakeMattermost.CheckNewPost(s.Context())
+	comment, err = s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, post.ChannelID, comment.ChannelID)
 	assert.Equal(t, post.ID, comment.RootID)
-	assert.Contains(t, comment.Message, s.userNames.reviewer2+" reviewed the request", "comment must contain a review author")
+	assert.Contains(t, comment.Message, integration.Reviewer2UserName+" reviewed the request", "comment must contain a review author")
 
 	// When posting a review, the bot also updates the message to add the amount of reviewers.
 	// This update is soon superseded by the "access allowed" update
-	_, _ = s.fakeMattermost.CheckPostUpdate(s.Context())
+	_, _ = s.fakeMattermost.CheckPostUpdate(ctx)
 
-	postUpdate, err := s.fakeMattermost.CheckPostUpdate(s.Context())
+	// Finally, we validate the original message got updated to reflect the resolution status.
+	postUpdate, err := s.fakeMattermost.CheckPostUpdate(ctx)
 	require.NoError(t, err, "no messages updated")
 	assert.Equal(t, post.ID, postUpdate.ID)
 	assert.Equal(t, post.ChannelID, postUpdate.ChannelID)
@@ -518,39 +386,45 @@ func (s *MattermostSuite) TestApprovalByReview() {
 	assert.Equal(t, "", matches[0][2])
 }
 
+// TestDenialByReview tests that the message is updated after the access request
+// is reviewed and denied.
 func (s *MattermostSuite) TestDenialByReview() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.TeleportFeatures().AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
-	reviewer := s.fakeMattermost.StoreUser(User{Email: s.userNames.reviewer1})
-
 	s.startApp()
 
-	req := s.createAccessRequest([]User{reviewer})
-	post, err := s.fakeMattermost.CheckNewPost(s.Context())
+	// Test setup: we create an access request and wait for its Discord message
+	userName := integration.Requester1UserName
+	req := s.CreateAccessRequest(ctx, userName, []string{s.reviewer1MattermostUser.Email})
+	post, err := s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err, "no new messages posted")
-	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer).ID
+	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser).ID
 	assert.Equal(t, directChannelID, post.ChannelID)
 
-	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer1,
+	// Test execution: we submit a review and validate an update is posted
+	err = s.Reviewer1().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer1UserName,
 		ProposedState: types.RequestState_DENIED,
 		Created:       time.Now(),
 		Reason:        "not okay",
 	})
 	require.NoError(t, err)
 
-	comment, err := s.fakeMattermost.CheckNewPost(s.Context())
+	comment, err := s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, post.ChannelID, comment.ChannelID)
 	assert.Equal(t, post.ID, comment.RootID)
-	assert.Contains(t, comment.Message, s.userNames.reviewer1+" reviewed the request", "comment must contain a review author")
+	assert.Contains(t, comment.Message, integration.Reviewer1UserName+" reviewed the request", "comment must contain a review author")
 
-	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer2,
+	// Test execution: we submit a second review and validate an update is posted
+	err = s.Reviewer2().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer2UserName,
 		ProposedState: types.RequestState_DENIED,
 		Created:       time.Now(),
 		Reason:        "finally not okay",
@@ -559,15 +433,16 @@ func (s *MattermostSuite) TestDenialByReview() {
 
 	// When posting a review, the bot also updates the message to add the amount of reviewers.
 	// This update is soon superseded by the "access allowed" update
-	_, _ = s.fakeMattermost.CheckPostUpdate(s.Context())
+	_, _ = s.fakeMattermost.CheckPostUpdate(ctx)
 
-	comment, err = s.fakeMattermost.CheckNewPost(s.Context())
+	// Finally, we validate the original message got updated to reflect the resolution status.
+	comment, err = s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, post.ChannelID, comment.ChannelID)
 	assert.Equal(t, post.ID, comment.RootID)
-	assert.Contains(t, comment.Message, s.userNames.reviewer2+" reviewed the request", "comment must contain a review author")
+	assert.Contains(t, comment.Message, integration.Reviewer2UserName+" reviewed the request", "comment must contain a review author")
 
-	postUpdate, err := s.fakeMattermost.CheckPostUpdate(s.Context())
+	postUpdate, err := s.fakeMattermost.CheckPostUpdate(ctx)
 	require.NoError(t, err, "no messages updated")
 	assert.Equal(t, post.ID, postUpdate.ID)
 	assert.Equal(t, post.ChannelID, postUpdate.ChannelID)
@@ -583,27 +458,33 @@ func (s *MattermostSuite) TestDenialByReview() {
 	assert.Equal(t, "", matches[0][2])
 }
 
+// TestExpiration tests that when a request expires, its corresponding message
+// is updated to reflect the new request state.
 func (s *MattermostSuite) TestExpiration() {
 	t := s.T()
-
-	reviewer := s.fakeMattermost.StoreUser(User{Email: "user@example.com"})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
 	s.startApp()
 
-	request := s.createAccessRequest([]User{reviewer})
-	post, err := s.fakeMattermost.CheckNewPost(s.Context())
+	// Test setup: we create an access request and wait for its Discord message
+	userName := integration.RequesterOSSUserName
+	req := s.CreateAccessRequest(ctx, userName, []string{s.reviewer1MattermostUser.Email})
+	post, err := s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err, "no new messages posted")
-	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer).ID
+	directChannelID := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser).ID
 	assert.Equal(t, directChannelID, post.ChannelID)
 
-	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
+	s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
-	err = s.ruler().DeleteAccessRequest(s.Context(), request.GetName()) // simulate expiration
+	// Test execution: we expire the request
+	err = s.Ruler().DeleteAccessRequest(ctx, req.GetName()) // simulate expiration
 	require.NoError(t, err)
 
-	postUpdate, err := s.fakeMattermost.CheckPostUpdate(s.Context())
+	// Validating the plugin updated the Discord message to reflect that the request expired
+	postUpdate, err := s.fakeMattermost.CheckPostUpdate(ctx)
 	require.NoError(t, err, "no new messages updated")
 	assert.Equal(t, post.ID, postUpdate.ID)
 	assert.Equal(t, post.ChannelID, postUpdate.ChannelID)
@@ -613,21 +494,22 @@ func (s *MattermostSuite) TestExpiration() {
 	assert.Equal(t, "⌛ EXPIRED", statusLine)
 }
 
+// TestRace validates that the plugin behaves properly and performs all the
+// message updates when a lot of access requests are sent and reviewed in a very
+// short time frame.
 func (s *MattermostSuite) TestRace() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	t.Cleanup(cancel)
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.TeleportFeatures().AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
 	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
 	require.NoError(t, err)
 
-	reviewer1 := s.fakeMattermost.StoreUser(User{Email: s.userNames.reviewer1})
-	reviewer2 := s.fakeMattermost.StoreUser(User{Email: s.userNames.reviewer2})
 	botUser := s.fakeMattermost.GetBotUser()
-
-	s.SetContextTimeout(20 * time.Second)
 	s.startApp()
 
 	var (
@@ -645,15 +527,15 @@ func (s *MattermostSuite) TestRace() {
 		return err
 	}
 
-	process := lib.NewProcess(s.Context())
+	process := lib.NewProcess(ctx)
 	for i := 0; i < s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
-			req, err := types.NewAccessRequest(uuid.New().String(), s.userNames.requestor, "editor")
+			req, err := types.NewAccessRequest(uuid.New().String(), integration.Requester1UserName, "editor")
 			if err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
-			req.SetSuggestedReviewers([]string{reviewer1.Email, reviewer2.Email})
-			if _, err := s.requestor().CreateAccessRequestV2(ctx, req); err != nil {
+			req.SetSuggestedReviewers([]string{s.reviewer1MattermostUser.Email, s.reviewer2MattermostUser.Email})
+			if _, err := s.Requester1().CreateAccessRequestV2(ctx, req); err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
 			return nil
@@ -703,7 +585,7 @@ func (s *MattermostSuite) TestRace() {
 					return setRaceErr(trace.Errorf("user %s not found", userID))
 				}
 
-				if err = s.clients[user.Email].SubmitAccessRequestReview(ctx, reqID, types.AccessReview{
+				if err = s.ClientByName(user.Email).SubmitAccessRequestReview(ctx, reqID, types.AccessReview{
 					Author:        user.Email,
 					ProposedState: types.RequestState_APPROVED,
 					Created:       time.Now(),
@@ -730,7 +612,7 @@ func (s *MattermostSuite) TestRace() {
 		process.SpawnCritical(func(ctx context.Context) error {
 			post, err := s.fakeMattermost.CheckPostUpdate(ctx)
 			if err != nil {
-				return setRaceErr(trace.Wrap(err))
+				return setRaceErr(trace.Wrap(err, "error from post update consumer"))
 			}
 
 			postKey := accessrequest.MessageData{ChannelID: post.ChannelID, MessageID: post.ID}
@@ -766,59 +648,43 @@ func (s *MattermostSuite) TestRace() {
 	})
 }
 
-func parsePostField(post Post, field string) (string, error) {
-	text := post.Message
-	matches := msgFieldRegexp.FindAllStringSubmatch(text, -1)
-	if matches == nil {
-		return "", trace.Errorf("cannot parse fields from text %s", text)
-	}
-	var fields []string
-	for _, match := range matches {
-		if match[1] == field {
-			return match[2], nil
-		}
-		fields = append(fields, match[1])
-	}
-	return "", trace.Errorf("cannot find field %s in %v", field, fields)
-}
-
 func (s *MattermostSuite) TestRecipientsConfig() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
-	reviewer1 := s.fakeMattermost.StoreUser(User{
-		Email: s.userNames.reviewer1,
-	})
-	directChannel1 := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), reviewer1)
+	directChannel1 := s.fakeMattermost.GetDirectChannelFor(s.fakeMattermost.GetBotUser(), s.reviewer1MattermostUser)
 
-	team := s.fakeMattermost.StoreTeam(Team{Name: "team-llama"})
-	channel2 := s.fakeMattermost.StoreChannel(Channel{Name: "channel-llama", TeamID: team.ID})
+	team := s.fakeMattermost.StoreTeam(mattermost.Team{Name: "team-llama"})
+	channel2 := s.fakeMattermost.StoreChannel(mattermost.Channel{Name: "channel-llama", TeamID: team.ID})
 
 	// Test an email and a team/channel
 	s.appConfig.Recipients = common.RawRecipientsMap{
-		types.Wildcard: []string{"team-llama/channel-llama", reviewer1.Email},
+		types.Wildcard: []string{"team-llama/channel-llama", s.reviewer1MattermostUser.Email},
 	}
 
 	s.startApp()
 
-	request := s.createAccessRequest(nil)
-	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
+	userName := integration.RequesterOSSUserName
+	request := s.CreateAccessRequest(ctx, userName, nil)
+	pluginData := s.checkPluginData(ctx, request.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
 
 	var (
-		msg      Post
-		messages []Post
+		msg      mattermost.Post
+		messages []mattermost.Post
 	)
 
 	messageSet := make(MattermostDataPostSet)
 
-	msg, err := s.fakeMattermost.CheckNewPost(s.Context())
+	msg, err := s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err)
 	messageSet.Add(accessrequest.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
 	messages = append(messages, msg)
 
-	msg, err = s.fakeMattermost.CheckNewPost(s.Context())
+	msg, err = s.fakeMattermost.CheckNewPost(ctx)
 	require.NoError(t, err)
 	messageSet.Add(accessrequest.MessageData{ChannelID: msg.ChannelID, MessageID: msg.ID})
 	messages = append(messages, msg)

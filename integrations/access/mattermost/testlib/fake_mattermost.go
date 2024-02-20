@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package mattermost
+package testlib
 
 import (
 	"context"
@@ -32,14 +32,16 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/integrations/access/mattermost"
 )
 
 type FakeMattermost struct {
 	srv         *httptest.Server
 	objects     sync.Map
 	botUserID   string
-	newPosts    chan Post
-	postUpdates chan Post
+	newPosts    chan mattermost.Post
+	postUpdates chan mattermost.Post
 
 	postIDCounter    uint64
 	userIDCounter    uint64
@@ -62,26 +64,26 @@ type fakeDirectChannelKey string
 type FakeDirectChannel struct {
 	User1ID string
 	User2ID string
-	Channel
+	mattermost.Channel
 }
 
-func NewFakeMattermost(botUser User, concurrency int) *FakeMattermost {
+func NewFakeMattermost(botUser mattermost.User, concurrency int) *FakeMattermost {
 	router := httprouter.New()
 
-	mattermost := &FakeMattermost{
-		newPosts:    make(chan Post, concurrency*6),
-		postUpdates: make(chan Post, concurrency*2),
+	mock := &FakeMattermost{
+		newPosts:    make(chan mattermost.Post, concurrency*6),
+		postUpdates: make(chan mattermost.Post, concurrency*2),
 		srv:         httptest.NewServer(router),
 	}
-	mattermost.botUserID = mattermost.StoreUser(botUser).ID
+	mock.botUserID = mock.StoreUser(botUser).ID
 
 	router.GET("/api/v4/teams/name/:team", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		rw.Header().Add("Content-Type", "application/json")
 		name := ps.ByName("team")
-		team, found := mattermost.GetTeamByName(name)
+		team, found := mock.GetTeamByName(name)
 		if !found {
 			rw.WriteHeader(http.StatusNotFound)
-			err := json.NewEncoder(rw).Encode(ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the team."})
+			err := json.NewEncoder(rw).Encode(mattermost.ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the team."})
 			panicIf(err)
 			return
 		}
@@ -93,10 +95,10 @@ func NewFakeMattermost(botUser User, concurrency int) *FakeMattermost {
 		rw.Header().Add("Content-Type", "application/json")
 		teamName := ps.ByName("team")
 		name := ps.ByName("channel")
-		channel, found := mattermost.GetChannelByTeamNameAndName(teamName, name)
+		channel, found := mock.GetChannelByTeamNameAndName(teamName, name)
 		if !found {
 			rw.WriteHeader(http.StatusNotFound)
-			err := json.NewEncoder(rw).Encode(ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the channel."})
+			err := json.NewEncoder(rw).Encode(mattermost.ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the channel."})
 			panicIf(err)
 			return
 		}
@@ -112,35 +114,35 @@ func NewFakeMattermost(botUser User, concurrency int) *FakeMattermost {
 		panicIf(err)
 		if len(userIDs) != 2 {
 			rw.WriteHeader(http.StatusBadRequest)
-			err := json.NewEncoder(rw).Encode(ErrorResult{StatusCode: http.StatusBadRequest, Message: "Expected only two user IDs."})
+			err := json.NewEncoder(rw).Encode(mattermost.ErrorResult{StatusCode: http.StatusBadRequest, Message: "Expected only two user IDs."})
 			panicIf(err)
 			return
 		}
 
-		user1, found := mattermost.GetUser(userIDs[0])
+		user1, found := mock.GetUser(userIDs[0])
 		if !found {
 			rw.WriteHeader(http.StatusNotFound)
-			err := json.NewEncoder(rw).Encode(ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the user."})
+			err := json.NewEncoder(rw).Encode(mattermost.ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the user."})
 			panicIf(err)
 			return
 		}
 
-		user2, found := mattermost.GetUser(userIDs[1])
+		user2, found := mock.GetUser(userIDs[1])
 		if !found {
 			rw.WriteHeader(http.StatusNotFound)
-			err := json.NewEncoder(rw).Encode(ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the user."})
+			err := json.NewEncoder(rw).Encode(mattermost.ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the user."})
 			panicIf(err)
 			return
 		}
 
-		err = json.NewEncoder(rw).Encode(mattermost.GetDirectChannelFor(user1, user2).Channel)
+		err = json.NewEncoder(rw).Encode(mock.GetDirectChannelFor(user1, user2).Channel)
 		panicIf(err)
 	})
 
 	router.GET("/api/v4/users/me", func(rw http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		rw.Header().Add("Content-Type", "application/json")
 
-		err := json.NewEncoder(rw).Encode(mattermost.GetBotUser())
+		err := json.NewEncoder(rw).Encode(mock.GetBotUser())
 		panicIf(err)
 	})
 
@@ -148,10 +150,10 @@ func NewFakeMattermost(botUser User, concurrency int) *FakeMattermost {
 		rw.Header().Add("Content-Type", "application/json")
 
 		email := ps.ByName("email")
-		user, found := mattermost.GetUserByEmail(email)
+		user, found := mock.GetUserByEmail(email)
 		if !found {
 			rw.WriteHeader(http.StatusNotFound)
-			err := json.NewEncoder(rw).Encode(ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the user."})
+			err := json.NewEncoder(rw).Encode(mattermost.ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the user."})
 			panicIf(err)
 			return
 		}
@@ -162,7 +164,7 @@ func NewFakeMattermost(botUser User, concurrency int) *FakeMattermost {
 	router.POST("/api/v4/posts", func(rw http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		rw.Header().Add("Content-Type", "application/json")
 
-		var post Post
+		var post mattermost.Post
 		err := json.NewDecoder(r.Body).Decode(&post)
 		panicIf(err)
 
@@ -174,8 +176,8 @@ func NewFakeMattermost(botUser User, concurrency int) *FakeMattermost {
 			return
 		}
 
-		post = mattermost.StorePost(post)
-		mattermost.newPosts <- post
+		post = mock.StorePost(post)
+		mock.newPosts <- post
 
 		rw.WriteHeader(http.StatusCreated)
 		err = json.NewEncoder(rw).Encode(post)
@@ -187,28 +189,28 @@ func NewFakeMattermost(botUser User, concurrency int) *FakeMattermost {
 		rw.Header().Add("Content-Type", "application/json")
 
 		id := ps.ByName("id")
-		post, found := mattermost.GetPost(id)
+		post, found := mock.GetPost(id)
 		if !found {
 			rw.WriteHeader(http.StatusNotFound)
-			err := json.NewEncoder(rw).Encode(ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the post."})
+			err := json.NewEncoder(rw).Encode(mattermost.ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the post."})
 			panicIf(err)
 			return
 		}
 
-		var newPost Post
+		var newPost mattermost.Post
 		err := json.NewDecoder(r.Body).Decode(&newPost)
 		panicIf(err)
 
 		post.Message = newPost.Message
 		post.Props = newPost.Props
-		post = mattermost.UpdatePost(post)
+		post = mock.UpdatePost(post)
 
 		rw.WriteHeader(http.StatusOK)
 		err = json.NewEncoder(rw).Encode(post)
 		panicIf(err)
 	})
 
-	return mattermost
+	return mock
 }
 
 func (s *FakeMattermost) URL() string {
@@ -221,15 +223,15 @@ func (s *FakeMattermost) Close() {
 	close(s.postUpdates)
 }
 
-func (s *FakeMattermost) GetPost(id string) (Post, bool) {
+func (s *FakeMattermost) GetPost(id string) (mattermost.Post, bool) {
 	if obj, ok := s.objects.Load(id); ok {
-		post, ok := obj.(Post)
+		post, ok := obj.(mattermost.Post)
 		return post, ok
 	}
-	return Post{}, false
+	return mattermost.Post{}, false
 }
 
-func (s *FakeMattermost) StorePost(post Post) Post {
+func (s *FakeMattermost) StorePost(post mattermost.Post) mattermost.Post {
 	if post.ID == "" {
 		post.ID = fmt.Sprintf("post-%v", atomic.AddUint64(&s.postIDCounter, 1))
 	}
@@ -237,13 +239,13 @@ func (s *FakeMattermost) StorePost(post Post) Post {
 	return post
 }
 
-func (s *FakeMattermost) UpdatePost(post Post) Post {
+func (s *FakeMattermost) UpdatePost(post mattermost.Post) mattermost.Post {
 	post = s.StorePost(post)
 	s.postUpdates <- post
 	return post
 }
 
-func (s *FakeMattermost) GetBotUser() User {
+func (s *FakeMattermost) GetBotUser() mattermost.User {
 	user, ok := s.GetUser(s.botUserID)
 	if !ok {
 		panic("bot user not found")
@@ -251,23 +253,23 @@ func (s *FakeMattermost) GetBotUser() User {
 	return user
 }
 
-func (s *FakeMattermost) GetUser(id string) (User, bool) {
+func (s *FakeMattermost) GetUser(id string) (mattermost.User, bool) {
 	if obj, ok := s.objects.Load(id); ok {
-		user, ok := obj.(User)
+		user, ok := obj.(mattermost.User)
 		return user, ok
 	}
-	return User{}, false
+	return mattermost.User{}, false
 }
 
-func (s *FakeMattermost) GetUserByEmail(email string) (User, bool) {
+func (s *FakeMattermost) GetUserByEmail(email string) (mattermost.User, bool) {
 	if obj, ok := s.objects.Load(fakeUserByEmailKey(email)); ok {
-		user, ok := obj.(User)
+		user, ok := obj.(mattermost.User)
 		return user, ok
 	}
-	return User{}, false
+	return mattermost.User{}, false
 }
 
-func (s *FakeMattermost) StoreUser(user User) User {
+func (s *FakeMattermost) StoreUser(user mattermost.User) mattermost.User {
 	if user.ID == "" {
 		user.ID = fmt.Sprintf("user-%v", atomic.AddUint64(&s.userIDCounter, 1))
 	}
@@ -276,23 +278,23 @@ func (s *FakeMattermost) StoreUser(user User) User {
 	return user
 }
 
-func (s *FakeMattermost) GetTeam(id string) (Team, bool) {
+func (s *FakeMattermost) GetTeam(id string) (mattermost.Team, bool) {
 	if obj, ok := s.objects.Load(id); ok {
-		channel, ok := obj.(Team)
+		channel, ok := obj.(mattermost.Team)
 		return channel, ok
 	}
-	return Team{}, false
+	return mattermost.Team{}, false
 }
 
-func (s *FakeMattermost) GetTeamByName(name string) (Team, bool) {
+func (s *FakeMattermost) GetTeamByName(name string) (mattermost.Team, bool) {
 	if obj, ok := s.objects.Load(fakeTeamByNameKey(name)); ok {
-		channel, ok := obj.(Team)
+		channel, ok := obj.(mattermost.Team)
 		return channel, ok
 	}
-	return Team{}, false
+	return mattermost.Team{}, false
 }
 
-func (s *FakeMattermost) StoreTeam(team Team) Team {
+func (s *FakeMattermost) StoreTeam(team mattermost.Team) mattermost.Team {
 	if team.ID == "" {
 		team.ID = fmt.Sprintf("team-%v", atomic.AddUint64(&s.teamIDCounter, 1))
 	}
@@ -301,15 +303,15 @@ func (s *FakeMattermost) StoreTeam(team Team) Team {
 	return team
 }
 
-func (s *FakeMattermost) GetChannel(id string) (Channel, bool) {
+func (s *FakeMattermost) GetChannel(id string) (mattermost.Channel, bool) {
 	if obj, ok := s.objects.Load(id); ok {
-		channel, ok := obj.(Channel)
+		channel, ok := obj.(mattermost.Channel)
 		return channel, ok
 	}
-	return Channel{}, false
+	return mattermost.Channel{}, false
 }
 
-func (s *FakeMattermost) GetDirectChannelFor(user1, user2 User) FakeDirectChannel {
+func (s *FakeMattermost) GetDirectChannelFor(user1, user2 mattermost.User) FakeDirectChannel {
 	ids := []string{user1.ID, user2.ID}
 	sort.Strings(ids)
 	user1ID, user2ID := ids[0], ids[1]
@@ -322,7 +324,7 @@ func (s *FakeMattermost) GetDirectChannelFor(user1, user2 User) FakeDirectChanne
 		return directChannel
 	}
 
-	channel := s.StoreChannel(Channel{})
+	channel := s.StoreChannel(mattermost.Channel{})
 	directChannel := FakeDirectChannel{
 		User1ID: user1ID,
 		User2ID: user2ID,
@@ -341,15 +343,15 @@ func (s *FakeMattermost) GetDirectChannel(id string) (FakeDirectChannel, bool) {
 	return FakeDirectChannel{}, false
 }
 
-func (s *FakeMattermost) GetChannelByTeamNameAndName(team, name string) (Channel, bool) {
+func (s *FakeMattermost) GetChannelByTeamNameAndName(team, name string) (mattermost.Channel, bool) {
 	if obj, ok := s.objects.Load(fakeChannelByTeamNameAndNameKey{team: team, channel: name}); ok {
-		channel, ok := obj.(Channel)
+		channel, ok := obj.(mattermost.Channel)
 		return channel, ok
 	}
-	return Channel{}, false
+	return mattermost.Channel{}, false
 }
 
-func (s *FakeMattermost) StoreChannel(channel Channel) Channel {
+func (s *FakeMattermost) StoreChannel(channel mattermost.Channel) mattermost.Channel {
 	if channel.ID == "" {
 		channel.ID = fmt.Sprintf("channel-%v", atomic.AddUint64(&s.channelIDCounter, 1))
 	}
@@ -365,21 +367,21 @@ func (s *FakeMattermost) StoreChannel(channel Channel) Channel {
 	return channel
 }
 
-func (s *FakeMattermost) CheckNewPost(ctx context.Context) (Post, error) {
+func (s *FakeMattermost) CheckNewPost(ctx context.Context) (mattermost.Post, error) {
 	select {
 	case post := <-s.newPosts:
 		return post, nil
 	case <-ctx.Done():
-		return Post{}, trace.Wrap(ctx.Err())
+		return mattermost.Post{}, trace.Wrap(ctx.Err())
 	}
 }
 
-func (s *FakeMattermost) CheckPostUpdate(ctx context.Context) (Post, error) {
+func (s *FakeMattermost) CheckPostUpdate(ctx context.Context) (mattermost.Post, error) {
 	select {
 	case post := <-s.postUpdates:
 		return post, nil
 	case <-ctx.Done():
-		return Post{}, trace.Wrap(ctx.Err())
+		return mattermost.Post{}, trace.Wrap(ctx.Err())
 	}
 }
 
