@@ -36,6 +36,7 @@ const (
 	AWSOIDCService_ListDatabases_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
 	AWSOIDCService_ListSecurityGroups_FullMethodName    = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
 	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
+	AWSOIDCService_ListEC2_FullMethodName               = "/teleport.integration.v1.AWSOIDCService/ListEC2"
 )
 
 // AWSOIDCServiceClient is the client API for AWSOIDCService service.
@@ -51,6 +52,8 @@ type AWSOIDCServiceClient interface {
 	ListSecurityGroups(ctx context.Context, in *ListSecurityGroupsRequest, opts ...grpc.CallOption) (*ListSecurityGroupsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(ctx context.Context, in *DeployDatabaseServiceRequest, opts ...grpc.CallOption) (*DeployDatabaseServiceResponse, error)
+	// ListEC2 lists the EC2 instances of the AWS account per region.
+	ListEC2(ctx context.Context, in *ListEC2Request, opts ...grpc.CallOption) (*ListEC2Response, error)
 }
 
 type aWSOIDCServiceClient struct {
@@ -88,6 +91,15 @@ func (c *aWSOIDCServiceClient) DeployDatabaseService(ctx context.Context, in *De
 	return out, nil
 }
 
+func (c *aWSOIDCServiceClient) ListEC2(ctx context.Context, in *ListEC2Request, opts ...grpc.CallOption) (*ListEC2Response, error) {
+	out := new(ListEC2Response)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListEC2_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AWSOIDCServiceServer is the server API for AWSOIDCService service.
 // All implementations must embed UnimplementedAWSOIDCServiceServer
 // for forward compatibility
@@ -101,6 +113,8 @@ type AWSOIDCServiceServer interface {
 	ListSecurityGroups(context.Context, *ListSecurityGroupsRequest) (*ListSecurityGroupsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error)
+	// ListEC2 lists the EC2 instances of the AWS account per region.
+	ListEC2(context.Context, *ListEC2Request) (*ListEC2Response, error)
 	mustEmbedUnimplementedAWSOIDCServiceServer()
 }
 
@@ -116,6 +130,9 @@ func (UnimplementedAWSOIDCServiceServer) ListSecurityGroups(context.Context, *Li
 }
 func (UnimplementedAWSOIDCServiceServer) DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeployDatabaseService not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) ListEC2(context.Context, *ListEC2Request) (*ListEC2Response, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListEC2 not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) mustEmbedUnimplementedAWSOIDCServiceServer() {}
 
@@ -184,6 +201,24 @@ func _AWSOIDCService_DeployDatabaseService_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AWSOIDCService_ListEC2_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEC2Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListEC2(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListEC2_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListEC2(ctx, req.(*ListEC2Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AWSOIDCService_ServiceDesc is the grpc.ServiceDesc for AWSOIDCService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -202,6 +237,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeployDatabaseService",
 			Handler:    _AWSOIDCService_DeployDatabaseService_Handler,
+		},
+		{
+			MethodName: "ListEC2",
+			Handler:    _AWSOIDCService_ListEC2_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

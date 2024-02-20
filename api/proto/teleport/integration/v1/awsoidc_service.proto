@@ -33,6 +33,9 @@ service AWSOIDCService {
 
   // DeployDatabaseService deploys a Database Services to Amazon ECS.
   rpc DeployDatabaseService(DeployDatabaseServiceRequest) returns (DeployDatabaseServiceResponse);
+
+  // ListEC2 lists the EC2 instances of the AWS account per region.
+  rpc ListEC2(ListEC2Request) returns (ListEC2Response);
 }
 
 // ListDatabasesRequest is a request for a paginated list of AWS Databases.
@@ -161,4 +164,24 @@ message DeployDatabaseServiceResponse {
   string cluster_arn = 1;
   // ClusterDashboardUrl is the URL for Amazon Web Console that links directly to the Amazon ECS Cluster.
   string cluster_dashboard_url = 2;
+}
+
+// ListEC2Request is a request for a paginated list of AWS EC2 instances.
+message ListEC2Request {
+  // Integration is the AWS OIDC Integration name.
+  string integration = 1;
+  // Region is the AWS Region
+  string region = 2;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 3;
+}
+
+// ListEC2Response contains a page of AWS EC2 instances represented as Nodes.
+message ListEC2Response {
+  // Servers contains the page of EC2.
+  repeated types.ServerV2 servers = 1;
+  // NextToken is used for pagination.
+  // If non-empty, it can be used to request the next page.
+  string next_token = 2;
 }
