@@ -342,7 +342,7 @@ func newUserNotification(t *testing.T, notificationId string) *notificationsv1.N
 			Id: notificationId,
 		},
 		Metadata: &headerv1.Metadata{
-			Description: "Test Description",
+			Labels: map[string]string{"description": notificationId},
 		},
 	}
 
@@ -363,7 +363,7 @@ func newGlobalNotification(t *testing.T, notificationId string) *notificationsv1
 					Id: notificationId,
 				},
 				Metadata: &headerv1.Metadata{
-					Description: "Test Description",
+					Labels: map[string]string{"description": notificationId},
 				},
 			},
 		},
