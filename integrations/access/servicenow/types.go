@@ -96,14 +96,14 @@ type RequestData struct {
 	SuggestedReviewers []string
 }
 
-type onCallResult struct {
+type OnCallResult struct {
 	Result []struct {
 		// UserID is the ID of the on-call user.
 		UserID string `json:"userId"`
 	} `json:"result"`
 }
 
-type userResult struct {
+type UserResult struct {
 	Result struct {
 		// UserName is the username in servicenow of the requested user.
 		// username chosen over email as identifier as it is guaranteed to be set.
@@ -111,7 +111,7 @@ type userResult struct {
 	} `json:"result"`
 }
 
-type incidentResult struct {
+type IncidentResult struct {
 	Result struct {
 		// IncidentID is the sys_id of the incident
 		IncidentID string `json:"sys_id,omitempty"`
