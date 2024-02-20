@@ -31,7 +31,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	mongooptions "go.mongodb.org/mongo-driver/mongo/options"
 	mongoauth "go.mongodb.org/mongo-driver/x/mongo/driver/auth"
 
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -201,7 +200,7 @@ func makeBasicAdminClient(ctx context.Context, sessionCtx *common.Session, e *En
 		return nil, trace.Wrap(err)
 	}
 	clientCfg.SetTLSConfig(tlsConfig)
-	clientCfg.SetAuth(mongooptions.Credential{
+	clientCfg.SetAuth(options.Credential{
 		AuthMechanism: mongoauth.MongoDBX509,
 		Username:      x509Username(sessionCtx),
 	})

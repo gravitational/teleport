@@ -40,6 +40,8 @@ type Audit interface {
 	OnQuery(ctx context.Context, session *Session, query Query)
 	// EmitEvent emits the provided audit event.
 	EmitEvent(ctx context.Context, event events.AuditEvent)
+	// OnPermissionsUpdate is called when granular database-level user permissions are updated.
+	OnPermissionsUpdate(ctx context.Context, session *Session, entries []events.DatabasePermissionEntry)
 }
 
 // Query combines database query parameters.
@@ -168,6 +170,19 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 			Error:       trace.Unwrap(query.Error).Error(),
 			UserMessage: query.Error.Error(),
 		}
+	}
+	a.EmitEvent(ctx, event)
+}
+
+func (a *audit) OnPermissionsUpdate(ctx context.Context, session *Session, entries []events.DatabasePermissionEntry) {
+	event := &events.DatabasePermissionUpdate{
+		Metadata: MakeEventMetadata(session,
+			libevents.DatabaseSessionPermissionsUpdateEvent,
+			libevents.DatabaseSessionPermissionUpdateCode),
+		UserMetadata:      MakeUserMetadata(session),
+		SessionMetadata:   MakeSessionMetadata(session),
+		DatabaseMetadata:  MakeDatabaseMetadata(session),
+		PermissionSummary: entries,
 	}
 	a.EmitEvent(ctx, event)
 }

@@ -30,10 +30,16 @@ export const List = () => {
     <BotList
       attempt={{ status: '' }}
       bots={botsFixture}
-      onDelete={() => {}}
+      disabledEdit={false}
+      disabledDelete={false}
       onClose={() => {}}
+      onDelete={() => {}}
+      onEdit={() => {}}
+      roles={[]}
       selectedBot={null}
+      selectedRoles={[]}
       setSelectedBot={() => {}}
+      setSelectedRoles={() => {}}
     />
   );
 };

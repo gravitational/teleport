@@ -2582,6 +2582,51 @@ export namespace DiscoveryFetchEvent {
     }
 }
 
+export class OktaAccessListSyncEvent extends jspb.Message { 
+    getNumAppFilters(): number;
+    setNumAppFilters(value: number): OktaAccessListSyncEvent;
+
+    getNumGroupFilters(): number;
+    setNumGroupFilters(value: number): OktaAccessListSyncEvent;
+
+    getNumApps(): number;
+    setNumApps(value: number): OktaAccessListSyncEvent;
+
+    getNumGroups(): number;
+    setNumGroups(value: number): OktaAccessListSyncEvent;
+
+    getNumRoles(): number;
+    setNumRoles(value: number): OktaAccessListSyncEvent;
+
+    getNumAccessLists(): number;
+    setNumAccessLists(value: number): OktaAccessListSyncEvent;
+
+    getNumAccessListMembers(): number;
+    setNumAccessListMembers(value: number): OktaAccessListSyncEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): OktaAccessListSyncEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: OktaAccessListSyncEvent): OktaAccessListSyncEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: OktaAccessListSyncEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): OktaAccessListSyncEvent;
+    static deserializeBinaryFromReader(message: OktaAccessListSyncEvent, reader: jspb.BinaryReader): OktaAccessListSyncEvent;
+}
+
+export namespace OktaAccessListSyncEvent {
+    export type AsObject = {
+        numAppFilters: number,
+        numGroupFilters: number,
+        numApps: number,
+        numGroups: number,
+        numRoles: number,
+        numAccessLists: number,
+        numAccessListMembers: number,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -3049,6 +3094,12 @@ export class SubmitEventRequest extends jspb.Message {
     setSpiffeSvidIssued(value?: SPIFFESVIDIssuedEvent): SubmitEventRequest;
 
 
+    hasOktaAccessListSync(): boolean;
+    clearOktaAccessListSync(): void;
+    getOktaAccessListSync(): OktaAccessListSyncEvent | undefined;
+    setOktaAccessListSync(value?: OktaAccessListSyncEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -3141,6 +3192,7 @@ export namespace SubmitEventRequest {
         accessListReviewCompliance?: AccessListReviewComplianceEvent.AsObject,
         mfaAuthenticationEvent?: MFAAuthenticationEvent.AsObject,
         spiffeSvidIssued?: SPIFFESVIDIssuedEvent.AsObject,
+        oktaAccessListSync?: OktaAccessListSyncEvent.AsObject,
     }
 
     export enum EventCase {
@@ -3297,6 +3349,8 @@ export namespace SubmitEventRequest {
     MFA_AUTHENTICATION_EVENT = 78,
 
     SPIFFE_SVID_ISSUED = 79,
+
+    OKTA_ACCESS_LIST_SYNC = 80,
 
     }
 

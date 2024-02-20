@@ -94,26 +94,26 @@ const lotsOfClusters = new Array(500).fill(null).map(
   (_, i) =>
     ({
       clusterId: `cluster-${i}`,
-    } as Cluster)
+    }) as Cluster
 );
 
 const twoClusters = new Array(2).fill(null).map(
   (_, i) =>
     ({
       clusterId: `cluster-${i}`,
-    } as Cluster)
+    }) as Cluster
 );
 
 const twentyClusters = new Array(20).fill(null).map(
   (_, i) =>
     ({
       clusterId: `cluster-${i}`,
-    } as Cluster)
+    }) as Cluster
 );
 
 const fiveClusters = new Array(5).fill(null).map(
   (_, i) =>
     ({
       clusterId: `cluster-${i}`,
-    } as Cluster)
+    }) as Cluster
 );

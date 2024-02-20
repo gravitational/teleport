@@ -37,7 +37,7 @@ import { Node } from '../nodes';
 export type Integration<
   T extends string = 'integration',
   K extends string = IntegrationKind,
-  S extends Record<string, any> = IntegrationSpecAwsOidc
+  S extends Record<string, any> = IntegrationSpecAwsOidc,
 > = {
   resourceType: T;
   kind: K;

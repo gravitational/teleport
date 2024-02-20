@@ -74,7 +74,7 @@ func (u *upgradeEnrollPeriodic) GenerateEnrollPrompt() (msg string, prompt bool)
 		return "", false
 	}
 
-	return fmt.Sprintf("Some agents are outdated and would benefit from enrollement in automatic upgrades."+
+	return fmt.Sprintf("Some agents are outdated and would benefit from enrollment in automatic upgrades."+
 		" (hint: use 'tctl inventory ls --upgrader=none' or 'tctl inventory ls --older-than=%s' to see more)", medianEnrolled), true
 }
 

@@ -458,6 +458,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	var proxy *client.ProxyClient
 	err := client.RetryWithRelogin(ctx, tc, func() error {
 		var err error
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxy, err = tc.ConnectToProxy(ctx)
 		return trace.Wrap(err)
 	})
@@ -544,6 +545,7 @@ func (k *kubeLocalProxy) getCertReissuer(tc *client.TeleportClient) func(ctx con
 			defer cancel()
 
 			var err error
+			//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 			proxy, err = tc.ConnectToProxy(ctx)
 			return trace.Wrap(err)
 		})

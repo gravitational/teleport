@@ -47,12 +47,13 @@ Type=simple
 Restart=on-failure
 EnvironmentFile=-{{ .EnvironmentFile }}
 ExecStart={{ .TeleportInstallationFile }} start --config {{ .TeleportConfigPath }} --pid-file={{ .PIDFile }}
-ExecReload=/bin/kill -HUP $MAINPID
+ExecReload=pkill -HUP -L -F "{{ .PIDFile }}"
 PIDFile={{ .PIDFile }}
 LimitNOFILE={{ .FileDescriptorLimit }}
 
 [Install]
-WantedBy=multi-user.target`))
+WantedBy=multi-user.target
+`))
 
 // SystemdFlags specifies configuration parameters for a systemd unit file.
 type SystemdFlags struct {

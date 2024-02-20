@@ -28,8 +28,8 @@ using `apt`, `yum`, and `zypper` package managers. The [Automatic Update
 Architecture](../architecture/agent-update-management.mdx) guide describes
 how agent updating works. Automatic agent upgrades require:
 
-- A Teleport Cloud account that supports automatic upgrades. To determine if
-  your account supports automatic upgrades, run the following command, replacing
+- A Teleport Cloud account that supports automatic updates. To determine if
+  your account supports automatic updates, run the following command, replacing
   `mytenant.teleport.sh` with the address of your Teleport Cloud account:
 
   ```code
@@ -46,7 +46,7 @@ how agent updating works. Automatic agent upgrades require:
 
 ## Step 1/2. Find agents to upgrade
 
-To list agents that are not enrolled in automatic upgrades, use the `tctl
+To list agents that are not enrolled in automatic updates, use the `tctl
 inventory ls` command with the `--upgrader=none` flag. This command also uses
 the `--services` flag to constrain the search to Teleport processes running
 agent services:
@@ -71,7 +71,7 @@ Server ID                            Hostname        Services Version Upgrader
 ...
 ```
 
-When you enroll each agent in automatic upgrades in the next section, you can
+When you enroll each agent in automatic updates in the next section, you can
 run the following commands to fetch the hostname for each agent and access it
 via Teleport. 
 
@@ -85,12 +85,12 @@ $ tsh ssh "${USER?}@${HOST?}"
 ```
 
 You can then follow the steps in the next section on each agent to enroll it in
-automatic upgrades.
+automatic updates.
 
-## Step 2/2. Enroll agents in automatic upgrades
+## Step 2/2. Enroll agents in automatic updates
 
 Complete the following instructions on each agent you would like to enroll into
-automatic upgrades:
+automatic updates:
 
 1. Ensure the Teleport repository is added and Teleport Enterprise is installed.
 
@@ -107,7 +107,7 @@ automatic upgrades:
    it is up to date.
 
 1. If the repository was added, make sure the Teleport binary installed on the
-   agent can run the automatic upgrader:
+   agent can run the automatic updater:
 
    ```code
    $ which teleport-upgrade || echo "Install the upgrader"
@@ -164,7 +164,7 @@ and look at its logs:
 $ sudo teleport-upgrade run
 ```
 
-To suspend automatic upgrades, disable the systemd timer:
+To suspend automatic updates, disable the systemd timer:
 
 ```code
 $ sudo systemctl disable --now teleport-upgrade.timer

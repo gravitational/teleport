@@ -19,7 +19,8 @@
 import React, { useEffect } from 'react';
 import styled from 'styled-components';
 
-import { BrainIcon, CloseIcon } from 'design/SVGIcon';
+import { CloseIcon } from 'design/SVGIcon';
+import { ChatCircleSparkle } from 'design/Icon';
 
 import { HeaderIcon, Tooltip } from 'teleport/Assist/shared';
 import {
@@ -196,7 +197,7 @@ export function TerminalAssist(props: TerminalAssistProps) {
         }}
         onClick={() => open()}
       >
-        <BrainIcon size={22} />
+        <ChatCircleSparkle size={22} />
       </Button>
 
       <KeyShortcut style={{ opacity: visible ? 0 : 0.5 }}>

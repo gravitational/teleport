@@ -21,6 +21,7 @@ package machineidv1
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -156,10 +157,12 @@ type BotService struct {
 
 // GetBot gets a bot by name. It will throw an error if the bot does not exist.
 func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bot, error) {
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbRead,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -188,10 +191,12 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 func (bs *BotService) ListBots(
 	ctx context.Context, req *pb.ListBotsRequest,
 ) (*pb.ListBotsResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbList,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -239,13 +244,14 @@ func (bs *BotService) ListBots(
 func (bs *BotService) CreateBot(
 	ctx context.Context, req *pb.CreateBotRequest,
 ) (*pb.Bot, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbCreate,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -346,14 +352,17 @@ func UpsertBot(
 
 // UpsertBot creates a new bot or forcefully updates an existing bot.
 func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (*pb.Bot, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbCreate, types.VerbUpdate,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, authCtx); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -392,13 +401,16 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 func (bs *BotService) UpdateBot(
 	ctx context.Context, req *pb.UpdateBotRequest,
 ) (*pb.Bot, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbUpdate,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -429,6 +441,11 @@ func (bs *BotService) UpdateBot(
 	for _, path := range req.UpdateMask.Paths {
 		switch {
 		case path == "spec.roles":
+			if slices.Contains(req.Bot.Spec.Roles, "") {
+				return nil, trace.BadParameter(
+					"spec.roles: must not contain empty strings",
+				)
+			}
 			role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
 				Roles: req.Bot.Spec.Roles,
 			})
@@ -517,13 +534,16 @@ func (bs *BotService) DeleteBot(
 	// seem to be any automatic deletion of locks in teleport today (other
 	// than expiration). Consistency around security controls seems important
 	// but we can revisit this if desired.
-	authCtx, err := authz.AuthorizeWithVerbs(
-		ctx, bs.logger, bs.authorizer, false, types.KindBot, types.VerbDelete,
-	)
+	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authz.AuthorizeAdminAction(ctx, authCtx); err != nil {
+
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -568,7 +588,19 @@ func validateBot(b *pb.Bot) error {
 	if b.Spec == nil {
 		return trace.BadParameter("spec: must be non-nil")
 	}
+	if slices.Contains(b.Spec.Roles, "") {
+		return trace.BadParameter("spec.roles: must not contain empty strings")
+	}
 	return nil
+}
+
+// nonPropagatedLabels are labels that are not propagated from the User to the
+// Bot when converting a User and Role to a Bot. Typically, these are internal
+// labels that are managed by this service and exposing them to the end user
+// would allow for misconfiguration.
+var nonPropagatedLabels = map[string]struct{}{
+	types.BotLabel:           {},
+	types.BotGenerationLabel: {},
 }
 
 // botFromUserAndRole
@@ -598,6 +630,18 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 		},
 	}
 
+	// Copy in labels from the user
+	b.Metadata.Labels = map[string]string{}
+	for k, v := range user.GetMetadata().Labels {
+		// We exclude the labels that are implicitly added to the user by the
+		// bot service.
+		if _, ok := nonPropagatedLabels[k]; ok {
+			continue
+		}
+		b.Metadata.Labels[k] = v
+	}
+
+	// Copy in traits
 	for k, v := range user.GetTraits() {
 		if len(v) == 0 {
 			continue
@@ -647,12 +691,19 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	}
 	user.SetRoles([]string{resourceName})
 	userMeta := user.GetMetadata()
-	userMeta.Labels = map[string]string{
-		types.BotLabel: bot.Metadata.Name,
-		// We always set this to zero here - but in Upsert, we copy from the
-		// previous user before writing if necessary.
-		types.BotGenerationLabel: "0",
+
+	// First copy in the labels from the Bot resource
+	userMeta.Labels = map[string]string{}
+	for k, v := range bot.Metadata.Labels {
+		userMeta.Labels[k] = v
 	}
+	// Then set these labels over the top - we exclude these when converting
+	// back.
+	userMeta.Labels[types.BotLabel] = bot.Metadata.Name
+	// We always set this to zero here - but in Upsert, we copy from the
+	// previous user before writing if necessary
+	userMeta.Labels[types.BotGenerationLabel] = "0"
+
 	user.SetMetadata(userMeta)
 
 	traits := map[string][]string{}

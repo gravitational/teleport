@@ -94,7 +94,7 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 	}
 	var errs []error
 	for _, verb := range verbs {
-		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb, false))
+		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb))
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
 		return err
@@ -103,17 +103,10 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 }
 
 type actionConfig struct {
-	quiet   bool
 	context authz.Context
 }
 
 type actionOption func(*actionConfig)
-
-func quietAction(quiet bool) actionOption {
-	return func(cfg *actionConfig) {
-		cfg.quiet = quiet
-	}
-}
 
 func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
 	cfg := actionConfig{context: a.context}
@@ -130,7 +123,7 @@ func (c actionConfig) action(namespace, resource string, verbs ...string) error 
 	}
 	var errs []error
 	for _, verb := range verbs {
-		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb, c.quiet))
+		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb))
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
 		return err
@@ -150,7 +143,7 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 		return nil
 	}
 	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
-		apidefaults.Namespace, types.KindUser, types.VerbCreate, true)
+		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -158,8 +151,8 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 // If not, it checks if the requester has the meta KindAuthConnector access
 // (which grants access to all connectors).
 func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
-	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, true); err != nil {
-		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, types.KindAuthConnector, verb, false); err != nil {
+	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb); err != nil {
+		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, types.KindAuthConnector, verb); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -169,7 +162,7 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 // actionForListWithCondition extracts a restrictive filter condition to be
 // added to a list query after a simple resource check fails.
 func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identifier string) (*types.WhereExpr, error) {
-	origErr := a.withOptions(quietAction(true)).action(namespace, resource, types.VerbList)
+	origErr := a.action(namespace, resource, types.VerbList)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return nil, trace.Wrap(origErr)
 	}
@@ -186,7 +179,7 @@ func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identi
 // rule context after a simple resource check fails.
 func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string, extendContext func(*services.Context) error) error {
 	ruleCtx := &services.Context{User: a.context.User}
-	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb, true)
+	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return trace.Wrap(origErr)
 	}
@@ -195,7 +188,7 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 		// Return the original AccessDenied to avoid leaking information.
 		return trace.Wrap(origErr)
 	}
-	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb, false))
+	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb))
 }
 
 // actionForKindSession is a special checker that grants access to session
@@ -443,13 +436,13 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 		}
 
 		// Skip past it if there's a deny rule in place blocking access.
-		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, verb, true /* silent */); err != nil {
+		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, verb); err != nil {
 			return false
 		}
 	}
 
 	ruleCtx := &services.Context{User: a.context.User, SessionTracker: tracker}
-	if a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSessionTracker, types.VerbList, true /* silent */) == nil {
+	if a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSessionTracker, types.VerbList) == nil {
 		return true
 	}
 
@@ -965,7 +958,7 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 	// with permissions to view all resources of kind 'cluster_alert' can opt into viewing all alerts
 	// regardless of labels for management/debug purposes.
 	var resourceLevelPermit bool
-	if query.WithUntargeted && a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList) == nil {
+	if query.WithUntargeted && a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList) == nil {
 		resourceLevelPermit = true
 	}
 
@@ -1004,7 +997,7 @@ Outer:
 				continue Verbs
 			}
 
-			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, rv[0], rv[1]) == nil {
+			if a.action(apidefaults.Namespace, rv[0], rv[1]) == nil {
 				// user holds at least one of the resource:verb pairs specified by
 				// the verb-permit label.
 				filtered = append(filtered, alert)
@@ -1380,7 +1373,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		resourceAccessMap[kind] = a.withOptions(quietAction(true)).action(apidefaults.Namespace, kind, actionVerbs...)
+		resourceAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Apply any requested additional search_as_roles and/or preview_as_roles
@@ -2013,7 +2006,7 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2094,7 +2087,7 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2116,7 +2109,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2310,7 +2303,7 @@ type accessChecker interface {
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	if err := a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
 		// Users are allowed to read + list their own access requests and
 		// requests they are allowed to review, unless access was *explicitly*
 		// denied. This means deny rules block the action but allow rules are
@@ -2393,7 +2386,7 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 
 	if !authz.IsCurrentUser(a.context, req.GetUser()) {
 		// If this request was authorized by allow rules and not ownership, require MFA.
-		if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		if err := a.context.AuthorizeAdminAction(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -2410,7 +2403,7 @@ func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params type
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2457,7 +2450,7 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2495,12 +2488,12 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.Plugin
 	case types.KindAccessRequest, types.KindAccessList:
 		// for backwards compatibility, we allow list/read against kinds to also grant list/read for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbList) != nil {
+		if a.action(apidefaults.Namespace, filter.Kind, types.VerbList) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbList); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbRead) != nil {
+		if a.action(apidefaults.Namespace, filter.Kind, types.VerbRead) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2517,7 +2510,7 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 	case types.KindAccessRequest, types.KindAccessList:
 		// for backwards compatibility, we allow update against access requests to also grant update for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, params.Kind, types.VerbUpdate) != nil {
+		if a.action(apidefaults.Namespace, params.Kind, types.VerbUpdate) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbUpdate); err != nil {
 				return trace.Wrap(err)
 			}
@@ -2541,7 +2534,7 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2926,7 +2919,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// admin action and requires MFA.
 	if req.Username != a.context.User.GetName() {
 		// Admin action MFA is not used to create mfa verified certs.
-		if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+		if err := a.context.AuthorizeAdminAction(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3106,7 +3099,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	certs, err := a.authServer.generateUserCert(certReq)
+	certs, err := a.authServer.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3148,7 +3141,7 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 	}
 
 	// Allow reused MFA responses to allow creating a reset token after creating a user.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3295,7 +3288,7 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3315,7 +3308,7 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3336,7 +3329,7 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3376,7 +3369,7 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3430,7 +3423,7 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3452,7 +3445,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3470,7 +3463,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3488,7 +3481,7 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3530,7 +3523,7 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3613,7 +3606,7 @@ func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID s
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3654,7 +3647,7 @@ func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector t
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3673,7 +3666,7 @@ func (a *ServerWithRoles) CreateGithubConnector(ctx context.Context, connector t
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3687,7 +3680,7 @@ func (a *ServerWithRoles) UpdateGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3732,7 +3725,7 @@ func (a *ServerWithRoles) DeleteGithubConnector(ctx context.Context, connectorID
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3744,7 +3737,7 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4045,7 +4038,7 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4077,7 +4070,7 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4109,7 +4102,7 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4195,7 +4188,7 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4325,7 +4318,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4357,7 +4350,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4398,7 +4391,7 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4430,7 +4423,7 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		}
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4461,7 +4454,7 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4484,7 +4477,7 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 		}
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5397,7 +5390,7 @@ func (a *ServerWithRoles) SetNetworkRestrictions(ctx context.Context, nr types.N
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5410,7 +5403,7 @@ func (a *ServerWithRoles) DeleteNetworkRestrictions(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6470,7 +6463,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err = authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err = a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6509,7 +6502,7 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 	}
 
 	// Support reused MFA for bulk tctl create requests.
-	if err := authz.AuthorizeAdminActionAllowReusedMFA(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6555,7 +6548,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6598,7 +6591,7 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6683,7 +6676,7 @@ func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.U
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6700,7 +6693,7 @@ func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, userGroup types.U
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6722,7 +6715,7 @@ func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) erro
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6744,7 +6737,7 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	if err := authz.AuthorizeAdminAction(ctx, &a.context); err != nil {
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
