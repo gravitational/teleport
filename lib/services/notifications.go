@@ -60,6 +60,11 @@ func ValidateNotification(notification *notificationsv1.Notification) error {
 	if notification.Metadata == nil {
 		return trace.BadParameter("notification metadata is missing")
 	}
+
+	if notification.Metadata.Labels == nil {
+		return trace.BadParameter("notification metadata labels are missing")
+	}
+
 	return nil
 }
 
@@ -127,6 +132,15 @@ func ValidateGlobalNotification(globalNotification *notificationsv1.GlobalNotifi
 	if globalNotification.Spec.Notification.SubKind == "" {
 		return trace.BadParameter("notification subkind is missing")
 	}
+
+	if globalNotification.Spec.Notification.Metadata == nil {
+		return trace.BadParameter("notification metadata is missing")
+	}
+
+	if globalNotification.Spec.Notification.Metadata.Labels == nil {
+		return trace.BadParameter("notification metadata labels are missing")
+	}
+
 	return nil
 }
 

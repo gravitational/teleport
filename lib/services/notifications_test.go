@@ -41,7 +41,7 @@ func TestMarshalNotificationRoundTrip(t *testing.T) {
 			Id: "test-notification-1",
 		},
 		Metadata: &headerv1.Metadata{
-			Description: "Test Description",
+			Labels: map[string]string{"description": "description-1"},
 		},
 	}
 
@@ -57,11 +57,9 @@ func TestMarshalNotificationRoundTrip(t *testing.T) {
 // TestMarshalGlobalNotificationRoundTrip tests the marshaling and unmarshaling functions for GlobalNotification objects.
 func TestMarshalGlobalNotificationRoundTrip(t *testing.T) {
 	notification := &notificationsv1.GlobalNotification{
-		Kind:    types.KindGlobalNotification,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Description: "Test Description",
-		},
+		Kind:     types.KindGlobalNotification,
+		Metadata: &headerv1.Metadata{},
+		Version:  types.V1,
 		Spec: &notificationsv1.GlobalNotificationSpec{
 			Matcher: &notificationsv1.GlobalNotificationSpec_All{
 				All: true,
@@ -72,7 +70,7 @@ func TestMarshalGlobalNotificationRoundTrip(t *testing.T) {
 					Id: "test-notification-id",
 				},
 				Metadata: &headerv1.Metadata{
-					Description: "Test Description",
+					Labels: map[string]string{"description": "description-1"},
 				},
 			},
 		},
