@@ -781,11 +781,12 @@ func resourceBelongsToRules(rules []types.Rule, resources []string) bool {
 }
 
 func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels) (bool, error) {
-	var changed bool
 	unset, err := labelMatchersUnset(role, kind)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+	
+	var changed bool
 	if unset && len(defaultLabels) > 0 {
 		role.SetLabelMatchers(types.Allow, kind, types.LabelMatchers{
 			Labels: defaultLabels,
