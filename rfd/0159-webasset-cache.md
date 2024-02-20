@@ -1,10 +1,10 @@
 
 ---
 authors: Michael Myers (michael.myers@goteleport.com)
-state: draft
+state: 
 ---
 
-# RFD 0159 - Webasset Cache
+# RFD 0159 - Webasset Storage
 
 ## Required approvers
 
@@ -38,23 +38,50 @@ bucket allows the proxies to fallback to single repository of every webasset in 
 
 ## Details
 
-### Webasset cache
+### Webasset storage
 
-When the proxy comes online, we can start an (optional) service that will sync the webassets
-to a configured, s3-compatible storage. When a proxy comes online, it will start a heartbeat
-that first, checks if its webassets have been loaded. It does this by first, listing the objects in
-the bucket using `ListObjectsV2`. As of right now, we have ~170 items in our webassets bundle. 
-`ListObjectsV2` will only list up to 1,000 items per page. This means that after 5 stored versions
-we will have to start iterating multiple pages to list all the keys. This is unlikely and can be mitigated by
-a implementing a decent retention policy (more on that later in the RFD).
+When an auth service comes online, if enabled, it will prepare the webasset
+storage service by creating an s3 client that can be used as an getter/uploader
+to the bucket. When a proxy comes online, it will start a service that runs on
+an interval that will first check if the auth server requires the proxy to send
+it's webassets. If auth is not configured to do so (or is in an error state),
+then the proxy will shutdown the storage service and carry on without as usual without it.
 
-Once the keys have been listed, the service can walk through the embedded filesystem to find any files
-that have **not been synced** with the bucket and then batch upload them using the s3 sdk [`UploadWithIterator`](https://docs.aws.amazon.com/sdk-for-go/api/service/s3/s3manager/#Uploader.UploadWithIterator)
-to cut down on the amount of outgoing network requests. 
+The first step of the sync will have proxy asking auth if it is ready and to
+list the files that have been uploaded to the storage already. As of right now,
+we have ~170 items in our webassets bundle. `ListObjectsV2` will only list up to
+1,000 items per page. This means that after 5 stored versions we will have to
+start iterating multiple pages to list all the keys. This is unlikely and can be
+mitigated by a implementing a decent retention policy (more on that later in the
+RFD). Ideally, we would have been able to sort this query by tag (the tag being
+the teleport version the file was uploaded with). The go sdk for s3 does not
+support filtering by tag, nor does it send the tag in the `ListObjects`
+response. The only way to get tagging on an item is to perform a
+`GetObjectTagging` on every single item received, which is a separate request.
+This is wildly inefficient to try and "narrow down" the files that we are using
+to find out if we need to upload a missing file. Therefore, we'll list them all
+and just use the larger dataset.
 
-There isn't too much of a concern to have key collisions thanks to Vite's rollup hashing. A somewhat recent change
-has [moved their hashes to use base64](https://github.com/rollup/rollup/issues/4803) so the chances of the same
-split file having the same hash across multiple versions is very low.
+Once the keys have been listed, the proxy will then walk through its filesystem
+and upload what is missing. It does this by sending an `UploadWebasset` request
+to auth over grpc with the file name and the compressed(gzip) contents of the
+file.
+```protobuf
+// UploadWebassetRequest is a request to upload a file to configured storage bucket.
+message UploadWebassetRequest {
+	// name is the name of the file.
+	string name = 1;
+	// content is the compressed byte content of the file.
+	bytes content = 2;
+}
+```
+This will prevent extra grpc messages being sent between proxy/auth for files
+that do not need to be uploaded. Files with the same key are not uploaded twice.
+There isn't too much of a concern to have key collisions thanks to Vite's rollup
+hashing. A somewhat recent change has
+[moved their hashes to use base64](https://github.com/rollup/rollup/issues/4803)
+so the chances of the same split file having the same hash across multiple
+versions is very low.
 
 #### File cleanup
 Our current webasset bundle is ~7mb The first cause for concern is how to
@@ -92,8 +119,9 @@ if strings.HasPrefix(r.URL.Path, "/web/app") {
 
 nothing too complicated besides setting some headers, compression, and then
 serving whatever file is requested. The change would be instead of serving,
-first check if the file exists in the embedded file system. If it does, send as usual.
-If it doesn't, we can download the file from the webasset bucket and serve
+first check if the file exists in the embedded file system. If it does, send as
+usual. If it doesn't, ask auth for the missing webasset by name, auth downloads
+from the bucket, and then ships back to proxy to serve.
 ```go
 if strings.HasPrefix(r.URL.Path, "/web/app") {
 	// do everything the same if the file exists
@@ -119,8 +147,10 @@ if strings.HasPrefix(r.URL.Path, "/web/app") {
 ### Security
 This feature should be **opt in only** via configuration. 
 
-As of now, only the Auth talks to s3/AWS. This means that the proxy would also have to have access to some credentials
-that write/read access to the user's chosen storage. This increases the risk surface area by having two susceptible services. 
+Because the proxy relies on auth to upload/get the files from the bucket,
+customers can use their existing credential setup on the auth server with this
+service and _shouldn't_ have to change anything. proxy will not require AWS
+credentials.
 
 If someone has gained access to the bucket, they could potentially overwrite files with their own code that the
 browser will then try to download. We may be able to get around this by implementing some sort of signing to
