@@ -200,6 +200,55 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 	}, nil
 }
 
+// ListEICE returns a paginated list of EC2 Instance Connect Endpoints.
+func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEICERequest) (*integrationpb.ListEICEResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listClient, err := awsoidc.NewListEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listResp, err := awsoidc.ListEC2ICE(ctx, listClient, awsoidc.ListEC2ICERequest{
+		Region:    req.Region,
+		VPCIDs:    req.VpcIds,
+		NextToken: req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	eiceList := make([]*integrationpb.EC2InstanceConnectEndpoint, 0, len(listResp.EC2ICEs))
+	for _, e := range listResp.EC2ICEs {
+		eiceList = append(eiceList, &integrationpb.EC2InstanceConnectEndpoint{
+			Name:          e.Name,
+			State:         e.State,
+			StateMessage:  e.StateMessage,
+			DashboardLink: e.DashboardLink,
+			SubnetId:      e.SubnetID,
+			VpcId:         e.VPCID,
+		})
+	}
+
+	return &integrationpb.ListEICEResponse{
+		NextToken:     listResp.NextToken,
+		Ec2Ices:       eiceList,
+		DashboardLink: listResp.DashboardLink,
+	}, nil
+}
+
 // ListDatabases returns a paginated list of Databases.
 func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.ListDatabasesRequest) (*integrationpb.ListDatabasesResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)

@@ -778,12 +778,12 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	listEC2ICEClient, err := awsoidc.NewListEC2ICEClient(ctx, awsClientReq)
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -793,22 +793,32 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		vpcIds = []string{req.VPCID}
 	}
 
-	resp, err := awsoidc.ListEC2ICE(ctx,
-		listEC2ICEClient,
-		awsoidc.ListEC2ICERequest{
-			Region:    req.Region,
-			VPCIDs:    vpcIds,
-			NextToken: req.NextToken,
-		},
-	)
+	resp, err := clt.IntegrationAWSOIDCClient().ListEICE(ctx, &integrationv1.ListEICERequest{
+		Integration: integrationName,
+		Region:      req.Region,
+		VpcIds:      vpcIds,
+		NextToken:   req.NextToken,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	endpoints := make([]awsoidc.EC2InstanceConnectEndpoint, 0, len(resp.Ec2Ices))
+	for _, e := range resp.Ec2Ices {
+		endpoints = append(endpoints, awsoidc.EC2InstanceConnectEndpoint{
+			Name:          e.Name,
+			State:         e.State,
+			StateMessage:  e.StateMessage,
+			DashboardLink: e.DashboardLink,
+			SubnetID:      e.SubnetId,
+			VPCID:         e.VpcId,
+		})
 	}
 
 	return ui.AWSOIDCListEC2ICEResponse{
 		NextToken:     resp.NextToken,
 		DashboardLink: resp.DashboardLink,
-		EC2ICEs:       resp.EC2ICEs,
+		EC2ICEs:       endpoints,
 	}, nil
 }
 
