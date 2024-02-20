@@ -218,8 +218,9 @@ impl FastPathProcessor {
                     UpdateKind::PointerHidden => {
                         outputs.push(ActiveStageOutput::PointerHidden);
                     }
-                    UpdateKind::PointerPosition { x, y } => {
-                        outputs.push(ActiveStageOutput::PointerPosition { x: x, y: y });
+                    UpdateKind::PointerPosition { .. } => {
+                        warn!("Pointer position updates are not supported");
+                        continue;
                     }
                     UpdateKind::PointerBitmap(pointer) => {
                         outputs.push(ActiveStageOutput::PointerBitmap(pointer))
@@ -264,8 +265,11 @@ impl FastPathProcessor {
                         &JsValue::from(pointer.hotspot_y),
                     )?;
                 }
+                ActiveStageOutput::PointerDefault => {
+                    update_pointer_cb.call1(cb_context, &JsValue::from(true))?;
+                }
                 ActiveStageOutput::PointerHidden => {
-                    update_pointer_cb.call0(cb_context)?;
+                    update_pointer_cb.call1(cb_context, &JsValue::from(false))?;
                 }
                 _ => {
                     debug!("Unhandled ActiveStageOutput: {:?}", output);
