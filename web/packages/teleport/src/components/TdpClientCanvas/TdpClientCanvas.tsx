@@ -97,18 +97,22 @@ function TdpClientCanvas(props: Props) {
     }
   }, [client, clientOnPngFrame]);
 
-  let previousCursor = "auto";
+  let previousCursor = 'auto';
 
   useEffect(() => {
     if (client) {
       const canvas = canvasRef.current;
-      const updatePointer = (pointer: {data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number}) => {
-        if (typeof pointer.data === "boolean") {
-          if(pointer.data) {
+      const updatePointer = (pointer: {
+        data: ImageData | boolean;
+        hotspot_x?: number;
+        hotspot_y?: number;
+      }) => {
+        if (typeof pointer.data === 'boolean') {
+          if (pointer.data) {
             canvas.style.cursor = previousCursor;
           } else {
             previousCursor = canvas.style.cursor;
-            canvas.style.cursor = "none";
+            canvas.style.cursor = 'none';
           }
           return;
         }
@@ -116,7 +120,14 @@ function TdpClientCanvas(props: Props) {
         cursor.width = pointer.data.width;
         cursor.height = pointer.data.height;
         cursor.getContext('2d').putImageData(pointer.data, 0, 0);
-        canvas.style.cursor = "url(" + cursor.toDataURL() + ") " + pointer.hotspot_x + " " + pointer.hotspot_y + ", auto";
+        canvas.style.cursor =
+          'url(' +
+          cursor.toDataURL() +
+          ') ' +
+          pointer.hotspot_x +
+          ' ' +
+          pointer.hotspot_y +
+          ', auto';
       };
 
       client.on(TdpClientEvent.POINTER, updatePointer);
