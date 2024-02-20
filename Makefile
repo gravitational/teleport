@@ -1154,6 +1154,17 @@ update-tag:
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
+# Publishes a tag build.
+# Starts a tag publish run using e/.github/workflows/tag-publish.yaml
+# for the tag v$(VERSION).
+.PHONY: publish-tag
+publish-tag:
+	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
+	gh workflow run tag-publish.yaml \
+		--repo gravitational/teleport.e \
+		--ref "v$(VERSION)" \
+		-f "oss-teleport-ref=v$(VERSION)"
+
 .PHONY: test-package
 test-package: remove-temp-files
 	go test -v ./$(p)
