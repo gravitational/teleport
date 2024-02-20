@@ -505,40 +505,41 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listResp, err := clt.IntegrationAWSOIDCClient().ListEC2(ctx, &integrationv1.ListEC2Request{
+		Integration: integrationName,
+		Region:      req.Region,
+		NextToken:   req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	listEC2Client, err := awsoidc.NewListEC2Client(ctx, awsClientReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := awsoidc.ListEC2(ctx,
-		listEC2Client,
-		awsoidc.ListEC2Request{
-			Integration: awsClientReq.IntegrationName,
-			Region:      req.Region,
-			NextToken:   req.NextToken,
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := ui.MakeServers(h.auth.clusterName, resp.Servers, accessChecker)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	servers := make([]ui.Server, 0, len(listResp.Servers))
+	for _, s := range listResp.Servers {
+		serverUI, err := ui.MakeServer(h.auth.clusterName, s, accessChecker)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers = append(servers, serverUI)
 	}
 
 	return ui.AWSOIDCListEC2Response{
-		NextToken: resp.NextToken,
+		NextToken: listResp.NextToken,
 		Servers:   servers,
 	}, nil
 }
