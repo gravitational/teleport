@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,17 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package slack
+package testlib
 
 import (
-	"context"
-	"sync/atomic"
-
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
+	"github.com/gravitational/teleport/integrations/access/slack"
 )
 
-type SlackMessageSlice []Message
+type SlackMessageSlice []slack.Message
 type SlackDataMessageSet map[accessrequest.MessageData]struct{}
 
 func (slice SlackMessageSlice) Len() int {
@@ -51,21 +48,4 @@ func (set SlackDataMessageSet) Add(msg accessrequest.MessageData) {
 func (set SlackDataMessageSet) Contains(msg accessrequest.MessageData) bool {
 	_, ok := set[msg]
 	return ok
-}
-
-type fakeStatusSink struct {
-	status atomic.Pointer[types.PluginStatus]
-}
-
-func (s *fakeStatusSink) Emit(_ context.Context, status types.PluginStatus) error {
-	s.status.Store(&status)
-	return nil
-}
-
-func (s *fakeStatusSink) Get() types.PluginStatus {
-	status := s.status.Load()
-	if status == nil {
-		panic("expected status to be set, but it has not been")
-	}
-	return *status
 }
