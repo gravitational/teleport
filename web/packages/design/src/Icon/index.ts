@@ -43,6 +43,7 @@ export { ArrowUp } from './Icons/ArrowUp';
 export { ArrowsIn } from './Icons/ArrowsIn';
 export { ArrowsOut } from './Icons/ArrowsOut';
 export { BookOpenText } from './Icons/BookOpenText';
+export { Bots } from './Icons/Bots';
 export { Bubble } from './Icons/Bubble';
 export { CCAmex } from './Icons/CCAmex';
 export { CCDiscover } from './Icons/CCDiscover';

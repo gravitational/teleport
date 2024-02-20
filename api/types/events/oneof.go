@@ -267,6 +267,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DatabaseSessionQuery{
 			DatabaseSessionQuery: e,
 		}
+	case *DatabasePermissionUpdate:
+		out.Event = &OneOf_DatabasePermissionUpdate{
+			DatabasePermissionUpdate: e,
+		}
 	case *PostgresParse:
 		out.Event = &OneOf_PostgresParse{
 			PostgresParse: e,
@@ -626,6 +630,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *OktaAccessListSync:
 		out.Event = &OneOf_OktaAccessListSync{
 			OktaAccessListSync: e,
+		}
+	case *SPIFFESVIDIssued:
+		out.Event = &OneOf_SPIFFESVIDIssued{
+			SPIFFESVIDIssued: e,
 		}
 
 	default:

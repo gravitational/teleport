@@ -44,7 +44,10 @@ type ResourceHeader struct {
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// sub_kind is an optional resource sub kind, used in some resources.
 	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
-	// version is version.
+	// Version is the API version used to create the resource. It must be
+	// specified. Based on this version, Teleport will apply different defaults on
+	// resource creation or deletion. It must be an integer prefixed by "v".
+	// For example: `v1`
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	// metadata is resource metadata.
 	Metadata *Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`

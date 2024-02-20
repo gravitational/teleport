@@ -658,9 +658,26 @@
         },
         {
           "title": "Access Graph",
-          "slug": "/access-graph/",
+          "slug": "/access-controls/access-graph/",
           "forScopes": [
-            "team"
+            "team",
+            "enterprise"
+          ],
+          "entries": [
+            {
+              "title": "TAG for Self-Hosted Clusters",
+              "slug": "/access-controls/access-graph/self-hosted/",
+              "forScopes": [
+                "enterprise"
+              ]
+            },
+            {
+              "title": "TAG for Self-Hosted Clusters with Helm",
+              "slug": "/access-controls/access-graph/self-hosted-helm/",
+              "forScopes": [
+                "enterprise"
+              ]
+            }
           ]
         },
         {
@@ -1220,8 +1237,24 @@
               ]
             },
             {
+              "title": "Okta Service Hosted Integration",
+              "slug": "/application-access/okta/hosted-guide/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
               "title": "Architecture",
               "slug": "/application-access/okta/architecture/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
+              "title": "Synchronization and SCIM",
+              "slug": "/application-access/okta/sync-scim/",
               "forScopes": [
                 "enterprise",
                 "cloud"
@@ -1264,20 +1297,26 @@
           "slug": "/server-access/getting-started/"
         },
         {
+          "title": "Enrolling OpenSSH Servers",
+          "slug": "/server-access/openssh/",
+          "entries": [
+            {
+              "title": "Agentless OpenSSH Integration",
+              "slug": "/server-access/openssh/openssh/"
+            },
+            {
+              "title": "Agentless OpenSSH Integration (Manual Install)",
+              "slug": "/server-access/openssh/openssh-manual-install/"
+            }
+          ]
+        },
+        {
           "title": "Guides",
           "slug": "/server-access/guides/",
           "entries": [
             {
               "title": "Using Teleport with PAM",
               "slug": "/server-access/guides/ssh-pam/"
-            },
-            {
-              "title": "Agentless OpenSSH Integration",
-              "slug": "/server-access/guides/openssh/openssh/"
-            },
-            {
-              "title": "Agentless OpenSSH Integration (Manual Install)",
-              "slug": "/server-access/guides/openssh/openssh-manual-install/"
             },
             {
               "title": "Recording Proxy Mode",
@@ -1970,6 +2009,13 @@
               "slug": "/reference/helm-reference/teleport-operator/"
             },
             {
+              "title": "teleport-access-graph",
+              "slug": "/reference/helm-reference/teleport-access-graph/",
+              "forScopes": [
+                "enterprise"
+              ]
+            },
+            {
               "title": "teleport-plugin-event-handler",
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
             },
@@ -2045,38 +2091,6 @@
           ]
         }
       ]
-    },
-    {
-      "icon": "wrench",
-      "title": "Contribute",
-      "entries": [
-        {
-          "title": "Documentation",
-          "slug": "/contributing/documentation/",
-          "entries": [
-            {
-              "title": "How to Contribute",
-              "slug": "/contributing/documentation/how-to-contribute/"
-            },
-            {
-              "title": "Reviewing Documentation Changes",
-              "slug": "/contributing/documentation/reviewing-docs/"
-            },
-            {
-              "title": "Creating Documentation Issues",
-              "slug": "/contributing/documentation/issues/"
-            },
-            {
-              "title": "Style Guide",
-              "slug": "/contributing/documentation/style-guide/"
-            },
-            {
-              "title": "UI Reference",
-              "slug": "/contributing/documentation/reference/"
-            }
-          ]
-        }
-      ]
     }
   ],
   "variables": {
@@ -2084,6 +2098,9 @@
       "clusterName": "teleport.example.com",
       "username": "myuser",
       "nodeIP": "ip-172-31-35-170"
+    },
+    "access_graph": {
+      "version": "1.13.0"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -2093,7 +2110,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "14.3.3",
+      "version": "14.3.4",
       "major_version": "14",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2138,17 +2155,17 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "15",
-      "version": "15.0.0",
+      "version": "15.0.2",
       "url": "teleport.example.com",
       "golang": "1.21",
       "plugin": {
-        "version": "15.0.0"
+        "version": "15.0.2"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.0.0",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.0.0",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.0.0",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.0.0"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:15.0.2",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:15.0.2",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:15.0.2",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:15.0.2"
     },
     "terraform": {
       "version": "1.0.0"
@@ -2332,7 +2349,7 @@
     },
     {
       "source": "/openssh-teleport/",
-      "destination": "/server-access/guides/openssh/",
+      "destination": "/server-access/openssh/",
       "permanent": true
     },
     {
@@ -2353,16 +2370,6 @@
     {
       "source": "/database-access/guides/mysql-aws/",
       "destination": "/database-access/guides/rds/",
-      "permanent": true
-    },
-    {
-      "source": "/docs/",
-      "destination": "/contributing/documentation/",
-      "permanent": true
-    },
-    {
-      "source": "/docs/best-practices/",
-      "destination": "/contributing/documentation/",
       "permanent": true
     },
     {
@@ -3111,11 +3118,6 @@
       "permanent": true
     },
     {
-      "source": "/contributing/",
-      "destination": "/contributing/documentation/",
-      "permanent": true
-    },
-    {
       "source": "/management/guides/joining-nodes-aws-ec2/",
       "destination": "/agents/join-services-to-your-cluster/aws-ec2/",
       "permanent": true
@@ -3307,7 +3309,7 @@
     },
     {
       "source": "/server-access/guides/openssh/",
-      "destination": "/server-access/guides/openssh/openssh/",
+      "destination": "/server-access/openssh/",
       "permanent": true
     },
     {
@@ -3363,6 +3365,11 @@
     {
       "source": "/server-access/guides/restricted-session/",
       "destination": "/server-access/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/access-graph/",
+      "destination": "/access-controls/access-graph/",
       "permanent": true
     }
   ]

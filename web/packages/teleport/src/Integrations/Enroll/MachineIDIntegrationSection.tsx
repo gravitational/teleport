@@ -128,6 +128,7 @@ export const MachineIDIntegrationSection = () => {
           to access resources protected by Teleport.
         </Text>
       </Box>
+      {/* TODO(mcbattirola): replace this section with BotTiles and remove Integrations */}
       <Flex mb={2} gap={3} flexWrap="wrap">
         {integrations.map(i => {
           return (
