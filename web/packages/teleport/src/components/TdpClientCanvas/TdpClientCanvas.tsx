@@ -97,12 +97,19 @@ function TdpClientCanvas(props: Props) {
     }
   }, [client, clientOnPngFrame]);
 
+  let previousCursor = "auto";
+
   useEffect(() => {
     if (client) {
       const canvas = canvasRef.current;
-      const updatePointer = (pointer: {data?: ImageData, hotspot_x?: number, hotspot_y?: number}) => {
-        if (pointer.data === undefined) {
-          canvas.style.cursor = "none";
+      const updatePointer = (pointer: {data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number}) => {
+        if (typeof pointer.data === "boolean") {
+          if(pointer.data) {
+            canvas.style.cursor = previousCursor;
+          } else {
+            previousCursor = canvas.style.cursor;
+            canvas.style.cursor = "none";
+          }
           return;
         }
         const cursor = document.createElement('canvas');
