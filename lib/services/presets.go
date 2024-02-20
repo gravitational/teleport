@@ -785,7 +785,7 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	
+
 	var changed bool
 	if unset && len(defaultLabels) > 0 {
 		role.SetLabelMatchers(types.Allow, kind, types.LabelMatchers{
