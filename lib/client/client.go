@@ -540,6 +540,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			// In case of MFA connect to root teleport proxy instead of JumpHost to request
 			// MFA certificates.
 			proxy.teleportClient.JumpHosts = nil
+			//nolint:staticcheck // SA1019. TODO(tross) remove once ProxyClient is no longer used.
 			rootClusterProxy, err = proxy.teleportClient.ConnectToProxy(ctx)
 			proxy.teleportClient.JumpHosts = jumpHost
 			if err != nil {
@@ -1084,6 +1085,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
 		MFAPromptConstructor:       proxy.teleportClient.NewMFAPrompt,
+		DialOpts:                   proxy.teleportClient.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1163,6 +1165,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		MFAPromptConstructor: proxy.teleportClient.NewMFAPrompt,
+		DialOpts:             proxy.teleportClient.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

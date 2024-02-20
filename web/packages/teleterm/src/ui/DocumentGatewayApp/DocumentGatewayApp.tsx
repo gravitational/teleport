@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { copyToClipboard } from 'design/utils/copyToClipboard';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
 import Document from 'teleterm/ui/Document';
@@ -46,11 +44,6 @@ export function DocumentGatewayApp(props: {
 
   ctx.clustersService.useState();
 
-  async function copyCliCommandToClipboard(): Promise<void> {
-    await copyToClipboard(gateway.gatewayCliCommand.preview);
-    ctx.notificationsService.notifyInfo('Copied to clipboard');
-  }
-
   return (
     <Document visible={props.visible}>
       {!connected ? (
@@ -68,7 +61,6 @@ export function DocumentGatewayApp(props: {
           disconnectAttempt={disconnectAttempt}
           changePort={changePort}
           changePortAttempt={changePortAttempt}
-          copyCliCommandToClipboard={copyCliCommandToClipboard}
         />
       )}
     </Document>

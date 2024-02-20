@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -209,4 +210,48 @@ func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 	}
 
 	return bot, nil
+}
+
+// updateBot updates a bot with provided roles. The only supported change via this endpoint today is roles.
+func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	var request updateBotRequest
+	if err := httplib.ReadJSON(r, &request); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	botName := p.ByName("name")
+	if botName == "" {
+		return nil, trace.BadParameter("empty name")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mask, err := fieldmaskpb.New(&machineidv1.Bot{}, "spec.roles")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
+		UpdateMask: mask,
+		Bot: &machineidv1.Bot{
+			Metadata: &headerv1.Metadata{
+				Name: botName,
+			},
+			Spec: &machineidv1.BotSpec{
+				Roles: request.Roles,
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to find existing bot")
+	}
+
+	return updated, nil
+}
+
+type updateBotRequest struct {
+	Roles []string `json:"roles"`
 }

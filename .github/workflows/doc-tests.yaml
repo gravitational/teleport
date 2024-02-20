@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
         uses: actions/checkout@v4
-      - uses: dorny/paths-filter@0bc4621a3135347011ad047f9ecf449bf72ce2bd # v3.0.0
+      - uses: dorny/paths-filter@ebc4d7e9ebcb0b1eb21480bb8f43113e996ac77a # v3.0.1
         id: changes
         with:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
@@ -109,10 +109,17 @@ jobs:
           repository: "gravitational/teleport"
 
       - name: Run the linter
-        uses: errata-ai/vale-action@3f7188c866bcb3259339a09f517d7c4a8838303c # reviewdog
+        uses: errata-ai/vale-action@38bf078c328061f59879b347ca344a718a736018 # v2.1.0
         with:
           version: 2.30.0
+          # Take the comma-separated list of files returned by the "Check for
+          # relevant changes" job.
           separator: ","
           files: ${{ needs.changes.outputs.changed_files }}
+          # Report all results in a file modified in the PR, even if it wasn't
+          # touched by the diff. This way, we can gradually implement a style
+          # guide across the docs: docs authors do a little bit of extra work,
+          # but aren't responsible for entire docs site.
+          filter_mode: file
           fail_on_error: true
 

@@ -142,6 +142,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		participantMode: cfg.ParticipantMode,
 		tracker:         cfg.Tracker,
 		presenceChecker: cfg.PresenceChecker,
+		websocketConn:   cfg.WebsocketConn,
 	}, nil
 }
 
@@ -191,6 +192,8 @@ type TerminalHandlerConfig struct {
 	PresenceChecker PresenceChecker
 	// Clock allows interaction with time.
 	Clock clockwork.Clock
+	// WebsocketConn is the active websocket connection
+	WebsocketConn *websocket.Conn
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -317,6 +320,9 @@ type TerminalHandler struct {
 
 	// clock used to interact with time.
 	clock clockwork.Clock
+
+	// websocketConn is the active websocket connection
+	websocketConn *websocket.Conn
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -328,21 +334,9 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t.ctx.AddClosers(t)
 	defer t.ctx.RemoveCloser(t)
 
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin:     func(r *http.Request) bool { return true },
-	}
+	ws := t.websocketConn
 
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		errMsg := "Error upgrading to websocket"
-		t.log.WithError(err).Error(errMsg)
-		http.Error(w, errMsg, http.StatusInternalServerError)
-		return
-	}
-
-	err = ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
+	err := ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 	if err != nil {
 		t.log.WithError(err).Error("Error setting websocket readline")
 		return
@@ -1101,6 +1095,14 @@ func (t *WSStream) writeError(msg string) {
 	}
 }
 
+func isOKWebsocketCloseError(err error) bool {
+	return websocket.IsCloseError(err,
+		websocket.CloseAbnormalClosure,
+		websocket.CloseGoingAway,
+		websocket.CloseNormalClosure,
+	)
+}
+
 func (t *WSStream) processMessages(ctx context.Context) {
 	defer func() {
 		t.close()
@@ -1114,8 +1116,7 @@ func (t *WSStream) processMessages(ctx context.Context) {
 		default:
 			ty, bytes, err := t.ws.ReadMessage()
 			if err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
-					websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || isOKWebsocketCloseError(err) {
 					return
 				}
 

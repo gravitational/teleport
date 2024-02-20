@@ -97,13 +97,11 @@ export type TshdEventContextBridgeService = {
   >;
 };
 
-export type ExtractRequestType<T> = T extends ServerUnaryCall<infer Req, any>
-  ? Req
-  : never;
+export type ExtractRequestType<T> =
+  T extends ServerUnaryCall<infer Req, any> ? Req : never;
 
-export type ExtractResponseType<T> = T extends sendUnaryData<infer Res>
-  ? Res
-  : never;
+export type ExtractResponseType<T> =
+  T extends sendUnaryData<infer Res> ? Res : never;
 
 export type ElectronGlobals = {
   readonly mainProcessClient: MainProcessClient;

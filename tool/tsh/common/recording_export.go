@@ -50,14 +50,11 @@ func onExportRecording(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyClient, err := tc.ConnectToProxy(cf.Context)
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-
-	authClient := proxyClient.CurrentCluster()
-	defer authClient.Close()
+	defer clusterClient.Close()
 
 	filenamePrefix := cf.SessionID
 	if cf.OutFile != "" {
@@ -66,7 +63,7 @@ func onExportRecording(cf *CLIConf) error {
 			strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
 	}
 
-	_, err = writeMovie(cf.Context, authClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
+	_, err = writeMovie(cf.Context, clusterClient.AuthClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
 	return trace.Wrap(err)
 }
 
@@ -240,7 +237,7 @@ loop:
 	// if we received a session start event but the context is canceled
 	// before we received the screen dimensions, then there's no movie to close
 	if movie == nil {
-		return 0, trace.BadParameter("operation canceled")
+		return 0, ctx.Err()
 	}
 
 	err = movie.Close()

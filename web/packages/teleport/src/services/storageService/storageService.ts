@@ -43,6 +43,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
+  KeysEnum.NEW_ADD_AUTH_DEVICE_DIALOG,
 ];
 
 export const storageService = {
@@ -62,17 +63,20 @@ export const storageService = {
     window.removeEventListener('storage', fn);
   },
 
+  getParsedJSONValue<T>(key: string, defaultValue: T): T {
+    const item = window.localStorage.getItem(key);
+    if (item) {
+      return JSON.parse(item);
+    }
+    return defaultValue;
+  },
+
   setBearerToken(token: BearerToken) {
     window.localStorage.setItem(KeysEnum.TOKEN, JSON.stringify(token));
   },
 
   getBearerToken(): BearerToken {
-    const item = window.localStorage.getItem(KeysEnum.TOKEN);
-    if (item) {
-      return JSON.parse(item);
-    }
-
-    return null;
+    return this.getParsedJSONValue(KeysEnum.TOKEN, null);
   },
 
   getAccessToken() {
@@ -103,11 +107,7 @@ export const storageService = {
   },
 
   getOnboardDiscover(): OnboardDiscover {
-    const item = window.localStorage.getItem(KeysEnum.DISCOVER);
-    if (item) {
-      return JSON.parse(item);
-    }
-    return null;
+    return this.getParsedJSONValue(KeysEnum.DISCOVER, null);
   },
 
   getUserPreferences(): UserPreferences {
@@ -142,11 +142,7 @@ export const storageService = {
   },
 
   getOnboardSurvey(): LocalStorageSurvey {
-    const survey = window.localStorage.getItem(KeysEnum.ONBOARD_SURVEY);
-    if (survey) {
-      return JSON.parse(survey);
-    }
-    return null;
+    return this.getParsedJSONValue(KeysEnum.ONBOARD_SURVEY, null);
   },
 
   setOnboardSurvey(survey: LocalStorageSurvey) {
@@ -160,11 +156,7 @@ export const storageService = {
   },
 
   getCloudUserInvites(): CloudUserInvites {
-    const invites = window.localStorage.getItem(KeysEnum.CLOUD_USER_INVITES);
-    if (invites) {
-      return JSON.parse(invites);
-    }
-    return null;
+    return this.getParsedJSONValue(KeysEnum.CLOUD_USER_INVITES, null);
   },
 
   setCloudUserInvites(invites: CloudUserInvites) {
@@ -238,37 +230,22 @@ export const storageService = {
   },
 
   getFeatureRecommendationStatus(): RecommendFeature {
-    const item = window.localStorage.getItem(KeysEnum.RECOMMEND_FEATURE);
-    if (item) {
-      return JSON.parse(item);
-    }
-    return null;
+    return this.getParsedJSONValue(KeysEnum.RECOMMEND_FEATURE, null);
   },
 
   getAccessGraphEnabled(): boolean {
-    const item = window.localStorage.getItem(KeysEnum.ACCESS_GRAPH_ENABLED);
-    if (item) {
-      return JSON.parse(item);
-    }
-    return false;
+    return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_ENABLED, false);
   },
 
   getAccessGraphSQLEnabled(): boolean {
-    const item = window.localStorage.getItem(KeysEnum.ACCESS_GRAPH_SQL_ENABLED);
-    if (item) {
-      return JSON.parse(item);
-    }
-    return false;
+    return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_SQL_ENABLED, false);
   },
 
   getExternalAuditStorageCtaDisabled(): boolean {
-    const item = window.localStorage.getItem(
-      KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED
+    return this.getParsedJSONValue(
+      KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
+      false
     );
-    if (item) {
-      return JSON.parse(item);
-    }
-    return false;
   },
 
   disableExternalAuditStorageCta(): void {
@@ -276,5 +253,9 @@ export const storageService = {
       KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
       JSON.stringify(true)
     );
+  },
+
+  isNewAddAuthDeviceDialogEnabled(): boolean {
+    return this.getParsedJSONValue(KeysEnum.NEW_ADD_AUTH_DEVICE_DIALOG, false);
   },
 };

@@ -153,7 +153,7 @@ function createService(logger: Logger): {
     >,
     Response extends ExtractResponseType<
       Parameters<apiService.ITshdEventsService[RpcName]>[1]
-    >
+    >,
   >(
     rpcName: RpcName,
     call: grpc.ServerUnaryCall<Request, Response>,

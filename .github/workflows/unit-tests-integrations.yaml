@@ -18,7 +18,7 @@ jobs:
        - name: Checkout
          if: ${{ github.event_name == 'merge_group' }}
          uses: actions/checkout@v4
-       - uses: dorny/paths-filter@0bc4621a3135347011ad047f9ecf449bf72ce2bd # v3.0.0
+       - uses: dorny/paths-filter@ebc4d7e9ebcb0b1eb21480bb8f43113e996ac77a # v3.0.1
          id: changes
          with:
            base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
@@ -46,7 +46,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+      image: ghcr.io/gravitational/teleport-buildbox:teleport16
       options: --cap-add=SYS_ADMIN --privileged
 
     steps:

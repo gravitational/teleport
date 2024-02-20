@@ -44,6 +44,7 @@ type LeafCluster struct {
 func (c *Cluster) GetLeafClusters(ctx context.Context) ([]LeafCluster, error) {
 	var remoteClusters []types.RemoteCluster
 	err := AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

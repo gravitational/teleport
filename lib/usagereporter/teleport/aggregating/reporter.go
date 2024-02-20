@@ -186,7 +186,8 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.SessionStartEvent,
 			*usagereporter.KubeRequestEvent,
 			*usagereporter.SFTPEvent,
-			*usagereporter.ResourceHeartbeatEvent:
+			*usagereporter.ResourceHeartbeatEvent,
+			*usagereporter.SPIFFESVIDIssuedEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -367,6 +368,8 @@ Ingest:
 		case *usagereporter.ResourceHeartbeatEvent:
 			// ResourceKind is the same int32 in both prehogv1 and prehogv1alpha1.
 			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
+		case *usagereporter.SPIFFESVIDIssuedEvent:
+			userRecord(te.UserName, te.UserKind).SpiffeSvidsIssued++
 		}
 
 		if ae != nil && r.ingested != nil {
@@ -379,7 +382,7 @@ Ingest:
 	}
 
 	if len(resourcePresences) > 0 {
-		r.persistResourcePresence(ctx, userActivityStartTime, resourcePresences)
+		r.persistResourcePresence(ctx, resourceUsageStartTime, resourcePresences)
 	}
 
 	wg.Wait()

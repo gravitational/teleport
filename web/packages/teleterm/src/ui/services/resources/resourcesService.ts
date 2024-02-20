@@ -230,9 +230,9 @@ export type SearchResultResource<Kind extends SearchResult['kind']> =
   Kind extends 'server'
     ? SearchResultServer['resource']
     : Kind extends 'app'
-    ? SearchResultApp['resource']
-    : Kind extends 'database'
-    ? SearchResultDatabase['resource']
-    : Kind extends 'kube'
-    ? SearchResultKube['resource']
-    : never;
+      ? SearchResultApp['resource']
+      : Kind extends 'database'
+        ? SearchResultDatabase['resource']
+        : Kind extends 'kube'
+          ? SearchResultKube['resource']
+          : never;

@@ -19,17 +19,89 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { makeListBot } from 'teleport/services/bot/consts';
+import { makeBot, toApiGitHubTokenSpec } from 'teleport/services/bot/consts';
+import { makeResourceList, Resource } from 'teleport/services/resources';
+import { FeatureFlags } from 'teleport/types';
 
-import { BotList, BotResponse } from './types';
+import {
+  BotList,
+  BotResponse,
+  FlatBot,
+  EditBotRequest,
+  CreateBotRequest,
+  CreateBotJoinTokenRequest,
+} from './types';
 
-export function fetchBots(signal: AbortSignal): Promise<BotList> {
-  return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
-    const items = json?.items || [];
-    return { bots: items.map(makeListBot) };
+export function createBot(config: CreateBotRequest): Promise<void> {
+  return api.post(cfg.getBotsUrl(), config);
+}
+
+export async function getBot(name: string): Promise<FlatBot | null> {
+  try {
+    return await api.get(cfg.getBotUrlWithName(name)).then(makeBot);
+  } catch (err) {
+    // capture the not found error response and return null instead of throwing
+    if (err?.response?.status === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export function createBotToken(req: CreateBotJoinTokenRequest) {
+  return api.post(cfg.getBotTokenUrl(), {
+    integrationName: req.integrationName,
+    joinMethod: req.joinMethod,
+    webFlowLabel: req.webFlowLabel,
+    gitHub: toApiGitHubTokenSpec(req.gitHub),
   });
 }
 
-export function deleteBot(name: string) {
+export function fetchBots(
+  signal: AbortSignal,
+  flags: FeatureFlags
+): Promise<BotList> {
+  if (!flags.listBots) {
+    return;
+  }
+
+  return api.get(cfg.getBotsUrl(), signal).then((json: BotResponse) => {
+    const items = json?.items || [];
+    return { bots: items.map(makeBot) };
+  });
+}
+
+export function fetchRoles(
+  signal: AbortSignal,
+  flags: FeatureFlags
+): Promise<Resource<'role'>[]> {
+  if (!flags.roles) {
+    return;
+  }
+
+  return api.get(cfg.getRolesUrl(), signal).then(res => {
+    return makeResourceList<'role'>(res);
+  });
+}
+
+export function editBot(
+  flags: FeatureFlags,
+  name: string,
+  req: EditBotRequest
+): Promise<FlatBot> {
+  if (!flags.editBots || !flags.roles) {
+    return;
+  }
+
+  return api.put(cfg.getBotUrlWithName(name), req).then(res => {
+    return makeBot(res);
+  });
+}
+
+export function deleteBot(flags: FeatureFlags, name: string) {
+  if (!flags.removeBots) {
+    return;
+  }
+
   return api.delete(cfg.getBotUrlWithName(name));
 }

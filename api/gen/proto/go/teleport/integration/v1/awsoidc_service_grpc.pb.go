@@ -33,7 +33,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AWSOIDCService_ListDatabases_FullMethodName = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
+	AWSOIDCService_ListDatabases_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
+	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
 )
 
 // AWSOIDCServiceClient is the client API for AWSOIDCService service.
@@ -45,6 +46,8 @@ type AWSOIDCServiceClient interface {
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
 	// It returns a list of Databases and an optional NextToken that can be used to fetch the next page
 	ListDatabases(ctx context.Context, in *ListDatabasesRequest, opts ...grpc.CallOption) (*ListDatabasesResponse, error)
+	// DeployDatabaseService deploys a Database Services to Amazon ECS.
+	DeployDatabaseService(ctx context.Context, in *DeployDatabaseServiceRequest, opts ...grpc.CallOption) (*DeployDatabaseServiceResponse, error)
 }
 
 type aWSOIDCServiceClient struct {
@@ -64,6 +67,15 @@ func (c *aWSOIDCServiceClient) ListDatabases(ctx context.Context, in *ListDataba
 	return out, nil
 }
 
+func (c *aWSOIDCServiceClient) DeployDatabaseService(ctx context.Context, in *DeployDatabaseServiceRequest, opts ...grpc.CallOption) (*DeployDatabaseServiceResponse, error) {
+	out := new(DeployDatabaseServiceResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_DeployDatabaseService_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AWSOIDCServiceServer is the server API for AWSOIDCService service.
 // All implementations must embed UnimplementedAWSOIDCServiceServer
 // for forward compatibility
@@ -73,6 +85,8 @@ type AWSOIDCServiceServer interface {
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
 	// It returns a list of Databases and an optional NextToken that can be used to fetch the next page
 	ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error)
+	// DeployDatabaseService deploys a Database Services to Amazon ECS.
+	DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error)
 	mustEmbedUnimplementedAWSOIDCServiceServer()
 }
 
@@ -82,6 +96,9 @@ type UnimplementedAWSOIDCServiceServer struct {
 
 func (UnimplementedAWSOIDCServiceServer) ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabases not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeployDatabaseService not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) mustEmbedUnimplementedAWSOIDCServiceServer() {}
 
@@ -114,6 +131,24 @@ func _AWSOIDCService_ListDatabases_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AWSOIDCService_DeployDatabaseService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeployDatabaseServiceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).DeployDatabaseService(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_DeployDatabaseService_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).DeployDatabaseService(ctx, req.(*DeployDatabaseServiceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AWSOIDCService_ServiceDesc is the grpc.ServiceDesc for AWSOIDCService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -124,6 +159,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDatabases",
 			Handler:    _AWSOIDCService_ListDatabases_Handler,
+		},
+		{
+			MethodName: "DeployDatabaseService",
+			Handler:    _AWSOIDCService_DeployDatabaseService_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

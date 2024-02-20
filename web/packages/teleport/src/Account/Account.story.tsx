@@ -161,4 +161,8 @@ const props: AccountProps = {
       residentKey: false,
     },
   ],
+  onPasskeyAdded: () => {},
+  isReauthenticationRequired: false,
+  passkeyWizardVisible: false,
+  closePasskeyWizard: () => {},
 };
