@@ -63,8 +63,8 @@ func New(c Config) *Cache {
 // otherwise it dials the remote server.
 func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
 	groupClt, err, _ := c.group.Do(clusterURI.String(), func() (any, error) {
-		if proxyClient := c.getFromCache(clusterURI); proxyClient != nil {
-			return proxyClient, nil
+		if fromCache := c.getFromCache(clusterURI); fromCache != nil {
+			return fromCache, nil
 		}
 
 		_, clusterClient, err := c.ResolveCluster(clusterURI)
@@ -78,14 +78,14 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 			return nil, trace.Wrap(err)
 		}
 
-		// We'll save the remote client in the cache, so we don't have to
+		// We'll save the client in the cache, so we don't have to
 		// build a new connection next time.
-		// All remote clients will be closed when the daemon exits.
+		// All cached clients will be closed when the daemon exits.
 		if err := c.addToCache(clusterURI, newProxyClient); err != nil {
-			c.log.WithError(err).Errorf("An error occurred while adding remote client for %q to cache.", clusterURI)
-		} else {
-			c.log.Infof("Added remote client for %q to cache.", clusterURI)
+			return nil, trace.NewAggregate(err, newProxyClient.Close())
 		}
+
+		c.log.WithField("cluster", clusterURI).Info("Added client to cache.")
 
 		return newProxyClient, nil
 	})
@@ -122,7 +122,7 @@ func (c *Cache) InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error {
 		}
 	}
 
-	c.log.Infof("Invalidated cached remote clients for root cluster %q: %v", rootClusterURI, deleted)
+	c.log.WithField("cluster", rootClusterURI).WithField("clients", deleted).Info("Invalidated cached clients for root cluster.")
 
 	return trace.NewAggregate(errors...)
 
@@ -135,7 +135,9 @@ func (c *Cache) Close() error {
 
 	var errors []error
 	for _, clt := range c.clients {
-		errors = append(errors, clt.Close())
+		if err := clt.Close(); err != nil {
+			errors = append(errors, err)
+		}
 	}
 	clear(c.clients)
 
@@ -153,17 +155,16 @@ func (c *Cache) addToCache(clusterURI uri.ResourceURI, proxyClient *client.Proxy
 	c.clients[clusterURI] = proxyClient
 
 	go func() {
-		if err := proxyClient.Client.Wait(); err != nil {
-			c.mu.Lock()
-			defer c.mu.Unlock()
+		err := proxyClient.Client.Wait()
+		c.mu.Lock()
+		defer c.mu.Unlock()
 
-			if c.clients[clusterURI] != proxyClient {
-				return
-			}
-
-			delete(c.clients, clusterURI)
-			c.log.WithError(err).Infof("Remote client to %q has been closed and removed from cache.", clusterURI)
+		if c.clients[clusterURI] != proxyClient {
+			return
 		}
+
+		delete(c.clients, clusterURI)
+		c.log.WithField("cluster", clusterURI).WithError(err).Info("Connection has been closed, removed client from cache.")
 	}()
 	return trace.Wrap(err)
 }
