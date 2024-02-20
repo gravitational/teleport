@@ -203,13 +203,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 	s.facade = facade
 	s.mu.Unlock()
 
-	// Attempt a request to make sure our client works so we can exit early if
-	// we are in a bad state.
-	if _, err := c.Ping(ctx); err != nil {
-		return trace.Wrap(err, "unable to communicate with auth server")
-	}
-	s.log.Info("Identity initialized successfully.")
-
+	s.log.Info("Identity initialized successfully")
 	return nil
 }
 
