@@ -25,7 +25,6 @@ import (
 	"net"
 	"os/user"
 	"path/filepath"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -35,6 +34,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -118,10 +118,10 @@ func TestTeleterm(t *testing.T) {
 		testDeleteConnectMyComputerNode(t, pack)
 	})
 
-	t.Run("Test remote client cache", func(t *testing.T) {
+	t.Run("TestClientCache", func(t *testing.T) {
 		t.Parallel()
 
-		testRemoteClientCache(t, pack, creds)
+		testClientCache(t, pack, creds)
 	})
 }
 
@@ -342,8 +342,7 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	)
 }
 
-func testRemoteClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	t.Helper()
+func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
 	ctx := context.Background()
 
 	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
@@ -374,43 +373,46 @@ func testRemoteClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	})
 
 	// Check if parallel calls trying to get a client will return the same one.
-	var wg sync.WaitGroup
-	concurrentCalls := 2
-	var parallelCallsForClient = make([]*client.ProxyClient, concurrentCalls)
-	for i := 0; i < concurrentCalls; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			concurrentCallClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
-			assert.NoError(t, err)
-			parallelCallsForClient[i] = concurrentCallClient
-		}(i)
+	eg, egCtx := errgroup.WithContext(ctx)
+	blocker := make(chan struct{})
+	const concurrentCalls = 5
+	concurrentCallsForClient := make([]*client.ProxyClient, concurrentCalls)
+	for i := range concurrentCallsForClient {
+		client := &concurrentCallsForClient[i]
+		eg.Go(func() error {
+			<-blocker
+			c, err := daemonService.GetCachedClient(egCtx, cluster.URI)
+			*client = c
+			return err
+		})
 	}
-	wg.Wait()
-	require.Equal(t, parallelCallsForClient[0], parallelCallsForClient[1])
+	// unblock the operation which is still in progress
+	close(blocker)
+	require.NoError(t, eg.Wait())
+	require.Subset(t, concurrentCallsForClient[:1], concurrentCallsForClient[1:])
 
 	// Since we have a client in the cache, it should be returned.
-	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	secondCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
-	require.Equal(t, parallelCallsForClient[1], thirdCallForClient)
+	require.Equal(t, concurrentCallsForClient[0], secondCallForClient)
 
 	// Let's remove the client from the cache.
 	// The call to GetCachedClient will
 	// connect to proxy and return a new client.
 	err = daemonService.InvalidateCachedClientsForRoot(cluster.URI)
 	require.NoError(t, err)
-	forthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
-	require.NotEqual(t, thirdCallForClient, forthCallForClient)
+	require.NotEqual(t, secondCallForClient, thirdCallForClient)
 
 	// After closing the client (from our or a remote side)
 	// it will be removed from the cache.
 	// The call to GetCachedClient will connect to proxy and return a new client.
-	err = forthCallForClient.Close()
+	err = thirdCallForClient.Close()
 	require.NoError(t, err)
-	fifthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
+	fourthCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
-	require.NotEqual(t, forthCallForClient, fifthCallForClient)
+	require.NotEqual(t, thirdCallForClient, fourthCallForClient)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
