@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-// Cache stores remote clients keyed by cluster URI.
+// Cache stores clients keyed by cluster URI.
 // Safe for concurrent access.
 // Closes all clients and wipes the cache on Clear.
 type Cache struct {
@@ -39,7 +39,7 @@ type Cache struct {
 	// clients keep mapping between cluster URI
 	// (both root and leaf) and proxy clients
 	clients map[uri.ResourceURI]*client.ProxyClient
-	// group prevents duplicate requests to create remote clients
+	// group prevents duplicate requests to create clients
 	// for a given cluster URI
 	group singleflight.Group
 }
@@ -177,6 +177,6 @@ func (c *Cache) getFromCache(clusterURI uri.ResourceURI) *client.ProxyClient {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	remoteClt := c.clients[clusterURI]
-	return remoteClt
+	clt := c.clients[clusterURI]
+	return clt
 }
