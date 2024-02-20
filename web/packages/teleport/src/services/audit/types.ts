@@ -1408,9 +1408,7 @@ export type RawEvents = {
       source: string;
     }
   >;
-  [eventCodes.OKTA_USER_SYNC]: RawEvent<
-    typeof eventCodes.OKTA_USER_SYNC
-  >;
+  [eventCodes.OKTA_USER_SYNC]: RawEvent<typeof eventCodes.OKTA_USER_SYNC>;
   [eventCodes.OKTA_USER_SYNC_FAILURE]: RawEvent<
     typeof eventCodes.OKTA_USER_SYNC_FAILURE
   >;
