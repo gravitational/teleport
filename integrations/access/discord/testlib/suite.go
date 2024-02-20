@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,30 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package discord
+package testlib
 
 import (
 	"context"
-	"os/user"
 	"regexp"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/discord"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
@@ -48,241 +45,80 @@ import (
 var msgFieldRegexp = regexp.MustCompile(`(?im)^\*([a-zA-Z ]+)\*: (.+)$`)
 var requestReasonRegexp = regexp.MustCompile("(?im)^\\*Reason\\*:\\ ```\\n(.*?)```(.*?)$")
 
+// DiscordSuite is the discord access plugin test suite.
+// It implements the testify.TestingSuite interface.
 type DiscordSuite struct {
-	integration.Suite
-	appConfig *Config
-	userNames struct {
-		ruler     string
-		requestor string
-		reviewer1 string
-		reviewer2 string
-		plugin    string
-	}
+	*integration.AccessRequestSuite
+	appConfig   *discord.Config
 	raceNumber  int
 	fakeDiscord *FakeDiscord
-
-	clients          map[string]*integration.Client
-	teleportFeatures *proto.Features
-	teleportConfig   lib.TeleportConfig
 }
 
-func TestDiscordBot(t *testing.T) { suite.Run(t, &DiscordSuite{}) }
-
-func (s *DiscordSuite) SetupSuite() {
-	var err error
-	t := s.T()
-
-	logger.Init()
-	err = logger.Setup(logger.Config{Severity: "debug"})
-	require.NoError(t, err)
-	s.raceNumber = runtime.GOMAXPROCS(0)
-	me, err := user.Current()
-	require.NoError(t, err)
-
-	// We set such a big timeout because integration.NewFromEnv could start
-	// downloading a Teleport *-bin.tar.gz file which can take a long time.
-	ctx := s.SetContextTimeout(2 * time.Minute)
-
-	teleport, err := integration.NewFromEnv(ctx)
-	require.NoError(t, err)
-	t.Cleanup(teleport.Close)
-
-	auth, err := teleport.NewAuthService()
-	require.NoError(t, err)
-	s.StartApp(auth)
-
-	s.clients = make(map[string]*integration.Client)
-
-	// Set up the user who has an access to all kinds of resources.
-
-	s.userNames.ruler = me.Username + "-ruler@example.com"
-	client, err := teleport.MakeAdmin(ctx, auth, s.userNames.ruler)
-	require.NoError(t, err)
-	s.clients[s.userNames.ruler] = client
-
-	// Get the server features.
-
-	pong, err := client.Ping(ctx)
-	require.NoError(t, err)
-	teleportFeatures := pong.GetServerFeatures()
-
-	var bootstrap integration.Bootstrap
-
-	// Set up user who can request the access to role "editor".
-
-	conditions := types.RoleConditions{Request: &types.AccessRequestConditions{Roles: []string{"editor"}}}
-	if teleportFeatures.AdvancedAccessWorkflows {
-		conditions.Request.Thresholds = []types.AccessReviewThreshold{types.AccessReviewThreshold{Approve: 2, Deny: 2}}
-	}
-	role, err := bootstrap.AddRole("foo", types.RoleSpecV6{Allow: conditions})
-	require.NoError(t, err)
-
-	user, err := bootstrap.AddUserWithRoles(me.Username+"@example.com", role.GetName())
-	require.NoError(t, err)
-	s.userNames.requestor = user.GetName()
-
-	// Set up TWO users who can review access requests to role "editor".
-
-	conditions = types.RoleConditions{}
-	if teleportFeatures.AdvancedAccessWorkflows {
-		conditions.ReviewRequests = &types.AccessReviewConditions{Roles: []string{"editor"}}
-	}
-	role, err = bootstrap.AddRole("foo-reviewer", types.RoleSpecV6{Allow: conditions})
-	require.NoError(t, err)
-
-	user, err = bootstrap.AddUserWithRoles(me.Username+"-reviewer1@example.com", role.GetName())
-	require.NoError(t, err)
-	s.userNames.reviewer1 = user.GetName()
-
-	user, err = bootstrap.AddUserWithRoles(me.Username+"-reviewer2@example.com", role.GetName())
-	require.NoError(t, err)
-	s.userNames.reviewer2 = user.GetName()
-
-	// Set up plugin user.
-	role, err = bootstrap.AddRole("access-discord", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				types.NewRule("access_request", []string{"list", "read"}),
-				types.NewRule("access_plugin_data", []string{"update"}),
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	user, err = bootstrap.AddUserWithRoles("access-discord", role.GetName())
-	require.NoError(t, err)
-	s.userNames.plugin = user.GetName()
-
-	// Bake all the resources.
-
-	err = teleport.Bootstrap(ctx, auth, bootstrap.Resources())
-	require.NoError(t, err)
-
-	// Initialize the clients.
-
-	client, err = teleport.NewClient(ctx, auth, s.userNames.requestor)
-	require.NoError(t, err)
-	s.clients[s.userNames.requestor] = client
-
-	if teleportFeatures.AdvancedAccessWorkflows {
-		client, err = teleport.NewClient(ctx, auth, s.userNames.reviewer1)
-		require.NoError(t, err)
-		s.clients[s.userNames.reviewer1] = client
-
-		client, err = teleport.NewClient(ctx, auth, s.userNames.reviewer2)
-		require.NoError(t, err)
-		s.clients[s.userNames.reviewer2] = client
-	}
-
-	identityPath, err := teleport.Sign(ctx, auth, s.userNames.plugin)
-	require.NoError(t, err)
-
-	s.teleportConfig.Addr = auth.AuthAddr().String()
-	s.teleportConfig.Identity = identityPath
-	s.teleportFeatures = teleportFeatures
-}
-
+// SetupTest starts a fake discord and generates the plugin configuration.
+// It is run for each test.
 func (s *DiscordSuite) SetupTest() {
 	t := s.T()
 
 	err := logger.Setup(logger.Config{Severity: "debug"})
 	require.NoError(t, err)
+	s.raceNumber = runtime.GOMAXPROCS(0)
 
 	s.fakeDiscord = NewFakeDiscord(s.raceNumber)
 	t.Cleanup(s.fakeDiscord.Close)
 
-	var conf Config
-	conf.Teleport = s.teleportConfig
+	var conf discord.Config
+	conf.Teleport = s.TeleportConfig()
 	conf.Discord.Token = "000000"
 	conf.Discord.APIURL = s.fakeDiscord.URL() + "/"
 
 	s.appConfig = &conf
-	s.SetContextTimeout(5 * time.Second)
 }
 
+// startApp starts the discord plugin, waits for it to become ready and returns,
 func (s *DiscordSuite) startApp() {
 	t := s.T()
 	t.Helper()
 
-	app := NewApp(s.appConfig)
-	s.StartApp(app)
+	app := discord.NewApp(s.appConfig)
+	s.RunAndWaitReady(t, app)
 }
 
-func (s *DiscordSuite) ruler() *integration.Client {
-	return s.clients[s.userNames.ruler]
-}
-
-func (s *DiscordSuite) requestor() *integration.Client {
-	return s.clients[s.userNames.requestor]
-}
-
-func (s *DiscordSuite) reviewer1() *integration.Client {
-	return s.clients[s.userNames.reviewer1]
-}
-
-func (s *DiscordSuite) reviewer2() *integration.Client {
-	return s.clients[s.userNames.reviewer2]
-}
-
-func (s *DiscordSuite) newAccessRequest() types.AccessRequest {
-	t := s.T()
-	t.Helper()
-
-	req, err := types.NewAccessRequest(uuid.New().String(), s.userNames.requestor, "editor")
-	require.NoError(t, err)
-	// max size of request was decreased here: https://github.com/gravitational/teleport/pull/13298
-	req.SetRequestReason("because of " + strings.Repeat("A", 4000))
-	return req
-}
-
-func (s *DiscordSuite) createAccessRequest() types.AccessRequest {
-	t := s.T()
-	t.Helper()
-
-	req := s.newAccessRequest()
-	out, err := s.requestor().CreateAccessRequestV2(s.Context(), req)
-	require.NoError(t, err)
-	return out
-}
-
-func (s *DiscordSuite) checkPluginData(reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
-	t := s.T()
-	t.Helper()
-
-	for {
-		rawData, err := s.ruler().PollAccessRequestPluginData(s.Context(), "discord", reqID)
-		require.NoError(t, err)
-		data, err := accessrequest.DecodePluginData(rawData)
-		require.NoError(t, err)
-		if cond(data) {
-			return data
-		}
-	}
-}
-
+// TestMessagePosting validates that a message is sent to each recipient
+// specified in the plugin's configuration. It also checks that the message
+// content is correct.
 func (s *DiscordSuite) TestMessagePosting() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
+	// max size of request was decreased here: https://github.com/gravitational/teleport/pull/13298
+	s.SetReasonPadding(4000)
+
+	// When we define two recipients for the editor role requests.
 	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
-			"1001", // reviewer 1
-			"1002", // reviewer 2
+			"1001", // recipient 1
+			"1002", // recipient 2
 		},
 		"*": []string{"fallback"},
 	}
 
 	s.startApp()
-	request := s.createAccessRequest()
+	userName := integration.RequesterOSSUserName
+	req := s.CreateAccessRequest(ctx, userName, nil)
 
-	pluginData := s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
+	// We expect 2 messages to be sent by the plugin: one for each recipient.
+	// We check if the stored plugin data makes sense.
+	pluginData := s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 	assert.Len(t, pluginData.SentMessages, 2)
 
-	var messages []DiscordMsg
+	// Then we check that our fake Discord has received the messages.
+	var messages []discord.DiscordMsg
 	messageSet := make(MessageSet)
 	for i := 0; i < 2; i++ {
-		msg, err := s.fakeDiscord.CheckNewMessage(s.Context())
+		msg, err := s.fakeDiscord.CheckNewMessage(ctx)
 		require.NoError(t, err)
 		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID})
 		messages = append(messages, msg)
@@ -292,14 +128,14 @@ func (s *DiscordSuite) TestMessagePosting() {
 	assert.Contains(t, messageSet, pluginData.SentMessages[0])
 	assert.Contains(t, messageSet, pluginData.SentMessages[1])
 
+	// Finally, we validate the messages content
 	sort.Sort(MessageSlice(messages))
-
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], messages[0].Channel)
 	assert.Equal(t, s.appConfig.Recipients["editor"][1], messages[1].Channel)
 
 	msgUser, err := parseMessageField(messages[0], "User")
 	require.NoError(t, err)
-	assert.Equal(t, s.userNames.requestor, msgUser)
+	assert.Equal(t, integration.RequesterOSSUserName, msgUser)
 
 	t.Logf("%q", messages[0].Text)
 	matches := requestReasonRegexp.FindAllStringSubmatch(messages[0].Text, -1)
@@ -313,8 +149,12 @@ func (s *DiscordSuite) TestMessagePosting() {
 	assert.Equal(t, "⏳ PENDING", status)
 }
 
+// TestApproval tests that when a request is approved, its corresponding message
+// is updated to reflect the new request state.
 func (s *DiscordSuite) TestApproval() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
 	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
@@ -325,26 +165,34 @@ func (s *DiscordSuite) TestApproval() {
 
 	s.startApp()
 
-	req := s.createAccessRequest()
-	msg, err := s.fakeDiscord.CheckNewMessage(s.Context())
+	// Test setup: we create an access request and wait for its Discord message
+	userName := integration.RequesterOSSUserName
+	req := s.CreateAccessRequest(ctx, userName, nil)
+	msg, err := s.fakeDiscord.CheckNewMessage(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], msg.Channel)
 
-	err = s.ruler().ApproveAccessRequest(s.Context(), req.GetName(), "okay")
+	// Test execution: we approve the request
+	err = s.Ruler().ApproveAccessRequest(ctx, req.GetName(), "okay")
 	require.NoError(t, err)
 
-	msgUpdate, err := s.fakeDiscord.CheckMessageUpdateByAPI(s.Context())
+	// Validating the plugin updated the Discord message to reflect that it got approved
+	msgUpdate, err := s.fakeDiscord.CheckMessageUpdateByAPI(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], msgUpdate.Channel)
 	assert.Equal(t, msg.DiscordID, msgUpdate.DiscordID)
 
 	status, err := parseMessageField(msgUpdate, "Status")
 	require.NoError(t, err)
-	assert.Equal(t, "✅ APPROVED", status) // Should fail
+	assert.Equal(t, "✅ APPROVED", status)
 }
 
+// TestDenial tests that when a request is denied, its corresponding message
+// is updated to reflect the new request state.
 func (s *DiscordSuite) TestDenial() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
 	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
@@ -355,16 +203,20 @@ func (s *DiscordSuite) TestDenial() {
 
 	s.startApp()
 
-	req := s.createAccessRequest()
-	msg, err := s.fakeDiscord.CheckNewMessage(s.Context())
+	// Test setup: we create an access request and wait for its Discord message
+	userName := integration.RequesterOSSUserName
+	req := s.CreateAccessRequest(ctx, userName, nil)
+	msg, err := s.fakeDiscord.CheckNewMessage(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], msg.Channel)
 
+	// Test execution: we approve the request
 	// max size of request was decreased here: https://github.com/gravitational/teleport/pull/13298
-	err = s.ruler().DenyAccessRequest(s.Context(), req.GetName(), "not okay "+strings.Repeat("A", 4000))
+	err = s.Ruler().DenyAccessRequest(ctx, req.GetName(), "not okay "+strings.Repeat("A", 4000))
 	require.NoError(t, err)
 
-	msgUpdate, err := s.fakeDiscord.CheckMessageUpdateByAPI(s.Context())
+	// Validating the plugin updated the Discord message to reflect that it got denied
+	msgUpdate, err := s.fakeDiscord.CheckMessageUpdateByAPI(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], msgUpdate.Channel)
 	assert.Equal(t, msg.DiscordID, msgUpdate.DiscordID)
@@ -374,10 +226,14 @@ func (s *DiscordSuite) TestDenial() {
 	assert.Equal(t, "❌ DENIED", status) // Should fail
 }
 
+// TestReviewUpdates tests that the message is updated after the access request
+// is reviewed. Each review should be reflected in the original message.
 func (s *DiscordSuite) TestReviewUpdates() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.TeleportFeatures().AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -390,53 +246,61 @@ func (s *DiscordSuite) TestReviewUpdates() {
 
 	s.startApp()
 
-	request := s.createAccessRequest()
+	// Test setup: we create an access request and wait for its Discord message
+	userName := integration.Requester1UserName
+	req := s.CreateAccessRequest(ctx, userName, nil)
 
-	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
+	s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
-	msg, err := s.fakeDiscord.CheckNewMessage(s.Context())
+	msg, err := s.fakeDiscord.CheckNewMessage(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], msg.Channel)
 
-	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), request.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer1,
+	// Test execution: we submit a review and validate the message got updated
+	err = s.Reviewer1().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer1UserName,
 		ProposedState: types.RequestState_APPROVED,
 		Created:       time.Now(),
 		Reason:        "okay",
 	})
 	require.NoError(t, err)
 
-	update, err := s.fakeDiscord.CheckMessageUpdateByAPI(s.Context())
+	update, err := s.fakeDiscord.CheckMessageUpdateByAPI(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, msg.Channel, update.Channel)
 	assert.Equal(t, msg.DiscordID, update.DiscordID)
-	assert.Equal(t, update.Embeds[0].Author.Name, s.userNames.reviewer1, "embed must contain the review author")
+	assert.Equal(t, integration.Reviewer1UserName, update.Embeds[0].Author.Name, "embed must contain the review author")
 	assert.Contains(t, update.Embeds[0].Title, "Approved request", "embed must contain a proposed state")
 	assert.Contains(t, update.Embeds[0].Description, "Reason: ```\nokay```", "reply must contain a reason")
 
-	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), request.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer2,
+	// Test execution: we submit a second review and validate the message got updated again
+	err = s.Reviewer2().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer2UserName,
 		ProposedState: types.RequestState_DENIED,
 		Created:       time.Now(),
 		Reason:        "not okay",
 	})
 	require.NoError(t, err)
 
-	update, err = s.fakeDiscord.CheckMessageUpdateByAPI(s.Context())
+	update, err = s.fakeDiscord.CheckMessageUpdateByAPI(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, msg.Channel, update.Channel)
 	assert.Equal(t, msg.DiscordID, update.DiscordID)
-	assert.Equal(t, update.Embeds[1].Author.Name, s.userNames.reviewer2, "embed must contain the review author")
+	assert.Equal(t, integration.Reviewer2UserName, update.Embeds[1].Author.Name, "embed must contain the review author")
 	assert.Contains(t, update.Embeds[1].Title, "Denied request", "embed must contain a proposed state")
 	assert.Contains(t, update.Embeds[1].Description, "Reason: ```\nnot okay```", "reply must contain a reason")
 }
 
+// TestApprovalByReview tests that the message is updated after the access request
+// is reviewed and approved.
 func (s *DiscordSuite) TestApprovalByReview() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.TeleportFeatures().AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -449,52 +313,62 @@ func (s *DiscordSuite) TestApprovalByReview() {
 
 	s.startApp()
 
-	request := s.createAccessRequest()
+	// Test setup: we create an access request and wait for its Discord message
+	userName := integration.Requester1UserName
+	req := s.CreateAccessRequest(ctx, userName, nil)
 
-	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
+	s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
-	msg, err := s.fakeDiscord.CheckNewMessage(s.Context())
+	msg, err := s.fakeDiscord.CheckNewMessage(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], msg.Channel)
 
-	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), request.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer1,
+	// Test execution: we submit a review and validate the message got updated
+	err = s.Reviewer1().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer1UserName,
 		ProposedState: types.RequestState_APPROVED,
 		Created:       time.Now(),
 		Reason:        "okay",
 	})
 	require.NoError(t, err)
 
-	update, err := s.fakeDiscord.CheckMessageUpdateByAPI(s.Context())
+	update, err := s.fakeDiscord.CheckMessageUpdateByAPI(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, msg.Channel, update.Channel)
 	assert.Equal(t, msg.DiscordID, update.DiscordID)
-	assert.Equal(t, update.Embeds[0].Author.Name, s.userNames.reviewer1, "embed must contain the review author")
+	assert.Equal(t, integration.Reviewer1UserName, update.Embeds[0].Author.Name, "embed must contain the review author")
 
-	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), request.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer2,
+	err = s.Reviewer2().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer2UserName,
 		ProposedState: types.RequestState_APPROVED,
 		Created:       time.Now(),
 		Reason:        "finally okay",
 	})
 	require.NoError(t, err)
 
-	update, err = s.fakeDiscord.CheckMessageUpdateByAPI(s.Context())
+	// Test execution: we submit a second review and validate the message got updated.
+	// As the second review meets the approval threshold, the message status
+	// should now be "approved".
+	update, err = s.fakeDiscord.CheckMessageUpdateByAPI(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, msg.Channel, update.Channel)
 	assert.Equal(t, msg.DiscordID, update.DiscordID)
-	assert.Equal(t, update.Embeds[1].Author.Name, s.userNames.reviewer2, "embed must contain the review author")
+	assert.Equal(t, integration.Reviewer2UserName, update.Embeds[1].Author.Name, "embed must contain the review author")
 	status, err := parseMessageField(update, "Status")
 	require.NoError(t, err)
 	assert.Equal(t, "✅ APPROVED", status)
 }
 
+// TestDenialByReview tests that the message is updated after the access request
+// is reviewed and denied.
 func (s *DiscordSuite) TestDenialByReview() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.TeleportFeatures().AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -507,50 +381,60 @@ func (s *DiscordSuite) TestDenialByReview() {
 
 	s.startApp()
 
-	request := s.createAccessRequest()
+	// Test setup: we create an access request and wait for its Discord message
+	userName := integration.Requester1UserName
+	req := s.CreateAccessRequest(ctx, userName, nil)
 
-	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
+	s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
-	msg, err := s.fakeDiscord.CheckNewMessage(s.Context())
+	msg, err := s.fakeDiscord.CheckNewMessage(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], msg.Channel)
 
-	err = s.reviewer1().SubmitAccessRequestReview(s.Context(), request.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer1,
+	// Test execution: we submit a review and validate the message got updated
+	err = s.Reviewer1().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer1UserName,
 		ProposedState: types.RequestState_DENIED,
 		Created:       time.Now(),
 		Reason:        "not okay",
 	})
 	require.NoError(t, err)
 
-	update, err := s.fakeDiscord.CheckMessageUpdateByAPI(s.Context())
+	update, err := s.fakeDiscord.CheckMessageUpdateByAPI(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, msg.Channel, update.Channel)
 	assert.Equal(t, msg.DiscordID, update.DiscordID)
-	assert.Equal(t, update.Embeds[0].Author.Name, s.userNames.reviewer1, "embed must contain the review author")
+	assert.Equal(t, integration.Reviewer1UserName, update.Embeds[0].Author.Name, "embed must contain the review author")
 
-	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), request.GetName(), types.AccessReview{
-		Author:        s.userNames.reviewer2,
+	// Test execution: we submit a second review and validate the message got updated.
+	// As the second review meets the denial threshold, the message status
+	// should now be "denied".
+	err = s.Reviewer2().SubmitAccessRequestReview(ctx, req.GetName(), types.AccessReview{
+		Author:        integration.Reviewer2UserName,
 		ProposedState: types.RequestState_DENIED,
 		Created:       time.Now(),
 		Reason:        "finally not okay",
 	})
 	require.NoError(t, err)
 
-	update, err = s.fakeDiscord.CheckMessageUpdateByAPI(s.Context())
+	update, err = s.fakeDiscord.CheckMessageUpdateByAPI(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, msg.Channel, update.Channel)
 	assert.Equal(t, msg.DiscordID, update.DiscordID)
-	assert.Equal(t, update.Embeds[1].Author.Name, s.userNames.reviewer2, "embed must contain the review author")
+	assert.Equal(t, integration.Reviewer2UserName, update.Embeds[1].Author.Name, "embed must contain the review author")
 	status, err := parseMessageField(update, "Status")
 	require.NoError(t, err)
 	assert.Equal(t, "❌ DENIED", status)
 }
 
+// TestExpiration tests that when a request expires, its corresponding message
+// is updated to reflect the new request state.
 func (s *DiscordSuite) TestExpiration() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
 
 	s.appConfig.Recipients = common.RawRecipientsMap{
 		"editor": []string{
@@ -561,24 +445,24 @@ func (s *DiscordSuite) TestExpiration() {
 
 	s.startApp()
 
-	request := s.createAccessRequest()
+	// Test setup: we create an access request and wait for its Discord message
+	userName := integration.RequesterOSSUserName
+	req := s.CreateAccessRequest(ctx, userName, nil)
 
-	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
+	s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
 
-	msg, err := s.fakeDiscord.CheckNewMessage(s.Context())
+	msg, err := s.fakeDiscord.CheckNewMessage(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, s.appConfig.Recipients["editor"][0], msg.Channel)
 
-	s.checkPluginData(request.GetName(), func(data accessrequest.PluginData) bool {
-		return len(data.SentMessages) > 0
-	})
-
-	err = s.ruler().DeleteAccessRequest(s.Context(), request.GetName()) // simulate expiration
+	// Test execution: we expire the request
+	err = s.Ruler().DeleteAccessRequest(ctx, req.GetName()) // simulate expiration
 	require.NoError(t, err)
 
-	update, err := s.fakeDiscord.CheckMessageUpdateByAPI(s.Context())
+	// Validating the plugin updated the Discord message to reflect that the request expired
+	update, err := s.fakeDiscord.CheckMessageUpdateByAPI(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, msg.Channel, update.Channel)
 	assert.Equal(t, msg.DiscordID, update.DiscordID)
@@ -588,10 +472,15 @@ func (s *DiscordSuite) TestExpiration() {
 	assert.Equal(t, "⌛ EXPIRED", status)
 }
 
+// TestRace validates that the plugin behaves properly and performs all the
+// message updates when a lot of access requests are sent and reviewed in a very
+// short time frame.
 func (s *DiscordSuite) TestRace() {
 	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	t.Cleanup(cancel)
 
-	if !s.teleportFeatures.AdvancedAccessWorkflows {
+	if !s.TeleportFeatures().AdvancedAccessWorkflows {
 		t.Skip("Doesn't work in OSS version")
 	}
 
@@ -606,7 +495,6 @@ func (s *DiscordSuite) TestRace() {
 		"*": []string{"fallback"},
 	}
 
-	s.SetContextTimeout(20 * time.Second)
 	s.startApp()
 
 	var (
@@ -624,14 +512,14 @@ func (s *DiscordSuite) TestRace() {
 	}
 
 	// We create X access requests, this will send 2*X messages as "editor" has two recipients
-	process := lib.NewProcess(s.Context())
+	process := lib.NewProcess(ctx)
 	for i := 0; i < s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
-			req, err := types.NewAccessRequest(uuid.New().String(), s.userNames.requestor, "editor")
+			req, err := types.NewAccessRequest(uuid.New().String(), integration.Requester1UserName, "editor")
 			if err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
-			if _, err := s.requestor().CreateAccessRequestV2(ctx, req); err != nil {
+			if _, err := s.Requester1().CreateAccessRequestV2(ctx, req); err != nil {
 				return setRaceErr(trace.Wrap(err))
 			}
 			return nil
@@ -655,9 +543,9 @@ func (s *DiscordSuite) TestRace() {
 			var user string
 			switch msg.Channel {
 			case "1001":
-				user = s.userNames.reviewer1
+				user = integration.Reviewer1UserName
 			case "1002":
-				user = s.userNames.reviewer2
+				user = integration.Reviewer2UserName
 			}
 
 			reqID, err := parseMessageField(msg, "ID")
@@ -665,7 +553,7 @@ func (s *DiscordSuite) TestRace() {
 				return setRaceErr(trace.Wrap(err))
 			}
 
-			if err = s.clients[user].SubmitAccessRequestReview(ctx, reqID, types.AccessReview{
+			if err = s.ClientByName(user).SubmitAccessRequestReview(ctx, reqID, types.AccessReview{
 				Author:        user,
 				ProposedState: types.RequestState_APPROVED,
 				Created:       time.Now(),
@@ -712,23 +600,4 @@ func (s *DiscordSuite) TestRace() {
 
 		return next
 	})
-}
-
-func parseMessageField(msg DiscordMsg, field string) (string, error) {
-	if msg.Text == "" {
-		return "", trace.Errorf("message does not contain text")
-	}
-
-	matches := msgFieldRegexp.FindAllStringSubmatch(msg.Text, -1)
-	if matches == nil {
-		return "", trace.Errorf("cannot parse fields from text %s", msg.Text)
-	}
-	var fields []string
-	for _, match := range matches {
-		if match[1] == field {
-			return match[2], nil
-		}
-		fields = append(fields, match[1])
-	}
-	return "", trace.Errorf("cannot find field %s in %v", field, fields)
 }
