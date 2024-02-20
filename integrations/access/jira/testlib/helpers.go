@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/gravitational/teleport/integrations/access/jira"
+	"net/http"
+
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"net/http"
+
+	"github.com/gravitational/teleport/integrations/access/jira"
 )
 
 func (s *JiraSuite) checkPluginData(ctx context.Context, reqID string, cond func(jira.PluginData) bool) jira.PluginData {

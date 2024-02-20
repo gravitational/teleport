@@ -2,15 +2,6 @@ package testlib
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/jira"
-	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
-	"github.com/gravitational/teleport/integrations/lib/testing/integration"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -19,6 +10,17 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/jira"
+	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 )
 
 // JiraSuite is the Jira access plugin test suite.
