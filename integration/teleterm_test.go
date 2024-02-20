@@ -399,7 +399,7 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	// Let's remove the client from the cache.
 	// The call to GetCachedClient will
 	// connect to proxy and return a new client.
-	err = daemonService.InvalidateCachedClientsForRoot(cluster.URI)
+	err = daemonService.ClearCachedClientsForRoot(cluster.URI)
 	require.NoError(t, err)
 	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)

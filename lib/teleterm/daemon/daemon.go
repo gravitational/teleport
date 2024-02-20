@@ -1095,16 +1095,16 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 	return nil, false
 }
 
-// GetCachedClient returns a proxy client from the cache if it exists,
+// GetCachedClient returns a client from the cache if it exists,
 // otherwise it dials the remote server.
 func (s *Service) GetCachedClient(ctx context.Context, resourceURI uri.ResourceURI) (*client.ProxyClient, error) {
 	return s.cfg.ClientCache.Get(ctx, resourceURI)
 }
 
-// InvalidateCachedClientsForRoot closes and removes clients from the cache
+// ClearCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
-func (s *Service) InvalidateCachedClientsForRoot(resourceURI uri.ResourceURI) error {
-	return s.cfg.ClientCache.InvalidateForRootCluster(resourceURI)
+func (s *Service) ClearCachedClientsForRoot(resourceURI uri.ResourceURI) error {
+	return s.cfg.ClientCache.ClearForRootCluster(resourceURI)
 }
 
 // Service is the daemon service

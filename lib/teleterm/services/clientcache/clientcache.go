@@ -100,9 +100,9 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 	return clt, nil
 }
 
-// InvalidateForRootCluster closes and removes clients from the cache
+// ClearForRootCluster closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
-func (c *Cache) InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error {
+func (c *Cache) ClearForRootCluster(rootClusterURI uri.ResourceURI) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
