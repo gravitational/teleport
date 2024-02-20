@@ -484,7 +484,7 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 	}
 }
 
-// SystemOktaAccessRoleName is the name of the system role that allows
+// NewSystemOktaAccessRoleName is the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
 func NewSystemOktaAccessRole() types.Role {
@@ -520,7 +520,7 @@ func NewSystemOktaAccessRole() types.Role {
 	return role
 }
 
-// SystemOktaRequesterRoleName is a name of a system role that allows
+// NewSystemOktaRequesterRoleName is a system role that allows
 // for requesting access to Okta resources. This differs from the requester role
 // in that it allows for requesting longer lived access.
 func NewSystemOktaRequesterRole() types.Role {
@@ -782,9 +782,11 @@ func resourceBelongsToRules(rules []types.Rule, resources []string) bool {
 
 func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels) (bool, error) {
 	var changed bool
-	if unset, err := labelMatchersUnset(role, kind); err != nil {
+	unset, err := labelMatchersUnset(role, kind)
+	if err != nil {
 		return false, trace.Wrap(err)
-	} else if unset && len(defaultLabels) > 0 {
+	}
+	if unset && len(defaultLabels) > 0 {
 		role.SetLabelMatchers(types.Allow, kind, types.LabelMatchers{
 			Labels: defaultLabels,
 		})
