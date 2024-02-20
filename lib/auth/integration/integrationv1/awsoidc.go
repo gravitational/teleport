@@ -247,6 +247,72 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 	}, nil
 }
 
+// ListSecurityGroups returns a paginated list of SecurityGroups.
+func (s *AWSOIDCService) ListSecurityGroups(ctx context.Context, req *integrationpb.ListSecurityGroupsRequest) (*integrationpb.ListSecurityGroupsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listSGsClient, err := awsoidc.NewListSecurityGroupsClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listSGsResp, err := awsoidc.ListSecurityGroups(ctx, listSGsClient, awsoidc.ListSecurityGroupsRequest{
+		VPCID:     req.VpcId,
+		NextToken: req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sgList := make([]*integrationpb.SecurityGroup, 0, len(listSGsResp.SecurityGroups))
+	for _, sg := range listSGsResp.SecurityGroups {
+		sgList = append(sgList, &integrationpb.SecurityGroup{
+			Name:          sg.Name,
+			Id:            sg.ID,
+			Description:   sg.Description,
+			InboundRules:  convertSecurityGroupRulesToProto(sg.InboundRules),
+			OutboundRules: convertSecurityGroupRulesToProto(sg.OutboundRules),
+		})
+	}
+
+	return &integrationpb.ListSecurityGroupsResponse{
+		SecurityGroups: sgList,
+		NextToken:      listSGsResp.NextToken,
+	}, nil
+}
+
+func convertSecurityGroupRulesToProto(inRules []awsoidc.SecurityGroupRule) []*integrationpb.SecurityGroupRule {
+	out := make([]*integrationpb.SecurityGroupRule, 0, len(inRules))
+	for _, r := range inRules {
+		cidrs := make([]*integrationpb.SecurityGroupRuleCIDR, 0, len(r.CIDRs))
+		for _, cidr := range r.CIDRs {
+			cidrs = append(cidrs, &integrationpb.SecurityGroupRuleCIDR{
+				Cidr:        cidr.CIDR,
+				Description: cidr.Description,
+			})
+		}
+		out = append(out, &integrationpb.SecurityGroupRule{
+			IpProtocol: r.IPProtocol,
+			FromPort:   int32(r.FromPort),
+			ToPort:     int32(r.ToPort),
+			Cidrs:      cidrs,
+		})
+	}
+	return out
+}
+
 // DeployDatabaseService deploys Database Services into Amazon ECS.
 func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integrationpb.DeployDatabaseServiceRequest) (*integrationpb.DeployDatabaseServiceResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -299,5 +365,51 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 	return &integrationpb.DeployDatabaseServiceResponse{
 		ClusterArn:          deployDBResp.ClusterARN,
 		ClusterDashboardUrl: deployDBResp.ClusterDashboardURL,
+	}, nil
+}
+
+// ListEC2 returns a paginated list of AWS EC2 instances.
+func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2Request) (*integrationpb.ListEC2Response, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEC2Client, err := awsoidc.NewListEC2Client(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEC2Resp, err := awsoidc.ListEC2(ctx, listEC2Client, awsoidc.ListEC2Request{
+		Region:      req.Region,
+		Integration: req.Integration,
+		NextToken:   req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverList := make([]*types.ServerV2, 0, len(listEC2Resp.Servers))
+	for _, server := range listEC2Resp.Servers {
+		serverV2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.Warnf("Skipping %s because conversion (%T) to ServerV2 failed: %v", server.GetName(), server, err)
+			continue
+		}
+		serverList = append(serverList, serverV2)
+	}
+
+	return &integrationpb.ListEC2Response{
+		Servers:   serverList,
+		NextToken: listEC2Resp.NextToken,
 	}, nil
 }
