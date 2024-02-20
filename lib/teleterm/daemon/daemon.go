@@ -757,7 +757,7 @@ func (s *Service) Stop() {
 
 	s.StopHeadlessWatchers()
 
-	if err := s.cfg.ClientCache.Close(); err != nil {
+	if err := s.cfg.ClientCache.Clear(); err != nil {
 		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
 	}
 

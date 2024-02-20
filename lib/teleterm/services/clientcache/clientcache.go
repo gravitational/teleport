@@ -129,8 +129,8 @@ func (c *Cache) InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error {
 
 }
 
-// Close closes and removes all clients.
-func (c *Cache) Close() error {
+// Clear closes and removes all clients.
+func (c *Cache) Clear() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

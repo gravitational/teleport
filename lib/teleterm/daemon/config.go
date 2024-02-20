@@ -77,7 +77,7 @@ type Config struct {
 type ClientCache interface {
 	Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error)
 	InvalidateForRootCluster(rootClusterURI uri.ResourceURI) error
-	Close() error
+	Clear() error
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
