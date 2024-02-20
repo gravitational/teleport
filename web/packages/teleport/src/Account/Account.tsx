@@ -59,7 +59,7 @@ export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
   const manageDevicesState = useManageDevices(ctx);
 
   const canAddPasskeys = cfg.isPasswordlessEnabled();
-  const canAddMFA = cfg.isMfaEnabled();
+  const canAddMfa = cfg.isMfaEnabled();
 
   return (
     <Account
