@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package jira
+package testlib
 
 import (
 	"context"
@@ -31,32 +31,34 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/integrations/access/jira"
 )
 
 type FakeJira struct {
 	srv              *httptest.Server
 	issues           sync.Map
-	newIssues        chan Issue
+	newIssues        chan jira.Issue
 	newIssueComments chan FakeIssueComment
-	issueTransitions chan Issue
-	author           UserDetails
+	issueTransitions chan jira.Issue
+	pluginUser       jira.UserDetails
 	issueIDCounter   uint64
 }
 
 type FakeIssueComment struct {
 	IssueID string
-	Comment
+	jira.Comment
 }
 
-func NewFakeJira(author UserDetails, concurrency int) *FakeJira {
+func NewFakeJira(author jira.UserDetails, concurrency int) *FakeJira {
 	router := httprouter.New()
 
-	self := &FakeJira{
-		newIssues:        make(chan Issue, concurrency),
+	mock := &FakeJira{
+		newIssues:        make(chan jira.Issue, concurrency),
 		newIssueComments: make(chan FakeIssueComment, concurrency*2),
-		issueTransitions: make(chan Issue, concurrency),
+		issueTransitions: make(chan jira.Issue, concurrency),
 		srv:              httptest.NewServer(router),
-		author:           author,
+		pluginUser:       author,
 	}
 
 	router.GET("/rest/api/2/myself", func(rw http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -64,7 +66,7 @@ func NewFakeJira(author UserDetails, concurrency int) *FakeJira {
 		rw.WriteHeader(http.StatusOK)
 	})
 	router.GET("/rest/api/2/project/PROJ", func(rw http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		project := Project{
+		project := jira.Project{
 			Key:  "PROJ",
 			Name: "The Project",
 		}
@@ -73,8 +75,8 @@ func NewFakeJira(author UserDetails, concurrency int) *FakeJira {
 		panicIf(err)
 	})
 	router.GET("/rest/api/2/mypermissions", func(rw http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		permissions := Permissions{
-			Permissions: map[string]Permission{
+		permissions := jira.Permissions{
+			Permissions: map[string]jira.Permission{
 				"BROWSE_PROJECTS": {
 					HavePermission: true,
 				},
@@ -94,13 +96,13 @@ func NewFakeJira(author UserDetails, concurrency int) *FakeJira {
 		panicIf(err)
 	})
 	router.POST("/rest/api/2/issue", func(rw http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		var issueInput IssueInput
+		var issueInput jira.IssueInput
 
 		err := json.NewDecoder(r.Body).Decode(&issueInput)
 		panicIf(err)
 
-		issue := Issue{
-			Fields: IssueFields{
+		issue := jira.Issue{
+			Fields: jira.IssueFields{
 				Summary:     issueInput.Fields.Summary,
 				Description: issueInput.Fields.Description,
 				Type:        *issueInput.Fields.Type,
@@ -113,20 +115,20 @@ func NewFakeJira(author UserDetails, concurrency int) *FakeJira {
 		for _, property := range issueInput.Properties {
 			issue.Properties[property.Key] = property.Value
 		}
-		issue.Fields.Status = StatusDetails{Name: "Pending"}
-		issue.Transitions = []IssueTransition{
+		issue.Fields.Status = jira.StatusDetails{Name: "Pending"}
+		issue.Transitions = []jira.IssueTransition{
 			{
-				ID: "100001", To: StatusDetails{Name: "Approved"},
+				ID: "100001", To: jira.StatusDetails{Name: "Approved"},
 			},
 			{
-				ID: "100002", To: StatusDetails{Name: "Denied"},
+				ID: "100002", To: jira.StatusDetails{Name: "Denied"},
 			},
 			{
-				ID: "100003", To: StatusDetails{Name: "Expired"},
+				ID: "100003", To: jira.StatusDetails{Name: "Expired"},
 			},
 		}
-		issue = self.StoreIssue(issue)
-		self.newIssues <- issue
+		issue = mock.StoreIssue(issue)
+		mock.newIssues <- issue
 
 		rw.Header().Add("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusCreated)
@@ -134,7 +136,7 @@ func NewFakeJira(author UserDetails, concurrency int) *FakeJira {
 		panicIf(err)
 	})
 	router.GET("/rest/api/2/issue/:id", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		issue, found := self.GetIssue(ps.ByName("id"))
+		issue, found := mock.GetIssue(ps.ByName("id"))
 		if !found {
 			rw.WriteHeader(http.StatusNotFound)
 			return
@@ -145,14 +147,14 @@ func NewFakeJira(author UserDetails, concurrency int) *FakeJira {
 		panicIf(err)
 	})
 	router.GET("/rest/api/2/issue/:id/comment", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		issue, found := self.GetIssue(ps.ByName("id"))
+		issue, found := mock.GetIssue(ps.ByName("id"))
 		if !found {
 			rw.WriteHeader(http.StatusNotFound)
 			return
 		}
 
 		page := issue.Fields.Comment
-		descendingComments := make([]Comment, len(page.Comments))
+		descendingComments := make([]jira.Comment, len(page.Comments))
 		for i, comment := range page.Comments {
 			descendingComments[len(page.Comments)-i-1] = comment
 		}
@@ -165,41 +167,41 @@ func NewFakeJira(author UserDetails, concurrency int) *FakeJira {
 	router.POST("/rest/api/2/issue/:id/comment", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		rw.Header().Add("Content-Type", "application/json")
 
-		issue, found := self.GetIssue(ps.ByName("id"))
+		issue, found := mock.GetIssue(ps.ByName("id"))
 		if !found {
 			rw.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		var payload CommentInput
+		var payload jira.CommentInput
 		err := json.NewDecoder(r.Body).Decode(&payload)
 		panicIf(err)
 
-		comment := Comment{Body: payload.Body}
-		self.StoreIssueComment(issue, comment)
-		self.newIssueComments <- FakeIssueComment{IssueID: issue.ID, Comment: comment}
+		comment := jira.Comment{Body: payload.Body}
+		mock.StoreIssueComment(issue, comment)
+		mock.newIssueComments <- FakeIssueComment{IssueID: issue.ID, Comment: comment}
 
 		err = json.NewEncoder(rw).Encode(comment)
 		panicIf(err)
 	})
 	router.POST("/rest/api/2/issue/:id/transitions", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		issue, found := self.GetIssue(ps.ByName("id"))
+		issue, found := mock.GetIssue(ps.ByName("id"))
 		if !found {
 			rw.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		var payload IssueTransitionInput
+		var payload jira.IssueTransitionInput
 		err := json.NewDecoder(r.Body).Decode(&payload)
 		panicIf(err)
 
 		switch payload.Transition.ID {
 		case "100001":
-			self.TransitionIssue(issue, "Approved")
+			mock.TransitionIssue(issue, "Approved", mock.pluginUser)
 		case "100002":
-			self.TransitionIssue(issue, "Denied")
+			mock.TransitionIssue(issue, "Denied", mock.pluginUser)
 		case "100003":
-			self.TransitionIssue(issue, "Expired")
+			mock.TransitionIssue(issue, "Expired", mock.pluginUser)
 		default:
 			rw.WriteHeader(http.StatusBadRequest)
 			return
@@ -207,7 +209,7 @@ func NewFakeJira(author UserDetails, concurrency int) *FakeJira {
 		rw.Header().Add("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusNoContent)
 	})
-	return self
+	return mock
 }
 
 func (s *FakeJira) URL() string {
@@ -220,11 +222,11 @@ func (s *FakeJira) Close() {
 	close(s.issueTransitions)
 }
 
-func (s *FakeJira) GetAuthor() UserDetails {
-	return s.author
+func (s *FakeJira) GetAuthor() jira.UserDetails {
+	return s.pluginUser
 }
 
-func (s *FakeJira) StoreIssue(issue Issue) Issue {
+func (s *FakeJira) StoreIssue(issue jira.Issue) jira.Issue {
 	if issue.ID == "" {
 		id := atomic.AddUint64(&s.issueIDCounter, 1)
 		issue.ID = fmt.Sprintf("%v", id)
@@ -235,19 +237,20 @@ func (s *FakeJira) StoreIssue(issue Issue) Issue {
 	return issue
 }
 
-func (s *FakeJira) GetIssue(idOrKey string) (Issue, bool) {
+func (s *FakeJira) GetIssue(idOrKey string) (jira.Issue, bool) {
 	if obj, ok := s.issues.Load(idOrKey); ok {
-		return obj.(Issue), true
+		return obj.(jira.Issue), true
 	}
-	return Issue{}, false
+	return jira.Issue{}, false
 }
 
-func (s *FakeJira) TransitionIssue(issue Issue, status string) Issue {
-	issue.Fields.Status = StatusDetails{Name: status}
+// TransitionIssue transitions an issue between two states.
+func (s *FakeJira) TransitionIssue(issue jira.Issue, status string, author jira.UserDetails) jira.Issue {
+	issue.Fields.Status = jira.StatusDetails{Name: status}
 
-	changelog := Changelog{
-		Author: s.author,
-		Items: []ChangeDetails{
+	changelog := jira.Changelog{
+		Author: author,
+		Items: []jira.ChangeDetails{
 			{
 				FieldType: "jira",
 				Field:     "status",
@@ -255,16 +258,16 @@ func (s *FakeJira) TransitionIssue(issue Issue, status string) Issue {
 			},
 		},
 	}
-	issue.Fields.Status = StatusDetails{Name: status}
-	issue.Changelog.Histories = append([]Changelog{changelog}, issue.Changelog.Histories...)
+	issue.Fields.Status = jira.StatusDetails{Name: status}
+	issue.Changelog.Histories = append([]jira.Changelog{changelog}, issue.Changelog.Histories...)
 	issue = s.StoreIssue(issue)
 	s.issueTransitions <- issue
 	return issue
 }
 
-func (s *FakeJira) StoreIssueComment(issue Issue, comment Comment) Issue {
+func (s *FakeJira) StoreIssueComment(issue jira.Issue, comment jira.Comment) jira.Issue {
 	comments := issue.Fields.Comment.Comments
-	newComments := make([]Comment, len(comments), len(comments)+1)
+	newComments := make([]jira.Comment, len(comments), len(comments)+1)
 	copy(newComments, comments)
 	newComments = append(newComments, comment)
 	issue.Fields.Comment.Comments = newComments
@@ -272,12 +275,12 @@ func (s *FakeJira) StoreIssueComment(issue Issue, comment Comment) Issue {
 	return s.StoreIssue(issue)
 }
 
-func (s *FakeJira) CheckNewIssue(ctx context.Context) (Issue, error) {
+func (s *FakeJira) CheckNewIssue(ctx context.Context) (jira.Issue, error) {
 	select {
 	case issue := <-s.newIssues:
 		return issue, nil
 	case <-ctx.Done():
-		return Issue{}, trace.Wrap(ctx.Err())
+		return jira.Issue{}, trace.Wrap(ctx.Err())
 	}
 }
 
@@ -290,12 +293,12 @@ func (s *FakeJira) CheckNewIssueComment(ctx context.Context) (FakeIssueComment, 
 	}
 }
 
-func (s *FakeJira) CheckIssueTransition(ctx context.Context) (Issue, error) {
+func (s *FakeJira) CheckIssueTransition(ctx context.Context) (jira.Issue, error) {
 	select {
 	case issue := <-s.issueTransitions:
 		return issue, nil
 	case <-ctx.Done():
-		return Issue{}, trace.Wrap(ctx.Err())
+		return jira.Issue{}, trace.Wrap(ctx.Err())
 	}
 }
 
