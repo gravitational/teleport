@@ -1,0 +1,86 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.webassetstorage.v1;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/webassetstorage/v1;webassetstorage";
+
+// GetWebassetRequest is a request to fetch a file from the webasset storage bucket.
+message GetWebassetRequest {
+  // name is the name of the file.
+  string name = 1;
+}
+
+// GetWebassetResponse contains the filename and compressed byte content of the requested file.
+message GetWebassetResponse {
+  // name is the name of the file.
+  string name = 1;
+  // content is the compressed byte content of the file.
+  bytes content = 2;
+}
+
+// UploadWebassetRequest is a request to upload a file to configured storage bucket.
+message UploadWebassetRequest {
+  // name is the name of the file.
+  string name = 1;
+  // content is the compressed byte content of the file.
+  bytes content = 2;
+}
+
+// Status is the current status of the service, specifying if it is ready to upload, initializing
+// the service, or not supported/enabled.
+enum Status {
+  // STATUS_UNSPECIFIED.
+  STATUS_UNSPECIFIED = 0;
+  // STATUS_NOT_SUPPORTED is used when a service is not enabled or in an error state.
+  STATUS_NOT_SUPPORTED = 1;
+  // STATUS_INITIALIZING is when the service is starting.
+  STATUS_INITIALIZING = 2;
+  // STATUS_READY is when the service is ready to accept upload/get requests for files.
+  STATUS_READY = 3;
+}
+
+// GetWebassetStorageStatusRequest is a request for the webasset storage status.
+message GetWebassetStorageStatusRequest {}
+
+// GetWebassetStorageStatusResponse is a response for the webasset storage status.
+message GetWebassetStorageStatusResponse {
+  // status is the current status of the webasset storage service.
+  Status status = 1;
+}
+
+// GetUploadWebassetKeysRequest is a request to list the keys of all currently uploaded objects.
+message GetUploadedWebassetKeysRequest {}
+
+// GetUploadedWebassetKeysResponse is a response that contains all the currently uploaded object keys.
+message GetUploadedWebassetKeysResponse {
+  // keys is a list of all the currently uploaded keys.
+  repeated string keys = 1;
+}
+
+// WebassetStorageService is service that stores and retrieves webasset files stored in an s3-compatible bucket.
+service WebassetStorageService {
+  // GetUploadWebassetKeys lists the keys of all currently uploaded objects.
+  rpc GetUploadedWebassetKeys(GetUploadedWebassetKeysRequest) returns (GetUploadedWebassetKeysResponse);
+  // GetWebasset will retrieve the request file from the configured bucket.
+  rpc GetWebasset(GetWebassetRequest) returns (GetWebassetResponse);
+  // UploadWebasset will upload an object to the configured bucket.
+  rpc UploadWebasset(UploadWebassetRequest) returns (google.protobuf.Empty);
+  // GetWebassetStorageStatus will return the current status of the webasset storage service.
+  rpc GetWebassetStorageStatus(GetWebassetStorageStatusRequest) returns (GetWebassetStorageStatusResponse);
+}

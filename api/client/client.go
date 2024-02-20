@@ -72,6 +72,7 @@ import (
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	webassetstoragepb "github.com/gravitational/teleport/api/gen/proto/go/webassetstorage/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
@@ -97,6 +98,7 @@ type AuthServiceClient struct {
 	assist.AssistServiceClient
 	auditlogpb.AuditLogServiceClient
 	userpreferencespb.UserPreferencesServiceClient
+	webassetstoragepb.WebassetStorageServiceClient
 }
 
 // Client is a gRPC Client that connects to a Teleport Auth server either
@@ -510,6 +512,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		AssistServiceClient:          assist.NewAssistServiceClient(c.conn),
 		AuditLogServiceClient:        auditlogpb.NewAuditLogServiceClient(c.conn),
 		UserPreferencesServiceClient: userpreferencespb.NewUserPreferencesServiceClient(c.conn),
+		WebassetStorageServiceClient: webassetstoragepb.NewWebassetStorageServiceClient(c.conn),
 	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
@@ -4516,4 +4519,40 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 // "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
 	return resourceusagepb.NewResourceUsageServiceClient(c.conn)
+}
+
+// GetWebassetStorageStatus will return the current status of the webasset storage service.
+func (c *Client) GetWebassetStorageStatus(ctx context.Context, in *webassetstoragepb.GetWebassetStorageStatusRequest) (*webassetstoragepb.GetWebassetStorageStatusResponse, error) {
+	status, err := c.grpc.GetWebassetStorageStatus(ctx, in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return status, nil
+}
+
+// GetWebasset will retrieve the request file from the configured bucket.
+func (c *Client) GetWebasset(ctx context.Context, in *webassetstoragepb.GetWebassetRequest) (*webassetstoragepb.GetWebassetResponse, error) {
+	resp, err := c.grpc.GetWebasset(ctx, in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UploadWebasset will upload an object to the configured bucket.
+func (c *Client) UploadWebasset(ctx context.Context, in *webassetstoragepb.UploadWebassetRequest) error {
+	_, err := c.grpc.UploadWebasset(ctx, in)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetUploadWebassetKeys lists the keys of all currently uploaded objects.
+func (c *Client) GetUploadedWebassetKeys(ctx context.Context, in *webassetstoragepb.GetUploadedWebassetKeysRequest) (*webassetstoragepb.GetUploadedWebassetKeysResponse, error) {
+	resp, err := c.grpc.GetUploadedWebassetKeys(ctx, in)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }
