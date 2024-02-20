@@ -21,16 +21,15 @@ export interface CycleProps {
 }
 
 export const Cycle = ({
-  currentUsage: { periodStart, periodEnd, usageMau, usagePr, usageTia },
+  currentUsage: { periodStart, periodEnd, usageMau, usagePr },
   usageUpdatedAt,
-  usageQuota: { mauMax, tiaMax, tprMax },
+  usageQuota: { mauMax, tprMax },
 }: CycleProps) => {
   const theme = useTheme();
   const start = displayUnixShortDate(periodStart);
   const end = displayUnixShortDate(periodEnd);
 
   const mau = usageMau || 0;
-  const tia = usageTia || 0;
   const pr = usagePr || 0;
 
   const usage: CycleUsage[] = [
@@ -42,15 +41,6 @@ export const Cycle = ({
       hardMax: mauMax,
       hasFreeTier: false,
       info: 'Any unique human or machine user, local or SSO username or email with recorded activity during a month.',
-    },
-    {
-      name: 'Teleport Identity Authorizations',
-      total: tia,
-      percentage: Math.round((tia / tiaMax) * 100),
-      percentageMax: tiaMax,
-      hardMax: tiaMax,
-      hasFreeTier: false,
-      info: 'The authentication or authorization by Teleport of a client connection, API request, SSH session or any other activity related to a human user or service interaction.',
     },
     {
       name: 'Teleport Protected Resources',

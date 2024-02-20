@@ -19,7 +19,7 @@ describe('cycle', () => {
         periodEnd: 1682989332,
         periodStart: 1672989632,
         usageMau: 0,
-        usageTia: 0,
+        usageTia: 0, // not used, but required by proto definition
         usagePr: 0,
       },
       nonBillableUsage: {
@@ -79,18 +79,6 @@ describe('cycle', () => {
     });
     await userEvent.unhover;
 
-    const tia = screen.getByTestId(/Teleport Identity Authorizations/i);
-    const tiaIcon = within(tia).getByRole('icon');
-    await userEvent.hover(tiaIcon);
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          'The authentication or authorization by Teleport of a client connection, API request, SSH session or any other activity related to a human user or service interaction.'
-        )
-      ).toBeVisible();
-    });
-    await userEvent.unhover;
-
     const tpr = screen.getByTestId(/Teleport Protected Resources/i);
     const tprIcon = within(tpr).getByRole('icon');
     await userEvent.hover(tprIcon);
@@ -126,7 +114,6 @@ describe('cycle', () => {
 
   test('renders usage', () => {
     props.currentUsage.usageMau = 0;
-    props.currentUsage.usageTia = 10000;
     props.currentUsage.usagePr = 200;
     props.nonBillableUsage.trustedDeviceUsage.devicesInUse = 1;
     props.nonBillableUsage.accessRequestUsage.monthlyUsed = 3;
@@ -136,12 +123,6 @@ describe('cycle', () => {
     const mau = screen.getByTestId(/Active Users/i);
     expect(within(mau).getByText(/0 of 30/i)).toBeInTheDocument();
     expect(within(mau).getByText(/\(0%\)/i)).toBeInTheDocument();
-
-    const tia = screen.getByTestId(/Teleport Identity Authorizations/i);
-    expect(
-      within(tia).getByText(/10000 of 50000 Included/i)
-    ).toBeInTheDocument();
-    expect(within(tia).getByText(/\(20%\)/i)).toBeInTheDocument();
 
     const pr = screen.getByTestId(/Teleport Protected Resources/i);
     expect(within(pr).getByText(/200 of 50/i)).toBeInTheDocument();

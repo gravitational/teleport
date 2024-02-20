@@ -25,10 +25,6 @@ import {
 import { Usage } from '../common/Usage';
 import { UpdatedAtDisplay } from '../common/UpdatedAtDisplay';
 
-// todo (michellescripts) pull usage max/included values from the subscription as part of https://github.com/gravitational/cloud/issues/3536
-const incTIA = 50000;
-const maxTIA = 300000;
-
 const incTPR = 50;
 const maxTPR = 1000;
 
@@ -45,7 +41,7 @@ export interface CycleProps {
 }
 
 export const Cycle = ({
-  currentUsage: { periodStart, periodEnd, usageMau, usagePr, usageTia },
+  currentUsage: { periodStart, periodEnd, usageMau, usagePr },
   productName,
   stripeMissingPaymentMethod,
   stripeTrialEnd,
@@ -57,7 +53,6 @@ export const Cycle = ({
   const end = displayUnixShortDate(periodEnd);
 
   const mau = usageMau || 0;
-  const tia = usageTia || 0;
   const pr = usagePr || 0;
   const mad = trustedDeviceUsage?.devicesInUse || 0;
   const maxMAD = trustedDeviceUsage?.devicesUsageLimit || 5;
@@ -73,15 +68,6 @@ export const Cycle = ({
       hardMax: maxMAU,
       hasFreeTier: false,
       info: 'Any unique human or machine user, local or SSO username or email with recorded activity during a month.',
-    },
-    {
-      name: 'Teleport Identity Authorizations',
-      total: tia,
-      percentage: Math.round((tia / incTIA) * 100),
-      percentageMax: incTIA,
-      hardMax: maxTIA,
-      hasFreeTier: true,
-      info: 'The authentication or authorization by Teleport of a client connection, API request, SSH session or any other activity related to a human user or service interaction.',
     },
     {
       name: 'Teleport Protected Resources',

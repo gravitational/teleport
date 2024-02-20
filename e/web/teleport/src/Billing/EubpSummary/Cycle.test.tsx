@@ -19,7 +19,7 @@ describe('cycle', () => {
         periodEnd: 1682989332,
         periodStart: 1672989632,
         usageMau: 0,
-        usageTia: 0,
+        usageTia: 0, // not used, but required by proto definition
         usagePr: 0,
       },
       productName: 'some-product',
@@ -29,10 +29,10 @@ describe('cycle', () => {
       usageQuota: {
         mauMax: 2,
         tprMax: 20,
-        tiaMax: 20000,
+        tiaMax: 20000, // not used, but required by proto definition
         mauInc: 2,
         tprInc: 20,
-        tiaInc: 20000,
+        tiaInc: 20000, // not used, but required by proto definition
       },
     };
   });
@@ -65,18 +65,6 @@ describe('cycle', () => {
     });
     await userEvent.unhover;
 
-    const tia = screen.getByTestId(/Teleport Identity Authorizations/i);
-    const tiaIcon = within(tia).getByRole('icon');
-    await userEvent.hover(tiaIcon);
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          'The authentication or authorization by Teleport of a client connection, API request, SSH session or any other activity related to a human user or service interaction.'
-        )
-      ).toBeVisible();
-    });
-    await userEvent.unhover;
-
     const tpr = screen.getByTestId(/Teleport Protected Resources/i);
     const tprIcon = within(tpr).getByRole('icon');
     await userEvent.hover(tprIcon);
@@ -100,7 +88,6 @@ describe('cycle', () => {
 
   test('renders usage', () => {
     props.currentUsage.usageMau = 0;
-    props.currentUsage.usageTia = 10000;
     props.currentUsage.usagePr = 80;
     props.usageUpdatedAt = 0;
 
@@ -108,10 +95,6 @@ describe('cycle', () => {
     const mau = screen.getByTestId(/Active Users/i);
     expect(within(mau).getByText(/0 of 2/i)).toBeInTheDocument();
     expect(within(mau).getByText(/\(0%\)/i)).toBeInTheDocument();
-
-    const tia = screen.getByTestId(/Teleport Identity Authorizations/i);
-    expect(within(tia).getByText(/10000 of 20000/i)).toBeInTheDocument();
-    expect(within(tia).getByText(/\(50%\)/i)).toBeInTheDocument();
 
     const pr = screen.getByTestId(/Teleport Protected Resources/i);
     expect(within(pr).getByText(/80 of 20/i)).toBeInTheDocument();
