@@ -194,7 +194,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 
 	// Create the facaded client we can share with other components of tbot.
 	facade := identity.NewFacade(s.cfg.FIPS, s.cfg.Insecure, newIdentity)
-	c, err := clientForFacade(ctx, s.log, s.cfg, s.facade, s.resolver)
+	c, err := clientForFacade(ctx, s.log, s.cfg, facade, s.resolver)
 	if err != nil {
 		return trace.Wrap(err)
 	}
