@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -30,6 +29,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
@@ -161,14 +161,12 @@ func NewFakeServiceNow(concurrency int) *FakeServiceNow {
 		userIDs := mock.getOnCall(rotation)
 
 		var result servicenow.OnCallResult
-		if userIDs != nil {
-			for _, userID := range userIDs {
-				result.Result = append(result.Result, struct {
-					UserID string `json:"userId"`
-				}{
-					UserID: userID,
-				})
-			}
+		for _, userID := range userIDs {
+			result.Result = append(result.Result, struct {
+				UserID string `json:"userId"`
+			}{
+				UserID: userID,
+			})
 		}
 		rw.Header().Add("Content-Type", "application/json")
 
