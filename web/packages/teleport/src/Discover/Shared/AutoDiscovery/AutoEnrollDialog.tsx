@@ -37,7 +37,7 @@ export type AutoEnrollDialog = {
   close(): void;
   next(): void;
   region: string;
-  skipDeployment: boolean;
+  notifyAboutDelay: boolean;
 };
 
 export function AutoEnrollDialog({
@@ -46,7 +46,7 @@ export function AutoEnrollDialog({
   close,
   next,
   region,
-  skipDeployment,
+  notifyAboutDelay,
 }: AutoEnrollDialog) {
   let content: JSX.Element;
   if (attempt.status === 'failed') {
@@ -83,12 +83,11 @@ export function AutoEnrollDialog({
           <Icons.Check size="small" ml={1} mr={2} color="success.main" />
           <Text>
             Discovery config successfully created.
-            {skipDeployment && (
+            {notifyAboutDelay && (
               <>
                 {' '}
                 The discovery service can take a few minutes to finish
-                auto-enrolling RDS databases found in region{' '}
-                <Mark>{region}</Mark>.
+                auto-enrolling resources found in region <Mark>{region}</Mark>.
               </>
             )}
           </Text>

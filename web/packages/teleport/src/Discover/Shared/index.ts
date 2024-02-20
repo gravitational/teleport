@@ -43,6 +43,10 @@ export {
   RadioCell,
   StatusCell,
 } from './Aws';
+export {
+  AutoEnrollDialog,
+  SelfHostedAutoDiscoverDirections,
+} from './AutoDiscovery';
 export { StyledBox } from './StyledBox';
 
 export type { DiscoverLabel } from './LabelsCreater';
