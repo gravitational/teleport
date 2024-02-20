@@ -39,6 +39,7 @@ const (
 	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
 	AWSOIDCService_DeployService_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/DeployService"
 	AWSOIDCService_ListEC2_FullMethodName               = "/teleport.integration.v1.AWSOIDCService/ListEC2"
+	AWSOIDCService_ListEKSClusters_FullMethodName       = "/teleport.integration.v1.AWSOIDCService/ListEKSClusters"
 )
 
 // AWSOIDCServiceClient is the client API for AWSOIDCService service.
@@ -67,6 +68,11 @@ type AWSOIDCServiceClient interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
 	ListEC2(ctx context.Context, in *ListEC2Request, opts ...grpc.CallOption) (*ListEC2Response, error)
+	// ListEKSClusters lists the EKS Cluster of the AWS account per region.
+	// It uses the following APIs:
+	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
+	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
+	ListEKSClusters(ctx context.Context, in *ListEKSClustersRequest, opts ...grpc.CallOption) (*ListEKSClustersResponse, error)
 }
 
 type aWSOIDCServiceClient struct {
@@ -131,6 +137,15 @@ func (c *aWSOIDCServiceClient) ListEC2(ctx context.Context, in *ListEC2Request, 
 	return out, nil
 }
 
+func (c *aWSOIDCServiceClient) ListEKSClusters(ctx context.Context, in *ListEKSClustersRequest, opts ...grpc.CallOption) (*ListEKSClustersResponse, error) {
+	out := new(ListEKSClustersResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListEKSClusters_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AWSOIDCServiceServer is the server API for AWSOIDCService service.
 // All implementations must embed UnimplementedAWSOIDCServiceServer
 // for forward compatibility
@@ -157,6 +172,11 @@ type AWSOIDCServiceServer interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
 	ListEC2(context.Context, *ListEC2Request) (*ListEC2Response, error)
+	// ListEKSClusters lists the EKS Cluster of the AWS account per region.
+	// It uses the following APIs:
+	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
+	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
+	ListEKSClusters(context.Context, *ListEKSClustersRequest) (*ListEKSClustersResponse, error)
 	mustEmbedUnimplementedAWSOIDCServiceServer()
 }
 
@@ -181,6 +201,9 @@ func (UnimplementedAWSOIDCServiceServer) DeployService(context.Context, *DeployS
 }
 func (UnimplementedAWSOIDCServiceServer) ListEC2(context.Context, *ListEC2Request) (*ListEC2Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEC2 not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) ListEKSClusters(context.Context, *ListEKSClustersRequest) (*ListEKSClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListEKSClusters not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) mustEmbedUnimplementedAWSOIDCServiceServer() {}
 
@@ -303,6 +326,24 @@ func _AWSOIDCService_ListEC2_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AWSOIDCService_ListEKSClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEKSClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListEKSClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListEKSClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListEKSClusters(ctx, req.(*ListEKSClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AWSOIDCService_ServiceDesc is the grpc.ServiceDesc for AWSOIDCService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -333,6 +374,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListEC2",
 			Handler:    _AWSOIDCService_ListEC2_Handler,
+		},
+		{
+			MethodName: "ListEKSClusters",
+			Handler:    _AWSOIDCService_ListEKSClusters_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
