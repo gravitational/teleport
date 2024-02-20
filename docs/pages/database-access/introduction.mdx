@@ -39,14 +39,38 @@ with GitHub, execute a few SQL queries and observe them in the audit log:
   Your browser does not support the video tag.
 </video>
 
-## Getting started
+## Get started
 
 - [Getting started](./getting-started.mdx): Connect Aurora PostgreSQL in a 10
   minute guide.
 
-(!docs/pages/includes/database-access/guides.mdx!)
+## Connect your database
 
-## Resources
+Teleport can protect both self-hosted and managed databases. Learn how to set up
+secure access to databases in your infrastructure:
+
+- Managed [Amazon Web Services](./enroll-aws-databases.mdx) databases
+- Managed [Google Cloud](./enroll-google-cloud-databases.mdx) databases
+- [Self-Hosted](./enroll-self-hosted-databases.mdx) databases, regardless of
+  cloud provider
+- Managed [Microsoft Azure](./enroll-azure-databases.mdx) databases
+- [Database-specific cloud
+  platforms](docs/pages/database-access//enroll-managed-databases.mdx) such as
+  Snowflake and MongoDB Atlas
+
+## Manage the Teleport Database Service
+
+The Teleport Database Service proxies connections to databases protected by
+Teleport. Read more about deploying the Teleport Database Service and
+enrolling databases:
+
+- [High Availability](./database-access/guides/ha.mdx): Learn how to deploy
+  multiple instances of the Teleport Database Service to proxy the same set of
+  databases.
+- [Dynamic Registration](./guides/dynamic-registration.mdx): Learn how to enroll
+  databases without re-deploying the Teleport Database Service.
+
+## Learn more
 
 To learn more about configuring role-based access control for database access,
 check out the [RBAC](./rbac.mdx) section.
