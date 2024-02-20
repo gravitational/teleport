@@ -156,6 +156,7 @@ jobs:
       - publish-helm
       - publish-to-houston
       - publish-kube-agent-updater-oci
+      - publish-operator-oci
       - publish-os-packages
       - publish-spacelift-runner
     secrets: inherit

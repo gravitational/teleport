@@ -75,12 +75,19 @@ jobs:
           DST_LABELS: ${{ steps.version.outputs.labels }}
         run: |
           read -ra labels <<< "${DST_LABELS}" # split on whitespace into array
+
+          echo "Publishing:"
+          echo "  source: ${SRC_REPO}:${SRC_LABEL}"
+          echo "  dest:   ${DST_REPO}"
+          echo "  labels: ${labels[*]}"
+
           for label in "${labels[@]}"; do
             dst="${DST_REPO}:${label}"
-            if docker manifest inspect "${dst}" >/dev/null 2>&1; then
-              printf 'Found existing image, skipping "%s"\n' "${dst}"
+            if docker manifest inspect "${dst}"; then
+              echo "Skipped publishing existing image: ${dst}" >> "$GITHUB_STEP_SUMMARY"
             else
               docker buildx imagetools create --tag "${dst}" "${SRC_REPO}:${SRC_LABEL}"
+              echo "Published image: ${dst}" >> "$GITHUB_STEP_SUMMARY"
             fi
           done
 
