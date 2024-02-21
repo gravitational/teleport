@@ -91,9 +91,19 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // GetCertAuthority retrieves the matching certificate authority.
 func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuthorityRequest) (*types.CertAuthorityV2, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	readVerb := types.VerbReadNoSecrets
 	if req.IncludeKey {
 		readVerb = types.VerbRead
+
+		// Require admin MFA to read secrets.
+		if err := authCtx.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Before looking up the requested CA perform RBAC on a dummy CA to
@@ -108,12 +118,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	authzCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err = authzCtx.CheckAccessToResource(contextCA, readVerb); err != nil {
+	if err = authCtx.CheckAccessToResource(contextCA, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -124,7 +129,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	if err = authzCtx.CheckAccessToResource(ca, readVerb); err != nil {
+	if err = authCtx.CheckAccessToResource(ca, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -138,15 +143,20 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 
 // GetCertAuthorities retrieves the cert authorities with the specified type.
 func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAuthoritiesRequest) (*trustpb.GetCertAuthoritiesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	verbs := []string{types.VerbList, types.VerbReadNoSecrets}
 
 	if req.IncludeKey {
 		verbs = append(verbs, types.VerbRead)
-	}
 
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		// Require admin MFA to read secrets.
+		if err := authCtx.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, verbs[0], verbs[1:]...); err != nil {
