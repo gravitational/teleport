@@ -1462,11 +1462,10 @@ CockroachDB, see [CockroachDB's deployment options](https://www.cockroachlabs.co
 To learn about how to configure multi-region survival goals, see
 [multi-region survival goals](https://www.cockroachlabs.com/docs/stable/multiregion-survival-goals).
 
-
 To configure Teleport to use CockroachDB as a storage backend:
 - Configure all Teleport Auth Service instances to use the CockroachDB backend in the
   `storage` section of `teleport.yaml` as shown below.
-- Deploy several auth servers connected to the CockroachDB storage backend.
+- Deploy several Auth Service instances connected to the CockroachDB storage backend.
 - Deploy several Proxy Service instances.
 - Make sure that the Proxy Service instances and all Teleport agent services that
   connect directly to the the Auth Service have the `auth_server` configuration
