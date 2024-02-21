@@ -130,7 +130,7 @@ func (c *Cache) ClearForRoot(clusterURI uri.ResourceURI) error {
 		}
 	}
 
-	c.cfg.Log.WithField("cluster", rootClusterURI).WithField("clients", deleted).Info("Invalidated cached clients for root cluster.")
+	c.cfg.Log.WithFields(logrus.Fields{"cluster": rootClusterURI, "clients": deleted}).Info("Invalidated cached clients for root cluster.")
 
 	return trace.NewAggregate(errors...)
 
