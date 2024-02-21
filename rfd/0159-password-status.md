@@ -41,8 +41,6 @@ Rationale: as there is no reliable way to verify that the user actually has a pa
 
 The user will need to pick upfront whether they want to authenticate with a passwordless or an MFA device, even in case of hardware tokens. This is because in order to perform a WebAuthn authentication ceremony, we need to specify upfront whether we require [user verification](https://w3c.github.io/webauthn/#user-verification) or not using the [`PublicKeyCredentialRequestOptions.userVerification`](https://w3c.github.io/webauthn/#dom-publickeycredentialrequestoptions-userverification) field. The client (user agent) is not obliged to return an assertion that contains user verification if we didn't require it, and although the WebAuthn spec says it should do it ["if possible"](https://w3c.github.io/webauthn/#dom-userverificationrequirement-preferred), the exact details of what is considered "possible" are left to interpretation. The key question of whether we are guaranteed to receive user verification if a token capable of user verification has been used is left unanswered. Since user verification is required for changing password without giving the current one, we can't allow the user to perform it if the returned authenticator data contains flags with the [User Verified bit](https://w3c.github.io/webauthn/#authdata-flags-uv) set to 0. Thus, we need to specify user verification requirement when we create the authentication request.
 
-There are two RPCs that take part in the process of changing password when token authentication is required: the first one that generates the challenge (currently handled by )
-
 The following diagram sums up the modified process:
 
 ```mermaid
