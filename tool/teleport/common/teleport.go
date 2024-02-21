@@ -39,7 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
@@ -952,6 +951,9 @@ func onJoinOpenSSH(clf config.CommandLineFlags, conf *servicecfg.Config) error {
 func onIntegrationConfDeployService(params config.IntegrationConfDeployServiceIAM) error {
 	ctx := context.Background()
 
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
 	iamClient, err := awsoidc.NewDeployServiceIAMConfigureClient(ctx, params.Region)
 	if err != nil {
 		return trace.Wrap(err)
@@ -974,6 +976,9 @@ func onIntegrationConfDeployService(params config.IntegrationConfDeployServiceIA
 func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 	ctx := context.Background()
 
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
 	iamClient, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
 	if err != nil {
 		return trace.Wrap(err)
@@ -993,6 +998,9 @@ func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
 	ctx := context.Background()
 
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
 	iamClient, err := awsoidc.NewEKSIAMConfigureClient(ctx, params.Region)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1011,6 +1019,9 @@ func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
 
 func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error {
 	ctx := context.Background()
+
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
 	iamClient, err := awsoidc.NewIdPIAMConfigureClient(ctx)
 	if err != nil {
@@ -1035,7 +1046,7 @@ func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabase
 
 	// Ensure we show progress to the user.
 	// LogLevel at this point is set to Error.
-	log.SetLevel(log.InfoLevel)
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
 	if params.Region == "" {
 		return trace.BadParameter("region is required")

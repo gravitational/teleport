@@ -20,7 +20,6 @@ package awsoidc
 
 import (
 	"context"
-	"log"
 	"net/url"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -28,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -158,7 +158,7 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Printf("Using the following thumbprint: %s", thumbprint)
+	logrus.Infof("Using the following thumbprint: %s", thumbprint)
 
 	createOIDCResp, err := clt.CreateOpenIDConnectProvider(ctx, &iam.CreateOpenIDConnectProviderInput{
 		ThumbprintList: []string{thumbprint},
@@ -172,13 +172,13 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 		}
 		return trace.Wrap(err)
 	}
-	log.Printf("IAM OpenID Connect Provider created: url=%q arn=%q.", req.ProxyPublicAddress, aws.ToString(createOIDCResp.OpenIDConnectProviderArn))
+	logrus.Infof("IAM OpenID Connect Provider created: url=%q arn=%q.", req.ProxyPublicAddress, aws.ToString(createOIDCResp.OpenIDConnectProviderArn))
 
 	createdIdpIAMRoleArn, err := createIdPIAMRole(ctx, clt, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Printf("IAM Role created: name=%q arn=%q", req.IntegrationRole, aws.ToString(createdIdpIAMRoleArn))
+	logrus.Infof("IAM Role created: name=%q arn=%q", req.IntegrationRole, aws.ToString(createdIdpIAMRoleArn))
 
 	return nil
 }
