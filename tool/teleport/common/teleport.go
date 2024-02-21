@@ -37,7 +37,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -943,7 +942,7 @@ func onIntegrationConfDeployService(params config.IntegrationConfDeployServiceIA
 	ctx := context.Background()
 
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
 	iamClient, err := awsoidc.NewDeployServiceIAMConfigureClient(ctx, params.Region)
 	if err != nil {
@@ -968,7 +967,7 @@ func onIntegrationConfEICEIAM(params config.IntegrationConfEICEIAM) error {
 	ctx := context.Background()
 
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
 	iamClient, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
 	if err != nil {
@@ -990,7 +989,7 @@ func onIntegrationConfAWSOIDCIdP(params config.IntegrationConfAWSOIDCIdP) error 
 	ctx := context.Background()
 
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
 	iamClient, err := awsoidc.NewIdPIAMConfigureClient(ctx)
 	if err != nil {
@@ -1015,7 +1014,7 @@ func onIntegrationConfListDatabasesIAM(params config.IntegrationConfListDatabase
 
 	// Ensure we show progress to the user.
 	// LogLevel at this point is set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
 	if params.Region == "" {
 		return trace.BadParameter("region is required")
