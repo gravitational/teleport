@@ -4371,9 +4371,9 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 			var msg string
 			nextAuditDate := accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly)
 			if time.Now().After(accessList.Spec.Audit.NextAuditDate) {
-				msg = fmt.Sprintf("review was required on %v", nextAuditDate)
+				msg = fmt.Sprintf("review is overdue (%v)", nextAuditDate)
 			} else {
-				msg = fmt.Sprintf("review date is %v", nextAuditDate)
+				msg = fmt.Sprintf("review is required by %v", nextAuditDate)
 			}
 			fmt.Printf("\t%s (%v)\n", accessList.Spec.Title, msg)
 		}
