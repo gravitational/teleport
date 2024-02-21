@@ -30,6 +30,19 @@ videoBanner: 6lgVObxoLkc
 </Admonition>
 
 - (!docs/pages/includes/tctl.mdx!)
+- A certificate authority for MongoDB Replica Set, and the public certificate
+  for that CA, in PEM format, e.g. `/path/to/your/ca.crt`.
+
+  <Admonition type="note">
+  A MongoDB replica set requires that each MongoDB server is configured with a 
+  certificate that has extendedKeyUsage `clientAuth, serverAuth`.
+  
+  Teleport uses a split CA architecture for better security:
+  the Teleport Database Server CA issues certs with `serverAuth`
+  and the Teleport Database Client CA issues certs with `clientAuth`.
+  Therefore, you must provide each MongoDB server with a certificate issued by
+  your own CA with extendedKeyUsage `clientAuth, serverAuth`.
+  </Admonition>
 
 ## Step 1/3. Install and configure Teleport
 
@@ -133,24 +146,34 @@ Create the secrets:
   authority and `mongo.crt` with the generated certificate and key pair. You will
   need these files to enable mutual TLS on your MongoDB server.
   </TabItem>
-  <TabItem label="Replica set">
-  When connecting to a MongoDB replica set, sign certificates for each member
-  using the hostnames they're accessible at.
-
-  For example, if the first member is accessible at `mongo1.example.com` and
-  the second at `mongo2.example.com`, run:
-
+  <TabItem label="Replica Set">
+  Export the Teleport Database Client CA from Teleport, and then add it as an 
+  additional trusted CA by concatenating it with your CA's certificate:
+  
   ```code
-  $ tctl auth sign --format=mongodb --host=mongo1.example.com --out=mongo1 --ttl=2190h
-  $ tctl auth sign --format=mongodb --host=mongo2.example.com --out=mongo2 --ttl=2190h
+  $ tctl auth export --type=db_client > db-client-ca.crt
+  $ cat /path/to/your/ca.crt db-client-ca.crt > /etc/certs/mongo.cas
   ```
 
-  (!docs/pages/includes/database-access/ttl-note.mdx!)
-
-  Each command will create two files: `mongo1.cas`/`mongo2.cas` with Teleport's
-  certificate authority and `mongo1.crt`/`mongo2.crt` with the generated certificate
-  and key pair. You will need these files to enable mutual TLS on your MongoDB
-  servers.
+  When MongoDB is configured to trust these CAs, it will trust the Teleport 
+  Database Client CA and allow access via Teleport, while still allowing MongoDB 
+  replication over TLS using your CA's certs for peer verification.
+  
+  Next, modify your Teleport Database Service to trust your MongoDB Replica 
+  Set CA:
+  ```yaml
+    databases:
+    - name: "example-mongo"
+      protocol: "mongodb"
+      uri: "mongo.example.com:27017"
+      static_labels:
+        "env": "dev"
+      tls:
+        ca_cert_file: "/path/to/your/ca.crt"
+  ```
+  
+  Now the Teleport Database Service will trust certificates presented by your
+  MongoDB Replica Set.
   </TabItem>
 </Tabs>
 

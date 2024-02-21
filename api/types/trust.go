@@ -34,8 +34,12 @@ const (
 	HostCA CertAuthType = "host"
 	// UserCA identifies the key as a user certificate authority
 	UserCA CertAuthType = "user"
-	// DatabaseCA is a certificate authority used in database access.
+	// DatabaseCA is a certificate authority used as a server CA in database
+	// access.
 	DatabaseCA CertAuthType = "db"
+	// DatabaseClientCA is a certificate authority used as a client CA in
+	// database access.
+	DatabaseClientCA CertAuthType = "db_client"
 	// OpenSSHCA is a certificate authority used when connecting to agentless nodes.
 	OpenSSHCA CertAuthType = "openssh"
 	// JWTSigner identifies type of certificate authority as JWT signer. In this
@@ -53,7 +57,7 @@ const (
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, OpenSSHCA, JWTSigner, SAMLIDPCA, OIDCIdPCA}
+var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, DatabaseClientCA, OpenSSHCA, JWTSigner, SAMLIDPCA, OIDCIdPCA}
 
 // NewlyAdded should return true for CA types that were added in the current
 // major version, so that we can avoid erroring out when a potentially older
@@ -69,11 +73,22 @@ func (c CertAuthType) addedInMajorVer() int64 {
 		return 9
 	case OpenSSHCA, SAMLIDPCA, OIDCIdPCA:
 		return 12
+	case DatabaseClientCA:
+		return 15
 	default:
 		// We don't care about other CAs added before v4.0.0
 		return 4
 	}
 }
+
+// IsUnsupportedAuthorityErr returns whether an error is due to an unsupported
+// CertAuthType.
+func IsUnsupportedAuthorityErr(err error) bool {
+	return err != nil && trace.IsBadParameter(err) &&
+		strings.Contains(err.Error(), authTypeNotSupported)
+}
+
+const authTypeNotSupported string = "authority type is not supported"
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
@@ -83,7 +98,7 @@ func (c CertAuthType) Check() error {
 		}
 	}
 
-	return trace.BadParameter("%q authority type is not supported", c)
+	return trace.BadParameter("%q %s", c, authTypeNotSupported)
 }
 
 // CertAuthID - id of certificate authority (it's type and domain name)

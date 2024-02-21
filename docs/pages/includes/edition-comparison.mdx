@@ -49,7 +49,7 @@
 |Proxy Service domain name|Custom|Custom|A subdomain of `teleport.sh`|A subdomain of `teleport.sh`|
 |Version support|All supported releases available to install and download.|All supported releases available to install and download.|Deploys last stable release with 2-3 week lag for stability.|Deploys last stable release with 2-3 week lag for stability.|
 |[Backend support](../reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption.|All data is stored in DynamoDB and S3 with server-side encryption.|
-|Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends|Data is stored in `us-west-2`, with Proxy Service instances deployed across the world for low-latency access.|Data is stored in `us-west-2`, with Proxy Service instances deployed across the world for low-latency access.|
+|Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends|Data is stored in Teleport's AWS infrastructure with audit logs/sessions optionally in customer AWS accounts. Proxy Service instances are deployed across the world for low-latency access.|Data is stored in Teleport's AWS infrastructure. Proxy Service instances are deployed across the world for low-latency access.|
 |[Hardware Security Module support](../choose-an-edition/teleport-enterprise/hsm.mdx) for encryption at rest|✖|✔|✖|✖|
 
 ### Support
