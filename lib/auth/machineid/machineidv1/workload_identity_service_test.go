@@ -181,7 +181,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -189,7 +189,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 			name: "no svids",
 			user: authorizedUser.GetName(),
 			req:  &machineidv1pb.SignX509SVIDsRequest{},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "svids: must be non-empty")
 			},
@@ -205,7 +205,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
+			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
