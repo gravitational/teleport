@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/accessrequest"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -151,6 +152,15 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	request.SetRequestReason(req.Reason)
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
 
+	if req.GetAssumeStartTime() != nil && !req.AssumeStartTime.AsTime().IsZero() {
+		assumeStartTime := req.AssumeStartTime.AsTime()
+		if time.Until(assumeStartTime) > constants.MaxAssumeStartDuration {
+			return nil, trace.BadParameter("assumeStartTime too far in future: latest date %q",
+				assumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
+		}
+		request.SetAssumeStartTime(assumeStartTime)
+	}
+
 	var reqOut types.AccessRequest
 	err = AddMetadataToRetryableError(ctx, func() error {
 		reqOut, err = c.clusterClient.CreateAccessRequestV2(ctx, request)
@@ -193,13 +203,16 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		}
 		defer authClient.Close()
 
+		assumeStartTime := req.AssumeStartTime.AsTime()
+
 		reviewSubmission := types.AccessReviewSubmission{
 			RequestID: req.AccessRequestId,
 			Review: types.AccessReview{
-				Roles:         req.Roles,
-				ProposedState: reviewState,
-				Reason:        req.Reason,
-				Created:       time.Now(),
+				Roles:           req.Roles,
+				ProposedState:   reviewState,
+				Reason:          req.Reason,
+				Created:         time.Now(),
+				AssumeStartTime: &assumeStartTime,
 			},
 		}
 
