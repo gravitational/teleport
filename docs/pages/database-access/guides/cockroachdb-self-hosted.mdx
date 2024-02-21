@@ -23,6 +23,14 @@ description: How to configure Teleport database access with self-hosted Cockroac
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
   Service.
 - (!docs/pages/includes/tctl.mdx!)
+- A certificate authority to issue CockroachDB certificates for nodes in your 
+  CockroachDB cluster.
+  Teleport uses a split CA architecture for database access, and requires that
+  you create your own CA for node-to-node mTLS communication.
+  See [cockroach cert](https://www.cockroachlabs.com/docs/stable/cockroach-cert)
+  for instructions on creating a CA and issuing a client certificate and key
+  for each node. The certificate and key should be named `client.node.crt` and 
+  `client.node.key`.
 
 ## Step 1/4. Set up the Teleport Database Service
 
@@ -91,9 +99,13 @@ $ tctl auth sign \
     --ttl=2190h
 ```
 
-The command will produce 3 files: `ca.crt` with Teleport's certificate authority
-and `node.crt` / `node.key` with the node's certificate and key. Do not rename
-them as this is how CockroachDB expects them to be named. See [Node key and certificates](https://www.cockroachlabs.com/docs/v21.1/create-security-certificates-custom-ca#node-key-and-certificates)
+The command will produce 4 files:
+- `ca.crt` with Teleport's `db` certificate authority
+- `ca-client.crt` with Teleport's `db_client` certificate authority
+- `node.crt` / `node.key` with the node's certificate and key.
+
+Do not rename these files as this is how CockroachDB expects them to be named.
+See [Node key and certificates](https://www.cockroachlabs.com/docs/v21.1/create-security-certificates-custom-ca#node-key-and-certificates)
 for details.
 
 Generate the secrets for each cluster node and make sure to use the hostname
@@ -183,4 +195,5 @@ Connect app.
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 - [CockroachDB client authentication](https://www.cockroachlabs.com/docs/stable/authentication.html#client-authentication)
+- [CockroachDB using split CA certificates](https://www.cockroachlabs.com/docs/stable/authentication#using-split-ca-certificates)
 
