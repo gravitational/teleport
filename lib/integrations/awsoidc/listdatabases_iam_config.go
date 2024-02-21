@@ -21,7 +21,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
@@ -91,7 +91,7 @@ func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	log.WithFields(log.Fields{
+	logrus.WithFields(logrus.Fields{
 		"policy": defaultPolicyNameForListDatabases,
 		"role":   req.IntegrationRole,
 	}).Info("Added Inline Policy to IAM Role")
