@@ -50,4 +50,14 @@ message DeviceWebToken {
   // Used as part of expected device checks.
   // Required for creation.
   string browser_ip = 5;
+
+  // Owner of the Web Session and trusted device.
+  // Used internally by the Device Trust system.
+  // Transient.
+  string user = 6;
+
+  // ID of the devices allowed to perform on-behalf-of device authentication.
+  // Used internally by the Device Trust system.
+  // Transient.
+  repeated string expected_device_ids = 7;
 }
