@@ -132,7 +132,7 @@ function TdpClientCanvas(props: Props) {
         client.removeListener(TdpClientEvent.POINTER, updatePointer);
       };
     }
-  }, [client]);
+  }, [client, updatePointer]);
 
   useEffect(() => {
     if (client && clientOnBmpFrame) {
