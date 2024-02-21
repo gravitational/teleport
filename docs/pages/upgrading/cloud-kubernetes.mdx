@@ -5,7 +5,7 @@ description: Provides instructions for upgrading Teleport Cloud agents that run 
 
 This guide explains how to upgrade Teleport Cloud agents running on Kubernetes.
 On Teleport Cloud, Auth Service and Proxy Service upgrades are managed for you.
-To keep agents up to date, you can either enroll them in automatic upgrades or
+To keep agents up to date, you can either enroll them in automatic updates or
 upgrade them manually using the method you used to install Teleport.
 
 ## Prerequisites
@@ -27,8 +27,8 @@ chart. The [Automatic Update Architecture
 ](../architecture/agent-update-management.mdx) guide describes how agent
 updating works. Automatic agent upgrades require:
 
-- A Teleport Cloud account that supports automatic upgrades. To determine if
-  your account supports automatic upgrades, run the following command, replacing
+- A Teleport Cloud account that supports automatic updates. To determine if
+  your account supports automatic updates, run the following command, replacing
   `mytenant.teleport.sh` with the address of your Teleport Cloud account:
 
   ```code
@@ -38,7 +38,7 @@ updating works. Automatic agent upgrades require:
 - At least one Teleport Enterprise agent deployed via the `teleport-kube-agent`
   Helm chart.
 
-## Step 1/2. Determine whether any agents require automatic upgrades
+## Step 1/2. Determine whether any agents require automatic updates
 
 To determine if any agents in your cluster are not configured for automatic
 upgrades, run the following command. This prints a list of all Teleport services
@@ -54,9 +54,9 @@ Server ID                            Hostname                        Services Ve
 00000000-0000-0000-0000-000000000000 teleport-agent-0                Kube     v13.4.3 none
 ```
 
-If the list is nonempty, proceed to the next step to enable automatic upgrades.
+If the list is nonempty, proceed to the next step to enable automatic updates.
 
-## Step 2/2. Enroll agents in automatic upgrades
+## Step 2/2. Enroll agents in automatic updates
 
 This section assumes that the name of your `teleport-kube-agent` release is
 `teleport-agent`, and that you have installed it in the `teleport` namespace.
@@ -84,7 +84,7 @@ This section assumes that the name of your `teleport-kube-agent` release is
    ```code
    $  helm -n <Var name="teleport" /> upgrade <Var name="teleport-agent" /> teleport/teleport-kube-agent  \
    --values=values.yaml \
-   --version=<Var name="(=teleport.version=)" />
+   --version=<Var name="(=cloud.version=)" />
    ```
 
 1. Validate the updater is running properly by checking if its pod is ready:
@@ -115,7 +115,7 @@ will send an event, so the updater can be triggered by annotating the resource:
 $ kubectl -n <Var name="teleport" /> annotate statefulset/<Var name="teleport-agent" /> 'debug.teleport.dev/trigger-event=1'
 ```
 
-To suspend automatic upgrades for an agent, annotate the agent deployment with
+To suspend automatic updates for an agent, annotate the agent deployment with
 `teleport.dev/skipreconcile: "true"`, either by setting the
 `annotations.deployment` value in Helm, or by patching the deployment directly
 with `kubectl`.
@@ -134,6 +134,6 @@ Run the following commands to upgrade Teleport agents running on Kubernetes.
    ```code
    $ helm -n <Var name="teleport" /> upgrade <Var name="teleport-agent" /> teleport/teleport-kube-agent \
    --values=values.yaml \
-   --version=<Var name="(=teleport.version=)" />
+   --version=<Var name="(=cloud.version=)" />
    ```
 

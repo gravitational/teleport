@@ -137,8 +137,7 @@ func (l *loginRuleTestingPrimitives) CompareTeleportAndKubernetesResource(
 	tResource *resourcesv1.LoginRuleResource,
 	kubeResource *resourcesv1.TeleportLoginRule) (bool, string) {
 	diff := cmp.Diff(tResource, kubeResource.ToTeleport(),
-		cmpopts.IgnoreUnexported(loginrulepb.LoginRule{}),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Labels"),
+		CompareOptions(cmpopts.IgnoreUnexported(loginrulepb.LoginRule{}))...,
 	)
 	return diff == "", diff
 }

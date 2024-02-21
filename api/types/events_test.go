@@ -25,6 +25,10 @@ import (
 // TestWatchKindContains tests that the WatchKind.Contains method correctly detects whether its receiver contains its
 // argument.
 func TestWatchKindContains(t *testing.T) {
+	allCAFilter := make(CertAuthorityFilter)
+	for _, caType := range CertAuthTypes {
+		allCAFilter[caType] = Wildcard
+	}
 	testCases := []struct {
 		name      string
 		kind      WatchKind
@@ -144,6 +148,109 @@ func TestWatchKindContains(t *testing.T) {
 				SubKind: "b",
 				Filter: map[string]string{
 					"e": "f",
+				},
+			},
+			assertion: require.False,
+		},
+		{
+			name: "yes: superset and subset have no CA filter",
+			kind: WatchKind{
+				Kind: "cert_authority",
+			},
+			other: WatchKind{
+				Kind: "cert_authority",
+			},
+			assertion: require.True,
+		},
+		{
+			name: "yes: superset has no CA filter",
+			kind: WatchKind{
+				Kind: "cert_authority",
+			},
+			other: WatchKind{
+				Kind: "cert_authority",
+				Filter: map[string]string{
+					"a": "b",
+					"c": "d",
+				},
+			},
+			assertion: require.True,
+		},
+		{
+			name: "yes: superset filter matches all, subset has no CA filter",
+			kind: WatchKind{
+				Kind:   "cert_authority",
+				Filter: allCAFilter.IntoMap(),
+			},
+			other: WatchKind{
+				Kind: "cert_authority",
+			},
+			assertion: require.True,
+		},
+		{
+			name: "yes: subset has narrower CA filter",
+			kind: WatchKind{
+				Kind: "cert_authority",
+				Filter: map[string]string{
+					"a": "b",
+					"c": Wildcard,
+					"e": "f",
+				},
+			},
+			other: WatchKind{
+				Kind: "cert_authority",
+				Filter: map[string]string{
+					"a": "b",
+					"c": "d",
+				},
+			},
+			assertion: require.True,
+		},
+		{
+			name: "no: superset filter does not match all, subset has no CA filter",
+			kind: WatchKind{
+				Kind: "cert_authority",
+				Filter: map[string]string{
+					"a": "b",
+					"c": "d",
+				},
+			},
+			other: WatchKind{
+				Kind: "cert_authority",
+			},
+			assertion: require.False,
+		},
+		{
+			name: "no: subset has wider CA filter",
+			kind: WatchKind{
+				Kind: "cert_authority",
+				Filter: map[string]string{
+					"a": "b",
+					"c": "d",
+				},
+			},
+			other: WatchKind{
+				Kind: "cert_authority",
+				Filter: map[string]string{
+					"a": "b",
+					"c": "d",
+					"e": "",
+				},
+			},
+			assertion: require.False,
+		},
+		{
+			name: "no: subset filter does not match",
+			kind: WatchKind{
+				Kind: "cert_authority",
+				Filter: map[string]string{
+					"a": "b",
+				},
+			},
+			other: WatchKind{
+				Kind: "cert_authority",
+				Filter: map[string]string{
+					"a": "",
 				},
 			},
 			assertion: require.False,

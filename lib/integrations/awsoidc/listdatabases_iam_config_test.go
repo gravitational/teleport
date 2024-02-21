@@ -21,12 +21,12 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 func TestListDatabasesIAMConfigReqDefaults(t *testing.T) {
@@ -86,7 +86,7 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 			name:              "integration role does not exist",
 			mockExistingRoles: []string{},
 			req:               baseReq,
-			errCheck:          notFounCheck,
+			errCheck:          notFoundCheck,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

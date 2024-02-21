@@ -18,10 +18,10 @@ package types
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
@@ -727,4 +727,40 @@ func (f *CertAuthorityFilter) FromMap(m map[string]string) {
 	for key, val := range m {
 		(*f)[CertAuthType(key)] = val
 	}
+}
+
+// Contains checks if the CA filter contains another CA filter as a subset.
+// Unlike other filters, a CA filter's scope becomes more broad as map keys
+// are added to it.
+// Therefore, to check if kind's filter contains the subset's filter,
+// we should check that the subset's keys are all present in kind and as
+// narrow or narrower.
+// A special case is when kind's filter is either empty or specifies all
+// authorities, in which case it is as broad as possible and subset's filter
+// is always contained within it.
+func (f CertAuthorityFilter) Contains(other CertAuthorityFilter) bool {
+	if len(f) == 0 {
+		// f has no filter, which is as broad as possible.
+		return true
+	}
+
+	if len(other) == 0 {
+		// f has a filter, but other does not.
+		// treat this as "contained" if f's filter is for all authorities.
+		for _, caType := range CertAuthTypes {
+			clusterName, ok := f[caType]
+			if !ok || clusterName != Wildcard {
+				return false
+			}
+		}
+		return true
+	}
+
+	for k, v := range other {
+		v2, ok := f[k]
+		if !ok || (v2 != Wildcard && v2 != v) {
+			return false
+		}
+	}
+	return true
 }

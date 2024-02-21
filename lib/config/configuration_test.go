@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type testConfigFiles struct {
@@ -906,6 +905,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, "https://some-endpoint", cfg.Okta.APIEndpoint)
 	require.Equal(t, oktaAPITokenPath, cfg.Okta.APITokenPath)
 	require.Equal(t, time.Second*300, cfg.Okta.SyncPeriod)
+	require.True(t, cfg.Okta.SyncSettings.SyncAccessLists)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -2894,6 +2894,41 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "AWS DynamoDB with session tags",
+			inFlags: CommandLineFlags{
+				DatabaseName:             "ddb",
+				DatabaseProtocol:         defaults.ProtocolDynamoDB,
+				DatabaseURI:              "dynamodb.us-east-1.amazonaws.com",
+				DatabaseAWSAccountID:     "123456789012",
+				DatabaseAWSRegion:        "us-east-1",
+				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				DatabaseAWSExternalID:    "externalID123",
+				DatabaseAWSSessionTags:   "database_name=hello,something=else",
+			},
+			outDatabase: servicecfg.Database{
+				Name:     "ddb",
+				Protocol: defaults.ProtocolDynamoDB,
+				URI:      "dynamodb.us-east-1.amazonaws.com",
+				AWS: servicecfg.DatabaseAWS{
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalID123",
+					SessionTags: map[string]string{
+						"database_name": "hello",
+						"something":     "else",
+					},
+				},
+				StaticLabels: map[string]string{
+					types.OriginLabel: types.OriginConfigFile,
+				},
+				DynamicLabels: services.CommandLabels{},
+				TLS: servicecfg.DatabaseTLS{
+					Mode: servicecfg.VerifyFull,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2909,62 +2944,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
 			}
-		})
-	}
-}
-
-func TestTextFormatter(t *testing.T) {
-	tests := []struct {
-		comment      string
-		formatConfig []string
-		assertErr    require.ErrorAssertionFunc
-	}{
-		{
-			comment:      "invalid key (does not exist)",
-			formatConfig: []string{"level", "invalid key"},
-			assertErr:    require.Error,
-		},
-		{
-			comment:      "valid keys and formatting",
-			formatConfig: []string{"level", "component", "timestamp"},
-			assertErr:    require.NoError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &logutils.TextFormatter{
-				ExtraFields: tt.formatConfig,
-			}
-			tt.assertErr(t, formatter.CheckAndSetDefaults())
-		})
-	}
-}
-
-func TestJSONFormatter(t *testing.T) {
-	tests := []struct {
-		comment     string
-		extraFields []string
-		assertErr   require.ErrorAssertionFunc
-	}{
-		{
-			comment:     "invalid key (does not exist)",
-			extraFields: []string{"level", "invalid key"},
-			assertErr:   require.Error,
-		},
-		{
-			comment:     "valid keys and formatting",
-			extraFields: []string{"level", "caller", "component", "timestamp"},
-			assertErr:   require.NoError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.comment, func(t *testing.T) {
-			formatter := &logutils.JSONFormatter{
-				ExtraFields: tt.extraFields,
-			}
-			tt.assertErr(t, formatter.CheckAndSetDefaults())
 		})
 	}
 }
@@ -3781,6 +3760,34 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "tag matchers",
+			discoveryConfig: Discovery{
+				AccessGraph: &AccessGraphSync{
+					AWS: []AccessGraphAWSSync{
+						{
+							Regions:       []string{"us-west-2", "us-east-1"},
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+							ExternalID:    "externalID123",
+						},
+					},
+				},
+			},
+			expectedDiscovery: servicecfg.DiscoveryConfig{
+				Enabled: true,
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Regions: []string{"us-west-2", "us-east-1"},
+							AssumeRole: &types.AssumeRole{
+								RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+								ExternalID: "externalID123",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -3806,7 +3813,7 @@ func TestApplyOktaConfig(t *testing.T) {
 		errAssertionFunc require.ErrorAssertionFunc
 	}{
 		{
-			desc:            "valid config",
+			desc:            "valid config (access list sync defaults to false)",
 			createTokenFile: true,
 			oktaConfig: Okta{
 				Service: Service{
@@ -3817,6 +3824,71 @@ func TestApplyOktaConfig(t *testing.T) {
 			expectedOkta: servicecfg.OktaConfig{
 				Enabled:     true,
 				APIEndpoint: "https://test-endpoint",
+				SyncSettings: servicecfg.OktaSyncSettings{
+					SyncAccessLists: false,
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:            "valid config (access list sync enabled)",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+					DefaultOwners:       []string{"owner1"},
+				},
+			},
+			expectedOkta: servicecfg.OktaConfig{
+				Enabled:     true,
+				APIEndpoint: "https://test-endpoint",
+				SyncSettings: servicecfg.OktaSyncSettings{
+					SyncAccessLists: true,
+					DefaultOwners:   []string{"owner1"},
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:            "valid config (access list sync with filters)",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+					DefaultOwners:       []string{"owner1"},
+					GroupFilters: []string{
+						"group*",
+						"^admin-.*$",
+					},
+					AppFilters: []string{
+						"app*",
+						"^admin-.*$",
+					},
+				},
+			},
+			expectedOkta: servicecfg.OktaConfig{
+				Enabled:     true,
+				APIEndpoint: "https://test-endpoint",
+				SyncSettings: servicecfg.OktaSyncSettings{
+					SyncAccessLists: true,
+					DefaultOwners:   []string{"owner1"},
+					GroupFilters: []string{
+						"group*",
+						"^admin-.*$",
+					},
+					AppFilters: []string{
+						"app*",
+						"^admin-.*$",
+					},
+				},
 			},
 			errAssertionFunc: require.NoError,
 		},
@@ -3894,6 +3966,62 @@ func TestApplyOktaConfig(t *testing.T) {
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter(`error trying to find file %s`, i...))
+			},
+		},
+		{
+			desc:            "no default owners",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+				},
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("default owners must be set when access list import is enabled"))
+			},
+		},
+		{
+			desc:            "bad group filter",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+					DefaultOwners:       []string{"owner1"},
+					GroupFilters: []string{
+						"^admin-.[[[*$",
+					},
+				},
+			},
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "error parsing group filter: ^admin-.[[[*$")
+			},
+		},
+		{
+			desc:            "bad app filter",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+				Sync: OktaSync{
+					SyncAccessListsFlag: "yes",
+					DefaultOwners:       []string{"owner1"},
+					AppFilters: []string{
+						"^admin-.[[[*$",
+					},
+				},
+			},
+			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "error parsing app filter: ^admin-.[[[*$")
 			},
 		},
 	}
@@ -4283,6 +4411,11 @@ func TestDiscoveryConfig(t *testing.T) {
 						"service_accounts": []string{"a@example.com", "b@example.com"},
 					},
 				}
+				cfg["version"] = "v3"
+				cfg["teleport"].(cfgMap)["proxy_server"] = "example.com"
+				cfg["proxy_service"] = cfgMap{
+					"enabled": "no",
+				}
 			},
 			expectedGCPMatchers: []types.GCPMatcher{{
 				Types:     []string{"gce"},
@@ -4296,9 +4429,10 @@ func TestDiscoveryConfig(t *testing.T) {
 				ProjectIDs:      []string{"p1", "p2"},
 				ServiceAccounts: []string{"a@example.com", "b@example.com"},
 				Params: &types.InstallerParams{
-					JoinMethod: types.JoinMethodGCP,
-					JoinToken:  types.GCPInviteTokenName,
-					ScriptName: installers.InstallerScriptName,
+					JoinMethod:      types.JoinMethodGCP,
+					JoinToken:       types.GCPInviteTokenName,
+					ScriptName:      installers.InstallerScriptName,
+					PublicProxyAddr: "example.com",
 				},
 			}},
 		},
@@ -4611,6 +4745,11 @@ func TestDiscoveryConfig(t *testing.T) {
 						},
 					},
 				}
+				cfg["version"] = "v3"
+				cfg["teleport"].(cfgMap)["proxy_server"] = "example.com"
+				cfg["proxy_service"] = cfgMap{
+					"enabled": "no",
+				}
 			},
 			expectedAzureMatchers: []types.AzureMatcher{{
 				Types:          []string{"vm"},
@@ -4621,10 +4760,11 @@ func TestDiscoveryConfig(t *testing.T) {
 					"discover_teleport": []string{"yes"},
 				},
 				Params: &types.InstallerParams{
-					JoinMethod: "azure",
-					JoinToken:  "azure-discovery-token",
-					ScriptName: "default-installer",
-					Azure:      &types.AzureInstallerParams{},
+					JoinMethod:      "azure",
+					JoinToken:       "azure-discovery-token",
+					ScriptName:      "default-installer",
+					PublicProxyAddr: "example.com",
+					Azure:           &types.AzureInstallerParams{},
 				},
 			}},
 		},
@@ -4635,7 +4775,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			mutate: func(cfg cfgMap) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{"types": []string{"vm"},
+					{
+						"types":           []string{"vm"},
 						"regions":         []string{"westcentralus"},
 						"resource_groups": []string{"rg1"},
 						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
@@ -4677,7 +4818,8 @@ func TestDiscoveryConfig(t *testing.T) {
 			mutate: func(cfg cfgMap) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{"types": []string{"vm"},
+					{
+						"types":           []string{"vm"},
 						"regions":         []string{"westcentralus"},
 						"resource_groups": []string{"rg1"},
 						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},

@@ -104,13 +104,15 @@ type UserACL struct {
 	ExternalAuditStorage ResourceAccess `json:"externalAuditStorage"`
 	// AccessGraph defines access to access graph.
 	AccessGraph ResourceAccess `json:"accessGraph"`
+	// Bots defines access to manage Bots.
+	Bots ResourceAccess `json:"bots"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
 	for _, verb := range verbs {
 		// Since this check occurs often and does not imply the caller is trying to
 		// ResourceAccess any resource, silence any logging done on the proxy.
-		if err := roleSet.GuessIfAccessIsPossible(ctx, apidefaults.Namespace, kind, verb, true); err != nil {
+		if err := roleSet.GuessIfAccessIsPossible(ctx, apidefaults.Namespace, kind, verb); err != nil {
 			return false
 		}
 	}
@@ -154,8 +156,12 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		assistAccess = newAccess(userRoles, ctx, types.KindAssistant)
 	}
 
+	// The billing dashboards are available in cloud clusters or for
+	// self-hosted dashboards for usage-based subscriptions.
 	var billingAccess ResourceAccess
-	if features.Cloud {
+	isDashboard := IsDashboard(features)
+	isUsageBasedEnterprise := features.GetProductType() == proto.ProductType_PRODUCT_TYPE_EUB
+	if features.Cloud || (isDashboard && isUsageBasedEnterprise) {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
@@ -180,6 +186,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
 	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
+	bots := newAccess(userRoles, ctx, types.KindBot)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -223,5 +230,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		SecurityReport:          securityReports,
 		ExternalAuditStorage:    externalAuditStorage,
 		AccessGraph:             accessGraphAccess,
+		Bots:                    bots,
 	}
 }

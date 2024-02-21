@@ -34,7 +34,7 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/podutils"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 type StatefulSetVersionUpdater struct {

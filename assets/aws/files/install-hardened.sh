@@ -4,7 +4,7 @@
 dnf -y update
 
 # Install
-#  - uuid used for random token generation,
+#  - uuid used for random token generation
 #  - python for certbot
 dnf install -y uuid python3
 
@@ -34,6 +34,7 @@ if [[ "${TELEPORT_FIPS}" == 1 ]]; then
     # add --fips to 'teleport start' commands in FIPS mode
     sed -i -E 's_^(ExecStart=/usr/local/bin/teleport start)_\1 --fips_' /etc/systemd/system/teleport*.service
     # https://docs.aws.amazon.com/linux/al2023/ug/fips-mode.html
+    dnf install -y crypto-policies crypto-policies-scripts
     fips-mode-setup --enable
 fi
 

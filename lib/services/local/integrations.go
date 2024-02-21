@@ -84,11 +84,8 @@ func (s *IntegrationsService) CreateIntegration(ctx context.Context, ig types.In
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.svc.CreateResource(ctx, ig); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ig, nil
+	created, err := s.svc.CreateResource(ctx, ig)
+	return created, trace.Wrap(err)
 }
 
 // UpdateIntegration updates an existing Integration resource.
@@ -97,11 +94,8 @@ func (s *IntegrationsService) UpdateIntegration(ctx context.Context, ig types.In
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.svc.UpdateResource(ctx, ig); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ig, nil
+	updated, err := s.svc.UpdateResource(ctx, ig)
+	return updated, trace.Wrap(err)
 }
 
 // DeleteIntegration removes the specified Integration resource.

@@ -5,7 +5,9 @@
 /* eslint-disable */
 
 import * as jspb from "google-protobuf";
+import * as teleport_accesslist_v1_accesslist_pb from "../../../../teleport/accesslist/v1/accesslist_pb";
 import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../teleport/lib/teleterm/v1/access_request_pb";
+import * as teleport_lib_teleterm_v1_app_pb from "../../../../teleport/lib/teleterm/v1/app_pb";
 import * as teleport_lib_teleterm_v1_auth_settings_pb from "../../../../teleport/lib/teleterm/v1/auth_settings_pb";
 import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/teleterm/v1/cluster_pb";
 import * as teleport_lib_teleterm_v1_database_pb from "../../../../teleport/lib/teleterm/v1/database_pb";
@@ -430,6 +432,111 @@ export class ReviewAccessRequestResponse extends jspb.Message {
 export namespace ReviewAccessRequestResponse {
     export type AsObject = {
         request?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest.AsObject,
+    }
+}
+
+export class PromoteAccessRequestRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): PromoteAccessRequestRequest;
+
+    getAccessListId(): string;
+    setAccessListId(value: string): PromoteAccessRequestRequest;
+
+    getReason(): string;
+    setReason(value: string): PromoteAccessRequestRequest;
+
+    getAccessRequestId(): string;
+    setAccessRequestId(value: string): PromoteAccessRequestRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PromoteAccessRequestRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: PromoteAccessRequestRequest): PromoteAccessRequestRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PromoteAccessRequestRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PromoteAccessRequestRequest;
+    static deserializeBinaryFromReader(message: PromoteAccessRequestRequest, reader: jspb.BinaryReader): PromoteAccessRequestRequest;
+}
+
+export namespace PromoteAccessRequestRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        accessListId: string,
+        reason: string,
+        accessRequestId: string,
+    }
+}
+
+export class PromoteAccessRequestResponse extends jspb.Message { 
+
+    hasRequest(): boolean;
+    clearRequest(): void;
+    getRequest(): teleport_lib_teleterm_v1_access_request_pb.AccessRequest | undefined;
+    setRequest(value?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest): PromoteAccessRequestResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PromoteAccessRequestResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: PromoteAccessRequestResponse): PromoteAccessRequestResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PromoteAccessRequestResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PromoteAccessRequestResponse;
+    static deserializeBinaryFromReader(message: PromoteAccessRequestResponse, reader: jspb.BinaryReader): PromoteAccessRequestResponse;
+}
+
+export namespace PromoteAccessRequestResponse {
+    export type AsObject = {
+        request?: teleport_lib_teleterm_v1_access_request_pb.AccessRequest.AsObject,
+    }
+}
+
+export class GetSuggestedAccessListsRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): GetSuggestedAccessListsRequest;
+
+    getAccessRequestId(): string;
+    setAccessRequestId(value: string): GetSuggestedAccessListsRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetSuggestedAccessListsRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetSuggestedAccessListsRequest): GetSuggestedAccessListsRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetSuggestedAccessListsRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetSuggestedAccessListsRequest;
+    static deserializeBinaryFromReader(message: GetSuggestedAccessListsRequest, reader: jspb.BinaryReader): GetSuggestedAccessListsRequest;
+}
+
+export namespace GetSuggestedAccessListsRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+        accessRequestId: string,
+    }
+}
+
+export class GetSuggestedAccessListsResponse extends jspb.Message { 
+    clearAccessListsList(): void;
+    getAccessListsList(): Array<teleport_accesslist_v1_accesslist_pb.AccessList>;
+    setAccessListsList(value: Array<teleport_accesslist_v1_accesslist_pb.AccessList>): GetSuggestedAccessListsResponse;
+    addAccessLists(value?: teleport_accesslist_v1_accesslist_pb.AccessList, index?: number): teleport_accesslist_v1_accesslist_pb.AccessList;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetSuggestedAccessListsResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetSuggestedAccessListsResponse): GetSuggestedAccessListsResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetSuggestedAccessListsResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetSuggestedAccessListsResponse;
+    static deserializeBinaryFromReader(message: GetSuggestedAccessListsResponse, reader: jspb.BinaryReader): GetSuggestedAccessListsResponse;
+}
+
+export namespace GetSuggestedAccessListsResponse {
+    export type AsObject = {
+        accessListsList: Array<teleport_accesslist_v1_accesslist_pb.AccessList.AsObject>,
     }
 }
 
@@ -1257,6 +1364,82 @@ export namespace GetKubesResponse {
     }
 }
 
+export class GetAppsRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetAppsRequest;
+
+    getLimit(): number;
+    setLimit(value: number): GetAppsRequest;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetAppsRequest;
+
+    getSearch(): string;
+    setSearch(value: string): GetAppsRequest;
+
+    getQuery(): string;
+    setQuery(value: string): GetAppsRequest;
+
+    getSortBy(): string;
+    setSortBy(value: string): GetAppsRequest;
+
+    getSearchAsRoles(): string;
+    setSearchAsRoles(value: string): GetAppsRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAppsRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAppsRequest): GetAppsRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAppsRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAppsRequest;
+    static deserializeBinaryFromReader(message: GetAppsRequest, reader: jspb.BinaryReader): GetAppsRequest;
+}
+
+export namespace GetAppsRequest {
+    export type AsObject = {
+        clusterUri: string,
+        limit: number,
+        startKey: string,
+        search: string,
+        query: string,
+        sortBy: string,
+        searchAsRoles: string,
+    }
+}
+
+export class GetAppsResponse extends jspb.Message { 
+    clearAgentsList(): void;
+    getAgentsList(): Array<teleport_lib_teleterm_v1_app_pb.App>;
+    setAgentsList(value: Array<teleport_lib_teleterm_v1_app_pb.App>): GetAppsResponse;
+    addAgents(value?: teleport_lib_teleterm_v1_app_pb.App, index?: number): teleport_lib_teleterm_v1_app_pb.App;
+
+    getTotalCount(): number;
+    setTotalCount(value: number): GetAppsResponse;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetAppsResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetAppsResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAppsResponse): GetAppsResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetAppsResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAppsResponse;
+    static deserializeBinaryFromReader(message: GetAppsResponse, reader: jspb.BinaryReader): GetAppsResponse;
+}
+
+export namespace GetAppsResponse {
+    export type AsObject = {
+        agentsList: Array<teleport_lib_teleterm_v1_app_pb.App.AsObject>,
+        totalCount: number,
+        startKey: string,
+    }
+}
+
 export class GetAuthSettingsRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetAuthSettingsRequest;
@@ -1443,48 +1626,6 @@ export class CreateConnectMyComputerNodeTokenResponse extends jspb.Message {
 export namespace CreateConnectMyComputerNodeTokenResponse {
     export type AsObject = {
         token: string,
-    }
-}
-
-export class DeleteConnectMyComputerTokenRequest extends jspb.Message { 
-    getRootClusterUri(): string;
-    setRootClusterUri(value: string): DeleteConnectMyComputerTokenRequest;
-
-    getToken(): string;
-    setToken(value: string): DeleteConnectMyComputerTokenRequest;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): DeleteConnectMyComputerTokenRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerTokenRequest): DeleteConnectMyComputerTokenRequest.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: DeleteConnectMyComputerTokenRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerTokenRequest;
-    static deserializeBinaryFromReader(message: DeleteConnectMyComputerTokenRequest, reader: jspb.BinaryReader): DeleteConnectMyComputerTokenRequest;
-}
-
-export namespace DeleteConnectMyComputerTokenRequest {
-    export type AsObject = {
-        rootClusterUri: string,
-        token: string,
-    }
-}
-
-export class DeleteConnectMyComputerTokenResponse extends jspb.Message { 
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): DeleteConnectMyComputerTokenResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerTokenResponse): DeleteConnectMyComputerTokenResponse.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: DeleteConnectMyComputerTokenResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerTokenResponse;
-    static deserializeBinaryFromReader(message: DeleteConnectMyComputerTokenResponse, reader: jspb.BinaryReader): DeleteConnectMyComputerTokenResponse;
-}
-
-export namespace DeleteConnectMyComputerTokenResponse {
-    export type AsObject = {
     }
 }
 
@@ -1743,6 +1884,12 @@ export class PaginatedResource extends jspb.Message {
     setKube(value?: teleport_lib_teleterm_v1_kube_pb.Kube): PaginatedResource;
 
 
+    hasApp(): boolean;
+    clearApp(): void;
+    getApp(): teleport_lib_teleterm_v1_app_pb.App | undefined;
+    setApp(value?: teleport_lib_teleterm_v1_app_pb.App): PaginatedResource;
+
+
     getResourceCase(): PaginatedResource.ResourceCase;
 
     serializeBinary(): Uint8Array;
@@ -1760,6 +1907,7 @@ export namespace PaginatedResource {
         database?: teleport_lib_teleterm_v1_database_pb.Database.AsObject,
         server?: teleport_lib_teleterm_v1_server_pb.Server.AsObject,
         kube?: teleport_lib_teleterm_v1_kube_pb.Kube.AsObject,
+        app?: teleport_lib_teleterm_v1_app_pb.App.AsObject,
     }
 
     export enum ResourceCase {
@@ -1770,6 +1918,8 @@ export namespace PaginatedResource {
     SERVER = 2,
 
     KUBE = 3,
+
+    APP = 4,
 
     }
 

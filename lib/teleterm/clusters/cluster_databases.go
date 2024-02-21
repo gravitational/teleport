@@ -69,6 +69,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI uri.ResourceURI) (*Data
 func (c *Cluster) getAllDatabases(ctx context.Context) ([]Database, error) {
 	var dbs []types.Database
 	err := AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -120,6 +121,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -162,31 +164,24 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, routeToDatabase tlsca.Rout
 		return trace.BadParameter("the username must be present for MongoDB connections")
 	}
 
-	err := AddMetadataToRetryableError(ctx, func() error {
-		// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-		err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-			RouteToCluster: c.clusterClient.SiteName,
-			AccessRequests: c.status.ActiveRequests.AccessRequests,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
+	err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+		RouteToCluster: c.clusterClient.SiteName,
+		AccessRequests: c.status.ActiveRequests.AccessRequests,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-		// Fetch the certs for the database.
-		err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-			RouteToCluster: c.clusterClient.SiteName,
-			RouteToDatabase: proto.RouteToDatabase{
-				ServiceName: routeToDatabase.ServiceName,
-				Protocol:    routeToDatabase.Protocol,
-				Username:    routeToDatabase.Username,
-			},
-			AccessRequests: c.status.ActiveRequests.AccessRequests,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+	// Fetch the certs for the database.
+	err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+		RouteToCluster: c.clusterClient.SiteName,
+		RouteToDatabase: proto.RouteToDatabase{
+			ServiceName: routeToDatabase.ServiceName,
+			Protocol:    routeToDatabase.Protocol,
+			Username:    routeToDatabase.Username,
+		},
+		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -212,6 +207,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

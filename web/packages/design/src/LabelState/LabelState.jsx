@@ -45,7 +45,7 @@ const kinds = ({ theme, kind, shadow }) => {
   }
 
   if (kind === 'success') {
-    styles.background = theme.colors.success;
+    styles.background = theme.colors.success.main;
     styles.color = theme.colors.text.primaryInverse;
   }
 

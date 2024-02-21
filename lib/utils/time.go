@@ -24,8 +24,7 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// MinTTL finds min non 0 TTL duration,
-// if both durations are 0, fails
+// MinTTL selects the smallest non-zero duration from a and b.
 func MinTTL(a, b time.Duration) time.Duration {
 	if a == 0 {
 		return b

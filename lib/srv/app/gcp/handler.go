@@ -68,7 +68,7 @@ type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
 	// Log is the Logger.
-	Log utils.FieldLoggerWithWriter
+	Log logrus.FieldLogger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// cloudClientGCP holds a reference to GCP IAM client. Normally set in CheckAndSetDefaults, it is overridden in tests.

@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/client"
 )
 
 // Config is the cluster service config
@@ -34,6 +36,9 @@ type Config struct {
 	InsecureSkipVerify bool
 	// Log is a component logger
 	Log *logrus.Entry
+	// WebauthnLogin allows tests to override the Webauthn Login func.
+	// Defaults to wancli.Login.
+	WebauthnLogin client.WebauthnLoginFunc
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed

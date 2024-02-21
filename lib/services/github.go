@@ -186,16 +186,7 @@ func MarshalOSSGithubConnector(githubConnector types.GithubConnector, opts ...Ma
 			githubConnector.Spec.EndpointURL != "" {
 			return nil, fmt.Errorf("GitHub endpoint URL is set: %w", ErrRequiresEnterprise)
 		}
-
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *githubConnector
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			githubConnector = &copy
-		}
-		return utils.FastMarshal(githubConnector)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, githubConnector))
 	default:
 		return nil, trace.BadParameter("unrecognized github connector version %T", githubConnector)
 	}

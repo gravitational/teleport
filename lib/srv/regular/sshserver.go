@@ -34,6 +34,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -58,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/proxy"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -70,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -174,9 +176,6 @@ type Server struct {
 
 	// ebpf is the service used for enhanced session recording.
 	ebpf bpf.BPF
-
-	// restrictedMgr is the service used for restricting access to kernel objects
-	restrictedMgr restricted.Manager
 
 	// onHeartbeat is a callback for heartbeat status.
 	onHeartbeat func(error)
@@ -293,11 +292,6 @@ func (s *Server) UseTunnel() bool {
 // GetBPF returns the BPF service used by enhanced session recording.
 func (s *Server) GetBPF() bpf.BPF {
 	return s.ebpf
-}
-
-// GetRestrictedSessionManager returns the manager for restricting user activity.
-func (s *Server) GetRestrictedSessionManager() restricted.Manager {
-	return s.restrictedMgr
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -600,13 +594,6 @@ func SetFIPS(fips bool) ServerOption {
 func SetBPF(ebpf bpf.BPF) ServerOption {
 	return func(s *Server) error {
 		s.ebpf = ebpf
-		return nil
-	}
-}
-
-func SetRestrictedSessionManager(m restricted.Manager) ServerOption {
-	return func(s *Server) error {
-		s.restrictedMgr = m
 		return nil
 	}
 }
@@ -1107,6 +1094,114 @@ func (s *Server) getServerResource() (types.Resource, error) {
 	return s.getServerInfo(), nil
 }
 
+// getDirectTCPIPForwarder sets up a connection-level subprocess that handles forwarding connections. Subsequent
+// calls from the same connection context reuse the same forwarder.
+func (s *Server) getDirectTCPIPForwardDialer(ctx *srv.ServerContext) (sshutils.TCPIPForwardDialer, error) {
+	if d, ok := ctx.Parent().GetDirectTCPIPForwardDialer(); ok {
+		return d, nil
+	}
+
+	dialerConn, listenerConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer listenerConn.Close()
+
+	listenerFD, err := listenerConn.File()
+	if err != nil {
+		dialerConn.Close()
+		return nil, trace.Wrap(err)
+	}
+	defer listenerFD.Close()
+
+	// Create command to re-exec Teleport which will handle forwarding. The
+	// reason it's not done directly is because the PAM stack needs to be called
+	// from the child process.
+	cmd, err := srv.ConfigureCommand(ctx, listenerFD)
+	if err != nil {
+		dialerConn.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	// Propagate stderr from the spawned Teleport process to log any errors.
+	cmd.Stderr = os.Stderr
+
+	// Start the child process that will be used to make the actual connection
+	// to the target host.
+	if err := cmd.Start(); err != nil {
+		dialerConn.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	cdone := make(chan struct{})
+	var explicitlyClosed atomic.Bool
+
+	go func() {
+		defer close(cdone)
+		// ensure unexpected cmd failures get logged
+		if err := cmd.Wait(); err != nil && !explicitlyClosed.Load() {
+			s.Logger.Warnf("Forwarder process exited early with unexpected error: %v", err)
+		}
+	}()
+
+	closer := utils.CloseFunc(func() error {
+		// set flag indicating that the exit of the child is expected (changes logging behavior).
+		explicitlyClosed.Store(true)
+		dialerConn.Close()
+
+		// we expect closing the dialer to cause the child process to exit, but its
+		// best to verify.
+		select {
+		case <-cdone:
+		case <-time.After(time.Second * 3):
+			// forcibly kill the child.
+			s.Logger.Warn("Forcibly terminating forwarder subprocess.")
+			cmd.Process.Kill()
+		}
+		return nil
+	})
+
+	// set up a dial function that sends the address + fd as a unix datagram message. the forwarder subprocess
+	// interprets all such messages in this way, and will dial the specified address and proxy all traffic
+	// to the desired endpoint.
+	dialer := func(addr string) (net.Conn, error) {
+		local, remote, err := uds.NewSocketpair(uds.SocketTypeStream)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer remote.Close()
+
+		remoteFD, err := remote.File()
+		if err != nil {
+			local.Close()
+			return nil, trace.Wrap(err)
+		}
+		defer remoteFD.Close()
+
+		_, _, err = dialerConn.WriteWithFDs([]byte(addr), []*os.File{remoteFD})
+		if err != nil {
+			local.Close()
+			return nil, trace.Wrap(err)
+		}
+
+		return local, nil
+	}
+
+	// try to register with the parent context.
+	if other, ok := ctx.Parent().TrySetDirectTCPIPForwardDialer(dialer); !ok {
+		// another forwarder was concurrently created. this isn't actually a problem, multiple forwarders
+		// being registered is harmless, but it does result in slightly higher resource utilization, so its
+		// preferable to use the existing forwarder and close ours in the background.
+		go closer.Close()
+		return other, nil
+	}
+
+	// successfully registered this dialer, add closer to context.
+	ctx.Parent().AddCloser(closer)
+
+	return dialer, nil
+}
+
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
 func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	// gather information about user and process. this will be used to set the
@@ -1158,7 +1253,14 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	case teleport.VersionRequest:
 		s.handleVersionRequest(r)
 	case teleport.TerminalSizeRequest:
-		s.termHandlers.HandleTerminalSize(r)
+		if err := s.termHandlers.HandleTerminalSize(r); err != nil {
+			s.Logger.WithError(err).Warn("failed to handle terminal size request")
+			if r.WantReply {
+				if err := r.Reply(false, nil); err != nil {
+					s.Logger.Warnf("Failed to reply to %q request: %v", r.Type, err)
+				}
+			}
+		}
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {
@@ -1193,22 +1295,6 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	channelType := nch.ChannelType()
 	if s.proxyMode {
 		switch channelType {
-		// Channels of type "tracing-request" are sent to determine if ssh tracing envelopes
-		// are supported. Accepting the channel indicates to clients that they may wrap their
-		// ssh payload with tracing context.
-		case tracessh.TracingChannel:
-			ch, _, err := nch.Accept()
-			if err != nil {
-				s.Logger.Warnf("Unable to accept channel: %v", err)
-				if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-					s.Logger.Warnf("Failed to reject channel: %v", err)
-				}
-				return
-			}
-			if err := ch.Close(); err != nil {
-				s.Logger.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-			}
-			return
 		// Channels of type "direct-tcpip", for proxies, it's equivalent
 		// of teleport proxy: subsystem
 		case teleport.ChanDirectTCPIP:
@@ -1246,22 +1332,6 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	switch channelType {
-	// Channels of type "tracing-request" are sent to determine if ssh tracing envelopes
-	// are supported. Accepting the channel indicates to clients that they may wrap their
-	// ssh payload with tracing context.
-	case tracessh.TracingChannel:
-		ch, _, err := nch.Accept()
-		if err != nil {
-			if err := nch.Reject(ssh.ConnectionFailed, err.Error()); err != nil {
-				s.Logger.Warnf("Unable to reject %q channel: %v", nch.ChannelType(), err)
-			}
-			return
-		}
-
-		if err := ch.Close(); err != nil {
-			s.Logger.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-		}
-		return
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
@@ -1400,85 +1470,51 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 		return
 	}
 
+	dialFunc, err := s.getDirectTCPIPForwardDialer(scx)
+	if err != nil {
+		if errors.Is(err, trace.NotFound(user.UnknownUserError(scx.Identity.Login).Error())) || errors.Is(err, trace.BadParameter("unknown user")) {
+			// user does not exist for the provided login. Terminate the connection.
+			s.Logger.Warnf("Forwarding data via direct-tcpip channel failed. Terminating connection because user %q does not exist", scx.Identity.Login)
+			if err := ccx.ServerConn.Close(); err != nil {
+				s.Logger.Warnf("Unable to terminate connection: %v", err)
+			}
+			return
+		}
+
+		s.Logger.WithError(err).Error("Forwarding data via direct-tcpip channel failed")
+		writeStderr(channel, err.Error())
+		return
+	}
+
 	scx.Debugf("Opening direct-tcpip channel from %v to %v.", scx.SrcAddr, scx.DstAddr)
 	defer scx.Debugf("Closing direct-tcpip channel from %v to %v.", scx.SrcAddr, scx.DstAddr)
 
-	// Create command to re-exec Teleport which will perform a net.Dial. The
-	// reason it's not done directly because the PAM stack needs to be called
-	// from the child process.
-	cmd, err := srv.ConfigureCommand(scx)
-	if err != nil {
-		writeStderr(channel, err.Error())
-		return
-	}
-	// Propagate stderr from the spawned Teleport process to log any errors.
-	cmd.Stderr = os.Stderr
-
-	// Create a pipe for std{in,out} that will be used to transfer data between
-	// parent and child.
-	pr, err := cmd.StdoutPipe()
-	if err != nil {
-		s.Logger.Errorf("Failed to setup stdout pipe: %v", err)
-		writeStderr(channel, err.Error())
-		return
-	}
-	pw, err := cmd.StdinPipe()
-	if err != nil {
-		s.Logger.Errorf("Failed to setup stdin pipe: %v", err)
-		writeStderr(channel, err.Error())
-		return
-	}
-
-	// Start the child process that will be used to make the actual connection
-	// to the target host.
-	err = cmd.Start()
+	conn, err := dialFunc(scx.DstAddr)
 	if err != nil {
 		writeStderr(channel, err.Error())
 		return
 	}
 
-	if err := utils.ProxyConn(ctx, utils.CombineReadWriteCloser(pr, pw), channel); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+	if err := utils.ProxyConn(ctx, conn, channel); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
 		s.Logger.Warnf("Connection problem in direct-tcpip channel: %v %T.", trace.DebugReport(err), err)
 	}
 
-	// Emit a port forwarding event if the command exited successfully.
-	if err := cmd.Wait(); err == nil {
-		if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
-			Metadata: apievents.Metadata{
-				Type: events.PortForwardEvent,
-				Code: events.PortForwardCode,
-			},
-			UserMetadata: scx.Identity.GetUserMetadata(),
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  scx.ServerConn.LocalAddr().String(),
-				RemoteAddr: scx.ServerConn.RemoteAddr().String(),
-			},
-			Addr: scx.DstAddr,
-			Status: apievents.Status{
-				Success: true,
-			},
-		}); err != nil {
-			s.Logger.WithError(err).Warn("Failed to emit port forward event.")
-		}
-		return
-	}
-
-	// Get the error to see why the child process failed and
-	// determine the correct course of action.
-	err = scx.GetChildError()
-	switch {
-	case err == nil:
-		s.Logger.Warn("Forwarding data via direct-tcpip channel failed for unknown reason")
-		return
-	// The user does not exist for the provided login. Terminate the connection.
-	case errors.Is(err, trace.NotFound(user.UnknownUserError(scx.Identity.Login).Error())),
-		errors.Is(err, trace.BadParameter("unknown user")):
-		s.Logger.Warnf("Forwarding data via direct-tcpip channel failed. Terminating connection because user %q does not exist", scx.Identity.Login)
-		if err := ccx.ServerConn.Close(); err != nil {
-			s.Logger.Warnf("Unable to terminate connection: %v", err)
-		}
-	default:
-		s.Logger.WithError(err).Error("Forwarding data via direct-tcpip channel failed")
+	if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
+		Metadata: apievents.Metadata{
+			Type: events.PortForwardEvent,
+			Code: events.PortForwardCode,
+		},
+		UserMetadata: scx.Identity.GetUserMetadata(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  scx.ServerConn.LocalAddr().String(),
+			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
+		},
+		Addr: scx.DstAddr,
+		Status: apievents.Status{
+			Success: true,
+		},
+	}); err != nil {
+		s.Logger.WithError(err).Warn("Failed to emit port forward event.")
 	}
 }
 
@@ -1610,8 +1646,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// other than our own custom "subsystems" and environment manipulation.
 	if s.proxyMode {
 		switch req.Type {
-		case tracessh.TracingRequest:
-			return nil
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest:
@@ -1648,8 +1682,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	// subset of all the possible request types.
 	if serverContext.JoinOnly {
 		switch req.Type {
-		case tracessh.TracingRequest:
-			return nil
 		case sshutils.PTYRequest:
 			return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 		case sshutils.ShellRequest:
@@ -1688,8 +1720,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		}
 	}
 	switch req.Type {
-	case tracessh.TracingRequest:
-		return nil
 	case sshutils.ExecRequest:
 		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
 			return trace.Wrap(err)
@@ -2108,16 +2138,34 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 		return nil, trace.BadParameter("failed to parse subsystem request: %v", err)
 	}
 
+	if s.proxyMode {
+		switch {
+		case strings.HasPrefix(r.Name, "proxy:"):
+			return parseProxySubsys(r.Name, s, ctx)
+		case strings.HasPrefix(r.Name, "proxysites"):
+			return parseProxySitesSubsys(r.Name, s)
+		default:
+			return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
+		}
+	}
+
 	switch {
-	case s.proxyMode && strings.HasPrefix(r.Name, "proxy:"):
-		return parseProxySubsys(r.Name, s, ctx)
-	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
-		return parseProxySitesSubsys(r.Name, s)
 	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
 	case r.Name == teleport.SFTPSubsystem:
-		if err := ctx.CheckSFTPAllowed(s.reg); err != nil {
+		err := ctx.CheckSFTPAllowed(s.reg)
+		if err != nil {
+			s.EmitAuditEvent(context.Background(), &apievents.SFTP{
+				Metadata: apievents.Metadata{
+					Code: events.SFTPDisallowedCode,
+					Type: events.SFTPEvent,
+					Time: time.Now(),
+				},
+				UserMetadata:   ctx.Identity.GetUserMetadata(),
+				ServerMetadata: ctx.GetServerMetadata(),
+				Error:          err.Error(),
+			})
 			return nil, trace.Wrap(err)
 		}
 

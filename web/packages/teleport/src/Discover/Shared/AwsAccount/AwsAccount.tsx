@@ -121,6 +121,11 @@ export function AwsAccount() {
           }
         });
         setAwsIntegrations(options);
+
+        // Auto select the only option.
+        if (options.length === 1) {
+          setSelectedAwsIntegration(options[0]);
+        }
       })
     );
   }
@@ -178,7 +183,7 @@ export function AwsAccount() {
 
     updateAgentMeta({
       ...agentMeta,
-      integration: selectedAwsIntegration.value,
+      awsIntegration: selectedAwsIntegration.value,
     });
 
     nextStep();

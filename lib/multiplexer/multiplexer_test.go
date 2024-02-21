@@ -359,7 +359,7 @@ func TestMux(t *testing.T) {
 			Listener: listener,
 			// Set read deadline in the past to remove reliance on real time
 			// and simulate scenario when read deadline has elapsed.
-			ReadDeadline: -time.Millisecond,
+			DetectTimeout: -time.Millisecond,
 		}
 		mux, err := New(config)
 		require.NoError(t, err)
@@ -445,7 +445,7 @@ func TestMux(t *testing.T) {
 		defer backend1.Close()
 
 		_, err = ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-			Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+			Auth:            []ssh.AuthMethod{ssh.Password("abcdef123456")},
 			Timeout:         time.Second,
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
@@ -567,7 +567,7 @@ func TestMux(t *testing.T) {
 		}
 		go func() {
 			err := httpServer.Serve(tlsLis.HTTP())
-			if err == nil || err == http.ErrServerClosed {
+			if err == nil || errors.Is(err, http.ErrServerClosed) {
 				errCh <- nil
 				return
 			}

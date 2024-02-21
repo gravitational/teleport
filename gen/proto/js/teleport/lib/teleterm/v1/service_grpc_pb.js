@@ -21,7 +21,9 @@
 'use strict';
 var grpc = require('@grpc/grpc-js');
 var teleport_lib_teleterm_v1_service_pb = require('../../../../teleport/lib/teleterm/v1/service_pb.js');
+var teleport_accesslist_v1_accesslist_pb = require('../../../../teleport/accesslist/v1/accesslist_pb.js');
 var teleport_lib_teleterm_v1_access_request_pb = require('../../../../teleport/lib/teleterm/v1/access_request_pb.js');
+var teleport_lib_teleterm_v1_app_pb = require('../../../../teleport/lib/teleterm/v1/app_pb.js');
 var teleport_lib_teleterm_v1_auth_settings_pb = require('../../../../teleport/lib/teleterm/v1/auth_settings_pb.js');
 var teleport_lib_teleterm_v1_cluster_pb = require('../../../../teleport/lib/teleterm/v1/cluster_pb.js');
 var teleport_lib_teleterm_v1_database_pb = require('../../../../teleport/lib/teleterm/v1/database_pb.js');
@@ -186,28 +188,6 @@ function deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerNodeRespons
   return teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerNodeResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
-function serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenResponse');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
 function serialize_teleport_lib_teleterm_v1_EmptyResponse(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.EmptyResponse)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.EmptyResponse');
@@ -294,6 +274,28 @@ function serialize_teleport_lib_teleterm_v1_GetAccessRequestsResponse(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_GetAccessRequestsResponse(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.GetAccessRequestsResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_GetAppsRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAppsRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAppsRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetAppsRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetAppsRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_GetAppsResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAppsResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAppsResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetAppsResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetAppsResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_GetAuthSettingsRequest(arg) {
@@ -426,6 +428,28 @@ function serialize_teleport_lib_teleterm_v1_GetServersResponse(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_GetServersResponse(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.GetServersResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_GetUserPreferencesRequest(arg) {
@@ -591,6 +615,28 @@ function serialize_teleport_lib_teleterm_v1_LogoutRequest(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_LogoutRequest(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.LogoutRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_PromoteAccessRequestRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.PromoteAccessRequestRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_PromoteAccessRequestRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_PromoteAccessRequestResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.PromoteAccessRequestResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_PromoteAccessRequestResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_RemoveClusterRequest(arg) {
@@ -928,6 +974,30 @@ assumeRole: {
     responseSerialize: serialize_teleport_lib_teleterm_v1_EmptyResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_EmptyResponse,
   },
+  // PromoteAccessRequest promotes an access request to an access list.
+promoteAccessRequest: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.PromoteAccessRequestResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_PromoteAccessRequestRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_PromoteAccessRequestRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_PromoteAccessRequestResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_PromoteAccessRequestResponse,
+  },
+  // GetSuggestedAccessLists returns suggested access lists for an access request.
+getSuggestedAccessLists: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.GetSuggestedAccessListsResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetSuggestedAccessListsResponse,
+  },
   // GetKubes returns filtered, sorted, and paginated kubes
 getKubes: {
     path: '/teleport.lib.teleterm.v1.TerminalService/GetKubes',
@@ -939,6 +1009,18 @@ getKubes: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetKubesRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_GetKubesResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetKubesResponse,
+  },
+  // GetApps returns a filtered and paginated list of apps.
+getApps: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/GetApps',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.GetAppsRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.GetAppsResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_GetAppsRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetAppsRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_GetAppsResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetAppsResponse,
   },
   // AddCluster adds a cluster to profile
 addCluster: {
@@ -1166,18 +1248,6 @@ createConnectMyComputerNodeToken: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenResponse,
-  },
-  // DeleteConnectMyComputerToken deletes a join token
-deleteConnectMyComputerToken: {
-    path: '/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerToken',
-    requestStream: false,
-    responseStream: false,
-    requestType: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest,
-    responseType: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse,
-    requestSerialize: serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest,
-    requestDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest,
-    responseSerialize: serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse,
-    responseDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenResponse,
   },
   // WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
 // that the Connect My Computer node for the particular cluster has joined the cluster (the

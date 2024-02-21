@@ -27,6 +27,11 @@ import {
   PtyEventStart,
   PtyServerEvent,
 } from 'teleterm/sharedProcess/ptyHost';
+import {
+  ptyEventOneOfIsData,
+  ptyEventOneOfIsExit,
+  ptyEventOneOfIsStartError,
+} from 'teleterm/helpers';
 
 export class PtyEventsStreamHandler {
   private logger: Logger;
@@ -46,23 +51,34 @@ export class PtyEventsStreamHandler {
     this.logger.info('Start');
 
     this.writeOrThrow(
-      new PtyClientEvent().setStart(
-        new PtyEventStart().setColumns(columns).setRows(rows)
-      )
+      PtyClientEvent.create({
+        event: {
+          oneofKind: 'start',
+          start: PtyEventStart.create({ columns, rows }),
+        },
+      })
     );
   }
 
   write(data: string): void {
     this.writeOrThrow(
-      new PtyClientEvent().setData(new PtyEventData().setMessage(data))
+      PtyClientEvent.create({
+        event: {
+          oneofKind: 'data',
+          data: PtyEventData.create({ message: data }),
+        },
+      })
     );
   }
 
   resize(columns: number, rows: number): void {
     this.writeOrThrow(
-      new PtyClientEvent().setResize(
-        new PtyEventResize().setColumns(columns).setRows(rows)
-      )
+      PtyClientEvent.create({
+        event: {
+          oneofKind: 'resize',
+          resize: PtyEventResize.create({ columns, rows }),
+        },
+      })
     );
   }
 
@@ -80,7 +96,7 @@ export class PtyEventsStreamHandler {
   onOpen(callback: () => void): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
       (event: PtyServerEvent) => {
-        if (event.hasOpen()) {
+        if (event.event.oneofKind === 'open') {
           callback();
         }
       }
@@ -90,8 +106,8 @@ export class PtyEventsStreamHandler {
   onData(callback: (data: string) => void): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
       (event: PtyServerEvent) => {
-        if (event.hasData()) {
-          callback(event.getData().getMessage());
+        if (ptyEventOneOfIsData(event.event)) {
+          callback(event.event.data.message);
         }
       }
     );
@@ -102,9 +118,9 @@ export class PtyEventsStreamHandler {
   ): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
       (event: PtyServerEvent) => {
-        if (event.hasExit()) {
-          this.logger.info('On exit', event.getExit().toObject());
-          callback(event.getExit().toObject());
+        if (ptyEventOneOfIsExit(event.event)) {
+          this.logger.info('On exit', event.event.exit);
+          callback(event.event.exit);
         }
       }
     );
@@ -113,12 +129,9 @@ export class PtyEventsStreamHandler {
   onStartError(callback: (message: string) => void): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
       (event: PtyServerEvent) => {
-        if (event.hasStartError()) {
-          this.logger.info(
-            'On start error',
-            event.getStartError().toObject().message
-          );
-          callback(event.getStartError().toObject().message);
+        if (ptyEventOneOfIsStartError(event.event)) {
+          this.logger.info('On start error', event.event.startError.message);
+          callback(event.event.startError.message);
         }
       }
     );

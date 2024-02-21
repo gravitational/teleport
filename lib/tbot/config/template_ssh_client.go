@@ -97,6 +97,12 @@ func (c *templateSSHClient) render(
 	_ *identity.Identity,
 	destination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"templateSSHClient/render",
+	)
+	defer span.End()
+
 	ping, err := bot.AuthPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)

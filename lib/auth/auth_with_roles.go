@@ -22,25 +22,24 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -79,13 +78,23 @@ func (a *ServerWithRoles) CloseContext() context.Context {
 	return a.authServer.closeCtx
 }
 
+// actionForResource will determine if a user has access to the given resource. This call respects where clauses.
+func (a *ServerWithRoles) actionForResource(resource types.Resource, kind string, verbs ...string) error {
+	sctx := &services.Context{User: a.context.User}
+	if resource != nil {
+		sctx.Resource = resource
+	}
+	return trace.Wrap(a.actionWithContext(sctx, apidefaults.Namespace, kind, verbs...))
+}
+
+// actionWithContext will determine if a user has access given a services.Context. This call respects where clauses.
 func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("no verbs provided for authorization check on resource %q", resource)
 	}
 	var errs []error
 	for _, verb := range verbs {
-		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb, false))
+		errs = append(errs, a.context.Checker.CheckAccessToRule(ctx, namespace, resource, verb))
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
 		return err
@@ -94,17 +103,10 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 }
 
 type actionConfig struct {
-	quiet   bool
 	context authz.Context
 }
 
 type actionOption func(*actionConfig)
-
-func quietAction(quiet bool) actionOption {
-	return func(cfg *actionConfig) {
-		cfg.quiet = quiet
-	}
-}
 
 func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
 	cfg := actionConfig{context: a.context}
@@ -114,13 +116,14 @@ func (a *ServerWithRoles) withOptions(opts ...actionOption) actionConfig {
 	return cfg
 }
 
+// action will determine if a user has access to the given resource kind. This does not respect where clauses.
 func (c actionConfig) action(namespace, resource string, verbs ...string) error {
 	if len(verbs) == 0 {
 		return trace.BadParameter("no verbs provided for authorization check on resource %q", resource)
 	}
 	var errs []error
 	for _, verb := range verbs {
-		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb, c.quiet))
+		errs = append(errs, c.context.Checker.CheckAccessToRule(&services.Context{User: c.context.User}, namespace, resource, verb))
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
 		return err
@@ -140,7 +143,7 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 		return nil
 	}
 	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User},
-		apidefaults.Namespace, types.KindUser, types.VerbCreate, true)
+		apidefaults.Namespace, types.KindUser, types.VerbCreate)
 }
 
 // authConnectorAction is a special checker that grants access to auth
@@ -148,8 +151,8 @@ func (a *ServerWithRoles) currentUserAction(username string) error {
 // If not, it checks if the requester has the meta KindAuthConnector access
 // (which grants access to all connectors).
 func (a *ServerWithRoles) authConnectorAction(namespace string, resource string, verb string) error {
-	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb, true); err != nil {
-		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, types.KindAuthConnector, verb, false); err != nil {
+	if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, verb); err != nil {
+		if err := a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, types.KindAuthConnector, verb); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -159,7 +162,7 @@ func (a *ServerWithRoles) authConnectorAction(namespace string, resource string,
 // actionForListWithCondition extracts a restrictive filter condition to be
 // added to a list query after a simple resource check fails.
 func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identifier string) (*types.WhereExpr, error) {
-	origErr := a.withOptions(quietAction(true)).action(namespace, resource, types.VerbList)
+	origErr := a.action(namespace, resource, types.VerbList)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return nil, trace.Wrap(origErr)
 	}
@@ -176,7 +179,7 @@ func (a *ServerWithRoles) actionForListWithCondition(namespace, resource, identi
 // rule context after a simple resource check fails.
 func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string, extendContext func(*services.Context) error) error {
 	ruleCtx := &services.Context{User: a.context.User}
-	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb, true)
+	origErr := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return trace.Wrap(origErr)
 	}
@@ -185,7 +188,7 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 		// Return the original AccessDenied to avoid leaking information.
 		return trace.Wrap(origErr)
 	}
-	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb, false))
+	return trace.Wrap(a.context.Checker.CheckAccessToRule(ruleCtx, namespace, kind, verb))
 }
 
 // actionForKindSession is a special checker that grants access to session
@@ -269,7 +272,7 @@ func (a *ServerWithRoles) integrationsService() (*integrationv1.Service, error) 
 		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
 			return &a.context, nil
 		}),
-		Cache:   a.authServer.Cache,
+		Cache:   a.authServer,
 		Backend: a.authServer.Services,
 	})
 	if err != nil {
@@ -378,19 +381,13 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 }
 
 // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
 	igSvc, err := a.integrationsService()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
-		Issuer: req.Issuer,
-	})
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -439,13 +436,13 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 		}
 
 		// Skip past it if there's a deny rule in place blocking access.
-		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, verb, true /* silent */); err != nil {
+		if err := a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSSHSession, verb); err != nil {
 			return false
 		}
 	}
 
 	ruleCtx := &services.Context{User: a.context.User, SessionTracker: tracker}
-	if a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSessionTracker, types.VerbList, true /* silent */) == nil {
+	if a.context.Checker.CheckAccessToRule(ruleCtx, apidefaults.Namespace, types.KindSessionTracker, types.VerbList) == nil {
 		return true
 	}
 
@@ -682,7 +679,8 @@ func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.Op
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
-func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
+// TODO(Joerger): DELETE IN 16.0.0, replaced by Trust service.
+func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.authServer.clock); err != nil {
 		return trace.Wrap(err)
 	}
@@ -695,6 +693,7 @@ func (a *ServerWithRoles) RotateCertAuthority(ctx context.Context, req RotateReq
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is called by a remote trusted cluster and is used to update
 // only public keys and certificates of the certificate authority.
+// TODO(Joerger): DELETE IN v16.0.0, moved to Trust service
 func (a *ServerWithRoles) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if ca == nil {
 		return trace.BadParameter("missing certificate authority")
@@ -959,7 +958,7 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 	// with permissions to view all resources of kind 'cluster_alert' can opt into viewing all alerts
 	// regardless of labels for management/debug purposes.
 	var resourceLevelPermit bool
-	if query.WithUntargeted && a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList) == nil {
+	if query.WithUntargeted && a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList) == nil {
 		resourceLevelPermit = true
 	}
 
@@ -998,7 +997,7 @@ Outer:
 				continue Verbs
 			}
 
-			if a.withOptions(quietAction(true)).action(apidefaults.Namespace, rv[0], rv[1]) == nil {
+			if a.action(apidefaults.Namespace, rv[0], rv[1]) == nil {
 				// user holds at least one of the resource:verb pairs specified by
 				// the verb-permit label.
 				filtered = append(filtered, alert)
@@ -1374,7 +1373,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			actionVerbs = []string{types.VerbList}
 		}
 
-		resourceAccessMap[kind] = a.withOptions(quietAction(true)).action(apidefaults.Namespace, kind, actionVerbs...)
+		resourceAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
 	// Apply any requested additional search_as_roles and/or preview_as_roles
@@ -2006,6 +2005,11 @@ func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteToken(ctx, token)
 }
 
@@ -2081,12 +2085,20 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
 	return nil
 }
@@ -2096,12 +2108,19 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
+
 	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
 	return nil
 }
@@ -2284,7 +2303,7 @@ type accessChecker interface {
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	if err := a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbList, types.VerbRead); err != nil {
 		// Users are allowed to read + list their own access requests and
 		// requests they are allowed to review, unless access was *explicitly*
 		// denied. This means deny rules block the action but allow rules are
@@ -2365,6 +2384,13 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 		}
 	}
 
+	if !authz.IsCurrentUser(a.context, req.GetUser()) {
+		// If this request was authorized by allow rules and not ownership, require MFA.
+		if err := a.context.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// ensure request ID is set server-side
 	req.SetName(uuid.NewString())
 
@@ -2374,6 +2400,10 @@ func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.A
 
 func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2420,6 +2450,10 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// note that we haven't actually enforced any access-control other than requiring
 	// the author field to match the calling user.  fine-grained permissions are evaluated
 	// under optimistic locking at the level of the backend service.  the correctness of the
@@ -2454,12 +2488,12 @@ func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.Plugin
 	case types.KindAccessRequest, types.KindAccessList:
 		// for backwards compatibility, we allow list/read against kinds to also grant list/read for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbList) != nil {
+		if a.action(apidefaults.Namespace, filter.Kind, types.VerbList) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbList); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, filter.Kind, types.VerbRead) != nil {
+		if a.action(apidefaults.Namespace, filter.Kind, types.VerbRead) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2476,7 +2510,7 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 	case types.KindAccessRequest, types.KindAccessList:
 		// for backwards compatibility, we allow update against access requests to also grant update for
 		// access request related plugin data.
-		if a.withOptions(quietAction(true)).action(apidefaults.Namespace, params.Kind, types.VerbUpdate) != nil {
+		if a.action(apidefaults.Namespace, params.Kind, types.VerbUpdate) != nil {
 			if err := a.action(apidefaults.Namespace, types.KindAccessPluginData, types.VerbUpdate); err != nil {
 				return trace.Wrap(err)
 			}
@@ -2499,6 +2533,11 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
@@ -2751,6 +2790,17 @@ func isRoleImpersonation(req proto.UserCertsRequest) bool {
 	return req.UseRoleRequests || len(req.RoleRequests) > 0
 }
 
+// getBotName returns the name of the bot embedded in the user metadata, if any.
+// For non-bot users, returns "".
+func getBotName(user types.User) string {
+	name, ok := user.GetLabel(types.BotLabel)
+	if ok {
+		return name
+	}
+
+	return ""
+}
+
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
 	authPref, err := a.authServer.GetAuthPreference(ctx)
@@ -2763,12 +2813,12 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
-		dev, _, err := a.authServer.ValidateMFAAuthResponse(
-			ctx, req.GetMFAResponse(), req.Username, false /* passwordless */)
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, req.GetMFAResponse(), req.Username, requiredExt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		verifiedMFADeviceID = dev.Id
+		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
@@ -2862,6 +2912,15 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			// of the current session. This prevents a user renewing their
 			// own certificates indefinitely to avoid re-authenticating.
 			req.Expires = sessionExpires
+		}
+	}
+
+	// If the user is not a user cert renewal (impersonation, etc.), this is an
+	// admin action and requires MFA.
+	if req.Username != a.context.User.GetName() {
+		// Admin action MFA is not used to create mfa verified certs.
+		if err := a.context.AuthorizeAdminAction(); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -2967,6 +3026,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		dbProtocol:        req.RouteToDatabase.Protocol,
 		dbUser:            req.RouteToDatabase.Username,
 		dbName:            req.RouteToDatabase.Database,
+		dbRoles:           req.RouteToDatabase.Roles,
 		appName:           req.RouteToApp.Name,
 		appSessionID:      req.RouteToApp.SessionID,
 		appPublicAddr:     req.RouteToApp.PublicAddr,
@@ -2984,6 +3044,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
+		botName:                getBotName(user),
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -3038,7 +3099,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	certs, err := a.authServer.generateUserCert(certReq)
+	certs, err := a.authServer.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3070,49 +3131,6 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsR
 	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
 }
 
-// CreateBot creates a new certificate renewal bot and returns a join token.
-func (a *ServerWithRoles) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	// Note: this creates a role with role impersonation privileges for all
-	// roles listed in the request and doesn't attempt to verify that the
-	// current user has permissions for those embedded roles. We assume that
-	// "create role" is effectively root already and validate only that.
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbRead, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbRead, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.createBot(ctx, req)
-}
-
-// DeleteBot removes a certificate renewal bot by name.
-func (a *ServerWithRoles) DeleteBot(ctx context.Context, botName string) error {
-	// Requires read + delete on users and roles. We do verify the user and
-	// role are explicitly associated with a bot before doing anything (must
-	// match bot-$name and have a matching teleport.dev/bot label set).
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbRead, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.deleteBot(ctx, botName)
-}
-
-// GetBotUsers fetches all users with bot labels. It does not fetch users with
-// secrets.
-func (a *ServerWithRoles) GetBotUsers(ctx context.Context) ([]types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.getBotUsers(ctx)
-}
-
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -3120,6 +3138,11 @@ func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req Crea
 
 	if a.hasBuiltinRole(types.RoleOkta) {
 		return nil, trace.AccessDenied("access denied")
+	}
+
+	// Allow reused MFA responses to allow creating a reset token after creating a user.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return a.authServer.CreateResetPasswordToken(ctx, req)
@@ -3133,7 +3156,49 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
 	// Token is it's own authentication, no need to double check.
-	return a.authServer.ChangeUserAuthentication(ctx, req)
+	resp, err := a.authServer.ChangeUserAuthentication(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We use the presence of a WebAuthn response, along with the absence of a
+	// password, as a proxy to determine that a passwordless registration took
+	// place, as it is not possible to infer that just from the WebAuthn response.
+	isPasswordless := req.NewMFARegisterResponse != nil && len(req.NewPassword) == 0
+	if isPasswordless && modules.GetModules().Features().Cloud {
+		if err := a.trySettingConnectorNameToPasswordless(ctx); err != nil {
+			log.WithError(err).Error("Failed to set passwordless as connector name.")
+		}
+	}
+
+	return resp, nil
+}
+
+// trySettingConnectorNameToPasswordless sets cluster_auth_preference connectorName to `passwordless` when the first cloud user chooses passwordless as the authentication method.
+// This simplifies UX for cloud users, as they will not need to select a passwordless connector when logging in.
+func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Context) error {
+	users, err := a.authServer.GetUsers(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Only set the connector name on the first user registration.
+	if len(users) != 1 {
+		return nil
+	}
+
+	authPreference, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Don't overwrite an existing connector name.
+	if connector := authPreference.GetConnectorName(); connector != "" && connector != constants.LocalConnector {
+		return nil
+	}
+
+	authPreference.SetConnectorName(constants.PasswordlessConnector)
+	return trace.Wrap(a.authServer.SetAuthPreference(ctx, authPreference))
 }
 
 // UpdateUser updates an existing user in a backend.
@@ -3222,6 +3287,11 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	upserted, err := a.authServer.UpsertOIDCConnector(ctx, connector)
 	return upserted, trace.Wrap(err)
 }
@@ -3238,6 +3308,10 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	updated, err := a.authServer.UpdateOIDCConnector(ctx, connector)
 	return updated, trace.Wrap(err)
 }
@@ -3252,6 +3326,11 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	creted, err := a.authServer.CreateOIDCConnector(ctx, connector)
@@ -3287,6 +3366,10 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
 	if err := a.action(apidefaults.Namespace, types.KindOIDCRequest, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3339,6 +3422,11 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteOIDCConnector(ctx, connectorID)
 }
 
@@ -3351,7 +3439,13 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3369,6 +3463,10 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	created, err := a.authServer.CreateSAMLConnector(ctx, connector)
 	return created, trace.Wrap(err)
 }
@@ -3383,6 +3481,10 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	updated, err := a.authServer.UpdateSAMLConnector(ctx, connector)
 	return updated, trace.Wrap(err)
 }
@@ -3391,11 +3493,13 @@ func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withS
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if withSecrets {
 		if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	return a.authServer.GetSAMLConnector(ctx, id, withSecrets)
 }
 
@@ -3416,6 +3520,10 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSAMLRequest, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3497,6 +3605,11 @@ func (a *ServerWithRoles) DeleteSAMLConnector(ctx context.Context, connectorID s
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteSAMLConnector(ctx, connectorID)
 }
 
@@ -3524,10 +3637,17 @@ func (a *ServerWithRoles) UpsertGithubConnector(ctx context.Context, connector t
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := a.checkGithubConnector(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3540,9 +3660,16 @@ func (a *ServerWithRoles) CreateGithubConnector(ctx context.Context, connector t
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := a.checkGithubConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	created, err := a.authServer.createGithubConnector(ctx, connector)
 	return created, trace.Wrap(err)
 }
@@ -3552,9 +3679,15 @@ func (a *ServerWithRoles) UpdateGithubConnector(ctx context.Context, connector t
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := a.checkGithubConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	updated, err := a.authServer.updateGithubConnector(ctx, connector)
 	return updated, trace.Wrap(err)
 }
@@ -3591,11 +3724,20 @@ func (a *ServerWithRoles) DeleteGithubConnector(ctx context.Context, connectorID
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindGithub, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.deleteGithubConnector(ctx, connectorID)
 }
 
 func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
 	if err := a.action(apidefaults.Namespace, types.KindGithubRequest, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3835,10 +3977,31 @@ func (a *ServerWithRoles) DeleteNamespace(name string) error {
 
 // GetRoles returns a list of roles
 func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+	authErr := a.action(apidefaults.Namespace, types.KindRole, types.VerbList, types.VerbRead)
+	if authErr == nil {
+		return a.authServer.GetRoles(ctx)
 	}
-	return a.authServer.GetRoles(ctx)
+
+	roles, err := a.authServer.GetRoles(ctx)
+	if err != nil {
+		// If we get an error here, let's return the previous auth error.
+		return nil, trace.Wrap(authErr)
+	}
+
+	var filteredRoles []types.Role
+	// See if the user has access to these roles through things like where clauses.
+	for _, role := range roles {
+		if err := a.actionForResource(role, types.KindRole, types.VerbList, types.VerbRead); err == nil {
+			filteredRoles = append(filteredRoles, role)
+		}
+	}
+
+	// If we found no roles, let's return the previous auth error.
+	if len(filteredRoles) == 0 {
+		return nil, trace.Wrap(authErr)
+	}
+
+	return filteredRoles, nil
 }
 
 func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) error {
@@ -3866,24 +4029,16 @@ func (a *ServerWithRoles) validateRole(ctx context.Context, role types.Role) err
 		}
 	}
 
-	// Note: passing a.authServer.GetInventoryStatus here intentionally bypasses
-	// the authz checks in a.GetInventoryStatus, for these reasons:
-	// - We don't actually return the inventory status result, we're only using
-	//   it internally to check for a misconfiguration and return a generic error.
-	// - We don't want to require users to have new permissions to call UpsertRole.
-	// - GetInventoryStatus currently only supports builtin roles.
-	// - This user already has UpsertRole permissions and could give themselves
-	//   arbitrary permissions if they wanted to.
-	if err := checkInventorySupportsRole(ctx, role, api.Version, a.authServer.GetInventoryStatus); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
 // CreateRole creates a new role.
 func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbCreate); err != nil {
+	if err := a.actionForResource(role, types.KindRole, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3897,7 +4052,25 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (type
 
 // UpdateRole updates an existing role.
 func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbUpdate); err != nil {
+	oldRole, getErr := a.authServer.GetRole(ctx, role.GetName())
+	oldRoleIsNotFound := trace.IsNotFound(getErr)
+	if getErr != nil && !oldRoleIsNotFound {
+		return nil, trace.Wrap(getErr)
+	}
+
+	// If oldRole is nil, this whole call will fail. However, we'll continue so that the rest of
+	// the call can return an appropriate error.
+	if oldRole != nil {
+		if err := a.actionForResource(oldRole, types.KindRole, types.VerbUpdate); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := a.actionForResource(role, types.KindRole, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3911,7 +4084,25 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 
 // UpsertRole creates or updates role.
 func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbCreate, types.VerbUpdate); err != nil {
+	oldRole, err := a.authServer.GetRole(ctx, role.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	verbs := []string{types.VerbCreate}
+	if oldRole != nil {
+		verbs = []string{types.VerbUpdate}
+		if err := a.actionForResource(oldRole, types.KindRole, verbs...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := a.actionForResource(role, types.KindRole, verbs...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3956,112 +4147,51 @@ func checkRoleFeatureSupport(role types.Role) error {
 	}
 }
 
-type inventoryGetter func(context.Context, proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
-
-// checkInventorySupportsRole returns an error if any connected servers found in
-// the inventory do not support some features enabled in [role]. This is only a
-// best-effort check meant to prevent common user errors, since some unsupported
-// servers may not be connected to this auth, or they may connect later.
-func checkInventorySupportsRole(ctx context.Context, role types.Role, authVersion string, getInventory inventoryGetter) error {
-	minRequiredVersion, msg, err := minRequiredVersionForRole(role)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if safeToSkipInventoryCheck(*semver.New(authVersion), minRequiredVersion) {
-		return nil
-	}
-
-	inventoryStatus, err := getInventory(ctx, proto.InventoryStatusRequest{Connected: true})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, hello := range inventoryStatus.Connected {
-		version, err := semver.NewVersion(hello.Version)
-		if err != nil {
-			log.Warnf("Connected server %q has unparseable version %q", hello.ServerID, hello.Version)
-			continue
-		}
-		if version.LessThan(minRequiredVersion) {
-			return trace.BadParameter(msg)
-		}
-	}
-	return nil
-}
-
-func minRequiredVersionForRole(role types.Role) (semver.Version, string, error) {
-	// DELETE IN 15.0.0
-	// The label expression checks can be deleted in 15.0.0 since all servers
-	// that don't support label expressions are on 13.x or older. If no other
-	// feature checks have been added at that time, checkInventorySupportsRole
-	// can be deleted entirely.
-	for _, kind := range types.LabelMatcherKinds {
-		for _, rct := range []types.RoleConditionType{types.Allow, types.Deny} {
-			labelMatchers, err := role.GetLabelMatchers(rct, kind)
-			if err != nil {
-				return semver.Version{}, "", trace.Wrap(err)
-			}
-			if len(labelMatchers.Expression) != 0 {
-				return minSupportedLabelExpressionVersion, fmt.Sprintf(
-					"one or more connected servers is running a Teleport version "+
-						"older than %s which does not support the label expressions used "+
-						"in this role.", minSupportedLabelExpressionVersion), nil
-			}
-		}
-	}
-	// Return the zero version to indicate all server versions are supported.
-	return semver.Version{}, "", nil
-}
-
-// safeToSkipInventoryCheck returns true if all possible versions *less than*
-// [minRequiredVersion] are more than one major version behind [authVersion].
-//
-// In this case, any servers older than [minRequiredVersion] are already
-// unsupported and shouldn't be connected, so it's safe to skip the inventory
-// check as an optimization.
-//
-// This also covers the case where minRequiredVersionForRole returned
-// the zero version.
-//
-// Examples:
-// - (15.x.x, 13.1.1) -> true (anything older than 13.1.1 is >1 major behind v15)
-// - (14.x.x, 13.1.1) -> false (13.0.9 is within one major of v14)
-// - (14.x.x, 13.0.0) -> true (anything older than 13.0.0 is >1 major behind v14)
-func safeToSkipInventoryCheck(authVersion, minRequiredVersion semver.Version) bool {
-	return authVersion.Major > roundToNextMajor(minRequiredVersion)
-}
-
-// roundToNextMajor returns the next major version that is *not less than* [v].
-//
-// Examples:
-// - 13.1.1 -> 14.0.0
-// - 13.0.0 -> 13.0.0
-// - 13.0.0-alpha -> 13.0.0
-func roundToNextMajor(v semver.Version) int64 {
-	if (semver.Version{Major: v.Major}).LessThan(v) {
-		return v.Major + 1
-	}
-	return v.Major
-}
-
 // GetRole returns role by name
 func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role, error) {
 	// Current-user exception: we always allow users to read roles
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
-	if !slices.Contains(a.context.User.GetRoles(), name) {
-		if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if slices.Contains(a.context.User.GetRoles(), name) {
+		return a.authServer.GetRole(ctx, name)
 	}
-	return a.authServer.GetRole(ctx, name)
+
+	authErr := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead)
+	if authErr == nil {
+		return a.authServer.GetRole(ctx, name)
+	}
+
+	// See if the user has access to this individual role.
+	role, err := a.authServer.GetRole(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(authErr)
+	}
+
+	if err := a.actionForResource(role, types.KindRole, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return role, nil
 }
 
 // DeleteRole deletes role by name
 func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbDelete); err != nil {
+	// See if the user has access to this individual role. If this get fails,
+	// the delete will fail, but we'll leave it to the later call to send the appropriate
+	// error.
+	role, err := a.authServer.GetRole(ctx, name)
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
+
+	if err := a.actionForResource(role, types.KindRole, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// DELETE IN (7.0)
 	// It's OK to delete this code alongside migrateOSS code in auth.
 	// It prevents 6.0 from migrating resources multiple times
@@ -4069,6 +4199,7 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	if modules.GetModules().BuildType() == modules.BuildOSS && name == teleport.AdminRoleName {
 		return trace.AccessDenied("can not delete system role %q", name)
 	}
+
 	return a.authServer.DeleteRole(ctx, name)
 }
 
@@ -4102,30 +4233,6 @@ func (a *ServerWithRoles) UpsertClusterName(c types.ClusterName) error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertClusterName(c)
-}
-
-// DeleteStaticTokens deletes static tokens
-func (a *ServerWithRoles) DeleteStaticTokens() error {
-	if err := a.action(apidefaults.Namespace, types.KindStaticTokens, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteStaticTokens()
-}
-
-// GetStaticTokens gets the list of static tokens used to provision nodes.
-func (a *ServerWithRoles) GetStaticTokens() (types.StaticTokens, error) {
-	if err := a.action(apidefaults.Namespace, types.KindStaticTokens, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetStaticTokens()
-}
-
-// SetStaticTokens sets the list of static tokens used to provision nodes.
-func (a *ServerWithRoles) SetStaticTokens(s types.StaticTokens) error {
-	if err := a.action(apidefaults.Namespace, types.KindStaticTokens, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.SetStaticTokens(s)
 }
 
 // GetAuthPreference gets cluster auth preference.
@@ -4210,6 +4317,11 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		return trace.Wrap(err)
 	}
 
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// check that the given RequireMFAType is supported in this build.
 	if newAuthPref.GetPrivateKeyPolicy().IsHardwareKeyPolicy() {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
@@ -4235,6 +4347,10 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 	}
 
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuthPreference, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4274,6 +4390,11 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		}
 	}
 
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	tst, err := newNetConfig.GetTunnelStrategyType()
 	if err != nil {
 		return trace.Wrap(err)
@@ -4302,6 +4423,10 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		}
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 }
 
@@ -4328,6 +4453,11 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 		}
 	}
 
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
 }
 
@@ -4345,6 +4475,10 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
@@ -4721,26 +4855,40 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 	return a.authServer.SignDatabaseCSR(ctx, req)
 }
 
-// GenerateDatabaseCert generates a certificate used by a database service
-// to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 //
 // This certificate can be requested by:
 //
 //   - Cluster administrator using "tctl auth sign --format=db" command locally
 //     on the auth server to produce a certificate for configuring a self-hosted
 //     database.
-//   - Remote user using "tctl auth sign --format=db" command with a remote
-//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//     role Db.
+//   - Remote user using "tctl auth sign --format=db" command or
+//     /webapi/sites/:site/sign/db with a remote proxy (e.g. Teleport Cloud),
+//     as long as they can impersonate system role Db.
 //   - Database service when initiating connection to a database instance to
 //     produce a client certificate.
-//   - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	// Check if the User can `create` DatabaseCertificates
-	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)
+	err := a.checkAccessToGenerateDatabaseCert(types.KindDatabaseCertificate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GenerateDatabaseCert(ctx, req)
+}
+
+// checkAccessToGenerateDatabaseCert is a helper for checking db cert gen authz.
+// Requester must have at least one of:
+// - create: database_certificate or database_client_certificate.
+// - built-in Admin or DB role.
+// - allowed to impersonate the built-in DB role.
+func (a *ServerWithRoles) checkAccessToGenerateDatabaseCert(resourceKind string) error {
+	const verb = types.VerbCreate
+	// Check if the User can `create` Database Certificates
+	err := a.action(apidefaults.Namespace, resourceKind, verb)
 	if err != nil {
 		if !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		// Err is access denied, trying the old way
@@ -4750,12 +4898,13 @@ func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.D
 		if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
 			if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
 				log.WithError(err).Warnf("User %v tried to generate database certificate but does not have '%s' permission for '%s' kind, nor is allowed to impersonate %q system role",
-					a.context.User.GetName(), types.VerbCreate, types.KindDatabaseCertificate, types.RoleDatabase)
-				return nil, trace.AccessDenied(fmt.Sprintf("access denied. User must have '%s' permission for '%s' kind to generate the certificate ", types.VerbCreate, types.KindDatabaseCertificate))
+					a.context.User.GetName(), verb, resourceKind, types.RoleDatabase)
+				return trace.AccessDenied("access denied. User must have '%s' permission for '%s' kind to generate the certificate ",
+					verb, resourceKind)
 			}
 		}
 	}
-	return a.authServer.GenerateDatabaseCert(ctx, req)
+	return nil
 }
 
 // GenerateSnowflakeJWT generates JWT in the Snowflake required format.
@@ -5239,6 +5388,12 @@ func (a *ServerWithRoles) SetNetworkRestrictions(ctx context.Context, nr types.N
 	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.SetNetworkRestrictions(ctx, nr)
 }
 
@@ -5247,6 +5402,11 @@ func (a *ServerWithRoles) DeleteNetworkRestrictions(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindNetworkRestrictions, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.DeleteNetworkRestrictions(ctx)
 }
 
@@ -5289,7 +5449,25 @@ func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.De
 	return a.authServer.DeleteMFADeviceSync(ctx, req)
 }
 
+// IsMFARequired queries whether MFA is required for the specified target.
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+	// Check if MFA is required for admin actions. We don't currently have
+	// a reason to check the name of the admin action in question.
+	if _, ok := req.Target.(*proto.IsMFARequiredRequest_AdminAction); ok {
+		if a.context.AdminActionAuthState == authz.AdminActionAuthUnauthorized {
+			return &proto.IsMFARequiredResponse{
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			}, nil
+		} else {
+			return &proto.IsMFARequiredResponse{
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		}
+	}
+
+	// Other than for admin action targets, IsMFARequired should only be called by users.
 	if !authz.IsLocalOrRemoteUser(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
 	}
@@ -6171,10 +6349,10 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 //
 //   - Windows desktop service when updating the certificate authority contents
 //     on LDAP.
-//   - Cluster administrator using "tctl auth crl --type=db" command locally
+//   - Cluster administrator using "tctl auth crl --type=db_client" command locally
 //     on the auth server to produce revocation list used to be configured on
 //     external services such as Windows certificate store.
-//   - Remote user using "tctl auth crl --type=db" command with a remote
+//   - Remote user using "tctl auth crl --type=db_client" command with a remote
 //     proxy (e.g. Teleport Cloud), as long as they have permission to read
 //     certificate authorities.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
@@ -6226,8 +6404,11 @@ func (a *ServerWithRoles) GetLicense(ctx context.Context) (string, error) {
 
 // ListReleases return Teleport Enterprise releases
 func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, error) {
-	if err := a.action(apidefaults.Namespace, types.KindDownload, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
+	// on Cloud, any user is allowed to list releases
+	if !modules.GetModules().Features().Cloud {
+		if err := a.action(apidefaults.Namespace, types.KindDownload, types.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return a.authServer.releaseService.ListReleases(ctx)
@@ -6252,128 +6433,169 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name st
 }
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
-func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	code := events.SAMLIdPServiceProviderCreateFailureCode
-	var err error
-	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err == nil {
-		err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
-		if err == nil {
-			code = events.SAMLIdPServiceProviderCreateCode
+func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) (err error) {
+	defer func() {
+		code := events.SAMLIdPServiceProviderCreateCode
+		if err != nil {
+			code = events.SAMLIdPServiceProviderCreateFailureCode
 		}
+
+		if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderCreate{
+			Metadata: apievents.Metadata{
+				Type: events.SAMLIdPServiceProviderCreateEvent,
+				Code: code,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      sp.GetName(),
+				UpdatedBy: authz.ClientUsername(ctx),
+			},
+			SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
+				ServiceProviderEntityID: sp.GetEntityID(),
+				AttributeMapping:        typesAttrMapToEventAttrMap(sp.GetAttributeMapping()),
+			},
+		}); emitErr != nil {
+			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider created event.")
+		}
+	}()
+
+	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderCreate{
-		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderCreateEvent,
-			Code: code,
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name:      sp.GetName(),
-			UpdatedBy: authz.ClientUsername(ctx),
-		},
-		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
-			ServiceProviderEntityID: sp.GetEntityID(),
-		},
-	}); emitErr != nil {
-		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider created event.")
+	// Support reused MFA for bulk tctl create requests.
+	if err = a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
 	}
 
+	err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
 }
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
-func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	code := events.SAMLIdPServiceProviderUpdateFailureCode
-	var err error
-	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err == nil {
-		err = a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
-		if err == nil {
-			code = events.SAMLIdPServiceProviderUpdateCode
+func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) (err error) {
+	defer func() {
+		code := events.SAMLIdPServiceProviderUpdateCode
+		if err != nil {
+			code = events.SAMLIdPServiceProviderUpdateFailureCode
 		}
+
+		if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderUpdate{
+			Metadata: apievents.Metadata{
+				Type: events.SAMLIdPServiceProviderUpdateEvent,
+				Code: code,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      sp.GetName(),
+				UpdatedBy: authz.ClientUsername(ctx),
+			},
+			SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
+				ServiceProviderEntityID: sp.GetEntityID(),
+				AttributeMapping:        typesAttrMapToEventAttrMap(sp.GetAttributeMapping()),
+			},
+		}); emitErr != nil {
+			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider updated event.")
+		}
+	}()
+
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderUpdate{
-		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderUpdateEvent,
-			Code: code,
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name:      sp.GetName(),
-			UpdatedBy: authz.ClientUsername(ctx),
-		},
-		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
-			ServiceProviderEntityID: sp.GetEntityID(),
-		},
-	}); emitErr != nil {
-		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider updated event.")
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
 	}
 
+	err = a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
 }
 
+func typesAttrMapToEventAttrMap(attributeMapping []*types.SAMLAttributeMapping) map[string]string {
+	amap := make(map[string]string, len(attributeMapping))
+	for _, attribute := range attributeMapping {
+		amap[attribute.Name] = attribute.Value
+	}
+	return amap
+}
+
 // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
-func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) error {
+func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) (err error) {
 	var entityID string
-	code := events.SAMLIdPServiceProviderDeleteFailureCode
-	var err error
-	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err == nil {
-		var sp types.SAMLIdPServiceProvider
-		// Get the service provider so we can emit its entity ID later.
-		sp, err = a.authServer.GetSAMLIdPServiceProvider(ctx, name)
-		if err == nil {
-			name = sp.GetName()
-			entityID = sp.GetEntityID()
-
-			// Delete the actual service provider.
-			err = a.authServer.DeleteSAMLIdPServiceProvider(ctx, name)
-			if err == nil {
-				code = events.SAMLIdPServiceProviderDeleteCode
-			}
+	defer func() {
+		code := events.SAMLIdPServiceProviderDeleteCode
+		if err != nil {
+			code = events.SAMLIdPServiceProviderDeleteFailureCode
 		}
+
+		if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDelete{
+			Metadata: apievents.Metadata{
+				Type: events.SAMLIdPServiceProviderDeleteEvent,
+				Code: code,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      name,
+				UpdatedBy: authz.ClientUsername(ctx),
+			},
+			SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
+				ServiceProviderEntityID: entityID,
+			},
+		}); emitErr != nil {
+			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted event.")
+		}
+	}()
+
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDelete{
-		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderDeleteEvent,
-			Code: code,
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name:      name,
-			UpdatedBy: authz.ClientUsername(ctx),
-		},
-		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
-			ServiceProviderEntityID: entityID,
-		},
-	}); emitErr != nil {
-		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted event.")
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
 	}
 
+	// Get the service provider so we can emit its entity ID later.
+	sp, err := a.authServer.GetSAMLIdPServiceProvider(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	name = sp.GetName()
+	entityID = sp.GetEntityID()
+
+	// Delete the actual service provider.
+	err = a.authServer.DeleteSAMLIdPServiceProvider(ctx, name)
 	return trace.Wrap(err)
 }
 
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
-func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
-	code := events.SAMLIdPServiceProviderDeleteAllFailureCode
-	var err error
-	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err == nil {
-		err = a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
-		if err == nil {
-			code = events.SAMLIdPServiceProviderDeleteAllCode
+func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) (err error) {
+	defer func() {
+		code := events.SAMLIdPServiceProviderDeleteAllCode
+		if err != nil {
+			code = events.SAMLIdPServiceProviderDeleteAllFailureCode
 		}
+
+		if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDeleteAll{
+			Metadata: apievents.Metadata{
+				Type: events.SAMLIdPServiceProviderDeleteAllEvent,
+				Code: code,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				UpdatedBy: authz.ClientUsername(ctx),
+			},
+		}); emitErr != nil {
+			log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted all event.")
+		}
+	}()
+
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDeleteAll{
-		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderDeleteAllEvent,
-			Code: code,
-		},
-		ResourceMetadata: apievents.ResourceMetadata{
-			UpdatedBy: authz.ClientUsername(ctx),
-		},
-	}); emitErr != nil {
-		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted all event.")
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
 	}
 
+	err = a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
 	return trace.Wrap(err)
 }
 
@@ -6454,6 +6676,10 @@ func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.U
 		return trace.Wrap(err)
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := a.checkAccessToUserGroup(userGroup); err != nil {
 		return trace.Wrap(err)
 	}
@@ -6464,6 +6690,10 @@ func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.U
 // UpdateUserGroup updates an existing user group resource.
 func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6485,6 +6715,10 @@ func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) erro
 		return trace.Wrap(err)
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	previousUserGroup, err := a.authServer.GetUserGroup(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
@@ -6500,6 +6734,10 @@ func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) erro
 // DeleteAllUserGroups removes all user groups.
 func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6587,13 +6825,14 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		mfaDevice, _, err := a.authServer.ValidateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN}
+		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, requiredExt)
 		if err != nil {
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return trace.Wrap(err)
 		}
 
-		replaceHeadlessAuthn.MfaDevice = mfaDevice
+		replaceHeadlessAuthn.MfaDevice = mfaData.Device
 		eventCode = events.UserHeadlessLoginApprovedCode
 	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
 		eventCode = events.UserHeadlessLoginRejectedCode
@@ -6839,7 +7078,6 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 // checkOktaLockAccess gates access to update operations on lock records based
 // on the origin label on the supplied user record.
 func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks services.LockGetter, existingLockName string, verb string) error {
-
 	existingLock, err := locks.GetLock(ctx, existingLockName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)

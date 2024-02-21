@@ -16,7 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export default class AddressResolver {
+/**
+ * LiveSessionAddressResolver is an address resolver that computes
+ * a URL to start a new web-based SSH session.
+ */
+export default class LiveSessionAddressResolver {
   _cfg = {
     ttyUrl: null,
     ttyParams: {},

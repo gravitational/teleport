@@ -58,17 +58,23 @@ PRs with corrections and updates are welcome!
   * Install the required version
   
   ```shell
-  rustup toolchain install <version from build.assets/Makefile>
+  rustup toolchain install <version from build.assets/versions.mk>
   cd <teleport.git>
-  rustup override set <version from build.assets/Makefile>
+  rustup override set <version from build.assets/versions.mk>
   rustc --version
-  # rustc <version from build.assets/Makefile> (db9d1b20b 2022-01-20)
+  # rustc <version from build.assets/versions.mk>
   ```
 
-* To install `libfido2` (pulls `openssl 1.1.1` as dependency)
+* To install `libfido2` (pulls `openssl 3` as dependency)
 
   ```shell
   brew install libfido2
+  ```
+
+* To install `pkg-config`
+
+  ```shell
+  brew install pkg-config
   ```
 
 * To install `yarn` for building the UI

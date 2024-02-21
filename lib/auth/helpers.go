@@ -304,11 +304,12 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	if cfg.CacheEnabled {
 		srv.AuthServer.Cache, err = accesspoint.NewAccessCache(accesspoint.AccessCacheConfig{
-			Context:   ctx,
+			Context:   srv.AuthServer.CloseContext(),
 			Services:  srv.AuthServer.Services,
 			Setup:     cache.ForAuth,
 			CacheName: []string{teleport.ComponentAuth},
 			Events:    true,
+			Unstarted: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -436,6 +437,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Auth initialization is done (including creation/updating of all singleton
+	// configuration resources) so now we can start the cache.
+	if c, ok := srv.AuthServer.Cache.(*cache.Cache); ok {
+		if err := c.Start(); err != nil {
+			return nil, trace.NewAggregate(err, c.Close())
+		}
+	}
 	return srv, nil
 }
 
@@ -467,7 +475,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := a.AuthServer.generateUserCert(certRequest{
+	certs, err := a.AuthServer.generateUserCert(ctx, certRequest{
 		user:          userState,
 		ttl:           ttl,
 		compatibility: compatibility,
@@ -534,7 +542,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			identity.TTL = time.Hour
 		}
 
-		certs, err := authServer.generateUserCert(certRequest{
+		certs, err := authServer.generateUserCert(ctx, certRequest{
 			publicKey:        pub,
 			user:             userState,
 			ttl:              identity.TTL,
@@ -615,6 +623,17 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 	}
 	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
+		DomainName: remote.ClusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.AuthServer.UpsertCertAuthority(ctx, remoteCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseClientCA,
 		DomainName: remote.ClusterName,
 	}, false)
 	if err != nil {

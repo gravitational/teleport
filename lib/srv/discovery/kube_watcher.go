@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const kubeEventPrefix = "kube/"
@@ -37,26 +38,26 @@ func (s *Server) startKubeWatchers() error {
 		return nil
 	}
 	var (
-		kubeResources types.ResourcesWithLabels
+		kubeResources []types.KubeCluster
 		mu            sync.Mutex
 	)
 
 	reconciler, err := services.NewReconciler(
-		services.ReconcilerConfig{
-			Matcher: func(_ types.ResourceWithLabels) bool { return true },
-			GetCurrentResources: func() types.ResourcesWithLabelsMap {
+		services.ReconcilerConfig[types.KubeCluster]{
+			Matcher: func(_ types.KubeCluster) bool { return true },
+			GetCurrentResources: func() map[string]types.KubeCluster {
 				kcs, err := s.AccessPoint.GetKubernetesClusters(s.ctx)
 				if err != nil {
 					s.Log.WithError(err).Warn("Unable to get Kubernetes clusters from cache.")
 					return nil
 				}
 
-				return types.KubeClusters(filterResources(kcs, types.OriginCloud, s.DiscoveryGroup)).AsResources().ToMap()
+				return utils.FromSlice(filterResources(kcs, types.OriginCloud, s.DiscoveryGroup), types.KubeCluster.GetName)
 			},
-			GetNewResources: func() types.ResourcesWithLabelsMap {
+			GetNewResources: func() map[string]types.KubeCluster {
 				mu.Lock()
 				defer mu.Unlock()
-				return kubeResources.ToMap()
+				return utils.FromSlice(kubeResources, types.KubeCluster.GetName)
 			},
 			Log:      s.Log.WithField("kind", types.KindKubernetesCluster),
 			OnCreate: s.onKubeCreate,
@@ -84,8 +85,17 @@ func (s *Server) startKubeWatchers() error {
 		for {
 			select {
 			case newResources := <-watcher.ResourcesC():
+				clusters := make([]types.KubeCluster, 0, len(newResources))
+				for _, r := range newResources {
+					cluster, ok := r.(types.KubeCluster)
+					if !ok {
+						continue
+					}
+
+					clusters = append(clusters, cluster)
+				}
 				mu.Lock()
-				kubeResources = newResources
+				kubeResources = clusters
 				mu.Unlock()
 
 				if err := reconciler.Reconcile(s.ctx); err != nil {
@@ -100,22 +110,15 @@ func (s *Server) startKubeWatchers() error {
 	return nil
 }
 
-func (s *Server) onKubeCreate(ctx context.Context, rwl types.ResourceWithLabels) error {
-	kubeCluster, ok := rwl.(types.KubeCluster)
-	if !ok {
-		return trace.BadParameter("invalid type received; expected types.KubeCluster, received %T", kubeCluster)
-	}
+func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster) error {
 	s.Log.Debugf("Creating kube_cluster %s.", kubeCluster.GetName())
 	err := s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster)
-	// If the resource already exists, it means that the resource was created
-	// by a previous discovery_service instance that didn't support the discovery
-	// group feature or the discovery group was changed.
-	// In this case, we need to update the resource with the
-	// discovery group label to ensure the user doesn't have to manually delete
-	// the resource.
-	// TODO(tigrato): DELETE on 15.0.0
-	if trace.IsAlreadyExists(err) {
-		return trace.Wrap(s.onKubeUpdate(ctx, rwl))
+	// If the kube already exists but has an empty discovery group, update it.
+	if trace.IsAlreadyExists(err) && s.updatesEmptyDiscoveryGroup(
+		func() (types.ResourceWithLabels, error) {
+			return s.AccessPoint.GetKubernetesCluster(ctx, kubeCluster.GetName())
+		}) {
+		return trace.Wrap(s.onKubeUpdate(ctx, kubeCluster, nil))
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -133,20 +136,12 @@ func (s *Server) onKubeCreate(ctx context.Context, rwl types.ResourceWithLabels)
 	return nil
 }
 
-func (s *Server) onKubeUpdate(ctx context.Context, rwl types.ResourceWithLabels) error {
-	kubeCluster, ok := rwl.(types.KubeCluster)
-	if !ok {
-		return trace.BadParameter("invalid type received; expected types.KubeCluster, received %T", kubeCluster)
-	}
+func (s *Server) onKubeUpdate(ctx context.Context, kubeCluster, _ types.KubeCluster) error {
 	s.Log.Debugf("Updating kube_cluster %s.", kubeCluster.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateKubernetesCluster(ctx, kubeCluster))
 }
 
-func (s *Server) onKubeDelete(ctx context.Context, rwl types.ResourceWithLabels) error {
-	kubeCluster, ok := rwl.(types.KubeCluster)
-	if !ok {
-		return trace.BadParameter("invalid type received; expected types.KubeCluster, received %T", kubeCluster)
-	}
+func (s *Server) onKubeDelete(ctx context.Context, kubeCluster types.KubeCluster) error {
 	s.Log.Debugf("Deleting kube_cluster %s.", kubeCluster.GetName())
 	return trace.Wrap(s.AccessPoint.DeleteKubernetesCluster(ctx, kubeCluster.GetName()))
 }

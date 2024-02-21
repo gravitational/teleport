@@ -683,6 +683,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		T:              main,
 		Username:       username,
 		KubeGroups:     mainKubeGroups,
+		KubeCluster:    clusterAux,
 		Impersonation:  &rest.ImpersonationConfig{UserName: "bob", Groups: []string{kube.TestImpersonationGroup}},
 		RouteToCluster: clusterAux,
 	})
@@ -697,6 +698,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		T:              main,
 		Username:       username,
 		KubeGroups:     mainKubeGroups,
+		KubeCluster:    clusterAux,
 		RouteToCluster: clusterAux,
 	})
 	require.NoError(t, err)
@@ -1463,7 +1465,10 @@ func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubeP
 		return nil, trace.Wrap(err)
 	}
 
-	upgradeRoundTripper := streamspdy.NewRoundTripper(tlsConfig)
+	upgradeRoundTripper, err := streamspdy.NewRoundTripper(tlsConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	client := &http.Client{
 		Transport: upgradeRoundTripper,
 	}

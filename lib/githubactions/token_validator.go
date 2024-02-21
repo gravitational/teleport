@@ -60,22 +60,32 @@ func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
 	}
 }
 
-func (id *IDTokenValidator) issuerURL(GHESHost string) string {
+func (id *IDTokenValidator) issuerURL(
+	GHESHost string, enterpriseSlug string,
+) string {
 	scheme := "https"
 	if id.insecure {
 		scheme = "http"
 	}
 
 	if GHESHost == "" {
-		return fmt.Sprintf("%s://%s", scheme, id.GitHubIssuerHost)
+		url := fmt.Sprintf("%s://%s", scheme, id.GitHubIssuerHost)
+		// Support custom enterprise slugs, as per:
+		// https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
+		if enterpriseSlug != "" {
+			url = fmt.Sprintf("%s/%s", url, enterpriseSlug)
+		}
+		return url
 	}
 	return fmt.Sprintf("%s://%s/_services/token", scheme, GHESHost)
 }
 
-func (id *IDTokenValidator) Validate(ctx context.Context, GHESHost string, token string) (*IDTokenClaims, error) {
+func (id *IDTokenValidator) Validate(
+	ctx context.Context, GHESHost string, enterpriseSlug string, token string,
+) (*IDTokenClaims, error) {
 	p, err := oidc.NewProvider(
 		ctx,
-		id.issuerURL(GHESHost),
+		id.issuerURL(GHESHost, enterpriseSlug),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

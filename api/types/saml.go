@@ -17,12 +17,12 @@ limitations under the License.
 package types
 
 import (
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -34,6 +34,9 @@ type SAMLConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
 	ResourceWithOrigin
+
+	// SetMetadata sets the connector metadata
+	SetMetadata(Metadata)
 	// GetDisplay returns display - friendly name for this provider.
 	GetDisplay() string
 	// SetDisplay sets friendly name for this provider.
@@ -247,6 +250,11 @@ func (o *SAMLConnectorV2) SetDisplay(display string) {
 // GetMetadata returns object metadata
 func (o *SAMLConnectorV2) GetMetadata() Metadata {
 	return o.Metadata
+}
+
+// SetMetadata sets object metadata
+func (o *SAMLConnectorV2) SetMetadata(m Metadata) {
+	o.Metadata = m
 }
 
 // Origin returns the origin value of the resource.

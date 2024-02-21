@@ -717,6 +717,25 @@ func mustConnectDatabaseGateway(t *testing.T, _ *daemon.Service, gw gateway.Gate
 	require.NoError(t, client.Close())
 }
 
+// mustConnectAppGateway verifies that the gateway acts as an unauthenticated proxy that forwards
+// requests to the app behind it.
+func mustConnectAppGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
+	t.Helper()
+
+	appGw, err := gateway.AsApp(gw)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodGet, appGw.LocalProxyURL(), nil)
+	require.NoError(t, err)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
 func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kubeCluster string) *kubernetes.Clientset {
 	t.Helper()
 

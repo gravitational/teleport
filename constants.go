@@ -19,11 +19,8 @@
 package teleport
 
 import (
-	"fmt"
 	"strings"
 	"time"
-
-	"github.com/coreos/go-semver/semver"
 )
 
 // WebAPIVersion is a current webapi version
@@ -227,6 +224,9 @@ const (
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
 
+	// ComponentTCTL is the "tctl" binary.
+	ComponentTCTL = "tctl"
+
 	// ComponentTBot is the "tbot" binary
 	ComponentTBot = "tbot"
 
@@ -239,9 +239,6 @@ const (
 
 	// ComponentBPF is the eBPF packagae.
 	ComponentBPF = "bpf"
-
-	// ComponentRestrictedSession is restriction of user access to kernel objects
-	ComponentRestrictedSession = "restrictedsess"
 
 	// ComponentCgroup is the cgroup package.
 	ComponentCgroup = "cgroups"
@@ -495,6 +492,9 @@ const (
 	// CertExtensionDeviceCredentialID is the identifier for the credential used
 	// by the device to authenticate itself.
 	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
+	// CertExtensionBotName indicates the name of the Machine ID bot this
+	// certificate was issued to, if any.
+	CertExtensionBotName = "bot-name@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -671,6 +671,16 @@ const (
 	// during the setup of Connect My Computer. The prefix is followed by the name of the cluster
 	// user. See teleterm.connectmycomputer.RoleSetup.
 	ConnectMyComputerRoleNamePrefix = "connect-my-computer-"
+
+	// SystemOktaRequesterRoleName is a name of a system role that allows
+	// for requesting access to Okta resources. This differs from the requester role
+	// in that it allows for requesting longer lived access.
+	SystemOktaRequesterRoleName = "okta-requester"
+
+	// SystemOktaAccessRoleName is the name of the system role that allows
+	// access to Okta resources. This will be used by the Okta requester role to
+	// search for Okta resources.
+	SystemOktaAccessRoleName = "okta-access"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
@@ -680,16 +690,6 @@ const (
 	// an Access Request approver for access plugins
 	SystemAccessApproverUserName = "@teleport-access-approval-bot"
 )
-
-// MinClientVersion is the minimum client version required by the server.
-var MinClientVersion string
-
-func init() {
-	// Per https://github.com/gravitational/teleport/blob/master/rfd/0012-teleport-versioning.md,
-	// only one major version backwards is supported for clients.
-	ver := semver.New(Version)
-	MinClientVersion = fmt.Sprintf("%d.0.0", ver.Major-1)
-}
 
 const (
 	// RemoteClusterStatusOffline indicates that cluster is considered as
@@ -812,7 +812,7 @@ const (
 
 	// ForwardSubCommand is the sub-command Teleport uses to re-exec itself
 	// for port forwarding.
-	ForwardSubCommand = "forward"
+	ForwardSubCommand = "forwardv2"
 
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.

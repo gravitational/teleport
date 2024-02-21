@@ -20,6 +20,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -62,7 +63,20 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		hs.Close()
 	})
 
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
+	config := gateway.Config{
+		LocalPort:             params.LocalPort,
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
+		TargetSubresourceName: params.TargetSubresourceName,
+		Protocol:              defaults.ProtocolPostgres,
+		Insecure:              true,
+		WebProxyAddr:          hs.Listener.Addr().String(),
+		TCPPortAllocator:      m.tcpPortAllocator,
+		KubeconfigsDir:        m.t.TempDir(),
+	}
+
+	identity := tlsca.Identity{
 		Username: "user",
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -71,22 +85,23 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 			Username:    params.TargetUser,
 		},
 		KubernetesCluster: params.TargetURI.GetKubeName(),
-	})
+	}
 
-	gateway, err := gateway.New(gateway.Config{
-		LocalPort:             params.LocalPort,
-		TargetURI:             params.TargetURI,
-		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
-		TargetSubresourceName: params.TargetSubresourceName,
-		Protocol:              defaults.ProtocolPostgres,
-		CertPath:              keyPairPaths.CertPath,
-		KeyPath:               keyPairPaths.KeyPath,
-		Insecure:              true,
-		WebProxyAddr:          hs.Listener.Addr().String(),
-		TCPPortAllocator:      m.tcpPortAllocator,
-		KubeconfigsDir:        m.t.TempDir(),
-	})
+	ca := gatewaytest.MustGenCACert(m.t)
+
+	if params.TargetURI.IsDB() {
+		keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, ca, identity)
+
+		config.CertPath = keyPairPaths.CertPath
+		config.KeyPath = keyPairPaths.KeyPath
+	}
+
+	if params.TargetURI.IsKube() {
+		cert := gatewaytest.MustGenCertSignedWithCA(m.t, ca, identity)
+		config.Cert = cert
+	}
+
+	gateway, err := gateway.New(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,20 +262,13 @@ func TestGatewayCRUD(t *testing.T) {
 				tt.tcpPortAllocator = &gatewaytest.MockTCPPortAllocator{}
 			}
 
-			homeDir := t.TempDir()
 			mockGatewayCreator := &mockGatewayCreator{
 				t:                t,
 				tcpPortAllocator: tt.tcpPortAllocator,
 			}
 
-			storage, err := clusters.NewStorage(clusters.Config{
-				Dir:                homeDir,
-				InsecureSkipVerify: true,
-			})
-			require.NoError(t, err)
-
 			daemon, err := New(Config{
-				Storage:        storage,
+				Storage:        fakeStorage{},
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
@@ -604,7 +612,7 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 		// before grpcServer.Serve is called and grpcServer.Serve will return
 		// grpc.ErrServerStopped.
 		err := <-serveErr
-		if err != grpc.ErrServerStopped {
+		if !errors.Is(err, grpc.ErrServerStopped) {
 			assert.NoError(t, err)
 		}
 	})

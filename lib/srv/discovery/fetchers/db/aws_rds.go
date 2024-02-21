@@ -91,12 +91,23 @@ func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcher
 // getAllDBInstances fetches all RDS instances using the provided client, up
 // to the specified max number of pages.
 func getAllDBInstances(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
+	return getAllDBInstancesWithFilters(ctx, rdsClient, maxPages, rdsInstanceEngines(), rdsEmptyFilter(), log)
+}
+
+// findDBInstancesForDBCluster returns the DBInstances associated with a given DB Cluster Identifier
+func findDBInstancesForDBCluster(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, dbClusterIdentifier string, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
+	return getAllDBInstancesWithFilters(ctx, rdsClient, maxPages, auroraEngines(), rdsClusterIDFilter(dbClusterIdentifier), log)
+}
+
+// getAllDBInstancesWithFilters fetches all RDS instances matching the filters using the provided client, up
+// to the specified max number of pages.
+func getAllDBInstancesWithFilters(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, engines []string, baseFilters []*rds.Filter, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
 	var instances []*rds.DBInstance
-	err := retryWithIndividualEngineFilters(log, rdsInstanceEngines(), func(filters []*rds.Filter) error {
+	err := retryWithIndividualEngineFilters(log, engines, func(engineFilters []*rds.Filter) error {
 		var pageNum int
 		var out []*rds.DBInstance
 		err := rdsClient.DescribeDBInstancesPagesWithContext(ctx, &rds.DescribeDBInstancesInput{
-			Filters: filters,
+			Filters: append(engineFilters, baseFilters...),
 		}, func(ddo *rds.DescribeDBInstancesOutput, lastPage bool) bool {
 			pageNum++
 			instances = append(instances, ddo.DBInstances...)
@@ -154,7 +165,13 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 			continue
 		}
 
-		dbs, err := services.NewDatabasesFromRDSCluster(cluster)
+		rdsDBInstances, err := findDBInstancesForDBCluster(ctx, rdsClient, maxAWSPages, aws.StringValue(cluster.DBClusterIdentifier), cfg.Log)
+		if err != nil || len(rdsDBInstances) == 0 {
+			cfg.Log.Warnf("Could not fetch Member Instance for DB Cluster %q: %v.",
+				aws.StringValue(cluster.DBClusterIdentifier), err)
+		}
+
+		dbs, err := services.NewDatabasesFromRDSCluster(cluster, rdsDBInstances)
 		if err != nil {
 			cfg.Log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
 				aws.StringValue(cluster.DBClusterIdentifier), err)
@@ -212,6 +229,19 @@ func rdsEngineFilter(engines []string) []*rds.Filter {
 		Name:   aws.String("engine"),
 		Values: aws.StringSlice(engines),
 	}}
+}
+
+// rdsClusterIDFilter is a helper func to construct an RDS DB Instances for returning Instances of a specific DB Cluster.
+func rdsClusterIDFilter(clusterIdentifier string) []*rds.Filter {
+	return []*rds.Filter{{
+		Name:   aws.String("db-cluster-id"),
+		Values: aws.StringSlice([]string{clusterIdentifier}),
+	}}
+}
+
+// rdsEmptyFilter is a helper func to construct an empty RDS filter.
+func rdsEmptyFilter() []*rds.Filter {
+	return []*rds.Filter{}
 }
 
 // rdsFilterFn is a function that takes RDS filters and performs some operation with them, returning any error encountered.

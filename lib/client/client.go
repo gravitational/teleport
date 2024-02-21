@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -538,6 +540,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			// In case of MFA connect to root teleport proxy instead of JumpHost to request
 			// MFA certificates.
 			proxy.teleportClient.JumpHosts = nil
+			//nolint:staticcheck // SA1019. TODO(tross) remove once ProxyClient is no longer used.
 			rootClusterProxy, err = proxy.teleportClient.ConnectToProxy(ctx)
 			proxy.teleportClient.JumpHosts = jumpHost
 			if err != nil {
@@ -563,8 +566,11 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		MFAPrompt:         mfaPrompt,
 		MFAAgainstRoot:    params.RouteToCluster == rootClusterName,
 		MFARequiredReq:    nil, // No need to check if we got this far.
-		CertsReq:          certsReq,
-		Key:               key,
+		ChallengeExtensions: mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		},
+		CertsReq: certsReq,
+		Key:      key,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1079,6 +1085,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
 		MFAPromptConstructor:       proxy.teleportClient.NewMFAPrompt,
+		DialOpts:                   proxy.teleportClient.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1158,6 +1165,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		MFAPromptConstructor: proxy.teleportClient.NewMFAPrompt,
+		DialOpts:             proxy.teleportClient.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1399,7 +1407,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 	if err != nil {
 		// If the user pressed Ctrl-C, no need to try and read the error from
 		// the proxy, return an error right away.
-		if trace.Unwrap(err) == context.Canceled {
+		if errors.Is(trace.Unwrap(err), context.Canceled) {
 			return nil, trace.Wrap(err)
 		}
 
@@ -1584,10 +1592,12 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	}
 
 	if err = nodeSession.runShell(ctx, mode, beforeStart, c.TC.OnShellCreated); err != nil {
-		switch e := trace.Unwrap(err).(type) {
-		case *ssh.ExitError:
-			c.TC.ExitStatus = e.ExitStatus()
-		case *ssh.ExitMissingError:
+		var exitErr *ssh.ExitError
+		var exitMissingErr *ssh.ExitMissingError
+		switch err := trace.Unwrap(err); {
+		case errors.As(err, &exitErr):
+			c.TC.ExitStatus = exitErr.ExitStatus()
+		case errors.As(err, &exitMissingErr):
 			c.TC.ExitStatus = 1
 		}
 
@@ -1727,8 +1737,8 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 	defer nodeSession.Close()
 	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
 		originErr := trace.Unwrap(err)
-		exitErr, ok := originErr.(*ssh.ExitError)
-		if ok {
+		var exitErr *ssh.ExitError
+		if errors.As(originErr, &exitErr) {
 			c.TC.ExitStatus = exitErr.ExitStatus()
 		} else {
 			// if an error occurs, but no exit status is passed back, GoSSH returns

@@ -110,6 +110,12 @@ func (c *templateSSHHostCert) render(
 	_ *identity.Identity,
 	destination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"templateSSHHostCert.render",
+	)
+	defer span.End()
+
 	authPong, err := bot.AuthPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)

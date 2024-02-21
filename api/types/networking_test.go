@@ -72,7 +72,7 @@ func TestProxyListenerModeUnmarshalYAML(t *testing.T) {
 			name: "invalid value",
 			in:   "unknown value",
 			wantErr: func(t *testing.T, err error) {
-				require.IsType(t, &trace.BadParameterError{}, err.(*trace.TraceErr).OrigError())
+				require.True(t, trace.IsBadParameter(err))
 			},
 		},
 	}

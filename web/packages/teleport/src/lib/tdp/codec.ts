@@ -49,6 +49,10 @@ export enum MessageType {
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   PNG2_FRAME = 27,
   NOTIFICATION = 28,
+  RDP_FASTPATH_PDU = 29,
+  RDP_RESPONSE_PDU = 30,
+  RDP_CONNECTION_INITIALIZED = 31,
+  SYNC_KEYS = 32,
   __LAST, // utility value
 }
 
@@ -82,12 +86,31 @@ export type PngFrame = {
   data: HTMLImageElement;
 };
 
+/**
+ * `| message type (29) | data_length uint32 | data []byte |`
+ *
+ * `RdpFastPathPdu` is an alias to a `Uint8Array` so that it can
+ * be passed into the `FastPathProcessor`'s `process` method and
+ * used without copying. See [the wasm-bindgen guide].
+ *
+ * [the wasm-bindgen guide]: (https://rustwasm.github.io/docs/wasm-bindgen/reference/types/number-slices.html#number-slices-u8-i8-u16-i16-u32-i32-u64-i64-f32-and-f64)
+ */
+export type RdpFastPathPdu = Uint8Array;
+
 // | message type (6) | length uint32 | data []byte |
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#6---clipboard-data
 export type ClipboardData = {
   // TODO(isaiah): store this as a byte array
   // https://github.com/gravitational/webapps/issues/610
   data: string;
+};
+
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
+export type RDPConnectionInitialized = {
+  ioChannelId: number;
+  userChannelId: number;
+  screenWidth: number;
+  screenHeight: number;
 };
 
 export enum Severity {
@@ -119,9 +142,16 @@ export type Notification = {
 
 // | message type (10) | mfa_type byte | message_length uint32 | json []byte
 export type MfaJson = {
-  // TODO(isaiah) make this a type that ensures it's the same as MessageTypeEnum.U2F_CHALLENGE and MessageTypeEnum.WEBAUTHN_CHALLENGE
   mfaType: 'u' | 'n';
   jsonString: string;
+};
+
+// | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+export type SyncKeys = {
+  scrollLockState: ButtonState;
+  numLockState: ButtonState;
+  capsLockState: ButtonState;
+  kanaLockState: ButtonState;
 };
 
 // | message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
@@ -291,8 +321,6 @@ export default class Codec {
   decoder = new window.TextDecoder();
 
   // Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
-  // Currently only supports Chrome keycodes: TODO(isaiah) -- add support for firefox/safari/edge.
-  // See https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values#code_values_on_windows
   private _keyScancodes = {
     Escape: 0x0001,
     Digit1: 0x0002,
@@ -508,6 +536,23 @@ export default class Codec {
     view.setUint8(0, MessageType.KEYBOARD_BUTTON);
     view.setUint32(1, scanCode);
     view.setUint8(5, state);
+    return buffer;
+  }
+
+  // encodeSyncKeys synchronizes the state of keyboard's modifier keys (caps lock)
+  // and resets the server key state to all keys up.
+  // | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+  encodeSyncKeys(syncKeys: SyncKeys): Message {
+    const buffer = new ArrayBuffer(byteLength * 5);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset++, MessageType.SYNC_KEYS);
+    view.setUint8(offset++, syncKeys.scrollLockState);
+    view.setUint8(offset++, syncKeys.numLockState);
+    view.setUint8(offset++, syncKeys.capsLockState);
+    view.setUint8(offset++, syncKeys.kanaLockState);
+
     return buffer;
   }
 
@@ -793,6 +838,22 @@ export default class Codec {
     return buffer;
   }
 
+  // | message type (30) | data_length uint32 | data []byte |
+  encodeRDPResponsePDU(responseFrame: ArrayBuffer): Message {
+    const bufLen = byteLength + uint32Length + responseFrame.byteLength;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset, MessageType.RDP_RESPONSE_PDU);
+    offset += byteLength;
+    view.setUint32(offset, responseFrame.byteLength);
+    offset += uint32Length;
+    new Uint8Array(buffer, offset).set(new Uint8Array(responseFrame));
+
+    return buffer;
+  }
+
   // decodeClipboardData decodes clipboard data
   decodeClipboardData(buffer: ArrayBuffer): ClipboardData {
     return {
@@ -855,9 +916,10 @@ export default class Codec {
     if (mfaType !== 'n' && mfaType !== 'u') {
       throw new Error(`invalid mfa type ${mfaType}, should be "n" or "u"`);
     }
+    let messageLength = dv.getUint32(offset);
     offset += uint32Length; // eat message_length
     const jsonString = this.decoder.decode(
-      new Uint8Array(buffer.slice(offset))
+      new Uint8Array(buffer, offset, messageLength)
     );
     return { mfaType, jsonString };
   }
@@ -870,9 +932,7 @@ export default class Codec {
     const msgLength = dv.getUint32(offset);
     offset += uint32Length; // eat messageLength
 
-    return this.decoder.decode(
-      new Uint8Array(buffer.slice(offset, offset + msgLength))
-    );
+    return this.decoder.decode(new Uint8Array(buffer, offset, msgLength));
   }
 
   // decodePngFrame decodes a raw tdp PNG frame message and returns it as a PngFrame
@@ -927,6 +987,34 @@ export default class Codec {
     return pngFrame;
   }
 
+  // | message type (29) | data_length uint32 | data []byte |
+  decodeRDPFastPathPDU(buffer: ArrayBuffer): RdpFastPathPdu {
+    const dv = new DataView(buffer);
+    let offset = 0;
+    offset += byteLength; // eat message type
+    const dataLength = dv.getUint32(offset);
+    offset += uint32Length; // eat data_length
+    return new Uint8Array(buffer, offset, dataLength);
+  }
+
+  // | message type (31) | io_channel_id uint16 | user_channel_id uint16 | screen_width uint16 | screen_height uint16 |
+  decodeRDPConnectionInitialied(buffer: ArrayBuffer): RDPConnectionInitialized {
+    const dv = new DataView(buffer);
+    let offset = 0;
+    offset += byteLength; // eat message type
+    const ioChannelId = dv.getUint16(offset);
+    offset += uint16Length;
+    const userChannelId = dv.getUint16(offset);
+    offset += uint16Length;
+
+    const screenWidth = dv.getUint16(offset);
+    offset += uint16Length;
+    const screenHeight = dv.getUint16(offset);
+    offset += uint16Length;
+
+    return { ioChannelId, userChannelId, screenWidth, screenHeight };
+  }
+
   // | message type (12) | err_code error | directory_id uint32 |
   decodeSharedDirectoryAcknowledge(
     buffer: ArrayBuffer
@@ -955,8 +1043,11 @@ export default class Codec {
     offset += uint32Length; // eat completion_id
     const directoryId = dv.getUint32(offset);
     offset += uint32Length; // eat directory_id
+    let pathLength = dv.getUint32(offset);
     offset += uint32Length; // eat path_length
-    const path = this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, offset, pathLength)
+    );
 
     return {
       completionId,
@@ -978,8 +1069,11 @@ export default class Codec {
     offset += uint32Length; // eat directory_id
     const fileType = dv.getUint32(offset);
     offset += uint32Length; // eat directory_id
+    let pathLength = dv.getUint32(offset);
     offset += uint32Length; // eat path_length
-    const path = this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, offset, pathLength)
+    );
 
     return {
       completionId,
@@ -1000,8 +1094,11 @@ export default class Codec {
     offset += uint32Length; // eat completion_id
     const directoryId = dv.getUint32(offset);
     offset += uint32Length; // eat directory_id
+    let pathLength = dv.getUint32(offset);
     offset += uint32Length; // eat path_length
-    const path = this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+    const path = this.decoder.decode(
+      new Uint8Array(buffer, offset, pathLength)
+    );
 
     return {
       completionId,
@@ -1024,7 +1121,7 @@ export default class Codec {
     const pathLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat path_length
     const path = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + pathLength))
+      new Uint8Array(buffer, bufOffset, pathLength)
     );
     bufOffset += pathLength; // eat path
     const offset = dv.getBigUint64(bufOffset);
@@ -1056,14 +1153,12 @@ export default class Codec {
     const pathLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat path_length
     const path = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + pathLength))
+      new Uint8Array(buffer, bufOffset, pathLength)
     );
     bufOffset += pathLength; // eat path
     const writeDataLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat write_data_length
-    const writeData = new Uint8Array(
-      buffer.slice(bufOffset, bufOffset + writeDataLength)
-    );
+    const writeData = new Uint8Array(buffer, bufOffset, writeDataLength);
 
     return {
       completionId,
@@ -1088,13 +1183,13 @@ export default class Codec {
     const originalPathLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat original_path_length
     const originalPath = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + originalPathLength))
+      new Uint8Array(buffer, bufOffset, originalPathLength)
     );
     bufOffset += originalPathLength; // eat original_path
     const newPathLength = dv.getUint32(bufOffset);
     bufOffset += uint32Length; // eat new_path_length
     const newPath = this.decoder.decode(
-      new Uint8Array(buffer.slice(bufOffset, bufOffset + newPathLength))
+      new Uint8Array(buffer, bufOffset, newPathLength)
     );
 
     return {
@@ -1121,5 +1216,6 @@ export default class Codec {
 }
 
 const byteLength = 1;
+const uint16Length = 2;
 const uint32Length = 4;
 const uint64Length = uint32Length * 2;

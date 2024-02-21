@@ -144,6 +144,11 @@ func (f *azureFetcher[DBType, ListClient]) ResourceType() string {
 	return types.KindDatabase
 }
 
+// FetcherType returns the type (`discovery_service.azure.[].types`) of the fetcher.
+func (f *azureFetcher[DBType, ListClient]) FetcherType() string {
+	return f.cfg.Type
+}
+
 // Get returns Azure DB servers matching the watcher's selectors.
 func (f *azureFetcher[DBType, ListClient]) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	databases, err := f.getDatabases(ctx)

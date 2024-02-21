@@ -32,7 +32,7 @@ const colors = {
   info: theme.colors.spotBackground[0],
   warning: theme.colors.warning.main,
   danger: theme.colors.error.main,
-  success: theme.colors.success,
+  success: theme.colors.success.main,
 };
 
 describe('design/LabelState', () => {

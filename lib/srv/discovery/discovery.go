@@ -20,8 +20,10 @@ package discovery
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -34,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -48,9 +49,11 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
+	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
@@ -67,10 +70,16 @@ type Matchers struct {
 	GCP []types.GCPMatcher
 	// Kubernetes is a list of Kubernetes matchers to discovery resources.
 	Kubernetes []types.KubernetesMatcher
+	// AccessGraph is the configuration for the Access Graph Cloud sync.
+	AccessGraph *types.AccessGraphSync
 }
 
 func (m Matchers) IsEmpty() bool {
-	return len(m.GCP) == 0 && len(m.AWS) == 0 && len(m.Azure) == 0 && len(m.Kubernetes) == 0
+	return len(m.GCP) == 0 &&
+		len(m.AWS) == 0 &&
+		len(m.Azure) == 0 &&
+		len(m.Kubernetes) == 0 &&
+		(m.AccessGraph == nil || len(m.AccessGraph.AWS) == 0)
 }
 
 // ssmInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -124,6 +133,17 @@ type Config struct {
 	// PollInterval is the cadence at which the discovery server will run each of its
 	// discovery cycles.
 	PollInterval time.Duration
+
+	// ServerCredentials are the credentials used to identify the discovery service
+	// to the Access Graph service.
+	ServerCredentials *tls.Config
+	// AccessGraphConfig is the configuration for the Access Graph client
+	AccessGraphConfig servicecfg.AccessGraphConfig
+
+	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
+	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
+	TriggerFetchC  []chan struct{}
+	triggerFetchMu sync.RWMutex
 
 	// clock is passed to watchers to handle poll intervals.
 	// Mostly used in tests.
@@ -182,11 +202,20 @@ kubernetes matchers are present.`)
 		c.PollInterval = 5 * time.Minute
 	}
 
+	c.TriggerFetchC = make([]chan struct{}, 0)
+	c.triggerFetchMu = sync.RWMutex{}
+
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
+
+	if c.DiscoveryGroup == "" {
+		c.Log.Warn("discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +
+			"Please set discovery_service.discovery_group according to the documentation: https://goteleport.com/docs/reference/config/#discovery-service")
+	}
+
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
 	return nil
 }
@@ -250,6 +279,12 @@ type Server struct {
 	muDynamicServerGCPFetchers sync.RWMutex
 	staticServerGCPFetchers    []server.Fetcher
 
+	// dynamicTAGSyncFetchers holds the current TAG Fetchers for the Dynamic Matchers (those coming from DiscoveryConfig resource).
+	// The key is the DiscoveryConfig name.
+	dynamicTAGSyncFetchers   map[string][]aws_sync.AWSSync
+	muDynamicTAGSyncFetchers sync.RWMutex
+	staticTAGSyncFetchers    []aws_sync.AWSSync
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -278,6 +313,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerAWSFetchers:   make(map[string][]server.Fetcher),
 		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
+		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -310,6 +346,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	if err := s.initKubeAppWatchers(cfg.Matchers.Kubernetes); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.initAccessGraphWatchers(ctx, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -361,7 +401,11 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return trace.Wrap(err)
 	}
 
-	s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, s.getAllAWSServerFetchers, s.caRotationCh, server.WithPollInterval(s.PollInterval))
+	s.ec2Watcher, err = server.NewEC2Watcher(
+		s.ctx, s.getAllAWSServerFetchers, s.caRotationCh,
+		server.WithPollInterval(s.PollInterval),
+		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -538,7 +582,11 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 
 	// VM watcher.
 	var err error
-	s.azureWatcher, err = server.NewAzureWatcher(s.ctx, s.getAllAzureServerFetchers, server.WithPollInterval(s.PollInterval))
+	s.azureWatcher, err = server.NewAzureWatcher(
+		s.ctx, s.getAllAzureServerFetchers,
+		server.WithPollInterval(s.PollInterval),
+		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -591,7 +639,11 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 		return trace.Wrap(err)
 	}
 
-	s.gcpWatcher, err = server.NewGCPWatcher(s.ctx, s.getAllGCPServerFetchers)
+	s.gcpWatcher, err = server.NewGCPWatcher(
+		s.ctx, s.getAllGCPServerFetchers,
+		server.WithPollInterval(s.PollInterval),
+		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1057,6 +1109,42 @@ func (s *Server) emitUsageEvents(events map[string]*usageeventsv1.ResourceCreate
 	return nil
 }
 
+func (s *Server) submitFetchersEvent(fetchers []common.Fetcher) {
+	// Some Matcher Types have multiple fetchers, but we only care about the Matcher Type and not the actual Fetcher.
+	// Example:
+	// The `rds` Matcher Type creates two Fetchers: one for RDS and another one for Aurora
+	// Those fetchers's `FetcherType` both return `rds`, so we end up with two entries for `rds`.
+	// We must de-duplicate those entries before submitting the event.
+	type fetcherType struct {
+		cloud       string
+		fetcherType string
+	}
+	fetcherTypes := map[fetcherType]struct{}{}
+	for _, f := range fetchers {
+		fetcherKey := fetcherType{cloud: f.Cloud(), fetcherType: f.FetcherType()}
+		fetcherTypes[fetcherKey] = struct{}{}
+	}
+	for f := range fetcherTypes {
+		s.submitFetchEvent(f.cloud, f.fetcherType)
+	}
+}
+
+func (s *Server) submitFetchEvent(cloudProvider, resourceType string) {
+	err := s.AccessPoint.SubmitUsageEvent(s.ctx, &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_DiscoveryFetchEvent{
+				DiscoveryFetchEvent: &usageeventsv1.DiscoveryFetchEvent{
+					CloudProvider: cloudProvider,
+					ResourceType:  resourceType,
+				},
+			},
+		},
+	})
+	if err != nil {
+		s.Log.WithError(err).Debug("Error emitting discovery fetch event.")
+	}
+}
+
 func (s *Server) getAllAWSServerFetchers() []server.Fetcher {
 	allFetchers := make([]server.Fetcher, 0, len(s.staticServerAWSFetchers))
 
@@ -1066,7 +1154,13 @@ func (s *Server) getAllAWSServerFetchers() []server.Fetcher {
 	}
 	s.muDynamicServerAWSFetchers.RUnlock()
 
-	return append(allFetchers, s.staticServerAWSFetchers...)
+	allFetchers = append(allFetchers, s.staticServerAWSFetchers...)
+
+	if len(allFetchers) > 0 {
+		s.submitFetchEvent(types.CloudAWS, types.AWSMatcherEC2)
+	}
+
+	return allFetchers
 }
 
 func (s *Server) getAllAzureServerFetchers() []server.Fetcher {
@@ -1078,7 +1172,13 @@ func (s *Server) getAllAzureServerFetchers() []server.Fetcher {
 	}
 	s.muDynamicServerAzureFetchers.RUnlock()
 
-	return append(allFetchers, s.staticServerAzureFetchers...)
+	allFetchers = append(allFetchers, s.staticServerAzureFetchers...)
+
+	if len(allFetchers) > 0 {
+		s.submitFetchEvent(types.CloudAzure, types.AzureMatcherVM)
+	}
+
+	return allFetchers
 }
 
 func (s *Server) getAllGCPServerFetchers() []server.Fetcher {
@@ -1090,7 +1190,13 @@ func (s *Server) getAllGCPServerFetchers() []server.Fetcher {
 	}
 	s.muDynamicServerGCPFetchers.RUnlock()
 
-	return append(allFetchers, s.staticServerGCPFetchers...)
+	allFetchers = append(allFetchers, s.staticServerGCPFetchers...)
+
+	if len(allFetchers) > 0 {
+		s.submitFetchEvent(types.CloudGCP, types.GCPMatcherCompute)
+	}
+
+	return allFetchers
 }
 
 // Start starts the discovery service.
@@ -1135,7 +1241,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 				continue
 			}
 
-			if err := s.upsertDynamicMatchers(dc); err != nil {
+			if err := s.upsertDynamicMatchers(s.ctx, dc); err != nil {
 				s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 				continue
 			}
@@ -1163,23 +1269,49 @@ func (s *Server) startDynamicWatcherUpdater() {
 					// If the user updates the DiscoveryGroup to DG2, then DC1 must be removed from the scope of this process.
 					// We blindly delete it, in the worst case, this is a no-op.
 					s.deleteDynamicFetchers(event.Resource.GetName())
+					s.notifyDiscoveryConfigChanged()
 					continue
 				}
 
-				if err := s.upsertDynamicMatchers(dc); err != nil {
+				if err := s.upsertDynamicMatchers(s.ctx, dc); err != nil {
 					s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
 					continue
 				}
+				s.notifyDiscoveryConfigChanged()
 
 			case types.OpDelete:
 				s.deleteDynamicFetchers(event.Resource.GetName())
-
+				s.notifyDiscoveryConfigChanged()
 			default:
 				s.Log.Warnf("Skipping unknown event type %s", event.Type)
 			}
 		case <-s.dynamicMatcherWatcher.Done():
 			s.Log.Warnf("dynamic matcher watcher error: %v", s.dynamicMatcherWatcher.Error())
 			return
+		}
+	}
+}
+
+// newDiscoveryConfigChangedSub creates a new subscription for DiscoveryConfig events.
+// The consumer must have an active reader on the returned channel, and start a new Poll when it returns a value.
+func (s *Server) newDiscoveryConfigChangedSub() (ch chan struct{}) {
+	chSubscription := make(chan struct{}, 1)
+	s.triggerFetchMu.Lock()
+	s.TriggerFetchC = append(s.TriggerFetchC, chSubscription)
+	s.triggerFetchMu.Unlock()
+	return chSubscription
+}
+
+// triggerPoll sends a notification to all the registered watchers so that they start a new Poll.
+func (s *Server) notifyDiscoveryConfigChanged() {
+	s.triggerFetchMu.RLock()
+	defer s.triggerFetchMu.RUnlock()
+	for _, watcherTriggerC := range s.TriggerFetchC {
+		select {
+		case watcherTriggerC <- struct{}{}:
+			// Successfully sent notification.
+		default:
+			// Channel already has valued queued.
 		}
 	}
 }
@@ -1200,15 +1332,20 @@ func (s *Server) deleteDynamicFetchers(name string) {
 	s.muDynamicServerGCPFetchers.Lock()
 	delete(s.dynamicServerGCPFetchers, name)
 	s.muDynamicServerGCPFetchers.Unlock()
+
+	s.muDynamicTAGSyncFetchers.Lock()
+	delete(s.dynamicTAGSyncFetchers, name)
+	s.muDynamicTAGSyncFetchers.Unlock()
 }
 
 // upsertDynamicMatchers upserts the internal set of dynamic matchers given a particular discovery config.
-func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) error {
+func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) error {
 	matchers := Matchers{
-		AWS:        dc.Spec.AWS,
-		Azure:      dc.Spec.Azure,
-		GCP:        dc.Spec.GCP,
-		Kubernetes: dc.Spec.Kube,
+		AWS:         dc.Spec.AWS,
+		Azure:       dc.Spec.Azure,
+		GCP:         dc.Spec.GCP,
+		Kubernetes:  dc.Spec.Kube,
+		AccessGraph: dc.Spec.AccessGraph,
 	}
 	s.discardUnsupportedMatchers(&matchers)
 
@@ -1241,6 +1378,16 @@ func (s *Server) upsertDynamicMatchers(dc *discoveryconfig.DiscoveryConfig) erro
 	s.muDynamicDatabaseFetchers.Lock()
 	s.dynamicDatabaseFetchers[dc.GetName()] = databaseFetchers
 	s.muDynamicDatabaseFetchers.Unlock()
+
+	awsSyncMatchers, err := s.accessGraphFetchersFromMatchers(
+		ctx, matchers,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.muDynamicTAGSyncFetchers.Lock()
+	s.dynamicTAGSyncFetchers[dc.GetName()] = awsSyncMatchers
+	s.muDynamicTAGSyncFetchers.Unlock()
 
 	// TODO(marco): add other fetchers: Kube Clusters and Kube Resources (Apps)
 	return nil
@@ -1303,7 +1450,7 @@ func (s *Server) Stop() {
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
 	<-s.ctx.Done()
-	if err := s.ctx.Err(); err != nil && err != context.Canceled {
+	if err := s.ctx.Err(); err != nil && !errors.Is(err, context.Canceled) {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1365,4 +1512,16 @@ func splitMatchers[T types.Matcher](matchers []T, matcherTypeCheck func(string) 
 		}
 	}
 	return
+}
+
+func (s *Server) updatesEmptyDiscoveryGroup(getter func() (types.ResourceWithLabels, error)) bool {
+	if s.DiscoveryGroup == "" {
+		return false
+	}
+	old, err := getter()
+	if err != nil {
+		return false
+	}
+	oldDiscoveryGroup, _ := old.GetLabel(types.TeleportInternalDiscoveryGroupName)
+	return oldDiscoveryGroup == ""
 }

@@ -60,7 +60,7 @@ func TestWriteMovieCanBeCanceled(t *testing.T) {
 	cancel()
 
 	frames, _, err := writeMovieWrapper(t, ctx, fs, "test", "test", nil)
-	require.ErrorIs(t, context.Canceled, err)
+	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, 0, frames)
 }
 
@@ -136,7 +136,7 @@ func writeMovieWrapper(t *testing.T, ctx context.Context, ss events.SessionStrea
 
 	tempDir := t.TempDir()
 	prefix = path.Join(tempDir, prefix)
-	frames, err := writeMovie(ctx, ss, sid, prefix, write)
+	frames, err := writeMovie(ctx, ss, sid, prefix, write, "")
 	return frames, prefix, err
 }
 

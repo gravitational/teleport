@@ -163,6 +163,7 @@ func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *ac
 		}
 	}
 
+	var upserted *accesslist.AccessList
 	upsertWithLockFn := func() error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 			oldAccessList, err := a.service.GetResource(ctx, accessList.GetName())
@@ -187,7 +188,9 @@ func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *ac
 				}
 				ownerMap[owner.Name] = struct{}{}
 			}
-			return trace.Wrap(a.service.UpsertResource(ctx, accessList))
+
+			upserted, err = a.service.UpsertResource(ctx, accessList)
+			return trace.Wrap(err)
 		})
 	}
 
@@ -207,7 +210,7 @@ func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *ac
 		return nil, trace.Wrap(err)
 	}
 
-	return accessList, nil
+	return upserted, nil
 }
 
 // DeleteAccessList removes the specified access list resource.
@@ -237,6 +240,11 @@ func (a *AccessListService) DeleteAllAccessLists(ctx context.Context) error {
 	return trace.Wrap(a.service.DeleteAllResources(ctx))
 }
 
+// GetSuggestedAccessLists returns a list of access lists that are suggested for a given request. This is not implemented in the local service.
+func (a *AccessListService) GetSuggestedAccessLists(ctx context.Context, accessRequestID string) ([]*accesslist.AccessList, error) {
+	return nil, trace.NotImplemented("GetSuggestedAccessLists should not be called")
+}
+
 // ListAccessListMembers returns a paginated list of all access list members.
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
 	var members []*accesslist.AccessListMember
@@ -262,6 +270,19 @@ func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessLis
 	return members, nextToken, nil
 }
 
+// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+	members, next, err := a.memberService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	var nextKey string
+	if next != nil {
+		nextKey = (*next).Spec.AccessList + string(backend.Separator) + (*next).Metadata.Name
+	}
+	return members, nextKey, nil
+}
+
 // GetAccessListMember returns the specified access list member resource.
 func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	var member *accesslist.AccessListMember
@@ -283,6 +304,7 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList 
 
 // UpsertAccessListMember creates or updates an access list member resource.
 func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	var upserted *accesslist.AccessListMember
 	err := a.service.RunWhileLocked(ctx, lockName(member.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		al, err := a.service.GetResource(ctx, member.Spec.AccessList)
 		if err != nil {
@@ -293,12 +315,13 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 			return services.ImplicitAccessListError{}
 		}
 
-		return trace.Wrap(a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member))
+		upserted, err = a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member)
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return member, nil
+	return upserted, nil
 }
 
 // DeleteAccessListMember hard deletes the specified access list member resource.
@@ -387,19 +410,21 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 				for _, member := range members {
 					// If the member is not in the members map (request), delete it.
-					if _, ok := membersMap[member.GetName()]; !ok {
+					if existingMember, ok := membersMap[member.GetName()]; !ok {
 						err = a.memberService.WithPrefix(accessList.GetName()).DeleteResource(ctx, member.GetName())
 						if err != nil {
 							return trace.Wrap(err)
 						}
 					} else {
 						// Compare members and update if necessary.
-						if !cmp.Equal(member, membersMap[member.GetName()]) {
+						if !cmp.Equal(member, existingMember) {
 							// Update the member.
-							err = a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, membersMap[member.GetName()])
+							upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, existingMember)
 							if err != nil {
 								return trace.Wrap(err)
 							}
+
+							existingMember.SetRevision(upserted.GetRevision())
 						}
 					}
 
@@ -414,13 +439,15 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 
 			// Add any remaining members to the access list.
 			for _, member := range membersMap {
-				err = a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, member)
+				upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, member)
 				if err != nil {
 					return trace.Wrap(err)
 				}
+				member.SetRevision(upserted.GetRevision())
 			}
 
-			return trace.Wrap(a.service.UpsertResource(ctx, accessList))
+			accessList, err = a.service.UpsertResource(ctx, accessList)
+			return trace.Wrap(err)
 		})
 	}
 
@@ -463,15 +490,32 @@ func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessLis
 	return reviews, nextToken, nil
 }
 
+// ListAllAccessListReviews will list access list reviews for all access lists.
+func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
+	reviews, next, err := a.reviewService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	var nextKey string
+	if next != nil {
+		nextKey = (*next).Spec.AccessList + string(backend.Separator) + (*next).Metadata.Name
+	}
+	return reviews, nextKey, nil
+}
+
 // CreateAccessListReview will create a new review for an access list.
 func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, time.Time, error) {
 	reviewName := uuid.New().String()
 	createdReview, err := accesslist.NewReview(header.Metadata{
-		Name: reviewName,
+		Name:        reviewName,
+		Labels:      review.GetAllLabels(),
+		Description: review.Metadata.Description,
+		Expires:     review.Expiry(),
 	}, accesslist.ReviewSpec{
 		AccessList: review.Spec.AccessList,
 		Reviewers:  review.Spec.Reviewers,
 		ReviewDate: review.Spec.ReviewDate,
+		Notes:      review.Spec.Notes,
 		Changes:    review.Spec.Changes,
 	})
 	if err != nil {
@@ -510,11 +554,12 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 			}
 		}
 
-		if err := a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, createdReview); err != nil {
+		createdReview, err = a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, createdReview)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		nextAuditDate = services.SelectNextReviewDate(accessList)
+		nextAuditDate = accessList.SelectNextReviewDate()
 		accessList.Spec.Audit.NextAuditDate = nextAuditDate
 
 		for _, removedMember := range review.Spec.Changes.RemovedMembers {
@@ -523,7 +568,7 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 			}
 		}
 
-		if err := a.service.UpdateResource(ctx, accessList); err != nil {
+		if _, err := a.service.UpdateResource(ctx, accessList); err != nil {
 			return trace.Wrap(err, "updating audit date in access list")
 		}
 
@@ -586,16 +631,11 @@ func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessLi
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessListReviews will delete all access list reviews from an access list.
-func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context, accessList string) error {
-	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		_, err := a.service.GetResource(ctx, accessList)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(a.reviewService.WithPrefix(accessList).DeleteAllResources(ctx))
-	})
-	return trace.Wrap(err)
+// DeleteAllAccessListReviews will delete all access list reviews from all access lists.
+func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context) error {
+	// Locks are not used here as these operations are more likely to be used by the cache.
+	// Delete all members for all access lists.
+	return trace.Wrap(a.reviewService.DeleteAllResources(ctx))
 }
 
 func lockName(accessListName string) string {
@@ -608,8 +648,7 @@ func lockName(accessListName string) string {
 // Returns error if limit has been reached.
 func (a *AccessListService) VerifyAccessListCreateLimit(ctx context.Context, targetAccessListName string) error {
 	feature := modules.GetModules().Features()
-	// TODO(lisa): checking for legacy is temporary until nearing v15.
-	if feature.IsLegacy() || feature.IGSEnabled() {
+	if feature.IGSEnabled() {
 		return nil // unlimited
 	}
 

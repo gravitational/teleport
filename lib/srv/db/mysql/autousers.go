@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
@@ -33,9 +34,9 @@ import (
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -111,6 +112,11 @@ func (c *clientConn) maxRoleLength() int {
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
 	if sessionCtx.Database.GetAdminUser().Name == "" {
 		return trace.BadParameter("Teleport does not have admin user configured for this database")
+	}
+
+	if sessionCtx.Database.IsRDS() &&
+		sessionCtx.Database.GetEndpointType() == apiawsutils.RDSEndpointTypeReader {
+		return trace.BadParameter("auto-user provisioning is not supported for RDS reader endpoints")
 	}
 
 	conn, err := e.connectAsAdminUser(ctx, sessionCtx)
@@ -525,7 +531,7 @@ func getCreateProcedureCommand(conn *clientConn, procedureName string) (string, 
 const (
 	// procedureVersion is a hard-coded string that is set as procedure
 	// comments to indicate the procedure version.
-	procedureVersion = "teleport-auto-user-v3"
+	procedureVersion = "teleport-auto-user-v4"
 
 	// mysqlMaxUsernameLength is the maximum username/role length for MySQL.
 	//

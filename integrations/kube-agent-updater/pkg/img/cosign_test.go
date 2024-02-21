@@ -37,8 +37,8 @@ import (
 
 var distrolessKey = []byte("-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEWZzVzkb8A+DbgDpaJId/bOmV8n7Q\nOqxYbK0Iro6GzSmOzxkn+N2AKawLyXi84WSwJQBK//psATakCgAQKkNTAA==\n-----END PUBLIC KEY-----")
 
-func Test_NewCosignSingleKeyValidator(t *testing.T) {
-	a, err := NewCosignSingleKeyValidator(distrolessKey, "distroless")
+func Test_NewCosignSignleKeyValidator(t *testing.T) {
+	a, err := NewCosignSingleKeyValidator(distrolessKey, "distroless", nil)
 	require.NoError(t, err)
 	require.Equal(t, "distroless-799a5c21a7f8c39707274cbd065ba2e1969d8d29", a.Name())
 }

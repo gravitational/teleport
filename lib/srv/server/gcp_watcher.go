@@ -21,10 +21,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -71,15 +71,21 @@ func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 }
 
 // NewGCPWatcher creates a new GCP watcher.
-func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher) (*Watcher, error) {
+func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchersFn:   fetchersFn,
-		ctx:          cancelCtx,
-		cancel:       cancelFn,
-		pollInterval: time.Minute,
-		InstancesC:   make(chan Instances),
+		fetchersFn:    fetchersFn,
+		ctx:           cancelCtx,
+		cancel:        cancelFn,
+		pollInterval:  time.Minute,
+		triggerFetchC: make(<-chan struct{}),
+		InstancesC:    make(chan Instances),
 	}
+
+	for _, opt := range opts {
+		opt(&watcher)
+	}
+
 	return &watcher, nil
 }
 

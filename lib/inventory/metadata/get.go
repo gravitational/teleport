@@ -34,11 +34,11 @@ var metadataReady = make(chan struct{})
 // fetched is used to ensure that the instance metadata is fetched at most once.
 var fetched atomic.Bool
 
-// Get fetches the instance metadata.
-// The first call can take some time as all metadata will be retrieved.
-// The resulting metadata is cached, so subsequent calls will be fast.
-// The return value of Get might be shared between callers and should not be
-// modified.
+// Get fetches the instance metadata. The first call can take some time as all
+// metadata will be retrieved. The resulting metadata is cached, so subsequent
+// calls will be fast. The return value of Get might be shared between callers
+// and should not be modified. If the cached metadata is ready, it will be
+// returned successfully even if the context is done.
 func Get(ctx context.Context) (*Metadata, error) {
 	if !fetched.Swap(true) {
 		// Spawn a goroutine responsible for fetching the metadata if we're the
@@ -51,6 +51,13 @@ func Get(ctx context.Context) (*Metadata, error) {
 			// Signal that the metadata is ready.
 			close(metadataReady)
 		}()
+	}
+
+	// if the metadata is ready we don't care if the context is already done
+	select {
+	case <-metadataReady:
+		return metadata, nil
+	default:
 	}
 
 	select {

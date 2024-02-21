@@ -34,8 +34,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/utils"
@@ -401,7 +401,7 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	require.Len(t, respDBService.ResourceMatchers, 1)
 	respResourceMatcher := respDBService.ResourceMatchers[0]
 
-	require.Equal(t, respResourceMatcher.Labels, &types.Labels{"env": []string{"prod"}})
+	require.Equal(t, &types.Labels{"env": []string{"prod"}}, respResourceMatcher.Labels)
 }
 
 func TestHandleSQLServerConfigureScript(t *testing.T) {
@@ -561,7 +561,7 @@ func strPtr(str string) *string {
 func generateProvisionToken(t *testing.T, role types.SystemRole, expiresAt time.Time) (types.ProvisionToken, string) {
 	t.Helper()
 
-	token, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	token, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	require.NoError(t, err)
 
 	pt, err := types.NewProvisionToken(token, types.SystemRoles{role}, expiresAt)

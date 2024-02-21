@@ -141,6 +141,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_EC2_INSTANCE = 38;
 
   DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD = 39;
+
+  DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -228,6 +230,7 @@ enum CTA {
   CTA_ACCESS_LIST = 8;
   CTA_ACCESS_MONITORING = 9;
   CTA_EXTERNAL_AUDIT_STORAGE = 10;
+  CTA_OKTA_USER_SYNC = 11;
 }
 
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.

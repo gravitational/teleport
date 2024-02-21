@@ -88,6 +88,16 @@ func (*nilCloser) Close() error {
 	return nil
 }
 
+// assert that CloseFunc implement io.Closer.
+var _ io.Closer = (CloseFunc)(nil)
+
+// CloseFunc is a helper used to implement io.Closer on a closure.
+type CloseFunc func() error
+
+func (cf CloseFunc) Close() error {
+	return cf()
+}
+
 // NopWriteCloser returns a WriteCloser with a no-op Close method wrapping
 // the provided Writer w
 func NopWriteCloser(r io.Writer) io.WriteCloser {
@@ -166,11 +176,14 @@ func ClickableURL(in string) string {
 		return in
 	}
 	ip := net.ParseIP(host)
-	// if address is not an IP, unspecified, e.g. all interfaces 0.0.0.0 or multicast,
+	// If address is not an IP address, return it unchanged.
+	if ip == nil && out.Host != "" {
+		return out.String()
+	}
+	// if address is unspecified, e.g. all interfaces 0.0.0.0 or multicast,
 	// replace with localhost that is clickable
 	if len(ip) == 0 || ip.IsUnspecified() || ip.IsMulticast() {
 		out.Host = fmt.Sprintf("127.0.0.1:%v", port)
-		return out.String()
 	}
 	return out.String()
 }
@@ -239,21 +252,6 @@ func StringsSet(in []string) map[string]struct{} {
 		out[v] = struct{}{}
 	}
 	return out
-}
-
-// ParseOnOff parses whether value is "on" or "off", parameterName is passed for error
-// reporting purposes, defaultValue is returned when no value is set
-func ParseOnOff(parameterName, val string, defaultValue bool) (bool, error) {
-	switch val {
-	case teleport.On:
-		return true, nil
-	case teleport.Off:
-		return false, nil
-	case "":
-		return defaultValue, nil
-	default:
-		return false, trace.BadParameter("bad %q parameter value: %q, supported values are on or off", parameterName, val)
-	}
 }
 
 // IsGroupMember returns whether currently logged user is a member of a group

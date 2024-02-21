@@ -292,7 +292,7 @@ const LocalForm = ({
             <Box mb={isRecoveryEnabled ? 2 : 3}>
               <Flex alignItems="flex-end">
                 <FieldSelect
-                  maxWidth="50%"
+                  maxWidth="60%"
                   width="100%"
                   data-testid="mfa-select"
                   label="Two-factor Type"
@@ -306,7 +306,7 @@ const LocalForm = ({
                 />
                 {mfaType.value === 'otp' && (
                   <FieldInput
-                    width="50%"
+                    width="40%"
                     label="Authenticator Code"
                     rule={requiredToken}
                     autoComplete="one-time-code"
@@ -314,6 +314,7 @@ const LocalForm = ({
                     value={token}
                     onChange={e => setToken(e.target.value)}
                     placeholder="123 456"
+                    disabled={attempt.isProcessing}
                     mb={0}
                   />
                 )}

@@ -41,6 +41,7 @@ var (
 		"sts.ap-southeast-3.amazonaws.com",
 		"sts.ap-southeast-4.amazonaws.com",
 		"sts.ca-central-1.amazonaws.com",
+		"sts.ca-west-1.amazonaws.com",
 		"sts.cn-north-1.amazonaws.com.cn",
 		"sts.cn-northwest-1.amazonaws.com.cn",
 		"sts.eu-central-1.amazonaws.com",

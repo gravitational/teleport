@@ -67,7 +67,7 @@ function Phase({
   let bg = phaseSolidColor;
 
   if (status === 'success') {
-    bg = theme.colors.success;
+    bg = theme.colors.success.main;
   }
 
   if (status === 'error') {
@@ -87,7 +87,9 @@ function Phase({
       </StyledPhase>
       {!isLast && (
         <StyledLine
-          color={status === 'success' ? theme.colors.success : phaseSolidColor}
+          color={
+            status === 'success' ? theme.colors.success.main : phaseSolidColor
+          }
         />
       )}
     </>
@@ -153,7 +155,7 @@ function getPhaseSolidColor(theme: any): string {
 const Spinner = styled.div`
   opacity: 1;
   color: ${props => props.theme.colors.spotBackground[2]};
-  border: 3px solid ${props => props.theme.colors.success};
+  border: 3px solid ${props => props.theme.colors.success.main};
   border-radius: 50%;
   border-top: 3px solid ${props => props.theme.colors.spotBackground[0]};
   width: 24px;

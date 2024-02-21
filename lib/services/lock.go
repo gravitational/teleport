@@ -123,15 +123,7 @@ func MarshalLock(lock types.Lock, opts ...MarshalOption) ([]byte, error) {
 		if version := lock.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched lock version %v and type %T", version, lock)
 		}
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *lock
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			lock = &copy
-		}
-		return utils.FastMarshal(lock)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, lock))
 	default:
 		return nil, trace.BadParameter("unrecognized lock version %T", lock)
 	}

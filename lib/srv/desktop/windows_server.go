@@ -124,7 +124,7 @@ type WindowsService struct {
 	// when desktop discovery is enabled.
 	// no synchronization is necessary because this is only read/written from
 	// the reconciler goroutine.
-	lastDiscoveryResults types.ResourcesWithLabelsMap
+	lastDiscoveryResults map[string]types.WindowsDesktop
 
 	// Windows hosts discovered via LDAP likely won't resolve with the
 	// default DNS resolver, so we need a custom resolver that will
@@ -520,17 +520,6 @@ func (s *WindowsService) initializeLDAP() error {
 	conn.SetTimeout(ldapRequestTimeout)
 	s.lc.SetClient(conn)
 
-	// Note: admin still needs to import our CA into the Group Policy following
-	// https://docs.vmware.com/en/VMware-Horizon-7/7.13/horizon-installation/GUID-7966AE16-D98F-430E-A916-391E8EAAFE18.html
-	//
-	// We can find the group policy object via LDAP, but it only contains an
-	// SMB file path with the actual policy. See
-	// https://en.wikipedia.org/wiki/Group_Policy
-	//
-	// In theory, we could update the policy file(s) over SMB following
-	// https://docs.microsoft.com/en-us/previous-versions/windows/desktop/policy/registry-policy-file-format,
-	// but I'm leaving this for later.
-	//
 	if err := s.ca.Update(s.closeCtx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -768,7 +757,8 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
 		log.Errorf("RDP connection failed: %v", err)
 		msg := "RDP connection failed."
-		if um, ok := err.(trace.UserMessager); ok {
+		var um trace.UserMessager
+		if errors.As(err, &um) {
 			msg = um.UserMessage()
 		}
 		sendTDPError(msg)
@@ -864,7 +854,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	delay := timer()
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, tdpConn, audit)
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
-
+	width, height := desktop.GetScreenSize()
+	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
@@ -877,6 +868,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
+		Width:                 width,
+		Height:                height,
 	})
 	// before we check the error above, we grab the windows user so that
 	// future audit events include the proper username
@@ -885,6 +878,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		windowsUser = rdpc.GetClientUsername()
 		audit.windowsUser = windowsUser
 	}
+	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	if err != nil {
 		startEvent := audit.makeSessionStart(err)
 		s.record(ctx, recorder, startEvent)
@@ -912,10 +906,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		TeleportUser:          identity.Username,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
-		MessageWriter: &monitorErrorSender{
-			log:     log,
-			tdpConn: tdpConn,
-		},
+		MessageWriter:         &monitorErrorSender{tdpConn: tdpConn},
 	}
 
 	// UpdateClientActivity before starting monitor to
@@ -957,7 +948,8 @@ func (s *WindowsService) makeTDPSendHandler(
 ) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
-		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
+		case byte(tdp.TypeRDPConnectionInitialized), byte(tdp.TypeRDPFastPathPDU), byte(tdp.TypePNG2Frame),
+			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -1312,15 +1304,12 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 // monitor disconnect messages back to the frontend
 // over the tdp.Conn
 type monitorErrorSender struct {
-	log     logrus.FieldLogger
 	tdpConn *tdp.Conn
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
 	if err := m.tdpConn.SendNotification(s, tdp.SeverityError); err != nil {
-		errMsg := fmt.Sprintf("Failed to send TDP error message %v: %v", s, err)
-		m.log.Error(errMsg)
-		return 0, trace.Errorf(errMsg)
+		return 0, trace.Wrap(err, "sending TDP error message")
 	}
 
 	return len(s), nil

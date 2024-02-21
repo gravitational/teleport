@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
@@ -322,10 +324,20 @@ func WithSSHLabel(key, value string) TestServerOptFunc {
 	})
 }
 
+func WithAuthPreference(authPref types.AuthPreference) TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Auth.Preference = authPref
+	})
+}
+
 type cliModules struct{}
 
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
+}
+
+func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListGetter, _ string) ([]*accesslist.AccessList, error) {
+	return []*accesslist.AccessList{}, nil
 }
 
 // BuildType returns build type.
@@ -355,8 +367,8 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
-	return keys.PrivateKeyPolicyNone, nil
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+	return nil, trace.NotFound("no attestation data for the given key")
 }
 
 func (p *cliModules) EnableRecoveryCodes() {

@@ -1,9 +1,0 @@
-teleport:
-  # Teleport HTTPS Proxy web address, for Teleport Enterprise Cloud should be in the form "your-account.teleport.sh:443"
-  address: "teleport.example.com:443"
-  # Secret containing identity
-  identitySecretName: teleport-plugin-pagerduty-identity
-
-pagerduty:
-  apiKey: "key"                # PagerDuty API Key
-  userEmail: "me@example.com"  # PagerDuty bot user email (Could be admin email)

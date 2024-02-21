@@ -17,6 +17,8 @@ limitations under the License.
 package v1
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -75,12 +77,28 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		}
 	}
 
+	var ownerGrants accesslist.Grants
+	if msg.Spec.OwnerGrants != nil {
+		ownerGrants.Roles = msg.Spec.OwnerGrants.Roles
+		if msg.Spec.OwnerGrants.Traits != nil {
+			ownerGrants.Traits = traitv1.FromProto(msg.Spec.OwnerGrants.Traits)
+		}
+	}
+
+	// We map the zero protobuf time (nil) to the zero go time.
+	// NewAccessList will handle this properly and set a time in the future
+	// based on the recurrence rules.
+	var nextAuditDate time.Time
+	if msg.Spec.Audit.NextAuditDate != nil {
+		nextAuditDate = msg.Spec.Audit.NextAuditDate.AsTime()
+	}
+
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
 		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
 		Owners:      owners,
 		Audit: accesslist.Audit{
-			NextAuditDate: msg.Spec.Audit.NextAuditDate.AsTime(),
+			NextAuditDate: nextAuditDate,
 			Recurrence:    recurrence,
 			Notifications: notifications,
 		},
@@ -98,6 +116,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
+		OwnerGrants: ownerGrants,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -125,6 +144,27 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		}
 	}
 
+	var ownerGrants *accesslistv1.AccessListGrants
+	if len(accessList.Spec.OwnerGrants.Roles) > 0 {
+		ownerGrants = &accesslistv1.AccessListGrants{
+			Roles: accessList.Spec.OwnerGrants.Roles,
+		}
+	}
+
+	if len(accessList.Spec.OwnerGrants.Traits) > 0 {
+		if ownerGrants == nil {
+			ownerGrants = &accesslistv1.AccessListGrants{}
+		}
+
+		ownerGrants.Traits = traitv1.ToProto(accessList.Spec.OwnerGrants.Traits)
+	}
+
+	// We map the zero go time to the zero protobuf time (nil).
+	var nextAuditDate *timestamppb.Timestamp
+	if !accessList.Spec.Audit.NextAuditDate.IsZero() {
+		nextAuditDate = timestamppb.New(accessList.Spec.Audit.NextAuditDate)
+	}
+
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
@@ -134,7 +174,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			Membership:  string(accessList.Spec.Membership),
 			Owners:      owners,
 			Audit: &accesslistv1.AccessListAudit{
-				NextAuditDate: timestamppb.New(accessList.Spec.Audit.NextAuditDate),
+				NextAuditDate: nextAuditDate,
 				Recurrence: &accesslistv1.Recurrence{
 					Frequency:  accesslistv1.ReviewFrequency(accessList.Spec.Audit.Recurrence.Frequency),
 					DayOfMonth: accesslistv1.ReviewDayOfMonth(accessList.Spec.Audit.Recurrence.DayOfMonth),
@@ -155,6 +195,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Roles:  accessList.Spec.Grants.Roles,
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
+			OwnerGrants: ownerGrants,
 		},
 	}
 }

@@ -20,10 +20,10 @@ package clusters
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/types"
@@ -56,6 +56,7 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestF
 	)
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -179,6 +180,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -223,6 +225,7 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 	)
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

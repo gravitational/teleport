@@ -72,7 +72,8 @@ spec:
 Replace:
 - `example.app.spacelift.io` with the hostname of your Spacelift tenant.
 - `my-stack` with the name of the Spacelift stack.
-- `root` with the name of the space that the stack resides within.
+- `root` with the ID of the space that the stack resides within. The
+  "space details" panel on the "Spaces" page of the Spacelift UI shows the ID.
 
 Once the resource file has been written, create the token with `tctl`:
 
@@ -178,7 +179,7 @@ version: "1"
 stack_defaults:
   runner_image: public.ecr.aws/gravitational/teleport-spacelift-runner:(=teleport.version=)
   before_init:
-  - |
+  - |-
     tbot start --oneshot \
       --data-dir=memory:// \
       --auth-server teleport.example.com:443 \
@@ -191,6 +192,17 @@ Replace:
 
 - `teleport.example.com:443` with the address of your Teleport cluster.
 - `example-bot` with the name of the token you created in the first step.
+
+<Admonition type="note" title="Using multiple stacks in one repository?">
+If you have multiple Spacelift stacks within a single repository, you should
+note that using `stack_defaults` will apply this configuration to all the
+stacks within the repository.
+
+To avoid this, you can use the `stacks` key instead of `stack_defaults` to
+configure a specific stack. See the
+[Spacelift Runtime configuration documentation](https://docs.spacelift.io/concepts/configuration/runtime-configuration/)
+for more information.
+</Admonition>
 
 ### Declare configuration resources
 
@@ -213,6 +225,7 @@ provider "teleport" {
 }
 
 resource "teleport_role" "terraform_test" {
+  version = "v7"
   metadata = {
     name        = "terraform-test"
     description = "Terraform test role"

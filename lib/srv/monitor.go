@@ -356,13 +356,16 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 			clientLastActive := w.Tracker.GetClientLastActive()
 			since := w.Clock.Since(clientLastActive)
 			if since >= w.ClientIdleTimeout {
-				reason := "client reported no activity"
+				reason := "Client reported no activity"
 				if !clientLastActive.IsZero() {
-					reason = fmt.Sprintf("client is idle for %v, exceeded idle timeout of %v",
-						since, w.ClientIdleTimeout)
+					reason = fmt.Sprintf("Client exceeded idle timeout of %v", w.ClientIdleTimeout)
 				}
-				if w.MessageWriter != nil && w.IdleTimeoutMessage != "" {
-					if _, err := w.MessageWriter.WriteString(w.IdleTimeoutMessage); err != nil {
+				if w.MessageWriter != nil {
+					msg := w.IdleTimeoutMessage
+					if msg == "" {
+						msg = reason
+					}
+					if _, err := w.MessageWriter.WriteString(msg); err != nil {
 						w.Entry.WithError(err).Warn("Failed to send idle timeout message.")
 					}
 				}
@@ -407,7 +410,6 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 			lockWatchDoneC = nil
 
 		case <-w.Context.Done():
-			w.Entry.Debugf("Releasing associated resources - context has been closed.")
 			return
 		}
 	}

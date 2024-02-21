@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
+	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
 	"github.com/gravitational/trace"
@@ -100,7 +101,7 @@ func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Databas
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	databases, err := services.NewDatabasesFromRDSCluster(rdsCluster)
+	databases, err := services.NewDatabasesFromRDSCluster(rdsCluster, []*rds.DBInstance{})
 	if err != nil {
 		c.log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
 			aws.StringValue(rdsCluster.DBClusterIdentifier), err)

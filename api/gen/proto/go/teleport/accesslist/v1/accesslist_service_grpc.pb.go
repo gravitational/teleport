@@ -42,6 +42,7 @@ const (
 	AccessListService_DeleteAllAccessLists_FullMethodName                    = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessLists"
 	AccessListService_GetAccessListsToReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/GetAccessListsToReview"
 	AccessListService_ListAccessListMembers_FullMethodName                   = "/teleport.accesslist.v1.AccessListService/ListAccessListMembers"
+	AccessListService_ListAllAccessListMembers_FullMethodName                = "/teleport.accesslist.v1.AccessListService/ListAllAccessListMembers"
 	AccessListService_GetAccessListMember_FullMethodName                     = "/teleport.accesslist.v1.AccessListService/GetAccessListMember"
 	AccessListService_UpsertAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/UpsertAccessListMember"
 	AccessListService_DeleteAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/DeleteAccessListMember"
@@ -49,9 +50,11 @@ const (
 	AccessListService_DeleteAllAccessListMembers_FullMethodName              = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessListMembers"
 	AccessListService_UpsertAccessListWithMembers_FullMethodName             = "/teleport.accesslist.v1.AccessListService/UpsertAccessListWithMembers"
 	AccessListService_ListAccessListReviews_FullMethodName                   = "/teleport.accesslist.v1.AccessListService/ListAccessListReviews"
+	AccessListService_ListAllAccessListReviews_FullMethodName                = "/teleport.accesslist.v1.AccessListService/ListAllAccessListReviews"
 	AccessListService_CreateAccessListReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/CreateAccessListReview"
 	AccessListService_DeleteAccessListReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/DeleteAccessListReview"
 	AccessListService_AccessRequestPromote_FullMethodName                    = "/teleport.accesslist.v1.AccessListService/AccessRequestPromote"
+	AccessListService_GetSuggestedAccessLists_FullMethodName                 = "/teleport.accesslist.v1.AccessListService/GetSuggestedAccessLists"
 )
 
 // AccessListServiceClient is the client API for AccessListService service.
@@ -74,6 +77,8 @@ type AccessListServiceClient interface {
 	GetAccessListsToReview(ctx context.Context, in *GetAccessListsToReviewRequest, opts ...grpc.CallOption) (*GetAccessListsToReviewResponse, error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(ctx context.Context, in *ListAccessListMembersRequest, opts ...grpc.CallOption) (*ListAccessListMembersResponse, error)
+	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+	ListAllAccessListMembers(ctx context.Context, in *ListAllAccessListMembersRequest, opts ...grpc.CallOption) (*ListAllAccessListMembersResponse, error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, in *GetAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
 	// UpsertAccessListMember creates or updates an access list member resource.
@@ -88,6 +93,8 @@ type AccessListServiceClient interface {
 	UpsertAccessListWithMembers(ctx context.Context, in *UpsertAccessListWithMembersRequest, opts ...grpc.CallOption) (*UpsertAccessListWithMembersResponse, error)
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, in *ListAccessListReviewsRequest, opts ...grpc.CallOption) (*ListAccessListReviewsResponse, error)
+	// ListAllAccessListReviews will list access list reviews for all access lists.
+	ListAllAccessListReviews(ctx context.Context, in *ListAllAccessListReviewsRequest, opts ...grpc.CallOption) (*ListAllAccessListReviewsResponse, error)
 	// CreateAccessListReview will create a new review for an access list. It will also modify the original access list
 	// and its members depending on the details of the review.
 	CreateAccessListReview(ctx context.Context, in *CreateAccessListReviewRequest, opts ...grpc.CallOption) (*CreateAccessListReviewResponse, error)
@@ -95,6 +102,8 @@ type AccessListServiceClient interface {
 	DeleteAccessListReview(ctx context.Context, in *DeleteAccessListReviewRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(ctx context.Context, in *AccessRequestPromoteRequest, opts ...grpc.CallOption) (*AccessRequestPromoteResponse, error)
+	// GetSuggestedAccessLists returns suggested access lists for an access request.
+	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
 }
 
 type accessListServiceClient struct {
@@ -177,6 +186,15 @@ func (c *accessListServiceClient) ListAccessListMembers(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *accessListServiceClient) ListAllAccessListMembers(ctx context.Context, in *ListAllAccessListMembersRequest, opts ...grpc.CallOption) (*ListAllAccessListMembersResponse, error) {
+	out := new(ListAllAccessListMembersResponse)
+	err := c.cc.Invoke(ctx, AccessListService_ListAllAccessListMembers_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessListServiceClient) GetAccessListMember(ctx context.Context, in *GetAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error) {
 	out := new(Member)
 	err := c.cc.Invoke(ctx, AccessListService_GetAccessListMember_FullMethodName, in, out, opts...)
@@ -240,6 +258,15 @@ func (c *accessListServiceClient) ListAccessListReviews(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *accessListServiceClient) ListAllAccessListReviews(ctx context.Context, in *ListAllAccessListReviewsRequest, opts ...grpc.CallOption) (*ListAllAccessListReviewsResponse, error) {
+	out := new(ListAllAccessListReviewsResponse)
+	err := c.cc.Invoke(ctx, AccessListService_ListAllAccessListReviews_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessListServiceClient) CreateAccessListReview(ctx context.Context, in *CreateAccessListReviewRequest, opts ...grpc.CallOption) (*CreateAccessListReviewResponse, error) {
 	out := new(CreateAccessListReviewResponse)
 	err := c.cc.Invoke(ctx, AccessListService_CreateAccessListReview_FullMethodName, in, out, opts...)
@@ -267,6 +294,15 @@ func (c *accessListServiceClient) AccessRequestPromote(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *accessListServiceClient) GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error) {
+	out := new(GetSuggestedAccessListsResponse)
+	err := c.cc.Invoke(ctx, AccessListService_GetSuggestedAccessLists_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccessListServiceServer is the server API for AccessListService service.
 // All implementations must embed UnimplementedAccessListServiceServer
 // for forward compatibility
@@ -287,6 +323,8 @@ type AccessListServiceServer interface {
 	GetAccessListsToReview(context.Context, *GetAccessListsToReviewRequest) (*GetAccessListsToReviewResponse, error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(context.Context, *ListAccessListMembersRequest) (*ListAccessListMembersResponse, error)
+	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+	ListAllAccessListMembers(context.Context, *ListAllAccessListMembersRequest) (*ListAllAccessListMembersResponse, error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(context.Context, *GetAccessListMemberRequest) (*Member, error)
 	// UpsertAccessListMember creates or updates an access list member resource.
@@ -301,6 +339,8 @@ type AccessListServiceServer interface {
 	UpsertAccessListWithMembers(context.Context, *UpsertAccessListWithMembersRequest) (*UpsertAccessListWithMembersResponse, error)
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(context.Context, *ListAccessListReviewsRequest) (*ListAccessListReviewsResponse, error)
+	// ListAllAccessListReviews will list access list reviews for all access lists.
+	ListAllAccessListReviews(context.Context, *ListAllAccessListReviewsRequest) (*ListAllAccessListReviewsResponse, error)
 	// CreateAccessListReview will create a new review for an access list. It will also modify the original access list
 	// and its members depending on the details of the review.
 	CreateAccessListReview(context.Context, *CreateAccessListReviewRequest) (*CreateAccessListReviewResponse, error)
@@ -308,6 +348,8 @@ type AccessListServiceServer interface {
 	DeleteAccessListReview(context.Context, *DeleteAccessListReviewRequest) (*emptypb.Empty, error)
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(context.Context, *AccessRequestPromoteRequest) (*AccessRequestPromoteResponse, error)
+	// GetSuggestedAccessLists returns suggested access lists for an access request.
+	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
 	mustEmbedUnimplementedAccessListServiceServer()
 }
 
@@ -339,6 +381,9 @@ func (UnimplementedAccessListServiceServer) GetAccessListsToReview(context.Conte
 func (UnimplementedAccessListServiceServer) ListAccessListMembers(context.Context, *ListAccessListMembersRequest) (*ListAccessListMembersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccessListMembers not implemented")
 }
+func (UnimplementedAccessListServiceServer) ListAllAccessListMembers(context.Context, *ListAllAccessListMembersRequest) (*ListAllAccessListMembersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAllAccessListMembers not implemented")
+}
 func (UnimplementedAccessListServiceServer) GetAccessListMember(context.Context, *GetAccessListMemberRequest) (*Member, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessListMember not implemented")
 }
@@ -360,6 +405,9 @@ func (UnimplementedAccessListServiceServer) UpsertAccessListWithMembers(context.
 func (UnimplementedAccessListServiceServer) ListAccessListReviews(context.Context, *ListAccessListReviewsRequest) (*ListAccessListReviewsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccessListReviews not implemented")
 }
+func (UnimplementedAccessListServiceServer) ListAllAccessListReviews(context.Context, *ListAllAccessListReviewsRequest) (*ListAllAccessListReviewsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAllAccessListReviews not implemented")
+}
 func (UnimplementedAccessListServiceServer) CreateAccessListReview(context.Context, *CreateAccessListReviewRequest) (*CreateAccessListReviewResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateAccessListReview not implemented")
 }
@@ -368,6 +416,9 @@ func (UnimplementedAccessListServiceServer) DeleteAccessListReview(context.Conte
 }
 func (UnimplementedAccessListServiceServer) AccessRequestPromote(context.Context, *AccessRequestPromoteRequest) (*AccessRequestPromoteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AccessRequestPromote not implemented")
+}
+func (UnimplementedAccessListServiceServer) GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSuggestedAccessLists not implemented")
 }
 func (UnimplementedAccessListServiceServer) mustEmbedUnimplementedAccessListServiceServer() {}
 
@@ -526,6 +577,24 @@ func _AccessListService_ListAccessListMembers_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_ListAllAccessListMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAllAccessListMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).ListAllAccessListMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_ListAllAccessListMembers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).ListAllAccessListMembers(ctx, req.(*ListAllAccessListMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessListService_GetAccessListMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAccessListMemberRequest)
 	if err := dec(in); err != nil {
@@ -652,6 +721,24 @@ func _AccessListService_ListAccessListReviews_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_ListAllAccessListReviews_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAllAccessListReviewsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).ListAllAccessListReviews(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_ListAllAccessListReviews_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).ListAllAccessListReviews(ctx, req.(*ListAllAccessListReviewsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessListService_CreateAccessListReview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateAccessListReviewRequest)
 	if err := dec(in); err != nil {
@@ -706,6 +793,24 @@ func _AccessListService_AccessRequestPromote_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_GetSuggestedAccessLists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSuggestedAccessListsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).GetSuggestedAccessLists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_GetSuggestedAccessLists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).GetSuggestedAccessLists(ctx, req.(*GetSuggestedAccessListsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccessListService_ServiceDesc is the grpc.ServiceDesc for AccessListService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -746,6 +851,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccessListService_ListAccessListMembers_Handler,
 		},
 		{
+			MethodName: "ListAllAccessListMembers",
+			Handler:    _AccessListService_ListAllAccessListMembers_Handler,
+		},
+		{
 			MethodName: "GetAccessListMember",
 			Handler:    _AccessListService_GetAccessListMember_Handler,
 		},
@@ -774,6 +883,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccessListService_ListAccessListReviews_Handler,
 		},
 		{
+			MethodName: "ListAllAccessListReviews",
+			Handler:    _AccessListService_ListAllAccessListReviews_Handler,
+		},
+		{
 			MethodName: "CreateAccessListReview",
 			Handler:    _AccessListService_CreateAccessListReview_Handler,
 		},
@@ -784,6 +897,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AccessRequestPromote",
 			Handler:    _AccessListService_AccessRequestPromote_Handler,
+		},
+		{
+			MethodName: "GetSuggestedAccessLists",
+			Handler:    _AccessListService_GetSuggestedAccessLists_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

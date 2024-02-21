@@ -28,21 +28,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 type fakeIDP struct {
-	t          *testing.T
-	signer     jose.Signer
-	privateKey *rsa.PrivateKey
-	server     *httptest.Server
-	ghesMode   bool
+	t             *testing.T
+	signer        jose.Signer
+	privateKey    *rsa.PrivateKey
+	server        *httptest.Server
+	entepriseSlug string
+	ghesMode      bool
 }
 
-func newFakeIDP(t *testing.T, ghesMode bool) *fakeIDP {
+func newFakeIDP(t *testing.T, ghesMode bool, enterpriseSlug string) *fakeIDP {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
@@ -53,19 +54,20 @@ func newFakeIDP(t *testing.T, ghesMode bool) *fakeIDP {
 	require.NoError(t, err)
 
 	f := &fakeIDP{
-		signer:     signer,
-		ghesMode:   ghesMode,
-		privateKey: privateKey,
-		t:          t,
+		signer:        signer,
+		ghesMode:      ghesMode,
+		privateKey:    privateKey,
+		t:             t,
+		entepriseSlug: enterpriseSlug,
 	}
 
 	providerMux := http.NewServeMux()
 	providerMux.HandleFunc(
-		f.pathPrefix()+"/.well-known/openid-configuration",
+		f.pathPostfix()+"/.well-known/openid-configuration",
 		f.handleOpenIDConfig,
 	)
 	providerMux.HandleFunc(
-		f.pathPrefix()+"/.well-known/jwks",
+		f.pathPostfix()+"/.well-known/jwks",
 		f.handleJWKSEndpoint,
 	)
 
@@ -75,17 +77,20 @@ func newFakeIDP(t *testing.T, ghesMode bool) *fakeIDP {
 	return f
 }
 
-func (f *fakeIDP) pathPrefix() string {
+func (f *fakeIDP) pathPostfix() string {
 	if f.ghesMode {
 		// GHES instances serve the token related content on a prefix of the
 		// instance hostname.
 		return "/_services/token"
 	}
+	if f.entepriseSlug != "" {
+		return "/" + f.entepriseSlug
+	}
 	return ""
 }
 
 func (f *fakeIDP) issuer() string {
-	return f.server.URL + f.pathPrefix()
+	return f.server.URL + f.pathPostfix()
 }
 
 func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
@@ -178,19 +183,23 @@ func (f *fakeIDP) issueToken(
 
 func TestIDTokenValidator_Validate(t *testing.T) {
 	t.Parallel()
-	idp := newFakeIDP(t, false)
-	ghesIdp := newFakeIDP(t, true)
+	idp := newFakeIDP(t, false, "")
+	ghesIdp := newFakeIDP(t, true, "")
+	enterpriseSlugIDP := newFakeIDP(t, false, "slug")
 
 	tests := []struct {
-		name        string
-		assertError require.ErrorAssertionFunc
-		want        *IDTokenClaims
-		token       string
-		ghesHost    string
+		name           string
+		assertError    require.ErrorAssertionFunc
+		want           *IDTokenClaims
+		token          string
+		ghesHost       string
+		defaultIDPHost string
+		enterpriseSlug string
 	}{
 		{
-			name:        "success",
-			assertError: require.NoError,
+			name:           "success",
+			assertError:    require.NoError,
+			defaultIDPHost: idp.server.Listener.Addr().String(),
 			token: idp.issueToken(
 				t,
 				idp.issuer(),
@@ -208,6 +217,9 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		{
 			name:        "success with ghes",
 			assertError: require.NoError,
+			// This is intentionally the plain IDP as the GHES Host should
+			// override it.
+			defaultIDPHost: idp.server.Listener.Addr().String(),
 			token: ghesIdp.issueToken(
 				t,
 				ghesIdp.issuer(),
@@ -224,8 +236,57 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			ghesHost: ghesIdp.server.Listener.Addr().String(),
 		},
 		{
-			name:        "expired",
-			assertError: require.Error,
+			name:           "success with slug",
+			assertError:    require.NoError,
+			defaultIDPHost: enterpriseSlugIDP.server.Listener.Addr().String(),
+			token: enterpriseSlugIDP.issueToken(
+				t,
+				enterpriseSlugIDP.issuer(),
+				"teleport.cluster.local",
+				"octocat",
+				"repo:octo-org/octo-repo:environment:prod",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+			),
+			enterpriseSlug: "slug",
+			want: &IDTokenClaims{
+				Actor: "octocat",
+				Sub:   "repo:octo-org/octo-repo:environment:prod",
+			},
+		},
+		{
+			name:           "fails if slugged jwt is used with non-slug idp",
+			assertError:    require.Error,
+			defaultIDPHost: idp.server.Listener.Addr().String(),
+			token: enterpriseSlugIDP.issueToken(
+				t,
+				enterpriseSlugIDP.issuer(),
+				"teleport.cluster.local",
+				"octocat",
+				"repo:octo-org/octo-repo:environment:prod",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+			),
+		},
+		{
+			name:           "fails if non-slugged jwt is used with idp",
+			assertError:    require.Error,
+			defaultIDPHost: enterpriseSlugIDP.server.Listener.Addr().String(),
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				"teleport.cluster.local",
+				"octocat",
+				"repo:octo-org/octo-repo:environment:prod",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+			),
+			enterpriseSlug: "slug",
+		},
+		{
+			name:           "expired",
+			assertError:    require.Error,
+			defaultIDPHost: idp.server.Listener.Addr().String(),
 			token: idp.issueToken(
 				t,
 				idp.issuer(),
@@ -237,8 +298,9 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			),
 		},
 		{
-			name:        "future",
-			assertError: require.Error,
+			name:           "future",
+			assertError:    require.Error,
+			defaultIDPHost: idp.server.Listener.Addr().String(),
 			token: idp.issueToken(
 				t,
 				idp.issuer(),
@@ -248,8 +310,9 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				time.Now().Add(10*time.Minute), time.Now().Add(20*time.Minute)),
 		},
 		{
-			name:        "invalid audience",
-			assertError: require.Error,
+			name:           "invalid audience",
+			assertError:    require.Error,
+			defaultIDPHost: idp.server.Listener.Addr().String(),
 			token: idp.issueToken(
 				t,
 				idp.issuer(),
@@ -259,8 +322,9 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				time.Now().Add(-5*time.Minute), time.Now().Add(5*time.Minute)),
 		},
 		{
-			name:        "invalid issuer",
-			assertError: require.Error,
+			name:           "invalid issuer",
+			assertError:    require.Error,
+			defaultIDPHost: idp.server.Listener.Addr().String(),
 			token: idp.issueToken(
 				t,
 				"https://the.wrong.issuer",
@@ -275,11 +339,13 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			ctx := context.Background()
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
 				Clock:            clockwork.NewRealClock(),
-				GitHubIssuerHost: idp.server.Listener.Addr().String(),
+				GitHubIssuerHost: tt.defaultIDPHost,
 				insecure:         true,
 			})
 
-			claims, err := v.Validate(ctx, tt.ghesHost, tt.token)
+			claims, err := v.Validate(
+				ctx, tt.ghesHost, tt.enterpriseSlug, tt.token,
+			)
 			tt.assertError(t, err)
 			require.Equal(t, tt.want, claims)
 		})

@@ -14,8 +14,13 @@
   https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/cloud" \
   | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
+  # Provide your Teleport domain to query the latest compatible Teleport version
+  $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+  $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
+
+  # Update the repo and install Teleport and the Teleport updater
   $ sudo apt-get update
-  $ sudo apt-get install teleport-ent-updater
+  $ sudo apt-get install "teleport-ent=$TELEPORT_VERSION" teleport-ent-updater
   ```
 
   </TabItem>
@@ -30,8 +35,14 @@
   $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   $ sudo yum install -y yum-utils
   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-yum.repo")"
-  $ sudo yum install teleport-ent-updater
-  #
+
+  # Provide your Teleport domain to query the latest compatible Teleport version
+  $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+  $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
+
+  # Install Teleport and the Teleport updater
+  $ sudo yum install "teleport-ent-$TELEPORT_VERSION" teleport-ent-updater
+
   # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
   ```
@@ -48,9 +59,13 @@
   $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   # Use the dnf config manager plugin to add the teleport RPM repo
   $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-yum.repo")"
+
+  # Provide your Teleport domain to query the latest compatible Teleport version
+  $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+  $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
   
-  # Install teleport
-  $ sudo dnf install teleport-ent-updater
+  # Install Teleport and the Teleport updater
+  $ sudo dnf install "teleport-ent-$TELEPORT_VERSION" teleport-ent-updater
   
   # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
@@ -68,9 +83,13 @@
   $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   # Use Zypper to add the teleport RPM repo
   $ sudo zypper addrepo --refresh --repo $(rpm --eval "https://zypper.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-zypper.repo")
+
+  # Provide your Teleport domain to query the latest compatible Teleport version
+  $ export TELEPORT_DOMAIN=<Var name="example.teleport.com" />
+  $ export TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
   
-  # Install teleport
-  $ sudo zypper install teleport-ent-updater
+  # Install Teleport and the Teleport updater
+  $ sudo zypper install "teleport-ent-$TELEPORT_VERSION" teleport-ent-updater
   ```
 
   </TabItem>

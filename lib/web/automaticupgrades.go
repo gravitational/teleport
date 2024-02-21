@@ -20,19 +20,17 @@ package web
 
 import (
 	"context"
+	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/mod/semver"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
-	versionlib "github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const defaultChannelTimeout = 5 * time.Second
@@ -87,25 +85,14 @@ func (h *Handler) automaticUpgradesVersion(w http.ResponseWriter, r *http.Reques
 
 	targetVersion, err := channel.GetVersion(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// We don't want to tell the updater to upgrade to a new major we don't support yet
-	// This is mainly a workaround for Teleport Cloud and might be removed
-	// In the future when we'll have better tooling to control version channels.
-	targetMajor, err := parseMajorFromVersionString(targetVersion)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to process target version")
-	}
-
-	teleportMajor, err := parseMajorFromVersionString(teleport.Version)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to process teleport version")
-	}
-
-	if targetMajor > teleportMajor {
-		_, err = w.Write([]byte(constants.NoVersion))
-		h.log.Debugf("Client hit channel %s, target version (%s) major is above the proxy major (%s). Ignoring update.")
+		// If the error is that the upstream channel has no version
+		// We gracefully handle by serving "none"
+		var NoNewVersionErr *version.NoNewVersionError
+		if errors.As(trace.Unwrap(err), &NoNewVersionErr) {
+			_, err = w.Write([]byte(constants.NoVersion))
+			return nil, trace.Wrap(err)
+		}
+		// Else we propagate the error
 		return nil, trace.Wrap(err)
 	}
 
@@ -129,18 +116,4 @@ func (h *Handler) automaticUpgradesCritical(w http.ResponseWriter, r *http.Reque
 	}
 	_, err = w.Write([]byte(response))
 	return nil, trace.Wrap(err)
-}
-
-func parseMajorFromVersionString(version string) (int, error) {
-	version, err := versionlib.EnsureSemver(version)
-	if err != nil {
-		return 0, trace.Wrap(err, "invalid semver: %s", version)
-	}
-	majorStr := semver.Major(version)
-	if majorStr == "" {
-		return 0, trace.BadParameter("cannot detect version major")
-	}
-
-	major, err := strconv.Atoi(strings.TrimPrefix(majorStr, "v"))
-	return major, trace.Wrap(err, "cannot convert version major to int")
 }

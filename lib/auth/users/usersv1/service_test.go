@@ -73,7 +73,8 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 					},
 				},
 			},
-			Identity: identity,
+			Identity:             identity,
+			AdminActionAuthState: authz.AdminActionAuthNotRequired,
 		}, nil
 	}
 
@@ -102,8 +103,8 @@ func (a fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 				Username: "alice",
 			},
 		},
+		AdminActionAuthState: authz.AdminActionAuthNotRequired,
 	}, nil
-
 }
 
 type fakeChecker struct {
@@ -117,7 +118,7 @@ type check struct {
 	kind, verb string
 }
 
-func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string, silent bool) error {
+func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string) error {
 	c := check{kind, verb}
 	f.checks = append(f.checks, c)
 
@@ -384,6 +385,12 @@ func TestUpdateUser(t *testing.T) {
 	createEvent, ok = event.(*apievents.UserCreate)
 	require.True(t, ok, "expected a UserCreate event got %T", event)
 	assert.Equal(t, "alice", createEvent.UserMetadata.User)
+
+	// Attempt to update an existing user and set invalid roles
+	updated.User.AddRole("does-not-exist")
+	_, err = env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: updated.User})
+	assert.True(t, trace.IsNotFound(err), "expected a not found error, got %T", err)
+	require.Error(t, err, "user allowed to be updated with a role that does not exist")
 }
 
 func TestUpsertUser(t *testing.T) {
@@ -426,6 +433,12 @@ func TestUpsertUser(t *testing.T) {
 	createEvent, ok = event.(*apievents.UserCreate)
 	require.True(t, ok, "expected a UserCreate event got %T", event)
 	assert.Equal(t, "alice", createEvent.UserMetadata.User)
+
+	// Attempt to upsert a  user and set invalid roles
+	updated.User.AddRole("does-not-exist")
+	_, err = env.UpsertUser(ctx, &userspb.UpsertUserRequest{User: updated.User})
+	assert.True(t, trace.IsNotFound(err), "expected a not found error, got %T", err)
+	require.Error(t, err, "user allowed to be upserted with a role that does not exist")
 }
 
 func TestListUsers(t *testing.T) {
@@ -866,7 +879,6 @@ func TestRBAC(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-
 			env, err := newTestEnv(withAuthorizer(&fakeAuthorizer{authzContext: &authz.Context{
 				User:    llama,
 				Checker: test.checker,
@@ -876,6 +888,7 @@ func TestRBAC(t *testing.T) {
 						Groups: []string{"dev"},
 					},
 				},
+				AdminActionAuthState: authz.AdminActionAuthNotRequired,
 			}}))
 			require.NoError(t, err, "creating test service")
 
@@ -888,5 +901,4 @@ func TestRBAC(t *testing.T) {
 			require.ElementsMatch(t, test.expectChecks, test.checker.checks)
 		})
 	}
-
 }

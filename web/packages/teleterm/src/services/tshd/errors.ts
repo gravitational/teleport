@@ -23,3 +23,7 @@ export function isAccessDeniedError(error: Error): boolean {
 export function isNotFoundError(error: Error): boolean {
   return (error.message as string)?.includes('NOT_FOUND');
 }
+
+export function isUnimplementedError(error: Error): boolean {
+  return (error.message as string)?.includes('UNIMPLEMENTED');
+}

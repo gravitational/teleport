@@ -31,7 +31,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/square/go-jose.v2/jwt"
+	"github.com/go-jose/go-jose/v3/jwt"
 )
 
 // jwk is a JSON Web Key, described in detail in RFC 7517.

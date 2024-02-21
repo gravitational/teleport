@@ -68,16 +68,29 @@ func TestTshDB(t *testing.T) {
 // env/config" after login.
 func testDatabaseLogin(t *testing.T) {
 	t.Parallel()
+
+	autoUserRole, err := types.NewRole("autouser", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{"auto-user": []string{"true"}},
+			DatabaseNames:  []string{"*"},
+			DatabaseUsers:  []string{"reader", "writer"},
+		},
+		Options: types.RoleOptions{
+			CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+		},
+	})
+	require.NoError(t, err)
+
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
 	// to use default --db-user and --db-name selection, make a user with just
 	// one of each allowed.
 	alice.SetDatabaseUsers([]string{"admin"})
 	alice.SetDatabaseNames([]string{"default"})
-	alice.SetRoles([]string{"access"})
+	alice.SetRoles([]string{"access", "autouser"})
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
+			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, autoUserRole, alice)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
@@ -106,6 +119,16 @@ func testDatabaseLogin(t *testing.T) {
 					Name:     "mysql",
 					Protocol: defaults.ProtocolMySQL,
 					URI:      "localhost:3306",
+				}, {
+					Name:     "mysql-autouser",
+					Protocol: defaults.ProtocolMySQL,
+					URI:      "localhost:3306",
+					StaticLabels: map[string]string{
+						"auto-user": "true",
+					},
+					AdminUser: servicecfg.DatabaseAdminUser{
+						Name: "teleport-admin",
+					},
 				}, {
 					Name:     "cassandra",
 					Protocol: defaults.ProtocolCassandra,
@@ -146,75 +169,147 @@ func testDatabaseLogin(t *testing.T) {
 		databaseName string
 		// dbSelectors can be any of db name, --labels, --query predicate,
 		// and defaults to be databaseName if not set.
-		dbSelectors           []string
+		dbSelectors []string
+		// extraLoginOptions is a list of extra options used for login like
+		// `--db-roles`.
+		extraLoginOptions     []string
+		expectActiveRoute     tlsca.RouteToDatabase
 		expectCertsLen        int
 		expectKeysLen         int
 		expectErrForConfigCmd bool
 		expectErrForEnvCmd    bool
 	}{
 		{
-			name:               "mongo",
-			databaseName:       "mongo",
+			name:         "mongo",
+			databaseName: "mongo",
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "mongo",
+				Protocol:    "mongodb",
+				Username:    "admin",
+				Database:    "default", // Since database name is required.
+			},
 			expectCertsLen:     1,
 			expectKeysLen:      1,
 			expectErrForEnvCmd: true, // "tsh db env" not supported for Mongo.
 		},
 		{
-			name:                  "mssql",
-			databaseName:          "mssql",
+			name:         "mssql",
+			databaseName: "mssql",
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "mssql",
+				Protocol:    "sqlserver",
+				Username:    "admin",
+				Database:    "default",
+			},
 			expectCertsLen:        1,
 			expectErrForConfigCmd: true, // "tsh db config" not supported for MSSQL.
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for MSSQL.
 		},
 		{
-			name:                  "mysql",
-			databaseName:          "mysql",
+			name:         "mysql",
+			databaseName: "mysql",
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "mysql",
+				Protocol:    "mysql",
+				Username:    "admin",
+			},
 			expectCertsLen:        1,
 			expectErrForConfigCmd: false, // "tsh db config" is supported for MySQL with TLS routing & separate MySQL port.
 			expectErrForEnvCmd:    false, // "tsh db env" not supported for MySQL with TLS routing & separate MySQL port.
 		},
 		{
-			name:                  "cassandra",
-			databaseName:          "cassandra",
+			name:         "cassandra",
+			databaseName: "cassandra",
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "cassandra",
+				Protocol:    "cassandra",
+				Username:    "admin",
+			},
 			expectCertsLen:        1,
 			expectErrForConfigCmd: true, // "tsh db config" not supported for Cassandra.
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for Cassandra.
 		},
 		{
-			name:                  "snowflake",
-			databaseName:          "snowflake",
+			name:         "snowflake",
+			databaseName: "snowflake",
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "snowflake",
+				Protocol:    "snowflake",
+				Username:    "admin",
+			},
 			expectCertsLen:        1,
 			expectErrForConfigCmd: true, // "tsh db config" not supported for Snowflake.
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for Snowflake.
 		},
 		{
-			name:                  "dynamodb",
-			databaseName:          "dynamodb",
+			name:         "dynamodb",
+			databaseName: "dynamodb",
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "dynamodb",
+				Protocol:    "dynamodb",
+				Username:    "admin",
+			},
 			expectCertsLen:        1,
 			expectErrForConfigCmd: true, // "tsh db config" not supported for DynamoDB.
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for DynamoDB.
 		},
 		{
-			name:           "by full name",
-			databaseName:   "postgres-rds-us-west-1-123456789012",
+			name:         "by full name",
+			databaseName: "postgres-rds-us-west-1-123456789012",
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "postgres-rds-us-west-1-123456789012",
+				Protocol:    "postgres",
+				Username:    "admin",
+				Database:    "default",
+			},
 			expectCertsLen: 1,
 		},
 		{
-			name:           "by discovered name",
-			databaseName:   "postgres-rds-us-west-1-123456789012",
-			dbSelectors:    []string{"postgres"},
+			name:         "by discovered name",
+			databaseName: "postgres-rds-us-west-1-123456789012",
+			dbSelectors:  []string{"postgres"},
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "postgres-rds-us-west-1-123456789012",
+				Protocol:    "postgres",
+				Username:    "admin",
+				Database:    "default",
+			},
 			expectCertsLen: 1,
 		},
 		{
-			name:           "by labels",
-			databaseName:   "postgres-rds-us-west-1-123456789012",
-			dbSelectors:    []string{"--labels", "region=us-west-1"},
+			name:         "by labels",
+			databaseName: "postgres-rds-us-west-1-123456789012",
+			dbSelectors:  []string{"--labels", "region=us-west-1"},
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "postgres-rds-us-west-1-123456789012",
+				Protocol:    "postgres",
+				Username:    "admin",
+				Database:    "default",
+			},
 			expectCertsLen: 1,
 		},
 		{
-			name:           "by query",
-			databaseName:   "postgres-rds-us-west-1-123456789012",
-			dbSelectors:    []string{"--query", `labels.env=="prod" && labels.region == "us-west-1"`},
+			name:         "by query",
+			databaseName: "postgres-rds-us-west-1-123456789012",
+			dbSelectors:  []string{"--query", `labels.env=="prod" && labels.region == "us-west-1"`},
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "postgres-rds-us-west-1-123456789012",
+				Protocol:    "postgres",
+				Username:    "admin",
+				Database:    "default",
+			},
+			expectCertsLen: 1,
+		},
+		{
+			name:              "select db role",
+			databaseName:      "mysql-autouser",
+			extraLoginOptions: []string{"--db-roles", "reader"},
+			expectActiveRoute: tlsca.RouteToDatabase{
+				ServiceName: "mysql-autouser",
+				Protocol:    "mysql",
+				Username:    "alice@example.com",
+				Roles:       []string{"reader"},
+			},
 			expectCertsLen: 1,
 		},
 	}
@@ -250,6 +345,7 @@ func testDatabaseLogin(t *testing.T) {
 				// default --db-user and --db-name are selected from roles.
 				"db", "login",
 			}, selectors...)
+			args = append(args, test.extraLoginOptions...)
 			err := Run(context.Background(), args, cliOpts...)
 			require.NoError(t, err)
 
@@ -258,6 +354,8 @@ func testDatabaseLogin(t *testing.T) {
 			profile, err := clientStore.ReadProfileStatus(s.root.Config.Proxy.WebAddr.String())
 			require.NoError(t, err)
 			require.Equal(t, s.user.GetName(), profile.Username)
+			require.Len(t, profile.Databases, 1)
+			require.Equal(t, test.expectActiveRoute, profile.Databases[0])
 
 			// Verify certificates.
 			// grab the certs using the actual database name to verify certs.
@@ -556,6 +654,7 @@ func TestDBInfoHasChanged(t *testing.T) {
 		name               string
 		databaseUserName   string
 		databaseName       string
+		databaseRoles      []string
 		db                 tlsca.RouteToDatabase
 		wantUserHasChanged bool
 	}{
@@ -627,6 +726,44 @@ func TestDBInfoHasChanged(t *testing.T) {
 			},
 			wantUserHasChanged: false,
 		},
+		{
+			name:             "same database roles",
+			databaseUserName: "",
+			databaseName:     "",
+			databaseRoles:    []string{"reader", "writer"},
+			db: tlsca.RouteToDatabase{
+				Username: "alice",
+				Database: "db1",
+				Protocol: defaults.ProtocolMongoDB,
+				Roles:    []string{"reader", "writer"},
+			},
+			wantUserHasChanged: false,
+		},
+		{
+			name:             "added database roles",
+			databaseUserName: "",
+			databaseName:     "",
+			databaseRoles:    []string{"reader", "writer"},
+			db: tlsca.RouteToDatabase{
+				Username: "alice",
+				Database: "db1",
+				Protocol: defaults.ProtocolMongoDB,
+			},
+			wantUserHasChanged: true,
+		},
+		{
+			name:             "changed database roles",
+			databaseUserName: "",
+			databaseName:     "",
+			databaseRoles:    []string{"reader", "writer"},
+			db: tlsca.RouteToDatabase{
+				Username: "alice",
+				Database: "db1",
+				Protocol: defaults.ProtocolMongoDB,
+				Roles:    []string{"reader"},
+			},
+			wantUserHasChanged: true,
+		},
 	}
 
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
@@ -653,7 +790,11 @@ func TestDBInfoHasChanged(t *testing.T) {
 			certPath := filepath.Join(t.TempDir(), "mongo_db_cert.pem")
 			require.NoError(t, os.WriteFile(certPath, certBytes, 0o600))
 
-			cliConf := &CLIConf{DatabaseUser: tc.databaseUserName, DatabaseName: tc.databaseName}
+			cliConf := &CLIConf{
+				DatabaseUser:  tc.databaseUserName,
+				DatabaseName:  tc.databaseName,
+				DatabaseRoles: strings.Join(tc.databaseRoles, ","),
+			}
 			got, err := dbInfoHasChanged(cliConf, certPath)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantUserHasChanged, got)

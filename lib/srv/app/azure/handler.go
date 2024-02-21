@@ -49,7 +49,7 @@ type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
 	// Log is the Logger.
-	Log utils.FieldLoggerWithWriter
+	Log logrus.FieldLogger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 

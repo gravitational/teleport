@@ -132,7 +132,7 @@ func TestMatchResourceLabels(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			require.Equal(t, test.match, MatchResourceLabels(test.selectors, database))
+			require.Equal(t, test.match, MatchResourceLabels(test.selectors, database.GetAllLabels()))
 		})
 	}
 }

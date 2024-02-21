@@ -71,6 +71,7 @@ const cfg = {
   featureLimits: {
     accessListCreateLimit: 0,
     accessMonitoringMaxReportRangeLimit: 0,
+    AccessRequestMonthlyRequestLimit: 0,
   },
 
   ui: {
@@ -128,6 +129,8 @@ const cfg = {
     desktops: '/web/cluster/:clusterId/desktops',
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
+    bots: '/web/bots',
+    botsNew: '/web/bots/new/:type?',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -150,6 +153,8 @@ const cfg = {
     locks: '/web/locks',
     newLock: '/web/locks/new',
     requests: '/web/requests/:requestId?',
+
+    downloadCenter: '/web/downloads',
 
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
@@ -193,13 +198,17 @@ const cfg = {
     desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username&width=:width&height=:height',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
     desktopPlaybackWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
     ttyWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
+    ttyPlaybackWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+
+    // TODO(zmb3): remove this for v15
     sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -218,6 +227,8 @@ const cfg = {
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
+
+    discoveryConfigPath: '/v1/webapi/sites/:clusterId/discoveryconfig',
 
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
@@ -266,13 +277,24 @@ const cfg = {
       '/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
     awsConfigureIamScriptEc2InstanceConnectPath:
       '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
+    awsConfigureIamEksScriptPath:
+      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName',
 
+    awsRdsDbDeployServicesPath:
+      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
+    awsRdsDbRequiredVpcsPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
     awsSecurityGroupsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
+
+    eksClustersListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
+    eksEnrollClustersPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
 
     ec2InstancesListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
@@ -290,11 +312,11 @@ const cfg = {
       '/v1/webapi/assistant/conversations/:conversationId/title',
     assistGenerateSummaryPath: '/v1/webapi/assistant/title/summary',
     assistConversationWebSocketPath:
-      'wss://:hostname/v1/webapi/sites/:clusterId/assistant',
+      'wss://:hostname/v1/webapi/sites/:clusterId/assistant/ws',
     assistConversationHistoryPath:
       '/v1/webapi/assistant/conversations/:conversationId',
     assistExecuteCommandWebSocketPath:
-      'wss://:hostname/v1/webapi/command/:clusterId/execute',
+      'wss://:hostname/v1/webapi/command/:clusterId/execute/ws',
     userPreferencesPath: '/v1/webapi/user/preferences',
     userClusterPreferencesPath: '/v1/webapi/user/preferences/:clusterId',
 
@@ -302,6 +324,9 @@ const cfg = {
     accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
+
+    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
+    botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -359,6 +384,14 @@ const cfg = {
 
   isPasswordlessEnabled() {
     return cfg.auth.allowPasswordless;
+  },
+
+  isMfaEnabled() {
+    return cfg.auth.second_factor !== 'off';
+  },
+
+  isAdminActionMfaEnforced() {
+    return cfg.auth.second_factor === 'webauthn';
   },
 
   getPrimaryAuthType(): PrimaryAuthType {
@@ -461,6 +494,14 @@ const cfg = {
   getUsersRoute() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.routes.users, { clusterId });
+  },
+
+  getBotsRoute() {
+    return generatePath(cfg.routes.bots);
+  },
+
+  getBotsNewRoute(type?: string) {
+    return generatePath(cfg.routes.botsNew, { type });
   },
 
   getAppsRoute(clusterId: string) {
@@ -591,6 +632,7 @@ const cfg = {
   },
 
   getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
+    // TODO(zmb3): remove
     return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
   },
 
@@ -728,6 +770,10 @@ const cfg = {
     return generatePath(cfg.api.rolesPath, { name });
   },
 
+  getDiscoveryConfigUrl(clusterId: string) {
+    return generatePath(cfg.api.discoveryConfigPath, { clusterId });
+  },
+
   getPresetRolesUrl() {
     return cfg.api.presetRolesPath;
   },
@@ -781,6 +827,24 @@ const cfg = {
     });
   },
 
+  getAwsRdsDbRequiredVpcsUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbRequiredVpcsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsRdsDbsDeployServicesUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbDeployServicesPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getAwsDeployTeleportServiceUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
@@ -810,12 +874,10 @@ const cfg = {
   getAssistConversationWebSocketUrl(
     hostname: string,
     clusterId: string,
-    accessToken: string,
     conversationId: string
   ) {
     const searchParams = new URLSearchParams();
 
-    searchParams.set('access_token', accessToken);
     searchParams.set('conversation_id', conversationId);
 
     return (
@@ -829,12 +891,10 @@ const cfg = {
   getAssistActionWebSocketUrl(
     hostname: string,
     clusterId: string,
-    accessToken: string,
     action: string
   ) {
     const searchParams = new URLSearchParams();
 
-    searchParams.set('access_token', accessToken);
     searchParams.set('action', action);
 
     return (
@@ -854,12 +914,10 @@ const cfg = {
   getAssistExecuteCommandUrl(
     hostname: string,
     clusterId: string,
-    accessToken: string,
     params: Record<string, string>
   ) {
     const searchParams = new URLSearchParams();
 
-    searchParams.set('access_token', accessToken);
     searchParams.set('params', JSON.stringify(params));
 
     return (
@@ -884,6 +942,24 @@ const cfg = {
 
   getAccessGraphFeaturesUrl() {
     return cfg.api.accessGraphFeatures;
+  },
+
+  getEnrollEksClusterUrl(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eksEnrollClustersPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getListEKSClustersUrl(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eksClustersListPath, {
+      clusterId,
+      name: integrationName,
+    });
   },
 
   getListEc2InstancesUrl(integrationName: string) {
@@ -933,6 +1009,15 @@ const cfg = {
     );
   },
 
+  getEksIamConfigureScriptUrl(params: UrlAwsConfigureIamScriptParams) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.awsConfigureIamEksScriptPath, {
+        ...params,
+      })
+    );
+  },
+
   getAwsConfigureIamScriptListDatabasesUrl(
     params: UrlAwsConfigureIamScriptParams
   ) {
@@ -942,6 +1027,21 @@ const cfg = {
         ...params,
       })
     );
+  },
+
+  getBotTokenUrl() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botsTokenPath, { clusterId });
+  },
+
+  getBotsUrl() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botsPath, { clusterId });
+  },
+
+  getBotUrlWithName(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.botsPath, { clusterId, name });
   },
 
   init(backendConfig = {}) {
@@ -1011,7 +1111,7 @@ export interface UrlPlayerParams {
 
 export interface UrlPlayerSearch {
   recordingType: RecordingType;
-  durationMs?: number; // this is only necessary for recordingType == desktop
+  durationMs?: number;
 }
 
 // /web/cluster/:clusterId/desktops/:desktopName/:username

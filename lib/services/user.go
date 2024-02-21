@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -133,16 +134,15 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 
 	switch user := user.(type) {
 	case *types.UserV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *user
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			user = &copy
-		}
-		return utils.FastMarshal(user)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, user))
 	default:
 		return nil, trace.BadParameter("unrecognized user version %T", user)
 	}
+}
+
+// UsernameForRemoteCluster returns an username that is prefixed with "remote-"
+// and suffixed with cluster name with the hope that it does not match a real
+// local user.
+func UsernameForRemoteCluster(localUsername, localClusterName string) string {
+	return fmt.Sprintf("remote-%v-%v", localUsername, localClusterName)
 }

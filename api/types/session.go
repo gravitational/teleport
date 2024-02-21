@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -185,11 +186,12 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 	return ws.Spec.IdleTimeout.Duration()
 }
 
-// WithoutSecrets returns copy of the object but without secrets
+// WithoutSecrets returns a copy of the WebSession without secrets.
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
-	ws.Spec.Priv = nil
-	ws.Spec.SAMLSession = nil
-	return ws
+	cp := proto.Clone(ws).(*WebSessionV2)
+	cp.Spec.Priv = nil
+	cp.Spec.SAMLSession = nil
+	return cp
 }
 
 // SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
@@ -224,7 +226,6 @@ func (ws *WebSessionV2) CheckAndSetDefaults() error {
 	if err := ws.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-
 	if ws.Spec.User == "" {
 		return trace.BadParameter("missing User")
 	}

@@ -220,6 +220,7 @@ $ helm repo update
 $ helm install cert-manager jetstack/cert-manager \
 --create-namespace \
 --namespace cert-manager \
+--set global.leaderElection.namespace=cert-manager \
 --set installCRDs=true
 ```
 
@@ -318,7 +319,7 @@ highAvailability:
   certManager:
     enabled: true                                 # Enable cert-manager support to get TLS certificates
     issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
-    
+
 # If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
 podSecurityPolicy:
   enabled: false
@@ -442,7 +443,7 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users c
 
 </Tabs>
 
-Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
+Load the user creation link to create a password and set up multi-factor authentication for the Teleport user via the web UI.
 
 ### High Availability
 

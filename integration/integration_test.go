@@ -39,6 +39,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime/pprof"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,7 +56,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -1553,6 +1553,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		tc.Stdout = person
 		tc.Stdin = person
 
+		//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
 		clt, err := tc.ConnectToProxy(ctx)
 		require.NoError(t, err)
 		defer clt.Close()
@@ -1653,7 +1654,15 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 		defer clt.Close()
 
-		pingResp, err := clt.AuthClient.Ping(ctx)
+		// The above dialer does not work clt.AuthClient as it requires a
+		// custom transport from ProxyClient when TLS routing is disabled.
+		// Recreating the authClient without the above dialer.
+		authClientCfg := clt.ProxyClient.ClientConfig(ctx, clusterName)
+		authClientCfg.DialOpts = nil
+		authClient, err := auth.NewClient(authClientCfg)
+		require.NoError(t, err)
+
+		pingResp, err := authClient.Ping(ctx)
 		require.NoError(t, err)
 		require.Equal(t, local.get().String(), pingResp.RemoteAddr, "client IP:port that auth server sees doesn't match the real one")
 	}
@@ -1668,6 +1677,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		})
 		require.NoError(t, err)
 
+		//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
 		clt, err := tc.ConnectToProxy(ctx)
 		require.NoError(t, err)
 		defer clt.Close()
@@ -1967,7 +1977,7 @@ type errorVerifier func(error) error
 func errorContains(text string) errorVerifier {
 	return func(err error) error {
 		if err == nil || !strings.Contains(err.Error(), text) {
-			return fmt.Errorf("Expected error to contain %q, got: %v", text, err)
+			return fmt.Errorf("Expected error to contain %q, got: %w", text, err)
 		}
 		return nil
 	}
@@ -1981,6 +1991,7 @@ type disconnectTestCase struct {
 	concurrentConns   int
 	sessCtlTimeout    time.Duration
 	postFunc          func(context.Context, *testing.T, *helpers.TeleInstance)
+	clientConfigOpts  func(*helpers.ClientConfig)
 
 	// verifyError checks if `err` reflects the error expected by the test scenario.
 	// It returns nil if yes, non-nil otherwise.
@@ -2129,6 +2140,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				MaxSessionTTL:         types.NewDuration(2 * time.Second),
 			},
 			disconnectTimeout: 4 * time.Second,
+			clientConfigOpts:  func(cc *helpers.ClientConfig) { cc.DisableSSHResumption = true },
 		},
 		{
 			name:          "expired cert proxy recording",
@@ -2139,6 +2151,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				MaxSessionTTL:         types.NewDuration(2 * time.Second),
 			},
 			disconnectTimeout: 4 * time.Second,
+			clientConfigOpts:  func(cc *helpers.ClientConfig) { cc.DisableSSHResumption = true },
 		},
 		{
 			name:          "concurrent connection limits exceeded node recording",
@@ -2169,6 +2182,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			},
 			disconnectTimeout: time.Second,
 			sessCtlTimeout:    500 * time.Millisecond,
+			clientConfigOpts:  func(cc *helpers.ClientConfig) { cc.DisableSSHResumption = true },
 			// use postFunc to wait for the semaphore to be acquired and a session
 			// to be started, then shut down the auth server.
 			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
@@ -2253,12 +2267,16 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 
 		openSession := func() {
 			defer cancel()
-			cl, err := teleport.NewClient(helpers.ClientConfig{
+			cc := helpers.ClientConfig{
 				Login:   username,
 				Cluster: helpers.Site,
 				Host:    Host,
 				Port:    helpers.Port(t, teleport.SSH),
-			})
+			}
+			if tc.clientConfigOpts != nil {
+				tc.clientConfigOpts(&cc)
+			}
+			cl, err := teleport.NewClient(cc)
 			require.NoError(t, err)
 			cl.Stdout = person
 			cl.Stdin = person
@@ -2277,7 +2295,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 					asyncErrors <- badErrorErr
 				}
 			} else if err != nil && !errors.Is(err, io.EOF) && !isSSHError(err) {
-				asyncErrors <- fmt.Errorf("expected EOF, ExitError, or nil, got %v instead", err)
+				asyncErrors <- fmt.Errorf("expected EOF, ExitError, or nil, got %w instead", err)
 				return
 			}
 		}
@@ -2312,8 +2330,10 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 }
 
 func isSSHError(err error) bool {
-	switch trace.Unwrap(err).(type) {
-	case *ssh.ExitError, *ssh.ExitMissingError:
+	var exitError *ssh.ExitError
+	var exitMissingError *ssh.ExitMissingError
+	switch err := trace.Unwrap(err); {
+	case errors.As(err, &exitError), errors.As(err, &exitMissingError):
 		return true
 	default:
 		return false
@@ -4114,6 +4134,8 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
 	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
+	waitForNodesToRegister(t, main, "cluster-remote")
+
 	// execute the connection via first proxy
 	cfg := helpers.ClientConfig{
 		Login:   username,
@@ -4595,7 +4617,8 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			} else {
 				// ensure stderr is printed as a string rather than bytes
 				var stderr string
-				if e, ok := err.(*exec.ExitError); ok {
+				var e *exec.ExitError
+				if errors.As(err, &e) {
 					stderr = string(e.Stderr)
 				}
 				require.NoError(t, err, "stderr=%q", stderr)
@@ -4693,7 +4716,8 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 
 				// ensure stderr is printed as a string rather than bytes
 				var stderr string
-				if e, ok := err.(*exec.ExitError); ok {
+				var e *exec.ExitError
+				if errors.As(err, &e) {
 					stderr = string(e.Stderr)
 				}
 				require.NoError(t, err, "stderr=%q", stderr)
@@ -5188,7 +5212,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service started. Setting rotation state to %v", types.RotationPhaseUpdateClients)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
@@ -5204,7 +5228,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// update clients
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
@@ -5232,7 +5256,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
@@ -5262,7 +5286,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
 	// complete rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
@@ -5356,7 +5380,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Service started. Setting rotation state to %q.", types.RotationPhaseInit)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
@@ -5369,7 +5393,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Setting rotation state to %q.", types.RotationPhaseUpdateClients)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
@@ -5397,7 +5421,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
@@ -5411,7 +5435,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseRollback)
 
 	// complete rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseRollback,
 		Mode:        types.RotationModeManual,
@@ -5548,7 +5572,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Setting rotation state to %v", types.RotationPhaseInit)
 
 	// start rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
@@ -5583,7 +5607,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	waitForPhase(types.RotationPhaseInit)
 
 	// update clients
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateClients,
 		Mode:        types.RotationModeManual,
@@ -5603,7 +5627,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v", types.RotationPhaseUpdateServers)
 
 	// move to the next phase
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseUpdateServers,
 		Mode:        types.RotationModeManual,
@@ -5630,7 +5654,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	t.Logf("Service reloaded. Setting rotation state to %v.", types.RotationPhaseStandby)
 
 	// complete rotation
-	err = svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err = svc.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseStandby,
 		Mode:        types.RotationModeManual,
@@ -7874,7 +7898,9 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		teleport.StopAll()
 	})
 
-	client, err := teleport.NewClient(helpers.ClientConfig{
+	waitForNodesToRegister(t, teleport, helpers.Site)
+
+	teleportClient, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    Host,
@@ -7883,13 +7909,25 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	// Create SFTP session.
 	ctx := context.Background()
-	proxyClient, err := client.ConnectToProxy(ctx)
+	clusterClient, err := teleportClient.ConnectToCluster(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		proxyClient.Close()
+		_ = clusterClient.Close()
 	})
 
-	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
+	nodeClient, err := teleportClient.ConnectToNode(
+		ctx,
+		clusterClient,
+		client.NodeDetails{
+			Addr:      teleport.Config.SSH.Addr.Addr,
+			Namespace: teleportClient.Namespace,
+			Cluster:   helpers.Site,
+		},
+		suite.Me.Username,
+	)
+	require.NoError(t, err)
+
+	sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, sftpClient.Close())
@@ -8397,6 +8435,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 			// connect via SSH
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
+			//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
 			pc, err := tc.ConnectToProxy(ctx)
 			require.NoError(t, err)
 			require.NoError(t, pc.Close())

@@ -132,6 +132,12 @@ func (t *templateKubernetes) render(
 	identity *identity.Identity,
 	destination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"templateKubernetes/render",
+	)
+	defer span.End()
+
 	// Only Destination dirs are supported right now, but we could be flexible
 	// on this in the future if needed.
 	destinationDir, ok := destination.(*DestinationDirectory)

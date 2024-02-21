@@ -21,6 +21,7 @@ package dynamo
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -49,6 +50,12 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 )
+
+func init() {
+	backend.MustRegister(GetName(), func(ctx context.Context, p backend.Params) (backend.Backend, error) {
+		return New(ctx, p)
+	})
+}
 
 // Config structure represents DynamoDB configuration as appears in `storage` section
 // of Teleport YAML
@@ -275,13 +282,11 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 	b.session.Config.HTTPClient = httpClient
 
-	// create DynamoDB service:
+	// Create DynamoDB service.
 	svc, err := dynamometrics.NewAPIMetrics(dynamometrics.Backend, dynamodb.New(b.session, &aws.Config{
 		// Setting this on the individual service instead of the session, as DynamoDB Streams
 		// and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
 		// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
-		// TODO(reed): This can be simplified once https://github.com/aws/aws-sdk-go/pull/5078
-		// is available (or whenever AWS adds the missing FIPS endpoints).
 		UseFIPSEndpoint: useFIPSEndpoint,
 	}))
 	if err != nil {
@@ -515,6 +520,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	item := &backend.Item{
 		Key:      trimPrefix(r.FullPath),
 		Value:    r.Value,
@@ -524,6 +530,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if r.Expires != nil {
 		item.Expires = time.Unix(*r.Expires, 0)
 	}
+
 	if item.Revision == "" {
 		item.Revision = backend.BlankRevision
 	}
@@ -627,12 +634,15 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if rev == backend.BlankRevision {
-		rev = ""
-	}
+
 	input := dynamodb.DeleteItemInput{Key: av, TableName: aws.String(b.TableName)}
-	input.SetConditionExpression("Revision = :rev")
-	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(rev)}})
+
+	if rev == backend.BlankRevision {
+		input.SetConditionExpression("attribute_not_exists(Revision) AND attribute_exists(FullPath)")
+	} else {
+		input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{":rev": {S: aws.String(rev)}})
+		input.SetConditionExpression("Revision = :rev AND attribute_exists(FullPath)")
+	}
 
 	if _, err = b.svc.DeleteItemWithContext(ctx, &input); err != nil {
 		err = convertError(err)
@@ -1040,8 +1050,8 @@ func convertError(err error) error {
 	if err == nil {
 		return nil
 	}
-	aerr, ok := err.(awserr.Error)
-	if !ok {
+	var aerr awserr.Error
+	if !errors.As(err, &aerr) {
 		return err
 	}
 	switch aerr.Code() {

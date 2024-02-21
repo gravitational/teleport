@@ -18,11 +18,11 @@ package types
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -109,6 +109,8 @@ type ProvisionToken interface {
 	GetRoles() SystemRoles
 	// SetRoles sets teleport roles
 	SetRoles(SystemRoles)
+	// SetLabels sets the tokens labels
+	SetLabels(map[string]string)
 	// GetAllowRules returns the list of allow rules
 	GetAllowRules() []*TokenRule
 	// SetAllowRules sets the allow rules
@@ -351,6 +353,10 @@ func (p *ProvisionTokenV2) SetRoles(r SystemRoles) {
 	p.Spec.Roles = r
 }
 
+func (p *ProvisionTokenV2) SetLabels(l map[string]string) {
+	p.Metadata.Labels = l
+}
+
 // GetAllowRules returns the list of allow rules
 func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
 	return p.Spec.Allow
@@ -586,6 +592,9 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 	}
 	if strings.Contains(a.EnterpriseServerHost, "/") {
 		return trace.BadParameter("'spec.github.enterprise_server_host' should not contain the scheme or path")
+	}
+	if a.EnterpriseServerHost != "" && a.EnterpriseSlug != "" {
+		return trace.BadParameter("'spec.github.enterprise_server_host' and `spec.github.enterprise_slug` cannot both be set")
 	}
 	return nil
 }

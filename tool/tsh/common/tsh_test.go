@@ -38,6 +38,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -50,7 +51,6 @@ import (
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -60,6 +60,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -91,7 +92,7 @@ import (
 )
 
 const (
-	mockHeadlessPassword = "password"
+	mockHeadlessPassword = "password1234"
 	staticToken          = "test-static-token"
 	// tshBinMainTestEnv allows to execute tsh main function from test binary.
 	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
@@ -193,6 +194,10 @@ func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ module
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
 
+func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListGetter, _ string) ([]*accesslist.AccessList, error) {
+	return []*accesslist.AccessList{}, nil
+}
+
 // BuildType returns build type (OSS or Enterprise)
 func (p *cliModules) BuildType() string {
 	return "CLI"
@@ -220,8 +225,8 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
-	return keys.PrivateKeyPolicyNone, nil
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+	return nil, trace.NotFound("no attestation data for the given key")
 }
 
 func (p *cliModules) EnableRecoveryCodes() {
@@ -1785,7 +1790,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					assert.Equal(t, "error\n", string(contents))
 				}
 			}
-
 		})
 	}
 }
@@ -4458,7 +4462,9 @@ func TestSerializeKubeSessions(t *testing.T) {
 	})
 	require.NoError(t, err)
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeKubeSessions([]types.SessionTracker{tracker}, f)
+		var b bytes.Buffer
+		err := serializeSessions([]types.SessionTracker{tracker}, f, &b)
+		return b.String(), err
 	})
 }
 
@@ -5315,7 +5321,7 @@ func TestLogout(t *testing.T) {
 				require.NoError(t, err)
 
 				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
-				err = os.WriteFile(pubKeyPath, ssh.MarshalAuthorizedKey(sshPub), 0600)
+				err = os.WriteFile(pubKeyPath, ssh.MarshalAuthorizedKey(sshPub), 0o600)
 				require.NoError(t, err)
 			},
 		},
@@ -5341,6 +5347,78 @@ func TestLogout(t *testing.T) {
 			require.NoError(t, err)
 			_, err = f.Readdir(1)
 			require.ErrorIs(t, err, io.EOF)
+		})
+	}
+}
+
+func Test_formatActiveDB(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		active      tlsca.RouteToDatabase
+		displayName string
+		expect      string
+	}{
+		{
+			name: "no route details",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+			},
+			displayName: "my-db",
+			expect:      "> my-db",
+		},
+		{
+			name: "different display name",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+			},
+			displayName: "display-name",
+			expect:      "> display-name",
+		},
+		{
+			name: "user only",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Username:    "alice",
+			},
+			displayName: "my-db",
+			expect:      "> my-db (user: alice)",
+		},
+		{
+			name: "db only",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Database:    "sales",
+			},
+			displayName: "my-db",
+			expect:      "> my-db (db: sales)",
+		},
+		{
+			name: "user & db",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Username:    "alice",
+				Database:    "sales",
+			},
+			displayName: "my-db",
+			expect:      "> my-db (user: alice, db: sales)",
+		},
+		{
+			name: "db & roles",
+			active: tlsca.RouteToDatabase{
+				ServiceName: "my-db",
+				Database:    "sales",
+				Roles:       []string{"reader", "writer"},
+			},
+			displayName: "my-db",
+			expect:      "> my-db (db: sales, roles: [reader writer])",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expect, formatActiveDB(test.active, test.displayName))
 		})
 	}
 }

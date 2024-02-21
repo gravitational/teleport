@@ -243,6 +243,10 @@ func NewServer(
 	s.cfg.PasswordCallback = ah.Password
 	s.cfg.NoClientAuth = ah.NoClient
 
+	if s.fips {
+		s.cfg.PublicKeyAuthAlgorithms = defaults.FIPSPubKeyAuthAlgorithms
+	}
+
 	// Teleport servers need to identify as such to allow passing of the client
 	// IP from the client to the proxy to the destination node.
 	s.cfg.ServerVersion = SSHVersionPrefix
@@ -370,20 +374,30 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if activeConnections == 0 {
 		return err
 	}
+	minReportInterval := 10 * s.shutdownPollPeriod
+	maxReportInterval := 600 * s.shutdownPollPeriod
 	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-	lastReport := time.Time{}
+	reportedConnections := activeConnections
+	lastReport := time.Now()
+	reportInterval := minReportInterval
 	ticker := time.NewTicker(s.shutdownPollPeriod)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case now := <-ticker.C:
 			activeConnections = s.trackUserConnections(0)
 			if activeConnections == 0 {
 				return err
 			}
-			if time.Since(lastReport) > 10*s.shutdownPollPeriod {
+			if activeConnections != reportedConnections || now.Sub(lastReport) > reportInterval {
 				s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
-				lastReport = time.Now()
+				lastReport = now
+				if activeConnections == reportedConnections {
+					reportInterval = min(reportInterval*2, maxReportInterval)
+				} else {
+					reportInterval = minReportInterval
+					reportedConnections = activeConnections
+				}
 			}
 		case <-ctx.Done():
 			s.log.Infof("Context canceled wait, returning.")
@@ -472,14 +486,20 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
 	}
 
+	cfg := &s.cfg
+	if v := serverVersionOverrideFromConn(conn); v != "" && v != cfg.ServerVersion {
+		cfg = new(ssh.ServerConfig)
+		*cfg = s.cfg
+		cfg.ServerVersion = v
+	}
+
 	// apply idle read/write timeout to this connection.
-	conn = utils.ObeyIdleTimeout(conn,
-		defaults.DefaultIdleConnectionDuration)
+	conn = utils.ObeyIdleTimeout(conn, defaults.DefaultIdleConnectionDuration)
 	// Wrap connection with a tracker used to monitor how much data was
 	// transmitted and received over the connection.
-	wconn := utils.NewTrackingConn(conn)
+	conn = utils.NewTrackingConn(conn)
 
-	sconn, chans, reqs, err := ssh.NewServerConn(wconn, &s.cfg)
+	sconn, chans, reqs, err := ssh.NewServerConn(conn, cfg)
 	if err != nil {
 		// Ignore EOF as these are triggered by loadbalancer health checks
 		if !errors.Is(err, io.EOF) {
@@ -533,7 +553,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// closeContext field is used to trigger starvation on cancellation by halting
 	// the acceptance of new connections; it is not intended to halt in-progress
 	// connection handling, and is therefore orthogonal to the role of ConnectionContext.
-	ctx, ccx := NewConnectionContext(context.Background(), wconn, sconn, SetConnectionContextClock(s.clock))
+	ctx, ccx := NewConnectionContext(context.Background(), conn, sconn, SetConnectionContextClock(s.clock))
 	defer ccx.Close()
 
 	if s.newConnHandler != nil {
@@ -625,24 +645,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			if nch == nil {
 				connClosed()
 				return
-			}
-
-			// This is a request from clients to determine if tracing is enabled.
-			// Handle here so that we always alert clients that we can handle tracing envelopes.
-			if nch.ChannelType() == tracessh.TracingChannel {
-				ch, _, err := nch.Accept()
-				if err != nil {
-					s.log.Warnf("Unable to accept channel: %v", err)
-					if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-						s.log.Warnf("Failed to reject channel: %v", err)
-					}
-					continue
-				}
-
-				if err := ch.Close(); err != nil {
-					s.log.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-				}
-				continue
 			}
 
 			chanCtx, nch := tracessh.ContextFromNewChannel(nch)
@@ -763,4 +765,32 @@ type (
 type ClusterDetails struct {
 	RecordingProxy bool
 	FIPSEnabled    bool
+}
+
+// SSHServerVersionOverrider returns a SSH server version string that should be
+// used instead of the one from a static configuration (typically because the
+// version was already sent and can't be un-sent). If SSHServerVersionOverride
+// returns a blank string (which is an invalid version string, as version
+// strings should start with "SSH-2.0-") then no override is specified. The
+// string is intended to be passed as the [ssh.ServerConfig.ServerVersion], so
+// it should not include a trailing CRLF pair ("\r\n").
+type SSHServerVersionOverrider interface {
+	SSHServerVersionOverride() string
+}
+
+func serverVersionOverrideFromConn(nc net.Conn) string {
+	for nc != nil {
+		if overrider, ok := nc.(SSHServerVersionOverrider); ok {
+			if v := overrider.SSHServerVersionOverride(); v != "" {
+				return v
+			}
+		}
+
+		netConner, ok := nc.(interface{ NetConn() net.Conn })
+		if !ok {
+			break
+		}
+		nc = netConner.NetConn()
+	}
+	return ""
 }

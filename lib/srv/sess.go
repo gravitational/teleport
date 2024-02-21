@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,7 +38,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -665,7 +665,7 @@ type session struct {
 	fileTransferRequests map[string]*fileTransferRequest
 
 	io       *TermManager
-	inWriter io.Writer
+	inWriter io.WriteCloser
 
 	term Terminal
 
@@ -855,6 +855,11 @@ func (s *session) Stop() {
 	s.log.Info("Stopping session")
 
 	// Close io copy loops
+	if s.inWriter != nil {
+		if err := s.inWriter.Close(); err != nil {
+			s.log.WithError(err).Debug("Failed to close session writer")
+		}
+	}
 	s.io.Close()
 
 	// Make sure that the terminal has been closed
@@ -1238,7 +1243,11 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	}
 
 	inReader, inWriter := io.Pipe()
+
+	s.mu.Lock()
 	s.inWriter = inWriter
+	s.mu.Unlock()
+
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 	s.BroadcastMessage("Creating session with ID: %v", s.id)
@@ -1281,11 +1290,9 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	} else if cgroupID > 0 {
 		// If a cgroup ID was assigned then enhanced session recording was enabled.
 		s.setHasEnhancedRecording(true)
-		scx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
 		go func() {
 			// Close the BPF recording session once the session is closed
 			<-s.stopC
-			scx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
 			err = scx.srv.GetBPF().CloseSession(sessionContext)
 			if err != nil {
 				s.log.WithError(err).Error("Failed to close enhanced recording (interactive) session")
@@ -1454,7 +1461,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// If a cgroup ID was assigned then enhanced session recording was enabled.
 	if cgroupID > 0 {
 		s.setHasEnhancedRecording(true)
-		scx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
 	}
 
 	// Process has been placed in a cgroup, continue execution.
@@ -1474,8 +1480,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		// Wait a little bit to let all events filter through before closing the
 		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
-
-		scx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
 
 		// Close the BPF recording session. If BPF was not configured, not available,
 		// or running in a recording proxy, this is simply a NOP.

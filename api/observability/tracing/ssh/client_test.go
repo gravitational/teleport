@@ -50,7 +50,7 @@ func TestIsTracingSupported(t *testing.T) {
 			t.Cleanup(cancel)
 			errChan := make(chan error, 5)
 
-			srv := newServer(t, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+			srv := newServer(t, tt.expectedCapability, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 				go ssh.DiscardRequests(requests)
 
 				for {
@@ -111,7 +111,7 @@ func TestSetEnvs(t *testing.T) {
 	// used to collect individual envs requests
 	envReqC := make(chan envReqParams, 3)
 
-	srv := newServer(t, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+	srv := newServer(t, tracingSupported, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 		for {
 			select {
 			case <-ctx.Done():

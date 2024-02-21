@@ -1,8 +1,10 @@
-teleport: {}
+teleport:
   # Teleport HTTPS Proxy Web Address, for Teleport Enterprise Cloud should be in the form "your-account.teleport.sh:443"
   address: "teleport.example.com:443"
   # Secret containing identity
   identitySecretName: teleport-plugin-slack-identity
+  # Path within the secret containing the identity file.
+  identitySecretPath: identity
 
 slack:
   token: "xoxb-11xx"  # Slack Bot OAuth token

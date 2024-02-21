@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -669,28 +670,92 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 }
 
 func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	s.log.Debugf("Transport request: %v.", nch.ChannelType())
-	channel, requestCh, err := nch.Accept()
+	s.log.Debug("Received transport request.")
+	channel, requestC, err := nch.Accept()
 	if err != nil {
 		sconn.Close()
+		// avoid WithError to reduce log spam on network errors
 		s.log.Warnf("Failed to accept request: %v.", err)
 		return
 	}
 
-	t := &transport{
-		log:              s.log,
-		closeContext:     s.ctx,
-		authClient:       s.LocalAccessPoint,
-		authServers:      s.LocalAuthAddresses,
-		channel:          channel,
-		requestCh:        requestCh,
-		component:        teleport.ComponentReverseTunnelServer,
-		localClusterName: s.ClusterName,
-		emitter:          s.Emitter,
-		proxySigner:      s.proxySigner,
-		sconn:            sconn,
+	go s.handleTransportChannel(sconn, channel, requestC)
+}
+
+func (s *server) handleTransportChannel(sconn *ssh.ServerConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
+	defer ch.Close()
+	go io.Copy(io.Discard, ch.Stderr())
+
+	// the only valid teleport-transport-dial request here is to reach the auth server
+	var req *ssh.Request
+	select {
+	case <-s.ctx.Done():
+		go ssh.DiscardRequests(reqC)
+		return
+	case <-time.After(apidefaults.DefaultIOTimeout):
+		go ssh.DiscardRequests(reqC)
+		s.log.Warn("Timed out waiting for transport dial request.")
+		return
+	case r, ok := <-reqC:
+		if !ok {
+			return
+		}
+		go ssh.DiscardRequests(reqC)
+		req = r
 	}
-	go t.start()
+
+	dialReq := parseDialReq(req.Payload)
+	if dialReq.Address != constants.RemoteAuthServer {
+		s.log.WithField("address", dialReq.Address).
+			Warn("Received dial request for unexpected address, routing to the auth server anyway.")
+	}
+
+	authAddress := utils.ChooseRandomString(s.LocalAuthAddresses)
+	if authAddress == "" {
+		s.log.Error("No auth servers configured.")
+		fmt.Fprint(ch.Stderr(), "internal server error")
+		req.Reply(false, nil)
+		return
+	}
+
+	var proxyHeader []byte
+	clientSrcAddr := sconn.RemoteAddr()
+	clientDstAddr := sconn.LocalAddr()
+	if s.proxySigner != nil && clientSrcAddr != nil && clientDstAddr != nil {
+		h, err := s.proxySigner.SignPROXYHeader(clientSrcAddr, clientDstAddr)
+		if err != nil {
+			s.log.WithError(err).Error("Failed to create signed PROXY header.")
+			fmt.Fprint(ch.Stderr(), "internal server error")
+			req.Reply(false, nil)
+		}
+		proxyHeader = h
+	}
+
+	d := net.Dialer{Timeout: apidefaults.DefaultIOTimeout}
+	conn, err := d.DialContext(s.ctx, "tcp", authAddress)
+	if err != nil {
+		s.log.Errorf("Failed to dial auth: %v.", err)
+		fmt.Fprint(ch.Stderr(), "failed to dial auth server")
+		req.Reply(false, nil)
+		return
+	}
+	defer conn.Close()
+
+	_ = conn.SetWriteDeadline(time.Now().Add(apidefaults.DefaultIOTimeout))
+	if _, err := conn.Write(proxyHeader); err != nil {
+		s.log.Errorf("Failed to send PROXY header: %v.", err)
+		fmt.Fprint(ch.Stderr(), "failed to dial auth server")
+		req.Reply(false, nil)
+		return
+	}
+	_ = conn.SetWriteDeadline(time.Time{})
+
+	if err := req.Reply(true, nil); err != nil {
+		s.log.Errorf("Failed to respond to dial request: %v.", err)
+		return
+	}
+
+	_ = utils.ProxyConn(s.ctx, ch, conn)
 }
 
 // TODO(awly): unit test this

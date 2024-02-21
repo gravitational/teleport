@@ -23,7 +23,7 @@ import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
 import type { DocumentClusterResourceKind } from 'teleterm/ui/services/workspacesService';
 
 type ResourceSearchResultBase<
-  Result extends resourcesServiceTypes.SearchResult
+  Result extends resourcesServiceTypes.SearchResult,
 > = Result & {
   labelMatches: LabelMatch[];
   resourceMatches: ResourceMatch<Result['kind']>[];
@@ -38,6 +38,8 @@ export type SearchResultDatabase =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultDatabase>;
 export type SearchResultKube =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultKube>;
+export type SearchResultApp =
+  ResourceSearchResultBase<resourcesServiceTypes.SearchResultApp>;
 export type SearchResultCluster = {
   kind: 'cluster-filter';
   resource: Cluster;
@@ -64,7 +66,8 @@ export type DisplayResults = {
 export type ResourceSearchResult =
   | SearchResultServer
   | SearchResultDatabase
-  | SearchResultKube;
+  | SearchResultKube
+  | SearchResultApp;
 
 export type FilterSearchResult = SearchResultResourceType | SearchResultCluster;
 
@@ -82,7 +85,7 @@ export type LabelMatch = {
 };
 
 export type ResourceMatch<Kind extends ResourceSearchResult['kind']> = {
-  field: typeof searchableFields[Kind][number];
+  field: (typeof searchableFields)[Kind][number];
   searchTerm: string;
 };
 
@@ -99,21 +102,23 @@ export const mainResourceField: {
   server: 'hostname',
   database: 'name',
   kube: 'name',
+  app: 'name',
 } as const;
 
 // The usage of Exclude here is a workaround to make sure that the fields in the array point only to
 // fields of string type.
 export const searchableFields: {
   [Kind in ResourceSearchResult['kind']]: ReadonlyArray<
-    Exclude<
-      keyof resourcesServiceTypes.SearchResultResource<Kind>,
-      'labelsList'
-    >
+    Exclude<keyof resourcesServiceTypes.SearchResultResource<Kind>, 'labels'>
   >;
 } = {
   server: ['name', 'hostname', 'addr'],
   database: ['name', 'desc', 'protocol', 'type'],
   kube: ['name'],
+  // Right now, friendlyName is set only for Okta apps (api/types/resource.go).
+  // The friendly name is constructed *after* fetching apps, but since it is
+  // made from the value of a label, the server-side search can find it.
+  app: ['name', 'friendlyName', 'desc', 'addrWithProtocol'],
 } as const;
 
 export interface ResourceTypeSearchFilter {

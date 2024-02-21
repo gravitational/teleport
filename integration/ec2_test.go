@@ -408,24 +408,10 @@ func TestEC2Labels(t *testing.T) {
 		kubes, err = authServer.GetKubernetesServers(ctx)
 		assert.NoError(t, err)
 
-		// dedupClusters is required because GetKubernetesServers returns duplicated servers
-		// because it lists the KindKubeServer and KindKubeService.
-		// We must remove this once legacy heartbeat is removed.
-		// DELETE IN 13.0.0 (tigrato)
-		var dedupClusters []types.KubeServer
-		dedup := map[string]struct{}{}
-		for _, kube := range kubes {
-			if _, ok := dedup[kube.GetName()]; ok {
-				continue
-			}
-			dedup[kube.GetName()] = struct{}{}
-			dedupClusters = append(dedupClusters, kube)
-		}
-
 		assert.Len(t, nodes, 1)
 		assert.Len(t, apps, 1)
 		assert.Len(t, databases, 1)
-		assert.Len(t, dedupClusters, 1)
+		assert.Len(t, kubes, 1)
 	}, 10*time.Second, time.Second)
 
 	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)

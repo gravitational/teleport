@@ -97,6 +97,38 @@ export const plugins: Plugin[] = [
     statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
+  {
+    resourceType: 'plugin',
+    name: 'servicenow',
+    details: '',
+    kind: 'servicenow',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'mattermost',
+    details: '',
+    kind: 'mattermost',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'jira',
+    details: '',
+    kind: 'jira',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'discord',
+    details: '',
+    kind: 'discord',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
 ];
 
 export const integrations: Integration[] = [

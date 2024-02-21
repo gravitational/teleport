@@ -78,6 +78,7 @@ crdgen: ## Generate CRDs
 
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
+	teleport/accesslist/v1/accesslist.proto \
 	teleport/legacy/types/types.proto
 
 .PHONY: manifests
@@ -159,7 +160,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_TOOLS_VERSION ?= v0.9.0
+CONTROLLER_TOOLS_VERSION ?= v0.14.0
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.

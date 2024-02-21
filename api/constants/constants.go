@@ -408,6 +408,8 @@ const (
 	MaxAssumeStartDuration = time.Hour * 24 * 7
 )
 
+// Constants for TLS routing connection upgrade. See RFD for more details:
+// https://github.com/gravitational/teleport/blob/master/rfd/0123-tls-routing-behind-layer7-lb.md
 const (
 	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
 	// call.
@@ -431,6 +433,8 @@ const (
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
 	// has very short idle timeouts.
 	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
+	// WebAPIConnUpgradeTypeWebSocket is the standard upgrade type for WebSocket.
+	WebAPIConnUpgradeTypeWebSocket = "websocket"
 	// WebAPIConnUpgradeConnectionHeader is the standard header that controls
 	// whether the network connection stays open after the current transaction
 	// finishes.

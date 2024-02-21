@@ -32,16 +32,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/basichttp"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/constants"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/automaticupgrades/basichttp"
+	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func createProxyWithChannels(t *testing.T, channels automaticupgrades.Channels) string {
-	require.NoError(t, channels.CheckAndSetDefaults())
+	features := proto.Features{}
+	require.NoError(t, channels.CheckAndSetDefaults(features))
 	testDir := t.TempDir()
 
 	cfg := helpers.InstanceConfig{
@@ -84,14 +87,18 @@ func TestVersionServer(t *testing.T) {
 
 	staticChannel := "static/ok"
 	staticHighChannel := "static/high"
+	staticNoVersionChannel := "static/none"
 	forwardChannel := "forward/ok"
 	forwardHighChannel := "forward/high"
+	forwardNoVersionChannel := "forward/none"
 	forwardPath := "/version-server/"
 
 	upstreamServer := basichttp.NewServerMock(forwardPath + constants.VersionPath)
 	upstreamServer.SetResponse(t, http.StatusOK, testVersion)
 	upstreamHighServer := basichttp.NewServerMock(forwardPath + constants.VersionPath)
 	upstreamHighServer.SetResponse(t, http.StatusOK, testVersionMajorTooHigh)
+	upstreamNoVersionServer := basichttp.NewServerMock(forwardPath + constants.VersionPath)
+	upstreamNoVersionServer.SetResponse(t, http.StatusOK, constants.NoVersion)
 
 	channels := automaticupgrades.Channels{
 		staticChannel: {
@@ -100,11 +107,17 @@ func TestVersionServer(t *testing.T) {
 		staticHighChannel: {
 			StaticVersion: testVersionMajorTooHigh,
 		},
+		staticNoVersionChannel: {
+			StaticVersion: constants.NoVersion,
+		},
 		forwardChannel: {
 			ForwardURL: upstreamServer.Srv.URL + forwardPath,
 		},
 		forwardHighChannel: {
 			ForwardURL: upstreamHighServer.Srv.URL + forwardPath,
+		},
+		forwardNoVersionChannel: {
+			ForwardURL: upstreamNoVersionServer.Srv.URL + forwardPath,
 		},
 	}
 
@@ -115,6 +128,7 @@ func TestVersionServer(t *testing.T) {
 	}
 	httpClient := http.Client{Transport: tr}
 
+	// Test execution
 	tests := []struct {
 		name             string
 		channel          string
@@ -128,6 +142,11 @@ func TestVersionServer(t *testing.T) {
 		{
 			name:             "static version too high",
 			channel:          staticHighChannel,
+			expectedResponse: teleport.Version,
+		},
+		{
+			name:             "static version none",
+			channel:          staticNoVersionChannel,
 			expectedResponse: constants.NoVersion,
 		},
 		{
@@ -138,6 +157,11 @@ func TestVersionServer(t *testing.T) {
 		{
 			name:             "forward version too high",
 			channel:          forwardHighChannel,
+			expectedResponse: teleport.Version,
+		},
+		{
+			name:             "forward version none",
+			channel:          forwardNoVersionChannel,
 			expectedResponse: constants.NoVersion,
 		},
 	}

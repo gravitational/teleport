@@ -131,6 +131,21 @@ export const kinds = props => {
           background: theme.colors.buttons.warning.active,
         },
       };
+    case 'warning-border':
+      return {
+        color: theme.colors.buttons.warning.default,
+        background: theme.colors.buttons.border.default,
+        border: '1px solid ' + theme.colors.buttons.warning.default,
+        '&:hover, &:focus': {
+          background: theme.colors.buttons.warning.hover,
+          color: theme.colors.buttons.warning.text,
+        },
+        '&:active': {
+          background: theme.colors.buttons.warning.active,
+          color: theme.colors.buttons.warning.text,
+        },
+      };
+
     case 'text':
       return {
         color: theme.colors.buttons.text,
@@ -238,4 +253,7 @@ export const ButtonPrimary = props => <Button kind="primary" {...props} />;
 export const ButtonSecondary = props => <Button kind="secondary" {...props} />;
 export const ButtonBorder = props => <Button kind="border" {...props} />;
 export const ButtonWarning = props => <Button kind="warning" {...props} />;
+export const ButtonWarningBorder = props => (
+  <Button kind="warning-border" {...props} />
+);
 export const ButtonText = props => <Button kind="text" {...props} />;

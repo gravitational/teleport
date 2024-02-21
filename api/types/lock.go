@@ -210,13 +210,6 @@ func (c *LockV2) CheckAndSetDefaults() error {
 	if c.Spec.Target.IsEmpty() {
 		return trace.BadParameter("at least one target field must be set")
 	}
-	// If the user specifies a server ID but not a node, copy the server ID to the node
-	// field. This is for backwards compatibility with previous versions of Teleport
-	// so that locking a node still works.
-	// TODO: DELETE IN 15.0.0
-	if c.Spec.Target.ServerID != "" && c.Spec.Target.Node == "" {
-		c.Spec.Target.Node = c.Spec.Target.ServerID
-	}
 	return nil
 }
 

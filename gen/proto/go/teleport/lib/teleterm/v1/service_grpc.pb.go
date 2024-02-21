@@ -49,7 +49,10 @@ const (
 	TerminalService_ReviewAccessRequest_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/ReviewAccessRequest"
 	TerminalService_GetRequestableRoles_FullMethodName               = "/teleport.lib.teleterm.v1.TerminalService/GetRequestableRoles"
 	TerminalService_AssumeRole_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
+	TerminalService_PromoteAccessRequest_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
+	TerminalService_GetSuggestedAccessLists_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
 	TerminalService_GetKubes_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetKubes"
+	TerminalService_GetApps_FullMethodName                           = "/teleport.lib.teleterm.v1.TerminalService/GetApps"
 	TerminalService_AddCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
 	TerminalService_RemoveCluster_FullMethodName                     = "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster"
 	TerminalService_ListGateways_FullMethodName                      = "/teleport.lib.teleterm.v1.TerminalService/ListGateways"
@@ -67,7 +70,6 @@ const (
 	TerminalService_UpdateHeadlessAuthenticationState_FullMethodName = "/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState"
 	TerminalService_CreateConnectMyComputerRole_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole"
 	TerminalService_CreateConnectMyComputerNodeToken_FullMethodName  = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerNodeToken"
-	TerminalService_DeleteConnectMyComputerToken_FullMethodName      = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerToken"
 	TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName  = "/teleport.lib.teleterm.v1.TerminalService/WaitForConnectMyComputerNodeJoin"
 	TerminalService_DeleteConnectMyComputerNode_FullMethodName       = "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerNode"
 	TerminalService_GetConnectMyComputerNodeName_FullMethodName      = "/teleport.lib.teleterm.v1.TerminalService/GetConnectMyComputerNodeName"
@@ -112,8 +114,14 @@ type TerminalServiceClient interface {
 	GetRequestableRoles(ctx context.Context, in *GetRequestableRolesRequest, opts ...grpc.CallOption) (*GetRequestableRolesResponse, error)
 	// AssumeRole assumes the role of the given access request
 	AssumeRole(ctx context.Context, in *AssumeRoleRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// PromoteAccessRequest promotes an access request to an access list.
+	PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error)
+	// GetSuggestedAccessLists returns suggested access lists for an access request.
+	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error)
+	// GetApps returns a filtered and paginated list of apps.
+	GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(ctx context.Context, in *AddClusterRequest, opts ...grpc.CallOption) (*Cluster, error)
 	// RemoveCluster removes a cluster from profile
@@ -171,8 +179,6 @@ type TerminalServiceClient interface {
 	CreateConnectMyComputerRole(ctx context.Context, in *CreateConnectMyComputerRoleRequest, opts ...grpc.CallOption) (*CreateConnectMyComputerRoleResponse, error)
 	// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
 	CreateConnectMyComputerNodeToken(ctx context.Context, in *CreateConnectMyComputerNodeTokenRequest, opts ...grpc.CallOption) (*CreateConnectMyComputerNodeTokenResponse, error)
-	// DeleteConnectMyComputerToken deletes a join token
-	DeleteConnectMyComputerToken(ctx context.Context, in *DeleteConnectMyComputerTokenRequest, opts ...grpc.CallOption) (*DeleteConnectMyComputerTokenResponse, error)
 	// WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
 	// that the Connect My Computer node for the particular cluster has joined the cluster (the
 	// OpPut event).
@@ -318,9 +324,36 @@ func (c *terminalServiceClient) AssumeRole(ctx context.Context, in *AssumeRoleRe
 	return out, nil
 }
 
+func (c *terminalServiceClient) PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error) {
+	out := new(PromoteAccessRequestResponse)
+	err := c.cc.Invoke(ctx, TerminalService_PromoteAccessRequest_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error) {
+	out := new(GetSuggestedAccessListsResponse)
+	err := c.cc.Invoke(ctx, TerminalService_GetSuggestedAccessLists_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *terminalServiceClient) GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error) {
 	out := new(GetKubesResponse)
 	err := c.cc.Invoke(ctx, TerminalService_GetKubes_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error) {
+	out := new(GetAppsResponse)
+	err := c.cc.Invoke(ctx, TerminalService_GetApps_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -525,15 +558,6 @@ func (c *terminalServiceClient) CreateConnectMyComputerNodeToken(ctx context.Con
 	return out, nil
 }
 
-func (c *terminalServiceClient) DeleteConnectMyComputerToken(ctx context.Context, in *DeleteConnectMyComputerTokenRequest, opts ...grpc.CallOption) (*DeleteConnectMyComputerTokenResponse, error) {
-	out := new(DeleteConnectMyComputerTokenResponse)
-	err := c.cc.Invoke(ctx, TerminalService_DeleteConnectMyComputerToken_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *terminalServiceClient) WaitForConnectMyComputerNodeJoin(ctx context.Context, in *WaitForConnectMyComputerNodeJoinRequest, opts ...grpc.CallOption) (*WaitForConnectMyComputerNodeJoinResponse, error) {
 	out := new(WaitForConnectMyComputerNodeJoinResponse)
 	err := c.cc.Invoke(ctx, TerminalService_WaitForConnectMyComputerNodeJoin_FullMethodName, in, out, opts...)
@@ -624,8 +648,14 @@ type TerminalServiceServer interface {
 	GetRequestableRoles(context.Context, *GetRequestableRolesRequest) (*GetRequestableRolesResponse, error)
 	// AssumeRole assumes the role of the given access request
 	AssumeRole(context.Context, *AssumeRoleRequest) (*EmptyResponse, error)
+	// PromoteAccessRequest promotes an access request to an access list.
+	PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error)
+	// GetSuggestedAccessLists returns suggested access lists for an access request.
+	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error)
+	// GetApps returns a filtered and paginated list of apps.
+	GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(context.Context, *AddClusterRequest) (*Cluster, error)
 	// RemoveCluster removes a cluster from profile
@@ -683,8 +713,6 @@ type TerminalServiceServer interface {
 	CreateConnectMyComputerRole(context.Context, *CreateConnectMyComputerRoleRequest) (*CreateConnectMyComputerRoleResponse, error)
 	// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
 	CreateConnectMyComputerNodeToken(context.Context, *CreateConnectMyComputerNodeTokenRequest) (*CreateConnectMyComputerNodeTokenResponse, error)
-	// DeleteConnectMyComputerToken deletes a join token
-	DeleteConnectMyComputerToken(context.Context, *DeleteConnectMyComputerTokenRequest) (*DeleteConnectMyComputerTokenResponse, error)
 	// WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
 	// that the Connect My Computer node for the particular cluster has joined the cluster (the
 	// OpPut event).
@@ -749,8 +777,17 @@ func (UnimplementedTerminalServiceServer) GetRequestableRoles(context.Context, *
 func (UnimplementedTerminalServiceServer) AssumeRole(context.Context, *AssumeRoleRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AssumeRole not implemented")
 }
+func (UnimplementedTerminalServiceServer) PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromoteAccessRequest not implemented")
+}
+func (UnimplementedTerminalServiceServer) GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSuggestedAccessLists not implemented")
+}
 func (UnimplementedTerminalServiceServer) GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubes not implemented")
+}
+func (UnimplementedTerminalServiceServer) GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetApps not implemented")
 }
 func (UnimplementedTerminalServiceServer) AddCluster(context.Context, *AddClusterRequest) (*Cluster, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddCluster not implemented")
@@ -802,9 +839,6 @@ func (UnimplementedTerminalServiceServer) CreateConnectMyComputerRole(context.Co
 }
 func (UnimplementedTerminalServiceServer) CreateConnectMyComputerNodeToken(context.Context, *CreateConnectMyComputerNodeTokenRequest) (*CreateConnectMyComputerNodeTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateConnectMyComputerNodeToken not implemented")
-}
-func (UnimplementedTerminalServiceServer) DeleteConnectMyComputerToken(context.Context, *DeleteConnectMyComputerTokenRequest) (*DeleteConnectMyComputerTokenResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteConnectMyComputerToken not implemented")
 }
 func (UnimplementedTerminalServiceServer) WaitForConnectMyComputerNodeJoin(context.Context, *WaitForConnectMyComputerNodeJoinRequest) (*WaitForConnectMyComputerNodeJoinResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WaitForConnectMyComputerNodeJoin not implemented")
@@ -1071,6 +1105,42 @@ func _TerminalService_AssumeRole_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_PromoteAccessRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromoteAccessRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).PromoteAccessRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_PromoteAccessRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).PromoteAccessRequest(ctx, req.(*PromoteAccessRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_GetSuggestedAccessLists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSuggestedAccessListsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).GetSuggestedAccessLists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_GetSuggestedAccessLists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).GetSuggestedAccessLists(ctx, req.(*GetSuggestedAccessListsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TerminalService_GetKubes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetKubesRequest)
 	if err := dec(in); err != nil {
@@ -1085,6 +1155,24 @@ func _TerminalService_GetKubes_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetKubes(ctx, req.(*GetKubesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_GetApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAppsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).GetApps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_GetApps_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).GetApps(ctx, req.(*GetAppsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1406,24 +1494,6 @@ func _TerminalService_CreateConnectMyComputerNodeToken_Handler(srv interface{}, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TerminalService_DeleteConnectMyComputerToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteConnectMyComputerTokenRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).DeleteConnectMyComputerToken(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TerminalService_DeleteConnectMyComputerToken_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).DeleteConnectMyComputerToken(ctx, req.(*DeleteConnectMyComputerTokenRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _TerminalService_WaitForConnectMyComputerNodeJoin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(WaitForConnectMyComputerNodeJoinRequest)
 	if err := dec(in); err != nil {
@@ -1592,8 +1662,20 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TerminalService_AssumeRole_Handler,
 		},
 		{
+			MethodName: "PromoteAccessRequest",
+			Handler:    _TerminalService_PromoteAccessRequest_Handler,
+		},
+		{
+			MethodName: "GetSuggestedAccessLists",
+			Handler:    _TerminalService_GetSuggestedAccessLists_Handler,
+		},
+		{
 			MethodName: "GetKubes",
 			Handler:    _TerminalService_GetKubes_Handler,
+		},
+		{
+			MethodName: "GetApps",
+			Handler:    _TerminalService_GetApps_Handler,
 		},
 		{
 			MethodName: "AddCluster",
@@ -1654,10 +1736,6 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateConnectMyComputerNodeToken",
 			Handler:    _TerminalService_CreateConnectMyComputerNodeToken_Handler,
-		},
-		{
-			MethodName: "DeleteConnectMyComputerToken",
-			Handler:    _TerminalService_DeleteConnectMyComputerToken_Handler,
 		},
 		{
 			MethodName: "WaitForConnectMyComputerNodeJoin",

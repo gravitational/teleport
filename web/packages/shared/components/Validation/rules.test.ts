@@ -54,7 +54,7 @@ describe('requiredToken', () => {
 });
 
 describe('requiredPassword', () => {
-  const errMsg = 'Enter at least 6 characters';
+  const errMsg = 'Enter at least 12 characters';
 
   test.each`
     password            | expected
@@ -107,12 +107,12 @@ describe('requiredConfirmedPassword', () => {
   const confirmError = 'Please confirm your password';
 
   test.each`
-    password       | confirmPassword | expected
-    ${'pwd123'}    | ${'pwd123'}     | ${{ valid: true }}
-    ${''}          | ${'mismatch'}   | ${{ valid: false, message: mismatchError }}
-    ${null}        | ${'mismatch'}   | ${{ valid: false, message: mismatchError }}
-    ${'mistmatch'} | ${null}         | ${{ valid: false, message: confirmError }}
-    ${null}        | ${null}         | ${{ valid: false, message: confirmError }}
+    password          | confirmPassword   | expected
+    ${'password1234'} | ${'password1234'} | ${{ valid: true }}
+    ${''}             | ${'mismatch'}     | ${{ valid: false, message: mismatchError }}
+    ${null}           | ${'mismatch'}     | ${{ valid: false, message: mismatchError }}
+    ${'mistmatch'}    | ${null}           | ${{ valid: false, message: confirmError }}
+    ${null}           | ${null}           | ${{ valid: false, message: confirmError }}
   `(
     'password: $password, confirmPassword: $confirmPassword',
     ({ password, confirmPassword, expected }) => {

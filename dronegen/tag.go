@@ -39,7 +39,8 @@ func tagPipelines() []pipeline {
 	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "amd64", fips: false, centos7: true, buildConnect: true, buildOSPkg: true}))
 	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "amd64", fips: true, centos7: true, buildConnect: false, buildOSPkg: true}))
 	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "386", buildOSPkg: true}))
-	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "arm64", buildOSPkg: true}))
+	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "arm64", fips: false, buildOSPkg: true}))
+	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "arm64", fips: true, buildOSPkg: true}))
 	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "arm", buildOSPkg: true}))
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
@@ -51,6 +52,7 @@ func tagPipelines() []pipeline {
 			"build-linux-amd64",
 			"build-linux-amd64-fips",
 			"build-linux-arm64",
+			"build-linux-arm64-fips",
 			"build-linux-arm",
 		},
 		workflows: []ghaWorkflow{
@@ -72,6 +74,8 @@ func tagPipelines() []pipeline {
 			tagCleanupPipelineName,
 			"build-linux-amd64",
 			"build-linux-amd64-fips",
+			"build-linux-arm64",
+			"build-linux-arm64-fips",
 		},
 		workflows: []ghaWorkflow{
 			{
@@ -118,35 +122,9 @@ func tagPipelines() []pipeline {
 	ps = append(ps, windowsTagPipelineGHA())
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		pipelineName: "build-legacy-amis",
-		trigger:      triggerTag,
-		buildType:    buildType{fips: false},
-		dependsOn: []string{
-			"build-linux-amd64",
-			"build-linux-amd64-fips",
-		},
-		workflows: []ghaWorkflow{
-			{
-				name:              "release-teleport-legacy-amis.yaml",
-				srcRefVar:         "DRONE_TAG",
-				ref:               "${DRONE_TAG}",
-				timeout:           150 * time.Minute,
-				shouldTagWorkflow: true,
-				slackOnError:      true,
-			},
-		},
-	}))
-
-	ps = append(ps, ghaBuildPipeline(ghaBuildType{
 		pipelineName: "build-oci",
 		trigger:      triggerTag,
 		buildType:    buildType{fips: false},
-		dependsOn: []string{
-			"build-linux-amd64",
-			"build-linux-amd64-fips",
-			"build-linux-arm64",
-			"build-linux-arm",
-		},
 		workflows: []ghaWorkflow{
 			{
 				name:              "release-teleport-oci.yaml",

@@ -41,8 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
@@ -79,9 +77,13 @@ type scriptSettings struct {
 	databaseInstallMode bool
 	installUpdater      bool
 
-	// automaticUpgradesVersionURL is the URL for getting the version when using the cloud/stable channel.
-	// Optional.
-	automaticUpgradesVersionURL string
+	discoveryInstallMode bool
+	discoveryGroup       string
+
+	// automaticUpgradesVersion is the target automatic upgrades version.
+	// The version must be valid semver, with the leading 'v'. e.g. v15.0.0-dev
+	// Required when installUpdater is true.
+	automaticUpgradesVersion string
 }
 
 // automaticUpgrades returns whether automaticUpgrades should be enabled.
@@ -160,7 +162,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 			}, nil
 		}
 	default:
-		tokenName, err = utils.CryptoRandomHex(auth.TokenLenBytes)
+		tokenName, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -208,14 +210,38 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}, nil
 }
 
+// getAutoUpgrades checks if automaticUpgrades are enabled and returns the
+// version that should be used according to auto upgrades default channel.
+func (h *Handler) getAutoUpgrades(ctx context.Context) (bool, string, error) {
+	var autoUpgradesVersion string
+	var err error
+	autoUpgrades := automaticUpgrades(h.ClusterFeatures)
+	if autoUpgrades {
+		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
+		if err != nil {
+			log.WithError(err).Info("Failed to get auto upgrades version.")
+			return false, "", trace.Wrap(err)
+		}
+	}
+	return autoUpgrades, autoUpgradesVersion, nil
+
+}
+
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
 	settings := scriptSettings{
-		token:          params.ByName("token"),
-		appInstallMode: false,
-		joinMethod:     r.URL.Query().Get("method"),
-		installUpdater: automaticUpgrades(h.ClusterFeatures),
+		token:                    params.ByName("token"),
+		appInstallMode:           false,
+		joinMethod:               r.URL.Query().Get("method"),
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -252,12 +278,19 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		return nil, nil
 	}
 
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
 	settings := scriptSettings{
-		token:          params.ByName("token"),
-		appInstallMode: true,
-		appName:        name,
-		appURI:         uri,
-		installUpdater: automaticUpgrades(h.ClusterFeatures),
+		token:                    params.ByName("token"),
+		appInstallMode:           true,
+		appName:                  name,
+		appURI:                   uri,
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -279,10 +312,17 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
 	settings := scriptSettings{
-		token:               params.ByName("token"),
-		databaseInstallMode: true,
-		installUpdater:      automaticUpgrades(h.ClusterFeatures),
+		token:                    params.ByName("token"),
+		databaseInstallMode:      true,
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -295,6 +335,53 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
 		log.WithError(err).Debug("Failed to return the database install script.")
+		w.Write(scripts.ErrorBashScript)
+	}
+
+	return nil, nil
+}
+
+func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+	queryValues := r.URL.Query()
+	const discoveryGroupQueryParam = "discoveryGroup"
+
+	autoUpgrades, autoUpgradesVersion, err := h.getAutoUpgrades(r.Context())
+	if err != nil {
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	discoveryGroup, err := url.QueryUnescape(queryValues.Get(discoveryGroupQueryParam))
+	if err != nil {
+		log.WithField("query-param", discoveryGroupQueryParam).WithError(err).Debug("Failed to return the discovery install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+	if discoveryGroup == "" {
+		log.WithField("query-param", discoveryGroupQueryParam).Debug("Failed to return the discovery install script. Missing required fields.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	settings := scriptSettings{
+		token:                    params.ByName("token"),
+		discoveryInstallMode:     true,
+		discoveryGroup:           discoveryGroup,
+		installUpdater:           autoUpgrades,
+		automaticUpgradesVersion: autoUpgradesVersion,
+	}
+
+	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
+	if err != nil {
+		log.WithError(err).Info("Failed to return the discovery install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := fmt.Fprintln(w, script); err != nil {
+		log.WithError(err).Debug("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -378,6 +465,12 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		}
 	}
 
+	if settings.discoveryInstallMode {
+		if settings.discoveryGroup == "" {
+			return "", trace.BadParameter("discovery group is required")
+		}
+	}
+
 	packageName := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
 		packageName = types.PackageNameEnt
@@ -388,17 +481,17 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 
 	// The install script will install the updater (teleport-ent-updater) for Cloud customers enrolled in Automatic Upgrades.
 	// The repo channel used must be `stable/cloud` which has the available packages for the Cloud Customer's agents.
-	// It pins the teleport version to the one specified by https://updates.releases.teleport.dev/v1/stable/cloud/version
+	// It pins the teleport version to the one specified by the default version channel
 	// This ensures the initial installed version is the same as the `teleport-ent-updater` would install.
 	if settings.installUpdater {
-		repoChannel = stableCloudChannelRepo
-		cloudStableVersion, err := automaticupgrades.Version(ctx, settings.automaticUpgradesVersionURL)
-		if err != nil {
-			return "", trace.Wrap(err)
+		if settings.automaticUpgradesVersion == "" {
+			return "", trace.Wrap(err, "automatic upgrades version must be set when installUpdater is true")
 		}
 
-		// cloudStableVersion has vX.Y.Z format, however the script expects the version to not include the `v`
-		version = strings.TrimPrefix(cloudStableVersion, "v")
+		repoChannel = stableCloudChannelRepo
+		// automaticUpgradesVersion has vX.Y.Z format, however the script
+		// expects the version to not include the `v` so we strip it
+		version = strings.TrimPrefix(settings.automaticUpgradesVersion, "v")
 	}
 
 	// This section relies on Go's default zero values to make sure that the settings
@@ -425,6 +518,8 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"labels":                     strings.Join(labelsList, ","),
 		"databaseInstallMode":        strconv.FormatBool(settings.databaseInstallMode),
 		"db_service_resource_labels": dbServiceResourceLabels,
+		"discoveryInstallMode":       settings.discoveryInstallMode,
+		"discoveryGroup":             settings.discoveryGroup,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -439,7 +534,7 @@ func validateJoinToken(token string) error {
 	if err != nil {
 		return trace.BadParameter("invalid token %q", token)
 	}
-	if len(decodedToken) != auth.TokenLenBytes {
+	if len(decodedToken) != defaults.TokenLenBytes {
 		return trace.BadParameter("invalid token %q", decodedToken)
 	}
 

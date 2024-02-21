@@ -210,10 +210,6 @@ func (s *ServerV2) Expiry() time.Time {
 // SetPublicAddrs sets the public proxy addresses where this server can be reached.
 func (s *ServerV2) SetPublicAddrs(addrs []string) {
 	s.Spec.PublicAddrs = addrs
-	// DELETE IN 15.0. (Joerger) PublicAddr deprecated in favor of PublicAddrs
-	if len(addrs) != 0 {
-		s.Spec.PublicAddr = addrs[0]
-	}
 }
 
 // GetName returns server name
@@ -242,10 +238,6 @@ func (s *ServerV2) GetPublicAddr() string {
 
 // GetPublicAddrs returns a list of public addresses where this server can be reached.
 func (s *ServerV2) GetPublicAddrs() []string {
-	// DELETE IN 15.0. (Joerger) PublicAddr deprecated in favor of PublicAddrs
-	if len(s.Spec.PublicAddrs) == 0 && s.Spec.PublicAddr != "" {
-		return []string{s.Spec.PublicAddr}
-	}
 	return s.Spec.PublicAddrs
 }
 

@@ -287,6 +287,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"form-action":     "'self'",
 				"frame-ancestors": "'none'",
 				"object-src":      "'none'",
+				"script-src":      "'self'",
 				"style-src":       "'self' 'unsafe-inline'",
 				"img-src":         "'self' data: blob:",
 				"font-src":        "'self' data:",
@@ -302,9 +303,9 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
 				"frame-ancestors": "'none'",
+				"frame-src":       "https://js.stripe.com",
 				"object-src":      "'none'",
 				"script-src":      "'self' https://js.stripe.com",
-				"frame-src":       "https://js.stripe.com",
 				"style-src":       "'self' 'unsafe-inline'",
 				"img-src":         "'self' data: blob:",
 				"font-src":        "'self' data:",
@@ -414,7 +415,7 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 		"object-src":      "'none'",
 		"style-src":       "'self' 'unsafe-inline'",
 		"img-src":         "'self' data: blob:",
-		"script-src":      fmt.Sprintf("'%s'", scriptSrc),
+		"script-src":      fmt.Sprintf("'self' '%s'", scriptSrc),
 	}
 
 	h := make(http.Header)

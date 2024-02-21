@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
@@ -163,9 +162,6 @@ type Server interface {
 	// GetBPF returns the BPF service used for enhanced session recording.
 	GetBPF() bpf.BPF
 
-	// GetRestrictedSessionManager returns the manager for restricting user activity
-	GetRestrictedSessionManager() restricted.Manager
-
 	// Context returns server shutdown context
 	Context() context.Context
 
@@ -278,6 +274,10 @@ type IdentityContext struct {
 	// Generation counts the number of times this identity's certificate has
 	// been renewed.
 	Generation uint64
+
+	// BotName is the name of the Machine ID bot this identity is associated
+	// with, if any.
+	BotName string
 
 	// AllowedResourceIDs lists the resources this identity should be allowed to
 	// access
@@ -1196,12 +1196,18 @@ func eventDeviceMetadataFromCert(cert *ssh.Certificate) *apievents.DeviceMetadat
 }
 
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
+	userKind := apievents.UserKind_USER_KIND_HUMAN
+	if id.BotName != "" {
+		userKind = apievents.UserKind_USER_KIND_BOT
+	}
+
 	return apievents.UserMetadata{
 		Login:          id.Login,
 		User:           id.TeleportUser,
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
 		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
+		UserKind:       userKind,
 	}
 }
 
@@ -1294,8 +1300,8 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 	lockTargets := []types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
-		{Node: serverID},
-		{Node: auth.HostFQDN(serverID, clusterName)},
+		{Node: serverID, ServerID: serverID},
+		{Node: auth.HostFQDN(serverID, clusterName), ServerID: auth.HostFQDN(serverID, clusterName)},
 	}
 	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})

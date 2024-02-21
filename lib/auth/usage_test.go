@@ -20,6 +20,7 @@ package auth
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -73,7 +73,6 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 
 	// Lift limit with IGS, expect no limit error.
 	s.features.IdentityGovernanceSecurity = true
-	s.features.IsUsageBasedBilling = true
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: s.features,
 	})

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useState } from 'react';
 import { Box, ButtonSecondary, ButtonPrimary, Text, Image, Flex } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
@@ -116,7 +116,7 @@ function PromptCredential({
 }
 
 function PromptPin({ onCancel, onUserResponse, processing }: Props) {
-  const [pin, setPin] = React.useState('');
+  const [pin, setPin] = useState('');
 
   return (
     <Validation>
@@ -163,11 +163,17 @@ function ActionButtons({
   };
 }) {
   return (
-    <Flex justifyContent="flex-end" mt={4}>
+    <Flex justifyContent="flex-start" mt={4}>
+      {/*
+        Generally, every other modal in the app with a "Cancel" button has the button to the right
+        of the button like "Next".
+
+        However, when using a hardware key with a PIN, the user goes through a series of steps where
+        the "Cancel" key is always present. The "Next" button is present only when entering the PIN,
+        so it makes sense to show it to the right of the "Cancel" button.
+      */}
       <ButtonSecondary
         type="button"
-        width={80}
-        size="small"
         onClick={onCancel}
         mr={nextButton.isVisible ? 3 : 0}
       >
@@ -176,12 +182,7 @@ function ActionButtons({
       {/* The caller of this component needs to handle wrapping
       this in a <form> element to handle `onSubmit` event on enter key*/}
       {nextButton.isVisible && (
-        <ButtonPrimary
-          type="submit"
-          width={80}
-          size="small"
-          disabled={nextButton.isDisabled}
-        >
+        <ButtonPrimary type="submit" disabled={nextButton.isDisabled}>
           Next
         </ButtonPrimary>
       )}

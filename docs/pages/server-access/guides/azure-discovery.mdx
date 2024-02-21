@@ -140,7 +140,7 @@ resources:
 Teleport requires the following permissions to discover and enroll Azure VMs:
 
 - `Microsoft.Compute/virtualMachines/read`
-- `Microsoft.Compute/virtualMachines/runCommands/action`
+- `Microsoft.Compute/virtualMachines/runCommand/action`
 - `Microsoft.Compute/virtualMachines/runCommands/write`
 - `Microsoft.Compute/virtualMachines/runCommands/read`
 - `Microsoft.Compute/virtualMachines/runCommands/delete`
@@ -158,8 +158,8 @@ virtual machines:
         "permissions": [
             {
                 "actions": [
-                    "Microsoft.Compute/virtualMachines/read`",
-                    "Microsoft.Compute/virtualMachines/runCommands/action",
+                    "Microsoft.Compute/virtualMachines/read",
+                    "Microsoft.Compute/virtualMachines/runCommand/action",
                     "Microsoft.Compute/virtualMachines/runCommands/write",
                     "Microsoft.Compute/virtualMachines/runCommands/read",
                     "Microsoft.Compute/virtualMachines/runCommands/delete"

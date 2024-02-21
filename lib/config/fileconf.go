@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,7 +38,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
@@ -557,7 +557,8 @@ func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type logYAML Log
 	log := (*logYAML)(l)
 	if err := unmarshal(log); err != nil {
-		if _, ok := err.(*yaml.TypeError); !ok {
+		var typeError *yaml.TypeError
+		if !errors.As(err, &typeError) {
 			return err
 		}
 
@@ -872,6 +873,9 @@ type CAKeyParams struct {
 	// GoogleCloudKMS configures Google Cloud Key Management Service to to be used for
 	// all CA private key crypto operations.
 	GoogleCloudKMS *GoogleCloudKMS `yaml:"gcp_kms,omitempty"`
+	// AWSKMS configures AWS Key Management Service to to be used for
+	// all CA private key crypto operations.
+	AWSKMS *AWSKMS `yaml:"aws_kms,omitempty"`
 }
 
 // PKCS11 configures a PKCS#11 HSM to be used for private key generation and
@@ -906,6 +910,15 @@ type GoogleCloudKMS struct {
 	// For more information, see https://cloud.google.com/kms/docs/algorithms#protection_levels
 	// Supported options are "HSM" and "SOFTWARE".
 	ProtectionLevel string `yaml:"protection_level"`
+}
+
+// AWSKMS configures AWS Key Management Service to to be used for all CA private
+// key crypto operations.
+type AWSKMS struct {
+	// Account is the AWS account to use.
+	Account string `yaml:"account"`
+	// Region is the AWS region to use.
+	Region string `yaml:"region"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key
@@ -1017,9 +1030,13 @@ type AuthenticationConfig struct {
 	// DefaultSessionTTL is the default cluster max session ttl
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
-	// PIVSlot is a PIV slot that Teleport clients should use instead of the
-	// default based on private key policy. For example, "9a" or "9e".
+	// Deprecated. HardwareKey.PIVSlot should be used instead.
+	// TODO(Joerger): DELETE IN 17.0.0
 	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+
+	// HardwareKey holds settings related to hardware key support.
+	// Requires Teleport Enterprise.
+	HardwareKey *HardwareKey `yaml:"hardware_key,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1050,7 +1067,17 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	var h *types.HardwareKey
+	if a.HardwareKey != nil {
+		h, err = a.HardwareKey.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// TODO(Joerger): DELETE IN 17.0.0
 	if a.PIVSlot != "" {
+		log.Warn(`The "piv_slot" setting will be removed in 17.0.0, please set "hardware_key.piv_slot" instead.`)
 		if err = a.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err, "failed to parse piv_slot")
 		}
@@ -1070,6 +1097,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		DeviceTrust:       dt,
 		DefaultSessionTTL: a.DefaultSessionTTL,
 		PIVSlot:           string(a.PIVSlot),
+		HardwareKey:       h,
 	})
 }
 
@@ -1147,11 +1175,11 @@ func getCertificatePEM(certOrPath string) (string, error) {
 	data, err := os.ReadFile(certOrPath)
 	if err != nil {
 		// Don't use trace in order to keep a clean error message.
-		return "", fmt.Errorf("%q is not a valid x509 certificate (%v) and can't be read as a file (%v)", certOrPath, parseErr, err)
+		return "", fmt.Errorf("%q is not a valid x509 certificate (%w) and can't be read as a file (%w)", certOrPath, parseErr, err)
 	}
 	if _, err := tlsutils.ParseCertificatePEM(data); err != nil {
 		// Don't use trace in order to keep a clean error message.
-		return "", fmt.Errorf("file %q contains an invalid x509 certificate: %v", certOrPath, err)
+		return "", fmt.Errorf("file %q contains an invalid x509 certificate: %w", certOrPath, err)
 	}
 
 	return string(data), nil // OK, valid PEM file
@@ -1196,6 +1224,61 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 		Mode:             dt.Mode,
 		AutoEnroll:       autoEnroll,
 		EKCertAllowedCAs: allowedCAs,
+	}, nil
+}
+
+// HardwareKey holds settings related to hardware key support.
+// Requires Teleport Enterprise.
+type HardwareKey struct {
+	// PIVSlot is a PIV slot that Teleport clients should use instead of the
+	// default based on private key policy. For example, "9a" or "9e".
+	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+
+	// SerialNumberValidation contains optional settings for hardware key
+	// serial number validation, including whether it is enabled.
+	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"serial_number_validation,omitempty"`
+}
+
+func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
+	if h.PIVSlot != "" {
+		if err := h.PIVSlot.Validate(); err != nil {
+			return nil, trace.Wrap(err, "failed to parse hardware_key.piv_slot")
+		}
+	}
+
+	hk := &types.HardwareKey{PIVSlot: string(h.PIVSlot)}
+
+	if h.SerialNumberValidation != nil {
+		var err error
+		hk.SerialNumberValidation, err = h.SerialNumberValidation.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return hk, nil
+}
+
+// HardwareKeySerialNumberValidation holds settings related to hardware key serial number validation.
+// Requires Teleport Enterprise.
+type HardwareKeySerialNumberValidation struct {
+	// Enabled indicates whether hardware key serial number validation is enabled.
+	Enabled string `yaml:"enabled"`
+
+	// SerialNumberTraitName is an optional custom user trait name for hardware key
+	// serial numbers to replace the default: "hardware_key_serial_numbers".
+	SerialNumberTraitName string `yaml:"serial_number_trait_name"`
+}
+
+func (h *HardwareKeySerialNumberValidation) Parse() (*types.HardwareKeySerialNumberValidation, error) {
+	enabled, err := apiutils.ParseBool(h.Enabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.HardwareKeySerialNumberValidation{
+		Enabled:               enabled,
+		SerialNumberTraitName: h.SerialNumberTraitName,
 	}, nil
 }
 
@@ -1401,6 +1484,9 @@ type Discovery struct {
 	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
 	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
 
+	// AccessGraph is used to configure the cloud sync into AccessGraph.
+	AccessGraph *AccessGraphSync `yaml:"access_graph,omitempty"`
+
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -1431,6 +1517,23 @@ type GCPMatcher struct {
 	// InstallParams sets the join method when installing on
 	// discovered GCP VMs.
 	InstallParams *InstallParams `yaml:"install,omitempty"`
+}
+
+// AccessGraphSync represents the configuration for the AccessGraph Sync service.
+type AccessGraphSync struct {
+	// AWS is the AWS configuration for the AccessGraph Sync service.
+	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+}
+
+// AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
+type AccessGraphAWSSync struct {
+	// Regions are AWS regions to poll for resources.
+	Regions []string `yaml:"regions,omitempty"`
+	// AssumeRoleARN is the AWS role to assume for database discovery.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is the AWS external ID to use when assuming a role for
+	// database discovery in an external AWS account.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1488,6 +1591,10 @@ type BPF struct {
 
 	// CgroupPath controls where cgroupv2 hierarchy is mounted.
 	CgroupPath string `yaml:"cgroup_path"`
+
+	// RootPath root directory for the Teleport cgroups.
+	// Optional, defaults to /teleport
+	RootPath string `yaml:"root_path"`
 }
 
 // Parse will parse the enhanced session recording configuration.
@@ -1499,6 +1606,7 @@ func (b *BPF) Parse() *servicecfg.BPFConfig {
 		DiskBufferSize:    b.DiskBufferSize,
 		NetworkBufferSize: b.NetworkBufferSize,
 		CgroupPath:        b.CgroupPath,
+		RootPath:          b.RootPath,
 	}
 }
 
@@ -1510,19 +1618,6 @@ type RestrictedSession struct {
 	// EventsBufferSize is the size in bytes of the channel to report events
 	// from the kernel to us.
 	EventsBufferSize *int `yaml:"events_buffer_size,omitempty"`
-}
-
-// Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*servicecfg.RestrictedSessionConfig, error) {
-	enabled, err := apiutils.ParseBool(r.Enabled)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &servicecfg.RestrictedSessionConfig{
-		Enabled:          enabled,
-		EventsBufferSize: r.EventsBufferSize,
-	}, nil
 }
 
 // X11 is a configuration for X11 forwarding
@@ -1791,6 +1886,8 @@ type DatabaseAWS struct {
 	ExternalID string `yaml:"external_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
 	RedshiftServerless DatabaseAWSRedshiftServerless `yaml:"redshift_serverless"`
+	// SessionTags is a list of AWS STS session tags.
+	SessionTags map[string]string `yaml:"session_tags,omitempty"`
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -2349,8 +2446,69 @@ type Okta struct {
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string `yaml:"api_token_path,omitempty"`
 
-	// SyncPeriod is the duration between synchronization calls.
+	// SyncPeriod is the duration between synchronization calls for synchronizing Okta applications and groups..
+	// Deprecated. Please use sync.app_group_sync_period instead.
 	SyncPeriod time.Duration `yaml:"sync_period,omitempty"`
+
+	// Import is the import settings for the Okta service.
+	Sync OktaSync `yaml:"sync,omitempty"`
+}
+
+// OktaSync represents the import subsection of the okta_service section in the config file.
+type OktaSync struct {
+	// AppGroupSyncPeriod is the duration between synchronization calls for synchronizing Okta applications and groups.
+	AppGroupSyncPeriod time.Duration `yaml:"app_group_sync_period,omitempty"`
+
+	// SyncAccessLists will enable or disable the Okta importing of access lists. Defaults to false.
+	SyncAccessListsFlag string `yaml:"sync_access_lists,omitempty"`
+
+	// DefaultOwners are the default owners for all imported access lists.
+	DefaultOwners []string `yaml:"default_owners,omitempty"`
+
+	// GroupFilters are filters for which Okta groups to synchronize as access lists.
+	// These are globs/regexes.
+	GroupFilters []string `yaml:"group_filters,omitempty"`
+
+	// AppFilters are filters for which Okta applications to synchronize as access lists.
+	// These are globs/regexes.
+	AppFilters []string `yaml:"app_filters,omitempty"`
+}
+
+func (o *OktaSync) SyncAccessLists() bool {
+	if o.SyncAccessListsFlag == "" {
+		return false
+	}
+	enabled, _ := apiutils.ParseBool(o.SyncAccessListsFlag)
+	return enabled
+}
+
+func (o *OktaSync) Parse() (*servicecfg.OktaSyncSettings, error) {
+	enabled := o.SyncAccessLists()
+	if enabled && len(o.DefaultOwners) == 0 {
+		return nil, trace.BadParameter("default owners must be set when access list import is enabled")
+	}
+
+	for _, filter := range o.GroupFilters {
+		_, err := utils.CompileExpression(filter)
+		if err != nil {
+			return nil, trace.Wrap(err, "error parsing group filter: %s", filter)
+		}
+	}
+
+	for _, filter := range o.AppFilters {
+		_, err := utils.CompileExpression(filter)
+		if err != nil {
+			return nil, trace.Wrap(err, "error parsing app filter: %s", filter)
+		}
+	}
+
+	return &servicecfg.OktaSyncSettings{
+		AppGroupSyncPeriod: o.AppGroupSyncPeriod,
+		SyncAccessLists:    o.SyncAccessLists(),
+		DefaultOwners:      o.DefaultOwners,
+		GroupFilters:       o.GroupFilters,
+		AppFilters:         o.AppFilters,
+	}, nil
 }
 
 // JamfService is the yaml representation of jamf_service.

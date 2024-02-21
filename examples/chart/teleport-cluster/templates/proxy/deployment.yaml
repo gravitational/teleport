@@ -1,5 +1,5 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
-{{- $replicable := or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName -}}
+{{- $replicable := or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName $proxy.ingress.enabled -}}
 {{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
 # Deployment is {{ if not $replicable }}not {{end}}replicable
 {{- if and $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}

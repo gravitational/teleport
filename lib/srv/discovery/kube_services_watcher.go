@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const appEventPrefix = "app/"
@@ -39,26 +40,26 @@ func (s *Server) startKubeAppsWatchers() error {
 	}
 
 	var (
-		appResources types.ResourcesWithLabels
+		appResources []types.Application
 		mu           sync.Mutex
 	)
 
 	reconciler, err := services.NewReconciler(
-		services.ReconcilerConfig{
-			Matcher: func(_ types.ResourceWithLabels) bool { return true },
-			GetCurrentResources: func() types.ResourcesWithLabelsMap {
+		services.ReconcilerConfig[types.Application]{
+			Matcher: func(_ types.Application) bool { return true },
+			GetCurrentResources: func() map[string]types.Application {
 				apps, err := s.AccessPoint.GetApps(s.ctx)
 				if err != nil {
 					s.Log.WithError(err).Warn("Unable to get applications from cache.")
 					return nil
 				}
 
-				return types.Apps(filterResources(apps, types.OriginDiscoveryKubernetes, s.DiscoveryGroup)).AsResources().ToMap()
+				return utils.FromSlice(filterResources(apps, types.OriginDiscoveryKubernetes, s.DiscoveryGroup), types.Application.GetName)
 			},
-			GetNewResources: func() types.ResourcesWithLabelsMap {
+			GetNewResources: func() map[string]types.Application {
 				mu.Lock()
 				defer mu.Unlock()
-				return appResources.ToMap()
+				return utils.FromSlice(appResources, types.Application.GetName)
 			},
 			Log:      s.Log.WithField("kind", types.KindApp),
 			OnCreate: s.onAppCreate,
@@ -86,8 +87,18 @@ func (s *Server) startKubeAppsWatchers() error {
 		for {
 			select {
 			case newResources := <-watcher.ResourcesC():
+				apps := make([]types.Application, 0, len(newResources))
+				for _, r := range newResources {
+					app, ok := r.(types.Application)
+					if !ok {
+						continue
+					}
+
+					apps = append(apps, app)
+				}
+
 				mu.Lock()
-				appResources = newResources
+				appResources = apps
 				mu.Unlock()
 
 				if err := reconciler.Reconcile(s.ctx); err != nil {
@@ -102,11 +113,7 @@ func (s *Server) startKubeAppsWatchers() error {
 	return nil
 }
 
-func (s *Server) onAppCreate(ctx context.Context, rwl types.ResourceWithLabels) error {
-	app, ok := rwl.(types.Application)
-	if !ok {
-		return trace.BadParameter("invalid type received; expected types.Application, received %T", app)
-	}
+func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 	s.Log.Debugf("Creating app %s", app.GetName())
 	err := s.AccessPoint.CreateApp(ctx, app)
 	// If the resource already exists, it means that the resource was created
@@ -116,7 +123,7 @@ func (s *Server) onAppCreate(ctx context.Context, rwl types.ResourceWithLabels) 
 	// discovery group label to ensure the user doesn't have to manually delete
 	// the resource.
 	if trace.IsAlreadyExists(err) {
-		return trace.Wrap(s.onAppUpdate(ctx, rwl))
+		return trace.Wrap(s.onAppUpdate(ctx, app, nil))
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -134,20 +141,12 @@ func (s *Server) onAppCreate(ctx context.Context, rwl types.ResourceWithLabels) 
 	return nil
 }
 
-func (s *Server) onAppUpdate(ctx context.Context, rwl types.ResourceWithLabels) error {
-	app, ok := rwl.(types.Application)
-	if !ok {
-		return trace.BadParameter("invalid type received; expected types.Application, received %T", app)
-	}
+func (s *Server) onAppUpdate(ctx context.Context, app, _ types.Application) error {
 	s.Log.Debugf("Updating app %s.", app.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateApp(ctx, app))
 }
 
-func (s *Server) onAppDelete(ctx context.Context, rwl types.ResourceWithLabels) error {
-	app, ok := rwl.(types.Application)
-	if !ok {
-		return trace.BadParameter("invalid type received; expected types.Application, received %T", app)
-	}
+func (s *Server) onAppDelete(ctx context.Context, app types.Application) error {
 	s.Log.Debugf("Deleting app %s.", app.GetName())
 	return trace.Wrap(s.AccessPoint.DeleteApp(ctx, app.GetName()))
 }

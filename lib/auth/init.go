@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -34,12 +35,12 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -49,10 +50,13 @@ import (
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -272,6 +276,9 @@ type InitConfig struct {
 
 	// AccessMonitoringEnabled is true if access monitoring is enabled.
 	AccessMonitoringEnabled bool
+
+	// CloudClients provides clients for various cloud providers.
+	CloudClients cloud.Clients
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -470,113 +477,16 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err := migration.Apply(ctx, cfg.Backend); err != nil {
 		return trace.Wrap(err, "applying migrations")
 	}
-
-	// generate certificate authorities if they don't exist
-	var (
-		mu         sync.Mutex
-		activeKeys [][]byte
-	)
-	g, gctx = errgroup.WithContext(ctx)
-	for _, caType := range types.CertAuthTypes {
-		caType := caType
-		g.Go(func() error {
-			ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthority", oteltrace.WithAttributes(attribute.String("type", string(caType))))
-			defer span.End()
-
-			caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
-			ca, err := asrv.Services.GetCertAuthority(ctx, caID, true)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-
-				log.Infof("First start: generating %s certificate authority.", caID.Type)
-				if ca, err = generateAuthority(ctx, asrv, caID); err != nil {
-					return trace.Wrap(err)
-				}
-
-				if err := asrv.CreateCertAuthority(ctx, ca); err != nil {
-					return trace.Wrap(err)
-				}
-			} else {
-				// Already have a CA. Make sure the keyStore has usable keys.
-				hasUsableActiveKeys, err := asrv.keyStore.HasUsableActiveKeys(ctx, ca)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if !hasUsableActiveKeys {
-					// This could be one of a few cases:
-					// 1. A new auth server with an HSM being added to an HA cluster.
-					// 2. A new auth server with no HSM being added to an HA cluster
-					//    where all current auth servers have HSMs.
-					// 3. An existing auth server has restarted with a new HSM configured.
-					// 4. An existing HSM auth server has restarted no HSM configured.
-					// 5. An existing HSM auth server has restarted with a new UUID.
-					if ca.GetType() == types.HostCA {
-						// We need local keys to sign the Admin identity to support
-						// tctl. For this special case we add AdditionalTrustedKeys
-						// without any active keys. These keys will not be used for
-						// any signing operations until a CA rotation. Only the Host
-						// CA is necessary to issue the Admin identity.
-						if err := asrv.ensureLocalAdditionalKeys(ctx, ca); err != nil {
-							return trace.Wrap(err)
-						}
-						// reload updated CA for below checks
-						if ca, err = asrv.Services.GetCertAuthority(ctx, caID, true); err != nil {
-							return trace.Wrap(err)
-						}
-					}
-				}
-				hasUsableActiveKeys, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				hasUsableAdditionalKeys, err := asrv.keyStore.HasUsableAdditionalKeys(ctx, ca)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if !hasUsableActiveKeys && hasUsableAdditionalKeys {
-					log.Warn("This auth server has a newly added or removed HSM and will not " +
-						"be able to perform any signing operations. You must rotate all CAs " +
-						"before routing traffic to this auth server. See https://goteleport.com/docs/management/operations/ca-rotation/")
-				}
-				allKeyTypes := ca.AllKeyTypes()
-				numKeyTypes := len(allKeyTypes)
-				if numKeyTypes > 1 {
-					log.Warnf("%s CA contains a combination of %s and %s keys. If you are attempting to"+
-						" configure HSM or KMS support, make sure it is configured on all auth servers in"+
-						" this cluster and then perform a CA rotation: https://goteleport.com/docs/management/operations/ca-rotation/",
-						caID.Type, strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1])
-				}
-			}
-
-			mu.Lock()
-			defer mu.Unlock()
-			for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
-				for _, sshKeyPair := range keySet.SSH {
-					activeKeys = append(activeKeys, sshKeyPair.PrivateKey)
-				}
-				for _, tlsKeyPair := range keySet.TLS {
-					activeKeys = append(activeKeys, tlsKeyPair.Key)
-				}
-				for _, jwtKeyPair := range keySet.JWT {
-					activeKeys = append(activeKeys, jwtKeyPair.PrivateKey)
-				}
-			}
-			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
+	span.AddEvent("migrating db_client_authority")
+	err = migrateDBClientAuthority(ctx, asrv.Trust, cfg.ClusterName.GetClusterName())
+	if err != nil {
 		return trace.Wrap(err)
 	}
+	span.AddEvent("completed migration db_client_authority")
 
-	// Delete any unused keys from the keyStore. This is to avoid exhausting
-	// (or wasting) HSM resources.
-	if err := asrv.keyStore.DeleteUnusedKeys(ctx, activeKeys); err != nil {
-		// Key deletion is best-effort, log a warning if it fails and carry on.
-		// We don't want to prevent a CA rotation, which may be necessary in
-		// some cases where this would fail.
-		log.Warnf("An attempt to clean up unused HSM or KMS CA keys has failed unexpectedly: %v", err)
+	// generate certificate authorities if they don't exist
+	if err := initializeAuthorities(ctx, asrv, &cfg); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if lib.IsInsecureDevMode() {
@@ -593,18 +503,22 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	}
 	span.AddEvent("completed migration legacy resources")
 
-	span.AddEvent("creating preset roles")
 	// Create presets - convenience and example resources.
-	if err := createPresetRoles(ctx, asrv); err != nil {
-		return trace.Wrap(err)
-	}
-	span.AddEvent("completed creating preset roles")
+	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+		span.AddEvent("creating preset roles")
+		if err := createPresetRoles(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset roles")
 
-	span.AddEvent("creating preset users")
-	if err := createPresetUsers(ctx, asrv); err != nil {
-		return trace.Wrap(err)
+		span.AddEvent("creating preset users")
+		if err := createPresetUsers(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset users")
+	} else {
+		log.Info("skipping preset role and user creation")
 	}
-	span.AddEvent("completed creating preset users")
 
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")
@@ -614,6 +528,139 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	}
 
 	return nil
+}
+
+func initializeAuthorities(ctx context.Context, asrv *Server, cfg *InitConfig) error {
+	var (
+		mu           sync.Mutex
+		allKeysInUse [][]byte
+	)
+	usableKeysResults := make(map[types.CertAuthType]*keystore.UsableKeysResult)
+	g, gctx := errgroup.WithContext(ctx)
+	for _, caType := range types.CertAuthTypes {
+		caType := caType
+		g.Go(func() error {
+			tctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthority", oteltrace.WithAttributes(attribute.String("type", string(caType))))
+			defer span.End()
+
+			caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
+			usableKeysResult, keysInUse, err := initializeAuthority(tctx, asrv, caID)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+			usableKeysResults[caType] = usableKeysResult
+			allKeysInUse = append(allKeysInUse, keysInUse...)
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := asrv.syncUsableKeysAlert(ctx, usableKeysResults); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Delete any unused keys from the keyStore. This is to avoid exhausting
+	// (or wasting) HSM resources.
+	if err := asrv.keyStore.DeleteUnusedKeys(ctx, allKeysInUse); err != nil {
+		// Key deletion is best-effort, log a warning if it fails and carry on.
+		// We don't want to prevent a CA rotation, which may be necessary in
+		// some cases where this would fail.
+		log.Warnf("An attempt to clean up unused HSM or KMS CA keys has failed unexpectedly: %v", err)
+	}
+	return nil
+}
+
+func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID) (usableKeysResult *keystore.UsableKeysResult, keysInUse [][]byte, err error) {
+	ca, err := asrv.Services.GetCertAuthority(ctx, caID, true)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		log.Infof("First start: generating %s certificate authority.", caID.Type)
+		if ca, err = generateAuthority(ctx, asrv, caID); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		if err := asrv.CreateCertAuthority(ctx, ca); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	// Make sure the keystore has usable keys. This is a bit redundant if the CA
+	// was just generated above, but cheap relative to generating the CA, and
+	// it's nice to get the usableKeysResult.
+	usableKeysResult, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if !usableKeysResult.CAHasUsableKeys {
+		if ca.GetType() == types.HostCA {
+			// We need to sign the local Admin identity to support auth startup
+			// and local tctl. For this special case we add new
+			// AdditionalTrustedKeys without any active keys. These keys will
+			// sign the local Admin identity but nothing else (until a CA
+			// rotation). Only the Host CA is necessary to issue the Admin
+			// identity.
+			//
+			// We can only get here if all the active keys for this CA are in an
+			// HSM or KMS that this auth is not configured to use. Because the
+			// auth will not use PKCS#11 keys created by a different host UUID,
+			// for clusters using HSM keys this includes cases where a new auth is
+			// added to an HA cluster, or an existing auth's host UUID is reset.
+			if err := asrv.ensureLocalAdditionalKeys(ctx, ca); err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			ca, err = asrv.Services.GetCertAuthority(ctx, caID, true)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			usableKeysResult, err = asrv.keyStore.HasUsableActiveKeys(ctx, ca)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+		} else {
+			log.Warnf("This Auth Service is configured to use %s but the %s CA contains only %s. "+
+				"No new certificates can be signed with the existing keys. "+
+				"You must perform a CA rotation to generate new keys, or adjust your configuration to use the existing keys.",
+				usableKeysResult.PreferredKeyType,
+				caID.Type,
+				strings.Join(usableKeysResult.CAKeyTypes, " and "))
+		}
+	} else if !usableKeysResult.CAHasPreferredKeyType {
+		log.Warnf("This Auth Service is configured to use %s but the %s CA contains only %s. "+
+			"New certificates will continue to be signed with raw software keys but you must perform a CA rotation to begin using %s.",
+			usableKeysResult.PreferredKeyType,
+			caID.Type,
+			strings.Join(usableKeysResult.CAKeyTypes, " and "),
+			usableKeysResult.PreferredKeyType)
+	}
+	allKeyTypes := ca.AllKeyTypes()
+	numKeyTypes := len(allKeyTypes)
+	if numKeyTypes > 1 {
+		log.Warnf("%s CA contains a combination of %s and %s keys. If you are attempting to"+
+			" configure HSM or KMS key storage, make sure it is configured on all auth servers in"+
+			" this cluster and then perform a CA rotation: https://goteleport.com/docs/management/operations/ca-rotation/",
+			caID.Type, strings.Join(allKeyTypes[:numKeyTypes-1], ", "), allKeyTypes[numKeyTypes-1])
+	}
+
+	for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
+		for _, sshKeyPair := range keySet.SSH {
+			keysInUse = append(keysInUse, sshKeyPair.PrivateKey)
+		}
+		for _, tlsKeyPair := range keySet.TLS {
+			keysInUse = append(keysInUse, tlsKeyPair.Key)
+		}
+		for _, jwtKeyPair := range keySet.JWT {
+			keysInUse = append(keysInUse, jwtKeyPair.PrivateKey)
+		}
+	}
+	return usableKeysResult, keysInUse, nil
 }
 
 // generateAuthority creates a new self-signed authority of the provided type
@@ -766,6 +813,8 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetDeviceAdminRole(),
 		services.NewPresetDeviceEnrollRole(),
 		services.NewPresetRequireTrustedDeviceRole(),
+		services.NewSystemOktaAccessRole(),
+		services.NewSystemOktaRequesterRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
@@ -900,7 +949,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.SAMLIDPCA:
+			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner, types.OIDCIdPCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
@@ -1377,6 +1426,10 @@ var ResourceApplyPriority = map[string]int{
 	types.KindToken:                   3,
 	types.KindClusterNetworkingConfig: 3,
 	types.KindClusterAuthPreference:   3,
+	// Bots should be applied after users and roles as at the moment they are actually converted to users and roles.
+	// This will ensure that Bot Users/Roles are properly created regardless of the Teleport version from which the
+	// resources have been exported.
+	types.KindBot: 3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
@@ -1390,7 +1443,13 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		return priorityA - priorityB
 	})
 	for _, resource := range resources {
-		switch r := resource.(type) {
+		// Unwrap "new style" resources.
+		// We always want to switch over the underlying type.
+		var res any = resource
+		if w, ok := res.(interface{ Unwrap() types.Resource153 }); ok {
+			res = w.Unwrap()
+		}
+		switch r := res.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
 		case types.User:
@@ -1405,6 +1464,8 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			err = service.ClusterConfiguration.SetClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
 			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
+		case *machineidv1pb.Bot:
+			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}
@@ -1413,4 +1474,15 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		}
 	}
 	return nil
+}
+
+// migrateDBClientAuthority copies Database CA as Database Client CA.
+// Does nothing if the Database Client CA already exists.
+//
+// TODO(gavin): DELETE IN 16.0.0
+func migrateDBClientAuthority(ctx context.Context, trustSvc services.Trust, cluster string) error {
+	migrationStart(ctx, "db_client_authority")
+	defer migrationEnd(ctx, "db_client_authority")
+	err := migration.MigrateDBClientAuthority(ctx, trustSvc, cluster)
+	return trace.Wrap(err)
 }

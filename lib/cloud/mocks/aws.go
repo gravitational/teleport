@@ -22,6 +22,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -34,7 +35,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 // STSMock mocks AWS STS API.

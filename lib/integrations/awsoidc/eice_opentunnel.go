@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -38,7 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -166,7 +166,7 @@ func NewOpenTunnelEC2Client(ctx context.Context, clientReq *AWSClientRequest) (O
 		return nil, trace.Wrap(err)
 	}
 
-	awsCredProvider, err := newAWSCredentialsProvider(ctx, clientReq)
+	awsCredProvider, err := NewAWSCredentialsProvider(ctx, clientReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

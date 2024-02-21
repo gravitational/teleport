@@ -93,6 +93,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
     });
   }
   return {
+    consoleCtx,
     fetchedData,
     createSshSession,
     changeCluster,

@@ -27,7 +27,7 @@ export class HeadlessAuthenticationService {
   constructor(
     private mainProcessClient: MainProcessClient,
     private modalsService: ModalsService,
-    private tshClient: types.TshClient,
+    private tshClient: types.TshdClient,
     private configService: ConfigService
   ) {}
 

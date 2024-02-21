@@ -21,6 +21,7 @@ package envutils
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -43,10 +44,14 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	}
 	defer file.Close()
 
+	return readEnvironment(file)
+}
+
+func readEnvironment(r io.Reader) ([]string, error) {
 	var lineno int
 	env := &SafeEnv{}
 
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
@@ -54,7 +59,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		// https://github.com/openssh/openssh-portable/blob/master/session.c#L873-L874
 		lineno = lineno + 1
 		if lineno > teleport.MaxEnvironmentFileLines {
-			log.Warnf("Too many lines in environment file %v, returning first %v lines", filename, teleport.MaxEnvironmentFileLines)
+			log.Warnf("Too many lines in environment file, returning first %v lines", teleport.MaxEnvironmentFileLines)
 			return *env, nil
 		}
 
@@ -66,7 +71,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		// split on first =, if not found, log it and continue
 		idx := strings.Index(line, "=")
 		if idx == -1 {
-			log.Debugf("Bad line %v while reading %v: no = separator found", lineno, filename)
+			log.Debugf("Bad line %v while reading environment file: no = separator found", lineno)
 			continue
 		}
 
@@ -74,7 +79,7 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		key := line[:idx]
 		value := line[idx+1:]
 		if strings.TrimSpace(key) == "" {
-			log.Debugf("Bad line %v while reading %v: key without name", lineno, filename)
+			log.Debugf("Bad line %v while reading environment file: key without name", lineno)
 			continue
 		}
 
@@ -82,34 +87,21 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 		env.AddTrusted(key, value)
 	}
 
-	err = scanner.Err()
-	if err != nil {
-		log.Warnf("Unable to read environment file %v: %v, skipping", filename, err)
+	if err := scanner.Err(); err != nil {
+		log.Warnf("Unable to read environment file: %v", err)
 		return []string{}, nil
 	}
 
 	return *env, nil
 }
 
-var unsafeEnvironmentVars = map[string]struct{}{
+var unsafeEnvironmentPrefixes = []string{
 	// Linux
-	"LD_ASSUME_KERNEL":         {},
-	"LD_AUDIT":                 {},
-	"LD_BIND_NOW":              {},
-	"LD_BIND_NOT":              {},
-	"LD_DYNAMIC_WEAK":          {},
-	"LD_LIBRARY_PATH":          {},
-	"LD_ORIGIN_PATH":           {},
-	"LD_POINTER_GUARD":         {},
-	"LD_PREFER_MAP_32BIT_EXEC": {},
-	"LD_PRELOAD":               {},
-	"LD_PROFILE":               {},
-	"LD_RUNPATH":               {},
-	"LD_RPATH":                 {},
-	"LD_USE_LOAD_BIAS":         {},
+	// Covering cases from LD (man ld.so) to prevent injection like LD_PRELOAD
+	"LD_",
 	// macOS
-	"DYLD_INSERT_LIBRARIES": {},
-	"DYLD_LIBRARY_PATH":     {},
+	// Covering cases from DYLD (man dyld) to prevent injection like DYLD_LIBRARY_PATH
+	"DYLD_",
 }
 
 // SafeEnv allows you to build a system environment while avoiding potentially dangerous environment conditions.  In
@@ -132,7 +124,7 @@ func (e *SafeEnv) AddUnique(k, v string) {
 func (e *SafeEnv) add(preventDuplicates bool, k, v string) {
 	k = strings.TrimSpace(k)
 	v = strings.TrimSpace(v)
-	if e.unsafeKey(preventDuplicates, k) {
+	if e.isUnsafeKey(preventDuplicates, k) {
 		return
 	}
 
@@ -158,7 +150,7 @@ func (e *SafeEnv) addFull(preventDuplicates bool, fullValues []string) {
 		kv = strings.TrimSpace(kv)
 
 		key := strings.SplitN(kv, "=", 2)[0]
-		if e.unsafeKey(preventDuplicates, key) {
+		if e.isUnsafeKey(preventDuplicates, key) {
 			continue
 		}
 
@@ -166,14 +158,16 @@ func (e *SafeEnv) addFull(preventDuplicates bool, fullValues []string) {
 	}
 }
 
-func (e *SafeEnv) unsafeKey(preventDuplicates bool, key string) bool {
+func (e *SafeEnv) isUnsafeKey(preventDuplicates bool, key string) bool {
 	if key == "" || key == "=" {
 		return false
 	}
 
 	upperKey := strings.ToUpper(key)
-	if _, unsafe := unsafeEnvironmentVars[upperKey]; unsafe {
-		return true
+	for _, prefix := range unsafeEnvironmentPrefixes {
+		if strings.HasPrefix(upperKey, prefix) {
+			return true
+		}
 	}
 
 	if preventDuplicates {

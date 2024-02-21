@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"

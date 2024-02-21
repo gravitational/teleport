@@ -27,7 +27,7 @@ import (
 
 // GetProxyURL gets the HTTP proxy address to use for a given address, if any.
 func GetProxyURL(dialAddr string) *url.URL {
-	addrURL, err := parse(dialAddr)
+	addrURL, err := ParseURL(dialAddr)
 	if err != nil || addrURL == nil {
 		return nil
 	}
@@ -52,8 +52,8 @@ func GetProxyURL(dialAddr string) *url.URL {
 	return nil
 }
 
-// parse parses an absolute URL. Unlike url.Parse, absolute URLs without a scheme are allowed.
-func parse(addr string) (*url.URL, error) {
+// ParseURL parses an absolute URL. Unlike url.Parse, absolute URLs without a scheme are allowed.
+func ParseURL(addr string) (*url.URL, error) {
 	if addr == "" {
 		return nil, nil
 	}

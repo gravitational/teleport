@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -138,7 +139,7 @@ func runEditCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 
 	var stdoutBuff bytes.Buffer
 	command := &EditCommand{
-		editor: o.Editor,
+		Editor: o.Editor,
 	}
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
 }
@@ -171,6 +172,12 @@ func runAuthCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...
 	return runCommand(t, fc, command, args, opts...)
 }
 
+func runIdPSAMLCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
+	command := &IdPCommand{}
+	args = append([]string{"idp"}, args...)
+	return runCommand(t, fc, command, args, opts...)
+}
+
 func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	var out T
 	err := json.NewDecoder(r).Decode(&out)
@@ -184,7 +191,7 @@ func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) error {
 		var entry T
 		if err := decoder.Decode(&entry); err != nil {
 			// Break when there are no more documents to decode
-			if err != io.EOF {
+			if !errors.Is(err, io.EOF) {
 				return err
 			}
 			break

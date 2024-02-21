@@ -123,7 +123,7 @@ If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current
 development branch for an upcoming major version.  Get the latest release tags
 listed at https://goteleport.com/download/ and then use that tag in the `git clone`.
-For example `git clone https://github.com/gravitational/teleport.git -b v13.0.0` gets release v13.0.0.
+For example `git clone https://github.com/gravitational/teleport.git -b v16.0.0` gets release v16.0.0.
 
 ### Dockerized Build
 
@@ -143,7 +143,7 @@ Ensure you have installed correct versions of necessary dependencies:
 * `Go` version from
   [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
 * If you wish to build the Rust-powered features like Desktop Access, see the
-  `Rust` and `Cargo` version in
+  `Rust` and `Cargo` versions in
   [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
   (search for `RUST_VERSION`)
 * For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
@@ -195,14 +195,14 @@ To build `tsh` with `libfido`:
   make build/tsh FIDO2=dynamic
   ```
 
-  * On a Mac, with `libfido` and `openssl 1.1` installed via `homebrew`
+  * On a Mac, with `libfido` and `openssl 3` installed via `homebrew`
 
     ```shell
-    export PKG_CONFIG_PATH="$(brew --prefix openssl@1.1)/lib/pkgconfig"
+    export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"
     make build/tsh FIDO2=dynamic
     ```
 
-#### Build output and running locally
+#### Build output and run locally
 
 If the build succeeds, the installer will place the binaries in the `build` directory.
 
@@ -212,6 +212,41 @@ Before starting, create default data directories:
 sudo mkdir -p -m0700 /var/lib/teleport
 sudo chown $USER /var/lib/teleport
 ```
+
+#### Running Teleport in a hot reload mode
+
+To speed up your development process, you can run Teleport using
+[`CompileDaemon`](https://github.com/githubnemo/CompileDaemon). This will build
+and run the Teleport binary, and then rebuild and restart it whenever any Go
+source files change.
+
+1. Install CompileDaemon:
+
+    ```shell
+    go install github.com/githubnemo/CompileDaemon@latest
+    ```
+
+    Note that we use `go install` instead of the suggested `go get`, because we
+    don't want CompileDaemon to become a dependency of the project.
+
+1. Build and run the Teleport binary:
+
+    ```shell
+    make teleport-hot-reload
+    ```
+
+    By default, this runs a `teleport start` command. If you want to customize
+    the command, for example by providing a custom config file location, you can
+    use the `TELEPORT_ARGS` parameter:
+
+    ```shell
+    make teleport-hot-reload TELEPORT_ARGS='start --config=/path/to/config.yaml'
+    ```
+
+Note that you still need to run [`make grpc`](api/proto/README.md) if you modify
+any Protocol Buffers files to regenerate the generated Go sources; regenerating
+these sources should in turn cause the CompileDaemon to rebuild and restart
+Teleport.
 
 ### Web UI
 
@@ -291,7 +326,7 @@ Why is a specific version of a module imported?
 
 ### Devbox Build (experimental)
 
-**Note**: Devbox support is still experimental. It's very possible things make not work as intended.
+**Note**: Devbox support is still experimental. It's very possible things may not work as intended.
 
 Teleport can be built using [devbox](https://www.jetpack.io/devbox). To use devbox, follow
 the instructions to install devbox [here](https://www.jetpack.io/devbox/docs/quickstart/) and
@@ -335,7 +370,7 @@ We offer a few different options for support. First of all, we try to provide cl
 ## Is Teleport Secure and Production-Ready?
 
 Yes -- Teleport is production-ready and designed to protect and facilitate
-access to the most precious and mission critical applications.
+access to the most precious and mission-critical applications.
 
 Teleport has completed several security audits from nationally and
 internationally recognized technology security companies. 
@@ -343,7 +378,7 @@ internationally recognized technology security companies.
 We publicize some of our audit results, security philosophy and related
 information on our [trust page](https://trust.goteleport.com/).
 
-You can see the list of companies who use Teleport in production on the Teleport
+You can see the list of companies that use Teleport in production on the Teleport
 [product page](https://goteleport.com/case-study/).
 
 ## Who Built Teleport?

@@ -56,13 +56,7 @@ func MarshalUserGroup(group types.UserGroup, opts ...MarshalOption) ([]byte, err
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			copy := *g
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			g = &copy
-		}
-		return utils.FastMarshal(g)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, g))
 	default:
 		return nil, trace.BadParameter("unsupported user group resource %T", g)
 	}

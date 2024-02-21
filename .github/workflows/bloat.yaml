@@ -25,7 +25,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport15
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport16-amd64
 
     steps:
       - name: Checkout base
@@ -109,7 +109,7 @@ jobs:
               exit 1; \
             fi; \
           done
-          
+
       - name: Check for bloat
         id: check_branch_bloat
         run: |

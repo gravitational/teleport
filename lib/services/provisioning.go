@@ -124,14 +124,7 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *provisionToken
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			provisionToken = &copy
-		}
+		provisionToken = maybeResetProtoResourceID(cfg.PreserveResourceID, provisionToken)
 		if cfg.GetVersion() == types.V1 {
 			return utils.FastMarshal(provisionToken.V1())
 		}

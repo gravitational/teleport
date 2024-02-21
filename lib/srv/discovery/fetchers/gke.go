@@ -122,6 +122,10 @@ func (a *gkeFetcher) ResourceType() string {
 	return types.KindKubernetesCluster
 }
 
+func (a *gkeFetcher) FetcherType() string {
+	return types.GCPMatcherKubernetes
+}
+
 func (a *gkeFetcher) Cloud() string {
 	return types.CloudGCP
 }

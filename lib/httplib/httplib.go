@@ -21,6 +21,7 @@
 package httplib
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"mime"
@@ -42,6 +43,12 @@ import (
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+var (
+	_ http.ResponseWriter = (*ResponseStatusRecorder)(nil)
+	_ http.Flusher        = (*ResponseStatusRecorder)(nil)
+	_ http.Hijacker       = (*ResponseStatusRecorder)(nil)
 )
 
 // timeoutMessage is a generic "timeout" error message that is displayed as a more user-friendly alternative to
@@ -318,4 +325,13 @@ func (r *ResponseStatusRecorder) Status() int {
 		return http.StatusOK
 	}
 	return r.status
+}
+
+// Hijack implements the http.Hijacker interface.
+func (r *ResponseStatusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("hijack not supported")
+	}
+	return h.Hijack()
 }

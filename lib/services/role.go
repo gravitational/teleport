@@ -23,8 +23,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -35,7 +37,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -1805,6 +1806,114 @@ func (set RoleSet) SessionRecordingMode(service constants.SessionRecordingServic
 	return constants.SessionRecordingModeBestEffort
 }
 
+func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {
+	for i := range s {
+		match, err := f(s[i])
+		if err != nil {
+			return false, err
+		}
+		if match {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// matchSPIFFESVIDConditions compares a slice of SPIFFE Role Conditions against
+// a requested SPIFFE SVID generation. All fields within a condition must match,
+// but any condition in the slice can match for the function to return true.
+func matchSPIFFESVIDConditions(
+	conds []*types.SPIFFERoleCondition,
+	spiffeIDPath string,
+	dnsSANs []string,
+	ipSANs []net.IP,
+) (bool, error) {
+	return contains(conds, func(cond *types.SPIFFERoleCondition) (bool, error) {
+		// Match SPIFFE ID path.
+		match, err := utils.MatchString(spiffeIDPath, cond.Path)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !match {
+			// No match - skip to next condition.
+			return false, nil
+		}
+
+		// All DNS SANs requested must match one of the DNS SAN matchers in the
+		// condition.
+		for _, dnsSAN := range dnsSANs {
+			match, err := contains(cond.DNSSANs, func(s string) (bool, error) {
+				match, err := utils.MatchString(dnsSAN, s)
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+				return match, nil
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if !match {
+				return false, nil
+			}
+		}
+
+		// All IP SANs requested must match one of the IP SAN matchers in the
+		// condition.
+		for _, ipSAN := range ipSANs {
+			match, err := contains(cond.IPSANs, func(s string) (bool, error) {
+				_, cidr, err := net.ParseCIDR(s)
+				if err != nil {
+					return false, trace.Wrap(err, "parsing cidr")
+				}
+
+				return cidr.Contains(ipSAN), nil
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if !match {
+				return false, nil
+			}
+		}
+
+		// All condition fields matched.
+		return true, nil
+	})
+}
+
+// CheckSPIFFESVID checks if the role set has access to generating the
+// requested SPIFFE ID. Returns an error if the role set does not have the
+// ability to generate the requested SVID.
+func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) error {
+	accessDenied := trace.AccessDenied("access denied to generate SVID %q", spiffeIDPath)
+
+	// check deny: a single match on a deny rule prohibits generation
+	for _, role := range set {
+		cond := role.GetSPIFFEConditions(types.Deny)
+		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return accessDenied
+		}
+	}
+
+	// check allow: if a single condition matches, allow generation
+	for _, role := range set {
+		cond := role.GetSPIFFEConditions(types.Allow)
+		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matched {
+			return nil
+		}
+	}
+
+	return accessDenied
+}
+
 func roleNames(roles []types.Role) string {
 	out := make([]string, len(roles))
 	for i := range roles {
@@ -2767,7 +2876,7 @@ func (set RoleSet) String() string {
 // kind that the current user can access?".
 // GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
 // for resource X appear"?). Most callers should use CheckAccessToRule instead.
-func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string) error {
 	// "Where" clause are handled differently by the method:
 	// - "allow" rules have their "where" clause always match, as it's assumed
 	//   that there could be a resource that matches it.
@@ -2780,7 +2889,6 @@ func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, re
 		verb:       verb,
 		allowWhere: boolParser(true),  // always matches
 		denyWhere:  boolParser(false), // never matches
-		silent:     silent,
 	})
 }
 
@@ -2795,7 +2903,7 @@ func (p boolParser) Parse(string) (interface{}, error) {
 // CheckAccessToRule checks if the RoleSet provides access in the given
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
-func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
 	whereParser, err := NewWhereParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2808,7 +2916,6 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 		verb:       verb,
 		allowWhere: whereParser,
 		denyWhere:  whereParser,
-		silent:     silent,
 	})
 }
 
@@ -2854,7 +2961,6 @@ type checkAccessParams struct {
 	resource              string
 	verb                  string
 	allowWhere, denyWhere predicate.Parser
-	silent                bool
 }
 
 type accessExplicitlyDenied struct {
@@ -2908,12 +3014,10 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 				return trace.Wrap(err)
 			}
 			if matched {
-				if !p.silent {
-					log.WithFields(log.Fields{
-						trace.Component: teleport.ComponentRBAC,
-					}).Infof("Access to %v %v in namespace %v denied to %v: deny rule matched.",
-						p.verb, p.resource, p.namespace, role.GetName())
-				}
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Tracef("Access to %v %v in namespace %v denied to %v: deny rule matched.",
+					p.verb, p.resource, p.namespace, role.GetName())
 				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 			}
 		}
@@ -2933,12 +3037,10 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 		}
 	}
 
-	if !p.silent {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Infof("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
-			p.verb, p.resource, p.namespace, set)
-	}
+	log.WithFields(log.Fields{
+		trace.Component: teleport.ComponentRBAC,
+	}).Tracef("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
+		p.verb, p.resource, p.namespace, set)
 
 	// At this point no deny rule has matched and there are no more unknown
 	// errors, so this is only an implicit denial.
@@ -3210,15 +3312,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 
 	switch role := role.(type) {
 	case *types.RoleV6:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *role
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			role = &copy
-		}
-		return utils.FastMarshal(role)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, role))
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}

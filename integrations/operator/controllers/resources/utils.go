@@ -21,10 +21,13 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -155,4 +158,30 @@ func updateStatus(config updateStatusConfig) error {
 		log.Error(statusErr, "failed to report error in status conditions")
 	}
 	return trace.Wrap(statusErr)
+}
+
+// GetUnstructuredObjectFromGVK creates a new empty unstructured object with the
+// given Group Version and Kind.
+func GetUnstructuredObjectFromGVK(gvk schema.GroupVersionKind) (*unstructured.Unstructured, error) {
+	if gvk.Empty() {
+		return nil, trace.BadParameter("cannot create an object for an empty GVK, aborting")
+	}
+	obj := unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+	return &obj, nil
+}
+
+// checkAnnotationFlag checks is the Kubernetes resource is annotated with a
+// flag and parses its value. Returns the default value if the flag is missing
+// or the annotation value cannot be parsed.
+func checkAnnotationFlag(object kclient.Object, flagName string, defaultValue bool) bool {
+	annotation, ok := object.GetAnnotations()[flagName]
+	if !ok {
+		return defaultValue
+	}
+	value, err := strconv.ParseBool(annotation)
+	if err != nil {
+		return defaultValue
+	}
+	return value
 }

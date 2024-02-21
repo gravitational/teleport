@@ -20,6 +20,7 @@ package clusters
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 
 	"github.com/gravitational/trace"
@@ -27,12 +28,15 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Kube describes kubernetes service
@@ -64,6 +68,7 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -111,27 +116,70 @@ type GetKubesResponse struct {
 }
 
 // reissueKubeCert issue new certificates for kube cluster and saves them to disk.
-func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) error {
+func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) (tls.Certificate, error) {
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	// Fetch the certs for the kube cluster.
-	return trace.Wrap(c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster:    c.clusterClient.SiteName,
-		KubernetesCluster: kubeCluster,
-		AccessRequests:    c.status.ActiveRequests.AccessRequests,
-	}))
+	//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
+	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	key, err := proxyClient.IssueUserCertsWithMFA(
+		ctx, client.ReissueParams{
+			RouteToCluster:    c.clusterClient.SiteName,
+			KubernetesCluster: kubeCluster,
+			RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+		},
+		c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Kubernetes cluster", kubeCluster)),
+	)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	// Make sure the cert is allowed to access the cluster.
+	// At this point we already know that the user has access to the cluster
+	// via the RBAC rules, but we also need to make sure that the user has
+	// access to the cluster with at least one kubernetes_user or kubernetes_group
+	// defined.
+	rootClusterName, err := c.clusterClient.RootClusterName(ctx)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
+		key,
+		rootClusterName,
+		c.Name,
+		kubeCluster); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	cert, err := key.KubeTLSCert(kubeCluster)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	// Set leaf so we don't have to parse it on each request.
+	leaf, err := utils.TLSCertLeaf(cert)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	cert.Leaf = leaf
+
+	return cert, nil
 }
 
 func (c *Cluster) getKube(ctx context.Context, kubeCluster string) (types.KubeCluster, error) {
 	var kubeClusters []types.KubeCluster
 	err := AddMetadataToRetryableError(ctx, func() error {
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

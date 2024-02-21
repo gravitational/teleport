@@ -267,6 +267,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DatabaseSessionQuery{
 			DatabaseSessionQuery: e,
 		}
+	case *DatabasePermissionUpdate:
+		out.Event = &OneOf_DatabasePermissionUpdate{
+			DatabasePermissionUpdate: e,
+		}
 	case *PostgresParse:
 		out.Event = &OneOf_PostgresParse{
 			PostgresParse: e,
@@ -515,6 +519,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_InstanceJoin{
 			InstanceJoin: e,
 		}
+	case *BotCreate:
+		out.Event = &OneOf_BotCreate{
+			BotCreate: e,
+		}
+	case *BotUpdate:
+		out.Event = &OneOf_BotUpdate{
+			BotUpdate: e,
+		}
+	case *BotDelete:
+		out.Event = &OneOf_BotDelete{
+			BotDelete: e,
+		}
 	case *LoginRuleCreate:
 		out.Event = &OneOf_LoginRuleCreate{
 			LoginRuleCreate: e,
@@ -602,6 +618,22 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *ExternalAuditStorageDisable:
 		out.Event = &OneOf_ExternalAuditStorageDisable{
 			ExternalAuditStorageDisable: e,
+		}
+	case *CreateMFAAuthChallenge:
+		out.Event = &OneOf_CreateMFAAuthChallenge{
+			CreateMFAAuthChallenge: e,
+		}
+	case *ValidateMFAAuthResponse:
+		out.Event = &OneOf_ValidateMFAAuthResponse{
+			ValidateMFAAuthResponse: e,
+		}
+	case *OktaAccessListSync:
+		out.Event = &OneOf_OktaAccessListSync{
+			OktaAccessListSync: e,
+		}
+	case *SPIFFESVIDIssued:
+		out.Event = &OneOf_SPIFFESVIDIssued{
+			SPIFFESVIDIssued: e,
 		}
 
 	default:

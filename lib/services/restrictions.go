@@ -93,15 +93,7 @@ func MarshalNetworkRestrictions(restrictions types.NetworkRestrictions, opts ...
 
 	switch restrictions := restrictions.(type) {
 	case *types.NetworkRestrictionsV4:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *restrictions
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			restrictions = &copy
-		}
-		return utils.FastMarshal(restrictions)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, restrictions))
 	default:
 		return nil, trace.BadParameter("unrecognized network restrictions version %T", restrictions)
 	}

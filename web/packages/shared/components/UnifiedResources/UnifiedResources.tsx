@@ -18,10 +18,12 @@
 
 import React, {
   useEffect,
+  useLayoutEffect,
   useState,
   useCallback,
   Children,
   PropsWithChildren,
+  useRef,
 } from 'react';
 
 import styled from 'styled-components';
@@ -42,10 +44,11 @@ import { ResourcesResponse } from 'teleport/services/agents';
 
 import {
   DefaultTab,
-  ViewMode,
-  UnifiedResourcePreferences,
   LabelsViewMode,
-} from 'shared/services/unifiedResourcePreferences';
+  UnifiedResourcePreferences,
+  ViewMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
 import { HoverTooltip } from 'shared/components/ToolTip';
 import {
   makeEmptyAttempt,
@@ -79,17 +82,21 @@ const INITIAL_FETCH_SIZE = 48;
 // increment by 24 every fetch
 export const FETCH_MORE_SIZE = 24;
 
+// The breakpoint at which to force the card view. This is to improve responsiveness
+// since list view looks cluttered on narrow viewports.
+const FORCE_CARD_VIEW_BREAKPOINT = 800;
+
 export const PINNING_NOT_SUPPORTED_MESSAGE =
   'This cluster does not support pinning resources. To enable, upgrade to 14.1 or newer.';
 
 const tabs: { label: string; value: DefaultTab }[] = [
   {
     label: 'All Resources',
-    value: DefaultTab.DEFAULT_TAB_ALL,
+    value: DefaultTab.ALL,
   },
   {
     label: 'Pinned Resources',
-    value: DefaultTab.DEFAULT_TAB_PINNED,
+    value: DefaultTab.PINNED,
   },
 ];
 
@@ -142,6 +149,11 @@ export interface UnifiedResourcesProps {
    */
   pinning: UnifiedResourcesPinning;
   availableKinds: FilterKind[];
+  /*
+   * ClusterDropdown is an optional prop to add a ClusterDropdown to the
+   * FilterPanel component. This is useful to turn off in Connect and use on web only
+   */
+  ClusterDropdown?: JSX.Element;
   setParams(params: UnifiedResourcesQueryParams): void;
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
@@ -170,14 +182,18 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferencesAttempt,
     updateUnifiedResourcesPreferences,
     unifiedResourcePreferences,
+    ClusterDropdown,
     bulkActions = [],
   } = props;
+
+  const containerRef = useRef<HTMLDivElement>();
 
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,
   });
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
+  const [forceCardView, setForceCardView] = useState(false);
 
   const pinnedResourcesGetter =
     pinning.kind === 'supported'
@@ -290,7 +306,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   };
 
   const selectTab = (value: DefaultTab) => {
-    const pinnedOnly = value === DefaultTab.DEFAULT_TAB_PINNED;
+    const pinnedOnly = value === DefaultTab.PINNED;
     setParams({
       ...params,
       pinnedOnly,
@@ -352,13 +368,38 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
   };
 
   const expandAllLabels =
-    unifiedResourcePreferences.labelsViewMode ===
-    LabelsViewMode.LABELS_VIEW_MODE_EXPANDED;
+    unifiedResourcePreferences.labelsViewMode === LabelsViewMode.EXPANDED;
+
+  useLayoutEffect(() => {
+    const resizeObserver = new ResizeObserver(entries => {
+      const container = entries[0];
+
+      // In Connect, when a tab becomes active, its outermost DOM element switches from `display:
+      // none` to `display: flex`. This callback is then fired with the width reported as zero.
+      //
+      // As such, when checking whether to force the card view or not, we should consider only
+      // values other than zero.
+      if (container.contentRect.width === 0) {
+        return;
+      }
+
+      if (container.contentRect.width <= FORCE_CARD_VIEW_BREAKPOINT) {
+        setForceCardView(true);
+      } else {
+        setForceCardView(false);
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   const ViewComponent =
-    unifiedResourcePreferences.viewMode === ViewMode.VIEW_MODE_LIST
-      ? ListView
-      : CardsView;
+    unifiedResourcePreferences.viewMode === ViewMode.CARD || forceCardView
+      ? CardsView
+      : ListView;
 
   return (
     <div
@@ -367,7 +408,9 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         width: 100%;
         max-width: 1800px;
         margin: 0 auto;
+        min-width: 450px;
       `}
+      ref={containerRef}
     >
       <ErrorsContainer>
         {resourcesFetchAttempt.status === 'failed' && (
@@ -412,13 +455,13 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         currentViewMode={unifiedResourcePreferences.viewMode}
         setCurrentViewMode={selectViewMode}
         expandAllLabels={expandAllLabels}
+        ClusterDropdown={ClusterDropdown}
         setExpandAllLabels={expandAllLabels => {
           setLabelsViewMode(
-            expandAllLabels
-              ? LabelsViewMode.LABELS_VIEW_MODE_EXPANDED
-              : LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED
+            expandAllLabels ? LabelsViewMode.EXPANDED : LabelsViewMode.COLLAPSED
           );
         }}
+        hideViewModeOptions={forceCardView}
         BulkActions={
           <>
             {selectedResources.length > 0 && (
@@ -432,9 +475,12 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                         textTransform="none"
                         onClick={() => action(getSelectedResources())}
                         disabled={disabled}
+                        size="small"
                         css={`
                           border: none;
                           color: ${props => props.theme.colors.brand};
+                          height: 22px;
+                          font-size: 12px;
                         `}
                       >
                         <Icon size="small" color="brand" mr={2} />
@@ -460,14 +506,14 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
               key={tab.value}
               onClick={() => selectTab(tab.value)}
               disabled={
-                tab.value === DefaultTab.DEFAULT_TAB_PINNED &&
+                tab.value === DefaultTab.PINNED &&
                 pinning.kind === 'not-supported'
               }
               title={tab.label}
               isSelected={
                 params.pinnedOnly
-                  ? tab.value === DefaultTab.DEFAULT_TAB_PINNED
-                  : tab.value === DefaultTab.DEFAULT_TAB_ALL
+                  ? tab.value === DefaultTab.PINNED
+                  : tab.value === DefaultTab.ALL
               }
             />
           ))}

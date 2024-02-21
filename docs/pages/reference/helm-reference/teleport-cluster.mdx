@@ -103,8 +103,8 @@ This name will be shown to Teleport users connecting to the Kubernetes cluster.
 The `teleport-cluster` chart deploys two sets of pods, one for the Auth Service
 and another for the Proxy Service.
 
-`auth` contains values specific for Auth Service pods. You can use it to set
-specific values for auth pods, taking precedence over chart-scoped values.
+`auth` allows you to set chart values only for Kubernetes resources related to the Teleport Auth Service.
+This is merged with chart-scoped values and takes precedence in case of conflict.
 
 For example, to override the [`postStart`](#postStart) value only for auth pods:
 ```yaml
@@ -186,10 +186,11 @@ auth:
 The `teleport-cluster` charts deploys two sets of pods: one for the Auth Service
 and another for the Proxy Service.
 
-`proxy` contains values specific to Proxy Service pods. You can use it to
-set specific values for proxy pods, taking precedence over chart-scoped values.
+`proxy` allows you to set chart values only for Kubernetes resources related to the Teleport Proxy Service.
+This is merged with chart-scoped values and takes precedence in case of conflict.
 
-For example, to override the [`postStart`](#postStart) value only for proxy pods:
+For example, to override the [`postStart`](#postStart) value only for Teleport Proxy Service pods
+and annotate the Kubernetes Service deployed for the Teleport Proxy Service:
 ```yaml
 # By default all pods postStart command should be "echo starting"
 postStart: ["echo", "starting"]
@@ -198,6 +199,11 @@ proxy:
   # But we override the `postStart` value specifically for proxy pods
   postStart: ["curl", "http://hook"]
   imagePullPolicy: Always
+
+  # We also annotate only the Kubernetes Service sending traffic to Proxy Service pods.
+  annotations:
+    service:
+      external-dns.alpha.kubernetes.io/hostname: "teleport.example.com"
 ```
 
 ### `proxy.teleportConfig`
@@ -347,7 +353,7 @@ By default no devices are forbidden.
 |----------|---------------|-----------|------------------------------------|
 | `string` | `nil`         | no        | `auth_service.proxy_listener_mode` |
 
-`proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`.
+`proxyListenerMode` controls proxy TLS routing used by Teleport. Possible values are `multiplex`, `separate`.
 
 `values.yaml` example:
 
@@ -984,7 +990,8 @@ is not supported with multiple replicas.
 ### For proxy pods
 
 Proxy pods need to be provided a certificate to be replicated (via either
-`tls.existingSecretName` or `highAvailability.certManager`).
+`tls.existingSecretName` or `highAvailability.certManager`) or be exposed
+via an ingress (`ingress.enabled`).
 If proxy pods are replicable, they will default to 2 replicas,
 even if `highAvailability.replicaCount` is 1. To force a single proxy replica,
 set `proxy.highAvailability.replicaCount: 1`.
@@ -1815,6 +1822,15 @@ A `postStart` lifecycle handler to be configured on the main Teleport container.
 
 Resource requests/limits which should be configured for Teleport containers. These resource limits will also be
 applied to `initContainers`.
+
+<Admonition type="danger">
+Setting CPU limits is an anti-pattern and is harmful in most cases. Unless you enabled
+[the Static CPU management policy](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#static-policy),
+a multithreaded workload with CPU limits will very likely not behave the way you expect when approaching its CPU limit.
+
+Teleport will become unstable once throttling starts. We recommend not to set CPU limits.
+See [the GitHub PR](https://github.com/gravitational/teleport/pull/36251) for technical details.
+</Admonition>
 
 `values.yaml` example:
 

@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -38,7 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -269,7 +269,7 @@ var (
 	}
 	// dynamodbActions contains IAM actions for static AWS DynamoDB databases.
 	dynamodbActions = databaseActions{
-		authBoundary: stsActions,
+		authBoundary: append(stsActions, "sts:TagSession"),
 	}
 	// opensearchActions contains IAM actions for types.AWSMatcherOpenSearch
 	opensearchActions = databaseActions{

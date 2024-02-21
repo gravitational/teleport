@@ -126,3 +126,19 @@ func (b *BufferSyncPool) Get() *bytes.Buffer {
 func (b *BufferSyncPool) Size() int64 {
 	return b.size
 }
+
+// FromSlice converts the provided slice to a map using the key function
+// to determine the appropriate key per entry. If any duplicates
+// exist in the slice, then the entry with the lowest index is used.
+func FromSlice[T any](r []T, key func(T) string) map[string]T {
+	out := make(map[string]T, len(r))
+
+	// there may be duplicate resources in the input list.
+	// by iterating from end to start, the first resource of given name wins.
+	for i := len(r) - 1; i >= 0; i-- {
+		res := r[i]
+		out[key(res)] = res
+	}
+
+	return out
+}

@@ -21,8 +21,13 @@ package common
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -56,23 +61,41 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TestSSH verifies "tsh ssh" command.
 func TestSSH(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
+	if webpkiCACert == nil {
+		t.Skip("the current platform doesn't support adding CAs to the system pool")
+	}
+
+	t.Setenv("_TELEPORT_TEST_NO_PARALLEL", "1")
+	defer lib.SetInsecureDevMode(lib.IsInsecureDevMode())
+	lib.SetInsecureDevMode(false)
+
+	d := t.TempDir()
+	webCertPath := path.Join(d, "cert.pem")
+	webKeyPath := path.Join(d, "key.pem")
+	generateWebPKICert(t, webCertPath, webKeyPath)
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Proxy.KeyPairs = []servicecfg.KeyPairPath{{
+				PrivateKey:  webKeyPath,
+				Certificate: webCertPath,
+			}}
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 		}),
 	)
+
+	// just in case someone changes newTestSuite
+	require.False(t, lib.IsInsecureDevMode())
 
 	tests := []struct {
 		name string
@@ -102,7 +125,6 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	identityFile := mustLoginIdentity(t, s)
 	err = Run(context.Background(), []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
-		"--insecure",
 		"-i", identityFile,
 		"ssh",
 		"localhost",
@@ -127,7 +149,6 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	identityFile := mustLoginIdentity(t, s)
 	err := Run(context.Background(), []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
-		"--insecure",
 		"-i", identityFile,
 		"ssh",
 		"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
@@ -144,7 +165,6 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	// Switch to leaf cluster
 	err := Run(context.Background(), []string{
 		"login",
-		"--insecure",
 		s.leaf.Config.Auth.ClusterName.GetClusterName(),
 	}, setMockSSOLogin(t, s), setHomePath(tshHome))
 	require.NoError(t, err)
@@ -152,7 +172,6 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	// Connect to leaf node though jump host set to leaf proxy SSH port.
 	err = Run(context.Background(), []string{
 		"ssh",
-		"--insecure",
 		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
 		s.leaf.Config.Hostname,
 		"echo", "hello",
@@ -163,7 +182,6 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 		// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
 		err = Run(context.Background(), []string{
 			"ssh",
-			"--insecure",
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
 			s.leaf.Config.Hostname,
 			"echo", "hello",
@@ -179,7 +197,6 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 		// Check JumpHost flow when root cluster is offline.
 		err = Run(context.Background(), []string{
 			"ssh",
-			"--insecure",
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
 			s.leaf.Config.Hostname,
 			"echo", "hello",
@@ -188,81 +205,29 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	})
 }
 
-// TestSSHLoadAllCAs verifies "tsh ssh" command with loadAllCAs=true.
-func TestSSHLoadAllCAs(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+func generateWebPKICert(t *testing.T, certPath, keyPath string) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(t, err)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
+	require.NotNil(t, keyPEM)
 
-	tests := []struct {
-		name string
-		opts []testSuiteOptionFunc
-	}{
-		{
-			name: "TLS routing enabled",
-			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Version = defaults.TeleportConfigVersionV2
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-					cfg.Auth.LoadAllCAs = true
-				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Version = defaults.TeleportConfigVersionV2
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-				}),
-			},
-		},
-		// { // todo(lxea): unskip this test once flakiness is resolved
-		// 	name: "TLS routing disabled",
-		// 	opts: []testSuiteOptionFunc{
-		// 		withRootConfigFunc(func(cfg *servicecfg.Config) {
-		// 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-		// 			cfg.Auth.LoadAllCAs = true
-		// 		}),
-		// 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
-		// 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
-		// 		}),
-		// 	},
-		// },
+	ca := &tlsca.CertAuthority{
+		Cert:   webpkiCACert,
+		Signer: webpkiCAKey,
 	}
+	certPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: key.Public(),
+		Subject:   pkix.Name{CommonName: "proxy web addr cert"},
+		NotAfter:  time.Now().Add(12 * time.Hour),
+		DNSNames:  []string{"127.0.0.1"},
+		KeyUsage:  x509.KeyUsageDigitalSignature,
+	})
+	require.NoError(t, err)
 
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			s := newTestSuite(t, tc.opts...)
-
-			leafProxySSHAddr, err := s.leaf.ProxySSHAddr()
-			require.NoError(t, err)
-
-			// Login to root
-			tshHome, _ := mustLogin(t, s)
-
-			require.Eventually(t, func() bool {
-				lnodes, _ := s.leaf.GetAuthServer().GetNodes(context.Background(), "default")
-				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
-				return len(lnodes) != 0 && len(rnodes) != 0
-			}, time.Second*30, time.Millisecond*100)
-
-			// Connect to leaf node
-			err = Run(context.Background(), []string{
-				"ssh", "-d",
-				"-p", strconv.Itoa(s.leaf.Config.SSH.Addr.Port(0)),
-				"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
-				s.leaf.Config.SSH.Addr.Host(),
-				"echo", "hello",
-			}, setHomePath(tshHome))
-			require.NoError(t, err)
-			// Connect to leaf node with Jump host
-			err = Run(context.Background(), []string{
-				"ssh", "-d",
-				"-J", leafProxySSHAddr.String(),
-				s.leaf.Config.Hostname,
-				"echo", "hello",
-			}, setHomePath(tshHome))
-			require.NoError(t, err)
-		})
-	}
+	require.NoError(t, os.WriteFile(certPath, certPEM, 0o644))
+	require.NoError(t, os.WriteFile(keyPath, keyPEM, 0o644))
 }
 
 // TestWithRsync tests that Teleport works with rsync.
@@ -1086,28 +1051,25 @@ func mustFailToRunOpenSSHCommand(t *testing.T, configFile string, sshConnString 
 	require.Error(t, err)
 }
 
-func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
-	now := time.Now()
-	ctx := context.Background()
-	events, _, err := auth.SearchEvents(ctx, events.SearchEventsRequest{
-		From:  now.Add(-time.Hour),
-		To:    now.Add(time.Hour),
-		Order: types.EventOrderDescending,
-	})
-
-	require.NoError(t, err)
-	return events
-}
-
 func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
-	av := mustSearchEvents(t, s.root.GetAuthServer())
-	for _, e := range av {
-		if e.GetCode() == events.AuthAttemptFailureCode {
-			require.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
-			return
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		now := time.Now()
+		ctx := context.Background()
+		es, _, err := s.root.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
+			From:  now.Add(-time.Hour),
+			To:    now.Add(time.Hour),
+			Order: types.EventOrderDescending,
+		})
+		assert.NoError(t, err)
+
+		for _, e := range es {
+			if e.GetCode() == events.AuthAttemptFailureCode {
+				assert.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
+				return
+			}
 		}
-	}
-	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
+		t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(es))
+	}, 5*time.Second, 500*time.Millisecond)
 }
 
 func TestFormatCommand(t *testing.T) {

@@ -134,7 +134,7 @@ const renderPlayCell = (
     { clusterId, sid },
     {
       recordingType,
-      durationMs: recordingType === 'desktop' ? duration : undefined,
+      durationMs: duration,
     }
   );
   return (

@@ -20,35 +20,22 @@ import React from 'react';
 import 'jest-canvas-mock';
 import { render, screen } from 'design/utils/testing';
 
-import { KeysEnum } from 'teleport/services/storageService';
-
 import {
-  Processing,
+  BothProcessing,
   TdpProcessing,
-  InvalidProcessingState,
+  FetchProcessing,
   ConnectedSettingsFalse,
   ConnectedSettingsTrue,
   Disconnected,
   FetchError,
-  ConnectionError,
+  TdpError,
   UnintendedDisconnect,
   WebAuthnPrompt,
   AnotherSessionActive,
 } from './DesktopSession.story';
 
-// TODO (avatus) DELETE IN 15.0
-// this is to allow the tests to actually render
-// the correct tables
-beforeAll(() => {
-  localStorage.setItem(KeysEnum.UNIFIED_RESOURCES_DISABLED, 'true');
-});
-
-afterAll(() => {
-  localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_DISABLED);
-});
-
 test('processing', () => {
-  const { container } = render(<Processing />);
+  const { container } = render(<BothProcessing />);
   expect(container).toMatchSnapshot();
 });
 
@@ -57,9 +44,9 @@ test('tdp processing', () => {
   expect(container).toMatchSnapshot();
 });
 
-test('invalid processing', () => {
-  render(<InvalidProcessingState />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+test('fetch processing', () => {
+  const { container } = render(<FetchProcessing />);
+  expect(container).toMatchSnapshot();
 });
 
 test('connected settings false', () => {
@@ -83,7 +70,7 @@ test('fetch error', () => {
 });
 
 test('connection error', () => {
-  render(<ConnectionError />);
+  render(<TdpError />);
   expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });
 

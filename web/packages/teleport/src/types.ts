@@ -32,10 +32,15 @@ export interface Context {
 
 export interface TeleportFeatureNavigationItem {
   title: NavTitle;
-  icon: React.ReactNode;
+  icon: (props) => JSX.Element;
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
+  /*
+   * isSelected is an option function provided to allow more control over whether this feature is
+   * in the "selected" state in the navigation
+   */
+  isSelected?: (clusterId: string, pathname: string) => boolean;
 }
 
 export enum NavTitle {
@@ -51,6 +56,7 @@ export enum NavTitle {
 
   // Access Management
   Users = 'Users',
+  Bots = 'Bots',
   Roles = 'User Roles',
   AuthConnectors = 'Auth Connectors',
   Integrations = 'Integrations',
@@ -156,6 +162,7 @@ export interface FeatureFlags {
   accessRequests: boolean;
   newAccessRequest: boolean;
   downloadCenter: boolean;
+  supportLink: boolean;
   discover: boolean;
   plugins: boolean;
   integrations: boolean;
@@ -170,6 +177,10 @@ export interface FeatureFlags {
   managementSection: boolean;
   accessGraph: boolean;
   externalAuditStorage: boolean;
+  listBots: boolean;
+  addBots: boolean;
+  editBots: boolean;
+  removeBots: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
@@ -191,3 +202,11 @@ export enum RecommendationStatus {
   Notify = 'NOTIFY',
   Done = 'DONE',
 }
+
+// WebsocketStatus is used to indicate the auth status from a
+// websocket connection
+export type WebsocketStatus = {
+  type: string;
+  status: string;
+  message?: string;
+};

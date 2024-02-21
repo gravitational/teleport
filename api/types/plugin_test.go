@@ -217,6 +217,18 @@ func TestPluginOktaValidation(t *testing.T) {
 		},
 	}
 
+	validSettingsWithSyncSettings := &PluginSpecV1_Okta{
+		Okta: &PluginOktaSettings{
+			OrgUrl:         "https://test.okta.com",
+			EnableUserSync: true,
+			SsoConnectorId: "some-sso-connector-id",
+			SyncSettings: &PluginOktaSyncSettings{
+				SyncAccessLists: true,
+				DefaultOwners:   []string{"owner1"},
+			},
+		},
+	}
+
 	validCreds := &PluginCredentialsV1{
 		Credentials: &PluginCredentialsV1_StaticCredentialsRef{
 			&PluginStaticCredentialsRef{
@@ -242,6 +254,23 @@ func TestPluginOktaValidation(t *testing.T) {
 			assertValue: func(t *testing.T, settings *PluginOktaSettings) {
 				require.Equal(t, "https://test.okta.com", settings.OrgUrl)
 				require.True(t, settings.EnableUserSync)
+				require.Equal(t, "some-sso-connector-id", settings.SsoConnectorId)
+				require.True(t, settings.SyncSettings.SyncUsers)
+				require.Equal(t, "some-sso-connector-id", settings.SyncSettings.SsoConnectorId)
+				require.False(t, settings.SyncSettings.SyncAccessLists)
+			},
+		},
+		{
+			name:      "valid values are preserved, import populated",
+			settings:  validSettingsWithSyncSettings,
+			creds:     validCreds,
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, settings *PluginOktaSettings) {
+				require.Equal(t, "https://test.okta.com", settings.OrgUrl)
+				require.True(t, settings.EnableUserSync)
+				require.False(t, settings.SyncSettings.SyncUsers) // Mismatch because there are sync settings.
+				require.True(t, settings.SyncSettings.SyncAccessLists)
+				require.ElementsMatch(t, []string{"owner1"}, settings.SyncSettings.DefaultOwners)
 			},
 		},
 		{
@@ -332,7 +361,23 @@ func TestPluginOktaValidation(t *testing.T) {
 			assertValue: func(t *testing.T, settings *PluginOktaSettings) {
 				require.False(t, settings.EnableUserSync)
 				require.Empty(t, settings.SsoConnectorId)
+				require.False(t, settings.SyncSettings.SyncUsers)
+				require.Empty(t, settings.SyncSettings.SsoConnectorId)
 			},
+		}, {
+			name: "import enabled without default owners",
+			settings: &PluginSpecV1_Okta{
+				Okta: &PluginOktaSettings{
+					OrgUrl:         "https://test.okta.com",
+					EnableUserSync: true,
+					SsoConnectorId: "some-sso-connector-id",
+					SyncSettings: &PluginOktaSyncSettings{
+						SyncAccessLists: true,
+					},
+				},
+			},
+			creds:     validCreds,
+			assertErr: requireBadParameterWith("default owners must be set when access list import is enabled"),
 		},
 	}
 

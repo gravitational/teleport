@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -119,7 +120,7 @@ type SessionCreds struct {
 func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	username := req.Username
 
-	mfaDev, actualUsername, err := a.authenticateUser(ctx, req)
+	verifyMFALocks, mfaDev, actualUsername, err := a.authenticateUser(ctx, req)
 	if err != nil {
 		// Log event after authentication failure
 		if err := a.emitAuthAuditEvent(ctx, authAuditProps{
@@ -167,6 +168,23 @@ func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// Verify if the MFA device is locked.
+	if err := verifyMFALocks(verifyMFADeviceLocksParams{
+		Checker: checker,
+	}); err != nil {
+		// Log MFA lock failure as an authn failure.
+		if err := a.emitAuthAuditEvent(ctx, authAuditProps{
+			username:       req.Username,
+			clientMetadata: req.ClientMetadata,
+			mfaDevice:      mfaDev,
+			checker:        checker,
+			authErr:        err,
+		}); err != nil {
+			log.WithError(err).Warn("Failed to emit login event.")
+		}
+		return nil, nil, trace.Wrap(err)
+	}
+
 	// Log event after authentication success
 	if err := a.emitAuthAuditEvent(ctx, authAuditProps{
 		username:       username,
@@ -211,11 +229,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 
 	if props.clientMetadata != nil {
 		event.RemoteAddr = props.clientMetadata.RemoteAddr
-		if len(props.clientMetadata.UserAgent) > maxUserAgentLen {
-			event.UserAgent = props.clientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
-		} else {
-			event.UserAgent = props.clientMetadata.UserAgent
-		}
+		event.UserAgent = trimUserAgent(props.clientMetadata.UserAgent)
 	}
 
 	if props.mfaDevice != nil {
@@ -260,14 +274,77 @@ func IsInvalidLocalCredentialError(err error) bool {
 	return errors.Is(err, invalidUserPassError) || errors.Is(err, invalidUserPass2FError)
 }
 
+type verifyMFADeviceLocksParams struct {
+	// Checker used to verify locks.
+	// Optional, created via a [UserState] fetch if nil.
+	Checker services.AccessChecker
+
+	// ClusterLockingMode used to verify locks.
+	// Optional, acquired from [Server.GetAuthPreference] if nil.
+	ClusterLockingMode constants.LockingMode
+}
+
 // authenticateUser authenticates a user through various methods (password, MFA,
 // passwordless)
-// Returns the device used to authenticate (if applicable) and the username.
-func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
+//
+// Returns a callback to verify MFA device locks, the MFA device used to
+// authenticate (if applicable), and the authenticated user name.
+//
+// Callers MUST call the verifyLocks callback.
+func (a *Server) authenticateUser(
+	ctx context.Context,
+	req AuthenticateUserRequest,
+) (verifyLocks func(verifyMFADeviceLocksParams) error, mfaDev *types.MFADevice, user string, err error) {
+	mfaDev, user, err = a.authenticateUserInternal(ctx, req)
+	if err != nil || mfaDev == nil {
+		return func(verifyMFADeviceLocksParams) error { return nil }, mfaDev, user, trace.Wrap(err)
+	}
+
+	verifyLocks = func(p verifyMFADeviceLocksParams) error {
+		if p.Checker == nil {
+			userState, err := a.GetUserOrLoginState(ctx, user)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			accessInfo := services.AccessInfoFromUserState(userState)
+			clusterName, err := a.GetClusterName()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			p.Checker = checker
+		}
+
+		if p.ClusterLockingMode == "" {
+			authPref, err := a.GetAuthPreference(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			p.ClusterLockingMode = authPref.GetLockingMode()
+		}
+
+		// The MFA device needs to be explicitly verified, as it won't be verified
+		// as part of certificate issuance in various scenarios (password change,
+		// non-session certificates, etc)
+		return a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
+			checker:     p.Checker,
+			defaultMode: p.ClusterLockingMode,
+			username:    user,
+			mfaVerified: mfaDev.Id,
+		})
+	}
+	return verifyLocks, mfaDev, user, nil
+}
+
+// Do not use this method directly, use authenticateUser instead.
+func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateUserRequest) (mfaDev *types.MFADevice, user string, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	user := req.Username
+	user = req.Username
 	passwordless := user == ""
 
 	// Only one path if passwordless, other variants shouldn't see an empty user.
@@ -294,13 +371,22 @@ func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		authErr = authenticateHeadlessError
 	case req.Webauthn != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
+			if req.Pass != nil {
+				if err = a.checkPasswordWOToken(user, req.Pass.Password); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 			mfaResponse := &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			dev, _, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
-			return dev, trace.Wrap(err)
+			requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN}
+			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, requiredExt)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return mfaData.Device, nil
 		}
 		authErr = authenticateWebauthnError
 	case req.OTP != nil:
@@ -316,10 +402,9 @@ func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		authErr = invalidUserPass2FError
 	}
 	if authenticateFn != nil {
-		var dev *types.MFADevice
 		err := a.WithUserLock(ctx, user, func() error {
 			var err error
-			dev, err = authenticateFn()
+			mfaDev, err = authenticateFn()
 			return err
 		})
 		switch {
@@ -330,13 +415,13 @@ func (a *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			}
 
 			return nil, "", trace.Wrap(authErr)
-		case dev == nil:
+		case mfaDev == nil:
 			log.Debugf(
 				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v, Headless = %v): %v.",
 				req.Webauthn != nil, req.OTP != nil, req.HeadlessAuthenticationID != "", err)
 			return nil, "", trace.Wrap(authErr)
 		default:
-			return dev, user, nil
+			return mfaDev, user, nil
 		}
 	}
 
@@ -393,7 +478,9 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 			Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 		},
 	}
-	dev, user, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)
+
+	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN}
+	mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, "" /* user */, requiredExt)
 	if err != nil {
 		log.Debugf("Passwordless authentication failed: %v", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
@@ -402,12 +489,12 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	// A distinction between passwordless and "plain" MFA is that we can't
 	// acquire the user lock beforehand (or at all on failures!)
 	// We do grab it here so successful logins go through the regular process.
-	if err := a.WithUserLock(ctx, user, func() error { return nil }); err != nil {
-		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", user, err)
-		return nil, user, trace.Wrap(authenticateWebauthnError)
+	if err := a.WithUserLock(ctx, mfaData.User, func() error { return nil }); err != nil {
+		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", mfaData.User, err)
+		return nil, mfaData.User, trace.Wrap(authenticateWebauthnError)
 	}
 
-	return dev, user, nil
+	return mfaData.Device, mfaData.User, nil
 }
 
 func (a *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (mfa *types.MFADevice, err error) {
@@ -742,7 +829,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		certReq.ttl = time.Minute
 	}
 
-	certs, err := a.generateUserCert(certReq)
+	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -787,7 +874,8 @@ func (a *Server) createUserWebSession(ctx context.Context, user services.UserSta
 }
 
 func getErrorByTraceField(err error) error {
-	traceErr, ok := err.(trace.Error)
+	var traceErr trace.Error
+	ok := errors.As(err, &traceErr)
 	switch {
 	case !ok:
 		log.WithError(err).Warn("Unexpected error type, wanted TraceError")
@@ -797,6 +885,13 @@ func getErrorByTraceField(err error) error {
 	}
 
 	return nil
+}
+
+func trimUserAgent(userAgent string) string {
+	if len(userAgent) > maxUserAgentLen {
+		return userAgent[:maxUserAgentLen-3] + "..."
+	}
+	return userAgent
 }
 
 const noLocalAuth = "local auth disabled"

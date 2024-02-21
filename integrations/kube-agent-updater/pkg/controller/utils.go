@@ -26,7 +26,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 func getWorkloadVersion(podSpec v1.PodSpec) (string, error) {

@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"encoding/asn1"
 	"net"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -26,13 +27,13 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
+	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/proxy/transport/transportv1"
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
@@ -369,6 +370,7 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 			ALPNSNIAuthDialClusterName: cluster,
 			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 			ALPNConnUpgradeRequired:    c.cfg.ALPNConnUpgradeRequired,
+			DialOpts:                   c.cfg.DialOpts,
 		}
 	}
 
@@ -392,6 +394,7 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 			conn, err := c.transport.DialCluster(connContext, cluster, nil)
 			return conn, trace.Wrap(err)
 		}),
+		DialOpts: c.cfg.DialOpts,
 	}
 
 }
@@ -415,4 +418,16 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 	}
 
 	return ClusterDetails{FIPS: details.FipsEnabled}, nil
+}
+
+// Ping measures the round trip latency of sending a message to the Proxy.
+func (c *Client) Ping(ctx context.Context) error {
+	// TODO(tross): Update to call Ping when it is added to the transport service.
+	// For now we don't really care what method is used we just want to measure
+	// how long it takes to get a reply. This will always fail with a not implemented
+	// error since the Proxy gRPC server doesn't serve the auth service proto. However,
+	// we use it because it's already imported in the api package.
+	clt := authpb.NewAuthServiceClient(c.grpcConn)
+	_, _ = clt.Ping(ctx, &authpb.PingRequest{})
+	return nil
 }

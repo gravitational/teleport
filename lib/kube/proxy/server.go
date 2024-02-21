@@ -177,7 +177,7 @@ type TLSServer struct {
 	// kubeClusterWatcher monitors changes to kube cluster resources.
 	kubeClusterWatcher *services.KubeClusterWatcher
 	// reconciler reconciles proxied kube clusters with kube_clusters resources.
-	reconciler *services.Reconciler
+	reconciler *services.Reconciler[types.KubeCluster]
 	// monitoredKubeClusters contains all kube clusters the proxied kube_clusters are
 	// reconciled against.
 	monitoredKubeClusters monitoredKubeClusters
@@ -301,7 +301,7 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 		// It's required to accommodate setups with high latency and where the time
 		// between the TCP being accepted and the time for the first byte is longer
 		// than the default value -  1s.
-		ReadDeadline: 10 * time.Second,
+		DetectTimeout: 10 * time.Second,
 	}
 	for _, opt := range options {
 		opt(&muxConfig)
@@ -317,6 +317,14 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	defer mux.Close()
 
 	t.mu.Lock()
+	select {
+	// If the server is closed before the listener is started, return early
+	// to avoid deadlock.
+	case <-t.closeContext.Done():
+		t.mu.Unlock()
+		return nil
+	default:
+	}
 	t.listener = mux.TLS()
 	err = http2.ConfigureServer(t.Server, &http2.Server{})
 	t.mu.Unlock()
@@ -404,8 +412,11 @@ func (t *TLSServer) close(ctx context.Context) error {
 		t.KubernetesServersWatcher.Close()
 	}
 
+	var listClose error
 	t.mu.Lock()
-	listClose := t.listener.Close()
+	if t.listener != nil {
+		listClose = t.listener.Close()
+	}
 	t.mu.Unlock()
 	return trace.NewAggregate(append(errs, listClose)...)
 }

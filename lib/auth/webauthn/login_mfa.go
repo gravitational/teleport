@@ -24,8 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -44,8 +44,8 @@ type LoginIdentity interface {
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 }
 
@@ -80,6 +80,12 @@ func (l *loginWithDevices) GetMFADevices(_ context.Context, _ string, _ bool) ([
 //  4. Server runs Finish()
 //  5. If all server-side checks are successful, then login/authentication is
 //     complete.
+//
+// LoginFlow is used in the following scenarios:
+//   - Password plus challenge logins
+//   - Presence verification checks (eg, session MFA)
+//   - User verification checks after the initial login (eg, password changes
+//     with only a discoverable credential).
 type LoginFlow struct {
 	U2F      *types.U2F
 	Webauthn *types.Webauthn
@@ -94,29 +100,42 @@ type LoginFlow struct {
 // assertion.
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
-func (f *LoginFlow) Begin(ctx context.Context, user string) (*wantypes.CredentialAssertion, error) {
+// Requested challenge extensions will be stored on the stored webauthn challenge
+// record. These extensions indicate additional rules/properties of the webauthn
+// challenge that can be validated in the final login step.
+func (f *LoginFlow) Begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
+	// Disallow passwordless through here.
+	// lf.begin() does other challengeExtensions checks, including `nil`.
+	if challengeExtensions != nil && challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN {
+		return nil, trace.BadParameter("passwordless challenge scope is not allowed for MFA flows")
+	}
+
 	lf := &loginFlow{
-		U2F:         f.U2F,
-		Webauthn:    f.Webauthn,
-		identity:    mfaIdentity{f.Identity},
+		U2F:      f.U2F,
+		Webauthn: f.Webauthn,
+		identity: mfaIdentity{f.Identity},
+		// TODO(codingllama): Record session data to distinct scope keys based on
+		//  the actual challenge scope.
 		sessionData: (*userSessionStorage)(f),
 	}
-	return lf.begin(ctx, user, false /* passwordless */)
+	return lf.begin(ctx, user, challengeExtensions)
 }
 
 // Finish is the second and last step of the LoginFlow.
-// It returns the MFADevice used to solve the challenge. If login is successful,
-// Finish has the side effect of updating the counter and last used timestamp of
-// the returned device.
-func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, error) {
+// Expected challenge extensions will be validated against the stored webauthn
+// challenge record.
+// It returns the MFADevice used to solve the challenge, the associated Teleport
+// user name, and other login properties. If login is successful, Finish has the
+// side effect of updating the counter and last used timestamp of the MFADevice
+// used.
+func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*LoginData, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
 		Webauthn:    f.Webauthn,
 		identity:    mfaIdentity{f.Identity},
 		sessionData: (*userSessionStorage)(f),
 	}
-	dev, _, err := lf.finish(ctx, user, resp, false /* passwordless */)
-	return dev, trace.Wrap(err)
+	return lf.finish(ctx, user, resp, requiredExtensions)
 }
 
 type mfaIdentity struct {
@@ -130,11 +149,11 @@ func (m mfaIdentity) GetTeleportUserByWebauthnID(_ context.Context, _ []byte) (s
 // userSessionStorage implements sessionIdentity using LoginFlow.
 type userSessionStorage LoginFlow
 
-func (s *userSessionStorage) Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error {
+func (s *userSessionStorage) Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error {
 	return s.Identity.UpsertWebauthnSessionData(ctx, user, scopeLogin, sd)
 }
 
-func (s *userSessionStorage) Get(ctx context.Context, user string, _ string) (*wanpb.SessionData, error) {
+func (s *userSessionStorage) Get(ctx context.Context, user string, _ string) (*wantypes.SessionData, error) {
 	return s.Identity.GetWebauthnSessionData(ctx, user, scopeLogin)
 }
 

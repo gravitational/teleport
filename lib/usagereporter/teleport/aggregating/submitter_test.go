@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -52,8 +53,13 @@ func TestSubmitOnce(t *testing.T) {
 	svc := reportService{bk}
 
 	var submitted []*prehogv1.UserActivityReport
+	var submittedPresence []*prehogv1.ResourcePresenceReport
 	submitOk := func(ctx context.Context, req *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error) {
+		if l := len(req.UserActivity) + len(req.ResourcePresence); l > submitBatchSize {
+			return uuid.Nil, trace.LimitExceeded("got %v reports, expected at most %v", l, submitBatchSize)
+		}
 		submitted = append(submitted, req.UserActivity...)
+		submittedPresence = append(submittedPresence, req.ResourcePresence...)
 		return uuid.New(), nil
 	}
 	submitErr := func(ctx context.Context, req *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error) {
@@ -72,6 +78,9 @@ func TestSubmitOnce(t *testing.T) {
 	reportFresh := newReport(time.Now().UTC())
 	require.NoError(t, svc.upsertUserActivityReport(ctx, reportFresh, reportTTL))
 
+	resCountReport := newResourcePresenceReport(time.Now().UTC())
+	require.NoError(t, svc.upsertResourcePresenceReport(ctx, resCountReport, reportTTL))
+
 	// successful submit, no alerts, no leftover reports
 	submitOnce(ctx, scfg)
 	require.Len(t, submitted, 1)
@@ -79,6 +88,10 @@ func TestSubmitOnce(t *testing.T) {
 	reports, err := svc.listUserActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, reports)
+	rReports, err := svc.listResourcePresenceReports(ctx, 10)
+	require.NoError(t, err)
+	require.Empty(t, rReports)
+
 	submitted = nil
 
 	alerts, err := scfg.Status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
@@ -139,7 +152,9 @@ func TestSubmitOnce(t *testing.T) {
 	// successful submission, no remaining events but the alert stays for one more cycle
 	submitOnce(ctx, scfg)
 	require.Len(t, submitted, 1)
+	require.Len(t, submittedPresence, 1)
 	submitted = nil
+	submittedPresence = nil
 
 	alerts, err = scfg.Status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 		AlertID: alertName,
@@ -156,4 +171,21 @@ func TestSubmitOnce(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, alerts)
+
+	for i := 0; i < 20; i++ {
+		require.NoError(t, svc.upsertUserActivityReport(ctx, newReport(time.Now().UTC().Add(time.Duration(i)*time.Second)), reportTTL))
+	}
+	for i := 0; i < 15; i++ {
+		require.NoError(t, svc.upsertResourcePresenceReport(ctx, newResourcePresenceReport(time.Now().UTC().Add(time.Duration(i)*time.Second)), reportTTL))
+	}
+	clk.Advance(submitLockDuration)
+	submitOnce(ctx, scfg)
+	clk.Advance(submitLockDuration)
+	submitOnce(ctx, scfg)
+	clk.Advance(submitLockDuration)
+	submitOnce(ctx, scfg)
+	clk.Advance(submitLockDuration)
+	submitOnce(ctx, scfg)
+	require.Len(t, submitted, 20)
+	require.Len(t, submittedPresence, 15)
 }

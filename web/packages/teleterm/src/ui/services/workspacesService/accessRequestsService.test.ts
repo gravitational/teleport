@@ -123,3 +123,17 @@ test('addOrRemoveResource() removes resource if it already exists on pending req
   const pendingAccessRequest = service.getPendingAccessRequest();
   expect(pendingAccessRequest['node']).not.toHaveProperty('123');
 });
+
+test('addOrRemoveResource() uses resourceId when resourceName is empty', () => {
+  let service = createService(
+    getMockPendingAccessRequest(),
+    getMockAssumed({})
+  );
+  const resourceId = '567';
+  const resourceName = '';
+
+  service.addOrRemoveResource('app', resourceId, resourceName);
+  const pendingAccessRequest = service.getPendingAccessRequest();
+
+  expect(pendingAccessRequest['app'][resourceId]).toBe(resourceId);
+});

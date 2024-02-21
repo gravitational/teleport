@@ -793,6 +793,15 @@ func TestVirtualPathNames(t *testing.T) {
 			},
 		},
 		{
+			name:   "database client ca",
+			kind:   VirtualPathCA,
+			params: VirtualPathCAParams(types.DatabaseClientCA),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_CA_DB_CLIENT",
+				"TSH_VIRTUAL_PATH_CA",
+			},
+		},
+		{
 			name:   "host ca",
 			kind:   VirtualPathCA,
 			params: VirtualPathCAParams(types.HostCA),
@@ -870,16 +879,15 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 				require.NoError(t, err)
 				return
 			}
-			traceErr, isTraceErr := err.(*trace.TraceErr)
-
-			if isTraceErr {
+			var traceErr *trace.TraceErr
+			if errors.As(err, &traceErr) {
 				require.EqualError(t, traceErr.OrigError(), tt.wantError)
 			} else {
 				require.EqualError(t, err, tt.wantError)
 			}
 
 			if tt.wantUserMessage != "" {
-				require.True(t, isTraceErr)
+				require.NotNil(t, traceErr)
 				require.Contains(t, traceErr.Messages, tt.wantUserMessage)
 			}
 		})
@@ -1202,7 +1210,7 @@ func TestConnectToProxyCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	proxy, err := clt.ConnectToProxy(ctx)
-	require.Nil(t, proxy)
+	clusterClient, err := clt.ConnectToCluster(ctx)
+	require.Nil(t, clusterClient)
 	require.Error(t, err)
 }

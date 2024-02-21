@@ -78,7 +78,15 @@ type TestCAConfig struct {
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	// privateKeys is to specify another RSA private key
 	if len(config.PrivateKeys) == 0 {
-		config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+		// db client CA gets its own private key to distinguish its pub key
+		// from the other CAs. Snowflake uses public key to verify JWT signer,
+		// so if we don't do this then tests verifying that the correct
+		// signer was used are pointless.
+		if config.Type == types.DatabaseClientCA {
+			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa-db-client"]}
+		} else {
+			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+		}
 	}
 	keyBytes := config.PrivateKeys[0]
 	rsaKey, err := ssh.ParseRawPrivateKey(keyBytes)
@@ -120,7 +128,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Match the key set to lib/auth/auth.go:newKeySet().
 	switch config.Type {
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
 		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
 	case types.KindJWT, types.OIDCIdPCA:
 		// Generating keys is CPU intensive operation. Generate JWT keys only
@@ -148,8 +156,6 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 				PrivateKey: keyBytes,
 			}},
 		}
-	case types.SAMLIDPCA:
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
 	default:
 		panic("unknown CA type")
 	}
@@ -167,6 +173,11 @@ type ServicesTestSuite struct {
 	ProvisioningS services.Provisioner
 	WebS          services.Identity
 	ConfigS       services.ClusterConfiguration
+	// LocalConfigS is used for local config which can only be
+	// managed by the Auth service directly (static tokens).
+	// Used by some tests to differentiate between a server
+	// and client interface.
+	LocalConfigS  services.ClusterConfiguration
 	EventsS       types.Events
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
@@ -1061,7 +1072,6 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NotEmpty(t, upserted.GetRevision())
 	require.NotEqual(t, updated.GetRevision(), upserted.GetRevision())
 	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
-
 }
 
 func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
@@ -1114,21 +1124,36 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 	ctx := context.Background()
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:                  "local",
-		SecondFactor:          "otp",
+		Type:                  constants.Local,
+		SecondFactor:          constants.SecondFactorOTP,
 		DisconnectExpiredCert: types.NewBoolOption(true),
 	})
 	require.NoError(t, err)
 
-	err = s.ConfigS.SetAuthPreference(ctx, ap)
+	// Create a preference when one does not exist.
+	created, err := s.ConfigS.CreateAuthPreference(ctx, ap)
 	require.NoError(t, err)
+	require.NotEmpty(t, created.GetRevision())
 
+	// Validate the created preference matches the retrieve preference.
 	gotAP, err := s.ConfigS.GetAuthPreference(ctx)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ap, gotAP), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"))
 
-	require.Equal(t, "local", gotAP.GetType())
-	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
-	require.True(t, gotAP.GetDisconnectExpiredCert())
+	// Validate that update only works if the revision matches.
+	gotAP.SetRevision("123")
+	_, err = s.ConfigS.UpdateAuthPreference(ctx, gotAP)
+	require.True(t, trace.IsCompareFailed(err))
+
+	created.SetSecondFactor(constants.SecondFactorOff)
+	updated, err := s.ConfigS.UpdateAuthPreference(ctx, created)
+	require.NoError(t, err)
+	require.Equal(t, constants.SecondFactorOff, updated.GetSecondFactor())
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertAuthPreference(ctx, gotAP)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(upserted, gotAP), cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"))
 }
 
 // SessionRecordingConfig tests session recording configuration.
@@ -1139,13 +1164,36 @@ func (s *ServicesTestSuite) SessionRecordingConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.ConfigS.SetSessionRecordingConfig(ctx, recConfig)
-	require.NoError(t, err)
+	// Validate updating a non-existent config fails.
+	_, err = s.ConfigS.UpdateSessionRecordingConfig(ctx, recConfig)
+	require.True(t, trace.IsCompareFailed(err))
 
-	gotrecConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
+	// Create a config when one does not exist.
+	created, err := s.ConfigS.CreateSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
+	require.NotEmpty(t, created.GetRevision())
 
-	require.Equal(t, types.RecordAtProxy, gotrecConfig.GetMode())
+	// Validate the created config matches the retrieve config.
+	gotRecConfig, err := s.ConfigS.GetSessionRecordingConfig(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(recConfig, gotRecConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// Validate that update only works if the revision matches.
+	gotRecConfig.SetRevision("123")
+	_, err = s.ConfigS.UpdateSessionRecordingConfig(ctx, gotRecConfig)
+	require.True(t, trace.IsCompareFailed(err))
+
+	created.SetMode(types.RecordAtNode)
+
+	updated, err := s.ConfigS.UpdateSessionRecordingConfig(ctx, created)
+	require.NoError(t, err)
+	require.Equal(t, types.RecordAtNode, updated.GetMode())
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertSessionRecordingConfig(ctx, gotRecConfig)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(upserted, gotRecConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
 }
 
 func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
@@ -1237,14 +1285,75 @@ func (s *ServicesTestSuite) ClusterNetworkingConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.ConfigS.SetClusterNetworkingConfig(ctx, netConfig)
-	require.NoError(t, err)
+	// Validate updating a non-existent config fails.
+	_, err = s.ConfigS.UpdateClusterNetworkingConfig(ctx, netConfig)
+	require.True(t, trace.IsCompareFailed(err))
 
+	// Create a config when one does not exist.
+	created, err := s.ConfigS.CreateClusterNetworkingConfig(ctx, netConfig)
+	require.NoError(t, err)
+	require.NotEmpty(t, created.GetRevision())
+
+	// Validate the created config matches the retrieve config.
 	gotNetConfig, err := s.ConfigS.GetClusterNetworkingConfig(ctx)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(netConfig, gotNetConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
-	require.Equal(t, 17*time.Second, gotNetConfig.GetClientIdleTimeout())
-	require.Equal(t, int64(3000), gotNetConfig.GetKeepAliveCountMax())
+	// Validate that update only works if the revision matches.
+	gotNetConfig.SetRevision("123")
+	_, err = s.ConfigS.UpdateClusterNetworkingConfig(ctx, gotNetConfig)
+	require.True(t, trace.IsCompareFailed(err))
+
+	created.SetKeepAliveCountMax(10)
+
+	updated, err := s.ConfigS.UpdateClusterNetworkingConfig(ctx, created)
+	require.NoError(t, err)
+	require.Equal(t, int64(10), updated.GetKeepAliveCountMax())
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertClusterNetworkingConfig(ctx, gotNetConfig)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(upserted, gotNetConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+}
+
+// ClusterAuditConfig tests cluster audit configuration.
+func (s *ServicesTestSuite) ClusterAuditConfig(t *testing.T) {
+	ctx := context.Background()
+	auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+		Region:                  "us-east-1",
+		EnableContinuousBackups: true,
+	})
+	require.NoError(t, err)
+
+	// Validate updating a non-existent config fails.
+	_, err = s.ConfigS.UpdateClusterAuditConfig(ctx, auditConfig)
+	require.True(t, trace.IsCompareFailed(err))
+
+	// Create a config when one does not exist.
+	created, err := s.ConfigS.CreateClusterAuditConfig(ctx, auditConfig)
+	require.NoError(t, err)
+	require.NotEmpty(t, created.GetRevision())
+
+	// Validate the created config matches the retrieve config.
+	gotAuditConfig, err := s.ConfigS.GetClusterAuditConfig(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(auditConfig, gotAuditConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+
+	// Validate that update only works if the revision matches.
+	gotAuditConfig.SetRevision("123")
+	_, err = s.ConfigS.UpdateClusterAuditConfig(ctx, gotAuditConfig)
+	require.True(t, trace.IsCompareFailed(err))
+
+	created.SetRegion("us-west-2")
+
+	updated, err := s.ConfigS.UpdateClusterAuditConfig(ctx, created)
+	require.NoError(t, err)
+	require.Equal(t, "us-west-2", updated.Region())
+
+	// Validate that upserting overwrites the value regardless of the revision.
+	upserted, err := s.ConfigS.UpsertClusterAuditConfig(ctx, gotAuditConfig)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(upserted, gotAuditConfig, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 }
 
 // sem wrapper is a helper for overriding the keepalive
@@ -1558,13 +1667,13 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.SetStaticTokens(staticTokens)
+				err = s.LocalConfigS.SetStaticTokens(staticTokens)
 				require.NoError(t, err)
 
-				out, err := s.ConfigS.GetStaticTokens()
+				out, err := s.LocalConfigS.GetStaticTokens()
 				require.NoError(t, err)
 
-				err = s.ConfigS.DeleteStaticTokens()
+				err = s.LocalConfigS.DeleteStaticTokens()
 				require.NoError(t, err)
 
 				return out

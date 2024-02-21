@@ -20,6 +20,7 @@ package forward
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -116,7 +117,7 @@ func (r *remoteSubsystem) Wait() error {
 	for i := 0; i < 3; i++ {
 		select {
 		case err := <-r.errorCh:
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				r.log.Warnf("Connection problem: %v %T", trace.DebugReport(err), err)
 				lastErr = err
 			}

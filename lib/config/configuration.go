@@ -35,6 +35,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -43,7 +44,6 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
@@ -168,6 +169,8 @@ type CommandLineFlags struct {
 	DatabaseAWSElastiCacheGroupID string
 	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
 	DatabaseAWSMemoryDBClusterName string
+	// DatabaseAWSSessionTags is the AWS STS session tags.
+	DatabaseAWSSessionTags string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -209,6 +212,10 @@ type CommandLineFlags struct {
 	// `teleport integration configure eice-iam` command
 	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
 
+	// IntegrationConfEKSIAMArguments contains the arguments of
+	// `teleport integration configure eks-iam` command
+	IntegrationConfEKSIAMArguments IntegrationConfEKSIAM
+
 	// IntegrationConfAWSOIDCIdPArguments contains the arguments of
 	// `teleport integration configure awsoidc-idp` command
 	IntegrationConfAWSOIDCIdPArguments IntegrationConfAWSOIDCIdP
@@ -219,7 +226,18 @@ type CommandLineFlags struct {
 
 	// IntegrationConfExternalAuditStorageArguments contains the arguments of the
 	// `teleport integration configure externalauditstorage` command
-	IntegrationConfExternalAuditStorageArguments IntegrationConfExternalAuditStorage
+	IntegrationConfExternalAuditStorageArguments easconfig.ExternalAuditStorageConfiguration
+
+	// IntegrationConfAccessGraphAWSSyncArguments contains the arguments of
+	// `teleport integration configure access-graph aws-iam` command
+	IntegrationConfAccessGraphAWSSyncArguments IntegrationConfAccessGraphAWSSync
+}
+
+// IntegrationConfAccessGraphAWSSync contains the arguments of
+// `teleport integration configure access-graph aws-iam` command.
+type IntegrationConfAccessGraphAWSSync struct {
+	// Role is the AWS Role associated with the Integration
+	Role string
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -240,6 +258,15 @@ type IntegrationConfDeployServiceIAM struct {
 // IntegrationConfEICEIAM contains the arguments of
 // `teleport integration configure eice-iam` command
 type IntegrationConfEICEIAM struct {
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+}
+
+// IntegrationConfEKSIAM contains the arguments of
+// `teleport integration configure eks-iam` command
+type IntegrationConfEKSIAM struct {
 	// Region is the AWS Region used to set up the client.
 	Region string
 	// Role is the AWS Role associated with the Integration
@@ -267,33 +294,6 @@ type IntegrationConfListDatabasesIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
-}
-
-// IntegrationConfExternalAuditStorage contains the arguments of the
-// `teleport integration configure externalauditstorage` command
-type IntegrationConfExternalAuditStorage struct {
-	// Bootstrap is whether to bootstrap infrastructure (default: false).
-	Bootstrap bool
-	// Region is the AWS Region used.
-	Region string
-	// Role is the AWS IAM Role associated with the OIDC integration.
-	Role string
-	// Policy is the name to use for the IAM policy.
-	Policy string
-	// SessionRecordingsURI is the S3 URI where session recordings are stored.
-	SessionRecordingsURI string
-	// AuditEventsURI is the S3 URI where audit events are stored.
-	AuditEventsURI string
-	// AthenaResultsURI is the S3 URI where temporary Athena results are stored.
-	AthenaResultsURI string
-	// AthenaWorkgroup is the name of the Athena workgroup used.
-	AthenaWorkgroup string
-	// GlueDatabase is the name of the Glue database used.
-	GlueDatabase string
-	// GlueTable is the name of the Glue table used.
-	GlueTable string
-	// Partition is the AWS partition to use (default: aws).
-	Partition string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -679,18 +679,22 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		w = os.Stdout
 		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
-		// TODO(tross): add slog support for syslog.
-		hook, err := utils.CreateSyslogHook()
+		w = os.Stderr
+		sw, err := utils.NewSyslogWriter()
 		if err != nil {
-			// syslog is not available
 			logger.Errorf("Failed to switch logging to syslog: %v.", err)
-			w = os.Stderr
 			break
 		}
+
+		hook, err := utils.NewSyslogHook(sw)
+		if err != nil {
+			logger.Errorf("Failed to switch logging to syslog: %v.", err)
+			break
+		}
+
 		logger.ReplaceHooks(make(log.LevelHooks))
 		logger.AddHook(hook)
-		// ... and disable stderr:
-		w = io.Discard
+		w = sw
 	default:
 		// assume it's a file path:
 		logFile, err := os.Create(loggerConfig.Output)
@@ -721,7 +725,17 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 
-	sharedWriter := logutils.NewSharedWriter(w)
+	configuredFields, err := logutils.ValidateFields(loggerConfig.Format.ExtraFields)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If syslog output has been configured and is supported by the operating system,
+	// then the shared writer is not needed because the syslog writer is already
+	// protected with a mutex.
+	if len(logger.Hooks) == 0 {
+		w = logutils.NewSharedWriter(w)
+	}
 	var slogLogger *slog.Logger
 	switch strings.ToLower(loggerConfig.Format.Output) {
 	case "":
@@ -729,7 +743,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	case "text":
 		enableColors := trace.IsTerminal(os.Stderr)
 		formatter := &logutils.TextFormatter{
-			ExtraFields:  loggerConfig.Format.ExtraFields,
+			ExtraFields:  configuredFields,
 			EnableColors: enableColors,
 		}
 
@@ -737,18 +751,24 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 
-		logger.SetOutput(sharedWriter)
 		logger.SetFormatter(formatter)
+		// Disable writing output to stderr/stdout and syslog. The logging
+		// hook will take care of writing the output to the correct location.
+		if len(logger.Hooks) > 0 {
+			logger.SetOutput(io.Discard)
+		} else {
+			logger.SetOutput(w)
+		}
 
-		slogLogger = slog.New(logutils.NewSlogTextHandler(sharedWriter, &logutils.SlogTextHandlerConfig{
-			Level:        level,
-			EnableColors: enableColors,
-			WithCaller:   true,
+		slogLogger = slog.New(logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
+			Level:            level,
+			EnableColors:     enableColors,
+			ConfiguredFields: configuredFields,
 		}))
 		slog.SetDefault(slogLogger)
 	case "json":
 		formatter := &logutils.JSONFormatter{
-			ExtraFields: loggerConfig.Format.ExtraFields,
+			ExtraFields: configuredFields,
 		}
 
 		if err := formatter.CheckAndSetDefaults(); err != nil {
@@ -756,9 +776,18 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		}
 
 		logger.SetFormatter(formatter)
-		logger.SetOutput(sharedWriter)
+		// Disable writing output to stderr/stdout and syslog. The logging
+		// hook will take care of writing the output to the correct location.
+		if len(logger.Hooks) > 0 {
+			logger.SetOutput(io.Discard)
+		} else {
+			logger.SetOutput(w)
+		}
 
-		slogLogger = slog.New(logutils.NewSlogJSONHandler(sharedWriter, level))
+		slogLogger = slog.New(logutils.NewSlogJSONHandler(w, logutils.SlogJSONHandlerConfig{
+			Level:            level,
+			ConfiguredFields: configuredFields,
+		}))
 		slog.SetDefault(slogLogger)
 	default:
 		return trace.BadParameter("unsupported log output format : %q", loggerConfig.Format.Output)
@@ -949,10 +978,19 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if fc.Auth.CAKeyParams.GoogleCloudKMS != nil {
 			return trace.BadParameter("cannot set both pkcs11 and gcp_kms in file config")
 		}
+		if fc.Auth.CAKeyParams.AWSKMS != nil {
+			return trace.BadParameter("cannot set both pkcs11 and aws_kms in file config")
+		}
 		return trace.Wrap(applyPKCS11Config(fc.Auth.CAKeyParams.PKCS11, cfg))
 	}
 	if fc.Auth.CAKeyParams.GoogleCloudKMS != nil {
+		if fc.Auth.CAKeyParams.AWSKMS != nil {
+			return trace.BadParameter("cannot set both gpc_kms and aws_kms in file config")
+		}
 		return trace.Wrap(applyGoogleCloudKMSConfig(fc.Auth.CAKeyParams.GoogleCloudKMS, cfg))
+	}
+	if fc.Auth.CAKeyParams.AWSKMS != nil {
+		return trace.Wrap(applyAWSKMSConfig(fc.Auth.CAKeyParams.AWSKMS, cfg))
 	}
 	return nil
 }
@@ -1016,6 +1054,18 @@ func applyGoogleCloudKMSConfig(kmsConfig *GoogleCloudKMS, cfg *servicecfg.Config
 		return trace.BadParameter("must set protection_level in ca_key_params.gcp_kms")
 	}
 	cfg.Auth.KeyStore.GCPKMS.ProtectionLevel = kmsConfig.ProtectionLevel
+	return nil
+}
+
+func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
+	if kmsConfig.Account == "" {
+		return trace.BadParameter("must set account in ca_key_params.aws_kms")
+	}
+	cfg.Auth.KeyStore.AWSKMS.AWSAccount = kmsConfig.Account
+	if kmsConfig.Region == "" {
+		return trace.BadParameter("must set region in ca_key_params.aws_kms")
+	}
+	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
 	return nil
 }
 
@@ -1113,9 +1163,6 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.AutomaticUpgradesChannels != nil {
 		cfg.Proxy.AutomaticUpgradesChannels = fc.Proxy.AutomaticUpgradesChannels
-		if err := cfg.Proxy.AutomaticUpgradesChannels.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "failed to set up automatic update channels")
-		}
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -1396,14 +1443,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 		cfg.SSH.BPF = fc.SSH.BPF.Parse()
 	}
 	if fc.SSH.RestrictedSession != nil {
-		rs, err := fc.SSH.RestrictedSession.Parse()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.SSH.RestrictedSession = rs
-
-		log.Warnf("Restricted Sessions for SSH were deprecated in Teleport 14 " +
-			"and will be removed in Teleport 15.")
+		log.Error("Restricted Sessions for SSH were removed in Teleport 15.")
 	}
 
 	cfg.SSH.AllowTCPForwarding = fc.SSH.AllowTCPForwarding()
@@ -1490,16 +1530,18 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
 		var installerParams *types.InstallerParams
-		if matcher.InstallParams != nil {
+		if slices.Contains(matcher.Types, types.AzureMatcherVM) {
 			installerParams = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
-			if matcher.InstallParams.Azure != nil {
-				installerParams.Azure = &types.AzureInstallerParams{
-					ClientID: matcher.InstallParams.Azure.ClientID,
+			if matcher.InstallParams != nil {
+				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
+				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
+				installerParams.ScriptName = matcher.InstallParams.ScriptName
+				if matcher.InstallParams.Azure != nil {
+					installerParams.Azure = &types.AzureInstallerParams{
+						ClientID: matcher.InstallParams.Azure.ClientID,
+					}
 				}
 			}
 		}
@@ -1521,14 +1563,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
 		var installerParams *types.InstallerParams
-		if matcher.InstallParams != nil {
+		if slices.Contains(matcher.Types, types.GCPMatcherCompute) {
 			installerParams = &types.InstallerParams{
-				JoinMethod:      matcher.InstallParams.JoinParams.Method,
-				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
-				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
+			if matcher.InstallParams != nil {
+				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
+				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
+				installerParams.ScriptName = matcher.InstallParams.ScriptName
+			}
 		}
+
 		serviceMatcher := types.GCPMatcher{
 			Types:           matcher.Types,
 			Locations:       matcher.Locations,
@@ -1563,6 +1608,28 @@ kubernetes matchers are present`)
 		}
 
 		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers, serviceMatcher)
+	}
+
+	if fc.Discovery.AccessGraph != nil {
+		var tMatcher types.AccessGraphSync
+		for _, awsMatcher := range fc.Discovery.AccessGraph.AWS {
+			regions := awsMatcher.Regions
+			if len(regions) == 0 {
+				return trace.BadParameter("missing regions in access_graph")
+			}
+			var assumeRole *types.AssumeRole
+			if awsMatcher.AssumeRoleARN != "" || awsMatcher.ExternalID != "" {
+				assumeRole = &types.AssumeRole{
+					RoleARN:    awsMatcher.AssumeRoleARN,
+					ExternalID: awsMatcher.ExternalID,
+				}
+			}
+			tMatcher.AWS = append(tMatcher.AWS, &types.AccessGraphAWSSync{
+				Regions:    regions,
+				AssumeRole: assumeRole,
+			})
+		}
+		cfg.Discovery.AccessGraph = &tMatcher
 	}
 
 	return nil
@@ -1700,6 +1767,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				AssumeRoleARN: database.AWS.AssumeRoleARN,
 				ExternalID:    database.AWS.ExternalID,
 				Region:        database.AWS.Region,
+				SessionTags:   database.AWS.SessionTags,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
@@ -2264,6 +2332,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.Wrap(err)
 			}
 		}
+		var sessionTags map[string]string
+		if clf.DatabaseAWSSessionTags != "" {
+			var err error
+			sessionTags, err = client.ParseLabelSpec(clf.DatabaseAWSSessionTags)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
 		db := servicecfg.Database{
 			Name:         clf.DatabaseName,
 			Description:  clf.DatabaseDescription,
@@ -2282,6 +2358,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				AccountID:     clf.DatabaseAWSAccountID,
 				AssumeRoleARN: clf.DatabaseAWSAssumeRoleARN,
 				ExternalID:    clf.DatabaseAWSExternalID,
+				SessionTags:   sessionTags,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},
@@ -2742,10 +2819,21 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.NewAggregate(trace.BadParameter("error trying to find file %s", fc.Okta.APITokenPath), err)
 	}
 
+	syncSettings, err := fc.Okta.Sync.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// For backwards compatibility, if SyncPeriod is specified, use that in the sync settings.
+	if syncSettings.AppGroupSyncPeriod == 0 {
+		syncSettings.AppGroupSyncPeriod = fc.Okta.SyncPeriod
+	}
+
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
 	cfg.Okta.SyncPeriod = fc.Okta.SyncPeriod
+	cfg.Okta.SyncSettings = *syncSettings
 	return nil
 }
 

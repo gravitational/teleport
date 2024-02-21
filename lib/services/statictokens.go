@@ -70,15 +70,7 @@ func MarshalStaticTokens(staticToken types.StaticTokens, opts ...MarshalOption) 
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *staticToken
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			staticToken = &copy
-		}
-		return utils.FastMarshal(staticToken)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, staticToken))
 	default:
 		return nil, trace.BadParameter("unrecognized static token version %T", staticToken)
 	}

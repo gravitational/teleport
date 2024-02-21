@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	eventtypes "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -65,6 +66,66 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestRejectedClients(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_REJECT_OLD_CLIENTS", "yes")
+
+	server, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:         t.TempDir(),
+		ClusterName: "cluster",
+		Clock:       clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"}, nil)
+	require.NoError(t, err)
+
+	tlsServer, err := server.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	tlsConfig, err := tlsServer.ClientTLSConfig(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	clt, err := NewClient(client.Config{
+		DialInBackground: true,
+		Addrs:            []string{tlsServer.Addr().String()},
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+	})
+	require.NoError(t, err)
+	defer clt.Close()
+
+	t.Run("reject old version", func(t *testing.T) {
+		version := teleport.MinClientSemVersion
+		version.Major--
+		ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
+		ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+			metadata.VersionKey: version.String(),
+		})
+		resp, err := clt.Ping(ctx)
+		require.True(t, trace.IsConnectionProblem(err))
+		require.Equal(t, proto.PingResponse{}, resp)
+	})
+
+	t.Run("allow valid versions", func(t *testing.T) {
+		version := teleport.MinClientSemVersion
+		version.Major--
+		for i := 0; i < 5; i++ {
+			version.Major++
+
+			ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
+			ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+				metadata.VersionKey: version.String(),
+			})
+			resp, err := clt.Ping(ctx)
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+		}
+	})
+}
 
 // TestRemoteBuiltinRole tests remote builtin role
 // that gets mapped to remote proxy readonly role
@@ -214,7 +275,7 @@ func TestRemoteRotation(t *testing.T) {
 	gracePeriod := time.Hour
 	remoteServer.AuthServer.privateKey, ok = fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
-	err = remoteServer.AuthServer.RotateCertAuthority(ctx, RotateRequest{
+	err = remoteServer.AuthServer.RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -223,7 +284,7 @@ func TestRemoteRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// moves to update clients
-	err = remoteServer.AuthServer.RotateCertAuthority(ctx, RotateRequest{
+	err = remoteServer.AuthServer.RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -349,7 +410,7 @@ func TestAutoRotation(t *testing.T) {
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		Mode:        types.RotationModeAuto,
@@ -450,7 +511,7 @@ func TestAutoFallback(t *testing.T) {
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		Mode:        types.RotationModeAuto,
@@ -471,7 +532,7 @@ func TestAutoFallback(t *testing.T) {
 	require.Equal(t, types.RotationModeAuto, ca.GetRotation().Mode)
 
 	// rollback rotation
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseRollback,
@@ -510,7 +571,7 @@ func TestManualRotation(t *testing.T) {
 	gracePeriod := time.Hour
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
@@ -519,7 +580,7 @@ func TestManualRotation(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 
 	// starts rotation
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -532,7 +593,7 @@ func TestManualRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// clients reconnect
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -552,7 +613,7 @@ func TestManualRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// can't jump to standy
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
@@ -561,7 +622,7 @@ func TestManualRotation(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 
 	// advance rotation:
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
@@ -578,7 +639,7 @@ func TestManualRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// complete rotation
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
@@ -620,7 +681,7 @@ func TestRollback(t *testing.T) {
 	gracePeriod := time.Hour
 	testSrv.Auth().privateKey, ok = fixtures.PEMBytes["rsa"]
 	require.True(t, ok)
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -629,7 +690,7 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// move to update clients phase
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -645,7 +706,7 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// advance rotation:
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
@@ -654,7 +715,7 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// rollback rotation
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseRollback,
@@ -668,7 +729,7 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// can't jump to other phases
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -677,7 +738,7 @@ func TestRollback(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err))
 
 	// complete rollback
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
@@ -741,7 +802,7 @@ func TestAppTokenRotation(t *testing.T) {
 	// Start rotation and move to initial phase. A new CA will be added (for
 	// verification), but requests will continue to be signed by the old CA.
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -764,7 +825,7 @@ func TestAppTokenRotation(t *testing.T) {
 
 	// Move rotation into the update client phase. In this phase, requests will
 	// be signed by the new CA, but the old CA will be around to verify requests.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -803,7 +864,7 @@ func TestAppTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Move rotation into update servers phase.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
@@ -827,7 +888,7 @@ func TestAppTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Complete rotation. The old CA will be removed.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.JWTSigner,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
@@ -863,6 +924,14 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
+	proxyServer, err := types.NewServer("proxy-hostname", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{"http://localhost:8080"},
+	})
+	require.NoError(t, err)
+
+	err = clt.UpsertProxy(ctx, proxyServer)
+	require.NoError(t, err)
+
 	user1, _, err := CreateUserAndRole(clt, "user1", nil, []types.Rule{
 		types.NewRule(types.KindIntegration, []string{types.VerbUse}),
 	})
@@ -873,11 +942,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 
 	// Create a JWT using the current CA, this will become the "old" CA during
 	// rotation.
-	oldJWT, err := client.GenerateAWSOIDCToken(ctx,
-		types.GenerateAWSOIDCTokenRequest{
-			Issuer: "http://localhost:8080",
-		},
-	)
+	oldJWT, err := client.GenerateAWSOIDCToken(ctx)
 	require.NoError(t, err)
 
 	// Check that the "old" CA can be used to verify tokens.
@@ -895,7 +960,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	// Start rotation and move to initial phase. A new CA will be added (for
 	// verification), but requests will continue to be signed by the old CA.
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.OIDCIdPCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -918,7 +983,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 
 	// Move rotation into the update client phase. In this phase, requests will
 	// be signed by the new CA, but the old CA will be around to verify requests.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.OIDCIdPCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateClients,
@@ -927,11 +992,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// New tokens should now fail to validate with the old key.
-	newJWT, err := client.GenerateAWSOIDCToken(ctx,
-		types.GenerateAWSOIDCTokenRequest{
-			Issuer: "http://localhost:8080",
-		},
-	)
+	newJWT, err := client.GenerateAWSOIDCToken(ctx)
 	require.NoError(t, err)
 
 	// New tokens will validate with the new key.
@@ -950,7 +1011,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Move rotation into update servers phase.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.OIDCIdPCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseUpdateServers,
@@ -974,7 +1035,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Complete rotation. The old CA will be removed.
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.OIDCIdPCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseStandby,
@@ -1160,10 +1221,23 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	suite := &suite.ServicesTestSuite{
-		ConfigS: clt,
-	}
-	suite.AuthPreference(t)
+	ctx := context.Background()
+	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		Type:                  "local",
+		SecondFactor:          "otp",
+		DisconnectExpiredCert: types.NewBoolOption(true),
+	})
+	require.NoError(t, err)
+
+	err = clt.SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	gotAP, err := clt.GetAuthPreference(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, "local", gotAP.GetType())
+	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
+	require.True(t, gotAP.GetDisconnectExpiredCert())
 }
 
 func TestTunnelConnectionsCRUD(t *testing.T) {
@@ -1287,7 +1361,7 @@ func TestPasswordCRUD(t *testing.T) {
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
 
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
@@ -1318,7 +1392,7 @@ func TestOTPCRUD(t *testing.T) {
 	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
 
 	user := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
@@ -1372,7 +1446,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	user := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
@@ -1462,7 +1536,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 
 	// Create user and roles.
 	username := "user"
-	password := []byte("hunter2")
+	password := []byte("hunter2hunter2")
 	baseRoleName := services.RoleNameForUser(username)
 	requestableRoleName := "requestable"
 	user, err := CreateUserRoleAndRequestable(clt, username, requestableRoleName)
@@ -1657,7 +1731,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.NoError(t, err)
 
 	user := "user2"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	newUser, err := CreateUserRoleAndRequestable(clt, user, "test-request-role")
 	require.NoError(t, err)
@@ -1770,7 +1844,7 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 
 	user := "user2"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	newUser, _, err := CreateUserAndRole(clt, user, nil, nil)
 	require.NoError(t, err)
@@ -1835,7 +1909,7 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 
 	const user = "user2"
 	const testRequestRole = "test-request-role"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	newUser, err := CreateUserRoleAndRequestable(adminClient, user, testRequestRole)
 	require.NoError(t, err)
@@ -1980,6 +2054,11 @@ func TestGetCertAuthority(t *testing.T) {
 	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: testSrv.ClusterName(),
 		Type:       types.DatabaseCA,
+	}, true)
+	require.True(t, trace.IsAccessDenied(err))
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: testSrv.ClusterName(),
+		Type:       types.DatabaseClientCA,
 	}, true)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -2322,7 +2401,7 @@ func TestGenerateCerts(t *testing.T) {
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
-		require.IsType(t, &trace.AccessDeniedError{}, trace.Unwrap(err))
+		require.True(t, trace.IsAccessDenied(err), "trace.IsAccessDenied failed: err=%v (%T)", err, trace.Unwrap(err))
 
 		_, privateKeyPEM, err := utils.MarshalPrivateKey(privateKey.(crypto.Signer))
 		require.NoError(t, err)
@@ -2340,7 +2419,7 @@ func TestGenerateCerts(t *testing.T) {
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
-		require.IsType(t, &trace.AccessDeniedError{}, trace.Unwrap(err))
+		require.True(t, trace.IsAccessDenied(err), "trace.IsAccessDenied failed: err=%v (%T)", err, trace.Unwrap(err))
 		require.Contains(t, err.Error(), "impersonated user can not impersonate anyone else")
 
 		// but can renew their own cert, for example set route to cluster
@@ -2712,7 +2791,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.NoError(t, err)
 
 	user := "ws-test"
-	pass := []byte("ws-abc123")
+	pass := []byte("ws-abcdef123456")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
@@ -2745,7 +2824,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	// authentication attempt fails with wrong password
 	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
-		OTP:      &OTPCreds{Password: []byte("wrong123"), Token: validToken},
+		OTP:      &OTPCreds{Password: []byte("wrong password"), Token: validToken},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -2797,7 +2876,7 @@ func TestLoginAttempts(t *testing.T) {
 	require.NoError(t, err)
 
 	user := "user1"
-	pass := []byte("abc123")
+	pass := []byte("abcdef123456")
 
 	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
@@ -2811,7 +2890,7 @@ func TestLoginAttempts(t *testing.T) {
 	req := AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
-			Password: []byte("bad pass"),
+			Password: []byte("wrong password"),
 		},
 	}
 	// authentication attempt fails with bad password
@@ -2850,7 +2929,10 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOTP,
+		SecondFactor: constants.SecondFactorWebauthn,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
 	})
 	require.NoError(t, err)
 
@@ -2862,32 +2944,69 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	clt, err := testSrv.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	_, _, err = CreateUserAndRole(clt, username, []string{"role1"}, nil)
-	require.NoError(t, err)
+	t.Run("Reset works when user exists", func(t *testing.T) {
+		_, _, err = CreateUserAndRole(clt, username, []string{"role1"}, nil)
+		require.NoError(t, err)
 
-	token, err := testSrv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
-		Name: username,
-		TTL:  time.Hour,
+		token, err := testSrv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+			Name: username,
+			TTL:  time.Hour,
+		})
+		require.NoError(t, err)
+
+		res, err := testSrv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			TokenID:    token.GetName(),
+			DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		})
+		require.NoError(t, err)
+
+		_, registerSolved, err := NewTestDeviceFromChallenge(res)
+		require.NoError(t, err)
+
+		_, err = testSrv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:                token.GetName(),
+			NewPassword:            []byte("qweqweqweqwe"),
+			NewMFARegisterResponse: registerSolved,
+		})
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
 
-	res, err := testSrv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-		TokenID:    token.GetName(),
-		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
+	t.Run("Reset link not allowed when user does not exist", func(t *testing.T) {
+		var tokenID string
+		var resp *proto.MFARegisterResponse
+		for i := 0; i < 5; i++ {
+			token, err := testSrv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
+				Name: username,
+				TTL:  time.Hour,
+			})
+			require.NoError(t, err)
+
+			res, err := testSrv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				TokenID:    token.GetName(),
+				DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			})
+			require.NoError(t, err)
+
+			_, registerSolved, err := NewTestDeviceFromChallenge(res)
+			require.NoError(t, err)
+
+			tokenID = token.GetName()
+			resp = registerSolved
+		}
+
+		require.NoError(t, testSrv.Auth().DeleteUser(ctx, username))
+
+		_, err = testSrv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:                tokenID,
+			NewPassword:            []byte("qweqweqweqwe"),
+			NewMFARegisterResponse: resp,
+		})
+		require.Error(t, err)
+
+		tokens, err := testSrv.Auth().GetUserTokens(ctx)
+		require.NoError(t, err)
+		require.Empty(t, tokens)
 	})
-	require.NoError(t, err)
-
-	otpToken, err := totp.GenerateCode(res.GetTOTP().GetSecret(), testSrv.Clock().Now())
-	require.NoError(t, err)
-
-	_, err = testSrv.Auth().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
-		TokenID:     token.GetName(),
-		NewPassword: []byte("qweqweqwe"),
-		NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{
-			TOTP: &proto.TOTPRegisterResponse{Code: otpToken},
-		}},
-	})
-	require.NoError(t, err)
 }
 
 // TestLoginNoLocalAuth makes sure that logins for local accounts can not be
@@ -2899,7 +3018,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	testSrv := newTestTLSServer(t)
 
 	user := "foo"
-	pass := []byte("barbaz")
+	pass := []byte("feefiefoefum")
 
 	// Create a local user.
 	clt, err := testSrv.NewClient(TestAdmin())
@@ -3565,7 +3684,7 @@ func TestEventsPermissions(t *testing.T) {
 
 	// start rotation
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -3758,6 +3877,7 @@ func TestEvents(t *testing.T) {
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS:       clt,
+		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
 		PresenceS:     clt,
 		CAS:           clt,
@@ -3798,7 +3918,7 @@ func TestEventsClusterConfig(t *testing.T) {
 
 	// start rotation
 	gracePeriod := time.Hour
-	err = testSrv.Auth().RotateCertAuthority(ctx, RotateRequest{
+	err = testSrv.Auth().RotateCertAuthority(ctx, types.RotateRequest{
 		Type:        types.HostCA,
 		GracePeriod: &gracePeriod,
 		TargetPhase: types.RotationPhaseInit,
@@ -4015,7 +4135,8 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
+						User:     "token-creator",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
 					JoinMethod: types.JoinMethodToken,
@@ -4043,7 +4164,8 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-creator",
+						User:     "token-creator",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
@@ -4164,7 +4286,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
 					JoinMethod: types.JoinMethodToken,
@@ -4192,7 +4315,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
@@ -4222,7 +4346,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Code: events.ProvisionTokenCreateCode,
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User: "token-upserter",
+						User:     "token-upserter",
+						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
 					},
 					Roles:      types.SystemRoles{types.RoleNode},
 					JoinMethod: types.JoinMethodToken,

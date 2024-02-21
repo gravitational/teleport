@@ -26,13 +26,13 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"

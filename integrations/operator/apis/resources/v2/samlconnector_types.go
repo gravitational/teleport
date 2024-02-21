@@ -32,15 +32,6 @@ func init() {
 // TeleportSAMLConnectorSpec defines the desired state of TeleportSAMLConnector
 type TeleportSAMLConnectorSpec types.SAMLConnectorSpecV2
 
-// TeleportSAMLConnectorStatus defines the observed state of TeleportSAMLConnector
-type TeleportSAMLConnectorStatus struct {
-	// Conditions represent the latest available observations of an object's state
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	// +optional
-	TeleportResourceID int64 `json:"teleportResourceID,omitempty"`
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
@@ -49,8 +40,8 @@ type TeleportSAMLConnector struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TeleportSAMLConnectorSpec   `json:"spec,omitempty"`
-	Status TeleportSAMLConnectorStatus `json:"status,omitempty"`
+	Spec   TeleportSAMLConnectorSpec `json:"spec,omitempty"`
+	Status resources.Status          `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -75,6 +66,8 @@ func (c TeleportSAMLConnector) ToTeleport() types.SAMLConnector {
 	}
 }
 
+// StatusConditions returns a pointer to Status.Conditions slice. This is used
+// by the teleport resource controller to report conditions back to on resource.
 func (c *TeleportSAMLConnector) StatusConditions() *[]metav1.Condition {
 	return &c.Status.Conditions
 }

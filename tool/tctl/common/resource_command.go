@@ -25,15 +25,17 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -42,8 +44,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -142,6 +146,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAuditQuery:               rc.createAuditQuery,
 		types.KindSecurityReport:           rc.createSecurityReport,
 		types.KindServerInfo:               rc.createServerInfo,
+		types.KindBot:                      rc.createBot,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:            rc.updateUser,
@@ -434,6 +439,12 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 		// check for syntax errors in predicates
 		return trace.Wrap(err)
 	}
+	err = services.CheckDynamicLabelsInDenyRules(role)
+	if trace.IsBadParameter(err) {
+		return trace.BadParameter(dynamicLabelWarningMessage(role))
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
 
 	warnAboutKubernetesResources(rc.config.Log, role)
 	roleName := role.GetName()
@@ -464,6 +475,7 @@ func (rc *ResourceCommand) updateRole(ctx context.Context, client auth.ClientI, 
 	}
 
 	warnAboutKubernetesResources(rc.config.Log, role)
+	warnAboutDynamicLabelsInDenyRule(rc.config.Log, role)
 
 	if _, err := client.UpdateRole(ctx, role); err != nil {
 		return trace.Wrap(err)
@@ -489,6 +501,24 @@ func warnAboutKubernetesResources(logger utils.Logger, r types.Role) {
 
 	if len(role.Spec.Deny.KubernetesLabels) > 0 && len(role.Spec.Deny.KubernetesResources) > 0 {
 		logger.Warningf("role %q has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake. deny.kubernetes_resources won't be effective.", role.Metadata.Name)
+	}
+}
+
+func dynamicLabelWarningMessage(r types.Role) string {
+	return fmt.Sprintf("existing role %q has labels with the %q prefix in its deny rules. This is not recommended due to the volatility of %q labels and is not allowed for new roles",
+		r.GetName(), types.TeleportDynamicLabelPrefix, types.TeleportDynamicLabelPrefix)
+}
+
+// warnAboutDynamicLabelsInDenyRule warns about using dynamic/ labels in deny
+// rules. Only applies to existing roles as adding dynamic/ labels to deny
+// rules in a new role is not allowed.
+func warnAboutDynamicLabelsInDenyRule(logger utils.Logger, r types.Role) {
+	if err := services.CheckDynamicLabelsInDenyRules(r); err == nil {
+		return
+	} else if trace.IsBadParameter(err) {
+		logger.Warningf(dynamicLabelWarningMessage(r))
+	} else {
+		logger.WithError(err).Warningf("error checking deny rules labels")
 	}
 }
 
@@ -527,6 +557,32 @@ func (rc *ResourceCommand) createUser(ctx context.Context, client auth.ClientI, 
 		fmt.Printf("user %q has been created\n", userName)
 	}
 
+	return nil
+}
+
+func (rc *ResourceCommand) createBot(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	bot := &machineidv1pb.Bot{}
+	if err := protojson.Unmarshal(raw.Raw, bot); err != nil {
+		return trace.Wrap(err)
+	}
+	if rc.IsForced() {
+		_, err := client.BotServiceClient().UpsertBot(ctx, &machineidv1pb.UpsertBotRequest{
+			Bot: bot,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
+		return nil
+	}
+
+	_, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: bot,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("bot %q has been created\n", bot.Metadata.Name)
 	return nil
 }
 
@@ -783,7 +839,11 @@ func (rc *ResourceCommand) createToken(ctx context.Context, client auth.ClientI,
 	}
 
 	err = client.UpsertToken(ctx, token)
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("provision_token %q has been created\n", token.GetName())
+	return nil
 }
 
 func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -793,7 +853,11 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 	}
 
 	err = client.SetInstaller(ctx, inst)
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("installer %q has been set\n", inst.GetName())
+	return nil
 }
 
 func (rc *ResourceCommand) createUIConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -801,8 +865,13 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client auth.Clien
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	err = client.SetUIConfig(ctx, uic)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("ui_config %q has been set\n", uic.GetName())
+	return nil
 
-	return trace.Wrap(client.SetUIConfig(ctx, uic))
 }
 
 func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -826,7 +895,11 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 	}
 
 	_, err = client.UpsertNode(ctx, server)
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("node %q has been %s\n", name, UpsertVerb(exists, rc.IsForced()))
+	return nil
 }
 
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -928,12 +1001,20 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
 			LoginRule: rule,
 		})
-		return trail.FromGRPC(err)
+		if err != nil {
+			return trail.FromGRPC(err)
+		}
+	} else {
+		_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+			LoginRule: rule,
+		})
+		if err != nil {
+			return trail.FromGRPC(err)
+		}
 	}
-	_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
-		LoginRule: rule,
-	})
-	return trail.FromGRPC(err)
+	verb := UpsertVerb(false /* we don't know if it existed before */, rc.IsForced() /* force update */)
+	fmt.Printf("login_rule %q has been %s\n", rule.GetMetadata().GetName(), verb)
+	return nil
 }
 
 func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
@@ -941,6 +1022,19 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if sp.GetEntityDescriptor() != "" {
+		// verify that entity descriptor parses
+		ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+		if err != nil {
+			return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
+		}
+
+		// issue warning about unsupported ACS bindings.
+		if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
+			log.Warnf("Entity descriptor for SAML IdP service provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
+		}
 	}
 
 	serviceProviderName := sp.GetName()
@@ -1155,6 +1249,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 		types.KindUIConfig,
+		types.KindNetworkRestrictions,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -1504,6 +1599,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Server info %q has been deleted\n", rc.ref.Name)
+	case types.KindBot:
+		if _, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{BotName: rc.ref.Name}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Bot %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1762,6 +1862,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		warnAboutDynamicLabelsInDenyRule(rc.config.Log, role)
 		return &roleCollection{roles: []types.Role{role}}, nil
 	case types.KindNamespace:
 		if rc.ref.Name == "" {
@@ -2148,6 +2249,35 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		})
 
 		return &deviceCollection{devices: devs}, nil
+	case types.KindBot:
+		remote := client.BotServiceClient()
+		if rc.ref.Name != "" {
+			bot, err := remote.GetBot(ctx, &machineidv1pb.GetBotRequest{
+				BotName: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &botCollection{bots: []*machineidv1pb.Bot{bot}}, nil
+		}
+
+		req := &machineidv1pb.ListBotsRequest{}
+		var bots []*machineidv1pb.Bot
+		for {
+			resp, err := remote.ListBots(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			bots = append(bots, resp.Bots...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			req.PageToken = resp.NextPageToken
+		}
+		return &botCollection{bots: bots}, nil
 	case types.KindOktaImportRule:
 		if rc.ref.Name != "" {
 			importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)
@@ -2349,6 +2479,16 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &serverInfoCollection{serverInfos: serverInfos}, nil
+	case types.KindAccessList:
+		if rc.ref.Name != "" {
+			resource, err := client.AccessListClient().GetAccessList(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &accessListCollection{accessLists: []*accesslist.AccessList{resource}}, nil
+		}
+		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
+		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

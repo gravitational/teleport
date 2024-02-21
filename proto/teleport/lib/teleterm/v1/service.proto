@@ -20,7 +20,9 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/lib/teleterm/v1/access_request.proto";
+import "teleport/lib/teleterm/v1/app.proto";
 import "teleport/lib/teleterm/v1/auth_settings.proto";
 import "teleport/lib/teleterm/v1/cluster.proto";
 import "teleport/lib/teleterm/v1/database.proto";
@@ -73,8 +75,15 @@ service TerminalService {
   rpc GetRequestableRoles(GetRequestableRolesRequest) returns (GetRequestableRolesResponse);
   // AssumeRole assumes the role of the given access request
   rpc AssumeRole(AssumeRoleRequest) returns (EmptyResponse);
+  // PromoteAccessRequest promotes an access request to an access list.
+  rpc PromoteAccessRequest(PromoteAccessRequestRequest) returns (PromoteAccessRequestResponse);
+  // GetSuggestedAccessLists returns suggested access lists for an access request.
+  rpc GetSuggestedAccessLists(GetSuggestedAccessListsRequest) returns (GetSuggestedAccessListsResponse);
+
   // GetKubes returns filtered, sorted, and paginated kubes
   rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
+  // GetApps returns a filtered and paginated list of apps.
+  rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
   // RemoveCluster removes a cluster from profile
@@ -136,8 +145,6 @@ service TerminalService {
   rpc CreateConnectMyComputerRole(CreateConnectMyComputerRoleRequest) returns (CreateConnectMyComputerRoleResponse);
   // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
   rpc CreateConnectMyComputerNodeToken(CreateConnectMyComputerNodeTokenRequest) returns (CreateConnectMyComputerNodeTokenResponse);
-  // DeleteConnectMyComputerToken deletes a join token
-  rpc DeleteConnectMyComputerToken(DeleteConnectMyComputerTokenRequest) returns (DeleteConnectMyComputerTokenResponse);
   // WaitForConnectMyComputerNodeJoin sets up a watcher and returns a response only after detecting
   // that the Connect My Computer node for the particular cluster has joined the cluster (the
   // OpPut event).
@@ -253,6 +260,26 @@ message ReviewAccessRequestRequest {
 
 message ReviewAccessRequestResponse {
   AccessRequest request = 1;
+}
+
+message PromoteAccessRequestRequest {
+  string root_cluster_uri = 1;
+  string access_list_id = 2;
+  string reason = 3;
+  string access_request_id = 4;
+}
+
+message PromoteAccessRequestResponse {
+  AccessRequest request = 1;
+}
+
+message GetSuggestedAccessListsRequest {
+  string root_cluster_uri = 1;
+  string access_request_id = 2;
+}
+
+message GetSuggestedAccessListsResponse {
+  repeated accesslist.v1.AccessList access_lists = 1;
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.
@@ -448,6 +475,22 @@ message GetKubesResponse {
   string start_key = 3;
 }
 
+message GetAppsRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
+message GetAppsResponse {
+  repeated App agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
+}
+
 message GetAuthSettingsRequest {
   string cluster_uri = 1;
 }
@@ -490,12 +533,6 @@ message CreateConnectMyComputerNodeTokenResponse {
   reserved 2;
   reserved "labels";
 }
-
-message DeleteConnectMyComputerTokenRequest {
-  string root_cluster_uri = 1;
-  string token = 2;
-}
-message DeleteConnectMyComputerTokenResponse {}
 
 message WaitForConnectMyComputerNodeJoinRequest {
   string root_cluster_uri = 1;
@@ -560,6 +597,7 @@ message PaginatedResource {
     Database database = 1;
     Server server = 2;
     Kube kube = 3;
+    App app = 4;
   }
 }
 

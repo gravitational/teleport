@@ -375,6 +375,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 		PinnedIP:            "127.0.0.1",
 		KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 		KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+		KubeCluster:         "root.example.com",
 		CustomTLSServerName: localK8SNI,
 		TargetAddress:       suite.root.Config.Proxy.WebAddr,
 	})
@@ -491,6 +492,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 		PinnedIP:            "127.0.0.1",
 		KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 		KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+		KubeCluster:         "gke_project_europecentral2a_cluster1",
 		CustomTLSServerName: localK8SNI,
 		TargetAddress:       suite.root.Config.Proxy.WebAddr,
 		RouteToCluster:      suite.leaf.Secrets.SiteName,
@@ -642,6 +644,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 					Username:            kubeRoleSpec.Allow.Logins[0],
 					KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 					KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+					KubeCluster:         kubeClusterName,
 					CustomTLSServerName: kubeCluster,
 					TargetAddress:       targetAddr,
 					RouteToCluster:      testCluster.Secrets.SiteName,
@@ -769,6 +772,7 @@ func TestKubeIPPinning(t *testing.T) {
 				PinnedIP:            tc.pinnedIP,
 				KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 				KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+				KubeCluster:         kubeClusterName,
 				CustomTLSServerName: kubeCluster,
 				TargetAddress:       suite.root.Config.Proxy.WebAddr,
 				RouteToCluster:      tc.routeToCluster,
@@ -1215,8 +1219,8 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
-	t.Run("teleterm gateways cert renewal", func(t *testing.T) {
-		testTeletermGatewaysCertRenewal(t, pack)
+	t.Run("teleterm db gateways cert renewal", func(t *testing.T) {
+		testTeletermDbGatewaysCertRenewal(t, pack)
 	})
 }
 
@@ -1271,6 +1275,10 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
+
+	t.Run("teleterm app gateways cert renewal", func(t *testing.T) {
+		testTeletermAppGateway(t, pack)
+	})
 }
 
 // TestALPNProxyRootLeafAuthDial tests dialing local/remote auth service based on ALPN
@@ -1299,12 +1307,16 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	proxyClient, err := client.ConnectToProxy(context.Background())
+
+	clusterClient, err := client.ConnectToCluster(ctx)
 	require.NoError(t, err)
+	defer clusterClient.Close()
 
 	// Dial root auth service.
-	rootAuthClient, err := proxyClient.ConnectToAuthServiceThroughALPNSNIProxy(ctx, "root.example.com", "")
+	rootAuthClient, err := clusterClient.ConnectToCluster(ctx, "root.example.com")
 	require.NoError(t, err)
+	defer rootAuthClient.Close()
+
 	pr, err := rootAuthClient.Ping(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "root.example.com", pr.ClusterName)
@@ -1312,8 +1324,10 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dial leaf auth service.
-	leafAuthClient, err := proxyClient.ConnectToAuthServiceThroughALPNSNIProxy(ctx, "leaf.example.com", "")
+	leafAuthClient, err := clusterClient.ConnectToCluster(ctx, "leaf.example.com")
 	require.NoError(t, err)
+	defer leafAuthClient.Close()
+
 	pr, err = leafAuthClient.Ping(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "leaf.example.com", pr.ClusterName)

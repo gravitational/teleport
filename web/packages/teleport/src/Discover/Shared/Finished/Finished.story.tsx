@@ -28,8 +28,35 @@ export default {
 
 export const Finished = () => <Component {...props} />;
 
+export const FinishedWithoutAgentMeta = () => (
+  <Component {...props} agentMeta={undefined} />
+);
+
+export const FinishedWithAutoEnroll = () => (
+  <Component
+    {...props}
+    agentMeta={{
+      autoDiscovery: {
+        config: {
+          name: 'some-name',
+          discoveryGroup: 'some-group',
+          aws: [
+            {
+              types: ['rds'],
+              regions: ['us-east-1'],
+              tags: {},
+              integration: 'some-integration',
+            },
+          ],
+        },
+        requiredVpcsAndSubnets: undefined,
+      },
+    }}
+  />
+);
+
 const props: AgentStepProps = {
-  agentMeta: { resourceName: 'some-resource-name' } as any,
+  agentMeta: { resourceName: 'some-resource-name', agentMatcherLabels: [] },
   updateAgentMeta: () => null,
   nextStep: () => null,
 };

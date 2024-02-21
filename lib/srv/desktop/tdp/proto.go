@@ -76,6 +76,10 @@ const (
 	TypeSharedDirectoryListResponse   = MessageType(26)
 	TypePNG2Frame                     = MessageType(27)
 	TypeNotification                  = MessageType(28)
+	TypeRDPFastPathPDU                = MessageType(29)
+	TypeRDPResponsePDU                = MessageType(30)
+	TypeRDPConnectionInitialized      = MessageType(31)
+	TypeSyncKeys                      = MessageType(32)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -114,6 +118,12 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodePNGFrame(in)
 	case TypePNG2Frame:
 		return decodePNG2Frame(in)
+	case TypeRDPFastPathPDU:
+		return decodeRDPFastPathPDU(in)
+	case TypeRDPResponsePDU:
+		return decodeRDPResponsePDU(in)
+	case TypeRDPConnectionInitialized:
+		return decodeConnectionInitialized(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
 	case TypeMouseButton:
@@ -122,6 +132,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeMouseWheel(in)
 	case TypeKeyboardButton:
 		return decodeKeyboardButton(in)
+	case TypeSyncKeys:
+		return decodeSyncKeys(in)
 	case TypeClientUsername:
 		return decodeClientUsername(in)
 	case TypeClipboardData:
@@ -261,8 +273,7 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// nature of SessionWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
-	// TODO(isaiah, zmb3): remove this once a buffer pool
-	// is added.
+	// TODO(isaiah, zmb3): remove this once a buffer pool is added.
 	b := make([]byte, len(f))
 	copy(b, f)
 	return b, nil
@@ -273,6 +284,134 @@ func (f PNG2Frame) Top() uint32    { return binary.BigEndian.Uint32(f[9:13]) }
 func (f PNG2Frame) Right() uint32  { return binary.BigEndian.Uint32(f[13:17]) }
 func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
 func (f PNG2Frame) Data() []byte   { return f[21:] }
+
+// RDPFastPathPDU is an RDP Fast-Path PDU message. It carries a raw
+// RDP Server Fast-Path Update PDU (https://tinyurl.com/3t2t6er8) which
+// is used to transport image data to the frontend.
+//
+// | message type (29) | data_length uint32 | data []byte |
+//
+// Whenever you see this type itself, you can assume that it's just
+// the | data []byte | part of the message. Calling Encode() on this
+// type will return the full encoded message, including the
+// | message type (29) | data_length uint32 | parts.
+type RDPFastPathPDU []byte
+
+func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
+	// Read data length so we can allocate buffer that will fit RDPFastPathPDU message
+	var dataLength uint32
+	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
+		return RDPFastPathPDU(nil), trace.Wrap(err)
+	}
+
+	// Allocate buffer that will fit the data
+	// TODO(isaiah): improve performance by changing
+	// this api to allow buffer re-use.
+	data := make([]byte, dataLength)
+
+	// Write the data into the buffer
+	if _, err := io.ReadFull(in, data); err != nil {
+		return RDPFastPathPDU(nil), trace.Wrap(err)
+	}
+
+	return RDPFastPathPDU(data), nil
+}
+
+func (f RDPFastPathPDU) Encode() ([]byte, error) {
+	// TODO(isaiah, zmb3): remove this once a buffer pool is added.
+	b := make([]byte, 1+4+len(f))                      // byte + uint32 + len(f)
+	b[0] = byte(TypeRDPFastPathPDU)                    // message type (29)
+	binary.BigEndian.PutUint32(b[1:5], uint32(len(f))) // data_length uint32
+	copy(b[5:], f)                                     // data []byte
+	return b, nil
+}
+
+// RDPResponsePDU is an RDP Response PDU message. It carries a raw
+// encoded RDP response PDU created by the ironrdp client on the
+// frontend and sends it directly to the RDP server.
+//
+// | message type (30) | data_length uint32 | data []byte |
+//
+// Whenever you see this type itself, you can assume that it's just
+// the | data []byte | section of the message. Calling Encode() on
+// this type will return the full encoded message, including the
+// | message type (30) | data_length uint32 | parts.
+type RDPResponsePDU []byte
+
+func decodeRDPResponsePDU(in byteReader) (RDPResponsePDU, error) {
+	var resFrameLength uint32
+	if err := binary.Read(in, binary.BigEndian, &resFrameLength); err != nil {
+		return RDPResponsePDU{}, trace.Wrap(err)
+	}
+
+	resFrame := make([]byte, resFrameLength)
+	if _, err := io.ReadFull(in, resFrame); err != nil {
+		return RDPResponsePDU{}, trace.Wrap(err)
+	}
+
+	return resFrame, nil
+}
+
+func (r RDPResponsePDU) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeRDPResponsePDU))
+	writeUint32(buf, uint32(len(r)))
+	buf.Write(r)
+	return buf.Bytes(), nil
+}
+
+// ConnectionInitialized is sent to the browser when an RDP session is fully initialized.
+// It contains data that the browser needs in order to correctly handle the session.
+//
+// See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee
+//
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
+type ConnectionInitialized struct {
+	IOChannelID   uint16
+	UserChannelID uint16
+	ScreenWidth   uint16
+	ScreenHeight  uint16
+}
+
+func (c ConnectionInitialized) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeRDPConnectionInitialized))
+	writeUint16(buf, c.IOChannelID)
+	writeUint16(buf, c.UserChannelID)
+	writeUint16(buf, c.ScreenWidth)
+	writeUint16(buf, c.ScreenHeight)
+	return buf.Bytes(), nil
+}
+
+func decodeConnectionInitialized(in byteReader) (ConnectionInitialized, error) {
+	var ids ConnectionInitialized
+	err := binary.Read(in, binary.BigEndian, &ids)
+	return ids, trace.Wrap(err)
+}
+
+// | message type (32) | scroll_lock_state byte | num_lock_state byte | caps_lock_state byte | kana_lock_state byte |
+type SyncKeys struct {
+	ScrollLockState ButtonState
+	NumLockState    ButtonState
+	CapsLockState   ButtonState
+	KanaLockState   ButtonState
+}
+
+func (k SyncKeys) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSyncKeys))
+	buf.WriteByte(byte(k.ScrollLockState))
+	buf.WriteByte(byte(k.NumLockState))
+	buf.WriteByte(byte(k.CapsLockState))
+	buf.WriteByte(byte(k.KanaLockState))
+	return buf.Bytes(), nil
+}
+
+func decodeSyncKeys(in byteReader) (SyncKeys, error) {
+	var k SyncKeys
+	err := binary.Read(in, binary.BigEndian, &k)
+	return k, trace.Wrap(err)
+}
 
 // MouseMove is the mouse movement message.
 // | message type (3) | x uint32 | y uint32 |
@@ -1439,6 +1578,12 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return string(s), nil
+}
+
+// writeUint16 writes v to b in big endian order
+func writeUint16(b *bytes.Buffer, v uint16) {
+	b.WriteByte(byte(v >> 8))
+	b.WriteByte(byte(v))
 }
 
 // writeUint32 writes v to b in big endian order

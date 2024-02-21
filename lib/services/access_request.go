@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/vulcand/predicate"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
@@ -49,7 +49,7 @@ const day = 24 * time.Hour
 
 // maxAccessDuration is the maximum duration that an access request can be
 // granted for.
-const maxAccessDuration = 7 * day
+const maxAccessDuration = 14 * day
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
@@ -369,7 +369,7 @@ func ValidateAccessPredicates(role types.Role) error {
 
 	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
 		maxDuration.Duration() > maxAccessDuration {
-		return trace.BadParameter("max access duration must be less or equal 7 days")
+		return trace.BadParameter("max access duration must be less than or equal to %v", maxAccessDuration)
 	}
 
 	return nil
@@ -416,6 +416,13 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 
 	req.SetReviews(append(req.GetReviews(), rev))
 
+	if rev.AssumeStartTime != nil {
+		if rev.AssumeStartTime.After(req.GetAccessExpiry()) {
+			return trace.BadParameter("request start time is after expiry")
+		}
+		req.SetAssumeStartTime(*rev.AssumeStartTime)
+	}
+
 	// request is still pending, so check to see if this
 	// review introduces a state-transition.
 	res, err := calculateReviewBasedResolution(req)
@@ -435,9 +442,6 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
 	}
 	req.SetExpiry(req.GetAccessExpiry())
-	if rev.AssumeStartTime != nil {
-		req.SetAssumeStartTime(*rev.AssumeStartTime)
-	}
 	return nil
 }
 
@@ -1198,7 +1202,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		// If the maxDuration flag is set, consider it instead of only using the session TTL.
 		if maxDuration > 0 {
-			req.SetSessionTLL(now.Add(minDuration(sessionTTL, maxDuration)))
+			req.SetSessionTLL(now.Add(min(sessionTTL, maxDuration)))
 			ttl = maxDuration
 		} else {
 			req.SetSessionTLL(now.Add(sessionTTL))
@@ -1214,15 +1218,6 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	return nil
 }
 
-// minDuration returns the smaller of two durations.
-// DELETE after upgrading to Go 1.21. Replace with min function.
-func minDuration(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // calculateMaxAccessDuration calculates the maximum time for the access request.
 // The max duration time is the minimum of the max_duration time set on the request
 // and the max_duration time set on the request role.
@@ -1235,9 +1230,8 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 
 	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
 
-	// For dry run requests, the max_duration is set to 7 days.
+	// For dry run requests, use the maximum possible duration.
 	// This prevents the time drift that can occur as the value is set on the client side.
-	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
 	if req.GetDryRun() {
 		maxDuration = maxAccessDuration
 	} else if maxDuration < 0 {
@@ -1245,7 +1239,7 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 	}
 
 	if maxDuration > maxAccessDuration {
-		return 0, trace.BadParameter("max_duration must be less or equal 7 days")
+		return 0, trace.BadParameter("max_duration must be less than or equal to %v", maxAccessDuration)
 	}
 
 	minAdjDuration := maxDuration
@@ -1671,15 +1665,7 @@ func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOpti
 
 	switch accessRequest := accessRequest.(type) {
 	case *types.AccessRequestV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *accessRequest
-			copy.SetResourceID(0)
-			copy.SetRevision("")
-			accessRequest = &copy
-		}
-		return utils.FastMarshal(accessRequest)
+		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, accessRequest))
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", accessRequest)
 	}

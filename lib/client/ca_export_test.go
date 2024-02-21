@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -34,6 +35,8 @@ import (
 type mockAuthClient struct {
 	auth.ClientI
 	server *auth.Server
+
+	unsupportedCATypes []types.CertAuthType
 }
 
 func (m *mockAuthClient) GetDomainName(ctx context.Context) (string, error) {
@@ -41,10 +44,20 @@ func (m *mockAuthClient) GetDomainName(ctx context.Context) (string, error) {
 }
 
 func (m *mockAuthClient) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
+	for _, unsupported := range m.unsupportedCATypes {
+		if unsupported == caType {
+			return nil, trace.BadParameter("%q authority type is not supported", unsupported)
+		}
+	}
 	return m.server.GetCertAuthorities(ctx, caType, loadKeys)
 }
 
 func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	for _, unsupported := range m.unsupportedCATypes {
+		if unsupported == id.Type {
+			return nil, trace.BadParameter("%q authority type is not supported", unsupported)
+		}
+	}
 	return m.server.GetCertAuthority(ctx, id, loadKeys)
 }
 
@@ -203,9 +216,36 @@ func TestExportAuthorities(t *testing.T) {
 				assertSecrets: validatePrivateKeyPEMFunc,
 			},
 			{
+				name: "db",
+				req: ExportAuthoritiesRequest{
+					AuthType: "db",
+				},
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateTLSCertificatePEMFunc,
+				assertSecrets:   validatePrivateKeyPEMFunc,
+			},
+			{
 				name: "db-der",
 				req: ExportAuthoritiesRequest{
 					AuthType: "db-der",
+				},
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateTLSCertificateDERFunc,
+				assertSecrets:   validatePrivateKeyDERFunc,
+			},
+			{
+				name: "db-client",
+				req: ExportAuthoritiesRequest{
+					AuthType: "db-client",
+				},
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateTLSCertificatePEMFunc,
+				assertSecrets:   validatePrivateKeyPEMFunc,
+			},
+			{
+				name: "db-client-der",
+				req: ExportAuthoritiesRequest{
+					AuthType: "db-client-der",
 				},
 				errorCheck:      require.NoError,
 				assertNoSecrets: validateTLSCertificateDERFunc,

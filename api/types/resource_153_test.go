@@ -17,10 +17,14 @@ package types_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -95,5 +99,142 @@ func TestResource153ToLegacy(t *testing.T) {
 		if diff := cmp.Diff(bot, bot2, protocmp.Transform()); diff != "" {
 			t.Errorf("Marshal/Unmarshal mismatch (-want +got)\n%s", diff)
 		}
+	})
+}
+
+func TestResourceMethods(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	expiry := clock.Now().UTC()
+
+	// user is an example of a legacy resource.
+	// Any other resource type would to.
+	user := &types.UserV2{
+		Kind: "user",
+		Metadata: types.Metadata{
+			Name:     "llama",
+			Expires:  &expiry,
+			ID:       1234,
+			Revision: "alpaca",
+			Labels: map[string]string{
+				types.OriginLabel: "earth",
+			},
+		},
+		Spec: types.UserSpecV2{
+			Roles: []string{"human", "camelidae"},
+		},
+	}
+
+	// bot is an example of an RFD 153 "compliant" resource.
+	// Any other resource type would do.
+	bot := &machineidv1.Bot{
+		Kind:    "bot",
+		SubKind: "robot",
+		Metadata: &headerv1.Metadata{
+			Name:     "Bernard",
+			Expires:  timestamppb.New(expiry),
+			Id:       4567,
+			Revision: "tinman",
+			Labels: map[string]string{
+				types.OriginLabel: "mars",
+			},
+		},
+		Spec: &machineidv1.BotSpec{
+			Roles: []string{"robot", "human"},
+		},
+	}
+
+	t.Run("GetExpiry", func(t *testing.T) {
+		_, err := types.GetExpiry("invalid type")
+		require.Error(t, err)
+
+		objExpiry, err := types.GetExpiry(user)
+		require.NoError(t, err)
+		require.Equal(t, expiry, objExpiry)
+
+		objExpiry, err = types.GetExpiry(bot)
+		require.NoError(t, err)
+		require.Equal(t, expiry, objExpiry)
+
+		// check the nil expiry special case.
+		user.Metadata.Expires = nil
+		objExpiry, err = types.GetExpiry(user)
+		require.NoError(t, err)
+		require.Equal(t, time.Time{}, objExpiry)
+
+		bot.Metadata.Expires = nil
+		objExpiry, err = types.GetExpiry(bot)
+		require.NoError(t, err)
+		require.Equal(t, time.Time{}, objExpiry)
+	})
+
+	t.Run("GetResourceID", func(t *testing.T) {
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		_, err := types.GetResourceID("invalid type")
+		require.Error(t, err)
+
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		id, err := types.GetResourceID(user)
+		require.NoError(t, err)
+		require.Equal(t, user.GetResourceID(), id)
+
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		id, err = types.GetResourceID(bot)
+		require.NoError(t, err)
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		require.Equal(t, bot.GetMetadata().Id, id)
+	})
+
+	t.Run("GetRevision", func(t *testing.T) {
+		_, err := types.GetRevision("invalid type")
+		require.Error(t, err)
+
+		revision, err := types.GetRevision(user)
+		require.Equal(t, user.GetRevision(), revision)
+		require.NoError(t, err)
+
+		revision, err = types.GetRevision(bot)
+		require.NoError(t, err)
+		require.Equal(t, bot.GetMetadata().Revision, revision)
+	})
+
+	t.Run("SetRevision", func(t *testing.T) {
+		rev := uuid.NewString()
+		require.NoError(t, types.SetRevision(bot, rev))
+		require.NoError(t, types.SetRevision(user, rev))
+		require.Error(t, types.SetRevision("invalid type", "dummy"))
+
+		revision, err := types.GetRevision(user)
+		require.NoError(t, err)
+		require.Equal(t, rev, revision)
+
+		revision, err = types.GetRevision(bot)
+		require.NoError(t, err)
+		require.Equal(t, rev, revision)
+	})
+
+	t.Run("GetKind", func(t *testing.T) {
+		_, err := types.GetKind("invalid type")
+		require.Error(t, err)
+
+		kind, err := types.GetKind(user)
+		require.NoError(t, err)
+		require.Equal(t, types.KindUser, kind)
+
+		kind, err = types.GetKind(bot)
+		require.NoError(t, err)
+		require.Equal(t, types.KindBot, kind)
+	})
+
+	t.Run("GetOrigin", func(t *testing.T) {
+		_, err := types.GetOrigin("invalid type")
+		require.Error(t, err)
+
+		origin, err := types.GetOrigin(user)
+		require.NoError(t, err)
+		require.Equal(t, user.Origin(), origin)
+
+		origin, err = types.GetOrigin(bot)
+		require.NoError(t, err)
+		require.Equal(t, "mars", origin)
 	})
 }

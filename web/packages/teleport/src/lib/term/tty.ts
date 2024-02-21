@@ -20,6 +20,7 @@ import Logger from 'shared/libs/logger';
 
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
 import { Protobuf, MessageTypeEnum } from './protobuf';
@@ -62,7 +63,7 @@ class Tty extends EventEmitterWebAuthnSender {
 
   connect(w: number, h: number) {
     const connStr = this._addressResolver.getConnStr(w, h);
-    this.socket = new WebSocket(connStr);
+    this.socket = new AuthenticatedWebSocket(connStr);
     this.socket.binaryType = 'arraybuffer';
     this.socket.onopen = this._onOpenConnection;
     this.socket.onmessage = this._onMessage;
@@ -181,6 +182,7 @@ class Tty extends EventEmitterWebAuthnSender {
     try {
       const uintArray = new Uint8Array(ev.data);
       const msg = this._proto.decode(uintArray);
+
       switch (msg.type) {
         case MessageTypeEnum.WEBAUTHN_CHALLENGE:
           this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);

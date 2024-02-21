@@ -21,11 +21,11 @@ package kubev1
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -173,7 +173,7 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 func (s *Server) authorize(ctx context.Context) (*authz.Context, error) {
 	authCtx, err := s.cfg.Authz.Authorize(ctx)
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, s.cfg.Log, err)
+		return nil, trace.Wrap(err)
 	}
 	return authCtx, nil
 }

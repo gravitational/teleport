@@ -32,10 +32,9 @@ import (
 )
 
 func TestFetchInstallMethods(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		desc        string
+		setupEnv    func(t *testing.T)
 		getenv      func(string) string
 		execCommand func(string, ...string) ([]byte, error)
 		expected    []string
@@ -88,10 +87,10 @@ func TestFetchInstallMethods(t *testing.T) {
 		{
 			desc: "awsoidc_deployservice if env var is present",
 			getenv: func(name string) string {
-				if name == types.InstallMethodAWSOIDCDeployServiceEnvVar {
-					return "true"
-				}
 				return ""
+			},
+			setupEnv: func(t *testing.T) {
+				t.Setenv(types.InstallMethodAWSOIDCDeployServiceEnvVar, "yes")
 			},
 			execCommand: func(name string, args ...string) ([]byte, error) {
 				return nil, trace.NotFound("command does not exist")
@@ -165,6 +164,9 @@ CGroup: /system.slice/teleport.service
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
+			if tc.setupEnv != nil {
+				tc.setupEnv(t)
+			}
 			c := &fetchConfig{
 				getenv:      tc.getenv,
 				execCommand: tc.execCommand,

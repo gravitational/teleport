@@ -31,6 +31,8 @@ type DatabaseService interface {
 	GetNamespace() string
 
 	// GetResourceMatchers returns the resource matchers of the DatabaseService.
+	// Database services deployed by Teleport have known configurations where
+	// we will only define a single resource matcher.
 	GetResourceMatchers() []*DatabaseResourceMatcher
 }
 

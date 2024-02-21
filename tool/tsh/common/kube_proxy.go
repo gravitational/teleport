@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
@@ -457,6 +458,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	var proxy *client.ProxyClient
 	err := client.RetryWithRelogin(ctx, tc, func() error {
 		var err error
+		//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 		proxy, err = tc.ConnectToProxy(ctx)
 		return trace.Wrap(err)
 	})
@@ -543,6 +545,7 @@ func (k *kubeLocalProxy) getCertReissuer(tc *client.TeleportClient) func(ctx con
 			defer cancel()
 
 			var err error
+			//nolint:staticcheck // SA1019. TODO(tross) update to use ClusterClient
 			proxy, err = tc.ConnectToProxy(ctx)
 			return trace.Wrap(err)
 		})
@@ -592,7 +595,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	if err := checkIfCertsAreAllowedToAccessCluster(
+	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
 		key,
 		rootClusterName,
 		teleportCluster,

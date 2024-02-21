@@ -39,7 +39,8 @@
 
 .SearchPanel {
   width: 100%;
-  @container (min-width: 800px) {
+  @container (min-width: 801px) {
     width: 70%;
+    min-width: 800px;
   }
 }

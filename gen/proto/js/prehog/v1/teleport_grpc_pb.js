@@ -47,7 +47,16 @@ function deserialize_prehog_v1_SubmitUsageReportsResponse(buffer_arg) {
 
 
 var TeleportReportingServiceService = exports.TeleportReportingServiceService = {
-  submitUsageReports: {
+  // encodes and forwards usage reports to the PostHog event database; each
+// event is annotated with some properties that depend on the identity of the
+// caller:
+// - tp.account_id (UUID in string form, can be empty if missing from the
+//   license)
+// - tp.license_name (should always be a UUID)
+// - tp.license_authority (name of the authority that signed the license file
+//   used for authentication)
+// - tp.is_cloud (boolean)
+submitUsageReports: {
     path: '/prehog.v1.TeleportReportingService/SubmitUsageReports',
     requestStream: false,
     responseStream: false,

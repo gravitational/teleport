@@ -1,7 +1,7 @@
 teleport:
   address: teleport.example.com:443
-  identitySecretName: ""
   identitySecretName: teleport-plugin-email-identity
+  identitySecretPath: identity
 
 mailgun:
   enabled: false

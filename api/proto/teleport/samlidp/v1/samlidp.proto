@@ -17,6 +17,8 @@ syntax = "proto3";
 package teleport.samlidp.v1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/legacy/types/types.proto";
+import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1;samlidpv1";
 
@@ -49,4 +51,31 @@ message ProcessSAMLIdPRequestResponse {
 service SAMLIdPService {
   // ProcessSAMLIdPRequest processes the SAML auth request.
   rpc ProcessSAMLIdPRequest(ProcessSAMLIdPRequestRequest) returns (ProcessSAMLIdPRequestResponse);
+  // TestSAMLIdPAttributeMapping tests SAML attribute mapping configuration.
+  rpc TestSAMLIdPAttributeMapping(TestSAMLIdPAttributeMappingRequest) returns (TestSAMLIdPAttributeMappingResponse);
+}
+
+// TestSAMLIdPAttributeMappingRequest is a request to test attribute mapping.
+message TestSAMLIdPAttributeMappingRequest {
+  // service_provider is a SAML service provider with attribute mapping.
+  types.SAMLIdPServiceProviderV1 service_provider = 1;
+  // users is a list of users whose details will be used
+  // to evaluate attribute mapping.
+  repeated types.UserV2 users = 2;
+}
+
+// TestSAMLIdPAttributeMappingResponse is a response to attribute mapping test request.
+message TestSAMLIdPAttributeMappingResponse {
+  // mapped_attributes is the result of attribute mapping evaluation.
+  repeated MappedAttribute mapped_attributes = 1;
+}
+
+// MappedAttribute is a result of attribute mapping with username
+// of a user whose username, role and traits are used for evaluation.
+message MappedAttribute {
+  // username is username of user whose detail is used for attribute mapping.
+  string username = 1;
+  // mapped_values is a result of attribute mapping where key is requested
+  // attribute name and value is result of evaluated predicate expression.
+  map<string, wrappers.StringValues> mapped_values = 2;
 }

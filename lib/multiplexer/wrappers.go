@@ -57,6 +57,21 @@ func (c *Conn) Read(p []byte) (int, error) {
 	return c.reader.Read(p)
 }
 
+// Peek is [*bufio.Reader.Peek].
+func (c *Conn) Peek(n int) ([]byte, error) {
+	return c.reader.Peek(n)
+}
+
+// Discard is [*bufio.Reader.Discard].
+func (c *Conn) Discard(n int) (discarded int, err error) {
+	return c.reader.Discard(n)
+}
+
+// ReadByte is [*bufio.Reader.ReadByte].
+func (c *Conn) ReadByte() (byte, error) {
+	return c.reader.ReadByte()
+}
+
 // LocalAddr returns local address of the connection
 func (c *Conn) LocalAddr() net.Addr {
 	if c.proxyLine != nil {

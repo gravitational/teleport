@@ -185,6 +185,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionQuery{}
 	case DatabaseSessionMalformedPacketEvent:
 		e = &events.DatabaseSessionMalformedPacket{}
+	case DatabaseSessionPermissionsUpdateEvent:
+		e = &events.DatabasePermissionUpdate{}
 	case DatabaseSessionPostgresParseEvent:
 		e = &events.PostgresParse{}
 	case DatabaseSessionPostgresBindEvent:
@@ -295,6 +297,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.BotJoin{}
 	case InstanceJoinEvent:
 		e = &events.InstanceJoin{}
+	case BotCreateEvent:
+		e = &events.BotCreate{}
+	case BotUpdateEvent:
+		e = &events.BotUpdate{}
+	case BotDeleteEvent:
+		e = &events.BotDelete{}
 	case LoginRuleCreateEvent:
 		e = &events.LoginRuleCreate{}
 	case LoginRuleDeleteEvent:
@@ -319,6 +327,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.OktaAssignmentResult{}
 	case OktaAssignmentCleanupEvent:
 		e = &events.OktaAssignmentResult{}
+	case OktaAccessListSyncEvent:
+		e = &events.OktaAccessListSync{}
 	case AccessListCreateEvent:
 		e = &events.AccessListCreate{}
 	case AccessListUpdateEvent:
@@ -343,6 +353,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.ExternalAuditStorageEnable{}
 	case ExternalAuditStorageDisableEvent:
 		e = &events.ExternalAuditStorageDisable{}
+	case CreateMFAAuthChallengeEvent:
+		e = &events.CreateMFAAuthChallenge{}
+	case ValidateMFAAuthResponseEvent:
+		e = &events.ValidateMFAAuthResponse{}
+	case SPIFFESVIDIssuedEvent:
+		e = &events.SPIFFESVIDIssued{}
 
 	case UnknownEvent:
 		e = &events.Unknown{}

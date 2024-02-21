@@ -20,6 +20,10 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"strings"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -58,4 +62,37 @@ type Access interface {
 	DeleteAllLocks(context.Context) error
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
+}
+
+var dynamicLabelsErrorMessage = fmt.Sprintf("labels with %q prefix are not allowed in deny rules", types.TeleportDynamicLabelPrefix)
+
+// CheckDynamicLabelsInDenyRules checks if any deny rules in the given role use
+// labels prefixed with "dynamic/".
+func CheckDynamicLabelsInDenyRules(r types.Role) error {
+	for _, kind := range types.LabelMatcherKinds {
+		labelMatchers, err := r.GetLabelMatchers(types.Deny, kind)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for label := range labelMatchers.Labels {
+			if strings.HasPrefix(label, types.TeleportDynamicLabelPrefix) {
+				return trace.BadParameter(dynamicLabelsErrorMessage)
+			}
+		}
+		const expressionMatch = `"` + types.TeleportDynamicLabelPrefix
+		if strings.Contains(labelMatchers.Expression, expressionMatch) {
+			return trace.BadParameter(dynamicLabelsErrorMessage)
+		}
+	}
+
+	for _, where := range []string{
+		r.GetAccessReviewConditions(types.Deny).Where,
+		r.GetImpersonateConditions(types.Deny).Where,
+	} {
+		if strings.Contains(where, types.TeleportDynamicLabelPrefix) {
+			return trace.BadParameter(dynamicLabelsErrorMessage)
+		}
+	}
+
+	return nil
 }

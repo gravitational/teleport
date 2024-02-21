@@ -19,6 +19,7 @@
 package common
 
 import (
+	"github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
@@ -53,6 +54,8 @@ func Commands() []CLICommand {
 		&SAMLCommand{},
 		&ACLCommand{},
 		&loginrule.Command{},
+		&IdPCommand{},
+		&accessmonitoring.Command{},
 	}
 }
 

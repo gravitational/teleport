@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // Features provides supported and unsupported features
@@ -92,6 +93,10 @@ type Features struct {
 	CustomTheme string
 
 	// AccessGraph enables the usage of access graph.
+	// NOTE: this is a legacy flag that is currently used to signal
+	// that Access Graph integration is *enabled* on a cluster.
+	// *Access* to the feature is gated on the `Policy` flag.
+	// TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
 	AccessGraph bool
 	// IdentityGovernanceSecurity indicates whether IGS related features are enabled:
 	// access list, access request, access monitoring, device trust.
@@ -102,6 +107,9 @@ type Features struct {
 	AccessMonitoring AccessMonitoringFeature
 	// ProductType describes the product being used.
 	ProductType ProductType
+	// Policy holds settings for the Teleport Policy feature set.
+	// At the time of writing, this includes Teleport Access Graph (TAG).
+	Policy PolicyFeature
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -146,6 +154,11 @@ type AccessMonitoringFeature struct {
 	MaxReportRangeLimit int
 }
 
+type PolicyFeature struct {
+	// Enabled is set to `true` if Teleport Policy is enabled in the license.
+	Enabled bool
+}
+
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
 	return &proto.Features{
@@ -183,6 +196,9 @@ func (f Features) ToProto() *proto.Features {
 		AccessList: &proto.AccessListFeature{
 			CreateLimit: int32(f.AccessList.CreateLimit),
 		},
+		Policy: &proto.PolicyFeature{
+			Enabled: f.Policy.Enabled,
+		},
 	}
 }
 
@@ -205,9 +221,8 @@ func (f Features) IsLegacy() bool {
 	return !f.IsUsageBasedBilling
 }
 
-// TODO(lisa): the isUsageBasedBilling check is temporary until nearing v15.0
 func (f Features) IGSEnabled() bool {
-	return f.IsUsageBasedBilling && f.IdentityGovernanceSecurity
+	return f.IdentityGovernanceSecurity
 }
 
 func (f Features) IsTeam() bool {
@@ -230,6 +245,21 @@ type AccessResourcesGetter interface {
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 }
 
+type AccessListSuggestionClient interface {
+	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
+	RoleGetter
+
+	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+}
+
+type RoleGetter interface {
+	GetRole(ctx context.Context, name string) (types.Role, error)
+}
+type AccessListGetter interface {
+	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
+}
+
 // Modules defines interface that external libraries can implement customizing
 // default teleport behavior
 type Modules interface {
@@ -244,9 +274,11 @@ type Modules interface {
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
-	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
+	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
+	GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient, accessListGetter AccessListGetter, requestID string) ([]*accesslist.AccessList, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
@@ -344,15 +376,21 @@ func (p *defaultModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
-	return keys.PrivateKeyPolicyNone, nil
+	return nil, trace.NotFound("no attestation data for the given key")
 }
 
 // GenerateAccessRequestPromotions is a noop since OSS teleport does not support generating access list promotions.
 func (p *defaultModules) GenerateAccessRequestPromotions(_ context.Context, _ AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	// The default module does not support generating access list promotions.
 	return types.NewAccessRequestAllowedPromotions(nil), nil
+}
+
+func (p *defaultModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient,
+	accessListGetter AccessListGetter, requestID string,
+) ([]*accesslist.AccessList, error) {
+	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
 }
 
 // EnableRecoveryCodes enables recovery codes. This is a noop since OSS teleport does not

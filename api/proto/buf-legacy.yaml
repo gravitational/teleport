@@ -28,4 +28,4 @@ lint:
     - RPC_RESPONSE_STANDARD_NAME
 breaking:
   use:
-    - FILE
+    - "buf-legacy.yaml should not be used for buf breaking"

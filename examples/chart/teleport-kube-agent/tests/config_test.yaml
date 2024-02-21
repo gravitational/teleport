@@ -290,9 +290,19 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
-  - it: matches snapshot when app discovery is enabled
+  - it: matches snapshot for app-discovery-minimal.yaml
     values:
-      - ../.lint/app-discovery.yaml
+      - ../.lint/app-discovery-minimal.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
+  - it: matches snapshot for app-discovery-full.yaml
+    values:
+      - ../.lint/app-discovery-full.yaml
     asserts:
       - hasDocuments:
           count: 1

@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -30,7 +31,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 	proxyutils "github.com/gravitational/teleport/lib/utils/proxy"
 )
 
@@ -534,14 +533,7 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 
-	issuer, err := oidc.IssuerForCluster(ctx, s.accessPoint)
-	if err != nil {
-		return nil, trace.BadParameter("failed to get issuer %v", err)
-	}
-
-	token, err := s.client.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
-		Issuer: issuer,
-	})
+	token, err := s.client.GenerateAWSOIDCToken(ctx)
 	if err != nil {
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}

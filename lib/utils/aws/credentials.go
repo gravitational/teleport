@@ -20,12 +20,15 @@ package aws
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -45,6 +48,8 @@ type GetCredentialsRequest struct {
 	RoleARN string
 	// ExternalID is the external ID to be requested, if not empty.
 	ExternalID string
+	// Tags is a list of AWS STS session tags.
+	Tags map[string]string
 }
 
 // CredentialsGetter defines an interface for obtaining STS credentials.
@@ -71,6 +76,11 @@ func (g *credentialsGetter) Get(_ context.Context, request GetCredentialsRequest
 
 			if request.ExternalID != "" {
 				cred.ExternalID = aws.String(request.ExternalID)
+			}
+
+			cred.Tags = make([]*sts.Tag, 0, len(request.Tags))
+			for key, value := range request.Tags {
+				cred.Tags = append(cred.Tags, &sts.Tag{Key: aws.String(key), Value: aws.String(value)})
 			}
 		},
 	), nil
@@ -99,6 +109,37 @@ func (c *CachedCredentialsGetterConfig) SetDefaults() {
 	}
 }
 
+// credentialRequestCacheKey credentials request cache key.
+type credentialRequestCacheKey struct {
+	provider    client.ConfigProvider
+	expiry      time.Time
+	sessionName string
+	roleARN     string
+	externalID  string
+	tags        string
+}
+
+// newCredentialRequestCacheKey creates a new cache key for the credentials
+// request.
+func newCredentialRequestCacheKey(req GetCredentialsRequest) credentialRequestCacheKey {
+	k := credentialRequestCacheKey{
+		provider:    req.Provider,
+		expiry:      req.Expiry,
+		sessionName: req.SessionName,
+		roleARN:     req.RoleARN,
+		externalID:  req.ExternalID,
+	}
+
+	tags := make([]string, 0, len(req.Tags))
+	for key, value := range req.Tags {
+		tags = append(tags, key+"="+value+",")
+	}
+	sort.Strings(tags)
+	k.tags = strings.Join(tags, ",")
+
+	return k
+}
+
 type cachedCredentialsGetter struct {
 	config CachedCredentialsGetterConfig
 	cache  *utils.FnCache
@@ -125,7 +166,7 @@ func NewCachedCredentialsGetter(config CachedCredentialsGetterConfig) (Credentia
 // Get returns cached credentials if found, or fetch it from the configured
 // getter.
 func (g *cachedCredentialsGetter) Get(ctx context.Context, request GetCredentialsRequest) (*credentials.Credentials, error) {
-	credentials, err := utils.FnCacheGet(ctx, g.cache, request, func(ctx context.Context) (*credentials.Credentials, error) {
+	credentials, err := utils.FnCacheGet(ctx, g.cache, newCredentialRequestCacheKey(request), func(ctx context.Context) (*credentials.Credentials, error) {
 		credentials, err := g.config.Getter.Get(ctx, request)
 		return credentials, trace.Wrap(err)
 	})

@@ -83,6 +83,12 @@ func (t *templateTLSCAs) render(
 	_ *identity.Identity,
 	destination bot.Destination,
 ) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"templateTLSCAs/render",
+	)
+	defer span.End()
+
 	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)
 	if err != nil {
 		return trace.Wrap(err)
