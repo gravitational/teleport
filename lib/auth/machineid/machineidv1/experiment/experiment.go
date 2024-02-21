@@ -20,22 +20,21 @@ package experiment
 
 import (
 	"os"
-	"sync"
+	"sync/atomic"
 )
 
-var mu sync.Mutex
-var enabled = os.Getenv("WORKLOAD_IDENTITY_EXPERIMENT") == "1"
+var enabled = atomic.Bool{}
+
+func init() {
+	enabled.Store(os.Getenv("WORKLOAD_IDENTITY_EXPERIMENT") == "1")
+}
 
 // Enabled returns true if the workload identity experiment is enabled.
 func Enabled() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	return enabled
+	return enabled.Load()
 }
 
 // SetEnabled sets the workload identity experiment to the given value.
 func SetEnabled(value bool) {
-	mu.Lock()
-	defer mu.Unlock()
-	enabled = value
+	enabled.Store(value)
 }
