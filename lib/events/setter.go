@@ -139,7 +139,7 @@ func (c *Preparer) PrepareSessionEvent(event apievents.AuditEvent) (apievents.Pr
 
 func (c *Preparer) nextIndex() int64 {
 	if !c.cfg.StartTime.IsZero() {
-		return c.cfg.Clock.Now().Sub(c.cfg.StartTime).Nanoseconds()
+		return c.cfg.Clock.Since(c.cfg.StartTime).Nanoseconds()
 	}
 
 	return int64(c.eventIndex.Add(1) - 1)
