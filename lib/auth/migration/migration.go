@@ -26,6 +26,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/backend"
 )
@@ -44,6 +45,10 @@ func withMigrations(m []migration) func(c *applyConfig) {
 		c.migrations = m
 	}
 }
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentAuth,
+})
 
 var tracer = tracing.NewTracer("migrations")
 
@@ -116,7 +121,7 @@ func Apply(ctx context.Context, b backend.Backend, opts ...func(c *applyConfig))
 			continue
 		}
 
-		logrus.Infof("Starting migration %d %s", version, m.Name())
+		log.Infof("Starting migration %d %s", version, m.Name())
 		span.AddEvent("Starting migration", oteltrace.WithAttributes(attribute.Int("migration", version)))
 
 		started := time.Now().UTC()
@@ -136,7 +141,7 @@ func Apply(ctx context.Context, b backend.Backend, opts ...func(c *applyConfig))
 			return trace.Wrap(err)
 		}
 
-		logrus.Infof("Completed migration %d %s", version, m.Name())
+		log.Infof("Completed migration %d %s", version, m.Name())
 		span.AddEvent("Completed migration", oteltrace.WithAttributes(attribute.Int("migration", version)))
 	}
 

@@ -82,17 +82,6 @@ REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cr
 # needed on CI as they start with a fresh state each time.
 PULL_ON_CI = $(if $(filter $(CI),true),docker inspect --type=image $(1) >/dev/null 2>&1 || docker pull $(1) || true)
 
-# DOCKER_BUILDER_NAME extracts the name of the buildx builder that uses the "docker" driver.
-#
-# The awk command looks for the first line that has "docker" in the second (DRIVER) column.
-# -F '[ *]+': there may be an asterisk between the first and second column if that record is the default,
-# so just subsume the asterisk into the field separator.
-DOCKER_BUILDER_NAME = $(shell docker buildx ls 2>/dev/null | awk -F '[ *]+' '$$2 == "docker" {print $$1}')
-
-.PHONY:print-docker-builder-name
-print-docker-builder-name:
-	@echo $(DOCKER_BUILDER_NAME)
-
 #
 # Build 'teleport' release inside a docker container
 #
@@ -137,11 +126,11 @@ build-binaries-fips: buildbox-centos7-fips webassets
 buildbox:
 	$(call PULL_ON_CI,$(BUILDBOX))
 	DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
-		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg GOLANGCI_LINT_VERSION=$(GOLANGCI_LINT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
@@ -151,7 +140,6 @@ buildbox:
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
 		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
-		--cache-to type=inline \
 		--cache-from $(BUILDBOX) \
 		--tag $(BUILDBOX) .
 
@@ -170,7 +158,6 @@ buildbox-centos7:
 	$(REQUIRE_HOST_ARCH)
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7))
 	DOCKER_BUILDKIT=1 docker build \
-		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -181,7 +168,6 @@ buildbox-centos7:
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
-		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7) \
 		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
 
@@ -191,8 +177,7 @@ buildbox-centos7:
 .PHONY:buildbox-centos7-fips
 buildbox-centos7-fips:
 	$(call PULL_ON_CI,$(BUILDBOX_CENTOS7_FIPS))
-	DOCKER_BUILDKIT=1 docker build \
-		--builder $(DOCKER_BUILDER_NAME) \
+	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -202,7 +187,6 @@ buildbox-centos7-fips:
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
 		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
 
@@ -214,10 +198,8 @@ buildbox-centos7-fips:
 .PHONY:buildbox-arm
 buildbox-arm:
 	$(call PULL_ON_CI,$(BUILDBOX_ARM))
-	DOCKER_BUILDKIT=1 docker build \
-		--builder $(DOCKER_BUILDER_NAME) \
+	docker build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--cache-to type=inline \
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--build-arg UID=$(UID) \
@@ -239,9 +221,7 @@ endif
 buildbox-connect:
 	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CONNECT) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CONNECT) || true; fi; \
 	DOCKER_BUILDKIT=1 docker build \
-		--builder $(DOCKER_BUILDER_NAME) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CONNECT) \
 		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect .
 
@@ -538,6 +518,20 @@ print-go-version:
 	@echo $(GOLANG_VERSION)
 
 #
+# Print the golangci-lint version used by Teleport.
+#
+.PHONY:print-golangci-lint-version
+print-golangci-lint-version:
+	@echo $(GOLANGCI_LINT_VERSION)
+
+#
+# Print the Buf version used by Teleport.
+#
+.PHONY:print-buf-version
+print-buf-version:
+	@echo $(BUF_VERSION)
+
+#
 # Print the Rust version used to build Teleport.
 #
 .PHONY:print-rust-version
@@ -570,12 +564,9 @@ print-buildbox-version:
 #
 .PHONY:build-centos7-assets
 build-centos7-assets:
-	DOCKER_BUILDKIT=1 docker build \
-		--builder $(DOCKER_BUILDER_NAME) \
+	docker build \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg TARGETARCH=$(HOST_ARCH) \
-		--cache-to type=inline \
-		--cache-from $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		-f Dockerfile-centos7-assets .
 

@@ -310,13 +310,14 @@ RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.12.1
+RUN go install github.com/daixiang0/gci@v0.12.3
 
 # Install gotestsum.
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-RUN VERSION='v1.56.1'; \
+ARG GOLANGCI_LINT_VERSION # eg, v1.56.1
+RUN VERSION="$GOLANGCI_LINT_VERSION"; \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 

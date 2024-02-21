@@ -4911,26 +4911,40 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 	return a.authServer.SignDatabaseCSR(ctx, req)
 }
 
-// GenerateDatabaseCert generates a certificate used by a database service
-// to authenticate with the database instance.
+// GenerateDatabaseCert generates a client certificate used by a database
+// service to authenticate with the database instance, or a server certificate
+// for configuring a self-hosted database, depending on the requester_name.
 //
 // This certificate can be requested by:
 //
 //   - Cluster administrator using "tctl auth sign --format=db" command locally
 //     on the auth server to produce a certificate for configuring a self-hosted
 //     database.
-//   - Remote user using "tctl auth sign --format=db" command with a remote
-//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//     role Db.
+//   - Remote user using "tctl auth sign --format=db" command or
+//     /webapi/sites/:site/sign/db with a remote proxy (e.g. Teleport Cloud),
+//     as long as they can impersonate system role Db.
 //   - Database service when initiating connection to a database instance to
 //     produce a client certificate.
-//   - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	// Check if the User can `create` DatabaseCertificates
-	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)
+	err := a.checkAccessToGenerateDatabaseCert(types.KindDatabaseCertificate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GenerateDatabaseCert(ctx, req)
+}
+
+// checkAccessToGenerateDatabaseCert is a helper for checking db cert gen authz.
+// Requester must have at least one of:
+// - create: database_certificate or database_client_certificate.
+// - built-in Admin or DB role.
+// - allowed to impersonate the built-in DB role.
+func (a *ServerWithRoles) checkAccessToGenerateDatabaseCert(resourceKind string) error {
+	const verb = types.VerbCreate
+	// Check if the User can `create` Database Certificates
+	err := a.action(apidefaults.Namespace, resourceKind, verb)
 	if err != nil {
 		if !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		// Err is access denied, trying the old way
@@ -4940,12 +4954,13 @@ func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.D
 		if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
 			if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
 				log.WithError(err).Warnf("User %v tried to generate database certificate but does not have '%s' permission for '%s' kind, nor is allowed to impersonate %q system role",
-					a.context.User.GetName(), types.VerbCreate, types.KindDatabaseCertificate, types.RoleDatabase)
-				return nil, trace.AccessDenied(fmt.Sprintf("access denied. User must have '%s' permission for '%s' kind to generate the certificate ", types.VerbCreate, types.KindDatabaseCertificate))
+					a.context.User.GetName(), verb, resourceKind, types.RoleDatabase)
+				return trace.AccessDenied("access denied. User must have '%s' permission for '%s' kind to generate the certificate ",
+					verb, resourceKind)
 			}
 		}
 	}
-	return a.authServer.GenerateDatabaseCert(ctx, req)
+	return nil
 }
 
 // GenerateSnowflakeJWT generates JWT in the Snowflake required format.
@@ -6332,10 +6347,10 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 //
 //   - Windows desktop service when updating the certificate authority contents
 //     on LDAP.
-//   - Cluster administrator using "tctl auth crl --type=db" command locally
+//   - Cluster administrator using "tctl auth crl --type=db_client" command locally
 //     on the auth server to produce revocation list used to be configured on
 //     external services such as Windows certificate store.
-//   - Remote user using "tctl auth crl --type=db" command with a remote
+//   - Remote user using "tctl auth crl --type=db_client" command with a remote
 //     proxy (e.g. Teleport Cloud), as long as they have permission to read
 //     certificate authorities.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
