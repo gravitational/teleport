@@ -102,6 +102,8 @@ func filterNonConnectableSockets(ctx context.Context, paths []string) (filtered 
 	return filtered, lastErr
 }
 
+type cleanupDelayContextKey struct{}
+
 // HandoverCleanup deletes hand-over sockets that were left over from previous
 // runs of Teleport that failed to clean up after themselves (because of an
 // uncatchable signal or a system crash). It will exhaustively clean up the
@@ -140,10 +142,15 @@ func (r *SSHServerWrapper) HandoverCleanup(ctx context.Context) error {
 	// unconnectable sockets
 	r.log.WithField("sockets", len(paths)).Debug("Found some unconnectable handover sockets, waiting before checking them again.")
 
+	cleanupDelay := time.Second
+	if d, ok := ctx.Value((*cleanupDelayContextKey)(nil)).(time.Duration); ok {
+		cleanupDelay = d
+	}
+
 	select {
 	case <-ctx.Done():
 		return trace.NewAggregate(firstErr, ctx.Err())
-	case <-time.After(3 * time.Second):
+	case <-time.After(cleanupDelay):
 	}
 
 	paths, secondErr := filterNonConnectableSockets(ctx, paths)
