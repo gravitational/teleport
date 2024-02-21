@@ -37,7 +37,7 @@ func TestPreparerIncrementalIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		e, err := preparer.PrepareSessionEvent(generateEvent(t))
+		e, err := preparer.PrepareSessionEvent(generateEvent())
 		require.NoError(t, err)
 		require.Equal(t, int64(i), e.GetAuditEvent().GetIndex(), "unexpected event index")
 	}
@@ -56,7 +56,7 @@ func TestPreparerTimeBasedIndex(t *testing.T) {
 
 	var lastIndex int64
 	for i := 0; i < 9; i++ {
-		e, err := preparer.PrepareSessionEvent(generateEvent(t))
+		e, err := preparer.PrepareSessionEvent(generateEvent())
 		require.NoError(t, err)
 		require.Greater(t, e.GetAuditEvent().GetIndex(), lastIndex, "expected a larger index")
 		lastIndex = e.GetAuditEvent().GetIndex()
@@ -89,11 +89,11 @@ func TestPreparerTimeBasedIndexCollisions(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 9; i++ {
-		evtOne, err := preparerOne.PrepareSessionEvent(generateEvent(t))
+		evtOne, err := preparerOne.PrepareSessionEvent(generateEvent())
 		require.NoError(t, err)
 		idxOne := evtOne.GetAuditEvent().GetIndex()
 
-		evtTwo, err := preparerTwo.PrepareSessionEvent(generateEvent(t))
+		evtTwo, err := preparerTwo.PrepareSessionEvent(generateEvent())
 		require.NoError(t, err)
 		idxTwo := evtTwo.GetAuditEvent().GetIndex()
 
@@ -102,9 +102,7 @@ func TestPreparerTimeBasedIndexCollisions(t *testing.T) {
 	}
 }
 
-func generateEvent(t *testing.T) apievents.AuditEvent {
-	t.Helper()
-
+func generateEvent() apievents.AuditEvent {
 	return &apievents.AppSessionChunk{
 		Metadata: apievents.Metadata{
 			Type:        AppSessionChunkEvent,

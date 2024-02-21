@@ -443,14 +443,12 @@ func TestEmitSessionEventsSameIndex(t *testing.T) {
 	tt := setupDynamoContext(t)
 	sessionID := session.NewID()
 
-	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(t, sessionID, 0)))
-	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(t, sessionID, 1)))
-	require.Error(t, tt.log.EmitAuditEvent(ctx, generateEvent(t, sessionID, 1)))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 0)))
+	require.NoError(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1)))
+	require.Error(t, tt.log.EmitAuditEvent(ctx, generateEvent(sessionID, 1)))
 }
 
-func generateEvent(t *testing.T, sessionID session.ID, index int64) apievents.AuditEvent {
-	t.Helper()
-
+func generateEvent(sessionID session.ID, index int64) apievents.AuditEvent {
 	return &apievents.AppSessionChunk{
 		Metadata: apievents.Metadata{
 			Type:        events.AppSessionChunkEvent,
