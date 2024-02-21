@@ -107,6 +107,7 @@ export const DesktopPlayer = ({
             ...canvasStyle,
             ...canvasAndProgressBarDisplayStyle,
           }}
+          updatePointer={false}
         />
 
         <ProgressBar

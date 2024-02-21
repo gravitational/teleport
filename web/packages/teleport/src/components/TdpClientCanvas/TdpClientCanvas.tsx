@@ -50,6 +50,7 @@ function TdpClientCanvas(props: Props) {
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
     style,
+    updatePointer,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -100,7 +101,7 @@ function TdpClientCanvas(props: Props) {
   const previousCursor = useRef('auto');
 
   useEffect(() => {
-    if (client) {
+    if (client && updatePointer) {
       const canvas = canvasRef.current;
       const updatePointer = (pointer: {
         data: ImageData | boolean;
@@ -425,6 +426,7 @@ export type Props = {
   canvasOnMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
   canvasOnContextMenu?: () => boolean;
   style?: CSSProperties;
+  updatePointer: boolean;
 };
 
 export default memo(TdpClientCanvas);
