@@ -21,7 +21,6 @@ package common
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"log/slog"
 	"net/url"
@@ -1007,7 +1006,6 @@ func onIntegrationConfEKSIAM(params config.IntegrationConfEKSIAM) error {
 
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-	_ = log.GetLevel()
 
 	iamClient, err := awsoidc.NewEKSIAMConfigureClient(ctx, params.Region)
 	if err != nil {
