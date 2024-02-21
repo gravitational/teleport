@@ -38,6 +38,7 @@ function TdpClientCanvas(props: Props) {
     clientOnClipboardData,
     clientOnTdpError,
     clientOnTdpWarning,
+    clientOnTdpInfo,
     clientOnWsClose,
     clientOnWsOpen,
     clientOnClientScreenSpec,
@@ -224,6 +225,16 @@ function TdpClientCanvas(props: Props) {
   }, [client, clientOnTdpWarning]);
 
   useEffect(() => {
+    if (client && clientOnTdpInfo) {
+      client.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+
+      return () => {
+        client.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
+      };
+    }
+  }, [client, clientOnTdpInfo]);
+
+  useEffect(() => {
     if (client && clientOnWsClose) {
       client.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
 
@@ -405,7 +416,8 @@ export type Props = {
   clientOnClipboardData?: (clipboardData: ClipboardData) => void;
   clientOnTdpError?: (error: Error) => void;
   clientOnTdpWarning?: (warning: string) => void;
-  clientOnWsClose?: () => void;
+  clientOnTdpInfo?: (info: string) => void;
+  clientOnWsClose?: (message: string) => void;
   clientOnWsOpen?: () => void;
   clientOnClientScreenSpec?: (
     cli: TdpClient,
