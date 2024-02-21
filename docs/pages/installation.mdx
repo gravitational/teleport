@@ -123,12 +123,6 @@ Busybox shell and tool suite in addition to Teleport, and are intended for
 troubleshooting deployments only. They are not intended for production use. An
 example is `public.ecr.aws/gravitational/teleport-distroless-debug`.
 
-You can specify the architecture of an image by appending a suffix to its tag.
-We support the following architecture suffixes: `amd64`, `arm`, and `arm64`. For
-example, if you want to pull the ARM64 image for
-`public.ecr.aws/gravitational/teleport`, you can use
-`public.ecr.aws/gravitational/teleport:(=teleport.version=)-arm64`.
-
 `*-distroless` and `*-distroless-debug` images support multiple architectures
 natively, and do not require (or support) image suffixes. You can specify an
 architecture using the `--platform` flag of `docker pull` to pull the `arm`,
@@ -146,23 +140,18 @@ either:
   `(=teleport.version=)`.
 
 <Tabs>
-<TabItem label="Teleport Team/Community Edition" scope={["oss", "team"]}>
+<TabItem label="Teleport Community Edition" scope={["oss"]}>
 
 |Image name|Troubleshooting Tools?|Image base|
 |-|-|-|
 |`(=teleport.latest_oss_docker_image=)`|No|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
 |`(=teleport.latest_oss_debug_docker_image=)`|Yes|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
 
-For testing, we always recommend that you use the latest released version of
+For testing, we always recommend that you use the latest release version of
 Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 
-[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)-based images are available from
-our [Legacy Amazon ECR Public
-repository](https://gallery.ecr.aws/gravitational/teleport-ent).  Their use is
-considered deprecated, and they may be removed in future releases.
-
 </TabItem>
-<TabItem label="Teleport Enterprise Cloud/Enterprise" scope={["cloud", "enterprise"]}>
+<TabItem label="Teleport Enterprise" scope={["enterprise"]}>
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
@@ -179,11 +168,51 @@ We also provide the following images for FIPS builds of Teleport Enterprise:
 For testing, we always recommend that you use the latest release version of
 Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
 
-[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)-based images for non-FIPS
-Teleport are available from our [Legacy Amazon ECR Public repository](https://gallery.ecr.aws/gravitational/teleport-ent).
+</TabItem>
+<TabItem label="Teleport Team/Teleport Enterprise Cloud" scope={["team", "cloud"]}>
+
+| Image name | Includes troubleshooting tools | Image base |
+| - | - | - |
+| `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-distroless-debug:(=cloud.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+
+For testing, we always recommend that you use the latest Cloud release version of
+Teleport Enterprise, which is currently `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)`.
 
 </TabItem>
 </Tabs>
+
+#### Interacting with distroless images
+
+Since version 15, Teleport images are based on Google's [Distroless](https://github.com/GoogleContainerTools/distroless) images.
+Those images don't contain any shell.
+
+To execute Teleport commands on containers based on these images, run commands similar to the following:
+
+```code
+# in docker
+$ docker run -i my-container tctl status
+
+# in Kubernetes
+$ kubectl exec -i my-pod -- tctl status
+
+# sending local files via stdin
+$ kubectl exec -i my-pod -- tctl create -f < my-local-file.yaml
+
+# retrieving output via stdout and tar
+$ kubectl exec -i my-pod -- tctl auth sign --user admin --format tls --ttl 10m --tar -o admin| tar xv -C local
+$ ls -l local
+total 24
+-rw-------  1 trent  staff  1318 Jul 24 15:52 admin.cas
+-rw-------  1 trent  staff  1895 Jul 24 15:52 admin.crt
+-rw-------  1 trent  staff  1679 Jul 24 15:52 admin.key
+```
+
+Alternatively, you can use the debug variant of the image, which contains [busybox](https://www.busybox.net/about.html) and a minimal shell invocable via `busybox sh`:
+
+```code
+$ docker run -it --entrypoint="" public.ecr.aws/gravitational/teleport-distroless -debug:(=teleport.latest_oss_docker_image=) busybox sh
+```
 
 ### Running Teleport on Docker
 
@@ -257,7 +286,7 @@ to a local file for later use.
 For example:
 
 ```code
-docker exec ${TELEPORT_CONTAINER} \
+$ docker exec ${TELEPORT_CONTAINER} \
   tctl auth sign --user alice --format tls -o alice.local --tar | tar xv
 x alice.local.crt
 x alice.local.key
@@ -266,8 +295,8 @@ x alice.local.cas
 
 ### Example of running a Teleport container
 
-In this example, we will show you how to run the Teleport Auth and Proxy
-Services on a local Docker container using Teleport Community Edition.
+In this example, we will show you how to run the Teleport Auth Service and Proxy
+Service on a local Docker container using Teleport Community Edition.
 
 Since this container uses a self-signed certificate, we do not recommend using
 this configuration to protect any infrastructure outside your workstation. You
@@ -349,6 +378,17 @@ You should see JSON output similar to the following:
 We are using the `--insecure` flag to trust Teleport's self-signed certificate.
 In production, you will want to provision TLS credentials to the Proxy Service
 from a trusted CA, e.g., Let's Encrypt.
+
+### Upgrading Teleport on Docker
+
+To upgrade a Teleport container running on Docker:
+
+1. Leave the container's data directory in place.
+1. Stop the container.
+1. Run a new container with an image based on a newer Teleport version, mounting
+   the data directory as you did while running the container initially. As long
+   as the data directory contains the same content as before the upgrade, the
+   Teleport container does not need to re-join the cluster.
 
 ## Amazon EC2
 

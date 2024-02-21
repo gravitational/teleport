@@ -1553,6 +1553,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		tc.Stdout = person
 		tc.Stdin = person
 
+		//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
 		clt, err := tc.ConnectToProxy(ctx)
 		require.NoError(t, err)
 		defer clt.Close()
@@ -1653,7 +1654,15 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 		defer clt.Close()
 
-		pingResp, err := clt.AuthClient.Ping(ctx)
+		// The above dialer does not work clt.AuthClient as it requires a
+		// custom transport from ProxyClient when TLS routing is disabled.
+		// Recreating the authClient without the above dialer.
+		authClientCfg := clt.ProxyClient.ClientConfig(ctx, clusterName)
+		authClientCfg.DialOpts = nil
+		authClient, err := auth.NewClient(authClientCfg)
+		require.NoError(t, err)
+
+		pingResp, err := authClient.Ping(ctx)
 		require.NoError(t, err)
 		require.Equal(t, local.get().String(), pingResp.RemoteAddr, "client IP:port that auth server sees doesn't match the real one")
 	}
@@ -1668,6 +1677,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		})
 		require.NoError(t, err)
 
+		//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
 		clt, err := tc.ConnectToProxy(ctx)
 		require.NoError(t, err)
 		defer clt.Close()
@@ -8425,6 +8435,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 			// connect via SSH
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
+			//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
 			pc, err := tc.ConnectToProxy(ctx)
 			require.NoError(t, err)
 			require.NoError(t, pc.Close())

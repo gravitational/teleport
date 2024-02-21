@@ -165,6 +165,8 @@ const makeNewMfaDeviceProps = (
       hasTransitionEnded: true,
       password: '',
       updatePassword: () => null,
+      stepIndex: 0,
+      flowLength: 1,
     },
     overrides
   );

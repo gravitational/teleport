@@ -185,6 +185,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionQuery{}
 	case DatabaseSessionMalformedPacketEvent:
 		e = &events.DatabaseSessionMalformedPacket{}
+	case DatabaseSessionPermissionsUpdateEvent:
+		e = &events.DatabasePermissionUpdate{}
 	case DatabaseSessionPostgresParseEvent:
 		e = &events.PostgresParse{}
 	case DatabaseSessionPostgresBindEvent:
@@ -355,6 +357,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.CreateMFAAuthChallenge{}
 	case ValidateMFAAuthResponseEvent:
 		e = &events.ValidateMFAAuthResponse{}
+	case SPIFFESVIDIssuedEvent:
+		e = &events.SPIFFESVIDIssued{}
 
 	case UnknownEvent:
 		e = &events.Unknown{}
