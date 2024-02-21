@@ -4367,7 +4367,6 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 
 	if len(accessListsToReview) > 0 {
 		fmt.Printf("Access lists that need to be reviewed:\n")
-		// date time format layout
 		for _, accessList := range accessListsToReview {
 			var msg string
 			nextAuditDate := accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly)
