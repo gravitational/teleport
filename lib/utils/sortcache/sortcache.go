@@ -186,11 +186,12 @@ func (c *SortCache[T]) deleteValue(ref uint64) {
 // Ascend iterates the specified range from least to greatest. iteration is terminated early if the
 // supplied closure returns false. if this method is being used to read a range, it is strongly recommended
 // that all values retained be cloned. any mutation that results in changing a value's index keys will put
-// the sort cache into a permanently bad state.
+// the sort cache into a permanently bad state. empty strings are treated as "open" bounds. passing an empty
+// string for both the start and stop bounds iterates all values.
 //
 // NOTE: ascending ranges are equivalent to the default range logic used across most of teleport, so
 // common helpers like `backend.RangeEnd` will function as expected with this method.
-func (c *SortCache[T]) Ascend(index, greaterOrEqual, lessThan string, iterator func(T) bool) {
+func (c *SortCache[T]) Ascend(index, start, stop string, iterator func(T) bool) {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 
@@ -199,20 +200,34 @@ func (c *SortCache[T]) Ascend(index, greaterOrEqual, lessThan string, iterator f
 		return
 	}
 
-	tree.AscendRange(entry{key: greaterOrEqual}, entry{key: lessThan}, func(ent entry) bool {
+	fn := func(ent entry) bool {
 		return iterator(c.values[ent.ref])
-	})
+	}
+
+	// select the appropriate ascend variant based on wether or not
+	// start/stop points were specified.
+	switch {
+	case start == "" && stop == "":
+		tree.Ascend(fn)
+	case start == "":
+		tree.AscendLessThan(entry{key: stop}, fn)
+	case stop == "":
+		tree.AscendGreaterOrEqual(entry{key: start}, fn)
+	default:
+		tree.AscendRange(entry{key: start}, entry{key: stop}, fn)
+	}
 }
 
 // Descend iterates the specified range from greatest to least. iteration is terminated early if the
 // supplied closure returns false. if this method is being used to read a range, it is strongly recommended
 // that all values retained be cloned. any mutation that results in changing a value's index keys will put
-// the sort cache into a permanently bad state.
+// the sort cache into a permanently bad state. empty strings are treated as "open" bounds. passing an empty
+// string for both the start and stop bounds iterates all values.
 //
 // NOTE: descending sort order is the *opposite* of what most teleport range-based logic uses, meaning that
 // many common patterns need to be inverted when using this method (e.g. `backend.RangeEnd` actually gives
 // you the start position for descending ranges).
-func (c *SortCache[T]) Descend(index, lessOrEqual, greaterThan string, iterator func(T) bool) {
+func (c *SortCache[T]) Descend(index, start, stop string, iterator func(T) bool) {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 
@@ -221,9 +236,22 @@ func (c *SortCache[T]) Descend(index, lessOrEqual, greaterThan string, iterator 
 		return
 	}
 
-	tree.DescendRange(entry{key: lessOrEqual}, entry{key: greaterThan}, func(ent entry) bool {
+	fn := func(ent entry) bool {
 		return iterator(c.values[ent.ref])
-	})
+	}
+
+	// select the appropriate descend variant based on wether or not
+	// start/stop points were specified.
+	switch {
+	case start == "" && stop == "":
+		tree.Descend(fn)
+	case start == "":
+		tree.DescendGreaterThan(entry{key: stop}, fn)
+	case stop == "":
+		tree.DescendLessOrEqual(entry{key: start}, fn)
+	default:
+		tree.DescendRange(entry{key: start}, entry{key: stop}, fn)
+	}
 }
 
 // Len returns the number of values currently stored.

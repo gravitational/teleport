@@ -111,6 +111,90 @@ func TestBasics(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestOpenBounds(t *testing.T) {
+	t.Parallel()
+
+	cache := New(Config[resource]{
+		Indexes: map[string]func(resource) string{
+			Kind: func(r resource) string {
+				return fmt.Sprintf("%s/%s", r.kind, r.name)
+			},
+			Name: func(r resource) string {
+				return fmt.Sprintf("%s/%s", r.name, r.kind)
+			},
+		},
+	})
+
+	// set up some test resources
+	rscs := []resource{
+		{"node", "001"},
+		{"node", "002"},
+		{"kube", "001"},
+		{"kube", "002"},
+	}
+
+	for _, rsc := range rscs {
+		require.Equal(t, 0, cache.Put(rsc))
+	}
+
+	var out []resource
+	iterator := func(r resource) bool {
+		out = append(out, r)
+		return true
+	}
+
+	// verify fully open ascend
+	cache.Ascend(Name, "", "", iterator)
+	require.Equal(t, []resource{
+		{"kube", "001"},
+		{"node", "001"},
+		{"kube", "002"},
+		{"node", "002"},
+	}, out)
+
+	// verify fully open descend
+	out = nil
+	cache.Descend(Name, "", "", iterator)
+	require.Equal(t, []resource{
+		{"node", "002"},
+		{"kube", "002"},
+		{"node", "001"},
+		{"kube", "001"},
+	}, out)
+
+	// verify open-ended ascend
+	out = nil
+	cache.Ascend(Name, "002/kube", "", iterator)
+	require.Equal(t, []resource{
+		{"kube", "002"},
+		{"node", "002"},
+	}, out)
+
+	// verify open-ended descend
+	out = nil
+	cache.Descend(Name, "001/node", "", iterator)
+	require.Equal(t, []resource{
+		{"node", "001"},
+		{"kube", "001"},
+	}, out)
+
+	// verify open-start ascend
+	out = nil
+	cache.Ascend(Name, "", "002/kube", iterator)
+	require.Equal(t, []resource{
+		{"kube", "001"},
+		{"node", "001"},
+	}, out)
+
+	// verify open-start descend
+	out = nil
+	cache.Descend(Name, "", "001/node", iterator)
+	require.Equal(t, []resource{
+		{"node", "002"},
+		{"kube", "002"},
+	}, out)
+}
+
 // TestAscendingPagination verifies expected behavior using a basic pagination setup.
 func TestAscendingPagination(t *testing.T) {
 	const (
@@ -139,21 +223,17 @@ func TestAscendingPagination(t *testing.T) {
 	// create a paginated getter that accepts optional start key and returns a non-empty next key
 	// if additional resources exist.
 	nextPage := func(start string) (page []resource, next string) {
-		if start == "" {
-			start = "node/"
-		}
+		page = make([]resource, 0, pageSize+1)
 
-		page = make([]resource, 0, pageSize)
-
-		cache.Ascend(Kind, start, NextKey("node/"), func(r resource) bool {
-			if len(page) == pageSize {
-				next = fmt.Sprintf("node/%s", r.name)
-				return false
-			}
+		cache.Ascend(Kind, start, "", func(r resource) bool {
 			page = append(page, r)
-			return true
+			return len(page) <= pageSize
 		})
 
+		if len(page) > pageSize {
+			next = cache.KeyOf(Kind, page[pageSize])
+			page = page[:pageSize]
+		}
 		return
 	}
 
@@ -209,20 +289,17 @@ func TestDescendingPagination(t *testing.T) {
 	// create a paginated getter that accepts optional start key and returns a non-empty next key
 	// if additional resources exist.
 	nextPage := func(start string) (page []resource, next string) {
-		if start == "" {
-			start = NextKey("node/")
-		}
+		page = make([]resource, 0, pageSize+1)
 
-		page = make([]resource, 0, pageSize)
-
-		cache.Descend(Kind, start, "node/", func(r resource) bool {
-			if len(page) == pageSize {
-				next = fmt.Sprintf("node/%s", r.name)
-				return false
-			}
+		cache.Descend(Kind, start, "", func(r resource) bool {
 			page = append(page, r)
-			return true
+			return len(page) <= pageSize
 		})
+
+		if len(page) > pageSize {
+			next = cache.KeyOf(Kind, page[pageSize])
+			page = page[:pageSize]
+		}
 
 		return
 	}
