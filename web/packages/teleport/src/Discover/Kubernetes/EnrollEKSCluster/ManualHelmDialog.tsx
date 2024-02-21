@@ -19,9 +19,13 @@
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 import { Box, Flex, ButtonPrimary, ButtonSecondary, Text } from 'design';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 
 import styled from 'styled-components';
+
+import { Spinner } from 'design/Icon';
+
+import * as Icons from 'design/Icon';
 
 import {
   GenerateCmdProps,
@@ -31,14 +35,73 @@ import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { ResourceKind } from 'teleport/Discover/Shared';
+import { ResourceKind, TextIcon } from 'teleport/Discover/Shared';
 import { JoinToken } from 'teleport/services/joinToken';
+import { CatchError } from 'teleport/components/CatchError';
+
 
 type ManualHelmDialogProps = {
   commandProps: GenerateCmdProps;
   setJoinToken(token: JoinToken): void;
   confirmedCommands(): void;
   cancel(): void;
+};
+
+export default function Container(props: ManualHelmDialogProps) {
+  return (
+    <CatchError
+      fallbackFn={fallbackProps => (
+        <DummyDialog error={fallbackProps.error} cancel={props.cancel} />
+      )}
+    >
+      <Suspense
+        fallback={<DummyDialog showSpinner={true} cancel={props.cancel} />}
+      >
+        <ManualHelmDialog {...props} />
+      </Suspense>
+    </CatchError>
+  );
+}
+
+type DummyDialogProps = {
+  cancel: () => void;
+  error?: Error;
+  showSpinner?: boolean;
+};
+
+const DummyDialog = ({ error, cancel, showSpinner }: DummyDialogProps) => {
+  return (
+    <Dialog onClose={cancel} open={true}>
+      <DialogContent width="850px" mb={0}>
+        <Text bold caps mb={4}>
+          Manual EKS Cluster Enrollment
+        </Text>
+        {showSpinner && (
+          <Flex mb={4} justifyContent="center">
+            <Spin>
+              <Spinner />
+            </Spin>
+          </Flex>
+        )}
+        {error && (
+          <Box mb={4}>
+            <TextIcon mt={3}>
+              <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+              Encountered an error: {error.message}
+            </TextIcon>
+          </Box>
+        )}
+      </DialogContent>
+      <DialogFooter alignItems="center" as={Flex} gap={4}>
+        <ButtonPrimary width="50%" onClick={() => {}} disabled>
+          I ran these commands
+        </ButtonPrimary>
+        <ButtonSecondary width="50%" onClick={cancel}>
+          Cancel
+        </ButtonSecondary>
+      </DialogFooter>
+    </Dialog>
+  );
 };
 
 export function ManualHelmDialog({
@@ -111,4 +174,18 @@ const StyledBox = styled(Box)`
   background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
+`;
+
+const Spin = styled(Box)`
+  line-height: 12px;
+  font-size: 24px;
+  animation: spin 1s linear infinite;
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
 `;
