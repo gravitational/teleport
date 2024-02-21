@@ -117,8 +117,12 @@ var _ integrationpb.IntegrationServiceServer = (*Service)(nil)
 
 // ListIntegrations returns a paginated list of all Integration resources.
 func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) (*integrationpb.ListIntegrationsResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbRead, types.VerbList)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -144,8 +148,12 @@ func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListI
 
 // GetIntegration returns the specified Integration resource.
 func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (*types.IntegrationV1, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbRead)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	integration, err := s.cache.GetIntegration(ctx, req.GetName())
@@ -163,8 +171,12 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 
 // CreateIntegration creates a new Okta import rule resource.
 func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.CreateIntegrationRequest) (*types.IntegrationV1, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbCreate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -183,8 +195,12 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 
 // UpdateIntegration updates an existing Okta import rule resource.
 func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.UpdateIntegrationRequest) (*types.IntegrationV1, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbUpdate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -203,8 +219,12 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 
 // DeleteIntegration removes the specified Integration resource.
 func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -217,8 +237,12 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 
 // DeleteAllIntegrations removes all Integration resources.
 func (s *Service) DeleteAllIntegrations(ctx context.Context, _ *integrationpb.DeleteAllIntegrationsRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

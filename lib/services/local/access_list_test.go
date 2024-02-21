@@ -18,6 +18,8 @@ package local
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -481,10 +483,12 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	// Verify changes to access list.
 	accessList1Updated, err := service.GetAccessList(ctx, accessList1.GetName())
 	require.NoError(t, err)
-	require.Equal(t, accessList1Updated.Spec.Audit.NextAuditDate,
+	require.Equal(t,
 		time.Date(accessList1OrigDate.Year(),
 			accessList1OrigDate.Month()+time.Month(accessList1Updated.Spec.Audit.Recurrence.Frequency),
-			int(accessList1Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC))
+			int(accessList1Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC),
+		accessList1Updated.Spec.Audit.NextAuditDate,
+	)
 	require.Empty(t, cmp.Diff(*(accessList1Review1.Spec.Changes.MembershipRequirementsChanged), accessList1Updated.Spec.MembershipRequires))
 	require.Equal(t, accessList1Review1.Spec.Changes.ReviewFrequencyChanged, accessList1Updated.Spec.Audit.Recurrence.Frequency)
 	require.Equal(t, accessList1Review1.Spec.Changes.ReviewDayOfMonthChanged, accessList1Updated.Spec.Audit.Recurrence.DayOfMonth)
@@ -503,10 +507,12 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	// Verify changes to the access list again.
 	accessList1Updated, err = service.GetAccessList(ctx, accessList1.GetName())
 	require.NoError(t, err)
-	require.Equal(t, accessList1Updated.Spec.Audit.NextAuditDate,
+	require.Equal(t,
 		time.Date(accessList1OrigDate.Year(),
 			accessList1OrigDate.Month()+time.Month(accessList1Updated.Spec.Audit.Recurrence.Frequency)*2,
-			int(accessList1Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC))
+			int(accessList1Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC),
+		accessList1Updated.Spec.Audit.NextAuditDate,
+	)
 
 	// Attempting to apply changes already reflected in the access list should modify the original review.
 	require.Nil(t, accessList1Review2.Spec.Changes.MembershipRequirementsChanged)
@@ -525,10 +531,12 @@ func TestAccessListReviewCRUD(t *testing.T) {
 
 	accessList2Updated, err := service.GetAccessList(ctx, accessList2.GetName())
 	require.NoError(t, err)
-	require.Equal(t, accessList2Updated.Spec.Audit.NextAuditDate,
+	require.Equal(t,
 		time.Date(accessList2OrigDate.Year(),
 			accessList2OrigDate.Month()+time.Month(accessList2Updated.Spec.Audit.Recurrence.Frequency),
-			int(accessList2Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC))
+			int(accessList2Updated.Spec.Audit.Recurrence.DayOfMonth), 0, 0, 0, 0, time.UTC),
+		accessList2Updated.Spec.Audit.NextAuditDate,
+	)
 	require.Empty(t, cmp.Diff(accessList2.Spec.MembershipRequires, accessList2Updated.Spec.MembershipRequires))
 	require.Equal(t, accessList2.Spec.Audit.Recurrence.Frequency, accessList2Updated.Spec.Audit.Recurrence.Frequency)
 	require.Equal(t, accessList2.Spec.Audit.Recurrence.DayOfMonth, accessList2Updated.Spec.Audit.Recurrence.DayOfMonth)
@@ -786,7 +794,7 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 
 	review, err := accesslist.NewReview(
 		header.Metadata{
-			Name: "test-access-list-review",
+			Name: name,
 		},
 		accesslist.ReviewSpec{
 			AccessList: accessList,
@@ -825,4 +833,120 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 	require.NoError(t, err)
 
 	return review
+}
+
+func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	const numAccessLists = 10
+	const numAccessListMembersPerAccessList = 250
+	totalMembers := numAccessLists * numAccessListMembersPerAccessList
+
+	// Create several access lists.
+	expectedMembers := make([]*accesslist.AccessListMember, totalMembers)
+	for i := 0; i < numAccessLists; i++ {
+		alName := strconv.Itoa(i)
+		_, err := service.UpsertAccessList(ctx, newAccessList(t, alName, clock))
+		require.NoError(t, err)
+
+		for j := 0; j < numAccessListMembersPerAccessList; j++ {
+			member := newAccessListMember(t, alName, fmt.Sprintf("%03d", j))
+			expectedMembers[i*numAccessListMembersPerAccessList+j] = member
+			_, err := service.UpsertAccessListMember(ctx, member)
+			require.NoError(t, err)
+		}
+	}
+
+	allMembers := make([]*accesslist.AccessListMember, 0, totalMembers)
+	var nextToken string
+	for {
+		var members []*accesslist.AccessListMember
+		var err error
+		members, nextToken, err = service.ListAllAccessListMembers(ctx, 0, nextToken)
+		require.NoError(t, err)
+
+		allMembers = append(allMembers, members...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	require.Empty(t, cmp.Diff(expectedMembers, allMembers, cmpopts.IgnoreFields(header.Metadata{}, "ID")))
+}
+
+func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	const numAccessLists = 10
+	const numAccessListReviewsPerAccessList = 250
+	totalReviews := numAccessLists * numAccessListReviewsPerAccessList
+
+	// Create several access lists.
+	expectedReviews := make([]*accesslist.Review, totalReviews)
+	for i := 0; i < numAccessLists; i++ {
+		alName := strconv.Itoa(i)
+		_, err := service.UpsertAccessList(ctx, newAccessList(t, alName, clock))
+		require.NoError(t, err)
+
+		for j := 0; j < numAccessListReviewsPerAccessList; j++ {
+			review, err := accesslist.NewReview(
+				header.Metadata{
+					Name: strconv.Itoa(j),
+				},
+				accesslist.ReviewSpec{
+					AccessList: alName,
+					Reviewers: []string{
+						"user1",
+					},
+					ReviewDate: time.Now(),
+				},
+			)
+			require.NoError(t, err)
+			review, _, err = service.CreateAccessListReview(ctx, review)
+			expectedReviews[i*numAccessListReviewsPerAccessList+j] = review
+			require.NoError(t, err)
+		}
+	}
+
+	allReviews := make([]*accesslist.Review, 0, totalReviews)
+	var nextToken string
+	for {
+		var reviews []*accesslist.Review
+		var err error
+		reviews, nextToken, err = service.ListAllAccessListReviews(ctx, 0, nextToken)
+		require.NoError(t, err)
+
+		allReviews = append(allReviews, reviews...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	require.Empty(t, cmp.Diff(expectedReviews, allReviews, cmpopts.IgnoreFields(header.Metadata{}, "ID"), cmpopts.SortSlices(
+		func(r1, r2 *accesslist.Review) bool {
+			return r1.GetName() < r2.GetName()
+		}),
+	))
 }

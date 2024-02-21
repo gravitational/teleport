@@ -509,7 +509,6 @@ func TestCheckKubeCluster(t *testing.T) {
 			leafCluster:        teleportCluster,
 			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
 			outputFormat:       identityfile.FormatKubernetes,
-			want:               "foo",
 			assertErr:          require.NoError,
 		},
 		{
@@ -569,7 +568,9 @@ func TestCheckKubeCluster(t *testing.T) {
 			}
 			err := a.checkKubeCluster(context.Background(), client)
 			tt.assertErr(t, err)
-			require.Equal(t, tt.want, a.kubeCluster)
+			if err == nil {
+				require.Equal(t, tt.want, a.kubeCluster)
+			}
 		})
 	}
 }

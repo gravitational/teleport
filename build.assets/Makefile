@@ -130,6 +130,7 @@ buildbox:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg GOLANGCI_LINT_VERSION=$(GOLANGCI_LINT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -561,6 +562,20 @@ print-go-version:
 	@echo $(GOLANG_VERSION)
 
 #
+# Print the golangci-lint version used by Teleport.
+#
+.PHONY:print-golangci-lint-version
+print-golangci-lint-version:
+	@echo $(GOLANGCI_LINT_VERSION)
+
+#
+# Print the Buf version used by Teleport.
+#
+.PHONY:print-buf-version
+print-buf-version:
+	@echo $(BUF_VERSION)
+
+#
 # Print the Rust version used to build Teleport.
 #
 .PHONY:print-rust-version
@@ -591,62 +606,3 @@ build-centos7-assets:
 		--build-arg TARGETARCH=$(HOST_ARCH) \
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		-f Dockerfile-centos7-assets .
-
-#################################################################################
-# Multiarch build steps
-#################################################################################
-
-GCC_VERSION ?= 10.4.0
-# This version of Clang is explicitly required for FIPS compliance when building BoringSSL.
-# For more information please refer to the section 12. Guidance and Secure Operation of:
-# https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4407.pdf
-CLANG_VERSION ?= 12.0.0
-BUILDBOX_PREFIX ?= ghcr.io/gravitational
-
-#
-# Build Dockerfile-multiarch-base on GHA
-#
-.PHONY:build-multiarch-base
-build-multiarch-base: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-base:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch-base:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg GCC_VERSION=$(GCC_VERSION) \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch-base .
-
-#
-# Build Dockerfile-multiarch-clang on GHA with clang-12, based on -base
-#
-.PHONY:build-multiarch-clang12
-build-multiarch-clang12: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang12:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch-clang12:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg CLANG_VERSION=$(CLANG_VERSION) \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch-clang .
-
-#
-# Build Dockerfile-multiarch on GHA, based on -base
-#
-.PHONY:build-multiarch
-build-multiarch: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
-		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg UID=$(shell id -u) \
-		--build-arg GID=$(shell id -g) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch .

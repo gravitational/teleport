@@ -393,7 +393,7 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	require.Len(t, respDBService.ResourceMatchers, 1)
 	respResourceMatcher := respDBService.ResourceMatchers[0]
 
-	require.Equal(t, respResourceMatcher.Labels, &types.Labels{"env": []string{"prod"}})
+	require.Equal(t, &types.Labels{"env": []string{"prod"}}, respResourceMatcher.Labels)
 }
 
 func mustCreateDatabaseServer(t *testing.T, db *types.DatabaseV3) types.DatabaseServer {

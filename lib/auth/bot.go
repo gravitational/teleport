@@ -541,7 +541,7 @@ func (a *Server) generateInitialBotCerts(ctx context.Context, botName, username 
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(certReq)
+	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
