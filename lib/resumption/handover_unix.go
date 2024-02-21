@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const sockSuffix = ".sock"
+
 func sockPath(dataDir string, token resumptionToken) string {
 	hash := sha256.Sum256(token[:])
 	// unix domain sockets are limited to 108 or 104 characters, so the full
@@ -40,7 +42,7 @@ func sockPath(dataDir string, token resumptionToken) string {
 	// the hash to 128 bits still gives us more than enough headroom to just
 	// assume that we'll have no collisions (a probability of one in a
 	// quintillion with 26 billion concurrent connections)
-	return filepath.Join(dataDir, "handover", base64.RawURLEncoding.EncodeToString(hash[:16]))
+	return filepath.Join(dataDir, "handover", base64.RawURLEncoding.EncodeToString(hash[:16])+sockSuffix)
 }
 
 func sockDir(dataDir string) string {
@@ -100,6 +102,10 @@ func filterNonConnectableSockets(ctx context.Context, paths []string) (filtered 
 	return filtered, lastErr
 }
 
+// HandoverCleanup deletes hand-over sockets that were left over from previous
+// runs of Teleport that failed to clean up after themselves (because of an
+// uncatchable signal or a system crash). It will exhaustively clean up the
+// current left over sockets, so it's sufficient to call it once per process.
 func (r *SSHServerWrapper) HandoverCleanup(ctx context.Context) error {
 	if r.dataDir == "" {
 		return nil
@@ -116,7 +122,7 @@ func (r *SSHServerWrapper) HandoverCleanup(ctx context.Context) error {
 
 	paths := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		if strings.HasSuffix(entry.Name(), ".sock") {
+		if strings.HasSuffix(entry.Name(), sockSuffix) {
 			paths = append(paths, filepath.Join(dir, entry.Name()))
 		}
 	}
@@ -132,7 +138,7 @@ func (r *SSHServerWrapper) HandoverCleanup(ctx context.Context) error {
 	// little bit before testing them again; the first check lets us be done
 	// with the check immediately in the happy case where there's no
 	// unconnectable sockets
-	r.log.WithField("sockets", len(paths)).Debug("Found some non-connectable handover sockets, waiting before checking them again.")
+	r.log.WithField("sockets", len(paths)).Debug("Found some unconnectable handover sockets, waiting before checking them again.")
 
 	select {
 	case <-ctx.Done():
@@ -143,7 +149,7 @@ func (r *SSHServerWrapper) HandoverCleanup(ctx context.Context) error {
 	paths, secondErr := filterNonConnectableSockets(ctx, paths)
 
 	if len(paths) < 1 {
-		r.log.Debug("Found no non-connectable handover socket after waiting.")
+		r.log.Debug("Found no unconnectable handover socket after waiting.")
 		return trace.NewAggregate(firstErr, secondErr)
 	}
 
@@ -151,7 +157,9 @@ func (r *SSHServerWrapper) HandoverCleanup(ctx context.Context) error {
 
 	errs := []error{firstErr, secondErr}
 	for _, path := range paths {
-		errs = append(errs, trace.ConvertSystemError(os.Remove(path)))
+		if err := trace.ConvertSystemError(os.Remove(path)); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	return trace.NewAggregate(errs...)
