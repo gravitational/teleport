@@ -438,8 +438,9 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 		return nil, trace.Wrap(err)
 	}
 	return &dynamodb.PutItemInput{
-		Item:      av,
-		TableName: aws.String(l.Tablename),
+		Item:                av,
+		TableName:           aws.String(l.Tablename),
+		ConditionExpression: aws.String("attribute_not_exists(SessionID) AND attribute_not_exists(EventIndex)"),
 	}, nil
 }
 

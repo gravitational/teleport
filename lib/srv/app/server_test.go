@@ -965,7 +965,6 @@ func TestRequestAuditEvents(t *testing.T) {
 						Type:        events.AppSessionChunkEvent,
 						Code:        events.AppSessionChunkCode,
 						ClusterName: "root.example.com",
-						Index:       0,
 					},
 					AppMetadata: apievents.AppMetadata{
 						AppURI:        app.Spec.URI,
@@ -977,7 +976,7 @@ func TestRequestAuditEvents(t *testing.T) {
 					expectedEvent,
 					event,
 					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time", "Index"),
 					cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
 				))
 			case events.AppSessionRequestEvent:
@@ -987,7 +986,6 @@ func TestRequestAuditEvents(t *testing.T) {
 						Type:        events.AppSessionRequestEvent,
 						Code:        events.AppSessionRequestCode,
 						ClusterName: "root.example.com",
-						Index:       1,
 					},
 					AppMetadata: apievents.AppMetadata{
 						AppURI:        app.Spec.URI,
@@ -1002,7 +1000,7 @@ func TestRequestAuditEvents(t *testing.T) {
 					expectedEvent,
 					event,
 					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time", "Index"),
 					cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
 				))
 			}
@@ -1055,7 +1053,7 @@ func TestRequestAuditEvents(t *testing.T) {
 		expectedEvent,
 		searchEvents[0],
 		cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-		cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
+		cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time", "Index"),
 		cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
 	))
 }
