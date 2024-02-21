@@ -1477,7 +1477,7 @@ teleport:
   storage:
     type: cockroachdb
 
-    # conn_string is a required pamater. It is a PostgreSQL connection string used
+    # conn_string is a required parameter. It is a PostgreSQL connection string used
     # to connect to `CockroachDB` using the PostgreSQL wire protocol. Client
     # parameters may be specified using the URL. For a detailed list of available
     # parameters see https://www.cockroachlabs.com/docs/stable/connection-parameter
@@ -1495,7 +1495,7 @@ teleport:
     # change_feed_conn_string is an optional parameter. When unspecified Teleport
     # will default to using the same value specified for conn_string. It may be used
     # to configure Teleport to use a different user or connection parameters when
-    # establishing a change feed conneciton.
+    # establishing a change feed connection.
     #
     # If your certificates are not stored at the default ~/.postgresql
     # location, you will need to specify them with the sslcert, sslkey, and
@@ -1508,3 +1508,4 @@ teleport:
     # connected to or needed by Teleport. Note that configuring this to run more
     # frequently may have performance implications for CockroachDB.
     ttl_job_cron: '*/20 * * * *'
+```
