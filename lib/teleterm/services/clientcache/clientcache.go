@@ -100,12 +100,13 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 	return clt, nil
 }
 
-// ClearForRootCluster closes and removes clients from the cache
+// ClearForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
-func (c *Cache) ClearForRootCluster(rootClusterURI uri.ResourceURI) error {
+func (c *Cache) ClearForRoot(clusterURI uri.ResourceURI) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	rootClusterURI := clusterURI.GetRootClusterURI()
 	var (
 		errors  []error
 		deleted []uri.ResourceURI

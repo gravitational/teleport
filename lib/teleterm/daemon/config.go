@@ -80,9 +80,9 @@ type ClientCache interface {
 	// otherwise it dials the remote server.
 	// The caller should not close the returned client.
 	Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error)
-	// ClearForRootCluster closes and removes clients from the cache
+	// ClearForRoot closes and removes clients from the cache
 	// for the root cluster and its leaf clusters.
-	ClearForRootCluster(rootClusterURI uri.ResourceURI) error
+	ClearForRoot(clusterURI uri.ResourceURI) error
 	// Clear closes and removes all clients.
 	Clear() error
 }
