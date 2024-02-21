@@ -1,4 +1,4 @@
-.version: &version "15.0.2"
+.version: &version "15.0.0-dev.camh.ghab.1"
 
 name: teleport-operator
 apiVersion: v2
