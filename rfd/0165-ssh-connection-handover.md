@@ -7,7 +7,8 @@ state: draft
 
 ## Required Approvers
 
-TBD
+Engineering: (`@rosstimothy` || `@zmb3`) && (`@fspmarshall` || `@hugoShaka`)
+Security: `@jentfoo`
 
 ## What
 
