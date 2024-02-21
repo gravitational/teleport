@@ -179,10 +179,6 @@ exports[`list of all events 1`] = `
   border-style: hidden;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
 .c17 > thead > tr > th,
@@ -244,11 +240,15 @@ exports[`list of all events 1`] = `
 .c17 tbody tr {
   transition: all 150ms;
   position: relative;
-  border-bottom: 2px solid rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(255,255,255,0.07);
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c17 tbody tr:hover {
-  border-bottom: 2px solid rgba(0,0,0,0);
+  border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
@@ -263,12 +263,16 @@ exports[`list of all events 1`] = `
   height: 100%;
 }
 
+.c17 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
+}
+
 .c0 {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  padding: 16px 0;
   max-height: 40px;
   margin-bottom: 8px;
 }
@@ -354,7 +358,7 @@ exports[`list of all events 1`] = `
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   padding-right: 184px;
-  padding-left: 32px;
+  padding-left: 24px;
 }
 
 .c18 {
@@ -12561,10 +12565,6 @@ exports[`loaded audit log screen 1`] = `
   border-style: hidden;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
 .c16 > thead > tr > th,
@@ -12626,11 +12626,15 @@ exports[`loaded audit log screen 1`] = `
 .c16 tbody tr {
   transition: all 150ms;
   position: relative;
-  border-bottom: 2px solid rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(255,255,255,0.07);
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c16 tbody tr:hover {
-  border-bottom: 2px solid rgba(0,0,0,0);
+  border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
@@ -12645,12 +12649,16 @@ exports[`loaded audit log screen 1`] = `
   height: 100%;
 }
 
+.c16 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
+}
+
 .c10 {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  padding: 16px 0;
   max-height: 40px;
   margin-bottom: 8px;
 }
@@ -12706,7 +12714,7 @@ exports[`loaded audit log screen 1`] = `
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   padding-right: 184px;
-  padding-left: 32px;
+  padding-left: 24px;
 }
 
 .c18 {

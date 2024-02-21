@@ -21,7 +21,7 @@ import React from 'react';
 import { Box, Flex, Indicator, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import { StyledTable, StyledPanel, StyledTableWrapper } from './StyledTable';
+import { StyledTable, StyledPanel } from './StyledTable';
 import {
   BasicTableProps,
   PagedTableProps,

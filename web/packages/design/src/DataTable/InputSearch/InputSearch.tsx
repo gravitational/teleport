@@ -104,5 +104,6 @@ const StyledInput = styled.input`
   color: ${props => props.theme.colors.text.main};
   background: ${props => props.theme.colors.spotBackground[0]};
   padding-right: 184px;
-  padding-left: ${props => props.theme.space[5]}px;
+  // should match padding-left on StyledTable &:first-child to align Search content to Table content
+  padding-left: ${props => props.theme.space[4]}px;
 `;

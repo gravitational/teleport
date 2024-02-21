@@ -20,10 +20,6 @@ import styled from 'styled-components';
 
 import { borderRadius } from 'design/system';
 
-import { decomposeColor, emphasize } from 'design/theme/utils/colorManipulator';
-
-// When `border-collapse: collapse` is set on a table element, Safari incorrectly renders row border with alpha channel.
-
 export const StyledTable = styled.table`
   border-collapse: collapse;
   border-spacing: 0;
@@ -41,7 +37,8 @@ export const StyledTable = styled.table`
     vertical-align: middle;
 
     &:first-child {
-      padding-left: ${props => props.theme.space[4]}px;
+      // should match padding-left on StyledInput to align Search content to Table content
+      padding-left: ${props => props.theme.space[4]}px
     }
 
     &:last-child {
@@ -75,11 +72,10 @@ export const StyledTable = styled.table`
   tbody tr {
     transition: all 150ms;
     position: relative;
-    border-bottom: ${props => props.theme.borders[2]}
-      ${props => props.theme.colors.spotBackground[0]};
+    border-top: ${props => props.theme.borders[2]} ${props => props.theme.colors.spotBackground[0]};
 
     :hover {
-      border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
+      border-top: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
       background-color: ${props => props.theme.colors.levels.surface};
 
       // We use a pseudo element for the shadow with position: absolute in order to prevent
@@ -94,9 +90,14 @@ export const StyledTable = styled.table`
         width: 100%;
         height: 100%;
       }
+
+      + tr {
+        // on hover, hide border on adjacent sibling
+        border-top: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
+      }
     }
-  }
-  ${borderRadius}
+
+    ${borderRadius}
 `;
 
 export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
@@ -104,7 +105,7 @@ export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: ${p => p.theme.space[3]}px ${p => p.theme.space[4]}px;
+  padding: ${props => props.theme.space[3]}px 0;
   max-height: ${props => props.theme.space[6]}px;
   margin-bottom: ${p => p.theme.space[2]}px;
 `;

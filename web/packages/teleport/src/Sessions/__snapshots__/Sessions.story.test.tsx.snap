@@ -305,10 +305,6 @@ exports[`active sessions CTA 1`] = `
   border-style: hidden;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
 .c28 > thead > tr > th,
@@ -370,11 +366,15 @@ exports[`active sessions CTA 1`] = `
 .c28 tbody tr {
   transition: all 150ms;
   position: relative;
-  border-bottom: 2px solid rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(255,255,255,0.07);
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c28 tbody tr:hover {
-  border-bottom: 2px solid rgba(0,0,0,0);
+  border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
@@ -389,12 +389,16 @@ exports[`active sessions CTA 1`] = `
   height: 100%;
 }
 
+.c28 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
+}
+
 .c15 {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  padding: 16px 0;
   max-height: 40px;
   margin-bottom: 8px;
 }
@@ -458,7 +462,7 @@ exports[`active sessions CTA 1`] = `
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   padding-right: 184px;
-  padding-left: 32px;
+  padding-left: 24px;
 }
 
 .c29 tbody > tr > td {
@@ -1346,10 +1350,6 @@ exports[`loaded 1`] = `
   border-style: hidden;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
 .c24 > thead > tr > th,
@@ -1411,11 +1411,15 @@ exports[`loaded 1`] = `
 .c24 tbody tr {
   transition: all 150ms;
   position: relative;
-  border-bottom: 2px solid rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(255,255,255,0.07);
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c24 tbody tr:hover {
-  border-bottom: 2px solid rgba(0,0,0,0);
+  border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
@@ -1430,12 +1434,16 @@ exports[`loaded 1`] = `
   height: 100%;
 }
 
+.c24 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
+}
+
 .c9 {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  padding: 16px 0;
   max-height: 40px;
   margin-bottom: 8px;
 }
@@ -1499,7 +1507,7 @@ exports[`loaded 1`] = `
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   padding-right: 184px;
-  padding-left: 32px;
+  padding-left: 24px;
 }
 
 .c25 tbody > tr > td {
@@ -2349,10 +2357,6 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   border-style: hidden;
   font-size: 12px;
   width: 100%;
-  border-top-left-radius: 0px;
-  border-top-right-radius: 0px;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
 }
 
 .c24 > thead > tr > th,
@@ -2414,11 +2418,15 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
 .c24 tbody tr {
   transition: all 150ms;
   position: relative;
-  border-bottom: 2px solid rgba(255,255,255,0.07);
+  border-top: 2px solid rgba(255,255,255,0.07);
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
 }
 
 .c24 tbody tr:hover {
-  border-bottom: 2px solid rgba(0,0,0,0);
+  border-top: 2px solid rgba(0,0,0,0);
   background-color: #222C59;
 }
 
@@ -2433,12 +2441,16 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   height: 100%;
 }
 
+.c24 tbody tr:hover + tr {
+  border-top: 2px solid rgba(0,0,0,0);
+}
+
 .c9 {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  padding: 16px 0;
   max-height: 40px;
   margin-bottom: 8px;
 }
@@ -2502,7 +2514,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   padding-right: 184px;
-  padding-left: 32px;
+  padding-left: 24px;
 }
 
 .c25 tbody > tr > td {
