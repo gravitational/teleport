@@ -38,8 +38,10 @@ import (
 // TestWorkloadIdentityService_SignX509SVIDs is an integration test that uses a
 // real gRPC client/server.
 func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
+	experimentBefore := experiment.Enabled()
 	experiment.SetEnabled(true)
-	t.Parallel()
+	defer experiment.SetEnabled(experimentBefore)
+
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 

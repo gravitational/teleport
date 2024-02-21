@@ -47,11 +47,6 @@ import (
 
 const spiffeScheme = "spiffe"
 
-// WorkloadIdentityEnabled is a build-time flag that enables the workload
-// identity service. It is set to false by default and will switch to true after
-// all initial functionality is implemented.
-var WorkloadIdentityEnabled = false
-
 // WorkloadIdentityServiceConfig holds configuration options for
 // the WorkloadIdentity gRPC service.
 type WorkloadIdentityServiceConfig struct {
