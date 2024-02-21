@@ -49,8 +49,16 @@ type Config struct {
 	Log      *logrus.Entry
 }
 
+func (c *Config) checkAndSetDefaults() {
+	if c.Log == nil {
+		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "Client cache")
+	}
+}
+
 // New creates an instance of Cache.
 func New(c Config) *Cache {
+	c.checkAndSetDefaults()
+
 	return &Cache{
 		cfg:     c,
 		clients: make(map[uri.ResourceURI]*client.ProxyClient),
