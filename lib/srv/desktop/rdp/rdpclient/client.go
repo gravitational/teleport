@@ -220,7 +220,7 @@ func (c *Client) readClientUsername() error {
 		}
 		u, ok := msg.(tdp.ClientUsername)
 		if !ok {
-			c.cfg.Log.Debugf("Expected ClientUsername message, got %T", msg)
+			c.cfg.Log.Debugf("Expected ClientUsername message, got %T       ", msg)
 			continue
 		}
 		c.cfg.Log.Debugf("Got RDP username %q", u.Username)

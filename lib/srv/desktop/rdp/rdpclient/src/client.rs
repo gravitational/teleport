@@ -350,8 +350,8 @@ impl Client {
                                             top: 0,
                                             width: width as u32,
                                             height: height as u32,
-                                            physical_width: 800 as u32,
-                                            physical_height: 600 as u32,
+                                            physical_width: width as u32,
+                                            physical_height: height as u32,
                                             orientation: Orientation::Landscape,
                                             desktop_scale_factor: 100,
                                             device_scale_factor: 100,
@@ -374,8 +374,9 @@ impl Client {
                                     .await?;
                                 match res {
                                     Ok(buf2) => {
-                                        debug!("Sending resize {}x{}", width, height);
-                                        write_stream.write_all(buf2.filled()).await?;
+                                        let x = buf2.filled();
+                                        debug!("Sending resize {}x{}, {:?}", width, height, x);
+                                        write_stream.write_all(x).await?;
                                     }
                                     Err(e) => {
                                         debug!("Not OK {:?}", e);
@@ -1162,7 +1163,6 @@ fn create_config(width: u16, height: u16, pin: String) -> Config {
         no_server_pointer: true,
         autologon: true,
         pointer_software_rendering: false,
-        auto_reconnect: None,
     }
 }
 

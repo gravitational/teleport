@@ -171,6 +171,11 @@ impl FastPathProcessor {
         }
     }
 
+    pub fn resize(&mut self, width: u16, height: u16) -> Result<(), JsValue> {
+        self.image = DecodedImage::new(PixelFormat::RgbA32, width, height);
+        Ok(())
+    }
+
     /// `tdp_fast_path_frame: Uint8Array`
     ///
     /// `cb_context: tdp.Client`
