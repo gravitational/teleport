@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/accessrequest"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -154,9 +153,8 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 
 	if req.GetAssumeStartTime() != nil && !req.AssumeStartTime.AsTime().IsZero() {
 		assumeStartTime := req.AssumeStartTime.AsTime()
-		if time.Until(assumeStartTime) > constants.MaxAssumeStartDuration {
-			return nil, trace.BadParameter("assumeStartTime too far in future: latest date %q",
-				assumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
+		if err := types.ValidateAssumeStartTime(assumeStartTime); err != nil {
+			return nil, trace.Wrap(err)
 		}
 		request.SetAssumeStartTime(assumeStartTime)
 	}
@@ -203,7 +201,14 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		}
 		defer authClient.Close()
 
-		assumeStartTime := req.AssumeStartTime.AsTime()
+		var assumeStartTimePtr *time.Time
+		if req.AssumeStartTime != nil && !req.AssumeStartTime.AsTime().IsZero() {
+			assumeStartTime := req.AssumeStartTime.AsTime()
+			if err := types.ValidateAssumeStartTime(assumeStartTime); err != nil {
+				return trace.Wrap(err)
+			}
+			assumeStartTimePtr = &assumeStartTime
+		}
 
 		reviewSubmission := types.AccessReviewSubmission{
 			RequestID: req.AccessRequestId,
@@ -212,7 +217,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 				ProposedState:   reviewState,
 				Reason:          req.Reason,
 				Created:         time.Now(),
-				AssumeStartTime: &assumeStartTime,
+				AssumeStartTime: assumeStartTimePtr,
 			},
 		}
 

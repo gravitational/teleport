@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -825,4 +826,14 @@ func NewAccessRequestAllowedPromotions(promotions []*AccessRequestAllowedPromoti
 	return &AccessRequestAllowedPromotions{
 		Promotions: promotions,
 	}
+}
+
+// ValidateAssumeStartTime returns error if start time too far in the future.
+func ValidateAssumeStartTime(assumeStartTime time.Time) error {
+	if time.Until(assumeStartTime) > constants.MaxAssumeStartDuration {
+		return trace.BadParameter("assume start time is too far in the future: latest date %q",
+			assumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
+	}
+
+	return nil
 }

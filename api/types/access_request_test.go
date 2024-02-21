@@ -18,7 +18,10 @@ package types
 
 import (
 	"testing"
+	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,4 +29,23 @@ func TestAssertAccessRequestImplementsResourceWithLabels(t *testing.T) {
 	ar, err := NewAccessRequest("test", "test", "test")
 	require.NoError(t, err)
 	require.Implements(t, (*ResourceWithLabels)(nil), ar)
+}
+
+func TestValidateAssumeStartTime(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+
+	// Too far in the future.
+	invalidStartTime := clock.Now().UTC().Add(1000000 * time.Hour)
+	err := ValidateAssumeStartTime(invalidStartTime)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+
+	// Valid Zero time.
+	validTime := time.Time{}
+	err = ValidateAssumeStartTime(validTime)
+	require.Empty(t, err)
+
+	// Valid time.
+	validTime = clock.Now().UTC().Add(1 * time.Hour)
+	err = ValidateAssumeStartTime(validTime)
+	require.Empty(t, err)
 }
