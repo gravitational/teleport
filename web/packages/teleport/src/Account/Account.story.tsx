@@ -31,7 +31,7 @@ export const LoadedPasskeysOff = () => (
   <Account {...props} canAddPasskeys={false} />
 );
 
-export const LoadedMfaOff = () => <Account {...props} canAddMFA={false} />;
+export const LoadedMfaOff = () => <Account {...props} canAddMfa={false} />;
 
 export const LoadingDevices = () => (
   <Account
@@ -107,7 +107,7 @@ const props: AccountProps = {
   isSso: false,
   newDeviceUsage: null,
   canAddPasskeys: true,
-  canAddMFA: true,
+  canAddMfa: true,
   devices: [
     {
       id: '1',

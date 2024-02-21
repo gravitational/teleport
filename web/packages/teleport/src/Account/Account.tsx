@@ -65,7 +65,7 @@ export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
     <Account
       isSso={isSso}
       canAddPasskeys={canAddPasskeys}
-      canAddMFA={canAddMfa}
+      canAddMfa={canAddMfa}
       {...manageDevicesState}
       enterpriseComponent={enterpriseComponent}
     />
@@ -75,7 +75,7 @@ export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
 export interface AccountProps extends ManageDevicesState, AccountPageProps {
   isSso: boolean;
   canAddPasskeys: boolean;
-  canAddMFA: boolean;
+  canAddMfa: boolean;
 }
 
 export function Account({
@@ -96,7 +96,7 @@ export function Account({
   hideRemoveDevice,
   closeAddDeviceWizard,
   isSso,
-  canAddMFA,
+  canAddMfa,
   canAddPasskeys,
   enterpriseComponent: EnterpriseComponent,
   newDeviceUsage,
@@ -107,7 +107,7 @@ export function Account({
     createRestrictedTokenAttempt.status === 'processing' ||
     fetchDevicesAttempt.status !== 'success';
   const disableAddPasskey = disableAddDevice || !canAddPasskeys;
-  const disableAddMFA = disableAddDevice || !canAddMFA;
+  const disableAddMfa = disableAddDevice || !canAddMfa;
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
@@ -213,9 +213,9 @@ export function Account({
                 showIndicator={fetchDevicesAttempt.status === 'processing'}
                 actions={
                   <ActionButton
-                    disabled={disableAddMFA}
+                    disabled={disableAddMfa}
                     title={
-                      disableAddMFA
+                      disableAddMfa
                         ? 'Multi-factor authentication is disabled'
                         : ''
                     }
