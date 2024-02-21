@@ -105,6 +105,12 @@ export interface AccessRequest {
      * @generated from protobuf field: string promoted_access_list_title = 14;
      */
     promotedAccessListTitle: string;
+    /**
+     * assume_start_time is the time the requested access can be assumed.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp assume_start_time = 15;
+     */
+    assumeStartTime?: Timestamp;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestReview
@@ -145,6 +151,14 @@ export interface AccessRequestReview {
      * @generated from protobuf field: string promoted_access_list_title = 6;
      */
     promotedAccessListTitle: string;
+    /**
+     * assume_start_time is the time the requested resources can be assumed.
+     * can overwrite the start time requested by the requester
+     * by the reviewer.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp assume_start_time = 7;
+     */
+    assumeStartTime?: Timestamp;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.ResourceID
@@ -210,7 +224,8 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
             { no: 11, name: "threshold_names", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 12, name: "resource_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceID },
             { no: 13, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Resource },
-            { no: 14, name: "promoted_access_list_title", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 14, name: "promoted_access_list_title", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 15, name: "assume_start_time", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<AccessRequest>): AccessRequest {
@@ -278,6 +293,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
                 case /* string promoted_access_list_title */ 14:
                     message.promotedAccessListTitle = reader.string();
                     break;
+                case /* google.protobuf.Timestamp assume_start_time */ 15:
+                    message.assumeStartTime = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.assumeStartTime);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -332,6 +350,9 @@ class AccessRequest$Type extends MessageType<AccessRequest> {
         /* string promoted_access_list_title = 14; */
         if (message.promotedAccessListTitle !== "")
             writer.tag(14, WireType.LengthDelimited).string(message.promotedAccessListTitle);
+        /* google.protobuf.Timestamp assume_start_time = 15; */
+        if (message.assumeStartTime)
+            Timestamp.internalBinaryWrite(message.assumeStartTime, writer.tag(15, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -351,7 +372,8 @@ class AccessRequestReview$Type extends MessageType<AccessRequestReview> {
             { no: 3, name: "state", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "created", kind: "message", T: () => Timestamp },
-            { no: 6, name: "promoted_access_list_title", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 6, name: "promoted_access_list_title", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "assume_start_time", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<AccessRequestReview>): AccessRequestReview {
@@ -388,6 +410,9 @@ class AccessRequestReview$Type extends MessageType<AccessRequestReview> {
                 case /* string promoted_access_list_title */ 6:
                     message.promotedAccessListTitle = reader.string();
                     break;
+                case /* google.protobuf.Timestamp assume_start_time */ 7:
+                    message.assumeStartTime = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.assumeStartTime);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -418,6 +443,9 @@ class AccessRequestReview$Type extends MessageType<AccessRequestReview> {
         /* string promoted_access_list_title = 6; */
         if (message.promotedAccessListTitle !== "")
             writer.tag(6, WireType.LengthDelimited).string(message.promotedAccessListTitle);
+        /* google.protobuf.Timestamp assume_start_time = 7; */
+        if (message.assumeStartTime)
+            Timestamp.internalBinaryWrite(message.assumeStartTime, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

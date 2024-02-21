@@ -182,7 +182,8 @@ proto.teleport.lib.teleterm.v1.AccessRequest.toObject = function(includeInstance
     proto.teleport.lib.teleterm.v1.ResourceID.toObject, includeInstance),
     resourcesList: jspb.Message.toObjectList(msg.getResourcesList(),
     proto.teleport.lib.teleterm.v1.Resource.toObject, includeInstance),
-    promotedAccessListTitle: jspb.Message.getFieldWithDefault(msg, 14, "")
+    promotedAccessListTitle: jspb.Message.getFieldWithDefault(msg, 14, ""),
+    assumeStartTime: (f = msg.getAssumeStartTime()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -279,6 +280,11 @@ proto.teleport.lib.teleterm.v1.AccessRequest.deserializeBinaryFromReader = funct
     case 14:
       var value = /** @type {string} */ (reader.readString());
       msg.setPromotedAccessListTitle(value);
+      break;
+    case 15:
+      var value = new google_protobuf_timestamp_pb.Timestamp;
+      reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
+      msg.setAssumeStartTime(value);
       break;
     default:
       reader.skipField();
@@ -410,6 +416,14 @@ proto.teleport.lib.teleterm.v1.AccessRequest.serializeBinaryToWriter = function(
     writer.writeString(
       14,
       f
+    );
+  }
+  f = message.getAssumeStartTime();
+  if (f != null) {
+    writer.writeMessage(
+      15,
+      f,
+      google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
     );
   }
 };
@@ -822,6 +836,43 @@ proto.teleport.lib.teleterm.v1.AccessRequest.prototype.setPromotedAccessListTitl
 };
 
 
+/**
+ * optional google.protobuf.Timestamp assume_start_time = 15;
+ * @return {?proto.google.protobuf.Timestamp}
+ */
+proto.teleport.lib.teleterm.v1.AccessRequest.prototype.getAssumeStartTime = function() {
+  return /** @type{?proto.google.protobuf.Timestamp} */ (
+    jspb.Message.getWrapperField(this, google_protobuf_timestamp_pb.Timestamp, 15));
+};
+
+
+/**
+ * @param {?proto.google.protobuf.Timestamp|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.AccessRequest} returns this
+*/
+proto.teleport.lib.teleterm.v1.AccessRequest.prototype.setAssumeStartTime = function(value) {
+  return jspb.Message.setWrapperField(this, 15, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.AccessRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.AccessRequest.prototype.clearAssumeStartTime = function() {
+  return this.setAssumeStartTime(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.AccessRequest.prototype.hasAssumeStartTime = function() {
+  return jspb.Message.getField(this, 15) != null;
+};
+
+
 
 /**
  * List of repeated fields within this message type.
@@ -866,7 +917,8 @@ proto.teleport.lib.teleterm.v1.AccessRequestReview.toObject = function(includeIn
     state: jspb.Message.getFieldWithDefault(msg, 3, ""),
     reason: jspb.Message.getFieldWithDefault(msg, 4, ""),
     created: (f = msg.getCreated()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
-    promotedAccessListTitle: jspb.Message.getFieldWithDefault(msg, 6, "")
+    promotedAccessListTitle: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    assumeStartTime: (f = msg.getAssumeStartTime()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -927,6 +979,11 @@ proto.teleport.lib.teleterm.v1.AccessRequestReview.deserializeBinaryFromReader =
     case 6:
       var value = /** @type {string} */ (reader.readString());
       msg.setPromotedAccessListTitle(value);
+      break;
+    case 7:
+      var value = new google_protobuf_timestamp_pb.Timestamp;
+      reader.readMessage(value,google_protobuf_timestamp_pb.Timestamp.deserializeBinaryFromReader);
+      msg.setAssumeStartTime(value);
       break;
     default:
       reader.skipField();
@@ -998,6 +1055,14 @@ proto.teleport.lib.teleterm.v1.AccessRequestReview.serializeBinaryToWriter = fun
     writer.writeString(
       6,
       f
+    );
+  }
+  f = message.getAssumeStartTime();
+  if (f != null) {
+    writer.writeMessage(
+      7,
+      f,
+      google_protobuf_timestamp_pb.Timestamp.serializeBinaryToWriter
     );
   }
 };
@@ -1146,6 +1211,43 @@ proto.teleport.lib.teleterm.v1.AccessRequestReview.prototype.getPromotedAccessLi
  */
 proto.teleport.lib.teleterm.v1.AccessRequestReview.prototype.setPromotedAccessListTitle = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional google.protobuf.Timestamp assume_start_time = 7;
+ * @return {?proto.google.protobuf.Timestamp}
+ */
+proto.teleport.lib.teleterm.v1.AccessRequestReview.prototype.getAssumeStartTime = function() {
+  return /** @type{?proto.google.protobuf.Timestamp} */ (
+    jspb.Message.getWrapperField(this, google_protobuf_timestamp_pb.Timestamp, 7));
+};
+
+
+/**
+ * @param {?proto.google.protobuf.Timestamp|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.AccessRequestReview} returns this
+*/
+proto.teleport.lib.teleterm.v1.AccessRequestReview.prototype.setAssumeStartTime = function(value) {
+  return jspb.Message.setWrapperField(this, 7, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.AccessRequestReview} returns this
+ */
+proto.teleport.lib.teleterm.v1.AccessRequestReview.prototype.clearAssumeStartTime = function() {
+  return this.setAssumeStartTime(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.AccessRequestReview.prototype.hasAssumeStartTime = function() {
+  return jspb.Message.getField(this, 7) != null;
 };
 
 

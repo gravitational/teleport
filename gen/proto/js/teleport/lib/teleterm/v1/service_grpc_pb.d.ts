@@ -6,6 +6,7 @@
 
 import * as grpc from "grpc";
 import * as teleport_lib_teleterm_v1_service_pb from "../../../../teleport/lib/teleterm/v1/service_pb";
+import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/timestamp_pb";
 import * as teleport_accesslist_v1_accesslist_pb from "../../../../teleport/accesslist/v1/accesslist_pb";
 import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../teleport/lib/teleterm/v1/access_request_pb";
 import * as teleport_lib_teleterm_v1_app_pb from "../../../../teleport/lib/teleterm/v1/app_pb";

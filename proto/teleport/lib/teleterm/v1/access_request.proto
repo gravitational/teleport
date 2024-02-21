@@ -47,6 +47,8 @@ message AccessRequest {
   // promoted_access_list_title is the title of the access
   // list that this access request was promoted to.
   string promoted_access_list_title = 14;
+  // assume_start_time is the time the requested access can be assumed.
+  google.protobuf.Timestamp assume_start_time = 15;
 }
 
 message AccessRequestReview {
@@ -62,6 +64,10 @@ message AccessRequestReview {
   // promoted_access_list_title is the title of the access
   // list that the access request was promoted to.
   string promoted_access_list_title = 6;
+  // assume_start_time is the time the requested resources can be assumed.
+  // can overwrite the start time requested by the requester
+  // by the reviewer.
+  google.protobuf.Timestamp assume_start_time = 7;
 }
 
 message ResourceID {

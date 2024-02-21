@@ -69,6 +69,12 @@ export class AccessRequest extends jspb.Message {
     setPromotedAccessListTitle(value: string): AccessRequest;
 
 
+    hasAssumeStartTime(): boolean;
+    clearAssumeStartTime(): void;
+    getAssumeStartTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
+    setAssumeStartTime(value?: google_protobuf_timestamp_pb.Timestamp): AccessRequest;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessRequest.AsObject;
     static toObject(includeInstance: boolean, msg: AccessRequest): AccessRequest.AsObject;
@@ -95,6 +101,7 @@ export namespace AccessRequest {
         resourceIdsList: Array<ResourceID.AsObject>,
         resourcesList: Array<Resource.AsObject>,
         promotedAccessListTitle: string,
+        assumeStartTime?: google_protobuf_timestamp_pb.Timestamp.AsObject,
     }
 }
 
@@ -123,6 +130,12 @@ export class AccessRequestReview extends jspb.Message {
     setPromotedAccessListTitle(value: string): AccessRequestReview;
 
 
+    hasAssumeStartTime(): boolean;
+    clearAssumeStartTime(): void;
+    getAssumeStartTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
+    setAssumeStartTime(value?: google_protobuf_timestamp_pb.Timestamp): AccessRequestReview;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessRequestReview.AsObject;
     static toObject(includeInstance: boolean, msg: AccessRequestReview): AccessRequestReview.AsObject;
@@ -141,6 +154,7 @@ export namespace AccessRequestReview {
         reason: string,
         created?: google_protobuf_timestamp_pb.Timestamp.AsObject,
         promotedAccessListTitle: string,
+        assumeStartTime?: google_protobuf_timestamp_pb.Timestamp.AsObject,
     }
 }
 
