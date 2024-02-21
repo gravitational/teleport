@@ -437,7 +437,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 }
 
 // TestEmitSessionEventsSameIndex given events that share the same session ID
-// and index, the emit should fail, avoiding any event to get overwriteen.
+// and index, the emit should fail, avoiding any event to get overwritten.
 func TestEmitSessionEventsSameIndex(t *testing.T) {
 	ctx := context.Background()
 	tt := setupDynamoContext(t)
