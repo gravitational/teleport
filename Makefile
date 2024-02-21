@@ -311,8 +311,8 @@ teleport-hot-reload:
 		--build="make $(BUILDDIR)/teleport" \
 		--command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
 
-# NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
-# 		we can use this Makefile for native Windows builds.
+# NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
+# until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ./build.assets/kubectl-version/main.go)
 $(BUILDDIR)/tsh: KUBECTL_SETVERSION ?= -X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
@@ -1157,8 +1157,13 @@ $(VERSRC): Makefile
 # 3. Run `make update-version`
 # 4. Commit version changes to git
 # 5. Make sure it all builds (`make release` or equivalent)
+# 6. Run `make update-tag` to tag repos with $(VERSION)
+# 7. Run `make tag-build` to build the tag on GitHub Actions
+# 8. Run `make tag-publish` after `make-build` tag has completed to
+#    publish the built artifacts.
 #
-# After the above is done, run `make update-tag` and follow your build on Drone.
+# GHA tag builds: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
+# GHA tag publish: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
 .PHONY: update-tag
 update-tag: TAG_REMOTE ?= origin
 update-tag:
@@ -1168,6 +1173,19 @@ update-tag:
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
+
+# Builds a tag build on GitHub Actions.
+# Starts a tag publish run using e/.github/workflows/tag-build.yaml
+# for the tag v$(VERSION).
+.PHONY: tag-build
+tag-build:
+	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
+	gh workflow run tag-build.yaml \
+		--repo gravitational/teleport.e \
+		--ref "v$(VERSION)" \
+		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
+		-f "oss-teleport-ref=v$(VERSION)"
+	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
 
 # Publishes a tag build.
 # Starts a tag publish run using e/.github/workflows/tag-publish.yaml
