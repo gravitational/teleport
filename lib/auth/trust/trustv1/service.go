@@ -154,7 +154,7 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 		verbs = append(verbs, types.VerbRead)
 
 		// Require admin MFA to read secrets.
-		if err := authCtx.AuthorizeAdminAction(); err != nil {
+		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
