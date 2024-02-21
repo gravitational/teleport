@@ -224,7 +224,7 @@ func (t *Table) SortRowsBy(colIdxKey []int, stable bool) {
 				return strings.Compare(a[col], b[col])
 			}
 		}
-		return 1
+		return 0
 	}
 	if stable {
 		slices.SortStableFunc(t.rows, lessFn)
