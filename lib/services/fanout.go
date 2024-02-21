@@ -298,7 +298,7 @@ func (f *Fanout) removeWatcher(w *fanoutWatcher) {
 	Inner:
 		for i, entry := range entries {
 			if entry.watcher == w {
-				entries = append(entries[:i], entries[i+1:]...)
+				entries = reorderingDelete(entries, i)
 				f.trySendEvent(FanoutEvent{Kind: EventWatcherRemoved})
 				break Inner
 			}
@@ -310,6 +310,20 @@ func (f *Fanout) removeWatcher(w *fanoutWatcher) {
 			f.watchers[kind.Kind] = entries
 		}
 	}
+}
+
+// reorderingDelete efficiently removes an element from a slice via reordering
+// and zeroes the newly out of bounds trailing slot, returning the resized slice.
+func reorderingDelete[T any](s []T, i int) []T {
+	// overwrite the target element with the last element
+	s[i] = s[len(s)-1]
+
+	// zero the last element now that it has been relocated
+	var zero T
+	s[len(s)-1] = zero
+
+	// return truncated slice
+	return s[:len(s)-1]
 }
 
 func newFanoutWatcher(ctx context.Context, f *Fanout, watch types.Watch) (*fanoutWatcher, error) {
