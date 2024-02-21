@@ -97,7 +97,7 @@ function TdpClientCanvas(props: Props) {
     }
   }, [client, clientOnPngFrame]);
 
-  let previousCursor = 'auto';
+  const previousCursor = useRef('auto');
 
   useEffect(() => {
     if (client) {
@@ -109,9 +109,9 @@ function TdpClientCanvas(props: Props) {
       }) => {
         if (typeof pointer.data === 'boolean') {
           if (pointer.data) {
-            canvas.style.cursor = previousCursor;
+            canvas.style.cursor = previousCursor.current;
           } else {
-            previousCursor = canvas.style.cursor;
+            previousCursor.current = canvas.style.cursor;
             canvas.style.cursor = 'none';
           }
           return;
