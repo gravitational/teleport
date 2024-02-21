@@ -776,7 +776,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	}
 
 	// Add user certificate into the context after the monitor connection
-	// initializion to avoid it from being lost.
+	// initialization to ensure value is present on the context.
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConn(tlsConn))
 
 	// Application access supports plain TCP connections which are handled
@@ -1145,8 +1145,7 @@ func (s *Server) getProxyPort() string {
 }
 
 // sessionStartTime fetches the session start time based on the the certificate
-// valid date. If the certificate cannot be retrieve from the context, return
-// zero start time and emit a warning log.
+// valid date.
 func (s *Server) sessionStartTime(ctx context.Context) time.Time {
 	var startTime time.Time
 	if userCert, err := authz.UserCertificateFromContext(ctx); err == nil {
@@ -1207,7 +1206,7 @@ func newGetConfigForClientFn(log logrus.FieldLogger, client auth.AccessCache, tl
 	}
 }
 
-// certFromConnState returns the connection certificate from the connection.
+// certFromConnState returns certificate from the connection.
 func certFromConn(tlsConn *tls.Conn) *x509.Certificate {
 	state := tlsConn.ConnectionState()
 	if len(state.PeerCertificates) != 1 {
