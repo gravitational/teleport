@@ -269,16 +269,26 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 		defaultPageSize = 1_000
 	)
 
-	if req.Limit == 0 {
-		req.Limit = defaultPageSize
-	}
-
-	if req.Limit > maxPageSize {
-		return nil, trace.BadParameter("page size of %d is too large", req.Limit)
-	}
-
 	if req.Filter == nil {
 		req.Filter = &types.AccessRequestFilter{}
+	}
+
+	limit := int(req.Limit)
+
+	if limit == 0 {
+		limit = defaultPageSize
+	}
+
+	if limit > maxPageSize {
+		return nil, trace.BadParameter("page size of %d is too large", limit)
+	}
+
+	if req.Sort != proto.AccessRequestSort_DEFAULT {
+		return nil, trace.BadParameter("access request sort indexes other than DEFAULT cannot be used to load directly from the backend (expected %v, got %v)", proto.AccessRequestSort_DEFAULT, req.Sort)
+	}
+
+	if req.Descending {
+		return nil, trace.BadParameter("access requests cannot be loaded directly from the backend with descending sort order")
 	}
 
 	var rsp proto.ListAccessRequestsResponse
@@ -303,24 +313,15 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 		return &rsp, nil
 	}
 
-	switch req.Sort {
-	case proto.AccessRequestSort_DEFAULT:
-		// continue with default path
-	case proto.AccessRequestSort_STATE:
-		return s.listAccessRequestsByState(ctx, req)
-	default:
-		return nil, trace.BadParameter("unsupported access request sort parameter %v", req.Sort)
-	}
-
 	startKey := backend.ExactKey(accessRequestsPrefix)
 	if req.StartKey != "" {
 		startKey = backend.ExactKey(accessRequestsPrefix, req.StartKey)
 	}
 	endKey := backend.RangeEnd(backend.ExactKey(accessRequestsPrefix))
 
-	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, int(req.Limit+1), func(items []backend.Item) (stop bool, err error) {
+	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, limit+1, func(items []backend.Item) (stop bool, err error) {
 		for _, item := range items {
-			if len(rsp.AccessRequests) > int(req.Limit) {
+			if len(rsp.AccessRequests) > limit {
 				return true, nil
 			}
 
@@ -343,14 +344,14 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 			rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
 		}
 
-		return len(rsp.AccessRequests) > int(req.Limit), nil
+		return len(rsp.AccessRequests) > limit, nil
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(rsp.AccessRequests) > int(req.Limit) {
-		rsp.NextKey = rsp.AccessRequests[req.Limit].GetName()
-		rsp.AccessRequests = rsp.AccessRequests[:req.Limit]
+	if len(rsp.AccessRequests) > limit {
+		rsp.NextKey = rsp.AccessRequests[limit].GetName()
+		rsp.AccessRequests = rsp.AccessRequests[:limit]
 	}
 
 	return &rsp, nil

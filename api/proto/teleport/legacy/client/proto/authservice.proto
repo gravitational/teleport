@@ -2422,16 +2422,19 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
-// AccessRequestSort determines access request sort order.
+// AccessRequestSort determines access request sort index.
 enum AccessRequestSort {
-  // DEFAULT sorts access requests by creation time, as implied by the access request's uuid
-  // field (access requests use uuidv7 for their IDs, which naturally sort lexographically
-  // by time). This is equivalent to the natural sort order used in the backend, and therefore
-  // the most reliably performant sort order.
+  // DEFAULT sorts access requests by their native backend index. this is currently equivalent
+  // to sorting by CREATED since access requests use uuidv7 ids, but that is subject to change.
+  // implementations that require creation-time ordering should specify it explicitly. this is
+  // the only sort index supported when calling the backend directly.
   DEFAULT = 0;
 
+  // CREATED sorts access requests by creation time.
+  CREATED = 1;
+
   // STATE sorts access requests by their state (PENDING, APPROVED, etc).
-  STATE = 1;
+  STATE = 2;
 }
 
 // ListAccessRequestsRequest encodes the parameters for a paginated access request lookup.
@@ -2442,13 +2445,18 @@ message ListAccessRequestsRequest {
   // Sort determines the sort order of returned access requests.
   AccessRequestSort Sort = 2;
 
+  // Descending requests descending sort order if true (teleport APIs generally always
+  // defaults to ascending sort order since that is the native sort order used in the
+  // teleport backend).
+  bool Descending = 3;
+
   // Limit is the maximum amount of requests per page.
-  int32 Limit = 3;
+  int32 Limit = 4;
 
   // StartKey is used to resume a query in order to enable pagination.
   // If the previous response had LastKey set then this should be
   // set to its value. Otherwise leave empty.
-  string StartKey = 4;
+  string StartKey = 5;
 }
 
 // ListAccessRequestResponse is a page of access requests.
