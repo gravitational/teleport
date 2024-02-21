@@ -101,8 +101,8 @@ export function Account({
   enterpriseComponent: EnterpriseComponent,
   newDeviceUsage,
 }: AccountProps) {
-  const passkeys = devices.filter(d => d.residentKey);
-  const mfaDevices = devices.filter(d => !d.residentKey);
+  const passkeys = devices.filter(d => d.usage === 'passwordless');
+  const mfaDevices = devices.filter(d => d.usage === 'mfa');
   const disableAddDevice =
     createRestrictedTokenAttempt.status === 'processing' ||
     fetchDevicesAttempt.status !== 'success';
@@ -198,6 +198,7 @@ export function Account({
             changeDisabled={
               createRestrictedTokenAttempt.status === 'processing'
             }
+            devices={devices}
             onPasswordChange={onPasswordChange}
           />
         )}

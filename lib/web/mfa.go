@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -132,9 +133,10 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 }
 
 type createAuthenticateChallengeRequest struct {
-	IsMFARequiredRequest *isMFARequiredRequest `json:"is_mfa_required_req"`
-	ChallengeScope       int                   `json:"challenge_scope"`
-	ChallengeAllowReuse  bool                  `json:"challenge_allow_reuse"`
+	IsMFARequiredRequest        *isMFARequiredRequest                 `json:"is_mfa_required_req"`
+	ChallengeScope              int                                   `json:"challenge_scope"`
+	ChallengeAllowReuse         bool                                  `json:"challenge_allow_reuse"`
+	UserVerificationRequirement *protocol.UserVerificationRequirement `json:"user_verification_requirement"`
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
@@ -163,14 +165,20 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
+	uvr := "" // default
+	if req.UserVerificationRequirement != nil {
+		uvr = string(*req.UserVerificationRequirement)
+	}
+
 	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
 		MFARequiredCheck: mfaRequiredCheckProto,
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope:      mfav1.ChallengeScope(req.ChallengeScope),
-			AllowReuse: allowReuse,
+			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
+			AllowReuse:                  allowReuse,
+			UserVerificationRequirement: uvr,
 		},
 	})
 	if err != nil {

@@ -1152,8 +1152,8 @@ func TestServer_Authenticate_headless(t *testing.T) {
 }
 
 type configureMFAResp struct {
-	User, Password  string
-	TOTPDev, WebDev *TestDevice
+	User, Password                   string
+	TOTPDev, WebDev, PasswordlessDev *TestDevice
 }
 
 func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
@@ -1187,10 +1187,14 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 	webDev, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
 	require.NoError(t, err)
 
+	passwordlessDev, err := RegisterTestDevice(ctx, clt, "passwordless-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev, WithPasswordless())
+	require.NoError(t, err)
+
 	return &configureMFAResp{
-		User:     username,
-		Password: password,
-		TOTPDev:  totpDev,
-		WebDev:   webDev,
+		User:            username,
+		Password:        password,
+		TOTPDev:         totpDev,
+		WebDev:          webDev,
+		PasswordlessDev: passwordlessDev,
 	}
 }

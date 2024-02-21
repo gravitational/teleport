@@ -39,7 +39,7 @@ type changePasswordReq struct {
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
 	// WebauthnAssertionResponse is a Webauthn response
-	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthn_assertion_response"`
 }
 
 // changePassword updates users password based on the old password.

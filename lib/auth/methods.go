@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -121,7 +122,8 @@ type SessionCreds struct {
 func (a *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	username := req.Username
 
-	verifyMFALocks, mfaDev, actualUsername, err := a.authenticateUser(ctx, req)
+	verifyMFALocks, mfaDev, actualUsername, err := a.authenticateUser(
+		ctx, req, mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN)
 	if err != nil {
 		// Log event after authentication failure
 		if err := a.emitAuthAuditEvent(ctx, authAuditProps{
@@ -286,7 +288,12 @@ type verifyMFADeviceLocksParams struct {
 }
 
 // authenticateUser authenticates a user through various methods (password, MFA,
-// passwordless)
+// passwordless).
+//
+// The `requiredScope` parameter is used to assert that the MFA challenge (if
+// any) has a given scope applied. Note that this is ignored for passwordless
+// authentication, since this one always expects
+// `mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN`.
 //
 // Returns a callback to verify MFA device locks, the MFA device used to
 // authenticate (if applicable), and the authenticated user name.
@@ -295,8 +302,9 @@ type verifyMFADeviceLocksParams struct {
 func (a *Server) authenticateUser(
 	ctx context.Context,
 	req AuthenticateUserRequest,
+	requiredScope mfav1.ChallengeScope,
 ) (verifyLocks func(verifyMFADeviceLocksParams) error, mfaDev *types.MFADevice, user string, err error) {
-	mfaDev, user, err = a.authenticateUserInternal(ctx, req)
+	mfaDev, user, err = a.authenticateUserInternal(ctx, req, requiredScope)
 	if err != nil || mfaDev == nil {
 		return func(verifyMFADeviceLocksParams) error { return nil }, mfaDev, user, trace.Wrap(err)
 	}
@@ -341,7 +349,11 @@ func (a *Server) authenticateUser(
 }
 
 // Do not use this method directly, use authenticateUser instead.
-func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateUserRequest) (mfaDev *types.MFADevice, user string, err error) {
+func (a *Server) authenticateUserInternal(
+	ctx context.Context,
+	req AuthenticateUserRequest,
+	requiredScope mfav1.ChallengeScope,
+) (mfaDev *types.MFADevice, user string, err error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -382,7 +394,13 @@ func (a *Server) authenticateUserInternal(ctx context.Context, req AuthenticateU
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
-			requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN}
+			requiredExt := &mfav1.ChallengeExtensions{Scope: requiredScope}
+			// If the user is trying to change their password and doesn't use their
+			// old password, we need to require identity verification (i.e. a resident
+			// token used for MFA).
+			if requiredScope == mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD && req.Pass == nil {
+				requiredExt.UserVerificationRequirement = string(protocol.VerificationRequired)
+			}
 			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, requiredExt)
 			if err != nil {
 				return nil, trace.Wrap(err)
