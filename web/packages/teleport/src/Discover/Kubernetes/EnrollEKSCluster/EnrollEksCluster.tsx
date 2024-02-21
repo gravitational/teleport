@@ -98,6 +98,8 @@ export function EnrollEksCluster(props: AgentStepProps) {
     useState(false);
   const [isManualHelmDialogShown, setIsManualHelmDialogShown] = useState(false);
   const [waitingResourceId, setWaitingResourceId] = useState('');
+  // join token will be set only if user opens ManualHelmDialog,
+  // we delay it to avoid premature admin action MFA confirmation request.
   const [joinToken, setJoinToken] = useState<JoinToken>(null);
   const ctx = useTeleport();
 
