@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/test"
 )
 
-func newAtomicWriteTestBackend(options ...test.ConstructionOption) (backend.AtomicWriterBackend, clockwork.FakeClock, error) {
+func newAtomicWriteTestBackend(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 	cfg := firestoreParams()
 
 	testCfg, err := test.ApplyOptions(options)
