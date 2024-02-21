@@ -42,6 +42,7 @@ import (
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -237,37 +239,54 @@ func TestServer_ChangePassword(t *testing.T) {
 	password := mfa.Password
 
 	tests := []struct {
-		name    string
-		newPass string
-		device  *TestDevice
+		name                        string
+		oldPass                     string
+		newPass                     string
+		userVerificationRequirement string
+		device                      *TestDevice
 	}{
 		{
-			name:    "OK TOTP-based change",
-			newPass: "llamasarecool11",
-			device:  mfa.TOTPDev,
+			name:                        "OK TOTP-based change",
+			oldPass:                     password,
+			newPass:                     "llamasarecool11",
+			userVerificationRequirement: "discouraged",
+			device:                      mfa.TOTPDev,
 		},
 		{
-			name:    "OK Webauthn-based change",
-			newPass: "llamasarecool13",
-			device:  mfa.WebDev,
+			name:                        "OK Webauthn-based change",
+			oldPass:                     "llamasarecool11",
+			newPass:                     "llamasarecool13",
+			userVerificationRequirement: "discouraged",
+			device:                      mfa.WebDev,
+		},
+		{
+			name:                        "OK passwordless change",
+			oldPass:                     "",
+			newPass:                     "llamasarecool15",
+			userVerificationRequirement: "required",
+			device:                      mfa.PasswordlessDev,
 		},
 	}
 
 	authServer := srv.Auth()
-	ctx := context.Background()
+	ctx := authz.ContextWithUser(
+		context.Background(),
+		authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}},
+	)
 
-	oldPass := []byte(password)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			oldPass := []byte(test.oldPass)
 			newPass := []byte(test.newPass)
 
 			// Acquire and solve an MFA challenge.
 			mfaChallenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
-					UserCredentials: &proto.UserCredentials{
-						Username: username,
-						Password: oldPass,
-					},
+				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+					ContextUser: &proto.ContextUser{},
+				},
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					UserVerificationRequirement: test.userVerificationRequirement,
+					Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
 				},
 			})
 			require.NoError(t, err, "creating challenge")
@@ -290,8 +309,6 @@ func TestServer_ChangePassword(t *testing.T) {
 
 			// Did the password change take effect?
 			require.NoError(t, authServer.checkPasswordWOToken(username, newPass), "password change didn't take effect")
-
-			oldPass = newPass // Set for next iteration.
 		})
 	}
 }
@@ -307,42 +324,74 @@ func TestServer_ChangePassword_FailsWithoutOldPassword(t *testing.T) {
 	server := newTestTLSServer(t)
 	mfa := configureForMFA(t, server)
 	authServer := server.Auth()
-	ctx := context.Background()
-
+	ctx := authz.ContextWithUser(
+		context.Background(),
+		authz.LocalUser{Username: mfa.User, Identity: tlsca.Identity{Username: mfa.User}},
+	)
 	username := mfa.User
-	newPass := []byte("capybarasarecool123")
 
-	userClient, err := server.NewClient(TestUser(username))
-	require.NoError(t, err)
-	defer userClient.Close()
-
-	// Acquire and solve an MFA challenge.
-	mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-			ContextUser: &proto.ContextUser{},
+	tests := []struct {
+		name                        string
+		userVerificationRequirement string
+		device                      *TestDevice
+	}{
+		{
+			name:                        "TOTP challenge",
+			userVerificationRequirement: "discouraged",
+			device:                      mfa.TOTPDev,
 		},
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+		{
+			name:                        "WebAuthn challenge",
+			userVerificationRequirement: "discouraged",
+			device:                      mfa.WebDev,
 		},
-	})
-	require.NoError(t, err, "creating challenge")
-	mfaResp, err := mfa.WebDev.SolveAuthn(mfaChallenge)
-	require.NoError(t, err, "solving challenge with device")
-
-	// Change password.
-	req := &proto.ChangePasswordRequest{
-		User:        username,
-		NewPassword: newPass,
-		Webauthn:    mfaResp.GetWebauthn(),
 	}
-	err = authServer.ChangePassword(ctx, req)
-	assert.True(t,
-		trace.IsAccessDenied(err),
-		"ChangePassword error mismatch, want=AccessDenied, got=%v (%T)",
-		err, trace.Unwrap(err))
 
-	// Did the password change take effect?
-	assert.Error(t, authServer.checkPasswordWOToken(username, newPass), "password was changed")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			newPass := []byte("capybarasarecool123")
+
+			userClient, err := server.NewClient(TestUser(username))
+			require.NoError(t, err)
+			defer userClient.Close()
+
+			// Acquire and solve an MFA challenge.
+			mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+					ContextUser: &proto.ContextUser{},
+				},
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					AllowReuse:                  mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+					UserVerificationRequirement: test.userVerificationRequirement,
+					Scope:                       mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
+				},
+			})
+			require.NoError(t, err, "creating challenge")
+			mfaResp, err := test.device.SolveAuthn(mfaChallenge)
+			require.NoError(t, err, "solving challenge with device")
+
+			// Change password.
+			req := &proto.ChangePasswordRequest{
+				User:        username,
+				NewPassword: newPass,
+				Webauthn:    mfaResp.GetWebauthn(),
+			}
+			switch {
+			case mfaResp.GetTOTP() != nil:
+				req.SecondFactorToken = mfaResp.GetTOTP().Code
+			case mfaResp.GetWebauthn() != nil:
+				req.Webauthn = mfaResp.GetWebauthn()
+			}
+			err = authServer.ChangePassword(ctx, req)
+			assert.True(t,
+				trace.IsAccessDenied(err),
+				"ChangePassword error mismatch, want=AccessDenied, got=%v (%T)",
+				err, trace.Unwrap(err))
+
+			// Did the password change take effect?
+			assert.Error(t, authServer.checkPasswordWOToken(username, newPass), "password was changed")
+		})
+	}
 }
 
 func TestChangeUserAuthentication(t *testing.T) {
