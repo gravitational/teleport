@@ -4368,15 +4368,13 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 	if len(accessListsToReview) > 0 {
 		fmt.Printf("Access lists that need to be reviewed:\n")
 		// date time format layout
-		const YYYYMMDD = "2006-01-02"
 		for _, accessList := range accessListsToReview {
-			d := time.Until(accessList.Spec.Audit.NextAuditDate).Round(time.Minute)
-			nextAuditDate := accessList.Spec.Audit.NextAuditDate.Format(YYYYMMDD)
 			var msg string
-			if d > 0 {
-				msg = fmt.Sprintf("review date is %v", nextAuditDate)
-			} else {
+			nextAuditDate := accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly)
+			if time.Now().After(accessList.Spec.Audit.NextAuditDate) {
 				msg = fmt.Sprintf("review was required on %v", nextAuditDate)
+			} else {
+				msg = fmt.Sprintf("review date is %v", nextAuditDate)
 			}
 			fmt.Printf("\t%s (%v)\n", accessList.Spec.Title, msg)
 		}
