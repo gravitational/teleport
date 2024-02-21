@@ -120,14 +120,9 @@ function TdpClientCanvas(props: Props) {
         cursor.width = pointer.data.width;
         cursor.height = pointer.data.height;
         cursor.getContext('2d').putImageData(pointer.data, 0, 0);
-        canvas.style.cursor =
-          'url(' +
-          cursor.toDataURL() +
-          ') ' +
-          pointer.hotspot_x +
-          ' ' +
-          pointer.hotspot_y +
-          ', auto';
+        canvas.style.cursor = `url(${cursor.toDataURL()}) ${
+          pointer.hotspot_x
+        } ${pointer.hotspot_y}, auto`;
       };
 
       client.on(TdpClientEvent.POINTER, updatePointer);
