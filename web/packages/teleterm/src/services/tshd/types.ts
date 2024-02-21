@@ -395,6 +395,7 @@ export type ReviewAccessRequestParams = {
   reason: string;
   roles: string[];
   id: string;
+  assumeStartTime?: Date;
 };
 
 export type CreateAccessRequestParams = {
@@ -403,6 +404,7 @@ export type CreateAccessRequestParams = {
   roles: string[];
   suggestedReviewers: string[];
   resourceIds: { kind: ResourceKind; clusterName: string; id: string }[];
+  assumeStartTime?: Date;
 };
 
 export type GetRequestableRolesParams = {

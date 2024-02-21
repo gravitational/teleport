@@ -50,6 +50,7 @@ import {
 } from './types';
 import createAbortController from './createAbortController';
 import { mapUsageEvent } from './mapUsageEvent';
+import { getProtoTimestamp } from './utils';
 
 export function createTshdClient(
   addr: string,
@@ -300,6 +301,7 @@ export function createTshdClient(
         suggestedReviewers: params.suggestedReviewers,
         roles: params.roles,
         reason: params.reason,
+        assumeStartTime: getProtoTimestamp(params.assumeStartTime),
         resourceIds: params.resourceIds.map(({ id, clusterName, kind }) =>
           ResourceID.create({
             name: id,
@@ -369,6 +371,7 @@ export function createTshdClient(
         state: params.state,
         reason: params.reason,
         roles: params.roles,
+        assumeStartTime: getProtoTimestamp(params.assumeStartTime),
       });
       return new Promise<types.AccessRequest>((resolve, reject) => {
         tshd.reviewAccessRequest(req, (err, response) => {
