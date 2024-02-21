@@ -47,7 +47,7 @@ import { JoinToken } from 'teleport/services/joinToken';
 import { Header } from '../../Shared';
 
 import { ClustersList } from './EksClustersList';
-import { ManualHelmDialog } from './ManualHelmDialog';
+import ManualHelmDialog from './ManualHelmDialog';
 import { EnrollmentDialog } from './EnrollmentDialog';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
 
