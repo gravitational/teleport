@@ -74,7 +74,15 @@ type TestCAConfig struct {
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	// privateKeys is to specify another RSA private key
 	if len(config.PrivateKeys) == 0 {
-		config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+		// db client CA gets its own private key to distinguish its pub key
+		// from the other CAs. Snowflake uses public key to verify JWT signer,
+		// so if we don't do this then tests verifying that the correct
+		// signer was used are pointless.
+		if config.Type == types.DatabaseClientCA {
+			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa-db-client"]}
+		} else {
+			config.PrivateKeys = [][]byte{fixtures.PEMBytes["rsa"]}
+		}
 	}
 	keyBytes := config.PrivateKeys[0]
 	rsaKey, err := ssh.ParseRawPrivateKey(keyBytes)
@@ -116,7 +124,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Match the key set to lib/auth/auth.go:newKeySet().
 	switch config.Type {
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA:
 		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
 	case types.KindJWT, types.OIDCIdPCA:
 		// Generating keys is CPU intensive operation. Generate JWT keys only
@@ -144,8 +152,6 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 				PrivateKey: keyBytes,
 			}},
 		}
-	case types.SAMLIDPCA:
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
 	default:
 		panic("unknown CA type")
 	}
