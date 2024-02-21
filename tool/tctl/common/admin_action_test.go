@@ -470,6 +470,7 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 		resource:        ca,
 		resourceCreate:  createCertAuthority,
 		resourceCleanup: deleteCertAuthority,
+		testGetList:     true,
 	})
 
 	s.testEditCommand(t, ctx, editCommandTestCase{
@@ -868,7 +869,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 	if tc.testGetList {
 		t.Run("tctl get", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
-				command:    fmt.Sprintf("get %v", getResourceRef(tc.resource)),
+				command:    fmt.Sprintf("get --with-secrets %v", getResourceRef(tc.resource)),
 				cliCommand: &tctl.ResourceCommand{},
 				setup:      tc.resourceCreate,
 				cleanup:    tc.resourceCleanup,
@@ -877,7 +878,7 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 
 		t.Run("tctl list", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
-				command:    fmt.Sprintf("get %v", tc.resource.GetKind()),
+				command:    fmt.Sprintf("get --with-secrets %v", tc.resource.GetKind()),
 				cliCommand: &tctl.ResourceCommand{},
 				setup:      tc.resourceCreate,
 				cleanup:    tc.resourceCleanup,
