@@ -44,7 +44,7 @@ import {
 } from 'teleterm/ui/ConnectMyComputer';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
-import { DocumentVnet, VnetNavigationMenu } from 'teleterm/ui/Vnet';
+import { DocumentVnet } from 'teleterm/ui/Vnet';
 
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri, isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
@@ -105,10 +105,7 @@ export function DocumentsRenderer(props: {
                   workspacesService.getRootClusterUri() &&
                   props.topBarContainerRef.current &&
                   createPortal(
-                    <>
-                      <VnetNavigationMenu />
-                      <ConnectMyComputerNavigationMenu />
-                    </>,
+                    <ConnectMyComputerNavigationMenu />,
                     props.topBarContainerRef.current
                   )}
               </ConnectMyComputerContextProvider>

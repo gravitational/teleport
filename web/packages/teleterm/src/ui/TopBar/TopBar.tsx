@@ -34,7 +34,7 @@ export function TopBar(props: {
     <Grid>
       <JustifyLeft>
         <Connections />
-        <Flex gap={2} alignItems="center" ref={props.topBarContainerRef} />
+        <div ref={props.topBarContainerRef} />
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
@@ -67,10 +67,10 @@ const CentralContainer = styled(Flex).attrs({ gap: 3 })`
 
 const JustifyLeft = styled(Flex).attrs({ gap: 2 })`
   align-items: center;
-  // Reserves space for CMC icon to prevent layout shifting.
+  // Reserve space for CMC icon to prevent layout shifting.
   // CMC icon is typically shown after we sync root cluster details, so it's not available
   // immediately unlike other icons.
-  min-width: 112px;
+  min-width: 80px;
   height: 100%;
 `;
 

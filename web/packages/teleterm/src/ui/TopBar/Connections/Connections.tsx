@@ -78,6 +78,9 @@ export function Connections() {
               onActivateItem={activateItem}
               onRemoveItem={connections.removeItem}
               onDisconnectItem={connections.disconnectItem}
+              closePopover={() => {
+                setIsPopoverOpened(false);
+              }}
             />
           </KeyboardArrowsNavigation>
         </Container>
