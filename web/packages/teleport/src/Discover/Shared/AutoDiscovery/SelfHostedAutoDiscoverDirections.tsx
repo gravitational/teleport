@@ -30,7 +30,7 @@ const discoveryGroupToolTip = `Discovery group name is used to group discovered 
 This parameter is used to prevent Discovery Agents watching different sets of cloud resources from \
 colliding against each other and deleting resources created by another services.`;
 
-const discoveryServiceToolTip = `The Discovery Service, is responsible for watching your \
+const discoveryServiceToolTip = `The Discovery Service is responsible for watching your \
 cloud provider and checking if there are any new resources or if there have been any \
 modifications to previously discovered resources.`;
 
