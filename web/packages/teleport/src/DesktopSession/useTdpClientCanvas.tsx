@@ -30,7 +30,7 @@ import {
   PngFrame,
   SyncKeys,
 } from 'teleport/lib/tdp/codec';
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import { getHostName } from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { Sha256Digest } from 'teleport/lib/util';
 
@@ -85,7 +85,6 @@ export default function useTdpClientCanvas(props: Props) {
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':desktopName', desktopName)
-      .replace(':token', getAccessToken())
       .replace(':username', username);
 
     setTdpClient(new TdpClient(addr));
@@ -191,12 +190,21 @@ export default function useTdpClientCanvas(props: Props) {
     });
   };
 
-  const clientOnWsClose = () => {
-    setWsConnection('closed');
+  const clientOnTdpInfo = (info: string) => {
+    setDirectorySharingState(defaultDirectorySharingState);
+    setClipboardSharingState(defaultClipboardSharingState);
+    setTdpConnection({
+      status: '', // gracefully disconnecting
+      statusText: info,
+    });
+  };
+
+  const clientOnWsClose = (statusText: string) => {
+    setWsConnection({ status: 'closed', statusText });
   };
 
   const clientOnWsOpen = () => {
-    setWsConnection('open');
+    setWsConnection({ status: 'open' });
   };
 
   /**
@@ -376,6 +384,7 @@ export default function useTdpClientCanvas(props: Props) {
     clientOnWsClose,
     clientOnWsOpen,
     clientOnTdpWarning,
+    clientOnTdpInfo,
     canvasOnKeyDown,
     canvasOnKeyUp,
     canvasOnFocusOut,
@@ -402,7 +411,7 @@ type Props = {
   desktopName: string;
   clusterId: string;
   setTdpConnection: Setter<Attempt>;
-  setWsConnection: Setter<'open' | 'closed'>;
+  setWsConnection: Setter<{ status: 'open' | 'closed'; statusText?: string }>;
   clipboardSharingState: ClipboardSharingState;
   setClipboardSharingState: Setter<ClipboardSharingState>;
   setDirectorySharingState: Setter<DirectorySharingState>;

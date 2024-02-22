@@ -46,6 +46,7 @@ import (
 	"time"
 
 	awscredentials "github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -57,6 +58,7 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -64,6 +66,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -388,10 +391,9 @@ type TeleportProcess struct {
 	// closed all the listeners)
 	listenersClosed bool
 
-	// forkedPIDs is a collection of a teleport processes forked
-	// during restart used to collect their status in case if the
-	// child process crashed.
-	forkedPIDs []int
+	// forkedTeleportCount is the count of forked Teleport child processes
+	// currently active, as spawned by SIGHUP or SIGUSR2.
+	forkedTeleportCount atomic.Int32
 
 	// storage is a server local storage
 	storage *auth.ProcessStorage
@@ -431,6 +433,10 @@ type TeleportProcess struct {
 
 	// SSHD is used to execute commands to update or validate OpenSSH config.
 	SSHD openssh.SSHD
+
+	// resolver is used to identify the reverse tunnel address when connecting via
+	// the proxy.
+	resolver reversetunnelclient.Resolver
 }
 
 type keyPairKey struct {
@@ -709,7 +715,7 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 		if err != nil {
 			// This error means that was a clean shutdown
 			// and no reload is necessary.
-			if err == ErrTeleportExited {
+			if errors.Is(err, ErrTeleportExited) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -722,7 +728,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 	if err == nil {
 		return nil, ErrTeleportExited
 	}
-	if err != ErrTeleportReloading {
+	if !errors.Is(err, ErrTeleportReloading) {
 		return nil, trace.Wrap(err)
 	}
 	cfg.Log.Infof("Started in-process service reload.")
@@ -733,6 +739,9 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 	}
 	newCfg := cfg
 	newCfg.FileDescriptors = fileDescriptors
+	// our PID hasn't changed as we reload in-process, and if we're no longer
+	// the "main" Teleport process we don't want to overwrite the PID file
+	newCfg.PIDFile = ""
 	newSrv, err := newTeleport(&newCfg)
 	if err != nil {
 		warnOnErr(srv.Close(), cfg.Log)
@@ -774,7 +783,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 	timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer cancel()
 	srv.Shutdown(services.ProcessReloadContext(timeoutCtx))
-	if timeoutCtx.Err() == context.DeadlineExceeded {
+	if errors.Is(timeoutCtx.Err(), context.DeadlineExceeded) {
 		// The new service can start initiating connections to the old service
 		// keeping it from shutting down gracefully, or some external
 		// connections can keep hanging the old auth service and prevent
@@ -788,7 +797,7 @@ func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newT
 		timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer cancel()
 		srv.WaitWithContext(timeoutCtx)
-		if timeoutCtx.Err() == context.DeadlineExceeded {
+		if errors.Is(timeoutCtx.Err(), context.DeadlineExceeded) {
 			return nil, trace.BadParameter("the old service has failed to exit.")
 		}
 	} else {
@@ -982,6 +991,27 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if err == nil {
 			process.Config.SetAuthServerAddress(utils.FromAddr(listener.Addr()))
 		}
+	}
+
+	var resolverAddr utils.NetAddr
+	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
+		resolverAddr = cfg.ProxyServer
+	} else {
+		resolverAddr = cfg.AuthServerAddresses()[0]
+	}
+
+	process.resolver, err = reversetunnelclient.CachingResolver(
+		process.ExitContext(),
+		reversetunnelclient.WebClientResolver(&webclient.Config{
+			Context:   process.ExitContext(),
+			ProxyAddr: resolverAddr.String(),
+			Insecure:  lib.IsInsecureDevMode(),
+			Timeout:   process.Config.Testing.ClientTimeout,
+		}),
+		process.Clock,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER")
@@ -1226,13 +1256,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
-		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
-		_, err = fmt.Fprintf(f, "%v", os.Getpid())
-		if err = trace.NewAggregate(err, f.Close()); err != nil {
-			return nil, trace.Wrap(err)
+		if err := createLockedPIDFile(cfg.PIDFile); err != nil {
+			return nil, trace.Wrap(err, "creating pidfile")
 		}
 	}
 
@@ -2030,9 +2055,9 @@ func (process *TeleportProcess) initAuthService() error {
 		log.Info("Starting Auth service with external PROXY protocol support.")
 	}
 	if cfg.Auth.PROXYProtocolMode == multiplexer.PROXYProtocolUnspecified {
-		log.Warn("'proxy_protocol' unspecified." +
+		log.Warn("'proxy_protocol' unspecified. " +
 			"Starting Auth service with external PROXY protocol support, " +
-			"but IP pinned connection affected by PROXY headers will not be allowed." +
+			"but IP pinned connection affected by PROXY headers will not be allowed. " +
 			"Set 'proxy_protocol: on' in 'auth_service' config if Auth service runs behind L4 load balancer with enabled " +
 			"PROXY protocol, or set 'proxy_protocol: off' otherwise")
 	}
@@ -4474,7 +4499,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 
 			err := kubeServer.Serve(listeners.kube, mopts...)
-			if err != nil && err != http.ErrServerClosed {
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
 			}
 			return nil
@@ -4861,7 +4886,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	process.RegisterCriticalFunc("proxy.reversetunnel.web", func() error {
 		log.Infof("Minimal web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		defer minimalWebHandler.Close()
-		if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && err != http.ErrServerClosed {
+		if err := minimalWebServer.Serve(minimalListener.Web()); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Warningf("Error while serving web requests: %v", err)
 		}
 		log.Info("Exited.")
@@ -5502,7 +5527,7 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	warnOnErr(process.stopListeners(), process.log)
 
 	// populate context values
-	if len(process.getForkedPIDs()) > 0 {
+	if process.forkedTeleportCount.Load() > 0 {
 		ctx = services.ProcessForkedContext(ctx)
 	}
 
@@ -6074,4 +6099,36 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	}
 	statusService := local.NewStatusService(process.backend)
 	return externalauditstorage.NewConfigurator(process.ExitContext(), ecaSvc, integrationSvc, statusService)
+}
+
+// createLockedPIDFile creates a PID file in the path specified by pidFile
+// containing the current PID, atomically swapping it in the final place and
+// leaving it with an exclusive advisory lock that will get released when the
+// process ends, for the benefit of "pkill -L".
+func createLockedPIDFile(pidFile string) error {
+	pending, err := renameio.NewPendingFile(pidFile, renameio.WithPermissions(0o644))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer pending.Cleanup()
+	if _, err := fmt.Fprintf(pending, "%v\n", os.Getpid()); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	const minimumDupFD = 3 // skip stdio
+	locker, err := unix.FcntlInt(pending.Fd(), unix.F_DUPFD_CLOEXEC, minimumDupFD)
+	runtime.KeepAlive(pending)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	if err := unix.Flock(locker, unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		_ = unix.Close(locker)
+		return trace.ConvertSystemError(err)
+	}
+	// deliberately leak the fd to hold the lock until the process dies
+
+	if err := pending.CloseAtomicallyReplace(); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }

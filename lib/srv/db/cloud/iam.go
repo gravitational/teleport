@@ -20,6 +20,7 @@ package cloud
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -285,7 +286,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
 		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)
-		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
+		if errors.Is(trace.Unwrap(err), credentials.ErrNoValidProvidersFoundInChain) {
 			c.log.Warnf("No AWS credentials provider. Skipping IAM task for database %v.", task.database.GetName())
 			return nil
 		}

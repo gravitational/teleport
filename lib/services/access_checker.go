@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"net"
 	"slices"
 	"strings"
 	"time"
@@ -59,7 +60,7 @@ type AccessChecker interface {
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
 
 	// CheckAccessToRule checks access to a rule within a namespace.
-	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string, silent bool) error
+	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string) error
 
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.
@@ -152,6 +153,9 @@ type AccessChecker interface {
 	// auto-user provisioning is enabled. If no user-requested roles, all
 	// allowed roles are returned.
 	CheckDatabaseRoles(database types.Database, userRequestedRoles []string) (roles []string, err error)
+
+	// GetDatabasePermissions returns a set of database permissions applicable for the user.
+	GetDatabasePermissions() (allow types.DatabasePermissions, deny types.DatabasePermissions)
 
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
@@ -256,6 +260,11 @@ type AccessChecker interface {
 	//
 	// - types.KindWindowsDesktop
 	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
+
+	// CheckSPIFFESVID checks if the role set has access to generating the
+	// requested SPIFFE ID. Returns an error if the role set does not have the
+	// ability to generate the requested SVID.
+	CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) error
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -603,6 +612,17 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (types.Creat
 	// leave the behavior of what happens when a user is created with default
 	// "no roles" configuration up to the target database.
 	return allowedRoleSet.GetCreateDatabaseUserMode(), utils.StringsSliceFromSet(rolesMap), nil
+}
+
+// GetDatabasePermissions returns a set of database permissions applicable for the user.
+func (a *accessChecker) GetDatabasePermissions() (allow types.DatabasePermissions, deny types.DatabasePermissions) {
+	for _, role := range a.RoleSet {
+		allow = append(allow, role.GetDatabasePermissions(types.Allow)...)
+	}
+	for _, role := range a.RoleSet {
+		deny = append(deny, role.GetDatabasePermissions(types.Deny)...)
+	}
+	return allow, deny
 }
 
 // EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.

@@ -1305,7 +1305,7 @@ func TestRedisTransaction(t *testing.T) {
 		txf := func(tx *goredis.Tx) error {
 			// Get current value or zero.
 			n, err := tx.Get(ctx, key).Int()
-			if err != nil && err != goredis.Nil {
+			if err != nil && !errors.Is(err, goredis.Nil) {
 				return err
 			}
 
@@ -1326,7 +1326,7 @@ func TestRedisTransaction(t *testing.T) {
 				// Success.
 				return nil
 			}
-			if err == goredis.TxFailedErr {
+			if errors.Is(err, goredis.TxFailedErr) {
 				// Optimistic lock lost. Retry.
 				continue
 			}

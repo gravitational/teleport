@@ -39,7 +39,7 @@ type Config struct {
 	Slack               common.GenericAPIConfig
 	AccessTokenProvider auth.AccessTokenProvider
 	StatusSink          common.StatusSink
-	clock               clockwork.Clock
+	Clock               clockwork.Clock
 }
 
 // LoadSlackConfig reads the config file, initializes a new SlackConfig struct object, and returns it.
@@ -100,8 +100,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing required value role_to_recipients[%v].", types.Wildcard)
 	}
 
-	if c.clock == nil {
-		c.clock = clockwork.NewRealClock()
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 	c.PluginType = types.PluginTypeSlack
 	return nil
@@ -110,8 +110,8 @@ func (c *Config) CheckAndSetDefaults() error {
 // NewBot initializes the new Slack message generator (SlackBot)
 // takes GenericAPIConfig as an argument.
 func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
-	if c.clock == nil {
-		c.clock = clockwork.NewRealClock()
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 
 	var (
@@ -120,7 +120,7 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 	)
 	if webProxyAddr != "" {
 		if webProxyURL, err = lib.AddrToURL(webProxyAddr); err != nil {
-			return Bot{clock: c.clock}, trace.Wrap(err)
+			return Bot{clock: c.Clock}, trace.Wrap(err)
 		}
 	}
 
@@ -142,7 +142,7 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 
 	return Bot{
 		client:      client,
-		clock:       c.clock,
+		clock:       c.Clock,
 		clusterName: clusterName,
 		webProxyURL: webProxyURL,
 	}, nil

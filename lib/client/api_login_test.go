@@ -416,7 +416,6 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// Sanity check the Ping response.
 		resp, err := teleportClient.Ping(ctx)
 		require.NoError(t, err, "Ping failed")
-		require.True(t, resp.Auth.DeviceTrustDisabled, "Expected device trust to be disabled for Teleport OSS")
 		require.True(t, resp.Auth.DeviceTrust.Disabled, "Expected device trust to be disabled for Teleport OSS")
 
 		// Test!
@@ -451,11 +450,11 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			}, nil
 		})
 
-		proxyClient, err := teleportClient.ConnectToProxy(ctx)
+		clusterClient, err := teleportClient.ConnectToCluster(ctx)
 		require.NoError(t, err)
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
 		require.NoError(t, err)
 		defer rootAuthClient.Close()
 

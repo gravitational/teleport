@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
@@ -56,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -246,6 +249,9 @@ type InitConfig struct {
 
 	// AccessLists is a service that manages access list resources.
 	AccessLists services.AccessLists
+
+	// DatabaseObjectImportRule is a service that manages database object import rules.
+	DatabaseObjectImportRules services.DatabaseObjectImportRules
 
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
@@ -502,18 +508,22 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	}
 	span.AddEvent("completed migration legacy resources")
 
-	span.AddEvent("creating preset roles")
 	// Create presets - convenience and example resources.
-	if err := createPresetRoles(ctx, asrv); err != nil {
-		return trace.Wrap(err)
-	}
-	span.AddEvent("completed creating preset roles")
+	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+		span.AddEvent("creating preset roles")
+		if err := createPresetRoles(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset roles")
 
-	span.AddEvent("creating preset users")
-	if err := createPresetUsers(ctx, asrv); err != nil {
-		return trace.Wrap(err)
+		span.AddEvent("creating preset users")
+		if err := createPresetUsers(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset users")
+	} else {
+		log.Info("skipping preset role and user creation")
 	}
-	span.AddEvent("completed creating preset users")
 
 	if !cfg.SkipPeriodicOperations {
 		log.Infof("Auth server is running periodic operations.")
@@ -808,6 +818,8 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetDeviceAdminRole(),
 		services.NewPresetDeviceEnrollRole(),
 		services.NewPresetRequireTrustedDeviceRole(),
+		services.NewSystemOktaAccessRole(),
+		services.NewSystemOktaRequesterRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
@@ -1459,6 +1471,8 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			err = service.ClusterConfiguration.SetAuthPreference(ctx, r)
 		case *machineidv1pb.Bot:
 			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
+		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:
+			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r)
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

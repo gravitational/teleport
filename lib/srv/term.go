@@ -231,7 +231,8 @@ func (t *terminal) Run(ctx context.Context) error {
 func (t *terminal) Wait() (*ExecResult, error) {
 	err := t.cmd.Wait()
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			status := exitErr.Sys().(syscall.WaitStatus)
 			return &ExecResult{Code: status.ExitStatus(), Command: t.cmd.Path}, nil
 		}
@@ -594,7 +595,8 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 
 	err = t.session.Wait()
 	if err != nil {
-		if exitErr, ok := err.(*ssh.ExitError); ok {
+		var exitErr *ssh.ExitError
+		if errors.As(err, &exitErr) {
 			return &ExecResult{
 				Code:    exitErr.ExitStatus(),
 				Command: execRequest.GetCommand(),

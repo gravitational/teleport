@@ -69,6 +69,7 @@ func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventReques
 				BotName:       a.AnonymizeString(u.BotName),
 				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
 				JoinMethod:    u.JoinMethod,
+				UserName:      a.AnonymizeString(u.UserName),
 			},
 		},
 	}
@@ -1025,6 +1026,45 @@ func (e *MFAAuthenticationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitE
 				DeviceId:          a.AnonymizeString(e.DeviceId),
 				DeviceType:        e.DeviceType,
 				MfaChallengeScope: e.MfaChallengeScope,
+			},
+		},
+	}
+}
+
+// OktaAccessListSyncEvent is emitted when the Okta service syncs access lists from Okta.
+type OktaAccessListSyncEvent prehogv1a.OktaAccessListSyncEvent
+
+// Anonymize anonymizes the event.
+func (u *OktaAccessListSyncEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_OktaAccessListSync{
+			OktaAccessListSync: &prehogv1a.OktaAccessListSyncEvent{
+				NumAppFilters:        u.NumAppFilters,
+				NumGroupFilters:      u.NumGroupFilters,
+				NumApps:              u.NumApps,
+				NumGroups:            u.NumGroups,
+				NumRoles:             u.NumRoles,
+				NumAccessLists:       u.NumAccessLists,
+				NumAccessListMembers: u.NumAccessListMembers,
+			},
+		},
+	}
+}
+
+// SPIFFESVIDIssuedEvent is an event emitted when a SPIFFE SVID has been
+// issued.
+type SPIFFESVIDIssuedEvent prehogv1a.SPIFFESVIDIssuedEvent
+
+func (u *SPIFFESVIDIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SpiffeSvidIssued{
+			SpiffeSvidIssued: &prehogv1a.SPIFFESVIDIssuedEvent{
+				UserName:     a.AnonymizeString(u.UserName),
+				UserKind:     u.UserKind,
+				SpiffeId:     a.AnonymizeString(u.SpiffeId),
+				IpSansCount:  u.IpSansCount,
+				DnsSansCount: u.DnsSansCount,
+				SvidType:     u.SvidType,
 			},
 		},
 	}

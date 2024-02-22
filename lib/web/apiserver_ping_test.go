@@ -122,7 +122,6 @@ func TestPing(t *testing.T) {
 				},
 			},
 			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
-				assert.True(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
 				assert.True(t, resp.Auth.DeviceTrust.Disabled, "Auth.DeviceTrust.Disabled")
 			},
 		},
@@ -140,7 +139,6 @@ func TestPing(t *testing.T) {
 				},
 			},
 			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
-				assert.False(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
 				assert.False(t, resp.Auth.DeviceTrust.Disabled, "Auth.DeviceTrust.Disabled")
 			},
 		},
@@ -159,7 +157,6 @@ func TestPing(t *testing.T) {
 				},
 			},
 			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
-				assert.False(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
 				assert.False(t, resp.Auth.DeviceTrust.Disabled, "Auth.DeviceTrust.Disabled")
 				assert.True(t, resp.Auth.DeviceTrust.AutoEnroll, "Auth.DeviceTrust.AutoEnroll")
 			},

@@ -201,7 +201,7 @@ const Container = styled.div<{ docked: boolean }>`
   opacity: 0;
   animation: forwards ${fadeIn} 0.3s ease-in-out;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
+  z-index: ${p => (p.docked ? 2 : 100)};
   display: flex;
   justify-content: flex-end;
 `;
@@ -216,7 +216,8 @@ const AssistContainer = styled.div<{ docked: boolean }>`
     0
   );
   animation: forwards ${slideIn} 0.5s cubic-bezier(0.33, 1, 0.68, 1);
-  transition: width 0.5s cubic-bezier(0.33, 1, 0.68, 1),
+  transition:
+    width 0.5s cubic-bezier(0.33, 1, 0.68, 1),
     height 0.5s cubic-bezier(0.33, 1, 0.68, 1);
   background: ${p => p.theme.colors.levels.popout};
   border-radius: var(--assist-border-radius);
