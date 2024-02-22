@@ -630,6 +630,7 @@
     "nodename",
     "nohup",
     "nologin",
+    "noout",
     "noprompt",
     "nosql",
     "nowait",
