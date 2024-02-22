@@ -253,7 +253,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
 
     setAutoDiscoverAttempt({ status: 'success' });
     props.updateAgentMeta({
-      ...(agentMeta as EksMeta),
+      ...agentMeta,
       autoDiscovery: {
         config: discoveryConfig,
       },
