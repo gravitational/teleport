@@ -234,7 +234,7 @@ export function Status(props: { closeDocument?: () => void }) {
         </Flex>
 
         <Flex flexDirection="column" gap={2}>
-          <Flex gap={1} display="flex" alignItems="center" minHeight="32px">
+          <Flex gap={1} alignItems="center" minHeight="32px">
             {prettyCurrentAction.Icon && (
               <prettyCurrentAction.Icon size="medium" />
             )}
