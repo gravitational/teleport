@@ -208,10 +208,10 @@ export function ReauthenticateStep({
               />
             )}
             <Flex gap={2}>
-              <ButtonPrimary block={true} type="submit">
+              <ButtonPrimary type="submit" block={true}>
                 Verify my identity
               </ButtonPrimary>
-              <ButtonSecondary block={true} onClick={onClose}>
+              <ButtonSecondary type="button" block={true}>
                 Cancel
               </ButtonSecondary>
             </Flex>
@@ -499,12 +499,12 @@ export function SaveDeviceStep({
               />
             )}
             <Flex gap={2}>
-              <ButtonPrimary block={true} type="submit">
+              <ButtonPrimary type="submit" block={true}>
                 {usage === 'passwordless'
                   ? 'Save the Passkey'
                   : 'Save the MFA method'}
               </ButtonPrimary>
-              <ButtonSecondary block={true} onClick={prev}>
+              <ButtonSecondary type="button" block={true} onClick={prev}>
                 Back
               </ButtonSecondary>
             </Flex>
