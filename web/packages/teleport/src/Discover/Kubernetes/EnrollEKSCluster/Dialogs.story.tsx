@@ -27,8 +27,6 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { ContextProvider } from 'teleport';
 
-const { worker } = window.msw;
-
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
@@ -48,24 +46,6 @@ import { ManualHelmDialog } from './ManualHelmDialog';
 export default {
   title: 'Teleport/Discover/Kube/EnrollEksClusters/Dialogs',
   loaders: [mswLoader],
-  decorators: [
-    Story => {
-      worker.resetHandlers();
-
-      useEffect(() => {
-        // Clean up
-        return () => {
-          clearCachedJoinTokenResult([
-            ResourceKind.Kubernetes,
-            ResourceKind.Application,
-            ResourceKind.Discovery,
-          ]);
-        };
-      }, []);
-
-      return <Story />;
-    },
-  ],
 };
 
 export const EnrollmentDialogStory = () => (
@@ -198,6 +178,16 @@ export const ManualHelmDialogStory = () => {
     emitEvent: () => null,
     eventState: null,
   };
+
+  useEffect(() => {
+    return () => {
+      clearCachedJoinTokenResult([
+        ResourceKind.Kubernetes,
+        ResourceKind.Application,
+        ResourceKind.Discovery,
+      ]);
+    };
+  }, []);
 
   return (
     <MemoryRouter
