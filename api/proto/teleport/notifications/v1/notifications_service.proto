@@ -31,8 +31,6 @@ service NotificationService {
   rpc CreateUserNotification(CreateUserNotificationRequest) returns (Notification);
   // DeleteUserNotification deletes a user-specific notification.
   rpc DeleteUserNotification(DeleteUserNotificationRequest) returns (google.protobuf.Empty);
-  // DeleteAllUserNotificationsForUser deletes all of a user's user-specific notifications.
-  rpc DeleteAllUserNotificationsForUser(DeleteAllUserNotificationsForUserRequest) returns (google.protobuf.Empty);
 
   // CreateGlobalNotification creates a global notification.
   rpc CreateGlobalNotification(CreateGlobalNotificationRequest) returns (GlobalNotification);
@@ -46,8 +44,6 @@ service NotificationService {
   rpc UpsertUserNotificationState(UpsertUserNotificationStateRequest) returns (UserNotificationState);
   // DeleteUserNotificationState deletes a user notification state object.
   rpc DeleteUserNotificationState(DeleteUserNotificationStateRequest) returns (google.protobuf.Empty);
-  // DeleteAllUserNotificationStatesForUser deletes all of a user's notification states.
-  rpc DeleteAllUserNotificationStatesForUser(DeleteAllUserNotificationStatesForUserRequest) returns (google.protobuf.Empty);
   // ListUserNotificationStates returns a page of a user's notification states.
   rpc ListUserNotificationStates(ListUserNotificationStatesRequest) returns (ListUserNotificationStatesResponse);
 
@@ -73,12 +69,6 @@ message DeleteUserNotificationRequest {
   string username = 1;
   // notification_id is the ID of the notification to delete.
   string notification_id = 2;
-}
-
-// DeleteAllUserNotificationsForUserRequest is the request for deleting all of a user's user-specific notifications.
-message DeleteAllUserNotificationsForUserRequest {
-  // username is the username of the user.
-  string username = 1;
 }
 
 // ListUserNotificationsRequest is the request for listing a user's notifications, which include user-specific ones as well as global notifications that match them.
@@ -133,12 +123,6 @@ message DeleteUserNotificationStateRequest {
   string username = 1;
   // notification_id is the ID of the notification the notifiation state to delete is for.
   string notification_id = 2;
-}
-
-// DeleteAllUserNotificationStatesForUserRequest is the request for deleting all of a user's notification states.
-message DeleteAllUserNotificationStatesForUserRequest {
-  // username is the username of the user.
-  string username = 1;
 }
 
 // ListUserNotificationStatesRequest is the request for listing a user's notification states.
