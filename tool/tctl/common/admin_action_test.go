@@ -200,11 +200,11 @@ func (s *adminActionTestSuite) testAuth(t *testing.T) {
 				cliCommand: &tctl.AuthCommand{},
 			},
 			"auth export": {
-				command:    fmt.Sprintf("auth export --keys"),
+				command:    "auth export --keys",
 				cliCommand: &tctl.AuthCommand{},
 			},
 			"auth export --type": {
-				command:    fmt.Sprintf("auth export --keys --type=user"),
+				command:    "auth export --keys --type=user",
 				cliCommand: &tctl.AuthCommand{},
 			},
 		} {
