@@ -990,11 +990,9 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 	authServer := testServer.Auth()
 
 	// Create a user for testing.
-	user, role, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
+	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	username := user.GetName()
-	_, err = authServer.UpsertRole(ctx, role)
-	require.NoError(t, err)
 
 	// Create clients with and without device extensions.
 	clientWithoutDevice, err := testServer.NewClient(TestUser(username))
@@ -1077,17 +1075,14 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 			})
 
 			t.Run("CreatePrivilegeTokenRequest", func(t *testing.T) {
-				_, err := test.client.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{
-					ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
-				})
+				_, err := test.client.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{})
 				test.assertErr(t, err)
 			})
 
 			t.Run("CreateRegisterChallenge", func(t *testing.T) {
 				_, err := test.client.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-					ExistingMFAResponse: &proto.MFAAuthenticateResponse{},
-					DeviceType:          proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-					DeviceUsage:         proto.DeviceUsage_DEVICE_USAGE_MFA,
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
 				})
 				test.assertErr(t, err)
 			})
