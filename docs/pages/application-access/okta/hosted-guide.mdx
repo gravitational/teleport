@@ -92,7 +92,7 @@ provisioning as well.
 
 ## Configure Access List Synchronization
 
-If Teleport Identity is enabled, you will show you a guide to configure importing
+If Teleport Identity is enabled, the enrollment workflow will also guide you to configure syncing of
 User Groups and Direct Application Assignments as access lists. This will ensure
 that permissions in Okta are modeled properly in Teleport, allowing Teleport users
 to see the same Okta applications that they would when viewing the Okta dashboard.
@@ -113,9 +113,9 @@ Okta Access List synchronization process.
 
 After configurating default owners, you can customize which Okta User Groups should
 be imported. By default, all user groups will be imported. If you would like more
-control, you can uncheck the "Import All User Groups" checkbox at the top right of
-of the panel and configure multiple filters which will be matched against the group
-names.  For more information on filter syntax, please refer to the Import Filters section
+control, you can untoggle the "Import All User Groups" toggler at the top right of
+the panel and configure multiple filters which will be matched against the group
+names.  For more information on filter syntax, refer to the Import Filters section
 below.
 
 <Admonition type="note">
@@ -140,12 +140,11 @@ Application has no assignments, it will not be imported until it has assignments
 
 Filters are supported as glob syntax and regex syntax. Glob syntax are strings with
 wildcards in them that represent arbitrary values where the wildcards go. For example,
-to a glob that matches names with a prefix of "app" and a suffix of "salesforce" would
+a glob that matches names with a prefix of "app" and a suffix of "salesforce" would
 look like `app*salesforce`.
 
 You can also use raw regular expressions so long as the filter string is prefixed with `^`
-and ends with `*`. This will support the Google RE2 regular expression syntax as defined
-[https://github.com/google/re2/wiki/Syntax](here).
+and ends with `*`. This will support the [https://github.com/google/re2/wiki/Syntax](Google RE2) regular expression syntax.
 
 When filters are added, the results of the user group or application list will update with
 the results of your filter applied. This allows you to see what will be imported at this
