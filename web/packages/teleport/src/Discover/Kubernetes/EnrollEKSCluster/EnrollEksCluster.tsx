@@ -215,20 +215,6 @@ export function EnrollEksCluster(props: AgentStepProps) {
     });
   }
 
-  function handleAndEmitRequestError(
-    err: Error,
-    cfg: { errorPrefix?: string; setAttempt?(attempt: Attempt): void }
-  ) {
-    const message = getErrMessage(err);
-    if (cfg.setAttempt) {
-      cfg.setAttempt({
-        status: 'failed',
-        statusText: `${cfg.errorPrefix}${message}`,
-      });
-    }
-    emitErrorEvent(`${cfg.errorPrefix}${message}`);
-  }
-
   async function enableAutoDiscovery() {
     setAutoDiscoverAttempt({ status: 'processing' });
 
@@ -255,11 +241,13 @@ export function EnrollEksCluster(props: AgentStepProps) {
         );
         setAutoDiscoveryCfg(discoveryConfig);
       } catch (err) {
-        handleAndEmitRequestError(err, {
-          errorPrefix: 'failed to create discovery config: ',
-          setAttempt: setAutoDiscoverAttempt,
+        const message = getErrMessage(err);
+        setAutoDiscoverAttempt({
+          status: 'failed',
+          statusText: `failed to create discovery config: ${message}`,
         });
-        return;
+
+        emitErrorEvent(`failed to create discovery config: ${message}`);
       }
     }
 
