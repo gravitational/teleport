@@ -1096,6 +1096,12 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
 
+	if req.GetAssumeStartTime() != nil {
+		if err := types.ValidateAssumeStartTime(*req.GetAssumeStartTime()); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// check for "wildcard request" (`roles=*`).  wildcard requests
 	// need to be expanded into a list consisting of all existing roles
 	// that the user does not hold and is allowed to request.

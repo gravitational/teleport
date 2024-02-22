@@ -29,6 +29,7 @@ import {
   AccessRequest,
   ResourceID,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 import Logger from 'teleterm/logger';
 import * as uri from 'teleterm/ui/uri';
@@ -50,7 +51,6 @@ import {
 } from './types';
 import createAbortController from './createAbortController';
 import { mapUsageEvent } from './mapUsageEvent';
-import { getProtoTimestamp } from './utils';
 
 export function createTshdClient(
   addr: string,
@@ -301,7 +301,8 @@ export function createTshdClient(
         suggestedReviewers: params.suggestedReviewers,
         roles: params.roles,
         reason: params.reason,
-        assumeStartTime: getProtoTimestamp(params.assumeStartTime),
+        assumeStartTime:
+          params.assumeStartTime && Timestamp.fromDate(params.assumeStartTime),
         resourceIds: params.resourceIds.map(({ id, clusterName, kind }) =>
           ResourceID.create({
             name: id,
@@ -371,7 +372,8 @@ export function createTshdClient(
         state: params.state,
         reason: params.reason,
         roles: params.roles,
-        assumeStartTime: getProtoTimestamp(params.assumeStartTime),
+        assumeStartTime:
+          params.assumeStartTime && Timestamp.fromDate(params.assumeStartTime),
       });
       return new Promise<types.AccessRequest>((resolve, reject) => {
         tshd.reviewAccessRequest(req, (err, response) => {

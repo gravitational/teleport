@@ -367,9 +367,13 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 
 func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
+	clock := clockwork.NewFakeClock()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
+
+	invalidStartTime := clock.Now().UTC().Add(1000000 * time.Hour)
+	maxEndStartTime := invalidStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339)
 
 	testCases := []struct {
 		desc                   string
@@ -382,6 +386,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		requestResources       []string
 		expectRequestError     error
 		expectReviewError      error
+		assumeStartTime        *time.Time
 	}{
 		{
 			desc:                   "role request",
@@ -397,6 +402,16 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			requester:          "nobody",
 			requestRoles:       []string{"admins"},
 			expectRequestError: trace.BadParameter(`user "nobody" can not request role "admins"`),
+		},
+		{
+			desc:                   "assume start time too far in the future",
+			requester:              "operator",
+			reviewer:               "admin",
+			expectRequestableRoles: []string{"admins"},
+			requestRoles:           []string{"admins"},
+			expectRoles:            []string{"operators", "admins"},
+			assumeStartTime:        &invalidStartTime,
+			expectRequestError:     trace.BadParameter(`assume start time is too far in the future: latest date %q`, maxEndStartTime),
 		},
 		{
 			desc:                   "role not allowed",
@@ -494,6 +509,10 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			}
 			req, err := services.NewAccessRequestWithResources(tc.requester, tc.requestRoles, requestResourceIDs)
 			require.NoError(t, err)
+
+			if tc.assumeStartTime != nil {
+				req.SetAssumeStartTime(*tc.assumeStartTime)
+			}
 
 			// send the request to the auth server
 			req, err = requesterClient.CreateAccessRequestV2(ctx, req)
