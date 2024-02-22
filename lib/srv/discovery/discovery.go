@@ -320,6 +320,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
 		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
 		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
+		dynamicGitlabSyncFetchers:  make(map[string]*gitlab.GitlabFetcher),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
