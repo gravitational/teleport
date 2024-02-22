@@ -39,6 +39,8 @@ import {
 } from 'teleport/services/integrations';
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
+import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
+
 import { EnrollmentDialog } from './EnrollmentDialog';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
 import { ManualHelmDialog } from './ManualHelmDialog';
@@ -198,8 +200,7 @@ export const ManualHelmDialogStory = () => {
       <ContextProvider ctx={createTeleportContext()}>
         <DiscoverProvider mockCtx={discoverCtx}>
           <ManualHelmDialog
-            commandProps={helmCommandProps}
-            setJoinToken={() => {}}
+            setJoinTokenAndGetCommand={() => generateCmd(helmCommandProps)}
             confirmedCommands={() => {}}
             cancel={() => {}}
           />

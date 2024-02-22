@@ -27,10 +27,6 @@ import { Spinner } from 'design/Icon';
 
 import * as Icons from 'design/Icon';
 
-import {
-  GenerateCmdProps,
-  generateCmd,
-} from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
@@ -39,10 +35,8 @@ import { ResourceKind, TextIcon } from 'teleport/Discover/Shared';
 import { JoinToken } from 'teleport/services/joinToken';
 import { CatchError } from 'teleport/components/CatchError';
 
-
 type ManualHelmDialogProps = {
-  commandProps: GenerateCmdProps;
-  setJoinToken(token: JoinToken): void;
+  setJoinTokenAndGetCommand(token: JoinToken): string;
   confirmedCommands(): void;
   cancel(): void;
 };
@@ -105,8 +99,7 @@ const DummyDialog = ({ error, cancel, showSpinner }: DummyDialogProps) => {
 };
 
 export function ManualHelmDialog({
-  commandProps,
-  setJoinToken,
+  setJoinTokenAndGetCommand,
   cancel,
   confirmedCommands,
 }: ManualHelmDialogProps) {
@@ -116,12 +109,7 @@ export function ManualHelmDialog({
     ResourceKind.Discovery,
   ]);
 
-  setJoinToken(joinToken);
-  const command = generateCmd({
-    ...commandProps,
-    tokenId: joinToken.id,
-    resourceId: joinToken.internalResourceId,
-  });
+  const command = setJoinTokenAndGetCommand(joinToken);
 
   return (
     <Dialog onClose={cancel} open={true}>
