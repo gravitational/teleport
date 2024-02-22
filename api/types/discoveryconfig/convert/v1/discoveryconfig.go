@@ -67,6 +67,7 @@ func FromProto(msg *discoveryconfigv1.DiscoveryConfig) (*discoveryconfig.Discove
 			GCP:            gcpMatchers,
 			Kube:           kubeMatchers,
 			AccessGraph:    msg.Spec.AccessGraph,
+			Gitlab:         msg.Spec.Gitlab,
 		},
 	)
 
@@ -105,6 +106,7 @@ func ToProto(discoveryConfig *discoveryconfig.DiscoveryConfig) *discoveryconfigv
 			Gcp:            gcpMatchers,
 			Kube:           kubeMatchers,
 			AccessGraph:    discoveryConfig.Spec.AccessGraph,
+			Gitlab:         discoveryConfig.Spec.Gitlab,
 		},
 	}
 }

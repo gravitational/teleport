@@ -50,6 +50,7 @@ type Spec struct {
 	Kube []types.KubernetesMatcher `json:"kube,omitempty" yaml:"kube"`
 	// AccessGraph is the configuration for the Access Graph Cloud sync.
 	AccessGraph *types.AccessGraphSync `json:"access_graph,omitempty" yaml:"access_graph"`
+	Gitlab      *types.GitlabSync      `json:"gitlab,omitempty" yaml:"gitlab"`
 }
 
 // NewDiscoveryConfig will create a new discovery config.
