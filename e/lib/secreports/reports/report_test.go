@@ -13,7 +13,7 @@ func TestPrivilegeAccessReportUpdate(t *testing.T) {
 	t.Parallel()
 
 	vMap := map[string]string{
-		"0.0.1": "87a1f05c51eb5766e4a02ae348f26051",
+		"0.0.2": "2de05cf953608cc41545aec9751c2756",
 	}
 
 	data, err := json.Marshal(&PrivilegeAccessReport)

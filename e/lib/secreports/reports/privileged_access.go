@@ -2,14 +2,14 @@ package reports
 
 // PrivilegeAccessReport provides a report for privileged access.
 var PrivilegeAccessReport = &AuditReportType{
-	Version: "0.0.1",
+	Version: "0.0.2",
 	Name:    "privilege_access_report",
 	Title:   "Privileged Access Report",
 	Queries: []AuditQueryType{
 		{
 			Name:        "database_sessions_with_weak_security",
 			Title:       "Database sessions with weak security",
-			Description: "Database session count per user that doesn't use Access Request or MFA access",
+			Description: "Setup access requests, device trust and per-session MFA",
 			Query: `
 SELECT
 	event_date,
@@ -38,20 +38,12 @@ ORDER BY
 			Description: "Eliminate usage of kube exec",
 			Query: `
 SELECT
-	event_date,
-	count(*) as count,
-	user
+    event_date,
+    count(*) as count,
+    user
 FROM 
-    session_start 
+    exec
 WHERE
-    CARDINALITY(access_requests) IS NULL
-AND 
-    with_mfa IS NULL
-AND 
-    impersonator IS NULL
-AND 
-    trusted_device_device_id IS NULL
-AND
     proto='kube'
 GROUP BY
     event_date,
@@ -139,14 +131,16 @@ ORDER BY
 		{
 			Name:        "db_postgres_user",
 			Title:       "Privileged Postgres sessions",
-			Description: "Setup access requests, device trust and per-session MFA",
+			Description: "Downgrade database connections to less privileged database users",
 			Query: `
 SELECT
 	event_date,
 	COUNT(*) AS count,
 	user
 FROM 
-    db_session_start 
+    db_session_start
+WHERE
+    db_protocol='postgres' and db_user='postgres'
 GROUP BY
     event_date,
     user
@@ -164,7 +158,8 @@ SELECT
 	COUNT(*) as count,
 	node_name,
 	host_id
-FROM instance_join 
+FROM
+    instance_join
 WHERE 
 	FROM_ISO8601_TIMESTAMP(token_expires) - FROM_ISO8601_TIMESTAMP(time) > INTERVAL '1' DAY
 GROUP BY
