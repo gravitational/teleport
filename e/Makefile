@@ -304,7 +304,7 @@ deploy-cloud-login:
 #
 
 $(RELEASE_DIR):
-	mkdir $@
+	mkdir -p $@
 
 .PHONY:
 export
@@ -382,6 +382,11 @@ build-archive: | $(RELEASE_DIR)
 	echo $(GITTAG) > teleport-ent/VERSION
 	tar $(TAR_FLAGS) -c teleport-ent | gzip -n > $(RELEASE_ENT).tar.gz
 	cp $(RELEASE_ENT).tar.gz $(RELEASE_DIR)
+	# linux-amd64 generates a centos7-compatible archive. Make a copy with the -centos7 label,
+	# for the releases page. We should probably drop that at some point.
+	$(if $(filter linux-amd64,$(OS)-$(ARCH)), \
+		cp $(RELEASE_ENT).tar.gz $(RELEASE_DIR)/$(subst amd64,amd64-centos7,$(RELEASE_ENT)).tar.gz \
+	)
 	rm -rf teleport-ent
 	@echo "---> Created $(RELEASE_ENT).tar.gz."
 

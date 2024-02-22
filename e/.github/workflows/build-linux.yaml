@@ -186,32 +186,18 @@ jobs:
 
       - name: Build Release
         env:
-          RELEASE: ${{ inputs.release }}
           RELEASE_TARGET: ${{ inputs.release-target }}
           RELEASE_DIR: ${{ github.workspace }}/build/artifacts
         run: |
           mkdir -p "$RELEASE_DIR" # TODO(camscale): Move -p to Makefile
+
           make -C build.assets "$RELEASE_TARGET"
-          # CentOS7 builds are used for all Linux AMD64 targets, but are also named with a
-          # centos7 tag too.
-          # TODO(camscale): Move this naming to the Makefile
-          if [ "$RELEASE_TARGET" = 'release-amd64-centos7' ]; then
-            cp "build/artifacts/teleport-v${VERSION}-linux-amd64-bin.tar.gz" \
-               "build/artifacts/teleport-v${VERSION}-linux-amd64-centos7-bin.tar.gz"
-            if [ "$RELEASE" = 'enterprise' ]; then
-              cp "build/artifacts/teleport-ent-v${VERSION}-linux-amd64-bin.tar.gz" \
-                 "build/artifacts/teleport-ent-v${VERSION}-linux-amd64-centos7-bin.tar.gz"
-            fi
-          elif [ "$RELEASE_TARGET" = 'release-amd64-centos7-fips' ]; then
-            # FIPS builds end up in e/build/artifacts as $RELEASE_DIR does not pass through
-            # to the docker build.
-            cp "e/build/artifacts/teleport-ent-v${VERSION}-linux-amd64-fips-bin.tar.gz" build/artifacts
-            cp "build/artifacts/teleport-ent-v${VERSION}-linux-amd64-fips-bin.tar.gz" \
-               "build/artifacts/teleport-ent-v${VERSION}-linux-amd64-centos7-fips-bin.tar.gz"
-          elif [ "$RELEASE_TARGET" = 'release-arm64-fips' ]; then
-            # FIPS builds end up in e/build/artifacts as $RELEASE_DIR does not pass through
-            # to the docker build.
-            cp "e/build/artifacts/teleport-ent-v${VERSION}-linux-arm64-fips-bin.tar.gz" build/artifacts
+
+          # FIPS builds put the build archives in e/build/artifacts. If there are
+          # any files in there, move them to the top-level build/artifacts dir.
+          # TODO(camscale): Remove this when the Makefile puts all artifacts in $RELEASE_DIR
+          if [[ -d e/build/artifacts && -n "$(find e/build/artifacts -maxdepth 0 ! -empty)" ]]; then
+            mv e/build/artifacts/* "$RELEASE_DIR"
           fi
 
       - name: Build Teleport Connect
