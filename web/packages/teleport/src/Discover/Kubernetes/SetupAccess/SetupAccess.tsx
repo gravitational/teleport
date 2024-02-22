@@ -51,7 +51,6 @@ export function SetupAccess(props: State) {
   const [selectedUsers, setSelectedUsers] = useState<Option[]>([]);
 
   const wantAutoDiscover = !!agentMeta.autoDiscovery;
-  // debugger;
   useEffect(() => {
     if (props.attempt.status === 'success') {
       setSelectedGroups(initSelectedOptions('kubeGroups'));
