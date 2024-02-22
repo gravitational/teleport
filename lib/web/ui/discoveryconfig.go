@@ -41,6 +41,8 @@ type DiscoveryConfig struct {
 	Kube []types.KubernetesMatcher `json:"kube,omitempty"`
 	// AccessGraph is the configuration for the Access Graph Cloud sync.
 	AccessGraph *types.AccessGraphSync `json:"accessGraph,omitempty"`
+	//
+	Gitlab *types.GitlabSync `json:"gitlab,omitempty`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -113,5 +115,6 @@ func MakeDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig) DiscoveryConfig {
 		GCP:            dc.Spec.GCP,
 		Kube:           dc.Spec.Kube,
 		AccessGraph:    dc.Spec.AccessGraph,
+		Gitlab:         dc.Spec.Gitlab,
 	}
 }

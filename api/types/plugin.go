@@ -265,7 +265,11 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("ServiceNow plugin must be used with the static credentials ref type")
 		}
-
+	case *PluginSpecV1_Gitlab:
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Gitlab plugin must be used with the static credentials ref type")
+		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
