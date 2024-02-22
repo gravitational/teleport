@@ -63,7 +63,7 @@ func TestAdminActionMFA(t *testing.T) {
 
 	t.Run("Users", s.testUsers)
 	t.Run("Bots", s.testBots)
-	t.Run("AuthSign", s.testAuthSign)
+	t.Run("Auth", s.testAuth)
 	t.Run("Roles", s.testRoles)
 	t.Run("AccessRequests", s.testAccessRequests)
 	t.Run("Tokens", s.testTokens)
@@ -179,7 +179,7 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	})
 }
 
-func (s *adminActionTestSuite) testAuthSign(t *testing.T) {
+func (s *adminActionTestSuite) testAuth(t *testing.T) {
 	ctx := context.Background()
 
 	user, err := types.NewUser("teleuser")
@@ -194,12 +194,24 @@ func (s *adminActionTestSuite) testAuthSign(t *testing.T) {
 	identityFilePath := filepath.Join(t.TempDir(), "identity")
 
 	t.Run("AuthCommands", func(t *testing.T) {
-		t.Run("Impersonation", func(t *testing.T) {
-			s.testCommand(t, ctx, adminActionTestCase{
+		for name, tc := range map[string]adminActionTestCase{
+			"auth sign --user=impersonate": {
 				command:    fmt.Sprintf("auth sign --out=%v --user=%v --overwrite", identityFilePath, user.GetName()),
 				cliCommand: &tctl.AuthCommand{},
+			},
+			"auth export": {
+				command:    fmt.Sprintf("auth export --keys"),
+				cliCommand: &tctl.AuthCommand{},
+			},
+			"auth export --type": {
+				command:    fmt.Sprintf("auth export --keys --type=user"),
+				cliCommand: &tctl.AuthCommand{},
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				s.testCommand(t, ctx, tc)
 			})
-		})
+		}
 
 		// Renewing certs for yourself should not require admin MFA.
 		t.Run("RenewCerts", func(t *testing.T) {
