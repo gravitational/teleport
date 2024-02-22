@@ -421,7 +421,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
               </Toggle>
               <Toggle
                 isToggled={isAppDiscoveryEnabled}
-                onToggle={() => setAppDiscoveryEnabled(!isAppDiscoveryEnabled)}
+                onToggle={() => setAppDiscoveryEnabled(isEnabled => !isEnabled)}
               >
                 <Box ml={2} mr={1}>
                   Enable Kubernetes App Discovery
