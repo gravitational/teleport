@@ -6643,3 +6643,9 @@ message AccessGraphAWSSync {
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
 }
+
+// GitlabSync is a configuration for Gitlab service.
+message GitlabSync {
+  string token = 1 [(gogoproto.jsontag) = "token"];
+  string name = 2 [(gogoproto.jsontag) = "name"];
+}

@@ -49,4 +49,6 @@ message DiscoveryConfigSpec {
   repeated types.KubernetesMatcher kube = 5;
   // AccessGraph is the configurations for syncing Cloud accounts into Access Graph.
   types.AccessGraphSync access_graph = 6;
+  // Gitlab is a gitlab matcher
+  types.GitlabSync gitlab = 7;
 }
