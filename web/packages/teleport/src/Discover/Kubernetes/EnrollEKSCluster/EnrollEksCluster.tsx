@@ -539,7 +539,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
           next={handleOnProceed}
         />
       )}
-      {autoDiscoverAttempt.status != '' && (
+      {autoDiscoverAttempt.status !== '' && (
         <AutoEnrollDialog
           attempt={autoDiscoverAttempt}
           next={props.nextStep}
