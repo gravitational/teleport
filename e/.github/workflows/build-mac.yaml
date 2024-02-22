@@ -40,6 +40,10 @@ on:
         type: string
         default: ''
 
+      artifact-name:
+        description: Name of artifact to upload to. If empty, artifacts are not uploaded.
+        type: string
+
       environment:
         description: |
           GitHub Actions environment in which to run the build. Can be either
@@ -143,6 +147,7 @@ jobs:
 
       # --- Upload ------------------------------------------------------------
       - name: Checksum artifacts
+        if: inputs.artifact-name != ''
         run: |
           cd build/artifacts
           for f in *; do
@@ -151,10 +156,12 @@ jobs:
           done
 
       - name: Upload artifacts
-        uses: actions/upload-artifact/@v3
+        uses: actions/upload-artifact@v4
+        if: inputs.artifact-name != ''
         with:
-          name: release
+          name: ${{ inputs.artifact-name }}
+          compression-level: 0 # artifacts are already compressed
+          retention-days: 1 # minimum; only needed until calling workflow downloads the artifacts
           path: |
             build/artifacts
             !**/*-unsigned*
-          retention-days: 1

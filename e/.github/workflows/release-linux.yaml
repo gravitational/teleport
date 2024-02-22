@@ -85,6 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       arch: ${{ steps.determine-arch.outputs.arch }}
+      artifact-name: ${{ steps.determine-artifact.outputs.name }}
       builder: ${{ steps.select-builder.outputs.builder }}
       teleport-version: ${{ steps.determine-version.outputs.teleport-version }}
     steps:
@@ -126,6 +127,17 @@ jobs:
           *arm*) echo 'arch=arm' ;;
           *386*) echo 'arch=386' ;;
           esac >> "$GITHUB_OUTPUT"
+      - name: Determine artifact name
+        id: determine-artifact
+        env:
+          RELEASE_ARTIFACTS: ${{ inputs.release-artifacts }}
+          RELEASE_TARGET: ${{ inputs.release-target }}
+        run: |
+          if [[ "${RELEASE_ARTIFACTS}" == 'true' ]]; then
+            echo "name=${RELEASE_TARGET}"
+          else
+            echo "name="
+          fi >> "$GITHUB_OUTPUT"
 
   build-artifacts:
     name: Build Artifacts
@@ -141,7 +153,7 @@ jobs:
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       release: enterprise
       release-target: ${{ inputs.release-target }}
-      save-artifacts: ${{ inputs.release-artifacts }}
+      artifact-name: ${{ needs.select.outputs.artifact-name }}
       builder: ${{ needs.select.outputs.builder }}
       build-connect: ${{ inputs.build-connect }}
       build-deb: ${{ inputs.build-os-packages }}
@@ -161,9 +173,9 @@ jobs:
     steps:
       - name: Download artifacts
         id: download
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: release
+          name: ${{ needs.select.outputs.artifact-name }}
           path: artifacts
 
       - name: Configure AWS credentials
@@ -191,9 +203,9 @@ jobs:
     steps:
       - name: Download artifacts
         id: download
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: release
+          name: ${{ needs.select.outputs.artifact-name }}
           path: artifacts
 
       - name: Register artifacts

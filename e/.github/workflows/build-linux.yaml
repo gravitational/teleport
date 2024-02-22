@@ -36,11 +36,9 @@ on:
         required: true
         type: string
 
-      save-artifacts:
-        description: "Should the build export the build artifacts"
-        required: false
-        type: boolean
-        default: false
+      artifact-name:
+        description: Name of artifact to upload to. If empty, artifacts are not uploaded.
+        type: string
 
       build-connect:
         description: "Should Teleport Connect be built"
@@ -295,7 +293,7 @@ jobs:
           cp e/build/*.rpm build/artifacts
 
       - name: Checksum artifacts
-        if: inputs.save-artifacts
+        if: inputs.artifact-name != ''
         run: |
           cd build/artifacts
           for f in *; do
@@ -305,9 +303,11 @@ jobs:
           done
 
       - name: Upload artifacts
-        if: inputs.save-artifacts
-        uses: actions/upload-artifact@v3
+        if: inputs.artifact-name != ''
+        uses: actions/upload-artifact@v4
         with:
-          name: release
+          name: ${{ inputs.artifact-name }}
+          compression-level: 0 # artifacts are already compressed
+          retention-days: 1 # minimum; only needed until calling workflow downloads the artifacts
           path: |
             build/artifacts
