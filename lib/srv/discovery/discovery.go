@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/gitlab"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
 
@@ -72,6 +73,7 @@ type Matchers struct {
 	Kubernetes []types.KubernetesMatcher
 	// AccessGraph is the configuration for the Access Graph Cloud sync.
 	AccessGraph *types.AccessGraphSync
+	Gitlab      *types.GitlabSync
 }
 
 func (m Matchers) IsEmpty() bool {
@@ -79,7 +81,8 @@ func (m Matchers) IsEmpty() bool {
 		len(m.AWS) == 0 &&
 		len(m.Azure) == 0 &&
 		len(m.Kubernetes) == 0 &&
-		(m.AccessGraph == nil || len(m.AccessGraph.AWS) == 0)
+		(m.AccessGraph == nil || len(m.AccessGraph.AWS) == 0) &&
+		m.Gitlab == nil
 }
 
 // ssmInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -284,6 +287,9 @@ type Server struct {
 	dynamicTAGSyncFetchers   map[string][]aws_sync.AWSSync
 	muDynamicTAGSyncFetchers sync.RWMutex
 	staticTAGSyncFetchers    []aws_sync.AWSSync
+
+	dynamicGitlabSyncFetchers   map[string]*gitlab.GitlabFetcher
+	muDynamicGitlabSyncFetchers sync.RWMutex
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -1346,6 +1352,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 		GCP:         dc.Spec.GCP,
 		Kubernetes:  dc.Spec.Kube,
 		AccessGraph: dc.Spec.AccessGraph,
+		Gitlab:      dc.Spec.Gitlab,
 	}
 	s.discardUnsupportedMatchers(&matchers)
 
@@ -1385,9 +1392,23 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.muDynamicTAGSyncFetchers.Lock()
-	s.dynamicTAGSyncFetchers[dc.GetName()] = awsSyncMatchers
-	s.muDynamicTAGSyncFetchers.Unlock()
+	if len(awsSyncMatchers) > 0 {
+		s.muDynamicTAGSyncFetchers.Lock()
+		s.dynamicTAGSyncFetchers[dc.GetName()] = awsSyncMatchers
+		s.muDynamicTAGSyncFetchers.Unlock()
+	}
+
+	gitlabFetcher, err := s.gitlabaccessGraphFetchersFromMatchers(
+		ctx, matchers,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if gitlabFetcher != nil {
+		s.muDynamicGitlabSyncFetchers.Lock()
+		s.dynamicGitlabSyncFetchers[dc.GetName()] = gitlabFetcher
+		s.muDynamicGitlabSyncFetchers.Unlock()
+	}
 
 	// TODO(marco): add other fetchers: Kube Clusters and Kube Resources (Apps)
 	return nil

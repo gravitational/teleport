@@ -298,6 +298,22 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 				}
 			}
 		}()
+
+		go func() {
+			reloadCh := s.newDiscoveryConfigChangedSub()
+			for {
+				// reset the currentTAGResources to force a full sync
+				if err := s.initializeAndWatchGitlabAccessGraph(ctx, reloadCh); err != nil {
+					s.Log.Warnf("Error initializing and watching access graph: %v", err)
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(30 * time.Second):
+				}
+			}
+		}()
 	}
 	return nil
 }
