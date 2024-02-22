@@ -39,7 +39,7 @@ import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
 import { AgentStepProps } from 'teleport/Discover/types';
 import useTeleport from 'teleport/useTeleport';
 
-import { GenerateCmdProps } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
+import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 import { Kube } from 'teleport/services/kube';
 
 import { JoinToken } from 'teleport/services/joinToken';
@@ -258,23 +258,23 @@ export function EnrollEksCluster(props: AgentStepProps) {
     !selectedCluster ||
     enrollmentState.status !== 'notStarted';
 
-  let manualCommandProps: GenerateCmdProps = null;
-  if (selectedCluster) {
-    manualCommandProps = {
+  const setJoinTokenAndGetCommand = (token: JoinToken) => {
+    setJoinToken(token);
+    return generateCmd({
       namespace: 'teleport-agent',
       clusterName: selectedCluster.name,
       proxyAddr: ctx.storeUser.state.cluster.publicURL,
       clusterVersion: ctx.storeUser.state.cluster.authVersion,
-      tokenId: '', // Filled in by the ManualHelmDialog.
-      resourceId: '',
+      tokenId: token.id,
+      resourceId: token.internalResourceId,
       isEnterprise: ctx.isEnterprise,
       isCloud: ctx.isCloud,
       automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
       automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
       joinLabels: [...selectedCluster.labels, ...selectedCluster.joinLabels],
       disableAppDiscovery: !isAppDiscoveryEnabled,
-    };
-  }
+    });
+  };
 
   return (
     <Box maxWidth="1000px">
@@ -362,8 +362,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       )}
       {isManualHelmDialogShown && (
         <ManualHelmDialog
-          commandProps={manualCommandProps}
-          setJoinToken={setJoinToken}
+          setJoinTokenAndGetCommand={setJoinTokenAndGetCommand}
           cancel={() => setIsManualHelmDialogShown(false)}
           confirmedCommands={() => {
             setEnrollmentState({ status: 'awaitingAgent' });
