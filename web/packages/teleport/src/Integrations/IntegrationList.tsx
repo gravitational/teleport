@@ -26,6 +26,7 @@ import slackIcon from 'design/assets/images/icons/slack.svg';
 import openaiIcon from 'design/assets/images/icons/openai.svg';
 import jamfIcon from 'design/assets/images/icons/jamf.svg';
 import opsgenieIcon from 'design/assets/images/icons/opsgenie.svg';
+import gitlabIcon from 'design/assets/images/icons/gitlab.svg';
 import oktaIcon from 'design/assets/images/icons/okta.svg';
 import jiraIcon from 'design/assets/images/icons/jira.svg';
 import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
@@ -274,6 +275,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case 'opsgenie':
         formattedText = 'Opsgenie';
         icon = <IconContainer src={opsgenieIcon} />;
+        break;
+      case 'gitlab':
+        formattedText = 'Gitlab';
+        icon = <IconContainer src={gitlabIcon} />;
         break;
       case 'jira':
         formattedText = 'Jira';

@@ -50,6 +50,8 @@ const (
 	PluginTypeMattermost = "mattermost"
 	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
+	//
+	PluginTypeGitlab = "gitlab"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.

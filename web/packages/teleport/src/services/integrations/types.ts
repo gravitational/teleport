@@ -132,6 +132,7 @@ export type PluginKind =
   | 'opsgenie'
   | 'okta'
   | 'servicenow'
+  | 'gitlab'
   | 'jamf';
 
 export type PluginOktaSpec = {
@@ -317,12 +318,12 @@ export type AwsEksCluster = {
   region: Regions;
   accountId: string;
   status:
-    | 'active'
-    | 'pending'
-    | 'creating'
-    | 'failed'
-    | 'updating'
-    | 'deleting';
+  | 'active'
+  | 'pending'
+  | 'creating'
+  | 'failed'
+  | 'updating'
+  | 'deleting';
   /**
    * labels contains this cluster's tags.
    */

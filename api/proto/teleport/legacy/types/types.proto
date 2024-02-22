@@ -5631,6 +5631,8 @@ message PluginSpecV1 {
     PluginDiscordSettings discord = 9;
     // Settings for the ServiceNow plugin
     PluginServiceNowSettings serviceNow = 10;
+    //
+    PluginGitlabSettings gitlab = 11;
   }
 }
 
@@ -5654,6 +5656,10 @@ message PluginOpsgenieAccessSettings {
   repeated string default_schedules = 4;
   // APIEndpoint is the address of Opsgenie API.
   string api_endpoint = 5;
+}
+
+message PluginGitlabSettings {
+  option (gogoproto.equal) = true;
 }
 
 // PluginServiceNowSettings are the settings for the serviceNow plugin
