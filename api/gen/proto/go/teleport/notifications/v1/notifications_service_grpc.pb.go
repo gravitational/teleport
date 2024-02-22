@@ -37,19 +37,17 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	NotificationService_CreateUserNotification_FullMethodName                 = "/teleport.notifications.v1.NotificationService/CreateUserNotification"
-	NotificationService_DeleteUserNotification_FullMethodName                 = "/teleport.notifications.v1.NotificationService/DeleteUserNotification"
-	NotificationService_DeleteAllUserNotificationsForUser_FullMethodName      = "/teleport.notifications.v1.NotificationService/DeleteAllUserNotificationsForUser"
-	NotificationService_CreateGlobalNotification_FullMethodName               = "/teleport.notifications.v1.NotificationService/CreateGlobalNotification"
-	NotificationService_DeleteGlobalNotification_FullMethodName               = "/teleport.notifications.v1.NotificationService/DeleteGlobalNotification"
-	NotificationService_ListUserNotifications_FullMethodName                  = "/teleport.notifications.v1.NotificationService/ListUserNotifications"
-	NotificationService_UpsertUserNotificationState_FullMethodName            = "/teleport.notifications.v1.NotificationService/UpsertUserNotificationState"
-	NotificationService_DeleteUserNotificationState_FullMethodName            = "/teleport.notifications.v1.NotificationService/DeleteUserNotificationState"
-	NotificationService_DeleteAllUserNotificationStatesForUser_FullMethodName = "/teleport.notifications.v1.NotificationService/DeleteAllUserNotificationStatesForUser"
-	NotificationService_ListUserNotificationStates_FullMethodName             = "/teleport.notifications.v1.NotificationService/ListUserNotificationStates"
-	NotificationService_GetUserLastSeenNotification_FullMethodName            = "/teleport.notifications.v1.NotificationService/GetUserLastSeenNotification"
-	NotificationService_UpsertUserLastSeenNotification_FullMethodName         = "/teleport.notifications.v1.NotificationService/UpsertUserLastSeenNotification"
-	NotificationService_DeleteUserLastSeenNotification_FullMethodName         = "/teleport.notifications.v1.NotificationService/DeleteUserLastSeenNotification"
+	NotificationService_CreateUserNotification_FullMethodName         = "/teleport.notifications.v1.NotificationService/CreateUserNotification"
+	NotificationService_DeleteUserNotification_FullMethodName         = "/teleport.notifications.v1.NotificationService/DeleteUserNotification"
+	NotificationService_CreateGlobalNotification_FullMethodName       = "/teleport.notifications.v1.NotificationService/CreateGlobalNotification"
+	NotificationService_DeleteGlobalNotification_FullMethodName       = "/teleport.notifications.v1.NotificationService/DeleteGlobalNotification"
+	NotificationService_ListUserNotifications_FullMethodName          = "/teleport.notifications.v1.NotificationService/ListUserNotifications"
+	NotificationService_UpsertUserNotificationState_FullMethodName    = "/teleport.notifications.v1.NotificationService/UpsertUserNotificationState"
+	NotificationService_DeleteUserNotificationState_FullMethodName    = "/teleport.notifications.v1.NotificationService/DeleteUserNotificationState"
+	NotificationService_ListUserNotificationStates_FullMethodName     = "/teleport.notifications.v1.NotificationService/ListUserNotificationStates"
+	NotificationService_GetUserLastSeenNotification_FullMethodName    = "/teleport.notifications.v1.NotificationService/GetUserLastSeenNotification"
+	NotificationService_UpsertUserLastSeenNotification_FullMethodName = "/teleport.notifications.v1.NotificationService/UpsertUserLastSeenNotification"
+	NotificationService_DeleteUserLastSeenNotification_FullMethodName = "/teleport.notifications.v1.NotificationService/DeleteUserLastSeenNotification"
 )
 
 // NotificationServiceClient is the client API for NotificationService service.
@@ -60,8 +58,6 @@ type NotificationServiceClient interface {
 	CreateUserNotification(ctx context.Context, in *CreateUserNotificationRequest, opts ...grpc.CallOption) (*Notification, error)
 	// DeleteUserNotification deletes a user-specific notification.
 	DeleteUserNotification(ctx context.Context, in *DeleteUserNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteAllUserNotificationsForUser deletes all of a user's user-specific notifications.
-	DeleteAllUserNotificationsForUser(ctx context.Context, in *DeleteAllUserNotificationsForUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateGlobalNotification creates a global notification.
 	CreateGlobalNotification(ctx context.Context, in *CreateGlobalNotificationRequest, opts ...grpc.CallOption) (*GlobalNotification, error)
 	// DeleteGlobalNotification deletes a global notification.
@@ -72,8 +68,6 @@ type NotificationServiceClient interface {
 	UpsertUserNotificationState(ctx context.Context, in *UpsertUserNotificationStateRequest, opts ...grpc.CallOption) (*UserNotificationState, error)
 	// DeleteUserNotificationState deletes a user notification state object.
 	DeleteUserNotificationState(ctx context.Context, in *DeleteUserNotificationStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteAllUserNotificationStatesForUser deletes all of a user's notification states.
-	DeleteAllUserNotificationStatesForUser(ctx context.Context, in *DeleteAllUserNotificationStatesForUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ListUserNotificationStates returns a page of a user's notification states.
 	ListUserNotificationStates(ctx context.Context, in *ListUserNotificationStatesRequest, opts ...grpc.CallOption) (*ListUserNotificationStatesResponse, error)
 	// GetUserLastSeenNotification returns a user's last seen notification item.
@@ -104,15 +98,6 @@ func (c *notificationServiceClient) CreateUserNotification(ctx context.Context, 
 func (c *notificationServiceClient) DeleteUserNotification(ctx context.Context, in *DeleteUserNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, NotificationService_DeleteUserNotification_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *notificationServiceClient) DeleteAllUserNotificationsForUser(ctx context.Context, in *DeleteAllUserNotificationsForUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, NotificationService_DeleteAllUserNotificationsForUser_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -164,15 +149,6 @@ func (c *notificationServiceClient) DeleteUserNotificationState(ctx context.Cont
 	return out, nil
 }
 
-func (c *notificationServiceClient) DeleteAllUserNotificationStatesForUser(ctx context.Context, in *DeleteAllUserNotificationStatesForUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, NotificationService_DeleteAllUserNotificationStatesForUser_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *notificationServiceClient) ListUserNotificationStates(ctx context.Context, in *ListUserNotificationStatesRequest, opts ...grpc.CallOption) (*ListUserNotificationStatesResponse, error) {
 	out := new(ListUserNotificationStatesResponse)
 	err := c.cc.Invoke(ctx, NotificationService_ListUserNotificationStates_FullMethodName, in, out, opts...)
@@ -217,8 +193,6 @@ type NotificationServiceServer interface {
 	CreateUserNotification(context.Context, *CreateUserNotificationRequest) (*Notification, error)
 	// DeleteUserNotification deletes a user-specific notification.
 	DeleteUserNotification(context.Context, *DeleteUserNotificationRequest) (*emptypb.Empty, error)
-	// DeleteAllUserNotificationsForUser deletes all of a user's user-specific notifications.
-	DeleteAllUserNotificationsForUser(context.Context, *DeleteAllUserNotificationsForUserRequest) (*emptypb.Empty, error)
 	// CreateGlobalNotification creates a global notification.
 	CreateGlobalNotification(context.Context, *CreateGlobalNotificationRequest) (*GlobalNotification, error)
 	// DeleteGlobalNotification deletes a global notification.
@@ -229,8 +203,6 @@ type NotificationServiceServer interface {
 	UpsertUserNotificationState(context.Context, *UpsertUserNotificationStateRequest) (*UserNotificationState, error)
 	// DeleteUserNotificationState deletes a user notification state object.
 	DeleteUserNotificationState(context.Context, *DeleteUserNotificationStateRequest) (*emptypb.Empty, error)
-	// DeleteAllUserNotificationStatesForUser deletes all of a user's notification states.
-	DeleteAllUserNotificationStatesForUser(context.Context, *DeleteAllUserNotificationStatesForUserRequest) (*emptypb.Empty, error)
 	// ListUserNotificationStates returns a page of a user's notification states.
 	ListUserNotificationStates(context.Context, *ListUserNotificationStatesRequest) (*ListUserNotificationStatesResponse, error)
 	// GetUserLastSeenNotification returns a user's last seen notification item.
@@ -252,9 +224,6 @@ func (UnimplementedNotificationServiceServer) CreateUserNotification(context.Con
 func (UnimplementedNotificationServiceServer) DeleteUserNotification(context.Context, *DeleteUserNotificationRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserNotification not implemented")
 }
-func (UnimplementedNotificationServiceServer) DeleteAllUserNotificationsForUser(context.Context, *DeleteAllUserNotificationsForUserRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllUserNotificationsForUser not implemented")
-}
 func (UnimplementedNotificationServiceServer) CreateGlobalNotification(context.Context, *CreateGlobalNotificationRequest) (*GlobalNotification, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGlobalNotification not implemented")
 }
@@ -269,9 +238,6 @@ func (UnimplementedNotificationServiceServer) UpsertUserNotificationState(contex
 }
 func (UnimplementedNotificationServiceServer) DeleteUserNotificationState(context.Context, *DeleteUserNotificationStateRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserNotificationState not implemented")
-}
-func (UnimplementedNotificationServiceServer) DeleteAllUserNotificationStatesForUser(context.Context, *DeleteAllUserNotificationStatesForUserRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllUserNotificationStatesForUser not implemented")
 }
 func (UnimplementedNotificationServiceServer) ListUserNotificationStates(context.Context, *ListUserNotificationStatesRequest) (*ListUserNotificationStatesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListUserNotificationStates not implemented")
@@ -330,24 +296,6 @@ func _NotificationService_DeleteUserNotification_Handler(srv interface{}, ctx co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NotificationServiceServer).DeleteUserNotification(ctx, req.(*DeleteUserNotificationRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NotificationService_DeleteAllUserNotificationsForUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteAllUserNotificationsForUserRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NotificationServiceServer).DeleteAllUserNotificationsForUser(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NotificationService_DeleteAllUserNotificationsForUser_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NotificationServiceServer).DeleteAllUserNotificationsForUser(ctx, req.(*DeleteAllUserNotificationsForUserRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -442,24 +390,6 @@ func _NotificationService_DeleteUserNotificationState_Handler(srv interface{}, c
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NotificationService_DeleteAllUserNotificationStatesForUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteAllUserNotificationStatesForUserRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NotificationServiceServer).DeleteAllUserNotificationStatesForUser(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NotificationService_DeleteAllUserNotificationStatesForUser_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NotificationServiceServer).DeleteAllUserNotificationStatesForUser(ctx, req.(*DeleteAllUserNotificationStatesForUserRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _NotificationService_ListUserNotificationStates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListUserNotificationStatesRequest)
 	if err := dec(in); err != nil {
@@ -548,10 +478,6 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NotificationService_DeleteUserNotification_Handler,
 		},
 		{
-			MethodName: "DeleteAllUserNotificationsForUser",
-			Handler:    _NotificationService_DeleteAllUserNotificationsForUser_Handler,
-		},
-		{
 			MethodName: "CreateGlobalNotification",
 			Handler:    _NotificationService_CreateGlobalNotification_Handler,
 		},
@@ -570,10 +496,6 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteUserNotificationState",
 			Handler:    _NotificationService_DeleteUserNotificationState_Handler,
-		},
-		{
-			MethodName: "DeleteAllUserNotificationStatesForUser",
-			Handler:    _NotificationService_DeleteAllUserNotificationStatesForUser_Handler,
 		},
 		{
 			MethodName: "ListUserNotificationStates",

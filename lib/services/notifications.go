@@ -31,7 +31,7 @@ import (
 
 // Notifications defines an interface for managing notifications.
 type Notifications interface {
-	NotificationsGetter
+	ListNotificationsForUser(context.Context, notificationsv1.ListUserNotificationsRequest) ([]notificationsv1.Notification, error)
 	CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) error
 	DeleteUserNotification(ctx context.Context, username string, notificationId string) error
 	DeleteAllUserNotificationsForUser(ctx context.Context, username string) error
@@ -46,15 +46,18 @@ type Notifications interface {
 	DeleteUserLastSeenNotification(ctx context.Context, username string) error
 }
 
-// NotificationsGetter is an interface for fetching Notifications resources.
-type NotificationsGetter interface {
-	ListNotificationsForUser(context.Context, notificationsv1.ListUserNotificationsRequest) ([]notificationsv1.Notification, error)
-}
-
-// ValidateNotification verifies that the necessary fields are configured before a notification can be created.
+// ValidateNotification verifies that the necessary fields are configured for a notification object.
 func ValidateNotification(notification *notificationsv1.Notification) error {
 	if notification.SubKind == "" {
 		return trace.BadParameter("notification subkind is missing")
+	}
+
+	if notification.Spec == nil {
+		return trace.BadParameter("notification spec is missing")
+	}
+
+	if notification.Spec.Id == "" {
+		return trace.BadParameter("notification ID is missing")
 	}
 
 	if notification.Metadata == nil {
@@ -70,10 +73,10 @@ func ValidateNotification(notification *notificationsv1.Notification) error {
 
 // MarshalNotification marshals a Notification resource to JSON.
 func MarshalNotification(notification *notificationsv1.Notification, opts ...MarshalOption) ([]byte, error) {
-	err := ValidateNotification(notification)
-	if err != nil {
+	if err := ValidateNotification(notification); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -101,8 +104,7 @@ func UnmarshalNotification(data []byte, opts ...MarshalOption) (*notificationsv1
 		return nil, trace.Wrap(err)
 	}
 	var obj notificationsv1.Notification
-	err = utils.FastUnmarshal(data, &obj)
-	if err != nil {
+	if err = utils.FastUnmarshal(data, &obj); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.ID != 0 {
@@ -119,8 +121,12 @@ func UnmarshalNotification(data []byte, opts ...MarshalOption) (*notificationsv1
 	return &obj, nil
 }
 
-// ValidateGlobalNotification verifies that the necessary fields are configured before a global notification can be created.
+// ValidateGlobalNotification verifies that the necessary fields are configured for a global notification object.
 func ValidateGlobalNotification(globalNotification *notificationsv1.GlobalNotification) error {
+	if globalNotification.Spec == nil {
+		return trace.BadParameter("notification spec is missing")
+	}
+
 	if globalNotification.Spec.Matcher == nil {
 		return trace.BadParameter("matcher is missing, a matcher is required for a global notification")
 	}
@@ -129,16 +135,24 @@ func ValidateGlobalNotification(globalNotification *notificationsv1.GlobalNotifi
 		return trace.BadParameter("spec.notification is missing")
 	}
 
+	if globalNotification.Spec.Notification.Spec == nil {
+		return trace.BadParameter("spec.notification.spec is missing")
+	}
+
+	if globalNotification.Spec.Notification.Spec.Id == "" {
+		return trace.BadParameter("spec.notification ID is missing")
+	}
+
 	if globalNotification.Spec.Notification.SubKind == "" {
-		return trace.BadParameter("notification subkind is missing")
+		return trace.BadParameter("spec.notification subkind is missing")
 	}
 
 	if globalNotification.Spec.Notification.Metadata == nil {
-		return trace.BadParameter("notification metadata is missing")
+		return trace.BadParameter("spec.notification metadata is missing")
 	}
 
 	if globalNotification.Spec.Notification.Metadata.Labels == nil {
-		return trace.BadParameter("notification metadata labels are missing")
+		return trace.BadParameter("spec.notification metadata labels are missing")
 	}
 
 	return nil
@@ -146,10 +160,10 @@ func ValidateGlobalNotification(globalNotification *notificationsv1.GlobalNotifi
 
 // MarshalGlobalNotification marshals a GlobalNotification resource to JSON.
 func MarshalGlobalNotification(globalNotification *notificationsv1.GlobalNotification, opts ...MarshalOption) ([]byte, error) {
-	err := ValidateGlobalNotification(globalNotification)
-	if err != nil {
+	if err := ValidateGlobalNotification(globalNotification); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -179,8 +193,7 @@ func UnmarshalGlobalNotification(data []byte, opts ...MarshalOption) (*notificat
 	}
 	var obj notificationsv1.GlobalNotification
 	// We unmarshal with raw protojson here because utils.FastUnmarshal doesn't work with oneof.
-	err = protojson.Unmarshal(data, &obj)
-	if err != nil {
+	if err = protojson.Unmarshal(data, &obj); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.ID != 0 {
@@ -196,7 +209,7 @@ func UnmarshalGlobalNotification(data []byte, opts ...MarshalOption) (*notificat
 	return &obj, nil
 }
 
-// ValidateUserNotificationState verifies that the necessary fields are configured before a user notification state can be created or updated.
+// ValidateUserNotificationState verifies that the necessary fields are configured for user notification state object.
 func ValidateUserNotificationState(notificationState *notificationsv1.UserNotificationState) error {
 	if notificationState.Spec.NotificationId == "" {
 		return trace.BadParameter("notification id is missing")
@@ -211,10 +224,10 @@ func ValidateUserNotificationState(notificationState *notificationsv1.UserNotifi
 
 // MarshalUserNotificationState marshals a UserNotificationState resource to JSON.
 func MarshalUserNotificationState(notificationState *notificationsv1.UserNotificationState, opts ...MarshalOption) ([]byte, error) {
-	err := ValidateUserNotificationState(notificationState)
-	if err != nil {
+	if err := ValidateUserNotificationState(notificationState); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -242,8 +255,7 @@ func UnmarshalUserNotificationState(data []byte, opts ...MarshalOption) (*notifi
 		return nil, trace.Wrap(err)
 	}
 	var obj notificationsv1.UserNotificationState
-	err = utils.FastUnmarshal(data, &obj)
-	if err != nil {
+	if err = utils.FastUnmarshal(data, &obj); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.ID != 0 {
@@ -259,7 +271,7 @@ func UnmarshalUserNotificationState(data []byte, opts ...MarshalOption) (*notifi
 	return &obj, nil
 }
 
-// ValidateUserLastSeenNotification verifies that the necessary fields are configured before a user's last seen notification timestamp can be created or updated.
+// ValidateUserLastSeenNotification verifies that the necessary fields are configured for a user's last seen notification timestamp object.
 func ValidateUserLastSeenNotification(lastSeenNotification *notificationsv1.UserLastSeenNotification) error {
 	if lastSeenNotification.Status.LastSeenTime == nil {
 		return trace.BadParameter("last seen time is missing")
@@ -270,10 +282,10 @@ func ValidateUserLastSeenNotification(lastSeenNotification *notificationsv1.User
 
 // MarshalUserLastSeenNotification marshals a UserLastSeenNotification resource to JSON.
 func MarshalUserLastSeenNotification(userLastSeenNotification *notificationsv1.UserLastSeenNotification, opts ...MarshalOption) ([]byte, error) {
-	err := ValidateUserLastSeenNotification(userLastSeenNotification)
-	if err != nil {
+	if err := ValidateUserLastSeenNotification(userLastSeenNotification); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -301,8 +313,7 @@ func UnmarshalUserLastSeenNotification(data []byte, opts ...MarshalOption) (*not
 		return nil, trace.Wrap(err)
 	}
 	var obj notificationsv1.UserLastSeenNotification
-	err = utils.FastUnmarshal(data, &obj)
-	if err != nil {
+	if err = utils.FastUnmarshal(data, &obj); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.ID != 0 {

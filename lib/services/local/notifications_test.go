@@ -69,23 +69,25 @@ func TestUserNotificationCRUD(t *testing.T) {
 	// Since we don't have any Get or List method for user-specific notifications specifically, we will assert that it was deleted
 	// by attempting to delete it again and expecting a "not found" error.
 	err = service.DeleteUserNotification(ctx, testUsername, "test-notification-1")
-	require.ErrorIs(t, err, trace.NotFound(`notification "test-notification-1" doesn't exist`))
+	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification test-notification-1 not existing", err)
 
 	// Test deleting a notification that doesn't exist.
 	err = service.DeleteUserNotification(ctx, testUsername, "invalid-id")
-	require.ErrorIs(t, err, trace.NotFound(`notification "invalid-id" doesn't exist`))
+	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification invalid-id not existing", err)
 
 	// Test deleting all of a user's user-specific notifications.
 	// Upsert userNotification1 again.
+	// We reset it to the mock first because the previous CreateUserNotification will have mutated it and populated the `Created` field which should be empty.
+	userNotification1 = newUserNotification(t, "test-notification-1")
 	_, err = service.CreateUserNotification(ctx, testUsername, userNotification1)
 	require.NoError(t, err)
 	err = service.DeleteAllUserNotificationsForUser(ctx, testUsername)
 	require.NoError(t, err)
 	// Verify that the notifications don't exist anymore by attempting to delete them.
 	err = service.DeleteUserNotification(ctx, testUsername, "test-notification-1")
-	require.ErrorIs(t, err, trace.NotFound(`notification "test-notification-1" doesn't exist`))
+	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification test-notification-1 not existing", err)
 	err = service.DeleteUserNotification(ctx, testUsername, "test-notification-2")
-	require.ErrorIs(t, err, trace.NotFound(`notification "test-notification-2" doesn't exist`))
+	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification test-notification-2 not existing", err)
 
 }
 
@@ -119,6 +121,25 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 			},
 		},
 	}
+	globalNotificationLateExpiry := &notificationsv1.GlobalNotification{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_All{
+				All: true,
+			},
+			Notification: &notificationsv1.Notification{
+				SubKind: "test-subkind",
+				Spec: &notificationsv1.NotificationSpec{
+					Id: "notification-late-expiry",
+				},
+				Metadata: &headerv1.Metadata{
+					Description: "Test Description",
+					Labels:      map[string]string{"description": "notification-late-expiry"},
+					// Set the expiry to 91 days from now, which is past the 90 day expiry limit.
+					Expires: timestamppb.New(time.Now().AddDate(0, 0, 91)),
+				},
+			},
+		},
+	}
 
 	// Create notifications.
 	notification, err := service.CreateGlobalNotification(ctx, globalNotification1)
@@ -129,18 +150,21 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	require.NoError(t, err)
 	// Expect error due to having no matcher.
 	_, err = service.CreateGlobalNotification(ctx, globalNotificationNoMatcher)
-	require.ErrorIs(t, err, trace.BadParameter("matcher is missing, a matcher is required for a global notification"))
+	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-no-matcher having no matcher", err)
+	// Expect error due to expiry date being more than 90 days from now.
+	_, err = service.CreateGlobalNotification(ctx, globalNotificationLateExpiry)
+	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-late-expiry having an expiry date more than 90 days later", err)
 
 	// Test deleting a notification.
 	err = service.DeleteGlobalNotification(ctx, "test-notification-1")
 	require.NoError(t, err)
 	// Test deleting a notification that doesn't exist.
 	err = service.DeleteGlobalNotification(ctx, "invalid-id")
-	require.ErrorIs(t, err, trace.NotFound(`global_notification "invalid-id" doesn't exist`))
+	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification invalid-id not existing", err)
 }
 
 // TestUserNotificationStateCRUD tests backend operations for user-specific notification resources.
-func TestUserNotificationStateCrud(t *testing.T) {
+func TestUserNotificationStateCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -247,7 +271,7 @@ func TestUserNotificationStateCrud(t *testing.T) {
 	require.NoError(t, err)
 	// Test deleting a notification state that doesn't exist.
 	err = service.DeleteUserNotificationState(ctx, testUsername, "invalid-id")
-	require.ErrorIs(t, err, trace.NotFound(`user_notification_state "invalid-id" doesn't exist`))
+	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification invalid-id not existing", err)
 
 	// Fetch the list again.
 	paginatedOut = make([]*notificationsv1.UserNotificationState, 0, 2)
@@ -304,7 +328,7 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 
 	// Initially we expect the user's last seen notification object to not exist.
 	_, err = service.GetUserLastSeenNotification(ctx, testUsername)
-	require.ErrorIs(t, err, trace.NotFound(`user_last_seen_notification "test-username" doesn't exist`))
+	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 
 	cmpOpts := []cmp.Option{
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
@@ -326,11 +350,11 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	require.NoError(t, err)
 	// Deleting a non-existent user last seen notification object should return an error.
 	err = service.DeleteUserLastSeenNotification(ctx, "invalid-username")
-	require.ErrorIs(t, err, trace.NotFound(`user_last_seen_notification "invalid-username" doesn't exist`))
+	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for invalid-username not existing", err)
 
 	// Getting the user's last seen notification object should now fail again since we deleted it.
 	_, err = service.GetUserLastSeenNotification(ctx, testUsername)
-	require.ErrorIs(t, err, trace.NotFound(`user_last_seen_notification "test-username" doesn't exist`))
+	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 }
 
 func newUserNotification(t *testing.T, notificationId string) *notificationsv1.Notification {

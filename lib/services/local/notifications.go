@@ -22,7 +22,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -84,41 +83,28 @@ func (s *NotificationsService) ListNotificationsForUser(ctx context.Context) ([]
 
 // CreateUserNotification creates a user-specific notification.
 func (s *NotificationsService) CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
-	err := services.ValidateNotification(notification)
-	if err != nil {
+	if err := services.ValidateNotification(notification); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	notification.Kind = types.KindNotification
 	notification.Version = types.V1
 
-	if notification.Spec == nil {
-		notification.Spec = &notificationsv1.NotificationSpec{}
-	}
-
-	if notification.Spec.Id == "" {
-		// Generate uuidv7 ID.
-		uuid, err := uuid.NewV7()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		notification.Spec.Id = uuid.String()
-	}
-	// We set this to the UUID as well because the service adapter uses `getName()` to determine the backend key to use when storing the notification.
+	// We set this to the UUID because the service adapter uses `getName()` to determine the backend key to use when storing the notification.
 	notification.Metadata.Name = notification.Spec.Id
 
-	// Set default expiry to 30 days from now.
-	if notification.Metadata.Expires == nil {
-		now := time.Now()
-		futureTime := now.Add(30 * 24 * time.Hour)
-		timestamp := timestamppb.New(futureTime)
-
-		notification.Metadata.Expires = timestamp
+	if err := CheckAndSetExpiry(&notification.Metadata.Expires); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if notification.Spec.Created == nil {
-		notification.Spec.Created = timestamppb.New(time.Now())
+	// The `Created` field should always represent the time that the notification was created (ie. stored in the backend), it should thus only
+	// ever be set here and should not be provided by the caller.
+	// We do this check here instead of in `ValidateNotification` because `ValidateNotification` is also run by the marshaling function, and by that point
+	// this field will have been populated.
+	if notification.Spec.Created != nil {
+		return nil, trace.Wrap(trace.BadParameter("notification created time should be empty"))
 	}
+	notification.Spec.Created = timestamppb.New(time.Now())
 
 	// Append username prefix.
 	serviceWithPrefix, err := s.userNotificationService.WithPrefix(username)
@@ -126,7 +112,8 @@ func (s *NotificationsService) CreateUserNotification(ctx context.Context, usern
 		return nil, trace.Wrap(err)
 	}
 
-	return serviceWithPrefix.CreateResource(ctx, notification)
+	created, err := serviceWithPrefix.CreateResource(ctx, notification)
+	return created, trace.Wrap(err)
 }
 
 // DeleteUserNotification deletes a user-specific notification.
@@ -137,7 +124,8 @@ func (s *NotificationsService) DeleteUserNotification(ctx context.Context, usern
 		return trace.Wrap(err)
 	}
 
-	return serviceWithPrefix.DeleteResource(ctx, notificationId)
+	err = serviceWithPrefix.DeleteResource(ctx, notificationId)
+	return trace.Wrap(err)
 }
 
 // DeleteAllUserNotificationsForUser deletes all of a user's user-specific notifications.
@@ -148,13 +136,13 @@ func (s *NotificationsService) DeleteAllUserNotificationsForUser(ctx context.Con
 		return trace.Wrap(err)
 	}
 
-	return serviceWithPrefix.DeleteAllResources(ctx)
+	err = serviceWithPrefix.DeleteAllResources(ctx)
+	return trace.Wrap(err)
 }
 
 // CreateGlobalNotification creates a global notification.
 func (s *NotificationsService) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	err := services.ValidateGlobalNotification(globalNotification)
-	if err != nil {
+	if err := services.ValidateGlobalNotification(globalNotification); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -165,43 +153,31 @@ func (s *NotificationsService) CreateGlobalNotification(ctx context.Context, glo
 		globalNotification.Metadata = &headerv1.Metadata{}
 	}
 
-	if globalNotification.Spec.Notification.Spec.Id == "" {
-		// Generate uuidv7 ID.
-		uuid, err := uuid.NewV7()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		globalNotification.Spec.Notification.Spec.Id = uuid.String()
-	}
-
-	// We set this to the UUID as well because the service adapter uses `getName()` to determine the backend key to use when storing the notification.
+	// We set this to the UUID because the service adapter uses `getName()` to determine the backend key to use when storing the notification.
 	globalNotification.Metadata.Name = globalNotification.Spec.Notification.Spec.Id
 
-	// Set default expiry to 30 days from now.
-	if globalNotification.Spec.Notification.Metadata.Expires == nil {
-		now := time.Now()
-		futureTime := now.Add(30 * 24 * time.Hour)
-		timestamp := timestamppb.New(futureTime)
-
-		globalNotification.Spec.Notification.Metadata.Expires = timestamp
+	if err := CheckAndSetExpiry(&globalNotification.Spec.Notification.Metadata.Expires); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if globalNotification.Spec.Notification.Spec.Created == nil {
-		globalNotification.Spec.Notification.Spec.Created = timestamppb.New(time.Now())
+	if globalNotification.Spec.Notification.Spec.Created != nil {
+		return nil, trace.Wrap(trace.BadParameter("notification created time should be empty"))
 	}
+	globalNotification.Spec.Notification.Spec.Created = timestamppb.New(time.Now())
 
-	return s.globalNotificationService.CreateResource(ctx, globalNotification)
+	created, err := s.globalNotificationService.CreateResource(ctx, globalNotification)
+	return created, trace.Wrap(err)
 }
 
 // DeleteGlobalNotification deletes a global notification.
 func (s *NotificationsService) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
-	return s.globalNotificationService.DeleteResource(ctx, notificationId)
+	err := s.globalNotificationService.DeleteResource(ctx, notificationId)
+	return trace.Wrap(err)
 }
 
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
 func (s *NotificationsService) UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
-	err := services.ValidateUserNotificationState(state)
-	if err != nil {
+	if err := services.ValidateUserNotificationState(state); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -220,7 +196,9 @@ func (s *NotificationsService) UpsertUserNotificationState(ctx context.Context, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return serviceWithPrefix.UpsertResource(ctx, state)
+
+	upserted, err := serviceWithPrefix.UpsertResource(ctx, state)
+	return upserted, trace.Wrap(err)
 }
 
 // DeleteUserNotificationState deletes a user notification state object.
@@ -230,7 +208,9 @@ func (s *NotificationsService) DeleteUserNotificationState(ctx context.Context, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return serviceWithPrefix.DeleteResource(ctx, notificationId)
+
+	err = serviceWithPrefix.DeleteResource(ctx, notificationId)
+	return trace.Wrap(err)
 }
 
 // DeleteAllUserNotificationStatesForUser deletes all of a user's notification states.
@@ -241,7 +221,8 @@ func (s *NotificationsService) DeleteAllUserNotificationStatesForUser(ctx contex
 		return trace.Wrap(err)
 	}
 
-	return serviceWithPrefix.DeleteAllResources(ctx)
+	err = serviceWithPrefix.DeleteAllResources(ctx)
+	return trace.Wrap(err)
 }
 
 // ListUserNotificationStates returns a page of a user's notification states.
@@ -251,13 +232,14 @@ func (s *NotificationsService) ListUserNotificationStates(ctx context.Context, u
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	return serviceWithPrefix.ListResources(ctx, pageSize, nextToken)
+
+	states, nextToken, err := serviceWithPrefix.ListResources(ctx, pageSize, nextToken)
+	return states, nextToken, trace.Wrap(err)
 }
 
 // UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
 func (s *NotificationsService) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
-	err := services.ValidateUserLastSeenNotification(ulsn)
-	if err != nil {
+	if err := services.ValidateUserLastSeenNotification(ulsn); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -270,22 +252,47 @@ func (s *NotificationsService) UpsertUserLastSeenNotification(ctx context.Contex
 	// We set this to the username because the service adapter uses `getName()` to determine the backend key to use when storing the object.
 	ulsn.Metadata.Name = username
 
-	return s.userLastSeenNotificationService.UpsertResource(ctx, ulsn)
+	upserted, err := s.userLastSeenNotificationService.UpsertResource(ctx, ulsn)
+	return upserted, trace.Wrap(err)
 }
 
 // GetUserLastSeenNotification returns a user's last seen notification item.
 func (s *NotificationsService) GetUserLastSeenNotification(ctx context.Context, username string) (*notificationsv1.UserLastSeenNotification, error) {
-	return s.userLastSeenNotificationService.GetResource(ctx, username)
+
+	ulsn, err := s.userLastSeenNotificationService.GetResource(ctx, username)
+	return ulsn, trace.Wrap(err)
 }
 
 // DeleteUserLastSeenNotification deletes a user's last seen notification item.
 func (s *NotificationsService) DeleteUserLastSeenNotification(ctx context.Context, username string) error {
-	return s.userLastSeenNotificationService.DeleteResource(ctx, username)
+	err := s.userLastSeenNotificationService.DeleteResource(ctx, username)
+	return trace.Wrap(err)
+}
+
+// CheckAndSetExpiry checks and sets the default expiry for a notification.
+func CheckAndSetExpiry(expires **timestamppb.Timestamp) error {
+	// If the expiry hasn't been provided, set the default to 30 days from now.
+	if *expires == nil {
+		now := time.Now()
+		futureTime := now.Add(30 * 24 * time.Hour)
+		*expires = timestamppb.New(futureTime)
+	}
+
+	// If the expiry has already been provided, ensure that it is not more than 90 days from now.
+	// This is to prevent misuse as we don't want notifications existing for too long and accumulating in the backend.
+	now := time.Now()
+	maxExpiry := now.Add(90 * 24 * time.Hour)
+
+	if (*expires).AsTime().After(maxExpiry) {
+		return trace.BadParameter("notification expiry cannot be more than 90 days from its creation")
+	}
+
+	return nil
 }
 
 const (
-	notificationsGlobalPrefix       = "notifications/global"
-	notificationsUserSpecificPrefix = "notifications/user"
-	notificationsStatePrefix        = "notifications/states"
-	notificationsUserLastSeenPrefix = "notifications/last_seen"
+	notificationsGlobalPrefix       = "notifications/global"    // notifications/global/<notification id>
+	notificationsUserSpecificPrefix = "notifications/user"      // notifications/user/<username>/<notification id>
+	notificationsStatePrefix        = "notifications/states"    // notifications/states/<username>/<notification id>
+	notificationsUserLastSeenPrefix = "notifications/last_seen" // notifications/last_seen/<username>
 )
