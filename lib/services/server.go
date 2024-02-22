@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	ec2V1 "github.com/aws/aws-sdk-go/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ec2v1 "github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -435,7 +435,7 @@ func NodeHasMissedKeepAlives(s types.Server) bool {
 
 // NewAWSNodeFromEC2Instance creates a Node resource from an EC2 Instance.
 // It has a pre-populated spec which contains info that is not available in the ec2.Instance object.
-func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
+func NewAWSNodeFromEC2Instance(instance ec2types.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
 	labels := libaws.TagsToLabels(instance.Tags)
 	if labels == nil {
 		labels = make(map[string]string)
@@ -479,21 +479,21 @@ func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *typ
 // NewAWSNodeFromEC2v1Instance creates a Node resource from an EC2 Instance.
 // It has a pre-populated spec which contains info that is not available in the ec2.Instance object.
 // Uses AWS SDK Go V1
-func NewAWSNodeFromEC2v1Instance(instance ec2V1.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
+func NewAWSNodeFromEC2v1Instance(instance ec2v1.Instance, awsCloudMetadata *types.AWSInfo) (types.Server, error) {
 	server, err := NewAWSNodeFromEC2Instance(ec2InstanceV1ToV2(instance), awsCloudMetadata)
 	return server, trace.Wrap(err)
 }
 
-func ec2InstanceV1ToV2(instance ec2V1.Instance) ec2Types.Instance {
-	tags := make([]ec2Types.Tag, 0, len(instance.Tags))
+func ec2InstanceV1ToV2(instance ec2v1.Instance) ec2types.Instance {
+	tags := make([]ec2types.Tag, 0, len(instance.Tags))
 	for _, tag := range instance.Tags {
-		tags = append(tags, ec2Types.Tag{
+		tags = append(tags, ec2types.Tag{
 			Key:   tag.Key,
 			Value: tag.Value,
 		})
 	}
 
-	return ec2Types.Instance{
+	return ec2types.Instance{
 		InstanceId:       instance.InstanceId,
 		VpcId:            instance.VpcId,
 		SubnetId:         instance.SubnetId,
