@@ -211,7 +211,7 @@ export function ReauthenticateStep({
               <ButtonPrimary type="submit" block={true}>
                 Verify my identity
               </ButtonPrimary>
-              <ButtonSecondary type="button" block={true}>
+              <ButtonSecondary type="button" block={true} onClick={onClose}>
                 Cancel
               </ButtonSecondary>
             </Flex>
