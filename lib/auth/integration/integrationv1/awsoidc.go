@@ -446,7 +446,7 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 	deployServiceResp, err := awsoidc.DeployService(ctx, deployServiceClient, awsoidc.DeployServiceRequest{
 		DeploymentJoinTokenName: req.DeploymentJoinTokenName,
 		DeploymentMode:          req.DeploymentMode,
-		DeployServiceConfig:     req.DeployServiceConfig,
+		TeleportConfigString:    req.TeleportConfigString,
 		IntegrationName:         req.Integration,
 		Region:                  req.Region,
 		SecurityGroups:          req.SecurityGroups,

@@ -42,7 +42,7 @@ func TestDeployServiceRequest(t *testing.T) {
 			TaskRoleARN:             "arn",
 			IntegrationName:         "teleportdev",
 			DeploymentMode:          DatabaseServiceDeploymentMode,
-			DeployServiceConfig:     "config using b64",
+			TeleportConfigString:    "config using b64",
 			DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 		}
 	}
@@ -124,10 +124,10 @@ func TestDeployServiceRequest(t *testing.T) {
 			errCheck: isBadParamErrFn,
 		},
 		{
-			name: "no deploy service config string",
+			name: "no teleport service config string",
 			req: func() DeployServiceRequest {
 				r := baseReqFn()
-				r.DeployServiceConfig = ""
+				r.TeleportConfigString = ""
 				return r
 			},
 			errCheck: isBadParamErrFn,
@@ -152,8 +152,8 @@ func TestDeployServiceRequest(t *testing.T) {
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "teleportdev",
 				},
-				DeploymentMode:      DatabaseServiceDeploymentMode,
-				DeployServiceConfig: "config using b64",
+				DeploymentMode:       DatabaseServiceDeploymentMode,
+				TeleportConfigString: "config using b64",
 			},
 		},
 	} {

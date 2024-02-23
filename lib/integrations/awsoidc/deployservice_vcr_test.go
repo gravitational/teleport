@@ -94,7 +94,7 @@ func TestDeployDBService(t *testing.T) {
 			IntegrationName:         integrationName,
 			DeploymentMode:          DatabaseServiceDeploymentMode,
 			DeploymentJoinTokenName: "my-iam-join-token",
-			DeployServiceConfig:     "config using b64",
+			TeleportConfigString:    "config using b64",
 		}
 	}
 

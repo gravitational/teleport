@@ -170,7 +170,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 	deployServiceResp, err := clt.IntegrationAWSOIDCClient().DeployService(ctx, &integrationv1.DeployServiceRequest{
 		DeploymentJoinTokenName: iamTokenName,
 		DeploymentMode:          req.DeploymentMode,
-		DeployServiceConfig:     teleportConfigString,
+		TeleportConfigString:    teleportConfigString,
 		Integration:             integrationName,
 		Region:                  req.Region,
 		SecurityGroups:          req.SecurityGroups,

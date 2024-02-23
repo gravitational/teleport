@@ -152,9 +152,9 @@ type DeployServiceRequest struct {
 	// Optional. Defaults to the current version.
 	TeleportVersionTag string
 
-	// DeployServiceConfig is the `teleport.yaml` configuration for the service to be deployed.
+	// TeleportConfigString is the `teleport.yaml` configuration for the service to be deployed.
 	// It should be base64 encoded as is expected by the `--config-string` param of `teleport start`.
-	DeployServiceConfig string
+	TeleportConfigString string
 }
 
 // normalizeECSResourceName converts a name into a valid ECS Resource Name.
@@ -252,8 +252,8 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
-	if r.DeployServiceConfig == "" {
-		return trace.BadParameter("deploy service config is required")
+	if r.TeleportConfigString == "" {
+		return trace.BadParameter("teleport config string is required")
 	}
 
 	return nil
@@ -429,7 +429,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		TeleportVersionTag:   req.TeleportVersionTag,
 		ResourceCreationTags: req.ResourceCreationTags,
 		Region:               req.Region,
-		TeleportConfigB64:    req.DeployServiceConfig,
+		TeleportConfigB64:    req.TeleportConfigString,
 	}
 	taskDefinition, err := upsertTask(ctx, clt, upsertTaskReq)
 	if err != nil {

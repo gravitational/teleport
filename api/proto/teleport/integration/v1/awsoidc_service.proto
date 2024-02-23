@@ -269,9 +269,9 @@ message DeployServiceRequest {
   // service to join the cluster.
   // Required.
   string deployment_join_token_name = 8;
-  // DeployServiceConfig is the teleport.yaml configuration (base64 encoded) used by teleport.
+  // TeleportConfigString is the teleport.yaml configuration (base64 encoded) used by teleport.
   // Required.
-  string deploy_service_config = 9;
+  string teleport_config_string = 9;
 }
 
 // DeployServiceResponse contains information about the deployed service.
