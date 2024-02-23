@@ -227,7 +227,7 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 		return false, trace.BadParameter("only one verb is supported, input: %v", input.Verbs)
 	}
 	if input.Name != "" {
-		return false, trace.BadParameter("name is not supported for KubeResourceMatchesNamespaceRegex")
+		return false, trace.BadParameter("name is not supported for KubeResourceCouldMatchRules")
 	}
 
 	verb := input.Verbs[0]
@@ -260,9 +260,9 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 		// If the user has access to a specific namespace, they should be able to
 		// access all resources in that namespace.
 		case resource.Kind == types.KindKubeNamespace:
-			cond := !isDeny || resource.Name == types.Wildcard
-			if input.Namespace == "" && cond {
-				return cond, nil
+			isAllowOrFullDeny := !isDeny || resource.Name == types.Wildcard
+			if input.Namespace == "" && isAllowOrFullDeny {
+				return isAllowOrFullDeny, nil
 			}
 			// Access to custom resources is determined by the access level of the
 			// namespace resource where the custom resource is defined.
@@ -271,8 +271,8 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 			// Access to namespaced resources is determined by the access level of the
 			// namespace resource where the resource is defined or by the access level
 			// of the resource if supported.
-			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok && cond {
-				return cond || isDeny, trace.Wrap(err)
+			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok && isAllowOrFullDeny {
+				return isAllowOrFullDeny || isDeny, trace.Wrap(err)
 			}
 		case targetsReadOnlyNamespace && resource.Kind != types.KindKubeNamespace && resource.Namespace != "":
 			// If the user requests a read-only namespace get/list/watch, they should
@@ -280,12 +280,12 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 			// This means that if the user has access to pods in the "foo" namespace,
 			// they should be able to see the "foo" namespace in the list of namespaces
 			// but only if the request is read-only.
-			cond := !isDeny || resource.Name == types.Wildcard && resource.Namespace == types.Wildcard
-			if cond {
-				return cond, nil
+			isAllowOrFullDeny := !isDeny || resource.Name == types.Wildcard && resource.Namespace == types.Wildcard
+			if isAllowOrFullDeny {
+				return isAllowOrFullDeny, nil
 			}
-			if ok, err := MatchString(input.Name, resource.Namespace); err != nil || ok && cond {
-				return ok && cond, trace.Wrap(err)
+			if ok, err := MatchString(input.Name, resource.Namespace); err != nil || ok && isAllowOrFullDeny {
+				return ok && isAllowOrFullDeny, trace.Wrap(err)
 			}
 		default:
 			if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
@@ -302,9 +302,9 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 			// at this point, the resource is namespaced and if the namespace is empty,
 			// the user is requesting resources in all namespaces.
 			// Since he has some rule defined, we should return.
-			cond := !isDeny || isDeny && resource.Name == types.Wildcard && resource.Namespace == types.Wildcard
-			if input.Namespace == "" && cond {
-				return cond, nil
+			isAllowOrFullDeny := !isDeny || isDeny && resource.Name == types.Wildcard && resource.Namespace == types.Wildcard
+			if input.Namespace == "" && isAllowOrFullDeny {
+				return isAllowOrFullDeny, nil
 			}
 			switch ok, err := MatchString(input.Namespace, resource.Namespace); {
 			case err != nil:
