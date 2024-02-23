@@ -112,6 +112,11 @@ func (ms *MemTrustedCertsStore) SaveTrustedCerts(proxyHost string, cas []auth.Tr
 		ms.trustedCerts[proxyHost][ca.ClusterName] = entry
 	}
 
+	envName := VirtualPathEnvName(VirtualPathCA, nil)
+	if certsFile, ok := os.LookupEnv(envName); ok {
+		return trace.Wrap(writeCAsToFile(certsFile, cas), "writing CAs to virtual profile")
+	}
+
 	return nil
 }
 
@@ -325,12 +330,16 @@ func (fs *FSTrustedCertsStore) writeClusterCertificates(proxyHost, clusterName s
 	return nil
 }
 
-func (fs *FSTrustedCertsStore) saveTrustedCertsInLegacyCAFile(proxyHost string, cas []auth.TrustedCerts) (retErr error) {
+func (fs *FSTrustedCertsStore) saveTrustedCertsInLegacyCAFile(proxyHost string, cas []auth.TrustedCerts) error {
 	if err := os.MkdirAll(fs.proxyKeyDir(proxyHost), os.ModeDir|profileDirPerms); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 
 	certsFile := fs.tlsCAsPath(proxyHost)
+	return writeCAsToFile(certsFile, cas)
+}
+
+func writeCAsToFile(certsFile string, cas []auth.TrustedCerts) (retErr error) {
 	fp, err := os.OpenFile(certsFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
 	if err != nil {
 		return trace.ConvertSystemError(err)

@@ -158,16 +158,16 @@ func (fs *FSKeyStore) AddKey(key *Key) error {
 		return trace.Wrap(err)
 	}
 
-	if err := fs.writeBytes(key.PrivateKeyPEM(), fs.userKeyPath(key.KeyIndex)); err != nil {
+	if err := writeBytes(key.PrivateKeyPEM(), fs.userKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := fs.writeBytes(key.MarshalSSHPublicKey(), fs.publicKeyPath(key.KeyIndex)); err != nil {
+	if err := writeBytes(key.MarshalSSHPublicKey(), fs.publicKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Store TLS cert
-	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
+	if err := writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -179,7 +179,7 @@ func (fs *FSKeyStore) AddKey(key *Key) error {
 		if err != nil && !trace.IsBadParameter(err) {
 			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
 		} else {
-			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(key.KeyIndex)); err != nil {
+			if err := writeBytes(ppkFile, fs.ppkFilePath(key.KeyIndex)); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -187,7 +187,7 @@ func (fs *FSKeyStore) AddKey(key *Key) error {
 
 	// Store per-cluster key data.
 	if len(key.Cert) > 0 {
-		if err := fs.writeBytes(key.Cert, fs.sshCertPath(key.KeyIndex)); err != nil {
+		if err := writeBytes(key.Cert, fs.sshCertPath(key.KeyIndex)); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -202,19 +202,19 @@ func (fs *FSKeyStore) AddKey(key *Key) error {
 		kubeCluster = filepath.Clean(kubeCluster)
 
 		path := fs.kubeCertPath(key.KeyIndex, kubeCluster)
-		if err := fs.writeBytes(cert, path); err != nil {
+		if err := writeBytes(cert, path); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for db, cert := range key.DBTLSCerts {
 		path := fs.databaseCertPath(key.KeyIndex, filepath.Clean(db))
-		if err := fs.writeBytes(cert, path); err != nil {
+		if err := writeBytes(cert, path); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	for app, cert := range key.AppTLSCerts {
 		path := fs.appCertPath(key.KeyIndex, filepath.Clean(app))
-		if err := fs.writeBytes(cert, path); err != nil {
+		if err := writeBytes(cert, path); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -222,12 +222,22 @@ func (fs *FSKeyStore) AddKey(key *Key) error {
 	return nil
 }
 
-func (fs *FSKeyStore) writeBytes(bytes []byte, fp string) error {
+func writeBytes(bytes []byte, fp string) error {
 	if err := os.MkdirAll(filepath.Dir(fp), os.ModeDir|profileDirPerms); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	err := os.WriteFile(fp, bytes, keyFilePerms)
 	return trace.ConvertSystemError(err)
+}
+
+func writeBytesIfEnvVar(bytes []byte, env string) error {
+	if path, ok := os.LookupEnv(env); ok {
+		if err := writeBytes(bytes, path); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 // DeleteKey deletes the user's key with all its certs.
@@ -558,6 +568,33 @@ func (ms *MemKeyStore) AddKey(key *Key) error {
 	keyCopy.TrustedCerts = nil
 
 	ms.keys[key.ProxyHost][key.Username][key.ClusterName] = keyCopy
+
+	// If virtual profile env vars are set, we also write the key components to the FS
+	var envName string
+
+	envName = VirtualPathEnvName(VirtualPathKey, nil)
+	if err := writeBytesIfEnvVar(key.PrivateKeyPEM(), envName); err != nil {
+		return trace.Wrap(err, "writing key to virtual profile")
+	}
+
+	for kube, cert := range key.KubeTLSCerts {
+		envName = VirtualPathEnvName(VirtualPathKubernetes, []string{kube})
+		if err := writeBytesIfEnvVar(cert, envName); err != nil {
+			return trace.Wrap(err, "writing kube certs to virtual profile")
+		}
+	}
+	for app, cert := range key.AppTLSCerts {
+		envName = VirtualPathEnvName(VirtualPathApp, []string{app})
+		if err := writeBytesIfEnvVar(cert, envName); err != nil {
+			return trace.Wrap(err, "writing app certs to virtual profile")
+		}
+	}
+	for db, cert := range key.DBTLSCerts {
+		envName = VirtualPathEnvName(VirtualPathDatabase, []string{db})
+		if err := writeBytesIfEnvVar(cert, envName); err != nil {
+			return trace.Wrap(err, "writing db certs to virtual profile")
+		}
+	}
 
 	return nil
 }
