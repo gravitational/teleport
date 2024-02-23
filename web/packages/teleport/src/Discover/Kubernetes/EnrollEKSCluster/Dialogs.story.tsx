@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { rest } from 'msw';
 import { mswLoader } from 'msw-storybook-addon';
@@ -27,7 +27,10 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { ContextProvider } from 'teleport';
 
-import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
+import {
+  INTERNAL_RESOURCE_ID_LABEL_KEY,
+  JoinToken,
+} from 'teleport/services/joinToken';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
   DiscoverContextState,
@@ -191,6 +194,8 @@ export const ManualHelmDialogStory = () => {
     };
   }, []);
 
+  const [, setToken] = useState<JoinToken>();
+
   return (
     <MemoryRouter
       initialEntries={[
@@ -200,7 +205,12 @@ export const ManualHelmDialogStory = () => {
       <ContextProvider ctx={createTeleportContext()}>
         <DiscoverProvider mockCtx={discoverCtx}>
           <ManualHelmDialog
-            setJoinTokenAndGetCommand={() => generateCmd(helmCommandProps)}
+            setJoinTokenAndGetCommand={token => {
+              // Emulate real usage of ManualHelmDialog where setJoinTokenAndGetCommand updates the
+              // state of a parent.
+              setToken(token);
+              return generateCmd(helmCommandProps);
+            }}
             confirmedCommands={() => {}}
             cancel={() => {}}
           />

@@ -19,7 +19,7 @@
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 import { Box, Flex, ButtonPrimary, ButtonSecondary, Text } from 'design';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 
 import styled from 'styled-components';
 
@@ -108,8 +108,13 @@ export function ManualHelmDialog({
     ResourceKind.Application,
     ResourceKind.Discovery,
   ]);
+  const [command, setCommand] = useState('');
 
-  const command = setJoinTokenAndGetCommand(joinToken);
+  useEffect(() => {
+    if (joinToken && !command) {
+      setCommand(setJoinTokenAndGetCommand(joinToken));
+    }
+  }, [joinToken, command, setJoinTokenAndGetCommand]);
 
   return (
     <Dialog onClose={cancel} open={true}>
