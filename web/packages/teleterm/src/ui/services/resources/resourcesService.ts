@@ -89,7 +89,7 @@ export class ResourcesService {
     filters: ResourceTypeFilter[];
     limit: number;
   }): Promise<PromiseSettledResult<SearchResult[]>[]> {
-    const params = { search, clusterUri, sort: null, limit };
+    const params = { search, clusterUri, sort: null, limit, startKey: '' };
 
     const getServers = () =>
       this.fetchServers(params).then(
@@ -148,10 +148,10 @@ export class ResourcesService {
   ) {
     const tshAbortSignal = {
       aborted: false,
-      addEventListener: (cb: (...args: any[]) => void) => {
+      addEventListener: (string, cb: (...args: any[]) => void) => {
         abortSignal.addEventListener('abort', cb);
       },
-      removeEventListener: (cb: (...args: any[]) => void) => {
+      removeEventListener: (string, cb: (...args: any[]) => void) => {
         abortSignal.removeEventListener('abort', cb);
       },
     };

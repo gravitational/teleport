@@ -16,40 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClientReadableStream } from '@grpc/grpc-js';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
-import { FileTransferProgress } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+import {
+  FileTransferProgress,
+  type FileTransferRequest,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
-import { TshAbortSignal } from './types';
+import type { ServerStreamingCall } from '@protobuf-ts/runtime-rpc';
 
 export function createFileTransferStream(
-  stream: ClientReadableStream<FileTransferProgress>,
-  abortSignal: TshAbortSignal
+  stream: ServerStreamingCall<FileTransferRequest, FileTransferProgress>
 ): FileTransferListeners {
-  abortSignal.addEventListener(() => stream.cancel());
-
   return {
     onProgress(callback: (progress: number) => void) {
-      stream.on('data', (data: api.FileTransferProgress) =>
-        callback(data.percentage)
-      );
+      stream.responses.onMessage(data => callback(data.percentage));
     },
-    onComplete(callback: () => void) {
-      stream.on('end', () => {
-        callback();
-        // When stream ends, all listeners can be removed.
-        stream.removeAllListeners();
-      });
-    },
-    onError(callback: (error: Error) => void) {
-      stream.on('error', err => {
-        callback(err);
-        // Due to a bug in grpc-js, the `error` event is also emitted after the `end` event.
-        // This behavior is not correct, only one of them should be emitted.
-        // To fix this, we remove all listeners after the stream ended with an error.
-        stream.removeAllListeners();
-      });
-    },
+    onComplete: stream.responses.onComplete,
+    onError: stream.responses.onError,
   };
 }

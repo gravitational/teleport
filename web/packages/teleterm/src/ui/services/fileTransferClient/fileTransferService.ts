@@ -35,10 +35,10 @@ export class FileTransferService {
   ): FileTransferListeners {
     const abortSignal = {
       aborted: false,
-      addEventListener: (cb: (...args: any[]) => void) => {
+      addEventListener: (string, cb: (...args: any[]) => void) => {
         abortController.signal.addEventListener('abort', cb);
       },
-      removeEventListener: (cb: (...args: any[]) => void) => {
+      removeEventListener: (string, cb: (...args: any[]) => void) => {
         abortController.signal.removeEventListener('abort', cb);
       },
     };

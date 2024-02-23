@@ -339,11 +339,7 @@ export type TshAbortController = {
   abort(): void;
 };
 
-export type TshAbortSignal = {
-  readonly aborted: boolean;
-  addEventListener(cb: (...args: any[]) => void): void;
-  removeEventListener(cb: (...args: any[]) => void): void;
-};
+export type TshAbortSignal = AbortSignal;
 
 interface LoginParamsBase {
   clusterUri: uri.RootClusterUri;

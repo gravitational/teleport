@@ -16,20 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// This file works both in the browser and Node.js.
-// In Node environment, it imports the built-in events module.
-// In browser environment, it imports the events package.
-import { EventEmitter } from 'events';
-
 import { TshAbortController } from './types';
 
 /**
  * Creates a version of AbortController that can be passed through Electron contextBridge
  */
 export default function createAbortController(): TshAbortController {
-  const emitter = new EventEmitter();
+  const emitter = new EventTarget();
 
-  const signal = {
+  //TODO(gzdunek): this should be an object version of AbortSignal
+  const signal: AbortSignal = {
     aborted: false,
     // TODO(ravicious): Consider aligning the interface of TshAbortSignal with the interface of
     // browser's AbortSignal so that those two can be used interchangeably, for example in the wait
@@ -40,12 +36,24 @@ export default function createAbortController(): TshAbortController {
     // TshAbortSignal still needs to have some kind of a unique property so that Connect functions
     // can enforce on a type level that they can only accept TshAbortSignal. Regular abort signals
     // won't work in Connect since abort signals are often passed through the context bridge.
-    addEventListener(cb: (...args: any[]) => void) {
-      emitter.once('abort', cb);
+    addEventListener(string, cb: (...args: any[]) => void) {
+      emitter.addEventListener('abort', cb);
     },
 
-    removeEventListener(cb: (...args: any[]) => void) {
-      emitter.removeListener('abort', cb);
+    removeEventListener(string, cb: (...args: any[]) => void) {
+      emitter.removeEventListener('abort', cb);
+    },
+    throwIfAborted() {},
+    onabort: () => {},
+    reason: '',
+    removeAllListeners() {
+      emitter.removeAllListeners();
+    },
+    eventListeners(eventName) {
+      return emitter.eventListeners(eventName);
+    },
+    dispatchEvent(event: Event) {
+      return emitter.dispatchEvent(event);
     },
   };
 
@@ -58,8 +66,8 @@ export default function createAbortController(): TshAbortController {
         return;
       }
 
-      signal.aborted = true;
-      emitter.emit('abort');
+      // signal.aborted = true;
+      emitter.dispatchEvent(new Event('abort'));
     },
   };
 }

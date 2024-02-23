@@ -18,7 +18,9 @@
 
 import * as grpc from '@grpc/grpc-js';
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
-import * as apiService from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
+import * as apiService from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+
+import { adaptService } from '@protobuf-ts/grpc-backend';
 
 import * as uri from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
@@ -33,6 +35,7 @@ export interface ReloginRequest extends api.ReloginRequest {
   rootClusterUri: uri.RootClusterUri;
   gatewayCertExpired?: GatewayCertExpired;
 }
+
 export interface GatewayCertExpired extends api.GatewayCertExpired {
   gatewayUri: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
@@ -41,6 +44,7 @@ export interface GatewayCertExpired extends api.GatewayCertExpired {
 export interface SendNotificationRequest extends api.SendNotificationRequest {
   cannotProxyGatewayConnection?: CannotProxyGatewayConnection;
 }
+
 export interface CannotProxyGatewayConnection
   extends api.CannotProxyGatewayConnection {
   gatewayUri: uri.GatewayUri;
@@ -79,7 +83,7 @@ export async function createTshdEventsServer(
   );
   const { service, setupTshdEventContextBridgeService } = createService(logger);
 
-  server.addService(apiService.tshdEventsServiceDefinition, service);
+  server.addService(...adaptService(apiService.TshdEventsService, service));
 
   return { resolvedAddress, setupTshdEventContextBridgeService };
 }
