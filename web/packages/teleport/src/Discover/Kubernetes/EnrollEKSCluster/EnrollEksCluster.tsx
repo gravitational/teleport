@@ -403,7 +403,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       {showContent && (
         <>
           <Box mb={2}>
-            <Flex alignItems="center" gap={3}>
+            <Box>
               <Toggle
                 isToggled={isAutoDiscoveryEnabled}
                 onToggle={() =>
@@ -432,7 +432,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
                   inside a Kubernetes cluster.
                 </ToolTipInfo>
               </Toggle>
-            </Flex>
+            </Box>
           </Box>
           {showTable && (
             <ClustersList
