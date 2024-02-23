@@ -73,13 +73,6 @@ export function QuestionnaireComponent({
             <Flex gap={3} mt={3}>
               {canSkip ? (
                 <>
-                  <ButtonPrimary
-                    width="50%"
-                    size="large"
-                    onClick={() => submitForm(validator)}
-                  >
-                    Submit
-                  </ButtonPrimary>
                   <ButtonSecondary
                     width="50%"
                     size="large"
@@ -87,6 +80,13 @@ export function QuestionnaireComponent({
                   >
                     Skip
                   </ButtonSecondary>
+                  <ButtonPrimary
+                    width="50%"
+                    size="large"
+                    onClick={() => submitForm(validator)}
+                  >
+                    Submit
+                  </ButtonPrimary>
                 </>
               ) : (
                 <ButtonPrimary

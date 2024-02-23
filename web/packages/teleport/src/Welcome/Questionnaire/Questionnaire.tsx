@@ -29,7 +29,11 @@ import { useQuestionnaire } from 'teleport/Welcome/Questionnaire/useQuestionnair
  * -F "teamsize=200" \
  * -F "team=Development Team" \
  * -F "company=ACME Corp" \
- * -F "access_needs=ssh,k8s
+ * -F "access_needs=["RESOURCE_WEB_APPLICATIONS","RESOURCE_KUBERNETES"]
+ *
+ * Note: New API added to CLI Survey Endpoint.
+ * Added to same endpoint as the CURL post install message.
+ * https://github.com/gravitational/peopleware/blob/main/rfd/0001-adoption-metrics.md
  */
 const PRODUCT_SURVEY_ENDPOINT = 'https://usage.teleport.dev/productsurvey';
 

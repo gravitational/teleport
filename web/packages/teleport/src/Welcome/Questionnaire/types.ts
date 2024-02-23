@@ -41,12 +41,15 @@ export type ResourcesProps = QuestionProps & {
 };
 
 export enum EmployeeOption {
-  ONE = '0-19',
-  TWO = '20-199',
-  THREE = '200-499',
-  FOUR = '500-999',
-  FIVE = '1000-4999',
-  SIX = '5000+',
+  ONE = '1 - 9',
+  TWO = '10-19',
+  THREE = '20-199',
+  FOUR = '200-499',
+  FIVE = '500-999',
+  SIX = '1000-4999',
+  SEVEN = '5000+',
+  EIGHT = '10,000+',
+  NINE = '20,000+',
 }
 
 export enum TeamOption {
