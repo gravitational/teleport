@@ -149,7 +149,7 @@ export default class AppContext implements IAppContext {
     );
     this.connectMyComputerService = new ConnectMyComputerService(
       this.mainProcessClient,
-      tshClient
+      terminalServiceClient
     );
     this.headlessAuthenticationService = new HeadlessAuthenticationService(
       mainProcessClient,
