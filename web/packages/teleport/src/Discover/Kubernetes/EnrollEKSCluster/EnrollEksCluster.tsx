@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box, ButtonSecondary, ButtonText, Text, Toggle } from 'design';
 import styled from 'styled-components';
 import { FetchStatus } from 'design/DataTable/types';
@@ -258,23 +258,34 @@ export function EnrollEksCluster(props: AgentStepProps) {
     !selectedCluster ||
     enrollmentState.status !== 'notStarted';
 
-  const setJoinTokenAndGetCommand = (token: JoinToken) => {
-    setJoinToken(token);
-    return generateCmd({
-      namespace: 'teleport-agent',
-      clusterName: selectedCluster.name,
-      proxyAddr: ctx.storeUser.state.cluster.publicURL,
-      clusterVersion: ctx.storeUser.state.cluster.authVersion,
-      tokenId: token.id,
-      resourceId: token.internalResourceId,
-      isEnterprise: ctx.isEnterprise,
-      isCloud: ctx.isCloud,
-      automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
-      automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
-      joinLabels: [...selectedCluster.labels, ...selectedCluster.joinLabels],
-      disableAppDiscovery: !isAppDiscoveryEnabled,
-    });
-  };
+  const setJoinTokenAndGetCommand = useCallback(
+    (token: JoinToken) => {
+      setJoinToken(token);
+      return generateCmd({
+        namespace: 'teleport-agent',
+        clusterName: selectedCluster.name,
+        proxyAddr: ctx.storeUser.state.cluster.publicURL,
+        clusterVersion: ctx.storeUser.state.cluster.authVersion,
+        tokenId: token.id,
+        resourceId: token.internalResourceId,
+        isEnterprise: ctx.isEnterprise,
+        isCloud: ctx.isCloud,
+        automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
+        automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
+        joinLabels: [...selectedCluster.labels, ...selectedCluster.joinLabels],
+        disableAppDiscovery: !isAppDiscoveryEnabled,
+      });
+    },
+    [
+      ctx.automaticUpgradesEnabled,
+      ctx.automaticUpgradesTargetVersion,
+      ctx.isCloud,
+      ctx.isEnterprise,
+      ctx.storeUser.state.cluster,
+      isAppDiscoveryEnabled,
+      selectedCluster,
+    ]
+  );
 
   return (
     <Box maxWidth="1000px">
