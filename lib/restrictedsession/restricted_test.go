@@ -212,13 +212,15 @@ func setupBPFContext(t *testing.T) *bpfContext {
 
 	client := &mockClient{
 		restrictions: restrictions,
-		Fanout:       *services.NewFanout(),
+		FanoutV2: *services.NewFanoutV2(services.FanoutV2Config{
+			Capacity: 64,
+		}),
 	}
 
 	bpfCtx.restrictedMgr, err = New(config, client)
 	require.NoError(t, err)
 
-	client.Fanout.SetInit([]api.WatchKind{{Kind: api.KindNetworkRestrictions}})
+	client.FanoutV2.SetInit([]api.WatchKind{{Kind: api.KindNetworkRestrictions}})
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -408,7 +410,7 @@ func TestRootNetwork(t *testing.T) {
 
 type mockClient struct {
 	restrictions api.NetworkRestrictions
-	services.Fanout
+	services.FanoutV2
 }
 
 func (mc *mockClient) GetNetworkRestrictions(context.Context) (api.NetworkRestrictions, error) {
