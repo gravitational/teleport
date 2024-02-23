@@ -1030,7 +1030,8 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 		assert.NoError(t, err)
 	}
 	assertAccessDenied := func(t *testing.T, err error) {
-		assert.ErrorIs(t, err, dtauthz.ErrTrustedDeviceRequired)
+		assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+		assert.ErrorContains(t, err, dtauthz.ErrTrustedDeviceRequired.Error())
 	}
 
 	tests := []struct {

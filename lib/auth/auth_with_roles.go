@@ -6338,7 +6338,7 @@ func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.C
 	// Device trust: authorize device before issuing a privileged token without an MFA response.
 	if mfaResp := req.GetExistingMFAResponse(); mfaResp.GetTOTP() == nil && mfaResp.GetWebauthn() == nil {
 		if err := a.enforceGlobalModeTrustedDevice(ctx); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "device trust is required for users to create a privileged token without an MFA check")
 		}
 	}
 
@@ -6355,7 +6355,7 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 		// Device trust: authorize device before issuing a register challenge without an MFA response or privilege token.
 		if mfaResp := req.GetExistingMFAResponse(); mfaResp.GetTOTP() == nil && mfaResp.GetWebauthn() == nil {
 			if err := a.enforceGlobalModeTrustedDevice(ctx); err != nil {
-				return nil, trace.Wrap(err)
+				return nil, trace.Wrap(err, "device trust is required for users to register their first MFA device")
 			}
 		}
 	}
