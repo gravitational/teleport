@@ -61,7 +61,7 @@ func (g *GitlabFetcher) getProjects(ctx context.Context) (
 	for _, project := range projects.Items {
 		prj := &accessgraphv1alpha.GitlabProject{
 			Name: project.Name,
-			Path: project.Path,
+			Path: project.PathWithNamespace,
 		}
 		out = append(out, prj)
 
@@ -96,7 +96,7 @@ func (g *GitlabFetcher) getGroups(ctx context.Context) (
 	for _, group := range groups.Items {
 		grp := &accessgraphv1alpha.GitlabGroup{
 			Name: group.Name,
-			Path: group.Path,
+			Path: group.FullPath,
 		}
 		out = append(out, grp)
 
