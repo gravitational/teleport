@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/trace"
@@ -46,10 +47,16 @@ func TestUserNotificationCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewNotificationsService(backend.NewSanitizer(mem), clock)
+	service, err := NewNotificationsService(backend.NewSanitizer(mem))
 	require.NoError(t, err)
 
+	// Create the user.
 	testUsername := "test-username"
+	user, err := types.NewUser(testUsername)
+	require.NoError(t, err)
+	identityService := NewIdentityService(backend.NewSanitizer(mem))
+	_, err = identityService.CreateUser(ctx, user)
+	require.NoError(t, err)
 
 	// Create a couple notifications.
 	userNotification1 := newUserNotification(t, "test-notification-1")
@@ -59,16 +66,18 @@ func TestUserNotificationCRUD(t *testing.T) {
 	notification, err := service.CreateUserNotification(ctx, testUsername, userNotification1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userNotification1, notification, protocmp.Transform()))
+	notification1Id := notification.Spec.Id
 	notification, err = service.CreateUserNotification(ctx, testUsername, userNotification2)
-	require.Empty(t, cmp.Diff(userNotification2, notification, protocmp.Transform()))
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(userNotification2, notification, protocmp.Transform()))
+	notification2Id := notification.Spec.Id
 
 	// Test deleting a notification.
-	err = service.DeleteUserNotification(ctx, testUsername, "test-notification-1")
+	err = service.DeleteUserNotification(ctx, testUsername, notification1Id)
 	require.NoError(t, err)
 	// Since we don't have any Get or List method for user-specific notifications specifically, we will assert that it was deleted
 	// by attempting to delete it again and expecting a "not found" error.
-	err = service.DeleteUserNotification(ctx, testUsername, "test-notification-1")
+	err = service.DeleteUserNotification(ctx, testUsername, notification1Id)
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification test-notification-1 not existing", err)
 
 	// Test deleting a notification that doesn't exist.
@@ -81,12 +90,13 @@ func TestUserNotificationCRUD(t *testing.T) {
 	userNotification1 = newUserNotification(t, "test-notification-1")
 	_, err = service.CreateUserNotification(ctx, testUsername, userNotification1)
 	require.NoError(t, err)
+	notification1Id = notification.Spec.Id
 	err = service.DeleteAllUserNotificationsForUser(ctx, testUsername)
 	require.NoError(t, err)
 	// Verify that the notifications don't exist anymore by attempting to delete them.
-	err = service.DeleteUserNotification(ctx, testUsername, "test-notification-1")
+	err = service.DeleteUserNotification(ctx, testUsername, notification1Id)
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification test-notification-1 not existing", err)
-	err = service.DeleteUserNotification(ctx, testUsername, "test-notification-2")
+	err = service.DeleteUserNotification(ctx, testUsername, notification2Id)
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification test-notification-2 not existing", err)
 
 }
@@ -102,7 +112,7 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewNotificationsService(backend.NewSanitizer(mem), clock)
+	service, err := NewNotificationsService(backend.NewSanitizer(mem))
 	require.NoError(t, err)
 
 	// Create a couple notifications.
@@ -112,9 +122,7 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 		Spec: &notificationsv1.GlobalNotificationSpec{
 			Notification: &notificationsv1.Notification{
 				SubKind: "test-subkind",
-				Spec: &notificationsv1.NotificationSpec{
-					Id: "notification-no-matcher",
-				},
+				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
 					Description: "Test Description",
 				},
@@ -128,9 +136,7 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 			},
 			Notification: &notificationsv1.Notification{
 				SubKind: "test-subkind",
-				Spec: &notificationsv1.NotificationSpec{
-					Id: "notification-late-expiry",
-				},
+				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
 					Description: "Test Description",
 					Labels:      map[string]string{"description": "notification-late-expiry"},
@@ -145,9 +151,10 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	notification, err := service.CreateGlobalNotification(ctx, globalNotification1)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(globalNotification1, notification, protocmp.Transform()))
+	globalNotification1Id := notification.Spec.Notification.Spec.Id
 	notification, err = service.CreateGlobalNotification(ctx, globalNotification2)
-	require.Empty(t, cmp.Diff(globalNotification2, notification, protocmp.Transform()))
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(globalNotification2, notification, protocmp.Transform()))
 	// Expect error due to having no matcher.
 	_, err = service.CreateGlobalNotification(ctx, globalNotificationNoMatcher)
 	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-no-matcher having no matcher", err)
@@ -156,7 +163,7 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-late-expiry having an expiry date more than 90 days later", err)
 
 	// Test deleting a notification.
-	err = service.DeleteGlobalNotification(ctx, "test-notification-1")
+	err = service.DeleteGlobalNotification(ctx, globalNotification1Id)
 	require.NoError(t, err)
 	// Test deleting a notification that doesn't exist.
 	err = service.DeleteGlobalNotification(ctx, "invalid-id")
@@ -174,14 +181,30 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewNotificationsService(backend.NewSanitizer(mem), clock)
+	service, err := NewNotificationsService(backend.NewSanitizer(mem))
 	require.NoError(t, err)
 
+	// Create the user.
 	testUsername := "test-username"
+	user, err := types.NewUser(testUsername)
+	require.NoError(t, err)
+	identityService := NewIdentityService(backend.NewSanitizer(mem))
+	_, err = identityService.CreateUser(ctx, user)
+	require.NoError(t, err)
+
+	// Create a and upsert the notifications that these states will be for.
+	userNotification1 := newUserNotification(t, "test-notification-1")
+	userNotification2 := newUserNotification(t, "test-notification-2")
+	notification, err := service.CreateUserNotification(ctx, testUsername, userNotification1)
+	require.NoError(t, err)
+	notification1Id := notification.Spec.Id
+	notification, err = service.CreateUserNotification(ctx, testUsername, userNotification2)
+	require.NoError(t, err)
+	notification2Id := notification.Spec.Id
 
 	userNotificationState1 := &notificationsv1.UserNotificationState{
 		Spec: &notificationsv1.UserNotificationStateSpec{
-			NotificationId: "test-notification-1",
+			NotificationId: notification1Id,
 		},
 		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
@@ -191,7 +214,7 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	// Duplicate of the above but with the state set to dismissed instead of clicked.
 	userNotificationState1Dismissed := &notificationsv1.UserNotificationState{
 		Spec: &notificationsv1.UserNotificationStateSpec{
-			NotificationId: "test-notification-1",
+			NotificationId: notification1Id,
 		},
 		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED,
@@ -200,7 +223,7 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 
 	userNotificationState2 := &notificationsv1.UserNotificationState{
 		Spec: &notificationsv1.UserNotificationStateSpec{
-			NotificationId: "test-notification-2",
+			NotificationId: notification2Id,
 		},
 		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
@@ -215,11 +238,11 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 
 	// Upsert notification states.
 	notificationState, err := service.UpsertUserNotificationState(ctx, testUsername, userNotificationState1)
+	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(userNotificationState1, notificationState, protocmp.Transform()))
-	require.NoError(t, err)
 	notificationState, err = service.UpsertUserNotificationState(ctx, testUsername, userNotificationState2)
-	require.Empty(t, cmp.Diff(userNotificationState2, notificationState, protocmp.Transform()))
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(userNotificationState2, notificationState, protocmp.Transform()))
 
 	// Fetch a paginated list of the user's notification states.
 	paginatedOut := make([]*notificationsv1.UserNotificationState, 0, 2)
@@ -267,7 +290,7 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	require.Equal(t, paginatedOut[1].Status.NotificationState, notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED)
 
 	// Test deleting a notification state.
-	err = service.DeleteUserNotificationState(ctx, testUsername, "test-notification-1")
+	err = service.DeleteUserNotificationState(ctx, testUsername, notification1Id)
 	require.NoError(t, err)
 	// Test deleting a notification state that doesn't exist.
 	err = service.DeleteUserNotificationState(ctx, testUsername, "invalid-id")
@@ -314,10 +337,17 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewNotificationsService(backend.NewSanitizer(mem), clock)
+	service, err := NewNotificationsService(backend.NewSanitizer(mem))
 	require.NoError(t, err)
 
+	// Create the user.
 	testUsername := "test-username"
+	user, err := types.NewUser(testUsername)
+	require.NoError(t, err)
+	identityService := NewIdentityService(backend.NewSanitizer(mem))
+	_, err = identityService.CreateUser(ctx, user)
+	require.NoError(t, err)
+
 	testTimestamp := timestamppb.New(time.UnixMilli(1708041600000)) // February 16, 2024 12:00:00 AM UTC
 
 	userLastSeenNotification := &notificationsv1.UserLastSeenNotification{
@@ -357,23 +387,21 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 }
 
-func newUserNotification(t *testing.T, notificationId string) *notificationsv1.Notification {
+func newUserNotification(t *testing.T, description string) *notificationsv1.Notification {
 	t.Helper()
 
 	notification := notificationsv1.Notification{
 		SubKind: "test-subkind",
-		Spec: &notificationsv1.NotificationSpec{
-			Id: notificationId,
-		},
+		Spec:    &notificationsv1.NotificationSpec{},
 		Metadata: &headerv1.Metadata{
-			Labels: map[string]string{"description": notificationId},
+			Labels: map[string]string{"description": description},
 		},
 	}
 
 	return &notification
 }
 
-func newGlobalNotification(t *testing.T, notificationId string) *notificationsv1.GlobalNotification {
+func newGlobalNotification(t *testing.T, description string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
 	notification := notificationsv1.GlobalNotification{
@@ -383,11 +411,9 @@ func newGlobalNotification(t *testing.T, notificationId string) *notificationsv1
 			},
 			Notification: &notificationsv1.Notification{
 				SubKind: "test-subkind",
-				Spec: &notificationsv1.NotificationSpec{
-					Id: notificationId,
-				},
+				Spec:    &notificationsv1.NotificationSpec{},
 				Metadata: &headerv1.Metadata{
-					Labels: map[string]string{"description": notificationId},
+					Labels: map[string]string{"description": description},
 				},
 			},
 		},

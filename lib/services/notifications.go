@@ -56,10 +56,6 @@ func ValidateNotification(notification *notificationsv1.Notification) error {
 		return trace.BadParameter("notification spec is missing")
 	}
 
-	if notification.Spec.Id == "" {
-		return trace.BadParameter("notification ID is missing")
-	}
-
 	if notification.Metadata == nil {
 		return trace.BadParameter("notification metadata is missing")
 	}
@@ -137,10 +133,6 @@ func ValidateGlobalNotification(globalNotification *notificationsv1.GlobalNotifi
 
 	if globalNotification.Spec.Notification.Spec == nil {
 		return trace.BadParameter("spec.notification.spec is missing")
-	}
-
-	if globalNotification.Spec.Notification.Spec.Id == "" {
-		return trace.BadParameter("spec.notification ID is missing")
 	}
 
 	if globalNotification.Spec.Notification.SubKind == "" {
