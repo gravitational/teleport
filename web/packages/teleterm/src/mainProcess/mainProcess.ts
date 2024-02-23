@@ -32,6 +32,10 @@ import {
 } from 'electron';
 import { ChannelCredentials } from '@grpc/grpc-js';
 
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+
+import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
+
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
@@ -57,6 +61,7 @@ import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { resolveNetworkAddress } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
 import { downloadAgent, verifyAgent, FileDownloader } from './agentDownloader';
+
 import {
   createAgentConfigFile,
   isAgentConfigFileCreated,
@@ -593,7 +598,13 @@ async function setUpTshdClient({
   tshdAddress: string;
 }): Promise<TshdClient> {
   const creds = await createGrpcCredentials(runtimeSettings);
-  return createTshdClient(tshdAddress, creds);
+  const transport = new GrpcTransport({
+    host: tshdAddress,
+    channelCredentials: creds,
+  });
+  const terminalServiceClient = new TerminalServiceClient(transport);
+
+  return createTshdClient(terminalServiceClient);
 }
 
 async function createGrpcCredentials(

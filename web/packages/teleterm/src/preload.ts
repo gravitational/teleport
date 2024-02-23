@@ -19,6 +19,10 @@
 import { contextBridge } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
 
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+
+import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
+
 import { createTshdClient } from 'teleterm/services/tshd/createClient';
 import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import { createFileLoggerService } from 'teleterm/services/logger';
@@ -36,6 +40,11 @@ import {
 } from 'teleterm/services/grpcCredentials';
 import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
 import { createTshdEventsServer } from 'teleterm/services/tshdEvents';
+
+import {
+  getObjectifiedInterceptors,
+  objectifyClient,
+} from 'teleterm/services/tshd/grpcContextBridgeClient';
 
 const mainProcessClient = createMainProcessClient();
 const runtimeSettings = mainProcessClient.getRuntimeSettings();
@@ -60,7 +69,15 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     mainProcessClient.getResolvedChildProcessAddresses(),
     createGrpcCredentials(runtimeSettings),
   ]);
-  const tshClient = createTshdClient(addresses.tsh, credentials.tshd);
+  const transport = new GrpcTransport({
+    host: addresses.tsh,
+    channelCredentials: credentials.shared,
+    interceptors: getObjectifiedInterceptors(),
+  });
+
+  const terminalServiceClient = new TerminalServiceClient(transport);
+
+  const tshClient = createTshdClient(terminalServiceClient);
   const ptyServiceClient = createPtyService(
     addresses.shared,
     credentials.shared,
@@ -87,7 +104,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
 
   return {
     mainProcessClient,
-    tshClient,
+    terminalServiceClient: objectifyClient(terminalServiceClient),
     ptyServiceClient,
     setupTshdEventContextBridgeService,
   };

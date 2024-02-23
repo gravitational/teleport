@@ -45,6 +45,8 @@ import { IAppContext } from 'teleterm/ui/types';
 import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { parseDeepLink } from 'teleterm/deepLinks';
 
+import { createTshdClient } from 'teleterm/services/tshd/createClient';
+
 import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';
 
@@ -83,8 +85,10 @@ export default class AppContext implements IAppContext {
   deepLinksService: DeepLinksService;
 
   constructor(config: ElectronGlobals) {
-    const { tshClient, ptyServiceClient, mainProcessClient } = config;
+    const { terminalServiceClient, ptyServiceClient, mainProcessClient } =
+      config;
     this.logger = new Logger('AppContext');
+    const tshClient = createTshdClient(terminalServiceClient);
     this.tshd = tshClient;
     this.setupTshdEventContextBridgeService =
       config.setupTshdEventContextBridgeService;

@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ITshdEventsService } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
+import { ITshdEventsServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.client';
+import { ITerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
 
 import { sendUnaryData, ServerUnaryCall } from 'grpc';
 
@@ -24,7 +25,6 @@ import { Logger, LoggerService } from 'teleterm/services/logger/types';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { MainProcessClient, RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyServiceClient } from 'teleterm/services/pty';
-import { TshdClient } from 'teleterm/services/tshd/types';
 
 export type {
   Logger,
@@ -80,11 +80,13 @@ export type {
  * actually uses the returned object.
  */
 export type TshdEventContextBridgeService = {
-  [RpcName in keyof ITshdEventsService]: (args: {
+  [RpcName in keyof ITshdEventsServiceClient]: (args: {
     /**
      * request is the result of calling call.request.toObject() in a gRPC handler.
      */
-    request: ExtractRequestType<Parameters<ITshdEventsService[RpcName]>[0]>;
+    request: ExtractRequestType<
+      Parameters<ITshdEventsServiceClient[RpcName]>[0]
+    >;
     /**
      * onRequestCancelled sets up a callback that is called when the request gets canceled by the
      * client (tshd in this case).
@@ -93,7 +95,7 @@ export type TshdEventContextBridgeService = {
   }) => Promise<
     // The following type maps to the object version of the response type expected as the second
     // argument to the callback function in a gRPC handler.
-    ExtractResponseType<Parameters<ITshdEventsService[RpcName]>[1]>
+    ExtractResponseType<Parameters<ITshdEventsServiceClient[RpcName]>[1]>
   >;
 };
 
@@ -105,7 +107,7 @@ export type ExtractResponseType<T> =
 
 export type ElectronGlobals = {
   readonly mainProcessClient: MainProcessClient;
-  readonly tshClient: TshdClient;
+  readonly terminalServiceClient: ITerminalServiceClient;
   readonly ptyServiceClient: PtyServiceClient;
   readonly setupTshdEventContextBridgeService: (
     listener: TshdEventContextBridgeService
