@@ -290,7 +290,7 @@ func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) 
 }
 
 // GetClusterAuditConfig gets cluster audit config from the backend.
-func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, auditPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -298,7 +298,7 @@ func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context,
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterAuditConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+	return services.UnmarshalClusterAuditConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // SetClusterAuditConfig sets the cluster audit config on the backend.

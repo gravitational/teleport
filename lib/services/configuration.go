@@ -81,7 +81,7 @@ type ClusterConfiguration interface {
 	DeleteSessionRecordingConfig(ctx context.Context) error
 
 	// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
-	GetClusterAuditConfig(context.Context, ...MarshalOption) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(context.Context) (types.ClusterAuditConfig, error)
 	// CreateClusterAuditConfig creates a cluster audit config if once does not already exist.
 	CreateClusterAuditConfig(ctx context.Context, cfg types.ClusterAuditConfig) (types.ClusterAuditConfig, error)
 	// UpdateClusterAuditConfig updates an existing cluster audit config.
