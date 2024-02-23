@@ -33,6 +33,7 @@ import type { IBinaryReader } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { DeviceWebToken } from "../../../devicetrust/v1/device_web_token_pb";
 import { UnifiedResourcePreferences } from "../../../userpreferences/v1/unified_resource_preferences_pb";
 import { ClusterUserPreferences } from "../../../userpreferences/v1/cluster_preferences_pb";
 import { App } from "./app_pb";
@@ -1159,6 +1160,27 @@ export interface UserPreferences {
      * @generated from protobuf field: teleport.userpreferences.v1.UnifiedResourcePreferences unified_resource_preferences = 2;
      */
     unifiedResourcePreferences?: UnifiedResourcePreferences;
+}
+/**
+ * Request for AuthenticateWebDevice.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
+ */
+export interface AuthenticateWebDeviceRequest {
+    /**
+     * Device web token to be spent in exchange for the device authentication
+     * attempt.
+     *
+     * @generated from protobuf field: teleport.devicetrust.v1.DeviceWebToken device_web_token = 1;
+     */
+    deviceWebToken?: DeviceWebToken;
+}
+/**
+ * Response for AuthenticateWebDevice.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
+ */
+export interface AuthenticateWebDeviceResponse {
 }
 /**
  * PasswordlessPrompt describes different prompts we need from users
@@ -5308,6 +5330,77 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UserPreferences
  */
 export const UserPreferences = new UserPreferences$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AuthenticateWebDeviceRequest$Type extends MessageType<AuthenticateWebDeviceRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest", [
+            { no: 1, name: "device_web_token", kind: "message", T: () => DeviceWebToken }
+        ]);
+    }
+    create(value?: PartialMessage<AuthenticateWebDeviceRequest>): AuthenticateWebDeviceRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<AuthenticateWebDeviceRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AuthenticateWebDeviceRequest): AuthenticateWebDeviceRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.devicetrust.v1.DeviceWebToken device_web_token */ 1:
+                    message.deviceWebToken = DeviceWebToken.internalBinaryRead(reader, reader.uint32(), options, message.deviceWebToken);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AuthenticateWebDeviceRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.devicetrust.v1.DeviceWebToken device_web_token = 1; */
+        if (message.deviceWebToken)
+            DeviceWebToken.internalBinaryWrite(message.deviceWebToken, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
+ */
+export const AuthenticateWebDeviceRequest = new AuthenticateWebDeviceRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AuthenticateWebDeviceResponse$Type extends MessageType<AuthenticateWebDeviceResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse", []);
+    }
+    create(value?: PartialMessage<AuthenticateWebDeviceResponse>): AuthenticateWebDeviceResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<AuthenticateWebDeviceResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AuthenticateWebDeviceResponse): AuthenticateWebDeviceResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: AuthenticateWebDeviceResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
+ */
+export const AuthenticateWebDeviceResponse = new AuthenticateWebDeviceResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5351,5 +5444,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "GetConnectMyComputerNodeName", options: {}, I: GetConnectMyComputerNodeNameRequest, O: GetConnectMyComputerNodeNameResponse },
     { name: "ListUnifiedResources", options: {}, I: ListUnifiedResourcesRequest, O: ListUnifiedResourcesResponse },
     { name: "GetUserPreferences", options: {}, I: GetUserPreferencesRequest, O: GetUserPreferencesResponse },
-    { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse }
+    { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse },
+    { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse }
 ]);
