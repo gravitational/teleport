@@ -74,9 +74,16 @@ type Config struct {
 	ClientCache ClientCache
 }
 
+// ClientCache stores clients keyed by cluster URI.
 type ClientCache interface {
+	// Get returns a client from the cache if there is one,
+	// otherwise it dials the remote server.
+	// The caller should not close the returned client.
 	Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error)
-	ClearForRootCluster(rootClusterURI uri.ResourceURI) error
+	// ClearForRoot closes and removes clients from the cache
+	// for the root cluster and its leaf clusters.
+	ClearForRoot(clusterURI uri.ResourceURI) error
+	// Clear closes and removes all clients.
 	Clear() error
 }
 

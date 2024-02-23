@@ -49,8 +49,16 @@ type Config struct {
 	Log      *logrus.Entry
 }
 
+func (c *Config) checkAndSetDefaults() {
+	if c.Log == nil {
+		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "Client cache")
+	}
+}
+
 // New creates an instance of Cache.
 func New(c Config) *Cache {
+	c.checkAndSetDefaults()
+
 	return &Cache{
 		cfg:     c,
 		clients: make(map[uri.ResourceURI]*client.ProxyClient),
@@ -100,12 +108,13 @@ func (c *Cache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.Pr
 	return clt, nil
 }
 
-// ClearForRootCluster closes and removes clients from the cache
+// ClearForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
-func (c *Cache) ClearForRootCluster(rootClusterURI uri.ResourceURI) error {
+func (c *Cache) ClearForRoot(clusterURI uri.ResourceURI) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	rootClusterURI := clusterURI.GetRootClusterURI()
 	var (
 		errors  []error
 		deleted []uri.ResourceURI
@@ -121,7 +130,7 @@ func (c *Cache) ClearForRootCluster(rootClusterURI uri.ResourceURI) error {
 		}
 	}
 
-	c.cfg.Log.WithField("cluster", rootClusterURI).WithField("clients", deleted).Info("Invalidated cached clients for root cluster.")
+	c.cfg.Log.WithFields(logrus.Fields{"cluster": rootClusterURI, "clients": deleted}).Info("Invalidated cached clients for root cluster.")
 
 	return trace.NewAggregate(errors...)
 
