@@ -152,11 +152,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
 
 	if req.GetAssumeStartTime() != nil && !req.AssumeStartTime.AsTime().IsZero() {
-		assumeStartTime := req.AssumeStartTime.AsTime()
-		if err := types.ValidateAssumeStartTime(assumeStartTime); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		request.SetAssumeStartTime(assumeStartTime)
+		request.SetAssumeStartTime(req.AssumeStartTime.AsTime())
 	}
 
 	var reqOut types.AccessRequest
@@ -204,9 +200,6 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		var assumeStartTimePtr *time.Time
 		if req.AssumeStartTime != nil && !req.AssumeStartTime.AsTime().IsZero() {
 			assumeStartTime := req.AssumeStartTime.AsTime()
-			if err := types.ValidateAssumeStartTime(assumeStartTime); err != nil {
-				return trace.Wrap(err)
-			}
 			assumeStartTimePtr = &assumeStartTime
 		}
 

@@ -316,9 +316,6 @@ func onRequestReview(cf *CLIConf) error {
 			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
 		}
 		parsedAssumeStartTime = &assumeStartTime
-		if err := types.ValidateAssumeStartTime(*parsedAssumeStartTime); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	var state types.RequestState

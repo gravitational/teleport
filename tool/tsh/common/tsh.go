@@ -2466,10 +2466,6 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 		if err != nil {
 			return nil, trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
 		}
-
-		if err := types.ValidateAssumeStartTime(assumeStartTime); err != nil {
-			return nil, trace.Wrap(err)
-		}
 		req.SetAssumeStartTime(assumeStartTime)
 	}
 

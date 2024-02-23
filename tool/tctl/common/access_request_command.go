@@ -237,9 +237,6 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 		if err != nil {
 			return trace.BadParameter("parsing assume-start-time (required format RFC3339 e.g 2023-12-12T23:20:50.52Z): %v", err)
 		}
-		if err := types.ValidateAssumeStartTime(parsedAssumeStartTime); err != nil {
-			return trace.Wrap(err)
-		}
 		assumeStartTime = &parsedAssumeStartTime
 	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
