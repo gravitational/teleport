@@ -138,7 +138,7 @@ func TestVirtualPath(t *testing.T) {
 	// Delete everything but they key, check if the cert is gone and the key still here
 	err = keyStore.DeleteUserCerts(idx, WithDBCerts{})
 	require.NoError(t, err)
-	dbContent, err = os.ReadFile(dbPath)
+	_, err = os.ReadFile(dbPath)
 	require.Error(t, err, "DB certs should be deleted")
 	keyContent, err = os.ReadFile(keyPath)
 	require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestVirtualPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// check that the key file got removed
-	keyContent, err = os.ReadFile(keyPath)
+	_, err = os.ReadFile(keyPath)
 	require.Error(t, err)
 }
 

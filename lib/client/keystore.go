@@ -666,6 +666,7 @@ func (ms *MemKeyStore) DeleteKey(idx KeyIndex) error {
 	// We're not sure which part of the virtual path belongs to the key, so we burn everything
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, VirtualPathEnvPrefix) {
+			env = strings.Split(env, "=")[0]
 			// Files might not be here, we can ignore the errors
 			_ = deleteFileIfEnvVar(env)
 		}
