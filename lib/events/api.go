@@ -633,6 +633,12 @@ const (
 	// Device enroll tokens are issued by either a device admin or during
 	// client-side auto-enrollment.
 	DeviceEnrollTokenCreateEvent = "device.token.create"
+	// DeviceWebTokenCreateEvent is emitted when a new device web token is issued.
+	// Device web tokens are issued during Web login for users that own a suitable
+	// trusted device.
+	// Tokens are spent in exchange for a single on-behalf-of device
+	// authentication attempt.
+	DeviceWebTokenCreateEvent = "device.webtoken.create"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
