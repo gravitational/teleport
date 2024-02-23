@@ -407,7 +407,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
               <Toggle
                 isToggled={isAutoDiscoveryEnabled}
                 onToggle={() =>
-                  setAutoDiscoveryEnabled(isEnabled => !isEnabled);
+                  setAutoDiscoveryEnabled(isEnabled => !isEnabled)
                 }
               >
                 <Box ml={2} mr={1}>
