@@ -40,7 +40,7 @@ import (
 func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	experimentBefore := experiment.Enabled()
 	experiment.SetEnabled(true)
-	defer experiment.SetEnabled(experimentBefore)
+	t.Cleanup(func() {experiment.SetEnabled(experimentBefore)})
 
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
