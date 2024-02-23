@@ -268,7 +268,7 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 			// namespace resource where the custom resource is defined.
 			// This is a special case because custom resources are not defined in the
 			// user's resources list.
-			// Access to namspaced resources is determined by the access level of the
+			// Access to namespaced resources is determined by the access level of the
 			// namespace resource where the resource is defined or by the access level
 			// of the resource if supported.
 			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok && cond {
