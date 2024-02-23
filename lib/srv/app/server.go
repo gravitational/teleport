@@ -1147,14 +1147,12 @@ func (s *Server) getProxyPort() string {
 // sessionStartTime fetches the session start time based on the the certificate
 // valid date.
 func (s *Server) sessionStartTime(ctx context.Context) time.Time {
-	var startTime time.Time
 	if userCert, err := authz.UserCertificateFromContext(ctx); err == nil {
-		startTime = userCert.NotBefore
-	} else {
-		s.log.Warn("Unable to retrieve session start time from certificate.")
+		return userCert.NotBefore
 	}
 
-	return startTime
+	s.log.Warn("Unable to retrieve session start time from certificate.")
+	return time.Time{}
 }
 
 // CopyAndConfigureTLS can be used to copy and modify an existing *tls.Config
@@ -1206,10 +1204,10 @@ func newGetConfigForClientFn(log logrus.FieldLogger, client auth.AccessCache, tl
 	}
 }
 
-// certFromConnState returns certificate from the connection.
+// certFromConnState returns the leaf certificate from the connection.
 func certFromConn(tlsConn *tls.Conn) *x509.Certificate {
 	state := tlsConn.ConnectionState()
-	if len(state.PeerCertificates) != 1 {
+	if len(state.PeerCertificates) == 0 {
 		return nil
 	}
 

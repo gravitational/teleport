@@ -110,7 +110,7 @@ func generateEvent() apievents.AuditEvent {
 			ClusterName: "root",
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        uuid.New().String(),
+			ServerID:        uuid.NewString(),
 			ServerNamespace: apidefaults.Namespace,
 		},
 		AppMetadata: apievents.AppMetadata{
@@ -118,6 +118,6 @@ func generateEvent() apievents.AuditEvent {
 			AppPublicAddr: "https://nginx",
 			AppName:       "nginx",
 		},
-		SessionChunkID: uuid.New().String(),
+		SessionChunkID: uuid.NewString(),
 	}
 }
