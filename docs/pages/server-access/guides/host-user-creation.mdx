@@ -28,23 +28,19 @@ since it must execute these commands in order to create transient users:
 
 ## Step 1/3. Configure a role
 
-First, create a role with `create_host_user_mode` set to `keep` or `insecure-drop`.
-
-  - `keep` will create permanent users on the host at login time. This is the
-    recommended host user creation mode.
-  - `insecure-drop` will create transient users that are deleted once the session ends.
-
-<Admonition type="note">
-  With the `insecure-drop` mode, it is possible for a created user to get the
-  same UID as a previously deleted user, which would give the new user access
-  to all of the old user's files if they are not deleted. Prefer `keep` mode
-  unless you really need users to be removed.
-</Admonition>
-
+First, create a role with `create_host_user_mode` set to `keep`. 
 The following role specification will allow users to log in as `nginxrestarter` on
 any matching Node. The host user will be created and added to the groups listed in
 `host_groups`. They will also be given permission to restart the Nginx service as
 root.
+
+<Admonition type="note">
+  `create_host_user_mode` can also be set to `insecure_drop`, which deletes users
+  once the session ends. However, in this mode it is possible for a created user 
+  to get the same UID as a previously deleted user, which would give the new user access
+  to all of the old user's files if they are not deleted. Use `keep` mode
+  unless you really need users to be removed.
+</Admonition>
 
 Save the file below as `auto-users.yaml`
 
@@ -86,13 +82,8 @@ of the Linux distribution being used. See [User/Group Name Syntax](https://syste
 
 When a Teleport user accesses an SSH Service instance, Teleport checks each of the
 user's roles that match the instance. If at least one role matches the instance
-but does not specify `create_host_user_mode` to be either `keep` or `insecure-drop`,
-automatic user creation will be disabled. Roles that do not match the server will
-not be checked.
-
-If multiple roles match where one might specify `keep` and another `insecure-drop`,
-Teleport will default to `keep`, retaining the user on the server after the session
-ends.
+but does not set `create_host_user_mode`, automatic user creation will be disabled.
+Roles that do not match the server will not be checked.
 
 </Admonition>
 
