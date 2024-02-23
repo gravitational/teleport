@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1097,8 +1098,10 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	}
 
 	if req.GetAssumeStartTime() != nil {
-		if err := types.ValidateAssumeStartTime(*req.GetAssumeStartTime()); err != nil {
-			return trace.Wrap(err)
+		assumeStartTime := *req.GetAssumeStartTime()
+		if time.Until(assumeStartTime) > constants.MaxAssumeStartDuration {
+			return trace.BadParameter("assume start time is too far in the future: latest date %q",
+				assumeStartTime.Add(constants.MaxAssumeStartDuration).Format(time.RFC3339))
 		}
 	}
 

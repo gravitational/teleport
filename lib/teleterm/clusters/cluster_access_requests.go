@@ -151,7 +151,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	request.SetRequestReason(req.Reason)
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
 
-	if req.GetAssumeStartTime() != nil && !req.AssumeStartTime.AsTime().IsZero() {
+	if req.GetAssumeStartTime() != nil {
 		request.SetAssumeStartTime(req.AssumeStartTime.AsTime())
 	}
 
@@ -198,7 +198,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		defer authClient.Close()
 
 		var assumeStartTimePtr *time.Time
-		if req.AssumeStartTime != nil && !req.AssumeStartTime.AsTime().IsZero() {
+		if req.AssumeStartTime != nil {
 			assumeStartTime := req.AssumeStartTime.AsTime()
 			assumeStartTimePtr = &assumeStartTime
 		}

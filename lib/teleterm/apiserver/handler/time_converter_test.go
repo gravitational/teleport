@@ -18,7 +18,6 @@ package handler
 
 import (
 	"testing"
-	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -28,10 +27,7 @@ import (
 func TestGetProtoTimestamp(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
-	ts := getProtoTimestamp(&time.Time{})
-	require.Empty(t, ts)
-
-	ts = getProtoTimestamp(nil)
+	ts := getProtoTimestamp(nil)
 	require.Empty(t, ts)
 
 	time := clock.Now().UTC()

@@ -25,7 +25,7 @@ import (
 func getProtoTimestamp(time *time.Time) *timestamppb.Timestamp {
 	var protoTime *timestamppb.Timestamp
 
-	if time != nil && !time.IsZero() {
+	if time != nil {
 		protoTime = timestamppb.New(*time)
 	}
 
