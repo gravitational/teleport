@@ -10,6 +10,7 @@ The Teleport team delivers a new major release roughly every 4 months.
 | Version | Date              |
 |---------|-------------------|
 | 15.1.0  | February 29, 2024 |
+| 15.1.1  | March 8, 2024     |
 
 ### 15.1.0
 
@@ -17,12 +18,6 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 We will ship a new container image that contains `tbot` but omits other
 Teleport binaries, providing a light-weight option for Machine ID users.
-
-#### SSH remote port forwarding
-
-In Teleport 15.1, we will expose remote port forwarding via the `tsh ssh -R`
-command. Remote port forwarding will be supported for both Teleport and OpenSSH
-nodes.
 
 #### Custom mouse pointers for remote desktop sessions
 
@@ -42,23 +37,35 @@ Okta integration will support automatic synchronization of Okta groups and app
 assignments to Teleport as access lists giving users ability to request access
 to Okta apps without extra configuration.
 
-#### Database permission management for for PostgreSQL
-
-Admins will be able to configure Teleport RBAC rules for managing access to
-database objects (such as tables) in for PostgreSQL.
-
 #### EKS auto-discovery in Access Management UI
 
 Users going through EKS enrollment flow in Access Management web UI will have
 an option to enable auto-discovery for EKS clusters.
 
+### 15.1.1
+
+#### SSH remote port forwarding
+
+In Teleport 15.1, we will expose remote port forwarding via the `tsh ssh -R`
+command. Remote port forwarding will be supported for both Teleport and OpenSSH
+nodes.
+
+*Delayed from Teleport 15.1.0*
+
+#### Database permission management for for PostgreSQL
+
+Admins will be able to configure Teleport RBAC rules for managing access to
+database objects (such as tables) in for PostgreSQL.
+
+*Delayed from Teleport 15.1.0*
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of        | Description                                |
-|----------------|--------------------------------------------|
-| March 4, 2024  | Teleport 15.1 will begin rollout on Cloud. |
+| Week of       | Description                                |
+|---------------|--------------------------------------------|
+| March 4, 2024 | Teleport 15.1 will begin rollout on Cloud. |
 
 ## Production readiness
 
