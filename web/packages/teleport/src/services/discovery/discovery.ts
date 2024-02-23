@@ -30,7 +30,11 @@ export function createDiscoveryConfig(
   req: DiscoveryConfig
 ): Promise<DiscoveryConfig> {
   return api
-    .post(cfg.getDiscoveryConfigUrl(clusterId), makeDiscoveryConfigReq(req))
+    .post(cfg.getDiscoveryConfigUrl(clusterId), {
+      name: req.name,
+      discoveryGroup: req.discoveryGroup,
+      aws: makeAwsMatchersReq(req.aws),
+    })
     .then(makeDiscoveryConfig);
 }
 
@@ -56,16 +60,6 @@ function makeAws(rawAwsMatchers): AwsMatcher[] {
     integration: a.integration,
     kubeAppDiscovery: !!a.kube_app_discovery,
   }));
-}
-
-function makeDiscoveryConfigReq(inputReq: DiscoveryConfig) {
-  const { name, discoveryGroup, aws } = inputReq;
-
-  return {
-    name,
-    discoveryGroup,
-    aws: makeAwsMatchersReq(aws),
-  };
 }
 
 function makeAwsMatchersReq(inputMatchers: AwsMatcher[]) {
