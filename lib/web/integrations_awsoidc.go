@@ -131,9 +131,9 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
 	clt, err := sctx.GetUserClient(ctx, site)
@@ -141,14 +141,19 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	deployDBServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, clt)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	databaseAgentMatcherLabels := make(types.Labels, len(req.DatabaseAgentMatcherLabels))
 	for _, label := range req.DatabaseAgentMatcherLabels {
 		databaseAgentMatcherLabels[label.Name] = utils.Strings{label.Value}
+	}
+
+	iamTokenName := deployserviceconfig.DefaultTeleportIAMTokenName
+	teleportConfigString, err := deployserviceconfig.GenerateTeleportConfigString(
+		h.PublicProxyAddr(),
+		iamTokenName,
+		databaseAgentMatcherLabels,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	teleportVersionTag := teleport.Version
@@ -162,33 +167,26 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
 	}
 
-	deployServiceResp, err := awsoidc.DeployService(ctx, deployDBServiceClient, awsoidc.DeployServiceRequest{
-		Region:                        req.Region,
-		AccountID:                     req.AccountID,
-		SubnetIDs:                     req.SubnetIDs,
-		SecurityGroups:                req.SecurityGroups,
-		ClusterName:                   req.ClusterName,
-		ServiceName:                   req.ServiceName,
-		TaskName:                      req.TaskName,
-		TaskRoleARN:                   req.TaskRoleARN,
-		ProxyServerHostPort:           h.PublicProxyAddr(),
-		TeleportClusterName:           h.auth.clusterName,
-		TeleportVersionTag:            teleportVersionTag,
-		DeploymentMode:                req.DeploymentMode,
-		IntegrationName:               awsClientReq.IntegrationName,
-		DatabaseResourceMatcherLabels: databaseAgentMatcherLabels,
-		DeployServiceConfigString:     deployserviceconfig.GenerateTeleportConfigString,
-		DeploymentJoinTokenName:       deployserviceconfig.DefaultTeleportIAMTokenName,
+	deployServiceResp, err := clt.IntegrationAWSOIDCClient().DeployService(ctx, &integrationv1.DeployServiceRequest{
+		DeploymentJoinTokenName: iamTokenName,
+		DeploymentMode:          req.DeploymentMode,
+		TeleportConfigString:    teleportConfigString,
+		Integration:             integrationName,
+		Region:                  req.Region,
+		SecurityGroups:          req.SecurityGroups,
+		SubnetIds:               req.SubnetIDs,
+		TaskRoleArn:             req.TaskRoleARN,
+		TeleportVersion:         teleportVersionTag,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ui.AWSOIDCDeployServiceResponse{
-		ClusterARN:          deployServiceResp.ClusterARN,
-		ServiceARN:          deployServiceResp.ServiceARN,
-		TaskDefinitionARN:   deployServiceResp.TaskDefinitionARN,
-		ServiceDashboardURL: deployServiceResp.ServiceDashboardURL,
+		ClusterARN:          deployServiceResp.ClusterArn,
+		ServiceARN:          deployServiceResp.ServiceArn,
+		TaskDefinitionARN:   deployServiceResp.TaskDefinitionArn,
+		ServiceDashboardURL: deployServiceResp.ServiceDashboardUrl,
 	}, nil
 }
 
