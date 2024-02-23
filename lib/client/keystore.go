@@ -578,19 +578,19 @@ func (ms *MemKeyStore) AddKey(key *Key) error {
 	}
 
 	for kube, cert := range key.KubeTLSCerts {
-		envName = VirtualPathEnvName(VirtualPathKubernetes, []string{kube})
+		envName = VirtualPathEnvName(VirtualPathKubernetes, VirtualPathKubernetesParams(kube))
 		if err := writeBytesIfEnvVar(cert, envName); err != nil {
 			return trace.Wrap(err, "writing kube certs to virtual profile")
 		}
 	}
 	for app, cert := range key.AppTLSCerts {
-		envName = VirtualPathEnvName(VirtualPathApp, []string{app})
+		envName = VirtualPathEnvName(VirtualPathApp, VirtualPathAppParams(app))
 		if err := writeBytesIfEnvVar(cert, envName); err != nil {
 			return trace.Wrap(err, "writing app certs to virtual profile")
 		}
 	}
 	for db, cert := range key.DBTLSCerts {
-		envName = VirtualPathEnvName(VirtualPathDatabase, []string{db})
+		envName = VirtualPathEnvName(VirtualPathDatabase, VirtualPathDatabaseParams(db))
 		if err := writeBytesIfEnvVar(cert, envName); err != nil {
 			return trace.Wrap(err, "writing db certs to virtual profile")
 		}
