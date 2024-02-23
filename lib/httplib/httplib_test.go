@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 type netError struct{}
@@ -268,8 +269,8 @@ func TestMakeTracingHandler(t *testing.T) {
 
 }
 
-func TestSetIndexContentSecurityPolicy(t *testing.T) {
-	t.Parallel()
+func TestSetIndexContentSecurityPolicy_EnterpriseBuild(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	for _, tt := range []struct {
 		name            string
@@ -361,6 +362,63 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"img-src":         "'self' data: blob:",
 				"font-src":        "'self' data:",
 				"connect-src":     "'self' wss:",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h := make(http.Header)
+			SetIndexContentSecurityPolicy(h, tt.features, tt.urlPath)
+			actualCsp := h.Get("Content-Security-Policy")
+			for k, v := range tt.expectedCspVals {
+				expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
+				require.Contains(t, actualCsp, expectedCspSubString)
+			}
+		})
+	}
+}
+
+func TestSetIndexContentSecurityPolicy_OSSBuild(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
+
+	for _, tt := range []struct {
+		name            string
+		features        proto.Features
+		urlPath         string
+		expectedCspVals map[string]string
+		buildType       string
+	}{
+		{
+			name:     "default (no stripe or wasm)",
+			features: proto.Features{},
+			urlPath:  "/web/index.js",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'self'",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss: https://usage.teleport.dev",
+			},
+		},
+		{
+			name:     "for desktop session (no stripe, with wasm)",
+			features: proto.Features{},
+			urlPath:  "/web/cluster/:clusterId/desktops/:desktopName/:username",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'self' 'wasm-unsafe-eval'",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss: https://usage.teleport.dev",
 			},
 		},
 	} {
