@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -143,6 +144,10 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		}
 
 		return "", trace.Wrap(ConvertGRPCError(err))
+	}
+
+	if n > 1 {
+		backend.AtomicWriteContention.WithLabelValues(teleport.ComponentFirestore).Add(float64(n - 1))
 	}
 
 	if n > 2 {
