@@ -3976,6 +3976,7 @@ message OneOf {
     events.OktaAccessListSync OktaAccessListSync = 148;
     events.DatabasePermissionUpdate DatabasePermissionUpdate = 149;
     events.SPIFFESVIDIssued SPIFFESVIDIssued = 150;
+    events.OktaUserSync OktaUserSync = 151;
   }
 }
 
@@ -5874,6 +5875,48 @@ message OktaAccessListSync {
 
   // NumAccessListMembers are the number of access list members that were created/updated.
   int32 numAccessListMembers = 9;
+}
+
+// OktaUserSync records an Okta user sync event.
+message OktaUserSync {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // OrgUrl is the URL of the Okta organization being synced to
+  string org_url = 3;
+
+  // AppId is the optional ID of an Okta Application that Teleport is using as
+  // its gateway into Okta. The list of potential Teleport users are drawn from
+  // the list of Okta users assigned to this app - either directly or via a group
+  // assignement. If not set, the Okta sync service is drawing its user list from
+  // the whole organization.
+  string app_id = 4;
+
+  // NumUsersCreated is the number of Teleport users created in this
+  // synchronization pass.
+  int32 num_users_created = 5;
+
+  // NumUsersDeleted is the number of Teleport users deleted in this
+  // synchronization pass.
+  int32 num_users_deleted = 6;
+
+  // NumUserModified is the number of Teleport users modified in this
+  // synchronization pass.
+  int32 num_users_modified = 7;
+
+  // NumUsersTotal is the total number of Teleport users managed by the Okta
+  // integration at the end of the synchronzaton pass.
+  int32 num_users_total = 8;
 }
 
 // SPIFFESVIDIssued is an event recorded when a SPIFFE SVID is issued.
