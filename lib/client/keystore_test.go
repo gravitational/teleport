@@ -102,6 +102,57 @@ func TestKeyStore(t *testing.T) {
 	})
 }
 
+func TestVirtualPath(t *testing.T) {
+	// This test is not Parallel because of env vars.
+	s := newTestAuthority(t)
+	keyStore := NewMemKeyStore()
+
+	// create a test key
+	idx := KeyIndex{"test.proxy.com", "test-user", "root"}
+	key := s.makeSignedKey(t, idx, false)
+
+	// setup virtual path
+	dir := t.TempDir()
+	keyEnv := VirtualPathEnvName(VirtualPathKey, nil)
+	dbEnv := VirtualPathEnvName(VirtualPathDatabase, VirtualPathDatabaseParams(testDBName))
+	keyPath := dir + "/key.pem"
+	dbPath := dir + "/example-db.cert.pem"
+
+	require.NoError(t, os.Setenv(keyEnv, keyPath))
+	require.NoError(t, os.Setenv(dbEnv, dbPath))
+
+	// add the test key to the memory store
+	err := keyStore.AddKey(key)
+	require.NoError(t, err)
+
+	// Check if the private key was written according to the virtual path env var.
+	keyContent, err := os.ReadFile(keyPath)
+	require.NoError(t, err)
+	require.Equal(t, key.PrivateKeyPEM(), keyContent)
+
+	// Check if the DB cert was written according to the virtual path env var.
+	dbContent, err := os.ReadFile(dbPath)
+	require.NoError(t, err)
+	require.Equal(t, key.DBTLSCerts[testDBName], dbContent)
+
+	// Delete everything but they key, check if the cert is gone and the key still here
+	err = keyStore.DeleteUserCerts(idx, WithDBCerts{})
+	require.NoError(t, err)
+	dbContent, err = os.ReadFile(dbPath)
+	require.Error(t, err, "DB certs should be deleted")
+	keyContent, err = os.ReadFile(keyPath)
+	require.NoError(t, err)
+	require.Equal(t, key.PrivateKeyPEM(), keyContent)
+
+	// delete the key
+	err = keyStore.DeleteKey(idx)
+	require.NoError(t, err)
+
+	// check that the key file got removed
+	keyContent, err = os.ReadFile(keyPath)
+	require.Error(t, err)
+}
+
 func TestListKeys(t *testing.T) {
 	t.Parallel()
 	auth := newTestAuthority(t)

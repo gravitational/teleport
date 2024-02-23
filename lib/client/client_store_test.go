@@ -60,6 +60,8 @@ func newTestAuthority(t *testing.T) testAuthority {
 	}
 }
 
+const testDBName = "example-db"
+
 // makeSignedKey helper returns a new user key signed by CAPriv key.
 func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bool) *Key {
 	priv, err := s.keygen.GeneratePrivateKey()
@@ -107,7 +109,7 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 	key.Cert = cert
 	key.TLSCert = tlsCert
 	key.TrustedCerts = []auth.TrustedCerts{s.trustedCerts}
-	key.DBTLSCerts["example-db"] = tlsCert
+	key.DBTLSCerts[testDBName] = tlsCert
 	return key
 }
 

@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -233,6 +234,16 @@ func writeBytes(bytes []byte, fp string) error {
 func writeBytesIfEnvVar(bytes []byte, env string) error {
 	if path, ok := os.LookupEnv(env); ok {
 		if err := writeBytes(bytes, path); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func deleteFileIfEnvVar(env string) error {
+	if path, ok := os.LookupEnv(env); ok {
+		if err := utils.RemoveSecure(path); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -651,12 +662,28 @@ func (ms *MemKeyStore) DeleteKey(idx KeyIndex) error {
 		return trace.NotFound("key for %+v not found", idx)
 	}
 	delete(ms.keys[idx.ProxyHost], idx.Username)
+
+	// We're not sure which part of the virtual path belongs to the key, so we burn everything
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, VirtualPathEnvPrefix) {
+			// Files might not be here, we can ignore the errors
+			_ = deleteFileIfEnvVar(env)
+		}
+	}
 	return nil
 }
 
 // DeleteKeys removes all session keys.
 func (ms *MemKeyStore) DeleteKeys() error {
 	ms.keys = make(keyMap)
+
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, VirtualPathEnvPrefix) {
+			env = strings.Split(env, "=")[0]
+			// Files might not be here, we can ignore the errors
+			_ = deleteFileIfEnvVar(env)
+		}
+	}
 	return nil
 }
 
@@ -684,6 +711,18 @@ func (ms *MemKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
 	for _, key := range keys {
 		for _, o := range opts {
 			o.deleteFromKey(key)
+		}
+	}
+
+	// We're not sure which part of the virtual path belongs to the key,
+	// so we burn everything except the private key.
+	// Cert options don't apply to virtual paths.
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, VirtualPathEnvPrefix) &&
+			!strings.HasPrefix(env, VirtualPathEnvName(VirtualPathKey, nil)) {
+			// Files might not be here, we can ignore the errors
+			env = strings.Split(env, "=")[0]
+			_ = deleteFileIfEnvVar(env)
 		}
 	}
 	return nil
