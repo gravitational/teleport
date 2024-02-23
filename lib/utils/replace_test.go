@@ -1088,7 +1088,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 			action:  types.Deny,
 		},
 		{
-			name: "namespace denying update access to pod",
+			name: "namespace denying list access to pod with different namespace",
 			input: types.KubernetesResource{
 				Kind:      types.KindKubePod,
 				Namespace: "default2",
@@ -1106,7 +1106,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 			action:  types.Deny,
 		},
 		{
-			name: "namespace denying update access to pod",
+			name: "namespace denying list access to pod in all namespaces doesnt match deny",
 			input: types.KubernetesResource{
 				Kind:      types.KindKubePod,
 				Namespace: "",
@@ -1124,7 +1124,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 			action:  types.Deny,
 		},
 		{
-			name: "namespace denying update access to pod",
+			name: "namespace denying update access to pod in all namespaces matches allow",
 			input: types.KubernetesResource{
 				Kind:      types.KindKubePod,
 				Namespace: "",
@@ -1142,7 +1142,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 			action:  types.Allow,
 		},
 		{
-			name: "namespace denying update access to pod",
+			name: "namespace denying update access to pod deny matches all namespaces",
 			input: types.KubernetesResource{
 				Kind:      types.KindKubePod,
 				Namespace: "",
