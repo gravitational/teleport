@@ -1248,21 +1248,7 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 		return
 	}
 
-	// set instance metric values
-	totalInstancesMetric.Set(float64(imp.TotalInstances()))
-	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
-
-	// reset upgrader counts
-	upgraderCountsMetric.Reset()
-
-	for upgraderType, upgraderVersions := range imp.upgraderCounts {
-		for version, count := range upgraderVersions {
-			upgraderCountsMetric.With(prometheus.Labels{
-				teleport.TagUpgrader: upgraderType,
-				teleport.TagVersion:  version,
-			}).Set(float64(count))
-		}
-	}
+	a.updateUpdaterVersionMetrics()
 
 	// create/delete upgrade enroll prompt as appropriate
 	enrollMsg, shouldPrompt := uep.GenerateEnrollPrompt()
@@ -1445,6 +1431,41 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 		err := a.DeleteClusterAlert(ctx, secAlertID)
 		if err != nil && !trace.IsNotFound(err) {
 			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
+		}
+	}
+}
+
+// updateUpdaterVersionMetrics leverages the inventory control stream to report the
+// number of teleport updaters installed and their versions. To get an accurate representation
+// of versions in an entire cluster the metric must be aggregated with all auth instances.
+func (a *Server) updateUpdaterVersionMetrics() {
+	var total int
+	var enrolled int
+	upgraderCounts := make(map[string]map[string]int)
+
+	// record versions for all connected resources
+	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		total++
+		if upgrader := handle.Hello().ExternalUpgrader; upgrader != "" {
+			enrolled++
+			if _, exists := upgraderCounts[upgrader]; !exists {
+				upgraderCounts[upgrader] = make(map[string]int)
+			}
+			upgraderCounts[upgrader][handle.Hello().ExternalUpgraderVersion]++
+		}
+	})
+
+	enrolledInUpgradesMetric.Set(float64(enrolled))
+	totalInstancesMetric.Set(float64(total))
+
+	// reset the gauges so that any versions that fall off are removed from exported metrics
+	upgraderCountsMetric.Reset()
+	for upgraderType, upgraderVersions := range upgraderCounts {
+		for version, count := range upgraderVersions {
+			upgraderCountsMetric.With(prometheus.Labels{
+				teleport.TagUpgrader: upgraderType,
+				teleport.TagVersion:  version,
+			}).Set(float64(count))
 		}
 	}
 }
