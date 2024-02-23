@@ -17,13 +17,18 @@
  */
 
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
-import { Box, Flex, ButtonPrimary, ButtonSecondary, Text } from 'design';
+import {
+  Box,
+  Flex,
+  ButtonPrimary,
+  ButtonSecondary,
+  Text,
+  Indicator,
+} from 'design';
 
 import React, { Suspense, useState, useEffect } from 'react';
 
 import styled from 'styled-components';
-
-import { Spinner } from 'design/Icon';
 
 import * as Icons from 'design/Icon';
 
@@ -51,7 +56,8 @@ export default function Container(props: ManualHelmDialogProps) {
       <Suspense
         fallback={<FallbackDialog showSpinner={true} cancel={props.cancel} />}
       >
-        <ManualHelmDialog {...props} />
+        {/*<ManualHelmDialog {...props} />*/}
+        fallback={<FallbackDialog showSpinner={true} cancel={props.cancel} />}
       </Suspense>
     </CatchError>
   );
@@ -101,9 +107,7 @@ const FallbackDialog = ({
     <DialogWrapper cancel={cancel}>
       {showSpinner && (
         <Flex mb={4} justifyContent="center">
-          <Spin>
-            <Spinner />
-          </Spin>
+          <Indicator delay="none" />
         </Flex>
       )}
       {error && (
@@ -174,18 +178,4 @@ const StyledBox = styled(Box)`
   background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
-`;
-
-const Spin = styled(Box)`
-  line-height: 12px;
-  font-size: 24px;
-  animation: spin 1s linear infinite;
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
 `;
