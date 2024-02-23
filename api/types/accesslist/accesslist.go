@@ -41,6 +41,9 @@ const (
 	OneYear     ReviewFrequency = 12
 
 	twoWeeks = 24 * time.Hour * 14
+
+	// NoMemberCount is a special value that indicates no members count is included in the access list.
+	NoMemberCount = -1
 )
 
 func (r ReviewFrequency) String() string {
@@ -192,6 +195,9 @@ type Spec struct {
 
 	// OwnerGrants describes the access granted by ownership of this access list.
 	OwnerGrants Grants `json:"owner_grants" yaml:"owner_grants"`
+
+	// MemberCount is the number of members in the access list.
+	MemberCount int `json:"-" yaml:"-"`
 }
 
 // Owner is an owner of an access list.

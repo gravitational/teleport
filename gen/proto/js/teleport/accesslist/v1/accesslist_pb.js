@@ -563,7 +563,8 @@ proto.teleport.accesslist.v1.AccessListSpec.toObject = function(includeInstance,
     title: jspb.Message.getFieldWithDefault(msg, 8, ""),
     membership: jspb.Message.getFieldWithDefault(msg, 9, ""),
     ownership: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    ownerGrants: (f = msg.getOwnerGrants()) && proto.teleport.accesslist.v1.AccessListGrants.toObject(includeInstance, f)
+    ownerGrants: (f = msg.getOwnerGrants()) && proto.teleport.accesslist.v1.AccessListGrants.toObject(includeInstance, f),
+    memberCount: jspb.Message.getFieldWithDefault(msg, 12, 0)
   };
 
   if (includeInstance) {
@@ -645,6 +646,10 @@ proto.teleport.accesslist.v1.AccessListSpec.deserializeBinaryFromReader = functi
       var value = new proto.teleport.accesslist.v1.AccessListGrants;
       reader.readMessage(value,proto.teleport.accesslist.v1.AccessListGrants.deserializeBinaryFromReader);
       msg.setOwnerGrants(value);
+      break;
+    case 12:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setMemberCount(value);
       break;
     default:
       reader.skipField();
@@ -749,6 +754,13 @@ proto.teleport.accesslist.v1.AccessListSpec.serializeBinaryToWriter = function(m
       11,
       f,
       proto.teleport.accesslist.v1.AccessListGrants.serializeBinaryToWriter
+    );
+  }
+  f = message.getMemberCount();
+  if (f !== 0) {
+    writer.writeInt32(
+      12,
+      f
     );
   }
 };
@@ -1046,6 +1058,24 @@ proto.teleport.accesslist.v1.AccessListSpec.prototype.clearOwnerGrants = functio
  */
 proto.teleport.accesslist.v1.AccessListSpec.prototype.hasOwnerGrants = function() {
   return jspb.Message.getField(this, 11) != null;
+};
+
+
+/**
+ * optional int32 member_count = 12;
+ * @return {number}
+ */
+proto.teleport.accesslist.v1.AccessListSpec.prototype.getMemberCount = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 12, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.teleport.accesslist.v1.AccessListSpec} returns this
+ */
+proto.teleport.accesslist.v1.AccessListSpec.prototype.setMemberCount = function(value) {
+  return jspb.Message.setProto3IntField(this, 12, value);
 };
 
 

@@ -121,12 +121,28 @@ func NewAccessListService(backend backend.Backend, clock clockwork.Clock) (*Acce
 // GetAccessLists returns a list of all access lists.
 func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
 	accessLists, err := a.service.GetResources(ctx)
+
+	for _, accessList := range accessLists {
+		// Make sure we indicate that no member count is present in this access list.
+		accessList.Spec.MemberCount = accesslist.NoMemberCount
+	}
+
 	return accessLists, trace.Wrap(err)
 }
 
 // ListAccessLists returns a paginated list of access lists.
-func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
-	return a.service.ListResources(ctx, pageSize, nextToken)
+func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+	accessLists, nextToken, err := a.service.ListResources(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	for _, accessList := range accessLists {
+		// Make sure we indicate that no member count is present in this access list.
+		accessList.Spec.MemberCount = accesslist.NoMemberCount
+	}
+
+	return accessLists, nextToken, nil
 }
 
 // GetAccessList returns the specified access list resource.
@@ -137,6 +153,10 @@ func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*ac
 		accessList, err = a.service.GetResource(ctx, name)
 		return trace.Wrap(err)
 	})
+	if accessList != nil {
+		// Make sure we indicate that no member count is present in this access list.
+		accessList.Spec.MemberCount = accesslist.NoMemberCount
+	}
 	return accessList, trace.Wrap(err)
 }
 
@@ -466,6 +486,9 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	// Make sure we indicate that no member count is present in this access list.
+	accessList.Spec.MemberCount = accesslist.NoMemberCount
 
 	return accessList, membersIn, nil
 }

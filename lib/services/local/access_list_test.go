@@ -58,6 +58,10 @@ func TestAccessListCRUD(t *testing.T) {
 	accessList1 := newAccessList(t, "accessList1", clock)
 	accessList2 := newAccessList(t, "accessList2", clock)
 
+	// Set the member count on access list 1, which should be erased since the field
+	// won't be serialized.
+	accessList1.Spec.MemberCount = 5
+
 	// Initially we expect no access lists.
 	out, err := service.GetAccessLists(ctx)
 	require.NoError(t, err)
@@ -70,9 +74,14 @@ func TestAccessListCRUD(t *testing.T) {
 	// Create both access lists.
 	accessList, err := service.UpsertAccessList(ctx, accessList1)
 	require.NoError(t, err)
+
+	accessList1.Spec.MemberCount = accesslist.NoMemberCount
 	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
+
 	accessList, err = service.UpsertAccessList(ctx, accessList2)
 	require.NoError(t, err)
+
+	accessList2.Spec.MemberCount = accesslist.NoMemberCount
 	require.Empty(t, cmp.Diff(accessList2, accessList, cmpOpts...))
 
 	// Fetch all access lists.
@@ -292,6 +301,9 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithoutLimit(t *testing.T)
 	accessList2 := newAccessList(t, "accessList2", clock)
 	accessList3 := newAccessList(t, "accessList3", clock)
 
+	// Set the member count on access list 1, which should be erased.
+	accessList1.Spec.MemberCount = 5
+
 	accessListMember1 := newAccessListMember(t, accessList1.GetName(), "alice")
 	accessListMember2 := newAccessListMember(t, accessList1.GetName(), "bob")
 
@@ -303,10 +315,16 @@ func TestAccessListCreate_UpsertAccessListWithMembers_WithoutLimit(t *testing.T)
 	_, _, err = service.UpsertAccessListWithMembers(ctx, accessList3, []*accesslist.AccessListMember{})
 	require.NoError(t, err)
 
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+	}
+
+	accessList1.Spec.MemberCount = accesslist.NoMemberCount
+
 	// Fetch all access lists.
 	out, err := service.GetAccessLists(ctx)
 	require.NoError(t, err)
-	require.Len(t, out, 3)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList1, accessList2, accessList3}, out, cmpOpts...))
 }
 
 func TestAccessListDedupeOwnersBackwardsCompat(t *testing.T) {

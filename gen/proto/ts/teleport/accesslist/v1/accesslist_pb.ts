@@ -134,6 +134,12 @@ export interface AccessListSpec {
      * @generated from protobuf field: teleport.accesslist.v1.AccessListGrants owner_grants = 11;
      */
     ownerGrants?: AccessListGrants;
+    /**
+     * member_count is the number of members in the access list.
+     *
+     * @generated from protobuf field: int32 member_count = 12;
+     */
+    memberCount: number;
 }
 /**
  * AccessListOwner is an owner of an access list.
@@ -577,7 +583,8 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
             { no: 8, name: "title", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 9, name: "membership", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 10, name: "ownership", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "owner_grants", kind: "message", T: () => AccessListGrants }
+            { no: 11, name: "owner_grants", kind: "message", T: () => AccessListGrants },
+            { no: 12, name: "member_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListSpec>): AccessListSpec {
@@ -587,6 +594,7 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
         message.title = "";
         message.membership = "";
         message.ownership = "";
+        message.memberCount = 0;
         if (value !== undefined)
             reflectionMergePartial<AccessListSpec>(this, message, value);
         return message;
@@ -625,6 +633,9 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
                     break;
                 case /* teleport.accesslist.v1.AccessListGrants owner_grants */ 11:
                     message.ownerGrants = AccessListGrants.internalBinaryRead(reader, reader.uint32(), options, message.ownerGrants);
+                    break;
+                case /* int32 member_count */ 12:
+                    message.memberCount = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -668,6 +679,9 @@ class AccessListSpec$Type extends MessageType<AccessListSpec> {
         /* teleport.accesslist.v1.AccessListGrants owner_grants = 11; */
         if (message.ownerGrants)
             AccessListGrants.internalBinaryWrite(message.ownerGrants, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* int32 member_count = 12; */
+        if (message.memberCount !== 0)
+            writer.tag(12, WireType.Varint).int32(message.memberCount);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

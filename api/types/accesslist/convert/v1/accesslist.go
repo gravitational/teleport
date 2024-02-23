@@ -117,6 +117,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
 		OwnerGrants: ownerGrants,
+		MemberCount: int(msg.Spec.MemberCount),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -196,6 +197,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
 			OwnerGrants: ownerGrants,
+			MemberCount: int32(accessList.Spec.MemberCount),
 		},
 	}
 }

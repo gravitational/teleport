@@ -84,6 +84,9 @@ message AccessListSpec {
 
   // owner_grants describes the access granted by owners to this access list.
   AccessListGrants owner_grants = 11;
+
+  // member_count is the number of members in the access list.
+  int32 member_count = 12;
 }
 
 // AccessListOwner is an owner of an access list.
