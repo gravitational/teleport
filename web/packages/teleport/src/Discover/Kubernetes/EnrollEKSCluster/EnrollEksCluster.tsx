@@ -114,7 +114,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
   const [isManualHelmDialogShown, setIsManualHelmDialogShown] = useState(false);
   const [waitingResourceId, setWaitingResourceId] = useState('');
   const [discoveryGroupName, setDiscoveryGroupName] = useState(() =>
-    cfg.isCloud ? DISCOVERY_GROUP_CLOUD : DEFAULT_DISCOVERY_GROUP_NON_CLOUD
+    cfg.isCloud ? '' : DEFAULT_DISCOVERY_GROUP_NON_CLOUD
   );
   const [autoDiscoveryCfg, setAutoDiscoveryCfg] = useState<DiscoveryConfig>();
   const { attempt: autoDiscoverAttempt, setAttempt: setAutoDiscoverAttempt } =
