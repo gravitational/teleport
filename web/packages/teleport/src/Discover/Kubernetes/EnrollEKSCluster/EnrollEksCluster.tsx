@@ -411,7 +411,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
                 }
               >
                 <Box ml={2} mr={1}>
-                  Auto-enroll all EKS clusters for selected region.
+                  Auto-enroll all EKS clusters for selected region
                 </Box>
                 <ToolTipInfo>
                   Auto-enroll will automatically identify all EKS clusters from
