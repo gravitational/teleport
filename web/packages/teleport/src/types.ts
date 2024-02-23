@@ -63,7 +63,7 @@ export enum NavTitle {
   EnrollNewResource = 'Enroll New Resource',
   EnrollNewIntegration = 'Enroll New Integration',
 
-  // Identity
+  // Identity Governance & Security
   AccessLists = 'Access Lists',
   SessionAndIdentityLocks = 'Session & Identity Locks',
   TrustedDevices = 'Trusted Devices',

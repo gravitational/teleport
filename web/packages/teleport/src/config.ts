@@ -56,7 +56,7 @@ const cfg = {
   customTheme: '',
   // isTeam is true if [Features.ProductType] == Team
   isTeam: false,
-  // isIgsEnabled refers to Identity product.
+  // isIgsEnabled refers to Identity Governance & Security product.
   // It refers to a group of features: access request, device trust,
   // access list, and access monitoring.
   isIgsEnabled: false,

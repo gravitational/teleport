@@ -24,7 +24,7 @@ import cfg from 'teleport/config';
 // eg: https://github.com/gravitational/next/pull/2298
 const UPGRADE_TEAM_URL = 'https://goteleport.com/r/upgrade-team';
 const UPGRADE_COMMUNITY_URL = 'https://goteleport.com/r/upgrade-community';
-// UPGRADE_IGS_URL is enterprise upgrading to enterprise with Identity
+// UPGRADE_IGS_URL is enterprise upgrading to enterprise with Identity Governance & Security
 const UPGRADE_IGS_URL = 'https://goteleport.com/r/upgrade-igs';
 
 function getParams(
