@@ -62,7 +62,7 @@ type PreparerConfig struct {
 	// ClusterName defines the name of this teleport cluster.
 	ClusterName string
 
-	// StartTime represents the time the recorder statarted. If not zero, this
+	// StartTime represents the time the recorder started. If not zero, this
 	// value is used to generate the events index.
 	StartTime time.Time
 }
