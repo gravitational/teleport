@@ -1209,7 +1209,7 @@ type mockAccessPoint struct {
 	cas             map[string]types.CertAuthority
 }
 
-func (ap mockAccessPoint) GetClusterNetworkingConfig(context.Context, ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (ap mockAccessPoint) GetClusterNetworkingConfig(context.Context) (types.ClusterNetworkingConfig, error) {
 	return ap.netConfig, nil
 }
 
