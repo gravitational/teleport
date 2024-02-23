@@ -19,7 +19,7 @@
 import { useCallback, useState } from 'react';
 import { useTheme } from 'styled-components';
 import { useAsync } from 'shared/hooks/useAsync';
-import { Flex, Box, Alert, Text, ButtonPrimary, ButtonSecondary } from 'design';
+import { Flex, Alert, Text, ButtonPrimary, ButtonSecondary } from 'design';
 import * as icons from 'design/SVGIcon';
 
 import { StyledTable, StyledTableWrapper } from 'design/DataTable/StyledTable';
@@ -63,6 +63,7 @@ export function DocumentVnet(props: {
         maxWidth="680px"
         mx="auto"
         width="100%"
+        height="fit-content"
       >
         <Flex width="100%" justifyContent="space-between" alignItems="baseline">
           <Text typography="h3">VNet</Text>
@@ -92,116 +93,130 @@ export function DocumentVnet(props: {
           <Alert>{stopAttempt.statusText}</Alert>
         )}
 
-        <Text>
-          Proxying connections made to .teleport-local.dev.internal,
-          .company.private
-        </Text>
+        {status === 'stopped' && (
+          <Text>
+            With VNet, connecting to an app in the cluster is as simple as
+            appending <code>.internal</code> to the address of the app.
+            Underneath, VNet establishes a secure tunnel to the app itself,
+            meaning you don't have to pass around certificates to authenticate
+            the connection — VNet does that for you.
+          </Text>
+        )}
 
-        <Flex width="100%" flexDirection="column" gap={1}>
-          <Text typography="h4">Recent connections</Text>
-          <StyledTableWrapper borderRadius={1}>
-            <StyledTable>
-              <tbody>
-                <tr>
-                  <td>
-                    <Flex gap={2} alignItems="center">
-                      <Flex
-                        width="12px"
-                        height="12px"
-                        bg="success.main"
-                        borderRadius="50%"
-                        justifyContent="center"
-                        alignItems="center"
-                        css={`
-                          flex-shrink: 0;
-                        `}
-                      ></Flex>{' '}
-                      httpbin.company.private
-                    </Flex>
-                  </td>
-                  <td></td>
-                </tr>
+        {status === 'running' && (
+          <>
+            <Text>
+              Proxying connections made to .teleport-local.dev.internal,
+              .company.private
+            </Text>
 
-                <tr>
-                  <td>
-                    <Flex gap={2} alignItems="center">
-                      <Flex
-                        width="12px"
-                        height="12px"
-                        bg="success.main"
-                        borderRadius="50%"
-                        justifyContent="center"
-                        alignItems="center"
-                        css={`
-                          flex-shrink: 0;
-                        `}
-                      ></Flex>{' '}
-                      tcp-postgres.teleport-local.dev.internal
-                    </Flex>
-                  </td>
-                  <td></td>
-                </tr>
-                <tr>
-                  <td>
-                    <Flex gap={2} alignItems="center">
-                      <Flex
-                        width="12px"
-                        height="12px"
-                        bg="error.main"
-                        borderRadius="50%"
-                        justifyContent="center"
-                        alignItems="center"
-                      >
-                        {/* TODO(ravicious): Make SVGIcon support passing color strings as fill. */}
-                        <icons.ErrorIcon
-                          size={12}
-                          fill={theme.colors.levels.surface}
-                        />
-                      </Flex>{' '}
-                      grafana.teleport-local.dev.internal
-                    </Flex>
-                  </td>
+            <Flex width="100%" flexDirection="column" gap={1}>
+              <Text typography="h4">Recent connections</Text>
+              <StyledTableWrapper borderRadius={1}>
+                <StyledTable>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <Flex gap={2} alignItems="center">
+                          <Flex
+                            width="12px"
+                            height="12px"
+                            bg="success.main"
+                            borderRadius="50%"
+                            justifyContent="center"
+                            alignItems="center"
+                            css={`
+                              flex-shrink: 0;
+                            `}
+                          ></Flex>{' '}
+                          httpbin.company.private
+                        </Flex>
+                      </td>
+                      <td></td>
+                    </tr>
 
-                  {/*
+                    <tr>
+                      <td>
+                        <Flex gap={2} alignItems="center">
+                          <Flex
+                            width="12px"
+                            height="12px"
+                            bg="success.main"
+                            borderRadius="50%"
+                            justifyContent="center"
+                            alignItems="center"
+                            css={`
+                              flex-shrink: 0;
+                            `}
+                          ></Flex>{' '}
+                          tcp-postgres.teleport-local.dev.internal
+                        </Flex>
+                      </td>
+                      <td></td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <Flex gap={2} alignItems="center">
+                          <Flex
+                            width="12px"
+                            height="12px"
+                            bg="error.main"
+                            borderRadius="50%"
+                            justifyContent="center"
+                            alignItems="center"
+                          >
+                            {/* TODO(ravicious): Make SVGIcon support passing color strings as fill. */}
+                            <icons.ErrorIcon
+                              size={12}
+                              fill={theme.colors.levels.surface}
+                            />
+                          </Flex>{' '}
+                          grafana.teleport-local.dev.internal
+                        </Flex>
+                      </td>
+
+                      {/*
                       TODO(ravicious): Solve this without using an arbitrary max-width if possible,
                       perhaps switch to a flexbox instead of using a table?
                     */}
-                  <td
-                    css={`
-                      max-width: 320px;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                      white-space: nowrap;
-                    `}
-                  >
-                    DNS query for "grafana.teleport-local.dev.internal" in
-                    custom DNS zone failed: no matching Teleport app and
-                    upstream nameserver did not respond
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <Flex gap={2} alignItems="center">
-                      <Flex
-                        width="12px"
-                        height="12px"
-                        bg="unset"
-                        borderRadius="50%"
-                        justifyContent="center"
-                        alignItems="center"
+                      <td
                         css={`
-                          flex-shrink: 0;
+                          max-width: 320px;
+                          overflow: hidden;
+                          text-overflow: ellipsis;
+                          white-space: nowrap;
                         `}
-                      ></Flex>{' '}
-                      dumper.teleport-local.dev.internal
-                    </Flex>
-                  </td>
-                  <td></td>
-                </tr>
-              </tbody>
-            </StyledTable>
-          </StyledTableWrapper>
-        </Flex>
+                      >
+                        DNS query for "grafana.teleport-local.dev.internal" in
+                        custom DNS zone failed: no matching Teleport app and
+                        upstream nameserver did not respond
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <Flex gap={2} alignItems="center">
+                          <Flex
+                            width="12px"
+                            height="12px"
+                            bg="unset"
+                            borderRadius="50%"
+                            justifyContent="center"
+                            alignItems="center"
+                            css={`
+                              flex-shrink: 0;
+                            `}
+                          ></Flex>{' '}
+                          dumper.teleport-local.dev.internal
+                        </Flex>
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </StyledTable>
+              </StyledTableWrapper>
+            </Flex>
+          </>
+        )}
       </Flex>
     </Document>
   );
