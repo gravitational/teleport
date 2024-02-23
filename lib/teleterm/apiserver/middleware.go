@@ -47,7 +47,7 @@ func withErrorHandling(log logrus.FieldLogger) grpc.UnaryServerInterceptor {
 			// Read more: https://github.com/gravitational/teleport/pull/38202#discussion_r1497181659
 			// TODO(gzdunek): fix when addressing https://github.com/gravitational/teleport/issues/32550
 			var remoteErr *interceptors.RemoteError
-			if errors.As(err, &remoteErr) && strings.Contains(trace.Unwrap(err).Error(), "client credentials have expired") {
+			if errors.As(err, &remoteErr) && strings.Contains(remoteErr.Error(), "client credentials have expired") {
 				return resp, trail.ToGRPC(err)
 			}
 
