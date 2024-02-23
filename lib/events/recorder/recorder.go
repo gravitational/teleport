@@ -86,7 +86,7 @@ type Config struct {
 	// BackoffDuration is a duration of the backoff before the next try.
 	BackoffDuration time.Duration
 
-	// StartTime represents the time the recorder statarted. If not zero, this
+	// StartTime represents the time the recorder started. If not zero, this
 	// value is used to generate the events index.
 	StartTime time.Time
 }
