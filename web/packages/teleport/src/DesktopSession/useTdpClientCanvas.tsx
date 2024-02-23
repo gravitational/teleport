@@ -205,7 +205,11 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   const canvasOnKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
-    keyboardHandler.current.handleKeyboardEvent(cli, e, ButtonState.DOWN);
+    keyboardHandler.current.handleKeyboardEvent({
+      cli,
+      e,
+      state: ButtonState.DOWN,
+    });
 
     // The key codes in the if clause below are those that have been empirically determined not
     // to count as transient activation events. According to the documentation, a keydown for
@@ -220,7 +224,11 @@ export default function useTdpClientCanvas(props: Props) {
   };
 
   const canvasOnKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
-    keyboardHandler.current.handleKeyboardEvent(cli, e, ButtonState.UP);
+    keyboardHandler.current.handleKeyboardEvent({
+      cli,
+      e,
+      state: ButtonState.UP,
+    });
   };
 
   const canvasOnFocusOut = () => {

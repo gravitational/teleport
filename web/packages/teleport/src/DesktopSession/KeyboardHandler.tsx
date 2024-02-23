@@ -25,15 +25,7 @@ import { SyncKeys } from 'teleport/lib/tdp/codec';
  * Handles keyboard events.
  */
 export class KeyboardHandler {
-  /**
-   * Cache for keys whose down event has been withheld until the next keydown or keyup,
-   * or to never be sent if this cache is cleared onfocusout.
-   */
-  private withheldDown: Map<string, boolean> = new Map();
-  /**
-   * Cache for keys whose up event has been delayed for 10ms.
-   */
-  private delayedUp: Map<string, NodeJS.Timeout> = new Map();
+  private withholder: Withholder = new Withholder();
   /**
    * Tracks whether the next keydown or keyup event should sync the
    * local toggle key state to the remote machine.
@@ -45,22 +37,24 @@ export class KeyboardHandler {
   private syncBeforeNextKey: boolean = true;
   private isMac: boolean = getPlatform() === Platform.macOS;
 
+  constructor() {
+    // Bind finishHandlingKeyboardEvent to this instance so it can be passed
+    // as a callback to the Withholder.
+    this.finishHandlingKeyboardEvent =
+      this.finishHandlingKeyboardEvent.bind(this);
+  }
+
   /**
    * Primary method for handling keyboard events.
    */
-  public handleKeyboardEvent(
-    cli: TdpClient,
-    e: KeyboardEvent,
-    state: ButtonState
-  ) {
+  public handleKeyboardEvent(params: KeyboardEventParams) {
+    const { e, cli } = params;
     e.preventDefault();
     this.handleSyncBeforeNextKey(cli, e);
-    // If this is a withheld or delayed key, handle it immediately and return.
-    if (this.handleWithholdingAndDelay(cli, e, state)) {
-      return;
-    }
-
-    this.finishHandlingKeyboardEvent(cli, e, state);
+    this.withholder.handleKeyboardEvent(
+      params,
+      this.finishHandlingKeyboardEvent
+    );
   }
 
   private handleSyncBeforeNextKey(cli: TdpClient, e: KeyboardEvent) {
@@ -93,75 +87,14 @@ export class KeyboardHandler {
   };
 
   /**
-   * Called before every keydown or keyup event. This witholds the
-   * keys for which we want to see what the next event is before
-   * sending them on to the server, and sets up delayed up events.
-   *
-   * Returns true if the event was handled, false otherwise.
-   */
-  private handleWithholdingAndDelay(
-    cli: TdpClient,
-    e: KeyboardEvent,
-    state: ButtonState
-  ): boolean {
-    if (this.isWitholdableOrDelayeable(e) && state === ButtonState.DOWN) {
-      // Unlikely, but theoretically possible. In order to ensure correctness,
-      // we clear any delayed up event for this key and handle it immediately.
-      const timeout = this.delayedUp.get(e.code);
-      if (timeout) {
-        clearTimeout(timeout);
-        this.finishHandlingKeyboardEvent(cli, e, ButtonState.UP);
-      }
-
-      // Then we set the key down to be withheld until the next keydown or keyup,
-      // or to never be sent if this cache is cleared onfocusout.
-      this.withheldDown.set(e.code, true);
-
-      return true;
-    } else if (this.isWitholdableOrDelayeable(e) && state === ButtonState.UP) {
-      // If we receive a delayed up event for a key that was already delayed,
-      // we log a warning. This should never happen, because we can only get an
-      // up event after a down, and we ensure the up cache is cleared when we
-      // handle a down event.
-      if (this.delayedUp.has(e.code)) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          'Received a delayed up event for a key that was already delayed. This should not happen.'
-        );
-      }
-
-      const timeout = setTimeout(() => {
-        this.finishHandlingKeyboardEvent(cli, e, ButtonState.UP);
-      }, 10 /* ms */);
-
-      // And add the timeout to the cache.
-      this.delayedUp.set(e.code, timeout);
-
-      return true;
-    }
-
-    return false;
-  }
-
-  private isWitholdableOrDelayeable(e: KeyboardEvent): boolean {
-    return e.key === 'Meta' || e.key === 'Alt';
-  }
-
-  /**
    * Called to finish handling a keyboard event.
    *
    * For normal keys, this is called immediately.
    * For withheld or delayed keys, this is called as the callback when
    * another key is pressed or released (withheld) or after a delay (delayed).
    */
-  private finishHandlingKeyboardEvent(
-    cli: TdpClient,
-    e: KeyboardEvent,
-    state: ButtonState
-  ): void {
-    // Release any withheld keys before sending the current key.
-    this.sendWithheldKeys(cli);
-
+  private finishHandlingKeyboardEvent(params: KeyboardEventParams): void {
+    const { cli, e, state } = params;
     // Special handling for CapsLock on Mac.
     if (e.code === 'CapsLock' && this.isMac) {
       // On Mac, every UP or DOWN given to us by the browser corresponds
@@ -172,100 +105,126 @@ export class KeyboardHandler {
       // Otherwise, just pass the event through normally to the server.
       cli.sendKeyboardInput(e.code, state);
     }
-
-    // If we're finishing handling for a withheld or delayed key, ensure
-    // that it's cleared from the cache.
-    this.clearWithholdingAndDelay(e.code);
   }
 
   /**
-   * This sends all currently withheld keys to the server.
+   * To be called when parent component holding the canvas loses focus.
    */
-  private sendWithheldKeys(cli: TdpClient) {
-    this.withheldDown.forEach((value, code) => {
-      if (value) {
-        cli.sendKeyboardInput(code, ButtonState.DOWN);
+  public onFocusOut() {
+    // Sync toggle keys when we come back into focus.
+    this.syncBeforeNextKey = true;
+    // Cancel any withheld keys.
+    this.withholder.cancel();
+  }
+
+  /**
+   * To be called before unmounting the parent component holding the canvas.
+   */
+  public onUnmount() {
+    // Make sure we cancel any withheld keys, particularly we want to cancel the timeouts.
+    this.withholder.cancel();
+  }
+}
+
+/**
+ * The Withholder class manages keyboard events, particularly for alt/cmd keys. It delays handling these keys to determine the user's intent:
+ *
+ * - For alt/cmd DOWN events, it waits to see if this is part of a normal operation or an alt/cmd + tab action. In the latter case, it cancels
+ * the event to prevent the remote server from mistakenly thinking the key is held down when the user returns to the browser window, which can
+ * cause issues as described in https://github.com/gravitational/teleport/issues/24342.
+ * - For alt/cmd UP events, it introduces a short delay before handling to avoid unintended actions (like opening the start menu), in the case
+ * that an alt/cmd + tab registers both the alt/cmd DOWN and UP events in quick succession. (This can happen if the user does an alt/cmd + tab
+ * really quickly, according to our testing.)
+ * - For other keys, it handles them immediately.
+ *
+ * Events are either processed immediately, delayed, or cancelled based on user actions and focus changes.
+ */
+class Withholder {
+  /**
+   * The list of keys which are to be withheld.
+   */
+  private keysToWithold: string[] = ['Meta', 'Alt'];
+  /**
+   * The internal map of keystrokes that are currently
+   * being withheld.
+   */
+  private withheldKeys: Array<WithheldKeyboardEventHandler> = [];
+
+  /**
+   * All keyboard events should be handled via this function.
+   */
+  public handleKeyboardEvent(
+    params: KeyboardEventParams,
+    handleKeyboardEvent: (params: KeyboardEventParams) => void
+  ) {
+    const key = params.e.key;
+
+    // Wrap handleKeyboardEvent in a function that flushes
+    // any previously withheld keys, then calls handleKeyboardEvent.
+    const handler = (params: KeyboardEventParams) => {
+      this.flush();
+      handleKeyboardEvent(params);
+    };
+
+    // If this is not a key we withhold, call handler immediately
+    // and return.
+    if (!this.keysToWithold.includes(key)) {
+      handler(params);
+      return;
+    }
+
+    // This is a key we withold:
+
+    // On key down we withhold without a timeout. The handler will ultimately be called
+    // when the key is released (typically after a timeout, see the comment in the
+    // conditional below), or when another key is pressed, or else it should be cancelled
+    // onfocusout or on unmount.
+    let timeout = undefined;
+    if (params.state === ButtonState.UP) {
+      // On key ups we withhold on a timeout. The function will be called when the
+      // timer times out, or when another key is pressed, or else it should be
+      // cancelled onfocusout or on unmount.
+      timeout = setTimeout(() => {
+        handler(params);
+      }, 10); // 10 ms was determined empirically to work well.
+    }
+
+    this.withheldKeys.push({ params, handler, timeout });
+  }
+
+  // Cancel all withheld keys.
+  public cancel() {
+    while (this.withheldKeys.length > 0) {
+      const withheld = this.withheldKeys.shift();
+      if (withheld && withheld.timeout) {
+        clearTimeout(withheld.timeout);
       }
-    });
-
-    this.clearAllWithheldDown();
-  }
-
-  /**
-   * Clears the withheld down cache for all keys.
-   */
-  private clearAllWithheldDown() {
-    this.withheldDown.clear();
-  }
-
-  /**
-   * Clears both caches for a single key.
-   *
-   * Calling this on a key that is not in the cache is a no-op.
-   *
-   * @param code The key code to clear the cache for.
-   */
-  private clearWithholdingAndDelay(code: string) {
-    this.clearWithheldDown(code);
-    this.clearDelayedUp(code);
-  }
-
-  /**
-   * Clears the withheld down cache for a single key.
-   *
-   * Calling this on a key that is not in the cache is a no-op.
-   *
-   * @param code The key code to clear the cache for.
-   */
-  private clearWithheldDown(code: string) {
-    this.withheldDown.delete(code);
-  }
-
-  /**
-   * Clears the delayed up cache for a single key.
-   *
-   * Calling this on a key that is not in the cache is a no-op.
-   *
-   * @param code The key code to clear the cache for.
-   */
-  private clearDelayedUp(code: string) {
-    const timeout = this.delayedUp.get(code);
-    if (timeout !== undefined) {
-      clearTimeout(timeout);
-      this.delayedUp.delete(code);
     }
   }
 
-  /**
-   * Called when the canvas loses focus.
-   *
-   * This clears the withheld and delayed keys, so that they are not sent
-   * to the server when the canvas is out of focus.
-   */
-  public onFocusOut() {
-    this.clearAllWithholdingAndDelay();
-    this.syncBeforeNextKey = true;
-  }
-
-  /**
-   * To be called before unmounting the component.
-   */
-  public onUnmount() {
-    this.clearAllDelayedUp();
-  }
-
-  private clearAllWithholdingAndDelay() {
-    this.clearAllWithheldDown();
-    this.clearAllDelayedUp();
-  }
-
-  /**
-   * Clears the delayed up cache for all keys.
-   */
-  private clearAllDelayedUp() {
-    this.delayedUp.forEach(timeout => {
-      clearTimeout(timeout);
-    });
-    this.delayedUp.clear();
+  // Flush all withheld keys.
+  private flush() {
+    while (this.withheldKeys.length > 0) {
+      const withheld = this.withheldKeys.shift();
+      if (withheld) {
+        const { handler, params, timeout } = withheld;
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        handler(params);
+      }
+    }
   }
 }
+
+type WithheldKeyboardEventHandler = {
+  handler: (params: KeyboardEventParams) => void;
+  params: KeyboardEventParams;
+  timeout?: NodeJS.Timeout;
+};
+
+type KeyboardEventParams = {
+  cli: TdpClient;
+  e: KeyboardEvent;
+  state: ButtonState;
+};
