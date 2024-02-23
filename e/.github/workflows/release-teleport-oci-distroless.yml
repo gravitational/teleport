@@ -1,17 +1,14 @@
 name: Build Distroless Images
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       oss-teleport-repo:
-        description: |
-          The name of the OSS teleport repo to checkout
-        required: false
+        description: The name of the OSS teleport repo to checkout.
         type: string
-        default: "gravitational/teleport"
+        default: gravitational/teleport
 
       oss-teleport-ref:
-        description: |
-          Git SHA, tag or branch of the revision of OSS teleport to build
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
         required: true
         type: string
 
@@ -21,27 +18,19 @@ on:
           will be inferred form the `oss-teleport-ref` by assuming that it's
           a standard Teleport release tag in the form vX.Y.Z.
         type: string
-        default: ""
 
       pending-bucket-name:
-        description: |
-          Name of the pending bucket holding the Debian package artifacts.
-        required: true
+        description: Name of the pending bucket holding the Debian package artifacts.
         type: string
         default: dronestorage.gravitational.io
 
       pending-access-role-arn:
-        description: |
-          ARN of the role used to access the pending bucket, for downloading .
-        required: true
+        description: ARN of the role used to access the pending bucket, for downloading.
         type: string
         default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
 
       build-role-arn:
-        description: |
-          The ARN of the role used to sign and store the resulting image(s) in
-          ECR
-        required: true
+        description: The ARN of the role used to sign and store the resulting image(s) in ECR.
         type: string
         default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
 
@@ -49,7 +38,6 @@ on:
         description: |
           URL of the KMS key used to sign the resulting images. Must be
           readable from the role specified by `build-role-arn`.
-        required: true
         type: string
         default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
 
@@ -59,14 +47,40 @@ on:
           formatted for use with Docker (that is, like a URI, not the AWS
           ARN).
         type: string
-        required: true
         default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
 
       workflow-tag:
-        description: |
-          Tag used to identify workflow runs spawned by this event
+        description: Tag used to identify workflow runs spawned by this event.
         type: string
-        default: ""
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      source-tag:
+        type: string
+      pending-bucket-name:
+        type: string
+        default: dronestorage.gravitational.io
+      pending-access-role-arn:
+        type: string
+        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
+      build-role-arn:
+        type: string
+        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
+      signing-key-url:
+        type: string
+        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
+      dest-repo-prefix:
+        type: string
+        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
+      workflow-tag:
+        type: string
 
 run-name: Build Distroless Images for Teleport ${{ inputs.source-tag }}
 

@@ -1,33 +1,26 @@
 name: Build Kube Agent Updater Images
 on:
-  workflow_dispatch:
-    inputs: 
+  workflow_call:
+    inputs:
       oss-teleport-repo:
-        description: |
-          The name of the OSS teleport repo to checkout
-        required: false
+        description: The name of the OSS teleport repo to checkout.
         type: string
-        default: "gravitational/teleport"
+        default: gravitational/teleport
 
       oss-teleport-ref:
-        description: |
-          Git SHA, tag or branch of the revision of OSS teleport to build
-        required: true
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
         type: string
+        required: true
 
       source-tag:
         description: |
-          The semver version of Teleport that we're building for. If not set 
+          The semver version of Teleport that we're building for. If not set
           will be inferred form the `oss-teleport-ref` by assuming that it's
           a standard Teleport release tag in the form vX.Y.Z.
         type: string
-        default: ""
 
       build-role-arn:
-        description: |
-          The ARN of the role used to sign and store the resulting image(s) in
-          ECR
-        required: true
+        description: The ARN of the role used to sign and store the resulting image(s) in ECR.
         type: string
         default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
 
@@ -35,7 +28,6 @@ on:
         description: |
           URL of the KMS key used to sign the resulting images. Must be
           readable from the role specified by `build-role-arn`.
-        required: true
         type: string
         default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
 
@@ -43,9 +35,8 @@ on:
         description: |
           Registry and namespace prefix for the destination repository,
           formatted for use with Docker (that is, like a URI, not the AWS
-          ARN). 
+          ARN).
         type: string
-        required: true
         default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
 
       environment:
@@ -56,12 +47,36 @@ on:
         default: promote
 
       workflow-tag:
-        description: |
-          Tag used to identify workflow runs spawned by this event
+        description: Tag used to identify workflow runs spawned by this event.
         type: string
-        default: ""
 
-run-name: Build Distroless Images for Teleport ${{ inputs.source-tag }}
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      source-tag:
+        type: string
+      build-role-arn:
+        type: string
+        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
+      signing-key-url:
+        type: string
+        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
+      dest-repo-prefix:
+        type: string
+        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
+      environment:
+        type: string
+        default: promote
+      workflow-tag:
+        type: string
+
+run-name: Build Kube Agent Updater Images for Teleport ${{ inputs.source-tag }}
 
 jobs:
   identity:

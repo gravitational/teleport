@@ -1,15 +1,14 @@
 name: Build MacOS Release Artifacts
-on: 
-  workflow_dispatch:
+on:
+  workflow_call:
     inputs:
       oss-teleport-repo:
-        description: 'The name of the OSS Teleport repo to build'
-        required: false
-        default: "gravitational/teleport"
+        description: The name of the OSS Teleport repo to build.
         type: string
+        default: gravitational/teleport
 
       oss-teleport-ref:
-        description: 'Tag, branch or reference to OSS teleport to build'
+        description: Tag, branch or reference to OSS teleport to build.
         type: string
         required: true
 
@@ -19,20 +18,17 @@ on:
           build. If no value is supplied this workflow will use whatever
           reference is specified in the OSS teleport submodule record.
         type: string
-        required: false
-        default: ""
 
       build-packages:
         description: |
           Build Mac packages for Teleport, tsh and Teleport Connect.
           Packages are not build for push builds. Release builds do
           build packages.
-        required: false
         type: boolean
         default: false
 
       release-artifacts:
-        description:  |
+        description: |
           Should the workflow upload the resulting artifacts to the Release
           server?
         type: boolean
@@ -45,13 +41,6 @@ on:
           which is assumed to be a version tag with a leading `v`. Use this
           override to specify a tag for build debugging purposes.
         type: string
-        default: ""
-
-      workflow-tag:
-        description: |
-          Tag used to identify workflow runs spawned by this event
-        type: string
-        default: ""
 
       build-environment:
         description: |
@@ -59,9 +48,38 @@ on:
           `promote` or `build`. The default `promote` can only be used for
           `master` and `branch/*` branches. `build` should be used for testing
           workflow changes on a dev branch.
-        required: false
         type: string
         default: promote
+
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event
+        type: string
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      ent-teleport-ref:
+        type: string
+      build-packages:
+        type: boolean
+        default: false
+      release-artifacts:
+        type: boolean
+        default: false
+      release-version:
+        type: string
+      build-environment:
+        type: string
+        default: promote
+      workflow-tag:
+        type: string
 
 run-name: "Build MacOS Release Artifacts for ${{ inputs.oss-teleport-ref }}"
 jobs:
@@ -82,7 +100,7 @@ jobs:
         id: determine-version
         env:
           # If a teleport version is not explicitly given we assume that the
-          # `oss-teleport-ref` is a release tag of the form vX.Y.Z and deduce 
+          # `oss-teleport-ref` is a release tag of the form vX.Y.Z and deduce
           # the version from that.
           TELEPORT_VERSION: ${{ inputs.release-version || inputs.oss-teleport-ref }}
         run: |
@@ -92,6 +110,9 @@ jobs:
     uses: ./.github/workflows/build-mac.yaml
     secrets: inherit # Allows the build-mac workflow to access signing keys/passwords
     strategy:
+      # Turn off fail-fast so we don't terminate a working build if another fails
+      # for transient reasons. We can re-run the failed jobs to move forward.
+      fail-fast: false
       matrix:
         arch: ['amd64', 'arm64']
     with:

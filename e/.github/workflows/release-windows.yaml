@@ -2,30 +2,42 @@
 name: Build Windows (native) release artifacts
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       oss-teleport-repo:
-        description: "The name of the OSS teleport repo to build"
-        required: false
-        default: "gravitational/teleport"
+        description: The name of the OSS teleport repo to build.
         type: string
+        default: gravitational/teleport
+
       oss-teleport-ref:
-        description: 'Tag, branch or reference to OSS teleport to build'
+        description: Tag, branch or reference to OSS teleport to build.
         type: string
         required: true
+
       ent-teleport-ref:
         description: |
           Tag, branch or reference to Enterprise teleport to include in the
           build. If no value is supplied this workflow will use whatever
           reference is specified in the OSS teleport submodule record.
         type: string
-        required: false
-        default: ""
+
       workflow-tag:
-        description: |
-          Tag used to identify workflow runs spawned by this event
+        description: Tag used to identify workflow runs spawned by this event.
         type: string
-        default: ""
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      ent-teleport-ref:
+        type: string
+      workflow-tag:
+        type: string
 
 jobs:
   # Set event-related variables
