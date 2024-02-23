@@ -415,6 +415,56 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 	}, nil
 }
 
+// DeployService deploys Services into Amazon ECS.
+func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.DeployServiceRequest) (*integrationpb.DeployServiceResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployServiceResp, err := awsoidc.DeployService(ctx, deployServiceClient, awsoidc.DeployServiceRequest{
+		DeploymentJoinTokenName: req.DeploymentJoinTokenName,
+		DeploymentMode:          req.DeploymentMode,
+		TeleportConfigString:    req.TeleportConfigString,
+		IntegrationName:         req.Integration,
+		Region:                  req.Region,
+		SecurityGroups:          req.SecurityGroups,
+		SubnetIDs:               req.SubnetIds,
+		TaskRoleARN:             req.TaskRoleArn,
+		TeleportClusterName:     clusterName.GetClusterName(),
+		TeleportVersionTag:      req.TeleportVersion,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &integrationpb.DeployServiceResponse{
+		ClusterArn:          deployServiceResp.ClusterARN,
+		ServiceArn:          deployServiceResp.ServiceARN,
+		TaskDefinitionArn:   deployServiceResp.TaskDefinitionARN,
+		ServiceDashboardUrl: deployServiceResp.ServiceDashboardURL,
+	}, nil
+}
+
 // ListEC2 returns a paginated list of AWS EC2 instances.
 func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2Request) (*integrationpb.ListEC2Response, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
