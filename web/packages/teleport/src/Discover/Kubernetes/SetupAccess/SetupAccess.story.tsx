@@ -43,7 +43,27 @@ export const WithTraits = () => (
 
 export const WithTraitsAutoDiscovery = () => (
   <MemoryRouter>
-    <SetupAccess {...setAutoDiscovery(props)} />
+    <SetupAccess
+      {...props}
+      agentMeta={{
+        ...props.agentMeta,
+        autoDiscovery: {
+          config: {
+            name: 'some-name',
+            discoveryGroup: 'some-group',
+            aws: [
+              {
+                types: ['eks'],
+                regions: ['us-east-1'],
+                tags: {},
+                kubeAppDiscovery: true,
+                integration: 'some-integration',
+              },
+            ],
+          },
+        },
+      }}
+    />
   </MemoryRouter>
 );
 
@@ -58,27 +78,6 @@ export const SsoUser = () => (
     <SetupAccess {...props} isSsoUser={true} />
   </MemoryRouter>
 );
-
-function setAutoDiscovery(props: State): State {
-  const copy = { ...props, agentMeta: { ...props.agentMeta } };
-  copy.agentMeta.autoDiscovery = {
-    config: {
-      name: 'some-name',
-      discoveryGroup: 'some-group',
-      aws: [
-        {
-          types: ['eks'],
-          regions: ['us-east-1'],
-          tags: {},
-          kubeAppDiscovery: true,
-          integration: 'some-integration',
-        },
-      ],
-    },
-  };
-
-  return copy;
-}
 
 const props: State = {
   attempt: {
