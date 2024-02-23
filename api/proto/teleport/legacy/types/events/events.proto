@@ -3768,6 +3768,13 @@ message DeviceMetadata {
   string credential_id = 4 [(gogoproto.jsontag) = "credential_id,omitempty"];
   // Device origin.
   DeviceOrigin device_origin = 5 [(gogoproto.jsontag) = "device_origin,omitempty"];
+  // True if web authentication, aka on-behalf-of device authentication, was
+  // performed.
+  // Only present in "device.authenticate" type events.
+  bool web_authentication = 6 [(gogoproto.jsontag) = "web_authentication,omitempty"];
+  // Web Session ID associated with the device.
+  // Only present if web_authentication is true.
+  string web_session_id = 7 [(gogoproto.jsontag) = "web_session_id,omitempty"];
 }
 
 // DeviceEvent is a device-related event.
