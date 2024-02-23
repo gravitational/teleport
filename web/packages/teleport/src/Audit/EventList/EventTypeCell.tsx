@@ -240,6 +240,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: Icons.Warning,
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: Icons.Info,
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: Icons.Warning,
+  [eventCodes.OKTA_USER_SYNC]: Icons.Info,
+  [eventCodes.OKTA_USER_SYNC_FAILURE]: Icons.Warning,
   [eventCodes.OKTA_ACCESS_LIST_SYNC]: Icons.Info,
   [eventCodes.OKTA_ACCESS_LIST_SYNC_FAILURE]: Icons.Warning,
   [eventCodes.ACCESS_LIST_CREATE]: Icons.Info,

@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
@@ -1370,6 +1371,10 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindUser,
 			create: testCreateUser,
 		},
+		{
+			kind:   types.KindDatabaseObjectImportRule,
+			create: testCreateDatabaseObjectImportRule,
+		},
 	}
 
 	for _, test := range tests {
@@ -1623,6 +1628,89 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, fc, []string{"create", "-f", userYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateDatabaseObjectImportRule(t *testing.T, fc *config.FileConfig) {
+	const resourceName = "import_all_staging_tables"
+	const resourcePath = types.KindDatabaseObjectImportRule + "/" + resourceName
+	const resourceYAML = `kind: db_object_import_rule
+metadata:
+  name: import_all_staging_tables
+  namespace: default
+spec:
+  database_labels:
+  - name: env
+    values:
+    - staging
+    - prod
+  - name: owner_org
+    values:
+    - trading
+  mappings:
+  - add_labels:
+      custom_label: my_custom_value
+      env: staging
+    match:
+      procedure_names:
+      - aaa
+      - bbb
+      - ccc
+      table_names:
+      - '*'
+      view_names:
+      - "1"
+      - "2"
+      - "3"
+    scope:
+      database_names:
+      - foo
+      - bar
+      - baz
+      schema_names:
+      - public
+  priority: 30
+version: v1
+`
+
+	// Ensure that our test user does not exist
+	_, err := runResourceCommand(t, fc, []string{"get", resourcePath, "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected llama user to not exist prior to being created")
+
+	// Create the user
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, fc, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the user
+	buf, err := runResourceCommand(t, fc, []string{"get", resourcePath, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]*dbobjectimportrulev1.DatabaseObjectImportRule](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected dbobjectimportrulev1.DatabaseObjectImportRule
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+	// verify a few expected properties
+	require.Equal(t, 30, int(expected.Spec.Priority))
+	require.Equal(t, "import_all_staging_tables", expected.Metadata.Name)
+
+	resources[0].Metadata.Revision = expected.Metadata.Revision
+	//nolint:staticcheck // SA1019. Added for backward compatibility.
+	resources[0].Metadata.Id = expected.Metadata.Id
+	require.Equal(t, []*dbobjectimportrulev1.DatabaseObjectImportRule{&expected}, resources)
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.Metadata.Revision = uuid.NewString()
+	data, err := services.MarshalDatabaseObjectImportRule(&expected, services.PreserveResourceID())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(resourceYAMLPath, data, 0644))
+
+	_, err = runResourceCommand(t, fc, []string{"create", resourceYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err))
+
+	_, err = runResourceCommand(t, fc, []string{"create", "-f", resourceYAMLPath})
 	require.NoError(t, err)
 }
 
