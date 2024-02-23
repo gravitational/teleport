@@ -22,7 +22,7 @@ import styled from 'styled-components';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { getErrMessage } from 'shared/utils/errorType';
 
