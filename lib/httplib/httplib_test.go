@@ -375,6 +375,8 @@ func TestSetIndexContentSecurityPolicy_EnterpriseBuild(t *testing.T) {
 			}
 		})
 	}
+
+	indexCSPStringCache = newCSPCache()
 }
 
 func TestSetIndexContentSecurityPolicy_OSSBuild(t *testing.T) {
@@ -432,6 +434,8 @@ func TestSetIndexContentSecurityPolicy_OSSBuild(t *testing.T) {
 			}
 		})
 	}
+
+	indexCSPStringCache = newCSPCache()
 }
 
 func TestSetAppLaunchContentSecurityPolicy(t *testing.T) {
