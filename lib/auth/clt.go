@@ -985,7 +985,7 @@ type ClientI interface {
 	ExternalAuditStorageClient() *externalauditstorage.Client
 
 	// WorkloadIdentityServiceClient returns a workload identity service client.
-	// Clients connecting to  older Teleport versions, still get a bot service client
+	// Clients connecting to  older Teleport versions, still get a client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
