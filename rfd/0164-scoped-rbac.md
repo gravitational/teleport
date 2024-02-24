@@ -226,10 +226,9 @@ Let’s now introduce the missing pieces of the puzzle and review how new roles 
 Resource groups are one such missing piece - in most cloud environments, resources are split into hierarchy, 
 for example, host `luna` is a member of a resource group `lab`, in turn a member of environment `prod`, which is in turn a member of a Teleport cluster.
 
-In Teleport, we will make cluster a default root of this hierarchy. Every computing resource by default will be a direct member of a cluster resource group.
+In Teleport, we will make cluster a default root of this hierarchy. Every computing resource by default will be a direct member of a root `cluster` resource group.
 
-We will also restrict a resource to be a member of only one resource group at a time.  
-It’s tempting to have a resource to be assigned to multiple resource groups, but we push this out of the scope of this RFD for simplicity.
+One resource can be assigned to multiple resource groups at a time, or none. 
 
 In our example, the cluster administrator would define lab resource group in the following way:
 
@@ -263,7 +262,6 @@ In this case, any resource that matches `env:prod` label will be assigned to thi
 
 This will let administrators to gradually migrate their existing flat infrastructure to resource groups one.
 
-One resource can be assigned to multiple resource groups at a time, or none. 
 
 In some cases it makes sense to specify parent resource group inline:
 
