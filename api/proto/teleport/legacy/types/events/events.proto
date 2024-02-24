@@ -3768,6 +3768,13 @@ message DeviceMetadata {
   string credential_id = 4 [(gogoproto.jsontag) = "credential_id,omitempty"];
   // Device origin.
   DeviceOrigin device_origin = 5 [(gogoproto.jsontag) = "device_origin,omitempty"];
+  // True if web authentication, aka on-behalf-of device authentication, was
+  // performed.
+  // Only present in "device.authenticate" type events.
+  bool web_authentication = 6 [(gogoproto.jsontag) = "web_authentication,omitempty"];
+  // Web Session ID associated with the device.
+  // Only present if web_authentication is true.
+  string web_session_id = 7 [(gogoproto.jsontag) = "web_session_id,omitempty"];
 }
 
 // DeviceEvent is a device-related event.
@@ -3975,6 +3982,8 @@ message OneOf {
     events.ValidateMFAAuthResponse ValidateMFAAuthResponse = 147;
     events.OktaAccessListSync OktaAccessListSync = 148;
     events.DatabasePermissionUpdate DatabasePermissionUpdate = 149;
+    events.SPIFFESVIDIssued SPIFFESVIDIssued = 150;
+    events.OktaUserSync OktaUserSync = 151;
   }
 }
 
@@ -5873,4 +5882,83 @@ message OktaAccessListSync {
 
   // NumAccessListMembers are the number of access list members that were created/updated.
   int32 numAccessListMembers = 9;
+}
+
+// OktaUserSync records an Okta user sync event.
+message OktaUserSync {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // OrgUrl is the URL of the Okta organization being synced to
+  string org_url = 3;
+
+  // AppId is the optional ID of an Okta Application that Teleport is using as
+  // its gateway into Okta. The list of potential Teleport users are drawn from
+  // the list of Okta users assigned to this app - either directly or via a group
+  // assignement. If not set, the Okta sync service is drawing its user list from
+  // the whole organization.
+  string app_id = 4;
+
+  // NumUsersCreated is the number of Teleport users created in this
+  // synchronization pass.
+  int32 num_users_created = 5;
+
+  // NumUsersDeleted is the number of Teleport users deleted in this
+  // synchronization pass.
+  int32 num_users_deleted = 6;
+
+  // NumUserModified is the number of Teleport users modified in this
+  // synchronization pass.
+  int32 num_users_modified = 7;
+
+  // NumUsersTotal is the total number of Teleport users managed by the Okta
+  // integration at the end of the synchronzaton pass.
+  int32 num_users_total = 8;
+}
+
+// SPIFFESVIDIssued is an event recorded when a SPIFFE SVID is issued.
+message SPIFFESVIDIssued {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SPIFFEID is the SPIFFE ID of the issued SVID
+  string SPIFFEID = 4 [(gogoproto.jsontag) = "spiffe_id"];
+  // DNSSANs is the list of DNS SANs in the issued SVID
+  repeated string DNSSANs = 5 [(gogoproto.jsontag) = "dns_sans"];
+  // IPSANs is the list of IP SANs in the issued SVID
+  repeated string IPSANs = 6 [(gogoproto.jsontag) = "ip_sans"];
+  // SVIDType is `jwt` or `x509
+  string SVIDType = 7 [(gogoproto.jsontag) = "svid_type"];
+  // SerialNumber is the serial number of the issued SVID
+  string SerialNumber = 8 [(gogoproto.jsontag) = "serial_number"];
+  // Hint is the hint of the issued SVID
+  string Hint = 9 [(gogoproto.jsontag) = "hint"];
 }

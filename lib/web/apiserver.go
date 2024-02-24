@@ -886,6 +886,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
 	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
+	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
@@ -3056,7 +3057,12 @@ func (h *Handler) siteNodeConnect(
 		keepAliveInterval = netConfig.GetKeepAliveInterval()
 	}
 
-	terminalConfig := TerminalHandlerConfig{
+	nw, err := site.NodeWatcher()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	term, err := NewTerminal(ctx, TerminalHandlerConfig{
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
 		UserAuthClient:     clt,
@@ -3074,9 +3080,18 @@ func (h *Handler) siteNodeConnect(
 		Tracker:            tracker,
 		PresenceChecker:    h.cfg.PresenceChecker,
 		WebsocketConn:      ws,
-	}
+		HostNameResolver: func(serverID string) (string, error) {
+			matches := nw.GetNodes(r.Context(), func(n services.Node) bool {
+				return n.GetName() == serverID
+			})
 
-	term, err := NewTerminal(ctx, terminalConfig)
+			if len(matches) != 1 {
+				return "", trace.NotFound("unable to resolve hostname for server %s", serverID)
+			}
+
+			return matches[0].GetHostname(), nil
+		},
+	})
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
@@ -3890,7 +3905,6 @@ func (h *Handler) authenticateWSRequestWithClusterDeprecated(w http.ResponseWrit
 // remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, reversetunnelclient.RemoteSite, error) {
 	sctx, err := h.AuthenticateRequest(w, r, true)
-
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -299,7 +299,17 @@ $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
 teleport-hot-reload:
-	CompileDaemon --graceful-kill=true --exclude-dir=".git" --exclude-dir="node_modules" --build="make $(BUILDDIR)/teleport" --command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
+	CompileDaemon \
+		--graceful-kill=true \
+		--exclude-dir=".git" \
+		--exclude-dir="build" \
+		--exclude-dir="e/build" \
+		--exclude-dir="e/web/*/node_modules" \
+		--exclude-dir="node_modules" \
+		--exclude-dir="target" \
+		--exclude-dir="web/packages/*/node_modules" \
+		--build="make $(BUILDDIR)/teleport" \
+		--command="$(BUILDDIR)/teleport $(TELEPORT_ARGS)"
 
 # NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
 # 		we can use this Makefile for native Windows builds.
@@ -421,7 +431,7 @@ clean-ui:
 
 # RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
 $(RELEASE_DIR):
-	mkdir $@
+	mkdir -p $@
 
 .PHONY:
 export
@@ -468,6 +478,11 @@ build-archive: | $(RELEASE_DIR)
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	cp $(RELEASE).tar.gz $(RELEASE_DIR)
+	# linux-amd64 generates a centos7-compatible archive. Make a copy with the -centos7 label,
+	# for the releases page. We should probably drop that at some point.
+	$(if $(filter linux-amd64,$(OS)-$(ARCH)), \
+		cp $(RELEASE).tar.gz $(RELEASE_DIR)/$(subst amd64,amd64-centos7,$(RELEASE)).tar.gz \
+	)
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 

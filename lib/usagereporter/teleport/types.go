@@ -1051,6 +1051,25 @@ func (u *OktaAccessListSyncEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submit
 	}
 }
 
+// SPIFFESVIDIssuedEvent is an event emitted when a SPIFFE SVID has been
+// issued.
+type SPIFFESVIDIssuedEvent prehogv1a.SPIFFESVIDIssuedEvent
+
+func (u *SPIFFESVIDIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SpiffeSvidIssued{
+			SpiffeSvidIssued: &prehogv1a.SPIFFESVIDIssuedEvent{
+				UserName:     a.AnonymizeString(u.UserName),
+				UserKind:     u.UserKind,
+				SpiffeId:     a.AnonymizeString(u.SpiffeId),
+				IpSansCount:  u.IpSansCount,
+				DnsSansCount: u.DnsSansCount,
+				SvidType:     u.SvidType,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.

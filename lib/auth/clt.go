@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -151,6 +152,54 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 func (c *Client) Close() error {
 	c.HTTPClient.Close()
 	return c.APIClient.Close()
+}
+
+func (c *Client) CreateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertAuthPreference(context.Context, types.AuthPreference) (types.AuthPreference, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertSessionRecordingConfig(context.Context, types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertClusterAuditConfig(context.Context, types.ClusterAuditConfig) (types.ClusterAuditConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) CreateClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpdateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) UpsertClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
@@ -929,6 +978,9 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
+
+	// DatabaseObjectImportRuleClient returns a database import rule client.
+	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
 
 	// SecReportsClient returns a client for security reports.
 	// Clients connecting to  older Teleport versions, still get an access list client

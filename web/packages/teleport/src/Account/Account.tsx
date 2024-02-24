@@ -23,8 +23,6 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 import * as Icon from 'design/Icon';
 import { Notification, NotificationItem } from 'shared/components/Notification';
 
-import createMfaOptions from 'shared/utils/createMfaOptions';
-
 import useTeleport from 'teleport/useTeleport';
 import { FeatureBox } from 'teleport/components/Layout';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
@@ -38,9 +36,9 @@ import { AuthDeviceList } from './ManageDevices/AuthDeviceList/AuthDeviceList';
 import useManageDevices, {
   State as ManageDevicesState,
 } from './ManageDevices/useManageDevices';
-import AddDevice from './ManageDevices/AddDevice';
 import { ActionButton, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
+import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
@@ -60,32 +58,14 @@ export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
   const isSso = ctx.storeUser.isSso();
   const manageDevicesState = useManageDevices(ctx);
 
-  // Note: we are using the same logic here as the `AddDevice` component uses to
-  // determine whether to show various options.  This creates a duplication of
-  // logic, but this is a quick bug fix to make sure that we don't show a dialog
-  // that normally would require an OTP token, but is shown in a passwordless
-  // context and thus can't progress.
-  // TODO(bl-nero): When implementing a new device enrollment dialog, refactor
-  // this so that the options used by both components have the same source of
-  // truth.
-  const mfaOptions = createMfaOptions({
-    auth2faType: cfg.getAuth2faType(),
-    required: true,
-  });
-
-  const canAddPasskeys =
-    cfg.isPasswordlessEnabled() &&
-    mfaOptions.some(option => option.value === 'webauthn');
-
-  const canAddMFA = mfaOptions.some(
-    option => option.value === 'otp' || option.value === 'webauthn'
-  );
+  const canAddPasskeys = cfg.isPasswordlessEnabled();
+  const canAddMfa = cfg.isMfaEnabled();
 
   return (
     <Account
       isSso={isSso}
       canAddPasskeys={canAddPasskeys}
-      canAddMFA={canAddMFA}
+      canAddMfa={canAddMfa}
       {...manageDevicesState}
       enterpriseComponent={enterpriseComponent}
     />
@@ -95,7 +75,7 @@ export default function AccountPage({ enterpriseComponent }: AccountPageProps) {
 export interface AccountProps extends ManageDevicesState, AccountPageProps {
   isSso: boolean;
   canAddPasskeys: boolean;
-  canAddMFA: boolean;
+  canAddMfa: boolean;
 }
 
 export function Account({
@@ -104,22 +84,22 @@ export function Account({
   setToken,
   onAddDevice,
   onRemoveDevice,
+  onDeviceAdded,
   deviceToRemove,
-  fetchDevices,
   removeDevice,
   fetchDevicesAttempt,
   createRestrictedTokenAttempt,
   isReAuthenticateVisible,
-  isAddDeviceVisible,
   isRemoveDeviceVisible,
+  addDeviceWizardVisible,
   hideReAuthenticate,
-  hideAddDevice,
   hideRemoveDevice,
+  closeAddDeviceWizard,
   isSso,
-  canAddMFA,
+  canAddMfa,
   canAddPasskeys,
   enterpriseComponent: EnterpriseComponent,
-  restrictNewDeviceUsage,
+  newDeviceUsage,
 }: AccountProps) {
   const passkeys = devices.filter(d => d.residentKey);
   const mfaDevices = devices.filter(d => !d.residentKey);
@@ -127,7 +107,7 @@ export function Account({
     createRestrictedTokenAttempt.status === 'processing' ||
     fetchDevicesAttempt.status !== 'success';
   const disableAddPasskey = disableAddDevice || !canAddPasskeys;
-  const disableAddMFA = disableAddDevice || !canAddMFA;
+  const disableAddMfa = disableAddDevice || !canAddMfa;
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
@@ -168,6 +148,15 @@ export function Account({
 
   function onPasswordChange() {
     addNotification('info', 'Your password has been changed.');
+  }
+
+  function onAddDeviceSuccess() {
+    const message =
+      newDeviceUsage === 'passwordless'
+        ? 'Passkey successfully saved.'
+        : 'MFA device successfully saved.';
+    addNotification('info', message);
+    onDeviceAdded();
   }
 
   return (
@@ -224,9 +213,9 @@ export function Account({
                 showIndicator={fetchDevicesAttempt.status === 'processing'}
                 actions={
                   <ActionButton
-                    disabled={disableAddMFA}
+                    disabled={disableAddMfa}
                     title={
-                      disableAddMFA
+                      disableAddMfa
                         ? 'Multi-factor authentication is disabled'
                         : ''
                     }
@@ -251,14 +240,6 @@ export function Account({
             challengeScope={MfaChallengeScope.MANAGE_DEVICES}
           />
         )}
-        {isAddDeviceVisible && (
-          <AddDevice
-            fetchDevices={fetchDevices}
-            token={token}
-            onClose={hideAddDevice}
-            restrictDeviceUsage={restrictNewDeviceUsage}
-          />
-        )}
         {EnterpriseComponent && (
           <EnterpriseComponent addNotification={addNotification} />
         )}
@@ -269,6 +250,16 @@ export function Account({
           name={deviceToRemove.name}
           onRemove={removeDevice}
           onClose={hideRemoveDevice}
+        />
+      )}
+
+      {addDeviceWizardVisible && (
+        <AddAuthDeviceWizard
+          usage={newDeviceUsage}
+          auth2faType={cfg.getAuth2faType()}
+          privilegeToken={token}
+          onClose={closeAddDeviceWizard}
+          onSuccess={onAddDeviceSuccess}
         />
       )}
 

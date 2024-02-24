@@ -128,7 +128,7 @@ const api = {
     );
     const shouldRetry = isAdminActionMfaError && !webauthnResponse;
     if (!shouldRetry) {
-      throw new ApiError(parseError(json), response);
+      throw new ApiError(parseError(json), response, undefined, json.messages);
     }
 
     let webauthnResponseForRetry;

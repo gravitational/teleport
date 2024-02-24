@@ -7,6 +7,7 @@
 import * as grpc from "grpc";
 import * as teleport_lib_teleterm_v1_service_pb from "../../../../teleport/lib/teleterm/v1/service_pb";
 import * as teleport_accesslist_v1_accesslist_pb from "../../../../teleport/accesslist/v1/accesslist_pb";
+import * as teleport_devicetrust_v1_device_web_token_pb from "../../../../teleport/devicetrust/v1/device_web_token_pb";
 import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../teleport/lib/teleterm/v1/access_request_pb";
 import * as teleport_lib_teleterm_v1_app_pb from "../../../../teleport/lib/teleterm/v1/app_pb";
 import * as teleport_lib_teleterm_v1_auth_settings_pb from "../../../../teleport/lib/teleterm/v1/auth_settings_pb";
@@ -60,6 +61,7 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     listUnifiedResources: ITerminalServiceService_IListUnifiedResources;
     getUserPreferences: ITerminalServiceService_IGetUserPreferences;
     updateUserPreferences: ITerminalServiceService_IUpdateUserPreferences;
+    authenticateWebDevice: ITerminalServiceService_IAuthenticateWebDevice;
 }
 
 interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest, teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse> {
@@ -422,6 +424,15 @@ interface ITerminalServiceService_IUpdateUserPreferences extends grpc.MethodDefi
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse>;
 }
+interface ITerminalServiceService_IAuthenticateWebDevice extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest, teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
@@ -466,6 +477,7 @@ export interface ITerminalServiceServer {
     listUnifiedResources: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesRequest, teleport_lib_teleterm_v1_service_pb.ListUnifiedResourcesResponse>;
     getUserPreferences: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.GetUserPreferencesResponse>;
     updateUserPreferences: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse>;
+    authenticateWebDevice: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest, teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse>;
 }
 
 export interface ITerminalServiceClient {
@@ -588,6 +600,9 @@ export interface ITerminalServiceClient {
     updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    authenticateWebDevice(request: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse) => void): grpc.ClientUnaryCall;
+    authenticateWebDevice(request: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse) => void): grpc.ClientUnaryCall;
+    authenticateWebDevice(request: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -710,4 +725,7 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
     public updateUserPreferences(request: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateUserPreferencesResponse) => void): grpc.ClientUnaryCall;
+    public authenticateWebDevice(request: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse) => void): grpc.ClientUnaryCall;
+    public authenticateWebDevice(request: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse) => void): grpc.ClientUnaryCall;
+    public authenticateWebDevice(request: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse) => void): grpc.ClientUnaryCall;
 }
