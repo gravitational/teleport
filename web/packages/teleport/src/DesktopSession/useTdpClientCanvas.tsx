@@ -74,7 +74,7 @@ export default function useTdpClientCanvas(props: Props) {
     // On unmount, clear all the timeouts on the keyboardHandler.
     return () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      keyboardHandler.current.onUnmount();
+      keyboardHandler.current.dispose();
     };
   }, []);
 

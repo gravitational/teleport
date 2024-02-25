@@ -108,7 +108,7 @@ export class KeyboardHandler {
   }
 
   /**
-   * To be called when parent component holding the canvas loses focus.
+   * Must be called when the element associated with the KeyboardHandler loses focus.
    */
   public onFocusOut() {
     // Sync toggle keys when we come back into focus.
@@ -118,9 +118,9 @@ export class KeyboardHandler {
   }
 
   /**
-   * To be called before unmounting the parent component holding the canvas.
+   * Should be called when the element associated with the KeyboardHandler goes away.
    */
-  public onUnmount() {
+  public dispose() {
     // Make sure we cancel any withheld keys, particularly we want to cancel the timeouts.
     this.withholder.cancel();
   }
