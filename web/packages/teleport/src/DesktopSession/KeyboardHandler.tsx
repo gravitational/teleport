@@ -143,7 +143,7 @@ class Withholder {
   /**
    * The list of keys which are to be withheld.
    */
-  private keysToWithold: string[] = ['Meta', 'Alt'];
+  private keysToWithhold: string[] = ['Meta', 'Alt'];
   /**
    * The internal map of keystrokes that are currently
    * being withheld.
@@ -168,12 +168,12 @@ class Withholder {
 
     // If this is not a key we withhold, call handler immediately
     // and return.
-    if (!this.keysToWithold.includes(key)) {
+    if (!this.keysToWithhold.includes(key)) {
       handler(params);
       return;
     }
 
-    // This is a key we withold:
+    // This is a key we withhold:
 
     // On key down we withhold without a timeout. The handler will ultimately be called
     // when the key is released (typically after a timeout, see the comment in the
