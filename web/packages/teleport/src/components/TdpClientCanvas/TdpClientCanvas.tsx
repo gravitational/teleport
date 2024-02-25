@@ -121,13 +121,15 @@ function TdpClientCanvas(props: Props) {
         const cursor = document.createElement('canvas');
         cursor.width = pointer.data.width;
         cursor.height = pointer.data.height;
-        cursor.getContext('2d').putImageData(pointer.data, 0, 0);
+        cursor
+          .getContext('2d', { colorSpace: pointer.data.colorSpace })
+          .putImageData(pointer.data, 0, 0);
         canvas.style.cursor = `url(${cursor.toDataURL()}) ${
           pointer.hotspot_x
         } ${pointer.hotspot_y}, auto`;
       };
 
-      client.on(TdpClientEvent.POINTER, updatePointer);
+      client.addListener(TdpClientEvent.POINTER, updatePointer);
 
       return () => {
         client.removeListener(TdpClientEvent.POINTER, updatePointer);
@@ -438,7 +440,7 @@ export type Props = {
   canvasOnMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
   canvasOnContextMenu?: () => boolean;
   style?: CSSProperties;
-  updatePointer: boolean;
+  updatePointer?: boolean;
 };
 
 export default memo(TdpClientCanvas);
