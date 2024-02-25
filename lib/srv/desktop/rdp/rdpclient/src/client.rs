@@ -24,8 +24,12 @@ use bitflags::Flags;
 #[cfg(feature = "fips")]
 use boring::error::ErrorStack;
 use bytes::BytesMut;
-use ironrdp_cliprdr::{Client as ClientRole, Cliprdr, CliprdrClient, CliprdrSvcMessages};
-use ironrdp_connector::{Config, ConnectorError, Credentials};
+use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
+use ironrdp_connector::legacy::DeactivateAllError;
+use ironrdp_connector::ClientConnectorState::CapabilitiesExchange;
+use ironrdp_connector::{
+    ClientConnector, ClientConnectorState, Config, ConnectorError, Credentials,
+};
 use ironrdp_dvc::DrdynvcClient;
 use ironrdp_pdu::dvc::display::{ClientPdu, Monitor, MonitorFlags, MonitorLayoutPdu, Orientation};
 use ironrdp_pdu::input::fast_path::{
@@ -42,13 +46,14 @@ use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::Rdpsnd;
-use ironrdp_session::x224::{Processor as X224Processor, Processor, ProcessorOutput};
+use ironrdp_session::x224::{self, Processor, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
-use ironrdp_tokio::{Framed, TokioStream};
-use log::debug;
+use ironrdp_tokio::{connect_finalize_no_credssp, single_connect_step_read, Framed, TokioStream};
+use log::{debug, warn};
 use rand::{Rng, SeedableRng};
+use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
@@ -65,6 +70,7 @@ use crate::rdpdr::TeleportRdpdrBackend;
 use crate::ssl::TlsStream;
 #[cfg(feature = "fips")]
 use tokio_boring::{HandshakeError, SslStream};
+use tracing::field::debug;
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -77,6 +83,9 @@ pub struct Client {
     write_stream: Option<RdpWriteStream>,
     function_receiver: Option<FunctionReceiver>,
     x224_processor: Arc<Mutex<x224::Processor>>,
+    connector_config: Config,
+    io_channel_id: u16,
+    user_channel_id: u16,
 }
 
 impl Client {
@@ -153,7 +162,7 @@ impl Client {
             debug!("creating rdpdr client with directory sharing disabled")
         }
 
-        let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
+        let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
             .with_server_addr(server_socket_addr)
             .with_static_channel(Rdpsnd::new()) // required for rdpdr to work
             .with_static_channel(rdpdr)
@@ -179,11 +188,11 @@ impl Client {
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
         let connection_result = ironrdp_tokio::connect_finalize(
-            upgraded,
             &mut rdp_stream,
             connector,
             server_addr.into(),
             server_public_key,
+            None,
             None,
         )
         .await?;
@@ -222,6 +231,9 @@ impl Client {
             write_stream: Some(write_stream),
             function_receiver: Some(function_receiver),
             x224_processor: Arc::new(Mutex::new(x224_processor)),
+            connector_config,
+            io_channel_id: connection_result.io_channel_id,
+            user_channel_id: connection_result.user_channel_id,
         })
     }
 
@@ -264,6 +276,9 @@ impl Client {
             read_stream,
             self.x224_processor.clone(),
             self.client_handle.clone(),
+            self.connector_config.clone(),
+            self.io_channel_id,
+            self.user_channel_id,
         );
 
         let mut write_loop_handle = Client::run_write_loop(
@@ -295,7 +310,11 @@ impl Client {
         mut read_stream: RdpReadStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_requester: ClientHandle,
-    ) -> tokio::task::JoinHandle<ClientResult<Option<DisconnectReason>>> {
+        config: Config,
+        io_channel_id: u16,
+        user_channel_id: u16,
+    ) -> tokio::task::JoinHandle<ClientResult<()>> {
+        // ) -> tokio::task::JoinHandle<ClientResult<Option<DisconnectReason>>> {
         global::TOKIO_RT.spawn(async move {
             loop {
                 let (action, mut frame) = read_stream.read_pdu().await?;
@@ -316,7 +335,51 @@ impl Client {
                     ironrdp_pdu::Action::X224 => {
                         // X224 PDU, process it and send any immediate response frames to the write loop
                         // for writing to the RDP server.
-                        let res = Client::x224_process(x224_processor.clone(), frame).await?;
+                        let res = match Client::x224_process(x224_processor.clone(), frame).await {
+                            Ok(res) => res,
+                            Err(e) => {
+                                if let Some(ee) = e.source() {
+                                    if ee.is::<DeactivateAllError>() {
+                                        warn!("Deactivate");
+                                        let mut connector = ClientConnector {
+                                            config: config.clone(),
+                                            state: CapabilitiesExchange {
+                                                io_channel_id,
+                                                user_channel_id,
+                                            },
+                                            server_addr: None,
+                                            static_channels: Default::default(),
+                                        };
+
+                                        let mut buf = WriteBuf::new();
+                                        loop {
+                                            let written = single_connect_step_read(
+                                                &mut read_stream,
+                                                &mut connector,
+                                                &mut buf,
+                                            )
+                                            .await?;
+                                            if let Some(_) = written.size() {
+                                                write_requester
+                                                    .write_raw_pdu_async(buf.filled().to_vec())
+                                                    .await?;
+                                            }
+                                            if let ClientConnectorState::Connected { result } =
+                                                connector.state
+                                            {
+                                                break;
+                                            }
+                                        }
+                                        Vec::new()
+                                    } else {
+                                        return Err(e.into());
+                                    }
+                                } else {
+                                    return Err(e.into());
+                                }
+                            }
+                        };
+                        // Send response frames to write loop for writing to RDP server.
                         for output in res {
                             match output {
                                 ProcessorOutput::ResponseFrame(frame) => {
@@ -362,8 +425,8 @@ impl Client {
                                             top: 0,
                                             width: width as u32,
                                             height: height as u32,
-                                            physical_width: width as u32,
-                                            physical_height: height as u32,
+                                            physical_width: 0,
+                                            physical_height: 0,
                                             orientation: Orientation::Landscape,
                                             desktop_scale_factor: 100,
                                             device_scale_factor: 100,
