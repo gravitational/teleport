@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -40,8 +39,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	helmCli "helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
@@ -173,10 +174,6 @@ func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	settings, err := getHelmSettings()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	return installKubeAgent(ctx, installKubeAgentParams{
 		eksCluster:   eksCluster,
@@ -184,7 +181,6 @@ func (d *defaultEnrollEKSClustersClient) InstallKubeAgent(ctx context.Context, e
 		joinToken:    joinToken,
 		resourceID:   resourceId,
 		actionConfig: actionConfig,
-		settings:     settings,
 		req:          req,
 		log:          log,
 	})
@@ -454,18 +450,6 @@ func getHelmActionConfig(clientGetter genericclioptions.RESTClientGetter, log lo
 	return actionConfig, nil
 }
 
-func getHelmSettings() (*helmCli.EnvSettings, error) {
-	helmSettings := helmCli.New()
-	dir, err := os.MkdirTemp(os.TempDir(), "teleport-eks-chart-")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	helmSettings.RepositoryCache = dir
-	helmSettings.SetNamespace(agentNamespace)
-
-	return helmSettings, nil
-}
-
 // checkAgentAlreadyInstalled checks through the Helm if teleport-kube-agent chart was already installed in the EKS cluster.
 func checkAgentAlreadyInstalled(ctx context.Context, actionConfig *action.Configuration) (bool, error) {
 	var releases []*release.Release
@@ -503,21 +487,42 @@ type installKubeAgentParams struct {
 	joinToken    string
 	resourceID   string
 	actionConfig *action.Configuration
-	settings     *helmCli.EnvSettings
 	req          EnrollEKSClustersRequest
 	log          logrus.FieldLogger
 }
 
+func getChartUrl(version string) string {
+	return fmt.Sprintf("%s/%s-%s.tgz", agentRepoURL, agentName, version)
+}
+
+// getChartData returns kube agent Helm chart data ready to be used by Helm SDK. We don't use native Helm
+// chart downloading because it tends to save temporary files and here we do everything just in memory.
+func getChartData(version string) (*chart.Chart, error) {
+	chartURL, err := url.Parse(getChartUrl(version))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	g, err := getter.All(helmCli.New()).ByScheme(chartURL.Scheme)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	data, err := g.Get(chartURL.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	agentChart, err := loader.LoadArchive(data)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return agentChart, nil
+}
+
 // installKubeAgent installs teleport-kube-agent chart to the target EKS cluster.
 func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
-	defer func() {
-		// Clean up temporary chart cache directory.
-		err := os.RemoveAll(cfg.settings.RepositoryCache)
-		if err != nil && cfg.log != nil {
-			cfg.log.Warnf("could not delete temporary chart cache directory at the path %q", cfg.settings.RepositoryCache)
-		}
-	}()
-
 	installCmd := action.NewInstall(cfg.actionConfig)
 	installCmd.RepoURL = agentRepoURL
 	installCmd.Version = cfg.req.AgentVersion
@@ -525,15 +530,11 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 		installCmd.Version = "" // For testing during development.
 	}
 
-	chartPath, err := installCmd.LocateChart(agentName, cfg.settings)
-	if err != nil {
-		return trace.Wrap(err, "could not locate chart")
-	}
-
-	agentChart, err := loader.Load(chartPath)
+	agentChart, err := getChartData(installCmd.Version)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	installCmd.ReleaseName = agentName
 	installCmd.Namespace = agentNamespace
 	installCmd.CreateNamespace = true
