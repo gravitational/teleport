@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { MutableRefObject, useState, useEffect, useRef } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { NotificationItem } from 'shared/components/Notification';
 
@@ -67,9 +67,10 @@ export default function useTdpClientCanvas(props: Props) {
   const initialTdpConnectionSucceeded = useRef(false);
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
-
   const keyboardHandler = useRef(new KeyboardHandler());
+
   useEffect(() => {
+    keyboardHandler.current = new KeyboardHandler();
     // On unmount, clear all the timeouts on the keyboardHandler.
     return () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps
