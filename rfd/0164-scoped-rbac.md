@@ -262,7 +262,6 @@ In this case, any resource that matches `env:prod` label will be assigned to thi
 
 This will let administrators to gradually migrate their existing flat infrastructure to resource groups one.
 
-
 In some cases it makes sense to specify parent resource group inline:
 
 ```yaml
@@ -404,6 +403,7 @@ spec:
 
 **Note:** While it’s tempting to support scope templates, we will push this out of the scope of this RFD.
 
+Each scope is a valid URI, either starting with a path `/leafs/path/etc` or with scheme prefix: `admin:/path`. URI syntax will let us expand definition of the scope going forward.
 
 #### The Access verb
 
@@ -531,7 +531,7 @@ This will let us filter and grant access to a subset of events and session recor
 
 Some resources don't have a clear cut behavior at certain scopes, like SSO connectors, or are difficult to define, like users. 
 
-That’s why we will prohibit creating those resources by roles granted by any scope other than the root. 
+That’s why we will prohibit creating those resources by roles granted by any scope other than the special scope `admin:. 
 
 Here is a list of resources that can’t be created at scopes:
 
@@ -546,14 +546,32 @@ Here is a list of resources that can’t be created at scopes:
 * Join tokens for roles Proxy, Auth
 
 
+
 ### Trusted Clusters
 
 With new scoped RBAC approach, leaf clusters will sync users from the root cluster, similarly to how we sync users from Okta via SCIM. 
 Leaf clusters will also sync root cluster's Access Lists similarly to how Teleport syncs access lists from Okta, see RFD 0019e - Okta Access Lists Sync.
 Combined together, Users and Access Lists sync will let leaf clusters mirror permissions from the root cluster, while remaining independent, as leafs can have their own access lists and users.
 
-TODO: Think through name collision
-TODO: Represent leaf scopes as `/leaf/[cluster-name]`
+To let users access resources in specific clusters, we will use `/=leafs/[cluster-name]` scope. Leafs hierarchy is a part of a root `/` cluster hierarchy. This will allow transparent migration of resources. To avoid name collisions we will reserve paths that contain `=` and will prohibit users from creating resource groups that have character `=` in them.
+
+```yaml
+kind: access_list
+metadata:
+  name: access-to-lab
+spec:
+  grants: 
+    roles: [access]
+    traits:
+      'internal.logins' : 'root'
+  scopes: ['/dev/lab']
+  members:
+    - bob@example.com
+```
+
+Leaf clusters syncing access lists and users from the root clusters should avoid name collisions - if a local or SSO leaf cluster, role or access list exists, the sync should avoid overwriting the local leaf cluster data, emitting audit event that mentions that the system did not sync the list.
+
+This architecture lets leafs to have their own indpendent grants, while mirroring users, access lists from the root, which represents majority of today's use cases.
 
 ### Features we will deprecate over time
 
