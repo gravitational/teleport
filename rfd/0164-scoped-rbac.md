@@ -545,6 +545,16 @@ Here is a list of resources that can’t be created at scopes:
 * Cluster auth preference
 * Join tokens for roles Proxy, Auth
 
+
+### Trusted Clusters
+
+With new scoped RBAC approach, leaf clusters will sync users from the root cluster, similarly to how we sync users from Okta via SCIM. 
+Leaf clusters will also sync root cluster's Access Lists similarly to how Teleport syncs access lists from Okta, see RFD 0019e - Okta Access Lists Sync.
+Combined together, Users and Access Lists sync will let leaf clusters mirror permissions from the root cluster, while remaining independent, as leafs can have their own access lists and users.
+
+TODO: Think through name collision
+TODO: Represent leaf scopes as `/leaf/[cluster-name]`
+
 ### Features we will deprecate over time
 
 All existing Teleport features will keep working with no changes, however, with this design we plan to deprecate:
