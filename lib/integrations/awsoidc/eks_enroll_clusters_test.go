@@ -41,6 +41,30 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func TestGetChartUrl(t *testing.T) {
+	testCases := []struct {
+		version  string
+		expected string
+	}{
+		{
+			version:  "14.3.3",
+			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-14.3.3.tgz",
+		},
+		{
+			version:  "15.0.2",
+			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-15.0.2.tgz",
+		},
+		{
+			version:  "15.0.0-alpha.5",
+			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-15.0.0-alpha.5.tgz",
+		},
+	}
+
+	for _, tt := range testCases {
+		require.Equal(t, tt.expected, getChartUrl(tt.version))
+	}
+}
+
 func TestEnrollEKSClusters(t *testing.T) {
 	t.Parallel()
 
