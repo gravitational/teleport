@@ -456,6 +456,8 @@ const (
 	DeviceAuthenticateCode = "TV006I"
 	// DeviceUpdateCode is the device update code.
 	DeviceUpdateCode = "TV007I"
+	// DeviceWebTokenCreateCode is the device web token creation code.
+	DeviceWebTokenCreateCode = "TV008I"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"
@@ -515,6 +517,12 @@ const (
 
 	// OktaAccessListSyncSuccessCode is the Okta access list sync failure code.
 	OktaAccessListSyncFailureCode = "TOK006E"
+
+	// OktaUserSyncSuccessCode is the Okta user sync success code.
+	OktaUserSyncSuccessCode = "TOK007I"
+
+	// OktaUserSyncSuccessCode is the Okta user sync failure code.
+	OktUserSyncFailureCode = "TOK007E"
 
 	// AccessListCreateSuccessCode is the access list create success code.
 	AccessListCreateSuccessCode = "TAL001I"

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box, ButtonSecondary, ButtonText, Text, Toggle } from 'design';
 import styled from 'styled-components';
 import { FetchStatus } from 'design/DataTable/types';
@@ -39,14 +39,15 @@ import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
 import { AgentStepProps } from 'teleport/Discover/types';
 import useTeleport from 'teleport/useTeleport';
 
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { generateCmd } from 'teleport/Discover/Kubernetes/HelmChart/HelmChart';
 import { Kube } from 'teleport/services/kube';
 
-import { Header, ResourceKind } from '../../Shared';
+import { JoinToken } from 'teleport/services/joinToken';
+
+import { Header } from '../../Shared';
 
 import { ClustersList } from './EksClustersList';
-import { ManualHelmDialog } from './ManualHelmDialog';
+import ManualHelmDialog from './ManualHelmDialog';
 import { EnrollmentDialog } from './EnrollmentDialog';
 import { AgentWaitingDialog } from './AgentWaitingDialog';
 
@@ -97,13 +98,10 @@ export function EnrollEksCluster(props: AgentStepProps) {
     useState(false);
   const [isManualHelmDialogShown, setIsManualHelmDialogShown] = useState(false);
   const [waitingResourceId, setWaitingResourceId] = useState('');
+  // join token will be set only if user opens ManualHelmDialog,
+  // we delay it to avoid premature admin action MFA confirmation request.
+  const [joinToken, setJoinToken] = useState<JoinToken>(null);
   const ctx = useTeleport();
-
-  const { joinToken } = useJoinTokenSuspender([
-    ResourceKind.Kubernetes,
-    ResourceKind.Application,
-    ResourceKind.Discovery,
-  ]);
 
   function fetchClustersWithNewRegion(region: Regions) {
     setSelectedRegion(region);
@@ -205,8 +203,6 @@ export function EnrollEksCluster(props: AgentStepProps) {
         {
           region: selectedRegion,
           enableAppDiscovery: isAppDiscoveryEnabled,
-          joinToken: joinToken.id,
-          resourceId: joinToken.internalResourceId,
           clusterNames: [selectedCluster.name],
         }
       );
@@ -262,23 +258,34 @@ export function EnrollEksCluster(props: AgentStepProps) {
     !selectedCluster ||
     enrollmentState.status !== 'notStarted';
 
-  let command = '';
-  if (selectedCluster) {
-    command = generateCmd({
-      namespace: 'teleport-agent',
-      clusterName: selectedCluster.name,
-      proxyAddr: ctx.storeUser.state.cluster.publicURL,
-      tokenId: joinToken.id,
-      clusterVersion: ctx.storeUser.state.cluster.authVersion,
-      resourceId: joinToken.internalResourceId,
-      isEnterprise: ctx.isEnterprise,
-      isCloud: ctx.isCloud,
-      automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
-      automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
-      joinLabels: [...selectedCluster.labels, ...selectedCluster.joinLabels],
-      disableAppDiscovery: !isAppDiscoveryEnabled,
-    });
-  }
+  const setJoinTokenAndGetCommand = useCallback(
+    (token: JoinToken) => {
+      setJoinToken(token);
+      return generateCmd({
+        namespace: 'teleport-agent',
+        clusterName: selectedCluster.name,
+        proxyAddr: ctx.storeUser.state.cluster.publicURL,
+        clusterVersion: ctx.storeUser.state.cluster.authVersion,
+        tokenId: token.id,
+        resourceId: token.internalResourceId,
+        isEnterprise: ctx.isEnterprise,
+        isCloud: ctx.isCloud,
+        automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
+        automaticUpgradesTargetVersion: ctx.automaticUpgradesTargetVersion,
+        joinLabels: [...selectedCluster.labels, ...selectedCluster.joinLabels],
+        disableAppDiscovery: !isAppDiscoveryEnabled,
+      });
+    },
+    [
+      ctx.automaticUpgradesEnabled,
+      ctx.automaticUpgradesTargetVersion,
+      ctx.isCloud,
+      ctx.isEnterprise,
+      ctx.storeUser.state.cluster,
+      isAppDiscoveryEnabled,
+      selectedCluster,
+    ]
+  );
 
   return (
     <Box maxWidth="1000px">
@@ -366,7 +373,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       )}
       {isManualHelmDialogShown && (
         <ManualHelmDialog
-          command={command}
+          setJoinTokenAndGetCommand={setJoinTokenAndGetCommand}
           cancel={() => setIsManualHelmDialogShown(false)}
           confirmedCommands={() => {
             setEnrollmentState({ status: 'awaitingAgent' });
@@ -377,7 +384,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       )}
       {isAgentWaitingDialogShown && (
         <AgentWaitingDialog
-          joinResourceId={waitingResourceId || joinToken.internalResourceId}
+          joinResourceId={waitingResourceId || joinToken?.internalResourceId}
           status={enrollmentState.status}
           clusterName={selectedCluster.name}
           updateWaitingResult={(result: Kube) => {

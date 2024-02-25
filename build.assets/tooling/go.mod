@@ -19,7 +19,7 @@ require (
 	golang.org/x/exp v0.0.0-20230811145659-89c5cff77bcb
 	golang.org/x/mod v0.15.0
 	golang.org/x/oauth2 v0.17.0
-	helm.sh/helm/v3 v3.14.1
+	helm.sh/helm/v3 v3.14.2
 	howett.net/plist v1.0.1
 	k8s.io/apiextensions-apiserver v0.29.2
 )

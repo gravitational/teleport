@@ -81,7 +81,7 @@ export function ConnectServerActionButton(props: {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />
@@ -167,7 +167,7 @@ export function ConnectDatabaseActionButton(props: {
         horizontal: 'right',
       }}
       anchorOrigin={{
-        vertical: 'center',
+        vertical: 'bottom',
         horizontal: 'right',
       }}
     />

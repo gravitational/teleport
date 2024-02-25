@@ -22,6 +22,7 @@
 var grpc = require('@grpc/grpc-js');
 var teleport_lib_teleterm_v1_service_pb = require('../../../../teleport/lib/teleterm/v1/service_pb.js');
 var teleport_accesslist_v1_accesslist_pb = require('../../../../teleport/accesslist/v1/accesslist_pb.js');
+var teleport_devicetrust_v1_device_web_token_pb = require('../../../../teleport/devicetrust/v1/device_web_token_pb.js');
 var teleport_lib_teleterm_v1_access_request_pb = require('../../../../teleport/lib/teleterm/v1/access_request_pb.js');
 var teleport_lib_teleterm_v1_app_pb = require('../../../../teleport/lib/teleterm/v1/app_pb.js');
 var teleport_lib_teleterm_v1_auth_settings_pb = require('../../../../teleport/lib/teleterm/v1/auth_settings_pb.js');
@@ -65,6 +66,28 @@ function serialize_teleport_lib_teleterm_v1_AuthSettings(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_AuthSettings(buffer_arg) {
   return teleport_lib_teleterm_v1_auth_settings_pb.AuthSettings.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_AuthenticateWebDeviceRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_AuthenticateWebDeviceRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_AuthenticateWebDeviceResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_AuthenticateWebDeviceResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_Cluster(arg) {
@@ -1326,6 +1349,22 @@ updateUserPreferences: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateUserPreferencesResponse,
+  },
+  // AuthenticateWebDevice blesses a web session with device trust by performing
+// the on-behalf-of device authentication ceremony.
+//
+// See
+// https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+authenticateWebDevice: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.AuthenticateWebDeviceResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_AuthenticateWebDeviceRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_AuthenticateWebDeviceRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_AuthenticateWebDeviceResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_AuthenticateWebDeviceResponse,
   },
 };
 

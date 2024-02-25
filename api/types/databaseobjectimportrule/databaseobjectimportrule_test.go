@@ -24,6 +24,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/label"
 )
 
 func TestNewDatabaseObjectImportRule(t *testing.T) {
@@ -35,8 +36,8 @@ func TestNewDatabaseObjectImportRule(t *testing.T) {
 		{
 			name: "valid rule",
 			spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-				DbLabels: types.Labels{"key": {"value"}}.ToProto(),
-				Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
+				DatabaseLabels: label.FromMap(map[string][]string{"key": {"value"}}),
+				Mappings:       []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
 			},
 			expectedError: nil,
 		},
@@ -71,8 +72,8 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 					Namespace: defaults.Namespace,
 				},
 				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-					DbLabels: types.Labels{"key": {"value"}}.ToProto(),
-					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
+					DatabaseLabels: label.FromMap(map[string][]string{"key": {"value"}}),
+					Mappings:       []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
 				},
 			},
 			expectedError: nil,
@@ -132,7 +133,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 			expectedError: trace.BadParameter("missing spec"),
 		},
 		{
-			name: "missing db_labels",
+			name: "missing database_labels",
 			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
 				Kind:    types.KindDatabaseObjectImportRule,
 				Version: types.V1,
@@ -144,7 +145,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
 				},
 			},
-			expectedError: trace.BadParameter("missing db_labels"),
+			expectedError: trace.BadParameter("missing database_labels"),
 		},
 		{
 			name: "missing mappings",
@@ -156,7 +157,7 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 					Namespace: defaults.Namespace,
 				},
 				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
-					DbLabels: types.Labels{"key": {"value"}}.ToProto(),
+					DatabaseLabels: label.FromMap(map[string][]string{"key": {"value"}}),
 				},
 			},
 			expectedError: trace.BadParameter("missing mappings"),
