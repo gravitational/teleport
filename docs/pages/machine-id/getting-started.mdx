@@ -202,6 +202,57 @@ Replace the following fields with values from your own cluster.
 
 </Tabs>
 
+### Optional: Configure MachineID as a systemd service
+
+Using the above example a configuration file for Machine ID would resemble the one below. The reference doc for Machine ID configuration can be found [here](./reference/configuration.mdx). 
+
+```code
+version: v2
+debug: true
+auth_server: "teleport.example.com:443" # or "example.teleport.sh:443" for Teleport Cloud
+certificate_ttl: "1h"
+renewal_interval: "20m"
+oneshot: false
+onboarding:
+  token: "abcd123-insecure-do-not-use-this"
+  join_method: "token"
+  ca_pins:
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: /opt/machine-id
+```
+
+The systemd unit file, placed at `/usr/lib/systemd/system/teleport-bot.service` as an example, would resemble the following.
+
+```code
+[Unit]
+Description=Teleport Machine ID Auth Service for Plugin
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/machine-id.pid
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+
+```code
+$ sudo systemctl enable teleport-bot
+$ sudo systemctl start teleport-bot
+```
+
 Now that Machine ID has successfully started, let's investigate the
 `/opt/machine-id` directory to see what was written to disk.
 
