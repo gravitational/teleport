@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MutableRefObject, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { NotificationItem } from 'shared/components/Notification';
 

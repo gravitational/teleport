@@ -139,7 +139,7 @@ export class KeyboardHandler {
  *
  * Events are either processed immediately, delayed, or cancelled based on user actions and focus changes.
  */
-class Withholder {
+export class Withholder {
   /**
    * The list of keys which are to be withheld.
    */
@@ -159,17 +159,11 @@ class Withholder {
   ) {
     const key = params.e.key;
 
-    // Wrap handleKeyboardEvent in a function that flushes
-    // any previously withheld keys, then calls handleKeyboardEvent.
-    const handler = (params: KeyboardEventParams) => {
+    // If this is not a key we withhold, immediately flush any withheld keys
+    // and handle this key.
+    if (!this.keysToWithhold.includes(key)) {
       this.flush();
       handleKeyboardEvent(params);
-    };
-
-    // If this is not a key we withhold, call handler immediately
-    // and return.
-    if (!this.keysToWithhold.includes(key)) {
-      handler(params);
       return;
     }
 
@@ -185,11 +179,22 @@ class Withholder {
       // timer times out, or when another key is pressed, or else it should be
       // cancelled onfocusout or on unmount.
       timeout = setTimeout(() => {
-        handler(params);
+        // Just flush after the timeout, the handler will
+        // be in the queue by then and thus will be called.
+        //
+        // Technically this might flush some keys that were
+        // pressed after this one, but that works okay in practice.
+        // A user would have to be doing something extremely unusual
+        // for this to become a noticeable problem.
+        this.flush();
       }, 10); // 10 ms was determined empirically to work well.
     }
 
-    this.withheldKeys.push({ params, handler, timeout });
+    this.withheldKeys.push({
+      params,
+      handler: handleKeyboardEvent,
+      timeout,
+    });
   }
 
   // Cancel all withheld keys.
