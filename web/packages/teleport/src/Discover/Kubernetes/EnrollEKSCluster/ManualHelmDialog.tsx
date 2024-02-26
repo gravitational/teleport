@@ -56,8 +56,7 @@ export default function Container(props: ManualHelmDialogProps) {
       <Suspense
         fallback={<FallbackDialog showSpinner={true} cancel={props.cancel} />}
       >
-        {/*<ManualHelmDialog {...props} />*/}
-        fallback={<FallbackDialog showSpinner={true} cancel={props.cancel} />}
+        <ManualHelmDialog {...props} />
       </Suspense>
     </CatchError>
   );
