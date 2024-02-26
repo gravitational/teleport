@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -40,10 +41,16 @@ type fakeAuth struct {
 }
 
 func (a fakeAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+	if !isDBUserGCPServiceAccount(sessionCtx.DatabaseUser) {
+		return "", trace.BadParameter("database user must be a service account")
+	}
 	return "iam-auth-token", nil
 }
 
 func (a fakeAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.Session) (string, error) {
+	if isDBUserGCPServiceAccount(sessionCtx.DatabaseUser) {
+		return "", trace.BadParameter("database user must not be a service account")
+	}
 	return "one-time-password", nil
 }
 
