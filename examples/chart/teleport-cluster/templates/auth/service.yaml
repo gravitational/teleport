@@ -9,6 +9,11 @@ metadata:
   annotations: {{- toYaml $auth.annotations.service | nindent 4 }}
 {{- end }}
 spec:
+{{- if .Values.enableProxyPeering}}
+  {{- with $auth.service.spec }}
+    {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}
   ports:
   - name: auth
     port: 3025
@@ -19,3 +24,6 @@ spec:
     targetPort: 3026
     protocol: TCP
   selector: {{- include "teleport-cluster.auth.selectorLabels" . | nindent 4 }}
+{{- if .Values.enableProxyPeering}}
+  type: {{ default "LoadBalancer" $auth.service.type }}
+{{- end }}
