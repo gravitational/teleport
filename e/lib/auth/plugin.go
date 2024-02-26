@@ -284,16 +284,11 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		return trace.Wrap(err)
 	}
 
-	accessListStorage, err := local.NewAccessListService(p.authServer.GetBackend(), p.authServer.AuthServer.GetClock())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	accessListSvc, err := accesslist.NewService(accesslist.ServiceConfig{
 		Authorizer:          p.authServer.Authorizer,
-		AccessLists:         accessListStorage,
+		AccessLists:         p.authServer.AuthServer,
 		LockGetter:          p.authServer.AuthServer,
-		AccessListReviews:   accessListStorage,
+		AccessListReviews:   p.authServer.AuthServer,
 		Emitter:             p.authServer.Emitter,
 		UsageEvents:         p.authServer.AuthServer,
 		UsageReporter:       p.authServer.AuthServer,
