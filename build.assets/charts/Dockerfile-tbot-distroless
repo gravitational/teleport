@@ -14,8 +14,7 @@ ARG TELEPORT_VERSION
 # TARGETARCH is supplied by the `buildx` mechanics
 ARG TARGETARCH
 ENV TELEPORT_DEB_FILE_NAME=teleport${TELEPORT_RELEASE_INFIX}_${TELEPORT_VERSION}_${TARGETARCH}.deb
-COPY $TELEPORT_DEB_FILE_NAME ./$TELEPORT_DEB_FILE_NAME
-RUN dpkg-deb -R $TELEPORT_DEB_FILE_NAME /opt/staging && \
+RUN --mount=type=bind,target=/ctx dpkg-deb -R /ctx/$TELEPORT_DEB_FILE_NAME /opt/staging && \
     mkdir -p /opt/staging/etc/teleport && \
     mkdir -p /opt/staging/var/lib/dpkg/status.d/ && \
     mv /opt/staging/DEBIAN/control /opt/staging/var/lib/dpkg/status.d/teleport && \
