@@ -64,25 +64,21 @@ type ServiceWrapper[T types.ResourceMetadata] struct {
 }
 
 // WithPrefix will return a service wrapper with the given parts appended to the backend prefix.
-func (s ServiceWrapper[T]) WithPrefix(parts ...string) (*ServiceWrapper[T], error) {
+func (s ServiceWrapper[T]) WithPrefix(parts ...string) *ServiceWrapper[T] {
 	if len(parts) == 0 {
-		return &s, nil
+		return &s
 	}
 
-	cfg := &ServiceConfig[resourceMetadataAdapter[T]]{
-		Backend:       s.service.backend,
-		ResourceKind:  s.service.resourceKind,
-		BackendPrefix: strings.Join(append([]string{s.service.backendPrefix}, parts...), string(backend.Separator)),
-		MarshalFunc:   s.service.marshalFunc,
-		UnmarshalFunc: s.service.unmarshalFunc,
+	return &ServiceWrapper[T]{
+		service: &Service[resourceMetadataAdapter[T]]{
+			backend:       s.service.backend,
+			resourceKind:  s.service.resourceKind,
+			pageLimit:     s.service.pageLimit,
+			backendPrefix: strings.Join(append([]string{s.service.backendPrefix}, parts...), string(backend.Separator)),
+			marshalFunc:   s.service.marshalFunc,
+			unmarshalFunc: s.service.unmarshalFunc,
+		},
 	}
-
-	service, err := NewService[resourceMetadataAdapter[T]](cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &ServiceWrapper[T]{service: service}, nil
 }
 
 // UpsertResource upserts a resource.
