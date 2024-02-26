@@ -73,7 +73,7 @@ describe('withholder', () => {
     expect(mockHandleKeyboardEvent).toHaveBeenNthCalledWith(3, enterDown);
   });
 
-  it('withholds and then handles Meta and Alt keys UP on a timer', () => {
+  it('withholds Meta/Alt UP and then handles them on a timer', () => {
     const metaParams = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.UP,
@@ -104,9 +104,9 @@ describe('withholder', () => {
       cli: new TdpClient('wss://socketAddr.gov'),
     };
     withholder.handleKeyboardEvent(metaParams, mockHandleKeyboardEvent);
+    expect((withholder as any).withheldKeys).toHaveLength(1);
 
     withholder.cancel();
-
     jest.advanceTimersByTime(10);
 
     expect(mockHandleKeyboardEvent).not.toHaveBeenCalled();
