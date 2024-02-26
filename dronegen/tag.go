@@ -69,6 +69,27 @@ func tagPipelines() []pipeline {
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
 		buildType:    buildType{os: "linux", fips: false},
 		trigger:      triggerTag,
+		pipelineName: "build-tbot-oci-distroless-images",
+		dependsOn: []string{
+			tagCleanupPipelineName,
+			"build-linux-amd64",
+			"build-linux-arm64",
+			"build-linux-arm",
+		},
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-tbot-oci-distroless.yml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+			},
+		},
+	}))
+
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerTag,
 		pipelineName: "build-teleport-hardened-amis",
 		dependsOn: []string{
 			tagCleanupPipelineName,
