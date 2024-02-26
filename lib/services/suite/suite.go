@@ -156,6 +156,18 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 				PrivateKey: keyBytes,
 			}},
 		}
+	case types.SPIFFECA:
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
+		// Generating keys is CPU intensive operation. Generate JWT keys only
+		// when needed.
+		publicKey, privateKey, err := testauthority.New().GenerateJWT()
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
+			PublicKey:  publicKey,
+			PrivateKey: privateKey,
+		}}
 	default:
 		panic("unknown CA type")
 	}
