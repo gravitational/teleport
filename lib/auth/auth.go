@@ -1226,7 +1226,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	skipControlPlane := modules.GetModules().Features().Cloud
 
 	// set up aggregators for our periodics
-	imp := newInstanceMetricsPeriodic()
 	uep := newUpgradeEnrollPeriodic()
 
 	// stream all instances to all aggregators
@@ -1239,7 +1238,6 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 			}
 		}
 
-		imp.VisitInstance(instances.Item())
 		uep.VisitInstance(instances.Item())
 	}
 
