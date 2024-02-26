@@ -276,11 +276,7 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := s.ClearCachedClientsForRoot(cluster.URI); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
 // CreateGateway creates a gateway to given targetURI
@@ -741,12 +737,7 @@ func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 		return trace.Wrap(err)
 	}
 
-	err = cluster.DeleteAccessRequest(ctx, proxyClient.CurrentCluster(), req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(cluster.DeleteAccessRequest(ctx, proxyClient.CurrentCluster(), req))
 }
 
 func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
@@ -760,14 +751,12 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		return trace.Wrap(err)
 	}
 
-	err = cluster.AssumeRole(ctx, proxyClient, req)
-	if err != nil {
+	if err := cluster.AssumeRole(ctx, proxyClient, req); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// We have to reconnect using the updated cert.
-	err = s.ClearCachedClientsForRoot(cluster.URI)
-	return trace.Wrap(err)
+	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination.
