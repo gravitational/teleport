@@ -178,6 +178,29 @@ message ProvisionTokenSpecV2TPM {
 }
 ```
 
+In YAML, this would look like:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: my-bot-token
+spec:
+  roles: ["Bot"]
+  bot_name: my-bot
+  join_method: tpm
+  tpm:
+    ekcert_allowed_ca: |
+      -----BEGIN CERTIFICATE-----
+      ... CA obtained from manufacturer ...
+      -----END CERTIFICATE-----
+    allow:
+    - hint: "kansas-build-server-100"
+      ekpub_hash: fc5a1047f5919892fcdf8aa79ea5d6bb6531b5c176939ef0110906cb225941c1
+    - hint: "london-build-server-42"
+      ekcert_serial: 73:df:dc:bd:af:ef:8a:d8:15:2e:96:71:7a:3e:7f:a4
+```
+
 ### `RegisterUsingTPMMethod` RPC
 
 A new streaming RPC will be added to the existing `JoinService`:
