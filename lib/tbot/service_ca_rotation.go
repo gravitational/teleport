@@ -133,6 +133,97 @@ type caRotationService struct {
 	cfg               *config.BotConfig
 	botIdentitySrc    botIdentitySrc
 	resolver          reversetunnelclient.Resolver
+
+	mu                     sync.RWMutex
+	cache                  map[types.CertAuthID]types.CertAuthority
+	initialCacheHydrated   bool
+	initialCacheHydratedCh chan struct{}
+}
+
+func (s *caRotationService) OneShot(ctx context.Context) error {
+	return s.hydrateCache(ctx)
+}
+
+func (s *caRotationService) hydrateCache(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ident := s.botIdentitySrc.BotIdentity()
+	client, err := clientForIdentity(ctx, s.log, s.cfg, ident, s.resolver)
+	if err != nil {
+		return trace.Wrap(err, "creating client for ca hydration")
+	}
+	defer client.Close()
+
+	if s.cache == nil {
+		s.cache = make(map[types.CertAuthID]types.CertAuthority)
+	}
+	for _, caType := range types.CertAuthTypes {
+		cas, err := client.GetCertAuthorities(ctx, caType, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, ca := range cas {
+			s.cache[ca.GetID()] = ca
+		}
+	}
+
+	if !s.initialCacheHydrated {
+		s.initialCacheHydrated = true
+		close(s.initialCacheHydratedCh)
+	}
+
+	return nil
+}
+
+func (s *caRotationService) GetCertAuthorities(
+	ctx context.Context, caType types.CertAuthType, loadKeys bool,
+) ([]types.CertAuthority, error) {
+	if loadKeys {
+		return nil, trace.BadParameter("loadKeys true is not supported")
+	}
+
+	// Wait for cache to be hydrated
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.initialCacheHydratedCh:
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var cas []types.CertAuthority
+	for _, ca := range s.cache {
+		if ca.GetType() == caType {
+			cas = append(cas, ca.Clone())
+		}
+	}
+
+	return cas, nil
+}
+
+func (s *caRotationService) GetCertAuthority(
+	ctx context.Context, id types.CertAuthID, loadKeys bool,
+) (types.CertAuthority, error) {
+	if loadKeys {
+		return nil, trace.BadParameter("loadKeys true is not supported")
+	}
+
+	// Wait for cache to be hydrated
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.initialCacheHydratedCh:
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ca, ok := s.cache[id]
+	if !ok {
+		return nil, trace.NotFound("CA %v not found", id)
+	}
+
+	return ca.Clone(), nil
 }
 
 func (s *caRotationService) String() string {
@@ -221,6 +312,17 @@ func (s *caRotationService) watchCARotations(ctx context.Context, queueReload fu
 				s.log.Infof("Started watching for CA rotations")
 				continue
 			}
+
+			ca, ok := event.Resource.(types.CertAuthority)
+			if !ok {
+				s.log.Errorf("event resource was not CertAuthority (%T)", event.Resource)
+				continue
+			}
+
+			// Update cache
+			s.mu.Lock()
+			s.cache[ca.GetID()] = ca.Clone()
+			s.mu.Unlock()
 
 			ignoreReason := filterCAEvent(s.log, event, clusterName)
 			if ignoreReason != "" {
