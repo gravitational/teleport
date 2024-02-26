@@ -254,7 +254,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --set proxyAddr=${PROXY?} \
   --set joinParams.method=iam \
   --set joinParams.tokenName=<Var name="kube-iam-token"/> \
-  --set serviceAccount.create=false  \
+  --set serviceAccount.create=false \
   --set serviceAccount.name=<Var name="teleport-kube-agent-sa"/> \
   --create-namespace \
   --namespace=<Var name="teleport-agent"/> \
