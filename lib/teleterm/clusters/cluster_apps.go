@@ -65,7 +65,7 @@ type AppOrSAMLIdPServiceProvider struct {
 }
 
 // GetApps returns a paginated apps list
-func (c *Cluster) GetApps(ctx context.Context, clt auth.ClientI, r *api.GetAppsRequest) (*GetAppsResponse, error) {
+func (c *Cluster) GetApps(ctx context.Context, authClient auth.ClientI, r *api.GetAppsRequest) (*GetAppsResponse, error) {
 	var (
 		page apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider]
 		err  error
@@ -83,7 +83,7 @@ func (c *Cluster) GetApps(ctx context.Context, clt auth.ClientI, r *api.GetAppsR
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		page, err = apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](ctx, clt, req)
+		page, err = apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](ctx, authClient, req)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -124,10 +124,10 @@ type GetAppsResponse struct {
 	TotalCount int
 }
 
-func (c *Cluster) getApp(ctx context.Context, clt auth.ClientI, appName string) (types.Application, error) {
+func (c *Cluster) getApp(ctx context.Context, authClient auth.ClientI, appName string) (types.Application, error) {
 	var app types.Application
 	err := AddMetadataToRetryableError(ctx, func() error {
-		apps, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
+		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
 			Namespace:           c.clusterClient.Namespace,
 			ResourceType:        types.KindAppServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),

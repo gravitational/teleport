@@ -47,11 +47,11 @@ type Database struct {
 }
 
 // GetDatabase returns a database
-func (c *Cluster) GetDatabase(ctx context.Context, clt auth.ClientI, dbURI uri.ResourceURI) (*Database, error) {
+func (c *Cluster) GetDatabase(ctx context.Context, authClient auth.ClientI, dbURI uri.ResourceURI) (*Database, error) {
 	var database types.Database
 	dbName := dbURI.GetDbName()
 	err := AddMetadataToRetryableError(ctx, func() error {
-		databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
+		databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, authClient, &proto.ListResourcesRequest{
 			Namespace:           c.clusterClient.Namespace,
 			ResourceType:        types.KindDatabaseServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
@@ -77,7 +77,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, clt auth.ClientI, dbURI uri.R
 	}, err
 }
 
-func (c *Cluster) GetDatabases(ctx context.Context, clt auth.ClientI, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
+func (c *Cluster) GetDatabases(ctx context.Context, authClient auth.ClientI, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
 	var (
 		page apiclient.ResourcePage[types.DatabaseServer]
 		err  error
@@ -95,7 +95,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, clt auth.ClientI, r *api.Get
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		page, err = apiclient.GetResourcePage[types.DatabaseServer](ctx, clt, req)
+		page, err = apiclient.GetResourcePage[types.DatabaseServer](ctx, authClient, req)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -158,18 +158,18 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, proxyClient *client.ProxyC
 }
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
-func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, clt auth.ClientI, dbURI string) ([]string, error) {
+func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, authClient auth.ClientI, dbURI string) ([]string, error) {
 	dbResourceURI, err := uri.ParseDBURI(dbURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.status.Cluster, clt)
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.status.Cluster, authClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	db, err := c.GetDatabase(ctx, clt, dbResourceURI)
+	db, err := c.GetDatabase(ctx, authClient, dbResourceURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

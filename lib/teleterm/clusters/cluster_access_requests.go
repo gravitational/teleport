@@ -46,7 +46,7 @@ type AccessRequest struct {
 }
 
 // GetAccessRequest returns a specific access request by ID and includes resource details
-func (c *Cluster) GetAccessRequest(ctx context.Context, clt auth.ClientI, req types.AccessRequestFilter) (*AccessRequest, error) {
+func (c *Cluster) GetAccessRequest(ctx context.Context, rootAuthClient auth.ClientI, req types.AccessRequestFilter) (*AccessRequest, error) {
 	var (
 		request         types.AccessRequest
 		resourceDetails map[string]ResourceDetails
@@ -54,7 +54,7 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, clt auth.ClientI, req ty
 	)
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		requests, err := clt.GetAccessRequests(ctx, req)
+		requests, err := rootAuthClient.GetAccessRequests(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -66,7 +66,7 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, clt auth.ClientI, req ty
 		}
 		request = requests[0]
 
-		resourceDetails, err = getResourceDetails(ctx, request, clt)
+		resourceDetails, err = getResourceDetails(ctx, request, rootAuthClient)
 
 		return err
 	})
@@ -82,13 +82,13 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, clt auth.ClientI, req ty
 }
 
 // Returns all access requests available to the user.
-func (c *Cluster) GetAccessRequests(ctx context.Context, clt auth.ClientI, req types.AccessRequestFilter) ([]AccessRequest, error) {
+func (c *Cluster) GetAccessRequests(ctx context.Context, rootAuthClient auth.ClientI, req types.AccessRequestFilter) ([]AccessRequest, error) {
 	var (
 		requests []types.AccessRequest
 		err      error
 	)
 	err = AddMetadataToRetryableError(ctx, func() error {
-		requests, err = clt.GetAccessRequests(ctx, req)
+		requests, err = rootAuthClient.GetAccessRequests(ctx, req)
 		return err
 	})
 	if err != nil {
@@ -107,7 +107,7 @@ func (c *Cluster) GetAccessRequests(ctx context.Context, clt auth.ClientI, req t
 }
 
 // Creates an access request.
-func (c *Cluster) CreateAccessRequest(ctx context.Context, clt auth.ClientI, req *api.CreateAccessRequestRequest) (*AccessRequest, error) {
+func (c *Cluster) CreateAccessRequest(ctx context.Context, rootAuthClient auth.ClientI, req *api.CreateAccessRequestRequest) (*AccessRequest, error) {
 	var (
 		err     error
 		request types.AccessRequest
@@ -138,7 +138,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, clt auth.ClientI, req
 
 	var reqOut types.AccessRequest
 	err = AddMetadataToRetryableError(ctx, func() error {
-		reqOut, err = clt.CreateAccessRequestV2(ctx, request)
+		reqOut, err = rootAuthClient.CreateAccessRequestV2(ctx, request)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -151,7 +151,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, clt auth.ClientI, req
 	}, nil
 }
 
-func (c *Cluster) ReviewAccessRequest(ctx context.Context, clt auth.ClientI, req *api.ReviewAccessRequestRequest) (*AccessRequest, error) {
+func (c *Cluster) ReviewAccessRequest(ctx context.Context, rootAuthClient auth.ClientI, req *api.ReviewAccessRequestRequest) (*AccessRequest, error) {
 	var (
 		err            error
 		updatedRequest types.AccessRequest
@@ -173,7 +173,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, clt auth.ClientI, req
 			},
 		}
 
-		updatedRequest, err = clt.SubmitAccessReview(ctx, reviewSubmission)
+		updatedRequest, err = rootAuthClient.SubmitAccessReview(ctx, reviewSubmission)
 
 		return trace.Wrap(err)
 	})
@@ -187,14 +187,14 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, clt auth.ClientI, req
 	}, nil
 }
 
-func (c *Cluster) DeleteAccessRequest(ctx context.Context, clt auth.ClientI, req *api.DeleteAccessRequestRequest) error {
+func (c *Cluster) DeleteAccessRequest(ctx context.Context, rootAuthClient auth.ClientI, req *api.DeleteAccessRequestRequest) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
-		return clt.DeleteAccessRequest(ctx, req.AccessRequestId)
+		return rootAuthClient.DeleteAccessRequest(ctx, req.AccessRequestId)
 	})
 	return trace.Wrap(err)
 }
 
-func (c *Cluster) AssumeRole(ctx context.Context, proxyClient *client.ProxyClient, req *api.AssumeRoleRequest) error {
+func (c *Cluster) AssumeRole(ctx context.Context, rootProxyClient *client.ProxyClient, req *api.AssumeRoleRequest) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
 		params := client.ReissueParams{
 			AccessRequests:     req.AccessRequestIds,
@@ -210,7 +210,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, proxyClient *client.ProxyClien
 		}
 		// When assuming a role, we want to drop all cached certs otherwise
 		// tsh will continue to use the old certs.
-		return proxyClient.ReissueUserCerts(ctx, client.CertCacheDrop, params)
+		return rootProxyClient.ReissueUserCerts(ctx, client.CertCacheDrop, params)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -220,12 +220,12 @@ func (c *Cluster) AssumeRole(ctx context.Context, proxyClient *client.ProxyClien
 	return trace.Wrap(err)
 }
 
-func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
+func getResourceDetails(ctx context.Context, req types.AccessRequest, rootAuthClient auth.ClientI) (map[string]ResourceDetails, error) {
 	resourceIDsByCluster := accessrequest.GetResourceIDsByCluster(req)
 
 	resourceDetails := make(map[string]ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
-		details, err := accessrequest.GetResourceDetails(ctx, clusterName, clt, resourceIDs)
+		details, err := accessrequest.GetResourceDetails(ctx, clusterName, rootAuthClient, resourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

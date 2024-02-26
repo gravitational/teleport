@@ -48,7 +48,7 @@ type Kube struct {
 }
 
 // GetKubes returns a paginated kubes list
-func (c *Cluster) GetKubes(ctx context.Context, clt auth.ClientI, r *api.GetKubesRequest) (*GetKubesResponse, error) {
+func (c *Cluster) GetKubes(ctx context.Context, authClient auth.ClientI, r *api.GetKubesRequest) (*GetKubesResponse, error) {
 	var (
 		page apiclient.ResourcePage[types.KubeCluster]
 		err  error
@@ -66,7 +66,7 @@ func (c *Cluster) GetKubes(ctx context.Context, clt auth.ClientI, r *api.GetKube
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		page, err = apiclient.GetResourcePage[types.KubeCluster](ctx, clt, req)
+		page, err = apiclient.GetResourcePage[types.KubeCluster](ctx, authClient, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -154,11 +154,11 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, proxyClient *client.Proxy
 	return cert, nil
 }
 
-func (c *Cluster) getKube(ctx context.Context, clt auth.ClientI, kubeCluster string) (types.KubeCluster, error) {
+func (c *Cluster) getKube(ctx context.Context, authClient auth.ClientI, kubeCluster string) (types.KubeCluster, error) {
 	var kubeClusters []types.KubeCluster
 	err := AddMetadataToRetryableError(ctx, func() error {
 		var err error
-		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, clt, proto.ListResourcesRequest{
+		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, authClient, proto.ListResourcesRequest{
 			PredicateExpression: fmt.Sprintf("name == %q", kubeCluster),
 		})
 

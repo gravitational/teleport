@@ -30,8 +30,8 @@ import (
 )
 
 // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
-func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context, clt auth.ClientI) (watcher types.Watcher, close func(), err error) {
-	watcher, err = clt.WatchPendingHeadlessAuthentications(ctx)
+func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context, rootAuthClient auth.ClientI) (watcher types.Watcher, close func(), err error) {
+	watcher, err = rootAuthClient.WatchPendingHeadlessAuthentications(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -44,7 +44,7 @@ func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context, clt a
 }
 
 // WatchHeadlessAuthentications watches the backend for headless authentication events for the user.
-func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context, clt auth.ClientI) (watcher types.Watcher, close func(), err error) {
+func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context, rootAuthClient auth.ClientI) (watcher types.Watcher, close func(), err error) {
 	watch := types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindHeadlessAuthentication,
@@ -54,7 +54,7 @@ func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context, clt auth.Cli
 		}},
 	}
 
-	watcher, err = clt.NewWatcher(ctx, watch)
+	watcher, err = rootAuthClient.NewWatcher(ctx, watch)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -68,12 +68,12 @@ func (c *Cluster) WatchHeadlessAuthentications(ctx context.Context, clt auth.Cli
 
 // UpdateHeadlessAuthenticationState updates the headless authentication matching the given id to the given state.
 // MFA will be prompted when updating to the approve state.
-func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, rootClt auth.ClientI, headlessID string, state types.HeadlessAuthenticationState) error {
+func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, rootAuthClient auth.ClientI, headlessID string, state types.HeadlessAuthenticationState) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
 		// If changing state to approved, create an MFA challenge and prompt for MFA.
 		var mfaResponse *proto.MFAAuthenticateResponse
 		if state == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED {
-			chall, err := rootClt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			chall, err := rootAuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 					ContextUser: &proto.ContextUser{},
 				},
@@ -91,7 +91,7 @@ func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, rootClt
 			}
 		}
 
-		err := rootClt.UpdateHeadlessAuthenticationState(ctx, headlessID, state, mfaResponse)
+		err := rootAuthClient.UpdateHeadlessAuthenticationState(ctx, headlessID, state, mfaResponse)
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)

@@ -42,13 +42,13 @@ type LeafCluster struct {
 }
 
 // GetLeafClusters returns leaf clusters
-func (c *Cluster) GetLeafClusters(ctx context.Context, proxyClient *client.ProxyClient) ([]LeafCluster, error) {
+func (c *Cluster) GetLeafClusters(ctx context.Context, rootProxyClient *client.ProxyClient) ([]LeafCluster, error) {
 	var (
 		remoteClusters []types.RemoteCluster
 		err            error
 	)
 	err = AddMetadataToRetryableError(ctx, func() error {
-		remoteClusters, err = proxyClient.GetLeafClusters(ctx)
+		remoteClusters, err = rootProxyClient.GetLeafClusters(ctx)
 		return trace.Wrap(err)
 	})
 	if err != nil {

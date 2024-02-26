@@ -146,15 +146,15 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		clt := proxyClient.CurrentCluster()
+		authClient := proxyClient.CurrentCluster()
 
-		pendingWatcher, closePendingWatcher, err := rootCluster.WatchPendingHeadlessAuthentications(watchCtx, clt)
+		pendingWatcher, closePendingWatcher, err := rootCluster.WatchPendingHeadlessAuthentications(watchCtx, authClient)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer closePendingWatcher()
 
-		resolutionWatcher, closeResolutionWatcher, err := rootCluster.WatchHeadlessAuthentications(watchCtx, clt)
+		resolutionWatcher, closeResolutionWatcher, err := rootCluster.WatchHeadlessAuthentications(watchCtx, authClient)
 		if err != nil {
 			return trace.Wrap(err)
 		}
