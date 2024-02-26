@@ -9,10 +9,8 @@ import * as jspb from "google-protobuf";
 export class Label extends jspb.Message { 
     getName(): string;
     setName(value: string): Label;
-
     getValue(): string;
     setValue(value: string): Label;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Label.AsObject;

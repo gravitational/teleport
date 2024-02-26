@@ -13,33 +13,24 @@ export class DeviceProfile extends jspb.Message {
     clearUpdateTime(): void;
     getUpdateTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setUpdateTime(value?: google_protobuf_timestamp_pb.Timestamp): DeviceProfile;
-
     getModelIdentifier(): string;
     setModelIdentifier(value: string): DeviceProfile;
-
     getOsVersion(): string;
     setOsVersion(value: string): DeviceProfile;
-
     getOsBuild(): string;
     setOsBuild(value: string): DeviceProfile;
-
     clearOsUsernamesList(): void;
     getOsUsernamesList(): Array<string>;
     setOsUsernamesList(value: Array<string>): DeviceProfile;
     addOsUsernames(value: string, index?: number): string;
-
     getJamfBinaryVersion(): string;
     setJamfBinaryVersion(value: string): DeviceProfile;
-
     getExternalId(): string;
     setExternalId(value: string): DeviceProfile;
-
     getOsBuildSupplemental(): string;
     setOsBuildSupplemental(value: string): DeviceProfile;
-
     getOsId(): string;
     setOsId(value: string): DeviceProfile;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeviceProfile.AsObject;

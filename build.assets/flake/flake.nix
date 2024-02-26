@@ -46,7 +46,7 @@
           # These versions are not available from nixpkgs
           gogoVersion = "v1.3.2";
           helmUnittestVersion = "v1.0.16";
-          nodeProtocTsVersion = "v5.0.1";
+          nodeProtocTsVersion = "v5.3.2";
           grpcToolsVersion = "1.12.4";
           libpcscliteVersion = "1.9.9-teleport";
 
