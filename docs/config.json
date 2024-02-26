@@ -780,6 +780,10 @@
               "slug": "/management/operations/ca-rotation/"
             },
             {
+              "title": "Database Cert Authority Rotation",
+              "slug": "/management/operations/db-ca-rotation/"
+            },
+            {
               "title": "TLS Routing Migration",
               "slug": "/management/operations/tls-routing/",
               "forScopes": [
@@ -809,6 +813,10 @@
                 "cloud",
                 "team"
               ]
+            },
+            {
+              "title": "Database CA Migrations",
+              "slug": "/management/operations/db-ca-migrations/"
             }
           ]
         },
