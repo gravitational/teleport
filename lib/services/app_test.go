@@ -267,9 +267,10 @@ headers:
 
 func TestGetAppLabels(t *testing.T) {
 	tests := []struct {
-		labels      map[string]string
-		clusterName string
-		expected    map[string]string
+		labels        map[string]string
+		static_labels map[string]string
+		clusterName   string
+		expected      map[string]string
 	}{
 		{
 			labels:      map[string]string{"label1": "value1"},
@@ -277,14 +278,15 @@ func TestGetAppLabels(t *testing.T) {
 			expected:    map[string]string{"label1": "value1", types.KubernetesClusterLabel: "cluster1"},
 		},
 		{
-			labels:      map[string]string{"label1": "value1", "label2": "value2"},
-			clusterName: "cluster2",
-			expected:    map[string]string{"label1": "value1", "label2": "value2", types.KubernetesClusterLabel: "cluster2"},
+			labels:        map[string]string{"label1": "value1", "label2": "value2"},
+			static_labels: map[string]string{"env": "dev"},
+			clusterName:   "cluster2",
+			expected:      map[string]string{"label1": "value1", "label2": "value2", "env": "dev", types.KubernetesClusterLabel: "cluster2"},
 		},
 	}
 
 	for _, tt := range tests {
-		result, err := getAppLabels(tt.labels, tt.clusterName)
+		result, err := getAppLabels(tt.labels, tt.static_labels, tt.clusterName)
 		require.NoError(t, err)
 
 		require.Equal(t, tt.expected, result)
