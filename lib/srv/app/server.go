@@ -777,7 +777,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 
 	// Add user certificate into the context after the monitor connection
 	// initialization to ensure value is present on the context.
-	ctx = authz.ContextWithUserCertificate(ctx, certFromConn(tlsConn))
+	ctx = authz.ContextWithUserCertificate(ctx, leafCertFromConn(tlsConn))
 
 	// Application access supports plain TCP connections which are handled
 	// differently than HTTP requests from web apps.
@@ -1204,8 +1204,8 @@ func newGetConfigForClientFn(log logrus.FieldLogger, client auth.AccessCache, tl
 	}
 }
 
-// certFromConnState returns the leaf certificate from the connection.
-func certFromConn(tlsConn *tls.Conn) *x509.Certificate {
+// leafCertFromConn returns the leaf certificate from the connection.
+func leafCertFromConn(tlsConn *tls.Conn) *x509.Certificate {
 	state := tlsConn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
 		return nil

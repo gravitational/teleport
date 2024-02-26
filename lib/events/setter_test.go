@@ -18,6 +18,7 @@ package events
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
@@ -44,7 +45,7 @@ func TestPreparerIncrementalIndex(t *testing.T) {
 }
 
 func TestPreparerTimeBasedIndex(t *testing.T) {
-	clock := clockwork.NewRealClock()
+	clock := clockwork.NewFakeClock()
 	preparer, err := NewPreparer(PreparerConfig{
 		SessionID:   session.NewID(),
 		ServerID:    uuid.New().String(),
@@ -56,6 +57,7 @@ func TestPreparerTimeBasedIndex(t *testing.T) {
 
 	var lastIndex int64
 	for i := 0; i < 9; i++ {
+		clock.Advance(time.Second)
 		e, err := preparer.PrepareSessionEvent(generateEvent())
 		require.NoError(t, err)
 		require.Greater(t, e.GetAuditEvent().GetIndex(), lastIndex, "expected a larger index")
@@ -67,7 +69,7 @@ func TestPreparerTimeBasedIndexCollisions(t *testing.T) {
 	serverID := uuid.New().String()
 	sessionID := session.NewID()
 	clusterName := "root"
-	clock := clockwork.NewRealClock()
+	clock := clockwork.NewFakeClock()
 	loginTime := clock.Now()
 
 	preparerOne, err := NewPreparer(PreparerConfig{
@@ -89,10 +91,12 @@ func TestPreparerTimeBasedIndexCollisions(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 9; i++ {
+		clock.Advance(time.Second)
 		evtOne, err := preparerOne.PrepareSessionEvent(generateEvent())
 		require.NoError(t, err)
 		idxOne := evtOne.GetAuditEvent().GetIndex()
 
+		clock.Advance(time.Second)
 		evtTwo, err := preparerTwo.PrepareSessionEvent(generateEvent())
 		require.NoError(t, err)
 		idxTwo := evtTwo.GetAuditEvent().GetIndex()
