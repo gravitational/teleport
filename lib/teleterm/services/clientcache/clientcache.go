@@ -46,12 +46,12 @@ type Cache struct {
 // Config describes the client cache configuration.
 type Config struct {
 	Resolver clusters.Resolver
-	Log      *logrus.Entry
+	Log      logrus.FieldLogger
 }
 
 func (c *Config) checkAndSetDefaults() {
 	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "Client cache")
+		c.Log = logrus.WithField(trace.Component, "clientcache")
 	}
 }
 
