@@ -298,7 +298,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       {fetchClustersAttempt.status === 'failed' && !hasIamPermError && (
         <Danger mt={3}>{fetchClustersAttempt.statusText}</Danger>
       )}
-      <Text mt={4} mb={-3}>
+      <Text mt={4}>
         <b>Note:</b> EKS enrollment will work only with clusters that have
         access entries authentication mode enabled, see{' '}
         <Link
@@ -309,7 +309,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
           documentation.
         </Link>
       </Text>
-      <Text mt={4}>
+      <Text mt={1}>
         Select the AWS Region you would like to see EKS clusters for:
       </Text>
       <AwsRegionSelector
