@@ -1567,6 +1567,17 @@ export const formatters: Formatters = {
     format: ({ name, source, user }) =>
       `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
   },
+  [eventCodes.OKTA_USER_SYNC]: {
+    type: 'okta.user.sync',
+    desc: 'Okta user synchronization completed',
+    format: ({ num_users_created, num_users_modified, num_users_deleted }) =>
+      `[${num_users_created}] users added, [${num_users_modified}] users updated, [${num_users_deleted}] users deleted`,
+  },
+  [eventCodes.OKTA_USER_SYNC_FAILURE]: {
+    type: 'okta.user.sync',
+    desc: 'Okta user synchronization failed',
+    format: () => `Okta user synchronization failed`,
+  },
   [eventCodes.OKTA_ACCESS_LIST_SYNC]: {
     type: 'okta.access_list.sync',
     desc: 'Okta access list synchronization completed',
@@ -1711,6 +1722,18 @@ export const formatters: Formatters = {
     desc: 'External Audit Storage Disabled',
     format: ({ updated_by }) =>
       `User [${updated_by}] disabled External Audit Storage`,
+  },
+  [eventCodes.SPIFFE_SVID_ISSUED]: {
+    type: 'spiffe.svid.issued',
+    desc: 'SPIFFE SVID Issued',
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] issued SPIFFE SVID [${spiffe_id}]`,
+  },
+  [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: {
+    type: 'spiffe.svid.issued',
+    desc: 'SPIFFE SVID Issued Failure',
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

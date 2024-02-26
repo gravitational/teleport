@@ -51,6 +51,7 @@ function TdpClientCanvas(props: Props) {
     canvasOnMouseWheelScroll,
     canvasOnContextMenu,
     style,
+    updatePointer,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -97,6 +98,44 @@ function TdpClientCanvas(props: Props) {
       };
     }
   }, [client, clientOnPngFrame]);
+
+  const previousCursor = useRef('auto');
+
+  useEffect(() => {
+    if (client && updatePointer) {
+      const canvas = canvasRef.current;
+      const updatePointer = (pointer: {
+        data: ImageData | boolean;
+        hotspot_x?: number;
+        hotspot_y?: number;
+      }) => {
+        if (typeof pointer.data === 'boolean') {
+          if (pointer.data) {
+            canvas.style.cursor = previousCursor.current;
+          } else {
+            previousCursor.current = canvas.style.cursor;
+            canvas.style.cursor = 'none';
+          }
+          return;
+        }
+        const cursor = document.createElement('canvas');
+        cursor.width = pointer.data.width;
+        cursor.height = pointer.data.height;
+        cursor
+          .getContext('2d', { colorSpace: pointer.data.colorSpace })
+          .putImageData(pointer.data, 0, 0);
+        canvas.style.cursor = `url(${cursor.toDataURL()}) ${
+          pointer.hotspot_x
+        } ${pointer.hotspot_y}, auto`;
+      };
+
+      client.addListener(TdpClientEvent.POINTER, updatePointer);
+
+      return () => {
+        client.removeListener(TdpClientEvent.POINTER, updatePointer);
+      };
+    }
+  }, [client, updatePointer]);
 
   useEffect(() => {
     if (client && clientOnBmpFrame) {
@@ -401,6 +440,7 @@ export type Props = {
   canvasOnMouseWheelScroll?: (cli: TdpClient, e: WheelEvent) => void;
   canvasOnContextMenu?: () => boolean;
   style?: CSSProperties;
+  updatePointer?: boolean;
 };
 
 export default memo(TdpClientCanvas);

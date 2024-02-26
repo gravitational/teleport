@@ -24,7 +24,7 @@ NAMESPACE='teleport'
 RELEASE_NAME='teleport'
 MYZONE_DNS="${ROUTE53_ZONE}"
 MYDNS="${CLUSTER_NAME}.${ROUTE53_ZONE}"
-MY_CLUSTER_REGION="${AWS_REGION}"
+MY_CLUSTER_REGION="${REGION}"
 MYZONE="$(aws route53 list-hosted-zones-by-name --dns-name="${MYZONE_DNS?}" | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)"
 MYELB="$(kubectl --namespace "${NAMESPACE?}" get "service/${RELEASE_NAME?}" -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')"
 MYELB_NAME="${MYELB%%-*}"

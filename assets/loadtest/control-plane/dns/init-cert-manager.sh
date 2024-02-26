@@ -26,7 +26,7 @@ spec:
           - ${ROUTE53_ZONE}
       dns01:
         route53:
-          region: ${AWS_REGION}
+          region: ${REGION}
           hostedZoneID: ${ROUTE53_ZONE_ID}
 EOF
 

@@ -631,6 +631,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_OktaAccessListSync{
 			OktaAccessListSync: e,
 		}
+	case *OktaUserSync:
+		out.Event = &OneOf_OktaUserSync{
+			OktaUserSync: e,
+		}
+	case *SPIFFESVIDIssued:
+		out.Event = &OneOf_SPIFFESVIDIssued{
+			SPIFFESVIDIssued: e,
+		}
 
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

@@ -1553,6 +1553,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		tc.Stdout = person
 		tc.Stdin = person
 
+		//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
 		clt, err := tc.ConnectToProxy(ctx)
 		require.NoError(t, err)
 		defer clt.Close()
@@ -1676,6 +1677,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		})
 		require.NoError(t, err)
 
+		//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
 		clt, err := tc.ConnectToProxy(ctx)
 		require.NoError(t, err)
 		defer clt.Close()
@@ -8433,6 +8435,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 			// connect via SSH
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
+			//nolint:staticcheck // SA1019. This test is meant to exercise the SSH connection path as long as it exists.
 			pc, err := tc.ConnectToProxy(ctx)
 			require.NoError(t, err)
 			require.NoError(t, pc.Close())

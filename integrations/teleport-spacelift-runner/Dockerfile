@@ -1,7 +1,7 @@
 ARG BUILDBOX
 ARG BASE_IMAGE
 
-FROM $BUILDBOX as builder
+FROM $BUILDBOX-$TARGETARCH as builder
 
 WORKDIR /workspace
 

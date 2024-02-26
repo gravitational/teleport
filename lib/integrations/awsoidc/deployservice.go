@@ -54,9 +54,6 @@ var (
 )
 
 const (
-	// defaultTeleportIAMTokenName is the default Teleport IAM Token to use when it's not specified.
-	defaultTeleportIAMTokenName = "discover-aws-oidc-iam-token"
-
 	// distrolessTeleportOSS is the distroless image of the OSS version of Teleport
 	distrolessTeleportOSS = "public.ecr.aws/gravitational/teleport-distroless"
 	// distrolessTeleportEnt is the distroless image of the Enterprise version of Teleport
@@ -135,13 +132,8 @@ type DeployServiceRequest struct {
 	// TeleportClusterName is the Teleport Cluster Name, used to create default names for Cluster, Service and Task.
 	TeleportClusterName string
 
-	// TeleportIAMTokenNameis the Teleport IAM Token to use in the deployed Service.
-	// Optional.
-	// Defaults to discover-aws-oidc-iam-token
-	TeleportIAMTokenName string
-
-	// ProxyServerHostPort is the Teleport Proxy's Public.
-	ProxyServerHostPort string
+	// DeploymentJoinTokenName is the Teleport IAM Token to use in the deployed Service.
+	DeploymentJoinTokenName string
 
 	// IntegrationName is the integration name.
 	// Used for resource tagging when creating resources in AWS.
@@ -153,10 +145,6 @@ type DeployServiceRequest struct {
 	// DeploymentMode is the identifier of a deployment mode - which Teleport Services to enable and their configuration.
 	DeploymentMode string
 
-	// DatabaseResourceMatcherLabels contains the set of labels to be used by the DatabaseService.
-	// This is used when the deployment mode creates a Database Service.
-	DatabaseResourceMatcherLabels types.Labels
-
 	// TeleportVersionTag is the version of teleport to install.
 	// Ensure the tag exists in:
 	// public.ecr.aws/gravitational/teleport-distroless:<TeleportVersionTag>
@@ -164,9 +152,9 @@ type DeployServiceRequest struct {
 	// Optional. Defaults to the current version.
 	TeleportVersionTag string
 
-	// DeployServiceConfigString creates a teleport.yaml configuration that the agent
-	// deployed in a ECS Cluster (using Fargate) will use.
-	DeployServiceConfigString func(proxyHostPort, iamToken string, resourceMatcherLabels types.Labels) (string, error)
+	// TeleportConfigString is the `teleport.yaml` configuration for the service to be deployed.
+	// It should be base64 encoded as is expected by the `--config-string` param of `teleport start`.
+	TeleportConfigString string
 }
 
 // normalizeECSResourceName converts a name into a valid ECS Resource Name.
@@ -217,8 +205,8 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		r.TeleportVersionTag = teleport.Version
 	}
 
-	if r.TeleportIAMTokenName == "" {
-		r.TeleportIAMTokenName = defaultTeleportIAMTokenName
+	if r.DeploymentJoinTokenName == "" {
+		return trace.BadParameter("deployment join token name is required")
 	}
 
 	if r.DeploymentMode == "" {
@@ -256,10 +244,6 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		r.TaskName = &taskName
 	}
 
-	if r.ProxyServerHostPort == "" {
-		return trace.BadParameter("proxy address is required")
-	}
-
 	if r.IntegrationName == "" {
 		return trace.BadParameter("integration name is required")
 	}
@@ -268,12 +252,8 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
-	if len(r.DatabaseResourceMatcherLabels) == 0 {
-		return trace.BadParameter("at least one agent matcher label is required")
-	}
-
-	if r.DeployServiceConfigString == nil {
-		return trace.BadParameter("deploy service config is required")
+	if r.TeleportConfigString == "" {
+		return trace.BadParameter("teleport config string is required")
 	}
 
 	return nil
@@ -431,18 +411,13 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 	}
 
 	upsertTokenReq := upsertIAMJoinTokenRequest{
-		tokenName:      req.TeleportIAMTokenName,
+		tokenName:      req.DeploymentJoinTokenName,
 		accountID:      req.AccountID,
 		region:         req.Region,
 		iamRole:        req.TaskRoleARN,
 		deploymentMode: req.DeploymentMode,
 	}
 	if err := upsertIAMJoinToken(ctx, upsertTokenReq, clt); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	teleportConfigString, err := req.DeployServiceConfigString(req.ProxyServerHostPort, req.TeleportIAMTokenName, req.DatabaseResourceMatcherLabels)
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -454,7 +429,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		TeleportVersionTag:   req.TeleportVersionTag,
 		ResourceCreationTags: req.ResourceCreationTags,
 		Region:               req.Region,
-		TeleportConfigB64:    teleportConfigString,
+		TeleportConfigB64:    req.TeleportConfigString,
 	}
 	taskDefinition, err := upsertTask(ctx, clt, upsertTaskReq)
 	if err != nil {

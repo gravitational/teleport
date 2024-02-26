@@ -2640,7 +2640,7 @@ export const events = [
   },
   {
     cluster_name: 'im-a-cluster-name',
-    code: 'TV001I',
+    code: 'TV005I',
     device: {
       asset_tag: 'M2CQVQV64R',
       device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
@@ -2654,64 +2654,7 @@ export const events = [
     time: '2023-01-12T19:28:36.842Z',
     uid: '94d33b77-82cd-4558-8893-0320699bf755',
     user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV002I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: true,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV003I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: true,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV004I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: true,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+      user: 'this user wont render properly',
     },
   },
   {
@@ -2730,45 +2673,7 @@ export const events = [
     time: '2023-01-12T19:28:36.842Z',
     uid: '94d33b77-82cd-4558-8893-0320699bf755',
     user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV006I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: false,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV007I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: true,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+      user: 'this user wont render properly',
     },
   },
   {
@@ -3121,6 +3026,19 @@ export const events = [
     user: 'mike',
   },
   {
+    code: 'TOK007I',
+    event: 'okta.user.sync',
+    time: '2023-05-08T19:21:36.144Z',
+    num_users_created: 5,
+    num_users_deleted: 1,
+    num_users_modified: 7,
+  },
+  {
+    code: 'TOK007E',
+    event: 'okta.user.sync',
+    time: '2023-05-08T19:21:36.144Z',
+  },
+  {
     code: 'TOK006I',
     event: 'okta.access_list.sync',
     time: '2023-05-08T19:21:36.144Z',
@@ -3324,6 +3242,23 @@ export const events = [
     time: '2023-12-08T10:53:39.798Z',
     uid: '0efbb33d-fa50-44e0-8dec-4ac89c0dd4ab',
     user: 'noah',
+  },
+  {
+    'addr.remote': '127.0.0.1:54378',
+    cluster_name: 'leaf.tele.ottr.sh',
+    code: 'TSPIFFE000I',
+    dns_sans: null,
+    ei: 0,
+    event: 'spiffe.svid.issued',
+    hint: '',
+    ip_sans: null,
+    serial_number: 'd1:e5:fc:bf:19:67:e7:8c:7a:21:37:b5:05:ea:77:41',
+    spiffe_id: 'spiffe://example.teleport.com/bar',
+    svid_type: 'x509',
+    time: '2024-02-02T15:48:25.35Z',
+    uid: '45e13afc-0890-4ffb-b125-99d93c26d7de',
+    user: 'bot-test12',
+    user_kind: 2,
   },
 ].map(makeEvent);
 
