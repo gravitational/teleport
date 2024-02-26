@@ -2169,7 +2169,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 			return nil, trace.Wrap(err)
 		}
 
-		return newSFTPSubsys()
+		return newSFTPSubsys(ctx.GetApprovedFileTransferRequest())
 	default:
 		return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
 	}

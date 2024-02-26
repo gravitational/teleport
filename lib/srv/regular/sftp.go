@@ -21,6 +21,7 @@ package regular
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -44,18 +45,20 @@ import (
 const copyingGoroutines = 2
 
 type sftpSubsys struct {
-	sftpCmd   *exec.Cmd
-	serverCtx *srv.ServerContext
-	errCh     chan error
-	log       *logrus.Entry
+	log *logrus.Entry
+
+	fileTransferReq *srv.FileTransferRequest
+	sftpCmd         *exec.Cmd
+	serverCtx       *srv.ServerContext
+	errCh           chan error
 }
 
-func newSFTPSubsys() (*sftpSubsys, error) {
-	// TODO: add prometheus collectors?
+func newSFTPSubsys(fileTransferReq *srv.FileTransferRequest) (*sftpSubsys, error) {
 	return &sftpSubsys{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentSubsystemSFTP,
 		}),
+		fileTransferReq: fileTransferReq,
 	}, nil
 }
 
@@ -127,8 +130,21 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO: put in cgroup?
 	execRequest.Continue()
+
+	// Send the file transfer request if applicable
+	encodedReq := []byte{0x0}
+	if s.fileTransferReq != nil {
+		encodedReq, err = json.Marshal(s.fileTransferReq)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		encodedReq = append(encodedReq, 0x0)
+	}
+	_, err = chReadPipeIn.Write(encodedReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Copy the SSH channel to and from the anonymous pipes
 	s.errCh = make(chan error, copyingGoroutines)
