@@ -362,7 +362,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
                 }}
                 pl={0}
               >
-                Or do manual enrollment
+                Or enroll manually
               </ButtonText>
             </Box>
           </StyledBox>
