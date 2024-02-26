@@ -2024,6 +2024,11 @@ func (a *ServerWithRoles) GetTokens(ctx context.Context) ([]types.ProvisionToken
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.GetTokens(ctx)
 }
 
@@ -2035,6 +2040,11 @@ func (a *ServerWithRoles) GetToken(ctx context.Context, token string) (types.Pro
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.GetToken(ctx, token)
 }
 
