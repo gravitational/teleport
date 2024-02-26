@@ -6336,6 +6336,11 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 // CreatePrivilegeToken is implemented by AuthService.CreatePrivilegeToken.
 func (a *ServerWithRoles) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
 	// Device trust: authorize device before issuing a privileged token without an MFA response.
+	//
+	// This is an exceptional case for that that results in a "privilege_exception" token, which can
+	// used to register a user's first MFA device thorugh the WebUI. Since a register challenge can
+	// be created on behalf of the user using this token (e.g. by the Proxy Service), we must enforce
+	// the device trust requirement seen in [CreatePrivilegeToken] here instead.
 	if mfaResp := req.GetExistingMFAResponse(); mfaResp.GetTOTP() == nil && mfaResp.GetWebauthn() == nil {
 		if err := a.enforceGlobalModeTrustedDevice(ctx); err != nil {
 			return nil, trace.Wrap(err, "device trust is required for users to create a privileged token without an MFA check")
@@ -6353,6 +6358,7 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 		}
 
 		// Device trust: authorize device before issuing a register challenge without an MFA response or privilege token.
+		// This is an exceptional case for users registering their first MFA challenge through `tsh`.
 		if mfaResp := req.GetExistingMFAResponse(); mfaResp.GetTOTP() == nil && mfaResp.GetWebauthn() == nil {
 			if err := a.enforceGlobalModeTrustedDevice(ctx); err != nil {
 				return nil, trace.Wrap(err, "device trust is required for users to register their first MFA device")
