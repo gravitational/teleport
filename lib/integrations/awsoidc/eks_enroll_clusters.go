@@ -62,13 +62,14 @@ const (
 	// We use cluster admin policy to create namespace and cluster role.
 	eksClusterAdminPolicy = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
 
-	agentRepoURL                = "https://charts.releases.teleport.dev"
 	agentNamespace              = "teleport-agent"
 	agentName                   = "teleport-kube-agent"
 	awsKubePrefix               = "k8s-aws-v1."
 	awsHeaderClusterName        = "x-k8s-aws-id"
 	concurrentEKSEnrollingLimit = 5
 )
+
+var agentRepoURL = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
 // otherwise it will contain an error happened during enrollment.
@@ -491,21 +492,18 @@ type installKubeAgentParams struct {
 	log          logrus.FieldLogger
 }
 
-func getChartURL(version string) (*url.URL, error) {
-	u, err := url.Parse(fmt.Sprintf("%s/%s-%s.tgz", agentRepoURL, agentName, version))
-	if err != nil {
-		return nil, err
+func getChartURL(version string) *url.URL {
+	return &url.URL{
+		Scheme: agentRepoURL.Scheme,
+		Host:   agentRepoURL.Host,
+		Path:   fmt.Sprintf("%s-%s.tgz", agentName, version),
 	}
-	return u, err
 }
 
 // getChartData returns kube agent Helm chart data ready to be used by Helm SDK. We don't use native Helm
 // chart downloading because it tends to save temporary files and here we do everything just in memory.
 func getChartData(version string) (*chart.Chart, error) {
-	chartURL, err := getChartURL(version)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	chartURL := getChartURL(version)
 
 	g, err := getter.All(helmCli.New()).ByScheme(chartURL.Scheme)
 	if err != nil {
@@ -528,7 +526,7 @@ func getChartData(version string) (*chart.Chart, error) {
 // installKubeAgent installs teleport-kube-agent chart to the target EKS cluster.
 func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	installCmd := action.NewInstall(cfg.actionConfig)
-	installCmd.RepoURL = agentRepoURL
+	installCmd.RepoURL = agentRepoURL.String()
 	installCmd.Version = cfg.req.AgentVersion
 	if strings.Contains(installCmd.Version, "dev") {
 		installCmd.Version = "" // For testing during development.

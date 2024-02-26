@@ -61,9 +61,7 @@ func TestGetChartUrl(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		result, err := getChartURL(tt.version)
-		require.NoError(t, err)
-		require.Equal(t, tt.expected, result.String())
+		require.Equal(t, tt.expected, getChartURL(tt.version).String())
 	}
 }
 
