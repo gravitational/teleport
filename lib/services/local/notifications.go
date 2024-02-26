@@ -41,7 +41,6 @@ type NotificationsService struct {
 	globalNotificationService       *generic.ServiceWrapper[*notificationsv1.GlobalNotification]
 	userNotificationStateService    *generic.ServiceWrapper[*notificationsv1.UserNotificationState]
 	userLastSeenNotificationService *generic.ServiceWrapper[*notificationsv1.UserLastSeenNotification]
-	getUser                         func(ctx context.Context, user string, withSecrets bool) (types.User, *userItems, error)
 }
 
 // NewNotificationsService returns a new instance of the NotificationService.
@@ -71,7 +70,6 @@ func NewNotificationsService(backend backend.Backend) (*NotificationsService, er
 		globalNotificationService:       globalNotificationService,
 		userNotificationStateService:    userNotificationStateService,
 		userLastSeenNotificationService: userLastSeenNotificationService,
-		getUser:                         NewIdentityService(backend).getUser,
 	}, nil
 }
 
@@ -84,11 +82,6 @@ func (s *NotificationsService) ListNotificationsForUser(ctx context.Context) ([]
 // CreateUserNotification creates a user-specific notification.
 func (s *NotificationsService) CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
 	if err := services.ValidateNotification(notification); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Verify that the user exists.
-	if _, _, err := s.getUser(ctx, username, false); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -116,10 +109,7 @@ func (s *NotificationsService) CreateUserNotification(ctx context.Context, usern
 	notification.Spec.Created = timestamppb.New(time.Now())
 
 	// Append username prefix.
-	serviceWithPrefix, err := s.userNotificationService.WithPrefix(username)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	serviceWithPrefix := s.userNotificationService.WithPrefix(username)
 
 	created, err := serviceWithPrefix.CreateResource(ctx, notification)
 	return created, trace.Wrap(err)
@@ -128,23 +118,17 @@ func (s *NotificationsService) CreateUserNotification(ctx context.Context, usern
 // DeleteUserNotification deletes a user-specific notification.
 func (s *NotificationsService) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
 	// Append username prefix.
-	serviceWithPrefix, err := s.userNotificationService.WithPrefix(username)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	serviceWithPrefix := s.userNotificationService.WithPrefix(username)
 
 	// Delete the notification
-	if err = serviceWithPrefix.DeleteResource(ctx, notificationId); err != nil {
+	if err := serviceWithPrefix.DeleteResource(ctx, notificationId); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Also delete the user notification state for this notification.
-	notificationStateServiceWithPrefix, err := s.userNotificationStateService.WithPrefix(username)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	notificationStateServiceWithPrefix := s.userNotificationStateService.WithPrefix(username)
 
-	if err = notificationStateServiceWithPrefix.DeleteResource(ctx, notificationId); err != nil {
+	if err := notificationStateServiceWithPrefix.DeleteResource(ctx, notificationId); err != nil {
 		// If the error is due to the user notification state not being found, then ignore it because
 		// it is possible that it doesn't exist (if the user never clicked on or dismissed the notification).
 		if trace.IsNotFound(err) {
@@ -158,12 +142,9 @@ func (s *NotificationsService) DeleteUserNotification(ctx context.Context, usern
 // DeleteAllUserNotificationsForUser deletes all of a user's user-specific notifications.
 func (s *NotificationsService) DeleteAllUserNotificationsForUser(ctx context.Context, username string) error {
 	// Append username prefix.
-	serviceWithPrefix, err := s.userNotificationService.WithPrefix(username)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	serviceWithPrefix := s.userNotificationService.WithPrefix(username)
 
-	err = serviceWithPrefix.DeleteAllResources(ctx)
+	err := serviceWithPrefix.DeleteAllResources(ctx)
 	return trace.Wrap(err)
 }
 
@@ -212,17 +193,9 @@ func (s *NotificationsService) UpsertUserNotificationState(ctx context.Context, 
 		return nil, trace.Wrap(err)
 	}
 
-	// Verify that the user exists.
-	if _, _, err := s.getUser(ctx, username, false); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Verify that the notification this state is for exists.
-	notifServiceWithPrefix, err := s.userNotificationService.WithPrefix(username)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if _, err = notifServiceWithPrefix.GetResource(ctx, state.Spec.NotificationId); err != nil {
+	notifServiceWithPrefix := s.userNotificationService.WithPrefix(username)
+	if _, err := notifServiceWithPrefix.GetResource(ctx, state.Spec.NotificationId); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -237,10 +210,7 @@ func (s *NotificationsService) UpsertUserNotificationState(ctx context.Context, 
 	state.Metadata.Name = state.Spec.NotificationId
 
 	// Append username prefix.
-	serviceWithPrefix, err := s.userNotificationStateService.WithPrefix(username)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	serviceWithPrefix := s.userNotificationStateService.WithPrefix(username)
 
 	upserted, err := serviceWithPrefix.UpsertResource(ctx, state)
 	return upserted, trace.Wrap(err)
@@ -249,34 +219,25 @@ func (s *NotificationsService) UpsertUserNotificationState(ctx context.Context, 
 // DeleteUserNotificationState deletes a user notification state object.
 func (s *NotificationsService) DeleteUserNotificationState(ctx context.Context, username string, notificationId string) error {
 	// Append username prefix.
-	serviceWithPrefix, err := s.userNotificationStateService.WithPrefix(username)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	serviceWithPrefix := s.userNotificationStateService.WithPrefix(username)
 
-	err = serviceWithPrefix.DeleteResource(ctx, notificationId)
+	err := serviceWithPrefix.DeleteResource(ctx, notificationId)
 	return trace.Wrap(err)
 }
 
 // DeleteAllUserNotificationStatesForUser deletes all of a user's notification states.
 func (s *NotificationsService) DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error {
 	// Append username prefix.
-	serviceWithPrefix, err := s.userNotificationStateService.WithPrefix(username)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	serviceWithPrefix := s.userNotificationStateService.WithPrefix(username)
 
-	err = serviceWithPrefix.DeleteAllResources(ctx)
+	err := serviceWithPrefix.DeleteAllResources(ctx)
 	return trace.Wrap(err)
 }
 
 // ListUserNotificationStates returns a page of a user's notification states.
 func (s *NotificationsService) ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
 	// Append username prefix.
-	serviceWithPrefix, err := s.userNotificationStateService.WithPrefix(username)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
+	serviceWithPrefix := s.userNotificationStateService.WithPrefix(username)
 
 	states, nextToken, err := serviceWithPrefix.ListResources(ctx, pageSize, nextToken)
 	return states, nextToken, trace.Wrap(err)
@@ -285,11 +246,6 @@ func (s *NotificationsService) ListUserNotificationStates(ctx context.Context, u
 // UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
 func (s *NotificationsService) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
 	if err := services.ValidateUserLastSeenNotification(ulsn); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Verify that the user exists.
-	if _, _, err := s.getUser(ctx, username, false); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -324,7 +280,7 @@ func CheckAndSetExpiry(notification *notificationsv1.Notification) error {
 	// If the expiry hasn't been provided, set the default to 30 days from now.
 	if notification.Metadata.Expires == nil {
 		now := time.Now()
-		futureTime := now.Add(defaultExpiry * 24 * time.Hour)
+		futureTime := now.Add(defaultExpiry)
 		notification.Metadata.Expires = timestamppb.New(futureTime)
 		return nil
 	}
@@ -332,7 +288,7 @@ func CheckAndSetExpiry(notification *notificationsv1.Notification) error {
 	// If the expiry has already been provided, ensure that it is not more than 90 days from now.
 	// This is to prevent misuse as we don't want notifications existing for too long and accumulating in the backend.
 	now := time.Now()
-	maxExpiry := now.Add(maxExpiry * 24 * time.Hour)
+	maxExpiry := now.Add(maxExpiry)
 
 	if (*notification.Metadata.Expires).AsTime().After(maxExpiry) {
 		return trace.BadParameter(fmt.Sprintf("notification expiry cannot be more than %s days from its creation", maxExpiry))
@@ -347,6 +303,6 @@ const (
 	notificationsStatePrefix        = "notifications/states"    // notifications/states/<username>/<notification id>
 	notificationsUserLastSeenPrefix = "notifications/last_seen" // notifications/last_seen/<username>
 
-	defaultExpiry = 30 // The default expiry for a notification, in days.
-	maxExpiry     = 90 // The maximum expiry for a notification, in days.
+	defaultExpiry = 30 * 24 * time.Hour // The default expiry for a notification, 30 days.
+	maxExpiry     = 90 * 24 * time.Hour // The maximum expiry for a notification, 90 days.
 )

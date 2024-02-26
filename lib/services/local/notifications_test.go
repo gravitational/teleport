@@ -26,7 +26,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/trace"
@@ -50,13 +49,7 @@ func TestUserNotificationCRUD(t *testing.T) {
 	service, err := NewNotificationsService(backend.NewSanitizer(mem))
 	require.NoError(t, err)
 
-	// Create the user.
 	testUsername := "test-username"
-	user, err := types.NewUser(testUsername)
-	require.NoError(t, err)
-	identityService := NewIdentityService(backend.NewSanitizer(mem))
-	_, err = identityService.CreateUser(ctx, user)
-	require.NoError(t, err)
 
 	// Create a couple notifications.
 	userNotification1 := newUserNotification(t, "test-notification-1")
@@ -184,13 +177,7 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	service, err := NewNotificationsService(backend.NewSanitizer(mem))
 	require.NoError(t, err)
 
-	// Create the user.
 	testUsername := "test-username"
-	user, err := types.NewUser(testUsername)
-	require.NoError(t, err)
-	identityService := NewIdentityService(backend.NewSanitizer(mem))
-	_, err = identityService.CreateUser(ctx, user)
-	require.NoError(t, err)
 
 	// Create a and upsert the notifications that these states will be for.
 	userNotification1 := newUserNotification(t, "test-notification-1")
@@ -340,14 +327,7 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	service, err := NewNotificationsService(backend.NewSanitizer(mem))
 	require.NoError(t, err)
 
-	// Create the user.
 	testUsername := "test-username"
-	user, err := types.NewUser(testUsername)
-	require.NoError(t, err)
-	identityService := NewIdentityService(backend.NewSanitizer(mem))
-	_, err = identityService.CreateUser(ctx, user)
-	require.NoError(t, err)
-
 	testTimestamp := timestamppb.New(time.UnixMilli(1708041600000)) // February 16, 2024 12:00:00 AM UTC
 
 	userLastSeenNotification := &notificationsv1.UserLastSeenNotification{
