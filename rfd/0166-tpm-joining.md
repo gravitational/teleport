@@ -266,6 +266,12 @@ message RegisterUsingTPMMethodResponse {
 }
 ```
 
+## Product Considerations
+
+### Licensing
+
+The TPM join method will be restricted to Enterprise/Cloud licensed clusters.
+
 ## Security Considerations
 
 ### Manufacturer CA Compromise
