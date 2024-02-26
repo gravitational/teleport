@@ -114,7 +114,7 @@ sequenceDiagram
   opt TPM CA configured for Join Token
     A->>A: EKCert signature validated against CA
   end
-  A->>A: Validates EKPub hash, EKCert serial against those configured in Join Token 
+  A->>A: Validates EKPub hash, EKCert serial against allow rules in Join Token 
   A->>A: Generates Credential Activation challenge
   A-->>B: Sends Credential Activation challenge
   B->>T: ActivateCredential(EK Handle, AK Handle, Challenge)
@@ -134,7 +134,137 @@ process.
 
 ### Join Token
 
-### `RegisterUsingTPM` RPC
+A new JoinMethod will be added - `tpm`.
+
+The existing `JoinToken` type will be extended to include additional fields for
+TPM joining:
+
+```protobuf
+// ProvisionTokenSpecV2TPM contains the TPM-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2TPM {
+  message Rule {
+    // Hint is a human-readable hint for the rule. This does not impact joining
+    // but can be used for associating a business name with an EKPub or EKCert
+    // serial.
+    // Example: "build-server-100"
+    string Hint = 1  [(gogoproto.jsontag) = "hint,omitempty"];
+    oneof Identifier {
+      // EKPubHash is the SHA256 hash of the EKPub.
+      string EKPubHash = 2 [(gogoproto.jsontag) = "ekpub_hash,omitempty"];
+      // EKCertSerial is the serial number of the EKCert.
+      string EKCertSerial = 3 [(gogoproto.jsontag) = "ekcert_serial,omitempty"];
+    }
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // EKCertAllowCA is a EKCert CA in PEM format.
+  // If present, only TPM devices that present an EKCert that is signed by the
+  // CA specified here may join.
+  //
+  // If not present, then the CA of TPM EKCerts will not be checked during 
+  // joining.
+  bytes EKCertAllowedCA = 2 [(gogoproto.jsontag) = "ekcert_allowed_ca,omitempty"];
+}
+```
+
+### `RegisterUsingTPMMethod` RPC
+
+A new streaming RPC will be added to the existing `JoinService`:
+
+```protobuf
+service JoinService {
+  // .. Existing Methods ..
+  // RegisterUsingTPMMethod is used to register a Bot or Agent using a TPM.
+  rpc RegisterUsingTPMMethod(stream RegisterUsingTPMMethodRequest) returns (stream RegisterUsingTPMMethodResponse);
+}
+
+// The enrollment challenge response containing the solution returned by
+// calling the TPM2.0 `ActivateCredential` command on the client with the
+// parameters provided in `RegisterUsingTPMMethodEnrollChallengeRequest`.
+message RegisterUsingTPMMethodEnrollChallengeResponse {
+  // The client's solution to `TPMEncryptedCredential` included in
+  // `RegisterUsingTPMMethodEnrollChallengeRequest` using ActivateCredential.
+  bytes solution = 1;
+}
+
+// The attestation key and the parameters necessary to remotely verify it as
+// related to the endorsement key.
+// See https://pkg.go.dev/github.com/google/go-attestation/attest#AttestationParameters.
+// This message excludes the `UseTCSDActivationFormat` field from the link above
+// as it is TMP 1.x specific and always false.
+message TPMAttestationParameters {
+  // The encoded TPMT_PUBLIC structure containing the attestation public key
+  // and signing parameters.
+  bytes public = 1;
+  // The properties of the attestation key, encoded as a TPMS_CREATION_DATA
+  // structure.
+  bytes create_data = 2;
+  // An assertion as to the details of the key, encoded as a TPMS_ATTEST
+  // structure.
+  bytes create_attestation = 3;
+  // A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
+  bytes create_signature = 4;
+}
+
+// The initial information sent from the client to the server.
+message RegisterUsingTPMMethodInitialRequest {
+  // Holds the registration parameters shared by all join methods.
+  types.RegisterUsingTokenRequest common = 1;
+  oneof ek {
+    // The device's endorsement certificate in X509, ASN.1 DER form. This
+    // certificate contains the public key of the endorsement key. This is
+    // preferred to ek_key.
+    bytes ek_cert = 2;
+    // The device's public endorsement key in PKIX, ASN.1 DER form. This is
+    // used when a TPM does not contain any endorsement certificates.
+    bytes ek_key = 3;
+  }
+  // The attestation key and the parameters necessary to remotely verify it as
+  // related to the endorsement key.
+  TPMAttestationParameters attestation_params = 4;
+}
+
+message RegisterUsingTPMMethodRequest {
+  oneof payload {
+    // Initial information sent from the client to the server.
+    RegisterUsingTPMMethodInitialRequest init = 1;
+    // The challenge response required to complete the TPM join process. This is
+    // sent in response to the servers challenge.
+    RegisterUsingTPMMethodEnrollChallengeResponse challenge_response = 2;
+  }
+}
+
+// These values are used by the TPM2.0 `ActivateCredential` command to produce
+// the solution which proves possession of the EK and AK.
+//
+// For a more in-depth description see:
+// - https://pkg.go.dev/github.com/google/go-attestation/attest#EncryptedCredential
+// - https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_code_pub.pdf (Heading 12.5.1 "TPM2_ActivateCredential" "General Description")
+// - https://github.com/google/go-attestation/blob/v0.4.3/attest/activation.go#L199
+// - https://github.com/google/go-tpm/blob/v0.3.3/tpm2/credactivation/credential_activation.go#L61
+message RegisterUsingTPMMethodEnrollChallengeRequest {
+  // The `credential_blob` parameter to be used with the `ActivateCredential`
+  // command. This is used with the decrypted value of `secret` in a
+  // cryptographic process to decrypt the solution.
+  bytes credential_blob = 1;
+  // The `secret` parameter to be used with `ActivateCredential`. This is a
+  // seed which can be decrypted with the EK. The decrypted seed is then used
+  // when decrypting `credential_blob`.
+  bytes secret = 2;
+}
+
+message RegisterUsingTPMMethodResponse {
+  oneof payload {
+    // The challenge required to complete the TPM join process. This is sent to
+    // the client in response to the initial request.
+    RegisterUsingTPMMethodEnrollChallengeRequest challenge_request = 1;
+    // The signed certificates resulting from the join process.
+    Certs certs = 2;
+  }
+}
+```
 
 ## Security Considerations
 
