@@ -782,28 +782,29 @@ determined by the `<cluster>` argument to the `tsh login` command.
 
 For example, consider the following scenario:
 
-- There are two Teleport/Kubernetes clusters named `east` and `west`.  Each
-  cluster has its own configuration file with its name specified in the
-  `cluster_name` field.
+- There are two Teleport clusters named `east` and `west`, and two Kubernetes
+  clusters with the same names. Each Teleport cluster has its own configuration
+  file with its name specified in the `cluster_name` field.
 - The clusters `east` and `west` are leaf clusters that trust a Teleport Team or
   Enterprise Cloud account, for example, `example.teleport.sh`.
 - Users always authenticate against `example.teleport.sh` but use their
   certificates to access SSH nodes and the Kubernetes API in all three clusters.
 
-In this scenario, users usually log in using the following command:
+In this scenario, users usually log in using the following commands:
 
 ```code
-# Using login without arguments
+# Log in to the root cluster
 $ tsh --proxy=mytenant.teleport.sh login
 
-# User's `kubeconfig` now contains one entry for the main Kubernetes
-# endpoint, i.e. `mytenant.teleport.sh`.
-
-# Receive a certificate for "east":
+# Receive a certificate for "east"
 $ tsh --proxy=mytenant.teleport.sh login east
 
-# User's `kubeconfig` now contains the entry for the "east" Kubernetes
-# endpoint, i.e. `east.mytenant.teleport.sh`.
+# Log in to the Kubernetes cluster called "east" in the Teleport cluster with
+# the same name
+$ tsh kube login --proxy=mytenant.teleport.sh --cluster=east east
+
+# The user's kubeconfig now contains the entry for the "east" Kubernetes
+# endpoint, i.e. east.mytenant.teleport.sh
 ```
 
 ## Remove a trusted leaf cluster
