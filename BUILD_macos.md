@@ -84,6 +84,8 @@ PRs with corrections and updates are welcome!
   * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required:
     `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
 
+* Teleport uses wasm-pack, so if that's not present, we need to install it. Find the install docs [here](https://rustwasm.github.io/wasm-pack/installer/).
+
 ##### Local Tests Dependencies
 
 To run a full test suite locally, you will need
