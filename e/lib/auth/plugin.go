@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/externalauditstorage/externalauditstoragev1"
-	"github.com/gravitational/teleport/e/lib/idp/saml"
+	"github.com/gravitational/teleport/e/lib/idp/saml/samlidpv1"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/loginrulev1"
 	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
@@ -244,7 +244,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server interface{}) e
 		return trace.Wrap(err)
 	}
 
-	samlIdPService, err := saml.NewSAMLIdPService(&saml.SAMLIdPServiceConfig{
+	samlIdPService, err := samlidpv1.NewSAMLIdPService(&samlidpv1.SAMLIdPServiceConfig{
 		Client:     p.authServer.AuthServer,
 		KeyStore:   p.authServer.AuthServer.GetKeyStore(),
 		Authorizer: p.authServer.Authorizer,

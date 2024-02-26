@@ -1,4 +1,4 @@
-package saml
+package attribute
 
 import (
 	"github.com/crewjam/saml"
@@ -8,9 +8,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
-// samlMappableUserSpec holds user details that can be mapped in
+// SAMLMappableUserSpec holds user details that can be mapped in
 // SAML assertion.
-type samlMappableUserSpec struct {
+type SAMLMappableUserSpec struct {
 	Username string
 	Roles    []string
 	Traits   map[string][]string
@@ -52,7 +52,9 @@ func newAttributeMappingParser() *typical.Parser[evaluationEnv, any] {
 	return attributeParser
 }
 
-func evaluateAttributes(requestedAttributes []saml.RequestedAttribute, mappableAttributes samlMappableUserSpec) ([]saml.Attribute, error) {
+// EvaluateAttributes evaluates predicate expressions provided in requestedAttributes and returns
+// the evaluated result in saml.Attribute format.
+func EvaluateAttributes(requestedAttributes []saml.RequestedAttribute, mappableAttributes SAMLMappableUserSpec) ([]saml.Attribute, error) {
 	var attributes []saml.Attribute
 	for _, reqAttrs := range requestedAttributes {
 		traitsMap := map[string][]string{
@@ -71,12 +73,12 @@ func evaluateAttributes(requestedAttributes []saml.RequestedAttribute, mappableA
 			return nil, trace.Wrap(err)
 		}
 		pv := stringSliceFromDict(result)
-		attributes = addAttributeWithFormat(attributes, reqAttrs.Name, reqAttrs.Name, reqAttrs.NameFormat, pv...)
+		attributes = NewWithFormat(attributes, reqAttrs.Name, reqAttrs.Name, reqAttrs.NameFormat, pv...)
 	}
 	return attributes, nil
 }
 
-func newEvaluationEnv(mappableAttributes samlMappableUserSpec) evaluationEnv {
+func newEvaluationEnv(mappableAttributes SAMLMappableUserSpec) evaluationEnv {
 	return evaluationEnv{
 		userTraits: expression.DictFromStringSliceMap(mappableAttributes.Traits),
 		userRoles:  expression.NewSet(mappableAttributes.Roles...),

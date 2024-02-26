@@ -19,15 +19,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
+	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
 )
 
 func TestMakeAssertion(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
-	svcs := samlTestService(ctx, t, clock)
-	svcs.client.signingCtx = withRole(ctx, types.RoleProxy)
+	env := newTEnv(ctx, t, clock)
+	env.testServices.Client.SigningCtx = testenv.WithRole(ctx, types.RoleProxy)
 
-	idp, err := svcs.samlIdP.createIdP(ctx)
+	idp, err := env.samlIdPService.createIdP(ctx)
 	require.NoError(t, err)
 
 	// The assertion maker will use the ServiceProviderProvider to ensure
@@ -38,7 +40,7 @@ func TestMakeAssertion(t *testing.T) {
 			Name: "sp1",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newTestEntityDescriptor("sp1"),
+			EntityDescriptor: testenv.NewTestEntityDescriptor("sp1"),
 			EntityID:         "sp1",
 			AttributeMapping: []*types.SAMLAttributeMapping{
 				{
@@ -65,7 +67,7 @@ func TestMakeAssertion(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	require.NoError(t, svcs.spService.CreateSAMLIdPServiceProvider(ctx, sp1))
+	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
 
 	ed, err := samlsp.ParseMetadata([]byte(sp1.GetEntityDescriptor()))
 	require.NoError(t, err)
@@ -97,7 +99,7 @@ func TestMakeAssertion(t *testing.T) {
 	session := &saml.Session{
 		UserName: "test-user",
 		Groups:   []string{"group1", "group2"},
-		CustomAttributes: samlMappableAttributeToCustomAttribute(samlMappableUserSpec{
+		CustomAttributes: samlMappableAttributeToCustomAttribute(attribute.SAMLMappableUserSpec{
 			Traits: map[string][]string{
 				"groups":    {"g1", "g2"},
 				"firstname": {"userf"},
@@ -109,7 +111,7 @@ func TestMakeAssertion(t *testing.T) {
 
 	// req.Validate mutates the original request.
 	require.NoError(t, req.Validate())
-	require.NoError(t, svcs.samlIdP.MakeAssertion(req, session))
+	require.NoError(t, env.samlIdPService.MakeAssertion(req, session))
 
 	// Create the expected request. We'll copy a few bits of the validated request, as needed,
 	// as it's been altered by the above function calls.
@@ -161,13 +163,13 @@ func TestMakeAssertion(t *testing.T) {
 		},
 		ServiceProviderMetadata: ed,
 		Assertion: testAssertion(clock, req.Assertion.Conditions, testReq.RemoteAddr, "auth-id", "https://sptest.iamshowcase.com/acs",
-			attribute("uid", "urn:oid:0.9.2342.19200300.100.1.1", types.SAMLURINameFormat, "test-user"),
-			attribute("eduPersonAffiliation", "urn:oid:1.3.6.1.4.1.5923.1.1.1.1", types.SAMLURINameFormat, "group1", "group2"),
-			attribute("customUId", "customUId", types.SAMLUnspecifiedNameFormat, "TEST-USER"),
-			attribute("firstname", "firstname", types.SAMLUnspecifiedNameFormat, "userf"),
-			attribute("username", "username", types.SAMLUnspecifiedNameFormat, "test-user"),
-			attribute("roles", "roles", types.SAMLUnspecifiedNameFormat, "r1", "r2"),
-			attribute("roles2", "roles2", types.SAMLUnspecifiedNameFormat, "r1", "r2", "superadmin"),
+			attribute.New("uid", "urn:oid:0.9.2342.19200300.100.1.1", types.SAMLURINameFormat, "test-user"),
+			attribute.New("eduPersonAffiliation", "urn:oid:1.3.6.1.4.1.5923.1.1.1.1", types.SAMLURINameFormat, "group1", "group2"),
+			attribute.New("customUId", "customUId", types.SAMLUnspecifiedNameFormat, "TEST-USER"),
+			attribute.New("firstname", "firstname", types.SAMLUnspecifiedNameFormat, "userf"),
+			attribute.New("username", "username", types.SAMLUnspecifiedNameFormat, "test-user"),
+			attribute.New("roles", "roles", types.SAMLUnspecifiedNameFormat, "r1", "r2"),
+			attribute.New("roles2", "roles2", types.SAMLUnspecifiedNameFormat, "r1", "r2", "superadmin"),
 		),
 		Now: clock.Now(),
 	}

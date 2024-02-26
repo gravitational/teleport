@@ -1,4 +1,4 @@
-package saml
+package samlidpv1
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -220,9 +221,9 @@ func (s *SAMLIdPService) TestSAMLIdPAttributeMapping(ctx context.Context, req *s
 		return nil, trace.Wrap(err)
 	}
 
-	var mappableUserSpec []samlMappableUserSpec
+	var mappableUserSpec []attribute.SAMLMappableUserSpec
 	for _, user := range req.Users {
-		mappableUserSpec = append(mappableUserSpec, samlMappableUserSpec{
+		mappableUserSpec = append(mappableUserSpec, attribute.SAMLMappableUserSpec{
 			Username: user.GetName(),
 			Roles:    user.Spec.Roles,
 			Traits:   user.Spec.Traits,
@@ -233,7 +234,7 @@ func (s *SAMLIdPService) TestSAMLIdPAttributeMapping(ctx context.Context, req *s
 	for _, userSpec := range mappableUserSpec {
 		var attributes []saml.Attribute
 		reqAttrs := attributeToRequestedAttribute(req.ServiceProvider.GetAttributeMapping())
-		evaluatedAttributes, err := evaluateAttributes(reqAttrs, userSpec)
+		evaluatedAttributes, err := attribute.EvaluateAttributes(reqAttrs, userSpec)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

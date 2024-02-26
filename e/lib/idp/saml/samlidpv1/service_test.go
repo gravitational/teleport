@@ -1,4 +1,4 @@
-package saml
+package samlidpv1
 
 import (
 	"context"
@@ -11,22 +11,54 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	dsig "github.com/russellhaering/goxmldsig"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// tEnv is a TEnv for samlidpv1
+type tEnv struct {
+	AccessService  *local.AccessService
+	UserService    *local.IdentityService
+	SamlIDPService *SAMLIdPService
+}
+
+// newTEnv creates new tEnv with testenv.BASEURL as a base URL value.
+func newTEnv(t *testing.T, clock clockwork.Clock) *tEnv {
+	ctx := context.Background()
+	env := testenv.NewTEnvWithURL(ctx, t, clock, testenv.BASEURL)
+
+	samlIdPService, err := NewSAMLIdPService(&SAMLIdPServiceConfig{
+		Client:     env.Client,
+		KeyStore:   env.KeyStore,
+		Authorizer: env.Authorizer,
+		Log:        logrus.NewEntry(logrus.New()),
+	})
+	require.NoError(t, err)
+
+	return &tEnv{
+		AccessService:  env.AccessService,
+		UserService:    env.UserService,
+		SamlIDPService: samlIdPService,
+	}
+}
 
 func TestProcessSAMLIdPRequest(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
-	svcs := samlTestService(ctx, t, clock)
+
+	env := newTEnv(t, clock)
 
 	assertion := &saml.Assertion{
 		ID:           "dummy-id",
@@ -58,17 +90,17 @@ func TestProcessSAMLIdPRequest(t *testing.T) {
 	}
 
 	// Admin shouldn't have access
-	_, err = svcs.client.ProcessSAMLIdPRequest(withRole(ctx, types.RoleAdmin), req)
+	_, err = env.SamlIDPService.ProcessSAMLIdPRequest(withRole(ctx, types.RoleAdmin), req)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Proxy should have access
-	resp, err := svcs.client.ProcessSAMLIdPRequest(withRole(ctx, types.RoleProxy), req)
+	resp, err := env.SamlIDPService.ProcessSAMLIdPRequest(withRole(ctx, types.RoleProxy), req)
 	require.NoError(t, err)
 
 	respDoc := etree.NewDocument()
 	require.NoError(t, respDoc.ReadFromBytes(resp.Response))
 
-	cas, err := svcs.client.GetCertAuthorities(ctx, types.SAMLIDPCA, false)
+	cas, err := env.SamlIDPService.client.GetCertAuthorities(ctx, types.SAMLIDPCA, false)
 	require.NoError(t, err)
 	ca := cas[0]
 
@@ -97,8 +129,8 @@ func TestAttributeMappingCommand(t *testing.T) {
 
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
-	svcs := samlTestService(ctx, t, clock)
-	setupUsers(t, svcs)
+	env := newTEnv(t, clock)
+	setupUsers(t, env)
 
 	req := &samlidppb.TestSAMLIdPAttributeMappingRequest{
 		ServiceProvider: &types.SAMLIdPServiceProviderV1{
@@ -155,11 +187,11 @@ func TestAttributeMappingCommand(t *testing.T) {
 	}
 
 	userWithListVerbContext := getUserContext(ctx, "userWithListVerb")
-	_, err := svcs.client.TestSAMLIdPAttributeMapping(userWithListVerbContext, req)
+	_, err := env.SamlIDPService.TestSAMLIdPAttributeMapping(userWithListVerbContext, req)
 	require.ErrorContains(t, err, "access denied")
 
 	userWithCreateVerbContext := getUserContext(ctx, "userWithCreateVerb")
-	resp, err := svcs.client.TestSAMLIdPAttributeMapping(userWithCreateVerbContext, req)
+	resp, err := env.SamlIDPService.TestSAMLIdPAttributeMapping(userWithCreateVerbContext, req)
 	require.NoError(t, err)
 
 	require.Equal(t, expectedResp, resp)
@@ -174,7 +206,7 @@ func getUserContext(ctx context.Context, username string) context.Context {
 	})
 }
 
-func setupUsers(t *testing.T, svcs testServices) {
+func setupUsers(t *testing.T, tEnv *tEnv) {
 	// user with role that allows create verb on KindSAMLIdPServiceProvider
 	userWithCreateVerb, err := types.NewUser("userWithCreateVerb")
 	require.NoError(t, err)
@@ -189,10 +221,10 @@ func setupUsers(t *testing.T, svcs testServices) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = svcs.accessService.CreateRole(context.Background(), samlCreateRole)
+	_, err = tEnv.AccessService.CreateRole(context.Background(), samlCreateRole)
 	require.NoError(t, err)
 	userWithCreateVerb.AddRole(samlCreateRole.GetName())
-	_, err = svcs.userService.CreateUser(context.Background(), userWithCreateVerb)
+	_, err = tEnv.UserService.CreateUser(context.Background(), userWithCreateVerb)
 	require.NoError(t, err)
 
 	// user with role that allows list verb on KindSAMLIdPServiceProvider
@@ -209,9 +241,14 @@ func setupUsers(t *testing.T, svcs testServices) {
 		},
 	})
 	require.NoError(t, err)
-	_, err = svcs.accessService.CreateRole(context.Background(), samlListRole)
+	_, err = tEnv.AccessService.CreateRole(context.Background(), samlListRole)
 	require.NoError(t, err)
 	userWithListVerb.AddRole(samlListRole.GetName())
-	_, err = svcs.userService.CreateUser(context.Background(), userWithListVerb)
+	_, err = tEnv.UserService.CreateUser(context.Background(), userWithListVerb)
 	require.NoError(t, err)
+}
+
+func withRole(ctx context.Context, role types.SystemRole) context.Context {
+	identity := auth.TestBuiltin(role)
+	return authz.ContextWithUser(ctx, identity.I)
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
 	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -64,7 +65,7 @@ func (s *Service) createSession(r *http.Request, identity *tlsca.Identity) (*sam
 		Index:      indexHex,
 		UserName:   identity.Username,
 		Groups:     identity.Groups,
-		CustomAttributes: samlMappableAttributeToCustomAttribute(samlMappableUserSpec{
+		CustomAttributes: samlMappableAttributeToCustomAttribute(attribute.SAMLMappableUserSpec{
 			Username: identity.Username,
 			Traits:   identity.Traits,
 			Roles:    identity.Groups,
@@ -220,7 +221,7 @@ func samlSessionToWebSession(session *saml.Session) (types.WebSession, error) {
 
 // samlMappableAttributeToCustomAttribute converts samlMappableUserSpec to saml.Attribute
 // which will eventually be added to SAML session custom attributes.
-func samlMappableAttributeToCustomAttribute(userSpec samlMappableUserSpec) []saml.Attribute {
+func samlMappableAttributeToCustomAttribute(userSpec attribute.SAMLMappableUserSpec) []saml.Attribute {
 	var customAttributes []saml.Attribute = make([]saml.Attribute, 0)
 	for k, v := range userSpec.Traits {
 		customAttributes = addAttribute(customAttributes, k, k, v...)

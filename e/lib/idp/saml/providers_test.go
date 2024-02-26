@@ -17,6 +17,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	samlidp "github.com/gravitational/teleport/lib/idp/saml"
@@ -27,9 +28,9 @@ func TestGetSession(t *testing.T) {
 	ctx := context.Background()
 
 	clock := clockwork.NewFakeClock()
-	svcs := samlTestService(ctx, t, clock)
+	env := newTEnv(ctx, t, clock)
 
-	idp, err := svcs.samlIdP.createIdP(ctx)
+	idp, err := env.samlIdPService.createIdP(ctx)
 	require.NoError(t, err)
 
 	// Create testing user.
@@ -49,10 +50,10 @@ func TestGetSession(t *testing.T) {
 	rw := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "http://test-url/", nil)
 	authnReq := newAuthnReq(&idp, req, "")
-	require.Nil(t, svcs.samlIdP.GetSession(rw, req, authnReq))
+	require.Nil(t, env.samlIdPService.GetSession(rw, req, authnReq))
 	require.Equal(t, http.StatusForbidden, rw.Code)
 
-	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
 		require.Empty(t, event.User)
 		require.Equal(t, "access denied", event.Error)
@@ -67,9 +68,9 @@ func TestGetSession(t *testing.T) {
 
 	user1.AddRole("auditor")
 	user1.AddRole("editor")
-	_, err = svcs.userService.CreateUser(ctx, user1)
+	_, err = env.testServices.UserService.CreateUser(ctx, user1)
 	require.NoError(t, err)
-	_, err = svcs.userService.CreateUser(ctx, user2)
+	_, err = env.testServices.UserService.CreateUser(ctx, user2)
 	require.NoError(t, err)
 
 	// Valid user.
@@ -78,13 +79,13 @@ func TestGetSession(t *testing.T) {
 	localUserCtx := context.WithValue(ctx, identityContextKey, localUserIdentity)
 	req = httptest.NewRequest(http.MethodGet, "https://test-url/", bytes.NewBuffer([]byte{})).WithContext(localUserCtx)
 	authnReq = newAuthnReq(&idp, req, entityID)
-	firstSession := svcs.samlIdP.GetSession(rw, req, authnReq)
+	firstSession := env.samlIdPService.GetSession(rw, req, authnReq)
 
 	require.Equal(t, http.StatusOK, rw.Code)
 	require.NotNil(t, firstSession)
 	require.Equal(t, expireTime, firstSession.ExpireTime)
 
-	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.True(t, event.Success)
 		require.Equal(t, localUserIdentity.Username, event.User)
 		require.Empty(t, event.Error)
@@ -112,11 +113,11 @@ func TestGetSession(t *testing.T) {
 	})
 
 	authnReq = newAuthnReq(&idp, req, entityID)
-	secondSession := svcs.samlIdP.GetSession(rw, req, authnReq)
+	secondSession := env.samlIdPService.GetSession(rw, req, authnReq)
 	require.Equal(t, http.StatusOK, rw.Code)
 	require.Empty(t, cmp.Diff(firstSession, secondSession))
 
-	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.True(t, event.Success)
 		require.Equal(t, localUserIdentity.Username, event.User)
 		require.Empty(t, event.Error)
@@ -133,11 +134,11 @@ func TestGetSession(t *testing.T) {
 	})
 
 	authnReq = newAuthnReq(&idp, req, entityID)
-	mismatchedSession := svcs.samlIdP.GetSession(rw, req, authnReq)
+	mismatchedSession := env.samlIdPService.GetSession(rw, req, authnReq)
 	require.Nil(t, mismatchedSession)
 	require.Equal(t, http.StatusForbidden, rw.Code)
 
-	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
 		require.Equal(t, mismatchedUserIdentity.Username, event.User)
 		require.Equal(t, "user test-user2 attempted to access a SAML IdP session that belonged to test-user", event.Error)
@@ -152,10 +153,10 @@ func TestGetSession(t *testing.T) {
 		Value: "non-existent-ID",
 	})
 	authnReq = newAuthnReq(&idp, req, entityID)
-	require.Nil(t, svcs.samlIdP.GetSession(rw, req, authnReq))
+	require.Nil(t, env.samlIdPService.GetSession(rw, req, authnReq))
 	require.Equal(t, http.StatusForbidden, rw.Code)
 
-	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
 		require.Equal(t, localUserIdentity.Username, event.User)
 		require.Equal(t, "user test-user attempted to access a non-existent SAML IdP session", event.Error)
@@ -174,10 +175,10 @@ func TestGetSession(t *testing.T) {
 		Value: firstSession.ID,
 	})
 	authnReq = newAuthnReq(&idp, req, entityID)
-	require.Nil(t, svcs.samlIdP.GetSession(rw, req, authnReq))
+	require.Nil(t, env.samlIdPService.GetSession(rw, req, authnReq))
 	require.Equal(t, http.StatusForbidden, rw.Code)
 
-	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
 		require.Equal(t, localUserIdentity.Username, event.User)
 		require.Equal(t, "user test-user attempted to access a non-existent SAML IdP session", event.Error)
@@ -189,7 +190,7 @@ func TestGetServiceProvider(t *testing.T) {
 	ctx := context.Background()
 
 	clock := clockwork.NewFakeClock()
-	svcs := samlTestService(ctx, t, clock)
+	env := newTEnv(ctx, t, clock)
 
 	// Create testing user.
 	localUserIdentity := &tlsca.Identity{
@@ -200,10 +201,10 @@ func TestGetServiceProvider(t *testing.T) {
 	// There are no service providers, so expect an error.
 	localUserCtx := context.WithValue(ctx, identityContextKey, localUserIdentity)
 	r := httptest.NewRequest("GET", "/", bytes.NewBuffer([]byte{})).WithContext(localUserCtx)
-	_, err := svcs.samlIdP.GetServiceProvider(r, "sp1")
+	_, err := env.samlIdPService.GetServiceProvider(r, "sp1")
 	require.Error(t, err)
 
-	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
 		require.Equal(t, localUserIdentity.Username, event.User)
 		require.Equal(t, "could not find service provider", event.Error)
@@ -216,18 +217,18 @@ func TestGetServiceProvider(t *testing.T) {
 			Name: "friendly-name",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newTestEntityDescriptor("entity-id-1"),
+			EntityDescriptor: testenv.NewTestEntityDescriptor("entity-id-1"),
 			EntityID:         "entity-id-1",
 		},
 	)
 	require.NoError(t, err)
-	require.NoError(t, svcs.spService.CreateSAMLIdPServiceProvider(ctx, sp1))
+	require.NoError(t, env.testServices.SPService.CreateSAMLIdPServiceProvider(ctx, sp1))
 
 	// Get by friendly name fails.
-	_, err = svcs.samlIdP.GetServiceProvider(r, "friendly-name")
+	_, err = env.samlIdPService.GetServiceProvider(r, "friendly-name")
 	require.Error(t, err)
 
-	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
 		require.Equal(t, localUserIdentity.Username, event.User)
 		require.Equal(t, "could not find service provider", event.Error)
@@ -235,7 +236,7 @@ func TestGetServiceProvider(t *testing.T) {
 	})
 
 	// Get by entity ID succeeds.
-	ed, err := svcs.samlIdP.GetServiceProvider(r, "entity-id-1")
+	ed, err := env.samlIdPService.GetServiceProvider(r, "entity-id-1")
 	require.NoError(t, err)
 
 	expectedEd, err := samlsp.ParseMetadata([]byte(sp1.GetEntityDescriptor()))

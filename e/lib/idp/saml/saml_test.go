@@ -8,23 +8,94 @@ import (
 
 	"github.com/crewjam/saml"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/idp/saml/samlidpv1"
+	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// tEnvWithSAMLService is a combined testenv.TEnv (sets auth service dependencies)
+// and SAML IdP test environment.
+type tEnvWithSAMLService struct {
+	testServices   testenv.TEnv
+	samlIdPService *Service
+}
+
+// tClientWithSAMLIdPV1 is a combined testenv.TClient and samlidpv1 client.
+type tClientWithSAMLIdPV1 struct {
+	*testenv.TClient
+	samlidpv1Service *samlidpv1.SAMLIdPService
+}
+
+// SAMLIdPClient implements samlidpv1 client.
+func (t tClientWithSAMLIdPV1) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
+	return t
+}
+
+// ProcessSAMLIdPRequest samlidpv1 ProcessSAMLIdPRequest.
+func (t tClientWithSAMLIdPV1) ProcessSAMLIdPRequest(ctx context.Context, req *samlidppb.ProcessSAMLIdPRequestRequest, _ ...grpc.CallOption) (*samlidppb.ProcessSAMLIdPRequestResponse, error) {
+	if t.SigningCtx != nil {
+		ctx = t.SigningCtx
+	}
+	return t.samlidpv1Service.ProcessSAMLIdPRequest(ctx, req)
+}
+
+// TestSAMLIdPAttributeMapping implements samlidpv1 TestSAMLIdPAttributeMapping.
+func (t tClientWithSAMLIdPV1) TestSAMLIdPAttributeMapping(ctx context.Context, req *samlidppb.TestSAMLIdPAttributeMappingRequest, _ ...grpc.CallOption) (*samlidppb.TestSAMLIdPAttributeMappingResponse, error) {
+	return t.samlidpv1Service.TestSAMLIdPAttributeMapping(ctx, req)
+}
+
+// newTEnvWithURL creates new SAML IdP test environment with SAML IdP service and samlidpv1 client.
+func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, baseURL string) *tEnvWithSAMLService {
+	svcs := testenv.NewTEnvWithURL(ctx, t, clock, baseURL)
+
+	samlidpv1Service, err := samlidpv1.NewSAMLIdPService(&samlidpv1.SAMLIdPServiceConfig{
+		Client:     svcs.Client,
+		KeyStore:   svcs.KeyStore,
+		Authorizer: svcs.Authorizer,
+		Log:        logrus.NewEntry(logrus.New()),
+	})
+	require.NoError(t, err)
+
+	ntclient := &tClientWithSAMLIdPV1{
+		svcs.Client,
+		samlidpv1Service,
+	}
+
+	samlIdPService, err := New(ctx, Config{
+		Log:         logrus.NewEntry(logrus.New()),
+		Clock:       clock,
+		Client:      ntclient,
+		AccessPoint: ntclient,
+		Authorizer:  svcs.Authorizer,
+		BaseURL:     baseURL,
+		Emitter:     svcs.Emitter,
+	})
+	require.NoError(t, err)
+
+	return &tEnvWithSAMLService{testServices: svcs, samlIdPService: samlIdPService}
+}
+
+// newTEnv creates test environemtn with testenv.BASEURL as base URL.
+func newTEnv(ctx context.Context, t *testing.T, clock clockwork.Clock) *tEnvWithSAMLService {
+	return newTEnvWithURL(ctx, t, clock, testenv.BASEURL)
+}
 
 func TestInitIdP(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 
-	// Standard https port should be stripped off.
-	svcs := samlTestServiceWithURL(ctx, t, clock, "https://test.url:443")
-	require.Equal(t, "test.url", svcs.samlIdP.metadataURL.Host)
+	env := newTEnvWithURL(ctx, t, clock, testenv.BASEURL)
+	require.Equal(t, "test.url", env.samlIdPService.metadataURL.Host)
 
 	// A non-standard https port should still be present in the host.
-	svcs = samlTestServiceWithURL(ctx, t, clock, "https://test.url:12345")
-	require.Equal(t, "test.url:12345", svcs.samlIdP.metadataURL.Host)
+	env = newTEnvWithURL(ctx, t, clock, "https://test.url:12345")
+	require.Equal(t, "test.url:12345", env.samlIdPService.metadataURL.Host)
 }
 
 func TestRotateCertAuthority(t *testing.T) {
@@ -33,24 +104,24 @@ func TestRotateCertAuthority(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 
-	svcs := samlTestService(ctx, t, clock)
+	env := newTEnv(ctx, t, clock)
 
-	cas, err := svcs.caService.GetCertAuthorities(ctx, types.SAMLIDPCA, true)
+	cas, err := env.testServices.CAService.GetCertAuthorities(ctx, types.SAMLIDPCA, true)
 	require.NoError(t, err)
 	require.Len(t, cas, 1)
 	ca := cas[0]
 
 	// Verify the current certs against the IdP metadata.
-	idp, err := svcs.samlIdP.createIdP(ctx)
+	idp, err := env.samlIdPService.createIdP(ctx)
 	require.NoError(t, err)
 	certsInIdP(t, ca, &idp)
 
 	// Create a new CA and swap it in.
-	newCA := createCA(t)
-	require.NoError(t, svcs.caService.CompareAndSwapCertAuthority(newCA, ca))
+	newCA := testenv.CreateCA(t)
+	require.NoError(t, env.testServices.CAService.CompareAndSwapCertAuthority(newCA, ca))
 
 	// Ensure that the new CA is reflected in the IdP metadata.
-	idp, err = svcs.samlIdP.createIdP(ctx)
+	idp, err = env.samlIdPService.createIdP(ctx)
 	require.NoError(t, err)
 	certsInIdP(t, newCA, &idp)
 }

@@ -12,6 +12,7 @@ import (
 
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/idp/saml/attribute"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -92,7 +93,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	attrs.Username = session.UserName
 	_, teleportSPSSODescriptor := local.GetTeleportSPSSODescriptor(req.ServiceProviderMetadata.SPSSODescriptors)
 	for _, acs := range teleportSPSSODescriptor.AttributeConsumingServices {
-		evaluatedAttributes, err := evaluateAttributes(acs.RequestedAttributes, attrs)
+		evaluatedAttributes, err := attribute.EvaluateAttributes(acs.RequestedAttributes, attrs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -233,31 +234,12 @@ func addAttributeWithFormat(attributes []saml.Attribute, friendlyName, name, for
 		return attributes
 	}
 
-	return append(attributes, attribute(friendlyName, name, format, values...))
-}
-
-// attribute creates a new saml.Attribute.
-func attribute(friendlyName, name, format string, values ...string) saml.Attribute {
-	// Create the list of attribute values to add to the attribute.
-	attributeValues := make([]saml.AttributeValue, len(values))
-	for i, value := range values {
-		attributeValues[i] = saml.AttributeValue{
-			Type:  types.SAMLStringType,
-			Value: value,
-		}
-	}
-
-	return saml.Attribute{
-		FriendlyName: friendlyName,
-		Name:         name,
-		NameFormat:   format,
-		Values:       attributeValues,
-	}
+	return append(attributes, attribute.New(friendlyName, name, format, values...))
 }
 
 // attributesToMappableUserSpec unpacks saml session custom attributes to samlMappableUserSpec.
-func attributesToMappableUserSpec(customAttrs []saml.Attribute) samlMappableUserSpec {
-	var mappableAttrs samlMappableUserSpec
+func attributesToMappableUserSpec(customAttrs []saml.Attribute) attribute.SAMLMappableUserSpec {
+	var mappableAttrs attribute.SAMLMappableUserSpec
 	mappableAttrs.Traits = make(map[string][]string, 0)
 	for _, attr := range customAttrs {
 		switch attr.Name {

@@ -1,4 +1,4 @@
-package saml
+package testenv
 
 import (
 	"context"
@@ -9,9 +9,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -26,19 +24,25 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-type testServices struct {
-	samlIdP        *Service //nolint:revive // Because we want this to be IdP.
-	clusterService services.ClusterConfiguration
-	caService      services.Trust
-	spService      services.SAMLIdPServiceProviders
-	userService    *local.IdentityService
-	accessService  *local.AccessService
-	eventService   *local.EventsService
-	client         *testClient
-	emitter        *eventstest.ChannelEmitter
+// BASEURL is a default listen URL for SAML IdP.
+const BASEURL = "https://test.url:443"
+
+// TEnv is a test environment for SAML IdP.
+type TEnv struct {
+	ClusterService services.ClusterConfiguration
+	CAService      services.Trust
+	SPService      services.SAMLIdPServiceProviders
+	UserService    *local.IdentityService
+	AccessService  *local.AccessService
+	EventService   *local.EventsService
+	Client         *TClient
+	Emitter        *eventstest.ChannelEmitter
+	Authorizer     authz.Authorizer
+	KeyStore       *keystore.Manager
 }
 
-type testClient struct {
+// TClient is a test environment client for SAMl IdP.
+type TClient struct {
 	services.ClusterConfiguration
 	services.Trust
 	services.SAMLIdPServiceProviders
@@ -49,24 +53,22 @@ type testClient struct {
 	types.Events
 	services.Access
 
-	// signingCtx is a context that can be injected into the signing service.
-	signingCtx     context.Context
-	samlIdPService *SAMLIdPService
+	// SigningCtx is a context that can be injected into the signing service.
+	SigningCtx context.Context
 }
 
-func (t testClient) GetRole(ctx context.Context, name string) (types.Role, error) {
+// GetRole returns role by name
+func (t TClient) GetRole(ctx context.Context, name string) (types.Role, error) {
 	return t.Access.GetRole(ctx, name)
 }
 
-func (t testClient) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
-	return t
-}
-
-func (t testClient) GetDomainName(ctx context.Context) (string, error) {
+// GetDomainName returns "test-cluster" string as domain name
+func (t TClient) GetDomainName(ctx context.Context) (string, error) {
 	return "test-cluster", nil
 }
 
-func (t testClient) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+// CreateSAMLIdPSession creates SAML IdP session from WebSession.
+func (t TClient) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
 	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession,
 		types.WebSessionSpecV2{
 			User:        req.Username,
@@ -84,28 +86,13 @@ func (t testClient) CreateSAMLIdPSession(ctx context.Context, req types.CreateSA
 	return session, nil
 }
 
-// ProcessSAMLIdPRequest is a mock SAML IdP response processor for testing.
-//
-//nolint:revive // Because we want this to be IdP.
-func (t testClient) ProcessSAMLIdPRequest(ctx context.Context, req *samlidppb.ProcessSAMLIdPRequestRequest, _ ...grpc.CallOption) (*samlidppb.ProcessSAMLIdPRequestResponse, error) {
-	if t.signingCtx != nil {
-		ctx = t.signingCtx
-	}
-	return t.samlIdPService.ProcessSAMLIdPRequest(ctx, req)
+// NewTEnv creates new SAML IdP test environment.
+func NewTEnv(ctx context.Context, t *testing.T, clock clockwork.Clock) TEnv {
+	return NewTEnvWithURL(ctx, t, clock, BASEURL)
 }
 
-func (t testClient) TestSAMLIdPAttributeMapping(ctx context.Context, req *samlidppb.TestSAMLIdPAttributeMappingRequest, _ ...grpc.CallOption) (*samlidppb.TestSAMLIdPAttributeMappingResponse, error) {
-	if t.signingCtx != nil {
-		ctx = t.signingCtx
-	}
-	return t.samlIdPService.TestSAMLIdPAttributeMapping(ctx, req)
-}
-
-func samlTestService(ctx context.Context, t *testing.T, clock clockwork.Clock) testServices {
-	return samlTestServiceWithURL(ctx, t, clock, "https://test.url:443")
-}
-
-func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, baseURL string) testServices {
+// NewTEnvWithURL creates new SAML IdP test environment with baseURL.
+func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, baseURL string) TEnv {
 	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
@@ -127,7 +114,7 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 	require.NoError(t, clusterService.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
 	require.NoError(t, clusterService.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 
-	client := &testClient{
+	client := &TClient{
 		ClusterConfiguration:    clusterService,
 		Trust:                   caService,
 		SAMLIdPServiceProviders: spService,
@@ -149,7 +136,7 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 	require.NoError(t, clusterService.SetClusterName(clusterName))
 
 	// Create testing CA.
-	ca := createCA(t)
+	ca := CreateCA(t)
 	require.NoError(t, caService.CreateCertAuthority(ctx, ca))
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
@@ -169,56 +156,40 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 
 	emitter := eventstest.NewChannelEmitter(1)
 
-	//nolint:revive // Because we want this to be IdP.
-	samlIdP, err := New(ctx, Config{
-		Log:         logrus.NewEntry(logrus.New()),
-		Clock:       clock,
-		Client:      client,
-		AccessPoint: client,
-		Authorizer:  authorizer,
-		BaseURL:     baseURL,
-		Emitter:     emitter,
-	})
-	require.NoError(t, err)
-
 	keyStore, err := keystore.NewManager(ctx, keystore.Config{
 		Software: keystore.SoftwareConfig{
 			RSAKeyPairSource: native.GenerateKeyPair,
 		},
 	})
 	require.NoError(t, err)
-	samlIdPService, err := NewSAMLIdPService(&SAMLIdPServiceConfig{
-		Client:     client,
-		KeyStore:   keyStore,
-		Authorizer: authorizer,
-		Log:        logrus.NewEntry(logrus.New()),
-	})
-	require.NoError(t, err)
-	client.samlIdPService = samlIdPService
 
-	return testServices{
-		samlIdP:        samlIdP,
-		clusterService: clusterService,
-		caService:      caService,
-		spService:      spService,
-		userService:    userService,
-		accessService:  accessService,
-		eventService:   eventService,
-		client:         client,
-		emitter:        emitter,
+	return TEnv{
+		ClusterService: clusterService,
+		CAService:      caService,
+		SPService:      spService,
+		UserService:    userService,
+		AccessService:  accessService,
+		EventService:   eventService,
+		Client:         client,
+		Emitter:        emitter,
+		Authorizer:     authorizer,
+		KeyStore:       keyStore,
 	}
 }
 
-func withRole(ctx context.Context, role types.SystemRole) context.Context {
+// WithRole returns context with role.
+func WithRole(ctx context.Context, role types.SystemRole) context.Context {
 	identity := auth.TestBuiltin(role)
 	return authz.ContextWithUser(ctx, identity.I)
 }
 
-func newTestEntityDescriptor(entityID string) string {
+// NewTestEntityDescriptor creates new entity descriptor with provided entityID.
+func NewTestEntityDescriptor(entityID string) string {
 	return fmt.Sprintf(testEntityDescriptor, entityID)
 }
 
-func createCA(t *testing.T) types.CertAuthority {
+// CreateCA creates a new CA with preset "test-cluster" value as cluster name.
+func CreateCA(t *testing.T) types.CertAuthority {
 	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "test-cluster"}, nil, time.Hour)
 	require.NoError(t, err)
 
