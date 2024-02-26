@@ -332,6 +332,7 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 	if alreadyInstalled, err := clt.CheckAgentAlreadyInstalled(ctx, kubeClientGetter, log); err != nil {
 		return "", trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
 	} else if alreadyInstalled {
+		// Web UI relies on the text of this error message. If changed, sync with EnrollEksCluster.tsx
 		return "", trace.AlreadyExists("teleport-kube-agent is already installed on the cluster %q", clusterName)
 	}
 
