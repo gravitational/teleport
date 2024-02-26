@@ -103,8 +103,12 @@ func (e *Engine) getGCPUserAndPassword(ctx context.Context, sessionCtx *common.S
 		}
 		return user, password, nil
 
-	default:
+	case gcpMySQLDBUserTypeUser,
+		gcpMySQLDBUserTypeGroupUser:
 		return "", "", trace.BadParameter("GCP MySQL user type %q not supported", dbUserInfo.Type)
+
+	default:
+		return "", "", trace.BadParameter("unknown GCP MySQL user type %q", dbUserInfo.Type)
 	}
 }
 
