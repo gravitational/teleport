@@ -2552,6 +2552,7 @@ func TestRelativeExpiry(t *testing.T) {
 }
 
 func TestRelativeExpiryLimit(t *testing.T) {
+	t.Parallel()
 	const (
 		checkInterval = time.Second
 		nodeCount     = 100
@@ -2569,7 +2570,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 		c.RelativeExpiryCheckInterval = checkInterval
 		c.RelativeExpiryLimit = expiryLimit
 		c.Clock = clock
-		return ForProxy(c)
+		return ForAuth(c)
 	})
 	t.Cleanup(p.Close)
 
@@ -2609,7 +2610,8 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	}
 }
 
-func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
+func TestRelativeExpiryOnlyForAuth(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
 	p := newTestPack(t, func(c Config) Config {
 		c.RelativeExpiryCheckInterval = time.Second
@@ -2622,9 +2624,10 @@ func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
 	p2 := newTestPack(t, func(c Config) Config {
 		c.RelativeExpiryCheckInterval = time.Second
 		c.Clock = clock
+		c.target = "llama"
 		c.Watches = []types.WatchKind{
 			{Kind: types.KindNamespace},
-			{Kind: types.KindNamespace},
+			{Kind: types.KindNode},
 			{Kind: types.KindCertAuthority},
 		}
 		return c
@@ -2634,8 +2637,9 @@ func TestRelativeExpiryOnlyForNodeWatches(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		clock.Advance(time.Hour * 24)
 		drainEvents(p.eventsC)
-		expectEvent(t, p.eventsC, RelativeExpiry)
+		unexpectedEvent(t, p.eventsC, RelativeExpiry)
 
+		clock.Advance(time.Hour * 24)
 		drainEvents(p2.eventsC)
 		unexpectedEvent(t, p2.eventsC, RelativeExpiry)
 	}

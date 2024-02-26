@@ -246,14 +246,16 @@ Switch `kubectl` to the Kubernetes cluster and run:
 # Deploy a Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
 $ CLUSTER=iam-cluster
 $ PROXY=tele.example.com:443
+# Install the Teleport Kubernetes agent. Does not create a service account and uses the existing
+#   service account. See serviceAccount.create and serviceAccount.name parameters.
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=${CLUSTER?} \
   --set roles="kube\,app\,discovery" \
   --set proxyAddr=${PROXY?} \
   --set joinParams.method=iam \
   --set joinParams.tokenName=<Var name="kube-iam-token"/> \
-  --set serviceAccount.create=false # do not create a new service account # \
-  --set serviceAccount.name=<Var name="teleport-kube-agent-sa"/> # use the existing service account # \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=<Var name="teleport-kube-agent-sa"/> \
   --create-namespace \
   --namespace=<Var name="teleport-agent"/> \
   --version (=teleport.version=)

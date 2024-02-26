@@ -76,6 +76,7 @@ const (
 	TerminalService_ListUnifiedResources_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/ListUnifiedResources"
 	TerminalService_GetUserPreferences_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences"
 	TerminalService_UpdateUserPreferences_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
+	TerminalService_AuthenticateWebDevice_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -197,6 +198,12 @@ type TerminalServiceClient interface {
 	// UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
 	// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
 	UpdateUserPreferences(ctx context.Context, in *UpdateUserPreferencesRequest, opts ...grpc.CallOption) (*UpdateUserPreferencesResponse, error)
+	// AuthenticateWebDevice blesses a web session with device trust by performing
+	// the on-behalf-of device authentication ceremony.
+	//
+	// See
+	// https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+	AuthenticateWebDevice(ctx context.Context, in *AuthenticateWebDeviceRequest, opts ...grpc.CallOption) (*AuthenticateWebDeviceResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -612,6 +619,15 @@ func (c *terminalServiceClient) UpdateUserPreferences(ctx context.Context, in *U
 	return out, nil
 }
 
+func (c *terminalServiceClient) AuthenticateWebDevice(ctx context.Context, in *AuthenticateWebDeviceRequest, opts ...grpc.CallOption) (*AuthenticateWebDeviceResponse, error) {
+	out := new(AuthenticateWebDeviceResponse)
+	err := c.cc.Invoke(ctx, TerminalService_AuthenticateWebDevice_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility
@@ -731,6 +747,12 @@ type TerminalServiceServer interface {
 	// UpdateUserPreferences updates the preferences for a given user in appropriate root and leaf clusters.
 	// Only the properties that are set (cluster_preferences, unified_resource_preferences) will be updated.
 	UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*UpdateUserPreferencesResponse, error)
+	// AuthenticateWebDevice blesses a web session with device trust by performing
+	// the on-behalf-of device authentication ceremony.
+	//
+	// See
+	// https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
+	AuthenticateWebDevice(context.Context, *AuthenticateWebDeviceRequest) (*AuthenticateWebDeviceResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -857,6 +879,9 @@ func (UnimplementedTerminalServiceServer) GetUserPreferences(context.Context, *G
 }
 func (UnimplementedTerminalServiceServer) UpdateUserPreferences(context.Context, *UpdateUserPreferencesRequest) (*UpdateUserPreferencesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateUserPreferences not implemented")
+}
+func (UnimplementedTerminalServiceServer) AuthenticateWebDevice(context.Context, *AuthenticateWebDeviceRequest) (*AuthenticateWebDeviceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateWebDevice not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 
@@ -1602,6 +1627,24 @@ func _TerminalService_UpdateUserPreferences_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_AuthenticateWebDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateWebDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).AuthenticateWebDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_AuthenticateWebDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).AuthenticateWebDevice(ctx, req.(*AuthenticateWebDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1760,6 +1803,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateUserPreferences",
 			Handler:    _TerminalService_UpdateUserPreferences_Handler,
+		},
+		{
+			MethodName: "AuthenticateWebDevice",
+			Handler:    _TerminalService_AuthenticateWebDevice_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

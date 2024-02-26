@@ -190,12 +190,21 @@ export default function useTdpClientCanvas(props: Props) {
     });
   };
 
-  const clientOnWsClose = () => {
-    setWsConnection('closed');
+  const clientOnTdpInfo = (info: string) => {
+    setDirectorySharingState(defaultDirectorySharingState);
+    setClipboardSharingState(defaultClipboardSharingState);
+    setTdpConnection({
+      status: '', // gracefully disconnecting
+      statusText: info,
+    });
+  };
+
+  const clientOnWsClose = (statusText: string) => {
+    setWsConnection({ status: 'closed', statusText });
   };
 
   const clientOnWsOpen = () => {
-    setWsConnection('open');
+    setWsConnection({ status: 'open' });
   };
 
   /**
@@ -375,6 +384,7 @@ export default function useTdpClientCanvas(props: Props) {
     clientOnWsClose,
     clientOnWsOpen,
     clientOnTdpWarning,
+    clientOnTdpInfo,
     canvasOnKeyDown,
     canvasOnKeyUp,
     canvasOnFocusOut,
@@ -401,7 +411,7 @@ type Props = {
   desktopName: string;
   clusterId: string;
   setTdpConnection: Setter<Attempt>;
-  setWsConnection: Setter<'open' | 'closed'>;
+  setWsConnection: Setter<{ status: 'open' | 'closed'; statusText?: string }>;
   clipboardSharingState: ClipboardSharingState;
   setClipboardSharingState: Setter<ClipboardSharingState>;
   setDirectorySharingState: Setter<DirectorySharingState>;

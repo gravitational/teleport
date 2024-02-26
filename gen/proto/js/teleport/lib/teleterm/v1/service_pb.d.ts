@@ -6,6 +6,7 @@
 
 import * as jspb from "google-protobuf";
 import * as teleport_accesslist_v1_accesslist_pb from "../../../../teleport/accesslist/v1/accesslist_pb";
+import * as teleport_devicetrust_v1_device_web_token_pb from "../../../../teleport/devicetrust/v1/device_web_token_pb";
 import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../teleport/lib/teleterm/v1/access_request_pb";
 import * as teleport_lib_teleterm_v1_app_pb from "../../../../teleport/lib/teleterm/v1/app_pb";
 import * as teleport_lib_teleterm_v1_auth_settings_pb from "../../../../teleport/lib/teleterm/v1/auth_settings_pb";
@@ -2050,6 +2051,47 @@ export namespace UserPreferences {
     export type AsObject = {
         clusterPreferences?: teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences.AsObject,
         unifiedResourcePreferences?: teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences.AsObject,
+    }
+}
+
+export class AuthenticateWebDeviceRequest extends jspb.Message { 
+
+    hasDeviceWebToken(): boolean;
+    clearDeviceWebToken(): void;
+    getDeviceWebToken(): teleport_devicetrust_v1_device_web_token_pb.DeviceWebToken | undefined;
+    setDeviceWebToken(value?: teleport_devicetrust_v1_device_web_token_pb.DeviceWebToken): AuthenticateWebDeviceRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AuthenticateWebDeviceRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: AuthenticateWebDeviceRequest): AuthenticateWebDeviceRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AuthenticateWebDeviceRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AuthenticateWebDeviceRequest;
+    static deserializeBinaryFromReader(message: AuthenticateWebDeviceRequest, reader: jspb.BinaryReader): AuthenticateWebDeviceRequest;
+}
+
+export namespace AuthenticateWebDeviceRequest {
+    export type AsObject = {
+        deviceWebToken?: teleport_devicetrust_v1_device_web_token_pb.DeviceWebToken.AsObject,
+    }
+}
+
+export class AuthenticateWebDeviceResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AuthenticateWebDeviceResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: AuthenticateWebDeviceResponse): AuthenticateWebDeviceResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AuthenticateWebDeviceResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AuthenticateWebDeviceResponse;
+    static deserializeBinaryFromReader(message: AuthenticateWebDeviceResponse, reader: jspb.BinaryReader): AuthenticateWebDeviceResponse;
+}
+
+export namespace AuthenticateWebDeviceResponse {
+    export type AsObject = {
     }
 }
 

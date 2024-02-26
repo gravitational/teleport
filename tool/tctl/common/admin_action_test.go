@@ -372,6 +372,11 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 				cliCommand: &tctl.TokensCommand{},
 				setup:      createToken,
 				cleanup:    deleteToken,
+			}, {
+				command:    "tokens ls",
+				cliCommand: &tctl.TokensCommand{},
+				setup:      createToken,
+				cleanup:    deleteToken,
 			},
 		} {
 			t.Run(tc.command, func(t *testing.T) {
@@ -385,6 +390,7 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 			resource:        token,
 			resourceCreate:  createToken,
 			resourceCleanup: deleteToken,
+			testGetList:     true,
 		})
 	})
 
@@ -820,6 +826,10 @@ type resourceCommandTestCase struct {
 	resource        types.Resource
 	resourceCreate  func() error
 	resourceCleanup func() error
+
+	// Tests get/list resource, for privileged resources
+	// like tokens that should require MFA to be seen.
+	testGetList bool
 }
 
 func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Context, tc resourceCommandTestCase) {
@@ -854,6 +864,26 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 			cleanup:    tc.resourceCleanup,
 		})
 	})
+
+	if tc.testGetList {
+		t.Run("tctl get", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
+				command:    fmt.Sprintf("get %v", getResourceRef(tc.resource)),
+				cliCommand: &tctl.ResourceCommand{},
+				setup:      tc.resourceCreate,
+				cleanup:    tc.resourceCleanup,
+			})
+		})
+
+		t.Run("tctl list", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
+				command:    fmt.Sprintf("get %v", tc.resource.GetKind()),
+				cliCommand: &tctl.ResourceCommand{},
+				setup:      tc.resourceCreate,
+				cleanup:    tc.resourceCleanup,
+			})
+		})
+	}
 }
 
 type editCommandTestCase struct {

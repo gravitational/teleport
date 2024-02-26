@@ -230,6 +230,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindServerInfo, nil
 	case types.KindBot, "bots":
 		return types.KindBot, nil
+	case types.KindDatabaseObjectImportRule, "db_object_import_rules", "database_object_import_rule":
+		return types.KindDatabaseObjectImportRule, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -647,6 +649,13 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(b), nil
+	})
+	RegisterResourceUnmarshaler(types.KindDatabaseObjectImportRule, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		out, err := UnmarshalDatabaseObjectImportRule(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(out), nil
 	})
 }
 
