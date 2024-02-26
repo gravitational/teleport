@@ -125,7 +125,7 @@ sequenceDiagram
   A->>B: Signed TLS and SSH Certificates
 ```
 
-#### Renewal
+### Renewal
 
 As with all delegated join methods, the renewal will simply repeat the join
 process.
