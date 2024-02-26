@@ -15,6 +15,7 @@ package web
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -37,6 +38,16 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 		return nil, trace.Wrap(err)
 	}
 
+	jwksURI := ""
+	if jwksURI = os.Getenv("TELEPORT_OIDC_JWKS_URI"); jwksURI == "" {
+		jwksURI = issuer + OIDCJWKWURI
+	}
+
+	issuer_env := ""
+	if issuer_env = os.Getenv("TELEPORT_OIDC_ISSUER"); issuer_env != "" {
+		issuer = issuer_env
+	}
+
 	return struct {
 		Issuer                           string   `json:"issuer"`
 		JWKSURI                          string   `json:"jwks_uri"`
@@ -47,7 +58,7 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 		SubjectTypesSupported            []string `json:"subject_types_supported"`
 	}{
 		Issuer:                           issuer,
-		JWKSURI:                          issuer + OIDCJWKWURI,
+		JWKSURI:                          jwksURI,
 		Claims:                           []string{"iss", "sub", "obo", "aud", "jti", "iat", "exp", "nbf"},
 		IdTokenSigningAlgValuesSupported: []string{"RS256"},
 		ResponseTypesSupported:           []string{"id_token"},

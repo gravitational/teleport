@@ -18,6 +18,7 @@ package integrationv1
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -80,6 +81,11 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context) (*integr
 	issuer, err := oidc.IssuerForCluster(ctx, s.cache)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	issuer_env := ""
+	if issuer_env = os.Getenv("TELEPORT_OIDC_ISSUER"); issuer_env != "" {
+		issuer = issuer_env
 	}
 
 	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
