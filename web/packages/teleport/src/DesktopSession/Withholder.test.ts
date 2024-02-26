@@ -1,6 +1,6 @@
 import { ButtonState, TdpClient } from 'teleport/lib/tdp';
 
-import { Withholder } from './KeyboardHandler';
+import { Withholder } from './Withholder';
 
 // Mock the TdpClient class
 jest.mock('teleport/lib/tdp', () => {
