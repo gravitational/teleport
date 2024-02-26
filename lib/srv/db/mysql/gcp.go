@@ -38,7 +38,7 @@ func isDBUserGCPServiceAccount(dbUser string) bool {
 		// This format is used to align with PostgreSQL.
 		case strings.HasSuffix(dbUser, ".iam"):
 			return true
-		// Example: mysql-iam-user@my-project-id..gserviceaccount.com
+		// Example: mysql-iam-user@my-project-id.iam.gserviceaccount.com
 		case strings.HasSuffix(dbUser, ".iam.gserviceaccount.com"):
 			return true
 		}
@@ -58,57 +58,65 @@ func databaseUserToGCPServiceAccount(sessionCtx *common.Session) string {
 func (e *Engine) getGCPUserAndPassword(ctx context.Context, sessionCtx *common.Session, gcpClient gcp.SQLAdminClient) (string, string, error) {
 	// If `--db-user` is an service account email, use IAM Auth.
 	if isDBUserGCPServiceAccount(sessionCtx.DatabaseUser) {
-		return e.getGCPIAMUserAndPassword(ctx, sessionCtx)
+		user := gcpServiceAccountToDatabaseUser(sessionCtx.DatabaseUser)
+		password, err := e.getGCPIAMAuthToken(ctx, sessionCtx)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		return user, password, nil
 	}
 
 	// Get user info to decide how to authenticate.
-	user, err := gcpClient.GetUser(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
-	if err != nil {
-		// GetUser permission is new for IAM auth. If no permission, assume legacy password user.
-		if trace.IsAccessDenied(err) {
-			return e.getGCPPasswordUserAndPassword(ctx, sessionCtx)
+	user := sessionCtx.DatabaseUser
+	dbUserInfo, err := gcpClient.GetUser(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
+	switch {
+	// GetUser permission is new for IAM auth. If no permission, assume legacy password user.
+	case trace.IsAccessDenied(err):
+		password, err := e.getGCPOneTimePassword(ctx, sessionCtx)
+		if err != nil {
+			return "", "", trace.Wrap(err)
 		}
+		return user, password, nil
+
+	// Report any other error.
+	case err != nil:
 		return "", "", trace.Wrap(err)
 	}
 
-	// Possible values (copied from SDK):
-	//   "BUILT_IN" - The database's built-in user type.
-	//   "CLOUD_IAM_USER" - Cloud IAM user.
-	//   "CLOUD_IAM_SERVICE_ACCOUNT" - Cloud IAM service account.
-	//   "CLOUD_IAM_GROUP" - Cloud IAM group non-login user.
-	//   "CLOUD_IAM_GROUP_USER" - Cloud IAM group login user.
-	//   "CLOUD_IAM_GROUP_SERVICE_ACCOUNT" - Cloud IAM group service account.
-	//
-	// In practice, type can also be empty for built-in user.
-	switch user.Type {
+	// The user type constants are documented in their SDK. However, in
+	// practice, type can also be empty for built-in user.
+	switch dbUserInfo.Type {
 	case "",
-		"BUILT_IN":
-		return e.getGCPPasswordUserAndPassword(ctx, sessionCtx)
+		gcpMySQLDBUserTypeBuiltIn:
+		password, err := e.getGCPOneTimePassword(ctx, sessionCtx)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		return user, password, nil
 
-	case "CLOUD_IAM_SERVICE_ACCOUNT",
-		"CLOUD_IAM_GROUP_SERVICE_ACCOUNT":
-		return e.getGCPIAMUserAndPassword(
-			ctx,
-			sessionCtx.WithUser(databaseUserToGCPServiceAccount(sessionCtx)),
-		)
+	case gcpMySQLDBUserTypeServiceAccount,
+		gcpMySQLDBUserTypeGroupServiceAccount:
+		serviceAccountName := databaseUserToGCPServiceAccount(sessionCtx)
+		password, err := e.getGCPIAMAuthToken(ctx, sessionCtx.WithUser(serviceAccountName))
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		return user, password, nil
 
 	default:
-		return "", "", trace.BadParameter("GCP MySQL user type %q not supported", user.Type)
+		return "", "", trace.BadParameter("GCP MySQL user type %q not supported", dbUserInfo.Type)
 	}
 }
 
-func (e *Engine) getGCPIAMUserAndPassword(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
+func (e *Engine) getGCPIAMAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	e.Log.WithField("session", sessionCtx).Debug("Authenticating GCP MySQL with IAM auth.")
 
 	// Note that sessionCtx.DatabaseUser is the service account.
 	password, err := e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
-	if err != nil {
-		return "", "", trace.Wrap(err)
-	}
-	return gcpServiceAccountToDatabaseUser(sessionCtx.DatabaseUser), password, nil
+	return password, trace.Wrap(err)
 }
 
-func (e *Engine) getGCPPasswordUserAndPassword(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
+func (e *Engine) getGCPOneTimePassword(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	e.Log.WithField("session", sessionCtx).Debug("Authenticating GCP MySQL with password auth.")
 
 	// For Cloud SQL MySQL legacy auth, we use one-time passwords by resetting
@@ -119,7 +127,7 @@ func (e *Engine) getGCPPasswordUserAndPassword(ctx context.Context, sessionCtx *
 	defer cancel()
 	lease, err := services.AcquireSemaphoreWithRetry(retryCtx, e.makeAcquireSemaphoreConfig(sessionCtx))
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	// Only release the semaphore after the connection has been established
 	// below. If the semaphore fails to release for some reason, it will
@@ -132,7 +140,20 @@ func (e *Engine) getGCPPasswordUserAndPassword(ctx context.Context, sessionCtx *
 	}()
 	password, err := e.Auth.GetCloudSQLPassword(ctx, sessionCtx)
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
-	return sessionCtx.DatabaseUser, password, nil
+	return password, nil
 }
+
+const (
+	// gcpMySQLDBUserTypeBuiltIn indicates the database's built-in user type.
+	gcpMySQLDBUserTypeBuiltIn = "BUILT_IN"
+	// gcpMySQLDBUserTypeServiceAccount indicates a Cloud IAM service account.
+	gcpMySQLDBUserTypeServiceAccount = "CLOUD_IAM_SERVICE_ACCOUNT"
+	//  gcpMySQLDBUserTypeGroupServiceAccount indicates a Cloud IAM group service account.
+	gcpMySQLDBUserTypeGroupServiceAccount = "CLOUD_IAM_GROUP_SERVICE_ACCOUNT"
+	// gcpMySQLDBUserTypeUser indicates a Cloud IAM user.
+	gcpMySQLDBUserTypeUser = "CLOUD_IAM_USER"
+	// gcpMySQLDBUserTypeGroupUser indicates a Cloud IAM group login user.
+	gcpMySQLDBUserTypeGroupUser = "CLOUD_IAM_GROUP_USER"
+)
