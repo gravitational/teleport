@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { Box, ButtonSecondary, ButtonText, Text, Toggle } from 'design';
+import { Box, ButtonSecondary, ButtonText, Link, Text, Toggle } from 'design';
 import styled from 'styled-components';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
@@ -218,7 +218,12 @@ export function EnrollEksCluster(props: AgentStepProps) {
         emitErrorEvent(
           'unknown error: no results came back from enrolling the EKS cluster.'
         );
-      } else if (result.error) {
+      } else if (
+        result.error &&
+        !result.error.message.includes(
+          'teleport-kube-agent is already installed'
+        )
+      ) {
         setEnrollmentState({
           status: 'error',
           error: `Cluster enrollment error: ${result.error}`,
@@ -293,6 +298,17 @@ export function EnrollEksCluster(props: AgentStepProps) {
       {fetchClustersAttempt.status === 'failed' && !hasIamPermError && (
         <Danger mt={3}>{fetchClustersAttempt.statusText}</Danger>
       )}
+      <Text mt={4} mb={-3}>
+        <b>Note:</b> EKS enrollment will work only with clusters that have
+        access entries authentication mode enabled, see{' '}
+        <Link
+          href="https://docs.aws.amazon.com/eks/latest/userguide/access-entries.html#authentication-modes"
+          target="_blank"
+          color="text.main"
+        >
+          documentation.
+        </Link>
+      </Text>
       <Text mt={4}>
         Select the AWS Region you would like to see EKS clusters for:
       </Text>
@@ -346,7 +362,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
                 }}
                 pl={0}
               >
-                Or click here to see instructions for manual enrollment
+                Or do manual enrollment
               </ButtonText>
             </Box>
           </StyledBox>
