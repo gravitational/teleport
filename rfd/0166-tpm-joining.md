@@ -1,0 +1,225 @@
+---
+authors: @strideynet (noah@goteleport.com)
+state: draft
+---
+
+# RFD 0166 - TPM Joining
+
+## Required Approvers
+ 
+* Engineering: (@zmb33 || @codingllama)
+* Security: (@reedloden || @jentfoo)
+* Product: (@xinding33 || @klizhentas)
+
+# What
+
+Introduce a new join method that allows a Bot or Agent running on a host with a
+TPM to securely join a Teleport cluster without using a shared secret.
+
+# Why
+
+Bootstrapping trust with a newly provisioned host in an on-premises environment
+is challenging. In many environments, this is done by transferring an initial
+shared secret to the host, which can then be used for authentication. However,
+this is difficult to complete securely - especially at scale. This is due to the
+risk of impersonation/interception, an attacker who has sufficiently compromised
+the network can impersonate a newly provisioned host and receive access to this
+secret. In addition, a shared secret on the host is liable to exfiltration.
+
+A TPM provides a secure, unique and persistent initial identity ideal for
+bootstrapping trust with a host. Even across reboots, or reconfigurations, the
+TPM identity remains the same. The guarantees provided by a compliant TPM mean
+that this identity cannot be exfiltrated. This makes it a strong candidate for
+bootstrapping trust.
+
+# Implementation
+
+Reference materials:
+
+- [TCG Credential Profile EK 2.0](https://trustedcomputinggroup.org/wp-content/uploads/TCG-EK-Credential-Profile-V-2.5-R2_published.pdf): For specification of the EK and EKCert.
+- [TCG Trusted Platform Module Library](https://trustedcomputinggroup.org/resource/tpm-library-specification/): For specification of TPM commands and structures.
+- [TPM 2.0 Keys for Device identity and Attestation](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf): For the recommended TPM 2.0 flows for device identity and attestation.
+- [RFD 0008e - Device Trust TPM Support](https://github.com/gravitational/teleport.e/blob/master/rfd/0008e-device-trust-tpm.md): For the existing TPM identity implementation in Teleport.
+
+## Overview of TPM functionality and terminology
+
+- Trusted Platform Module (TPM): a hardware module that provides a secure root
+  of trust for a host. It can securely generate and store keys and perform
+  cryptographic operations for the host without exposing the keys.
+- Endorsement Key (EK): A key pair that is "burned in" to the TPM at the time of
+  manufacture. The endorsement key cannot be used to perform signing operations,
+  cannot be exported from the TPM, but can be used to decrypt data.
+- Public Endorsement Key (EKPub): The public part of the EK.
+- Endorsement Key Certificate (EKCert): A certificate containing the EKPub,
+  signed by the TPM manufacturer's CA, that is "burned in" to many TPMs. This 
+  allows the authenticity of the TPM to be verified.
+- Attestation Key (AK): A key pair created for the TPM which can be used to
+  sign data.
+
+A compliant TPM provides certain guarantees that will be relevant to TPM
+joining:
+
+- Certain keys cannot be "exported" from the TPM (e.g available to the host)
+- Certain keys can only be used to perform certain operations (e.g the EK cannot
+  be used to sign or decrypt arbitrary data)
+- The Credential Activation ceremony can be used to prove that a key exists in
+  the TPM with another key, and that the key is configured in a certain way
+  (e.g cannot be exported).
+
+It is important to note that these guarantees do not exist if the TPM is not
+compliant or the host has been compromised in such a way that some malicious
+software is intercepting commands intended for the TPM. This is mitigated by
+validating the EKPub and EKCert against the manufacturer's CA in ceremonies
+such as Credential Activation, proving that the TPM is legitimate and that you 
+are talking directly to it.
+
+## Join Process
+
+### Pre-join Configuration
+
+Before joining is possible, the user must configure the Auth Server with a join
+token which allows that TPM to join. The Join Token will contain the EKPub
+hashes and EKCert serials which are allowed to join.
+
+To assist in this process, a new command will be added `tbot tpm identify`:
+
+1. User runs `tbot tpm identify` on the host. This will query the EKPub and
+  EKCert from the TPM attached to the host and output these values for the user.
+2. User creates or modifies an existing `tpm` join token to include the EKPub
+  or EkCert serial of the TPM within the allow list. See the API Changes section
+  for the structure of this.
+
+### Joining
+
+The join process is roughly based on the TCG TPM 2.0 Keys for Device Identity
+and Attestation recommended "Identity Provisioning" flow. As per this document,
+the flow is designed to assure that:
+
+- The TPM is authentic (by validating the EKCert)
+- The specific TPM is authentic and is represented by the EKCert (by validating
+  that the EK in the TPM corresponds to the key in the EKCert)
+- The generated AK is authentic (resident in the same TPM as the EK)
+
+```mermaid
+sequenceDiagram
+  participant T as TPM
+  participant B as Bot
+  participant A as Auth Server
+  B->>T: Queries EK and EKCert
+  T-->>B: EK, EK handle, EKCert
+  B->>T: Request AK generation
+  T-->>B: AKPub, AK handle
+  B->>A: Starts RegisterUsingTPM RPC stream
+  B->>A: Sends EKPub, EKCert and AKPub
+  opt TPM CA configured for Join Token
+    A->>A: EKCert signature validated against CA
+  end
+  A->>A: Validates EKPub hash, EKCert serial against those configured in Join Token 
+  A->>A: Generates Credential Activation challenge
+  A-->>B: Sends Credential Activation challenge
+  B->>T: ActivateCredential(EK Handle, AK Handle, Challenge)
+  T->>T: Solves challenge
+  T-->>B: Credential Activation solution
+  B-->>A: Credential Activation solution
+  A->>A: Validates submitted solution against the known solution
+  A->>B: Signed TLS and SSH Certificates
+```
+
+#### Renewal
+
+As with all delegated join methods, the renewal will simply repeat the join
+process.
+
+## API Changes
+
+### Join Token
+
+### `RegisterUsingTPM` RPC
+
+## Security Considerations
+
+### Manufacturer CA Compromise
+
+If the TPM manufacturer's CA is compromised, we can no longer trust that the
+TPM we are talking to is authentic during the enrolment process. These CAs
+are typically well protected, making this a complex attack.
+
+In addition, merely compromising the CA is not all that useful alone. The
+attacker would also need to either:
+
+- Compromise the host and intercept the TPM commands and responses.
+- Compromise the hardware supply chain and install malicious TPMs.
+
+In the case a compromise is noticed, the manufacturer can revoke the CA and
+distribute new EKCerts for effected TPMs. Users would need to update the
+configured EKCert CAs within their Teleport configuration and at this point the
+attacker would lose the ability to impersonate TPMs.
+
+### TPM Compromise
+
+If the TPM design itself is compromised, the guarantees provided by the TPM
+are lost. An attacker with access to the host would be able to extract the 
+sensitive materials from the TPM and impersonate it at will.
+
+Realistically, this is an extremely complex attack. TPMs are designed, reviewed
+and tested to reduce the risk of this happening. In addition, the attacker would
+still need to compromise the host in order to extract the sensitive materials.
+
+However, it's worth recognizing that this is not impossible. In 2023, 
+CVE-2023-1017 and CVE-2023-1018 were published, which describe a vulnerability
+in a version reference implementation code provided by the TCG for TPM vendors.
+A firmware patch was released for the affected TPMs.
+
+Using other Teleport features, such as access monitoring and IP pinning, can
+help mitigate this risk. Allowing compromise to be detected or the difficulty
+of the attack to be increased.
+
+### Certificate Exfiltration
+
+Once joined, the signed Bot certificates and private keys are stored on disk or
+in memory. Here, they can be exfiltrated by an attacker with sufficient access 
+to the host.
+
+This risk is reduced by using a short TTL for the certificates. This limits the
+amount of time an exfiltrated certificate can be used. In addition, preferring
+the in-memory storage further reduces the risk as higher privileges are
+typically required to read the memory of a process.
+
+To mitigate this entirely, we should implement "Storing Bot private key material
+in the TPM" as described in the "Future Improvements" section.
+
+## Audit Logs
+
+Whether the join was successful or not, the Auth Server should omit the
+`bot.join` audit event for the join attempt. This should include, in addition
+to the already standard fields, the following:
+
+- The EKPub hash
+- The EKCert serial
+- The TPM manufacturer, part number and firmware version if encoded in the
+  EKCert SAN
+
+## Future Improvements
+
+### Platform Attestation
+
+Eventually, we can use the TPM to perform a platform attestation to inspect
+the PCR values and event log during the join process. These values can 
+be logged and rules can be put in place to block joins where a host's state
+sufficiently deviates from the known-good and expected state.
+
+This work is deferred for now as platform attestation is a complex topic and
+greatly increases the complexity of the implementation and also the complexity
+of using the feature. This can be revisited once there is a clearly defined
+use-case and demonstrated demand.
+
+### Storing Bot private key material in the TPM
+
+In addition to using the TPM for the join process, we can also use this to
+generate and store the Bot's private key material. As the TPM can be used to
+perform cryptographic operations without exposing the keys, this would provide
+a strong guarantee that the private key material cannot be exfiltrated.
+
+See https://github.com/gravitational/teleport/issues/21555 for tracking of this
+improvement.
+
