@@ -2926,6 +2926,19 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 	return rg.reader.GetAccessList(ctx, name)
 }
 
+// CountAccessListMembers will count all access list members.
+func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/CountAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.CountAccessListMembers(ctx, accessListName)
+}
+
 // ListAccessListMembers returns a paginated list of all access list members.
 // May return a DynamicAccessListError if the requested access list has an
 // implicit member list and the underlying implementation does not have
