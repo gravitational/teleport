@@ -491,14 +491,18 @@ type installKubeAgentParams struct {
 	log          logrus.FieldLogger
 }
 
-func getChartUrl(version string) string {
-	return fmt.Sprintf("%s/%s-%s.tgz", agentRepoURL, agentName, version)
+func getChartURL(version string) (*url.URL, error) {
+	u, err := url.Parse(fmt.Sprintf("%s/%s-%s.tgz", agentRepoURL, agentName, version))
+	if err != nil {
+		return nil, err
+	}
+	return u, err
 }
 
 // getChartData returns kube agent Helm chart data ready to be used by Helm SDK. We don't use native Helm
 // chart downloading because it tends to save temporary files and here we do everything just in memory.
 func getChartData(version string) (*chart.Chart, error) {
-	chartURL, err := url.Parse(getChartUrl(version))
+	chartURL, err := getChartURL(version)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
