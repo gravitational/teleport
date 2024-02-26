@@ -41,6 +41,9 @@ Reference materials:
 - [TPM 2.0 Keys for Device identity and Attestation](https://trustedcomputinggroup.org/wp-content/uploads/TPM-2p0-Keys-for-Device-Identity-and-Attestation_v1_r12_pub10082021.pdf): For the recommended TPM 2.0 flows for device identity and attestation.
 - [RFD 0008e - Device Trust TPM Support](https://github.com/gravitational/teleport.e/blob/master/rfd/0008e-device-trust-tpm.md): For the existing TPM identity implementation in Teleport.
 
+Existing code and logic from Device Trust TPM support will be reused where
+appropriate for this feature.
+
 ## Overview of TPM functionality and terminology
 
 - Trusted Platform Module (TPM): a hardware module that provides a secure root
@@ -124,6 +127,12 @@ sequenceDiagram
   A->>A: Validates submitted solution against the known solution
   A->>B: Signed TLS and SSH Certificates
 ```
+
+At the core of this process is the Credential Activation ceremony. This proves
+possession of the EK and AK to the Auth Server through decrypting an
+encrypted challenge. As long as the TPM is authentic (e.g the EKCert is 
+signed by a trusted manufacturer), this ceremony also proves that the EK and AK
+are resident in the same TPM and cannot be exported.
 
 ### Renewal
 
@@ -272,6 +281,28 @@ message RegisterUsingTPMMethodResponse {
 
 The TPM join method will be restricted to Enterprise/Cloud licensed clusters.
 
+### Improvement: Platform Attestation
+
+Eventually, we can use the TPM to perform a platform attestation to inspect
+the PCR values and event log during the join process. These values can
+be logged and rules can be put in place to block joins where a host's state
+sufficiently deviates from the known-good and expected state.
+
+This work is deferred for now as platform attestation is a complex topic and
+greatly increases the complexity of the implementation and also the complexity
+of using the feature. This can be revisited once there is a clearly defined
+use-case and demonstrated demand.
+
+### Improvement: Storing Bot private key material in the TPM
+
+In addition to using the TPM for the join process, we can also use this to
+generate and store the Bot's private key material. As the TPM can be used to
+perform cryptographic operations without exposing the keys, this would provide
+a strong guarantee that the private key material cannot be exfiltrated.
+
+See https://github.com/gravitational/teleport/issues/21555 for tracking of this
+improvement.
+
 ## Security Considerations
 
 ### Manufacturer CA Compromise
@@ -324,7 +355,7 @@ typically required to read the memory of a process.
 To mitigate this entirely, we should implement "Storing Bot private key material
 in the TPM" as described in the "Future Improvements" section.
 
-## Audit Logs
+### Audit Logs
 
 Whether the join was successful or not, the Auth Server should omit the
 `bot.join` audit event for the join attempt. This should include, in addition
@@ -334,28 +365,3 @@ to the already standard fields, the following:
 - The EKCert serial
 - The TPM manufacturer, part number and firmware version if encoded in the
   EKCert SAN
-
-## Future Improvements
-
-### Platform Attestation
-
-Eventually, we can use the TPM to perform a platform attestation to inspect
-the PCR values and event log during the join process. These values can 
-be logged and rules can be put in place to block joins where a host's state
-sufficiently deviates from the known-good and expected state.
-
-This work is deferred for now as platform attestation is a complex topic and
-greatly increases the complexity of the implementation and also the complexity
-of using the feature. This can be revisited once there is a clearly defined
-use-case and demonstrated demand.
-
-### Storing Bot private key material in the TPM
-
-In addition to using the TPM for the join process, we can also use this to
-generate and store the Bot's private key material. As the TPM can be used to
-perform cryptographic operations without exposing the keys, this would provide
-a strong guarantee that the private key material cannot be exfiltrated.
-
-See https://github.com/gravitational/teleport/issues/21555 for tracking of this
-improvement.
-
