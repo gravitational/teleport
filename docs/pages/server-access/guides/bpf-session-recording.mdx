@@ -169,6 +169,16 @@ ssh_service:
     root_path: /teleport
 ```
 
+<Details title="Isolate session recordings">
+
+If you operate multiple Teleport instances on the same system, customize the
+`root_path` configuration to change the base cgroup slice path for session
+recordings resources. This ensures security isolation between recordings from
+different Teleport instances, allowing you to apply distinct security rules and
+resource controls.
+
+</Details>
+
 ### Start Teleport on your Node
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport SSH Service"!)
