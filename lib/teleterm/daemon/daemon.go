@@ -293,7 +293,7 @@ func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams)
 }
 
 type GatewayCreator interface {
-	CreateGateway(context.Context, *client.ProxyClient, clusters.CreateGatewayParams) (gateway.Gateway, error)
+	CreateGateway(context.Context, clusters.CreateGatewayParams) (gateway.Gateway, error)
 }
 
 // createGateway assumes that mu is already held by a public method.
@@ -307,6 +307,11 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
+	proxyClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
@@ -315,14 +320,10 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
 		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
+		ProxyClient:           proxyClient,
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, proxyClient, clusterCreateGatewayParams)
+	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

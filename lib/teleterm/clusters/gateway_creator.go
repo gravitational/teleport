@@ -38,13 +38,13 @@ func NewGatewayCreator(resolver Resolver) GatewayCreator {
 	}
 }
 
-func (g GatewayCreator) CreateGateway(ctx context.Context, proxyClient *client.ProxyClient, params CreateGatewayParams) (gateway.Gateway, error) {
+func (g GatewayCreator) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	cluster, _, err := g.resolver.ResolveCluster(params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	gateway, err := cluster.CreateGateway(ctx, proxyClient, params)
+	gateway, err := cluster.CreateGateway(ctx, params)
 	return gateway, trace.Wrap(err)
 }
 

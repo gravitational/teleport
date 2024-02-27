@@ -55,7 +55,7 @@ type mockGatewayCreator struct {
 	tcpPortAllocator gateway.TCPPortAllocator
 }
 
-func (m *mockGatewayCreator) CreateGateway(ctx context.Context, proxyClient *client.ProxyClient, params clusters.CreateGatewayParams) (gateway.Gateway, error) {
+func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (gateway.Gateway, error) {
 	m.callCount++
 
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))

@@ -46,23 +46,24 @@ type CreateGatewayParams struct {
 	OnExpiredCert        gateway.OnExpiredCertFunc
 	KubeconfigsDir       string
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
+	ProxyClient          *client.ProxyClient
 }
 
 // CreateGateway creates a gateway
-func (c *Cluster) CreateGateway(ctx context.Context, proxyClient *client.ProxyClient, params CreateGatewayParams) (gateway.Gateway, error) {
+func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	c.clusterClient.MFAPromptConstructor = params.MFAPromptConstructor
 
 	switch {
 	case params.TargetURI.IsDB():
-		gateway, err := c.createDBGateway(ctx, proxyClient, params)
+		gateway, err := c.createDBGateway(ctx, params)
 		return gateway, trace.Wrap(err)
 
 	case params.TargetURI.IsKube():
-		gateway, err := c.createKubeGateway(ctx, proxyClient, params)
+		gateway, err := c.createKubeGateway(ctx, params)
 		return gateway, trace.Wrap(err)
 
 	case params.TargetURI.IsApp():
-		gateway, err := c.createAppGateway(ctx, proxyClient, params)
+		gateway, err := c.createAppGateway(ctx, params)
 		return gateway, trace.Wrap(err)
 
 	default:
@@ -70,8 +71,8 @@ func (c *Cluster) CreateGateway(ctx context.Context, proxyClient *client.ProxyCl
 	}
 }
 
-func (c *Cluster) createDBGateway(ctx context.Context, proxyClient *client.ProxyClient, params CreateGatewayParams) (gateway.Gateway, error) {
-	db, err := c.GetDatabase(ctx, proxyClient.CurrentCluster(), params.TargetURI)
+func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
+	db, err := c.GetDatabase(ctx, params.ProxyClient.CurrentCluster(), params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,7 +84,7 @@ func (c *Cluster) createDBGateway(ctx context.Context, proxyClient *client.Proxy
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		return trace.Wrap(c.reissueDBCerts(ctx, proxyClient, routeToDatabase))
+		return trace.Wrap(c.reissueDBCerts(ctx, params.ProxyClient, routeToDatabase))
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -114,11 +115,11 @@ func (c *Cluster) createDBGateway(ctx context.Context, proxyClient *client.Proxy
 	return gw, nil
 }
 
-func (c *Cluster) createKubeGateway(ctx context.Context, proxyClient *client.ProxyClient, params CreateGatewayParams) (gateway.Gateway, error) {
+func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	kube := params.TargetURI.GetKubeName()
 
 	// Check if this kube exists and the user has access to it.
-	if _, err := c.getKube(ctx, proxyClient.CurrentCluster(), kube); err != nil {
+	if _, err := c.getKube(ctx, params.ProxyClient.CurrentCluster(), kube); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -126,7 +127,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, proxyClient *client.Pro
 	var err error
 
 	if err := AddMetadataToRetryableError(ctx, func() error {
-		cert, err = c.reissueKubeCert(ctx, proxyClient, kube)
+		cert, err = c.reissueKubeCert(ctx, params.ProxyClient, kube)
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -153,10 +154,10 @@ func (c *Cluster) createKubeGateway(ctx context.Context, proxyClient *client.Pro
 	return gw, trace.Wrap(err)
 }
 
-func (c *Cluster) createAppGateway(ctx context.Context, proxyClient *client.ProxyClient, params CreateGatewayParams) (gateway.Gateway, error) {
+func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	appName := params.TargetURI.GetAppName()
 
-	app, err := c.getApp(ctx, proxyClient.CurrentCluster(), appName)
+	app, err := c.getApp(ctx, params.ProxyClient.CurrentCluster(), appName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,7 +165,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, proxyClient *client.Prox
 	var cert tls.Certificate
 
 	if err := AddMetadataToRetryableError(ctx, func() error {
-		cert, err = c.reissueAppCert(ctx, proxyClient, app)
+		cert, err = c.reissueAppCert(ctx, params.ProxyClient, app)
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
