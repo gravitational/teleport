@@ -88,6 +88,10 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	// daemon.Service.ResolveClusterURI.
 	clusterClient.MFAPromptConstructor = nil
 
+	if err := s.DaemonService.ClearCachedClientsForRoot(cluster.URI); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Start the prompt flow.
 	if err := cluster.PasswordlessLogin(stream.Context(), stream); err != nil {
 		return trace.Wrap(err)
