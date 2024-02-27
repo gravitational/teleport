@@ -223,8 +223,8 @@ func (r *SSHServerWrapper) handoverCleanup(ctx context.Context, cleanupDelay tim
 
 	errs := []error{firstErr, secondErr}
 	for _, path := range paths {
-		if err := trace.ConvertSystemError(os.Remove(path)); err != nil {
-			errs = append(errs, err)
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			errs = append(errs, trace.ConvertSystemError(err))
 		}
 	}
 
