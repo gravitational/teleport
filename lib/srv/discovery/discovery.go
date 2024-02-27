@@ -100,9 +100,6 @@ type gcpInstaller interface {
 	Run(ctx context.Context, req server.GCPRunRequest) error
 }
 
-//type EKSEnrollmentClientGetter interface {
-//	GetEKSEnrollmentClient(ctx context.Context, integration, region string) (awsoidc.EnrollEKSCLusterClient, awsV2.CredentialsProvider, error)
-//}
 
 type EKSEnrollmentClientGetter func(ctx context.Context, integration, region string) (awsoidc.EnrollEKSCLusterClient, awsV2.CredentialsProvider, error)
 
