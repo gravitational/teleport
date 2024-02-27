@@ -32,6 +32,7 @@ import (
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -1847,6 +1848,15 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = sortedClusters.AsResources()
+
+	case types.KindCrownJewel:
+		crownJewels, err := a.GetCrownJewels(ctx, &emptypb.Empty{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, cj := range crownJewels.CrownJewels {
+			resources = append(resources, cj)
+		}
 	case types.KindKubeServer:
 		kubeServers, err := a.GetKubernetesServers(ctx)
 		if err != nil {
@@ -7132,4 +7142,30 @@ func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks ser
 	}
 
 	return okta.CheckAccess(authzCtx, existingLock, verb)
+}
+
+// GetClusterConfig ..
+func (a *ServerWithRoles) CreateCrownJewel(ctx context.Context, req *types.CrownJewel) (*types.CrownJewel, error) {
+	if err := a.action(apidefaults.Namespace, types.KindCrownJewel, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rsp, err := a.authServer.CreateCrownJewel(ctx, req)
+	return rsp, trace.Wrap(err)
+}
+
+// GetCrownJewels ...
+func (a *ServerWithRoles) GetCrownJewels(ctx context.Context, req *emptypb.Empty) (*proto.CrownJewelList, error) {
+	if err := a.action(apidefaults.Namespace, types.KindCrownJewel, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	list, err := a.authServer.GetCrownJewels(ctx, req)
+	return list, trace.Wrap(err)
+}
+
+// DeleteCrownJewel ...
+func (a *ServerWithRoles) DeleteCrownJewel(ctx context.Context, req *types.CrownJewel) (*emptypb.Empty, error) {
+	if err := a.action(apidefaults.Namespace, types.KindCrownJewel, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.DeleteCrownJewel(ctx, req)
 }

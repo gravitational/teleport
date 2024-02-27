@@ -171,6 +171,10 @@ func (c *genericCollection[T, R, _]) getReader(cacheOK bool) R {
 
 var _ collectionReader[any] = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
 
+type crownjewelsGetter interface {
+	GetCrownJewels(context.Context) ([]*types.CrownJewel, error)
+}
+
 // cacheCollections is a registry of resource collections used by Cache.
 type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
@@ -198,6 +202,7 @@ type cacheCollections struct {
 	discoveryConfigs         collectionReader[services.DiscoveryConfigsGetter]
 	installers               collectionReader[installerGetter]
 	integrations             collectionReader[services.IntegrationsGetter]
+	crownJewels              collectionReader[crownjewelsGetter]
 	kubeClusters             collectionReader[kubernetesClusterGetter]
 	kubeServers              collectionReader[kubeServerGetter]
 	locks                    collectionReader[services.LockGetter]
@@ -523,6 +528,16 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.kubeClusters
+
+		case types.KindCrownJewel:
+			if c.CrownJewels == nil {
+				return nil, trace.BadParameter("missing parameter crownjewels")
+			}
+			collections.crownJewels = &genericCollection[*types.CrownJewel, crownjewelsGetter, crownJewelsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.crownJewels
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
@@ -2076,6 +2091,41 @@ type kubernetesClusterGetter interface {
 }
 
 var _ executor[types.KubeCluster, kubernetesClusterGetter] = kubeClusterExecutor{}
+
+type crownJewelsExecutor struct{}
+
+func (crownJewelsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.CrownJewel, error) {
+	return cache.CrownJewels.GetCrownJewels(ctx)
+}
+
+func (crownJewelsExecutor) upsert(ctx context.Context, cache *Cache, resource *types.CrownJewel) error {
+	if _, err := cache.crownJewelsCache.CreateCrownJewel(ctx, resource); err != nil {
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (crownJewelsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.crownJewelsCache.DeleteAllCrownJewels(ctx)
+}
+
+func (crownJewelsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.crownJewelsCache.DeleteCrownJewel(ctx, resource.GetName())
+}
+
+func (crownJewelsExecutor) isSingleton() bool { return false }
+
+func (crownJewelsExecutor) getReader(cache *Cache, cacheOK bool) crownjewelsGetter {
+	if cacheOK {
+		return cache.crownJewelsCache
+	}
+	return cache.Config.CrownJewels
+}
+
+var _ executor[*types.CrownJewel, crownjewelsGetter] = crownJewelsExecutor{}
 
 //nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProvidersExecutor struct{}

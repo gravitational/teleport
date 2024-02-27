@@ -3191,4 +3191,16 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // GetClusterConfig ..
+  rpc CreateCrownJewel(types.CrownJewel) returns (types.CrownJewel);
+  // GetCrownJewels ...
+  rpc GetCrownJewels(google.protobuf.Empty) returns (CrownJewelList);
+  // DeleteCrownJewel ...
+  rpc DeleteCrownJewel(types.CrownJewel) returns (google.protobuf.Empty);
+}
+
+// CrownJewelList ...
+message CrownJewelList {
+  repeated types.CrownJewel crown_jewels = 1;
 }

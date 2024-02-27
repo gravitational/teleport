@@ -133,6 +133,7 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 		Restrictions:            cfg.Services,
 		Apps:                    cfg.Services,
 		Kubernetes:              cfg.Services,
+		CrownJewels:             cfg.Services,
 		DatabaseServices:        cfg.Services,
 		Databases:               cfg.Services,
 		AppSession:              cfg.Services,

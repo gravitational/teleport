@@ -802,6 +802,7 @@ type ClientI interface {
 	events.AuditLogSessionStreamer
 	events.Streamer
 	apievents.Emitter
+	services.CrownJewels
 	services.Presence
 	services.Access
 	services.DynamicAccess
@@ -826,6 +827,7 @@ type ClientI interface {
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
+	services.CrownJewels
 
 	// DevicesClient returns a Device Trust client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,

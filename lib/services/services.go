@@ -47,6 +47,7 @@ type Services interface {
 	SAMLIdPServiceProviders
 	UserGroups
 	Integrations
+	CrownJewels
 
 	OktaClient() Okta
 	AccessListClient() AccessLists
