@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (r *SSHServerWrapper) listenHandover(token resumptionToken) (net.Listener, error) {
+func (r *SSHServerWrapper) createHandoverListener(token resumptionToken) (net.Listener, error) {
 	return nil, trace.NotImplemented("handover is not implemented for the current platform")
 }
 

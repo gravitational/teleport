@@ -53,7 +53,7 @@ func sockDir(dataDir string) string {
 
 var errNoDataDir error = &trace.NotFoundError{Message: "data dir not configured"}
 
-func (r *SSHServerWrapper) listenHandover(token resumptionToken) (net.Listener, error) {
+func (r *SSHServerWrapper) createHandoverListener(token resumptionToken) (net.Listener, error) {
 	if r.dataDir == "" {
 		return nil, trace.Wrap(errNoDataDir)
 	}
