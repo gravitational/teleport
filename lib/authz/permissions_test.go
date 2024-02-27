@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -443,11 +444,12 @@ func hostFQDN(hostUUID, clusterName string) string {
 }
 
 type fakeMFAAuthenticator struct {
-	mfaData map[string]*MFAAuthData // keyed by totp token
+	mfaData    map[string]*MFAAuthData // keyed by webauthn response type field
+	mfaDevices []*types.MFADevice
 }
 
 func (a *fakeMFAAuthenticator) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*MFAAuthData, error) {
-	mfaData, ok := a.mfaData[resp.GetTOTP().GetCode()]
+	mfaData, ok := a.mfaData[resp.GetWebauthn().GetType()]
 	if !ok {
 		return nil, trace.AccessDenied("invalid MFA")
 	}
@@ -455,7 +457,8 @@ func (a *fakeMFAAuthenticator) ValidateMFAAuthResponse(ctx context.Context, resp
 }
 
 func (a *fakeMFAAuthenticator) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
-	return nil, nil
+	// Return a fake registered webauthn device
+	return &proto.GetMFADevicesResponse{Devices: a.mfaDevices}, nil
 }
 
 func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
@@ -463,7 +466,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	client, watcher, _ := newTestResources(t)
 
 	// Enable Webauthn.
-	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+	webauthnAuthPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorWebauthn,
 		Webauthn: &types.Webauthn{
@@ -471,7 +474,7 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, client.SetAuthPreference(ctx, authPreference))
+	require.NoError(t, client.SetAuthPreference(ctx, webauthnAuthPreference))
 
 	// Create a new local user.
 	localUser, _, err := createUserAndRole(client, "localuser", []string{"local"}, nil)
@@ -493,59 +496,50 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	_, err = client.CreateUser(ctx, bot)
 	require.NoError(t, err)
 
-	validTOTPCode := "valid"
-	validReusableTOTPCode := "valid-reusable"
-	fakeMFAAuthentictor := &fakeMFAAuthenticator{
-		mfaData: map[string]*MFAAuthData{
-			validTOTPCode: {},
-			validReusableTOTPCode: {
-				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-			},
-		},
-	}
-
-	// Create a new authorizer.
-	authorizer, err := NewAuthorizer(AuthorizerOpts{
-		ClusterName:      clusterName,
-		AccessPoint:      client,
-		LockWatcher:      watcher,
-		MFAAuthenticator: fakeMFAAuthentictor,
-	})
-	require.NoError(t, err, "NewAuthorizer failed")
-
+	// create fake mfa responses
 	validMFA := &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{
-				Code: validTOTPCode,
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: &webauthnpb.CredentialAssertionResponse{
+				Type: "valid",
 			},
 		},
 	}
 
 	validMFAWithReuse := &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{
-				Code: validReusableTOTPCode,
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: &webauthnpb.CredentialAssertionResponse{
+				Type: "valid-reusable",
 			},
 		},
 	}
 
 	invalidMFA := &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{
-				Code: "invalid",
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: &webauthnpb.CredentialAssertionResponse{
+				Type: "invalid",
 			},
 		},
 	}
 
-	for _, tt := range []struct {
-		name                      string
-		user                      IdentityGetter
-		withMFA                   *proto.MFAAuthenticateResponse
-		allowedReusedMFA          bool
-		contextGetter             func() context.Context
-		wantErrContains           string
-		wantAdminActionAuthorized bool
-	}{
+	// Create a new authorizer with fake mfa authenticator.
+	fakeMFAAuthenticator := &fakeMFAAuthenticator{
+		mfaData: map[string]*MFAAuthData{
+			validMFA.GetWebauthn().GetType(): {},
+			validMFAWithReuse.GetWebauthn().GetType(): {
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			},
+		},
+	}
+
+	authorizer, err := NewAuthorizer(AuthorizerOpts{
+		ClusterName:      clusterName,
+		AccessPoint:      client,
+		LockWatcher:      watcher,
+		MFAAuthenticator: fakeMFAAuthenticator,
+	})
+	require.NoError(t, err, "NewAuthorizer failed")
+
+	for _, tt := range []testCaseMFAForAdminAction{
 		{
 			name: "NOK local user no mfa",
 			user: LocalUser{
@@ -586,6 +580,16 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 			withMFA:                   invalidMFA,
 			wantErrContains:           "access denied",
 			wantAdminActionAuthorized: true,
+		}, {
+			name: "NOK local user reused mfa with reuse not allowed",
+			user: LocalUser{
+				Username: localUser.GetName(),
+				Identity: tlsca.Identity{
+					Username: localUser.GetName(),
+				},
+			},
+			withMFA:                   validMFAWithReuse,
+			wantAdminActionAuthorized: false,
 		}, {
 			name: "NOK local user reused mfa with reuse not allowed",
 			user: LocalUser{
@@ -665,38 +669,139 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 			wantAdminActionAuthorized: true,
 		},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			if tt.withMFA != nil {
-				encodedMFAResp, err := mfa.EncodeMFAChallengeResponseCredentials(tt.withMFA)
-				require.NoError(t, err)
-				md := metadata.MD(map[string][]string{
-					mfa.ResponseMetadataKey: {encodedMFAResp},
-				})
-				ctx = metadata.NewIncomingContext(ctx, md)
-			}
-			userCtx := context.WithValue(ctx, contextUser, tt.user)
-			authCtx, err := authorizer.Authorize(userCtx)
-			if tt.wantErrContains != "" {
-				require.ErrorContains(t, err, tt.wantErrContains, "Expected matching Authorize error")
-				return
-			}
-			require.NoError(t, err)
-
-			var authAdminActionErr error
-			if tt.allowedReusedMFA {
-				authAdminActionErr = authCtx.AuthorizeAdminActionAllowReusedMFA()
-			} else {
-				authAdminActionErr = authCtx.AuthorizeAdminAction()
-			}
-
-			if tt.wantAdminActionAuthorized {
-				require.NoError(t, authAdminActionErr)
-			} else {
-				require.ErrorIs(t, authAdminActionErr, &mfa.ErrAdminActionMFARequired)
-			}
-		})
+		testMFAForAdminAction(t, authorizer, tt)
 	}
+}
+
+// Test that MFA is required for admin actions when second factor is optional
+// and the user has a registered webauthn device.
+func TestAuthorizer_AuthorizeAdminAction_Optional(t *testing.T) {
+	ctx := context.Background()
+	client, watcher, _ := newTestResources(t)
+
+	// Enable Webauthn with second factor optional.
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOptional,
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, client.SetAuthPreference(ctx, authPreference))
+
+	// Create a new local user.
+	localUser, _, err := createUserAndRole(client, "localuser", []string{"local"}, nil)
+	require.NoError(t, err)
+
+	// create fake mfa response.
+	validMFA := &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: &webauthnpb.CredentialAssertionResponse{
+				Type: "valid",
+			},
+		},
+	}
+
+	// Create a new authorizer with fake mfa authenticator.
+	fakeMFAAuthenticator := &fakeMFAAuthenticator{
+		mfaData: map[string]*MFAAuthData{
+			validMFA.GetWebauthn().GetType(): {},
+		},
+	}
+
+	authorizer, err := NewAuthorizer(AuthorizerOpts{
+		ClusterName:      clusterName,
+		AccessPoint:      client,
+		LockWatcher:      watcher,
+		MFAAuthenticator: fakeMFAAuthenticator,
+	})
+	require.NoError(t, err, "NewAuthorizer failed")
+
+	testMFAForAdminAction(t, authorizer, testCaseMFAForAdminAction{
+		name: "OK no MFA and webauthn not registered",
+		user: LocalUser{
+			Username: localUser.GetName(),
+			Identity: tlsca.Identity{
+				Username: localUser.GetName(),
+			},
+		},
+		wantAdminActionAuthorized: true,
+	})
+
+	// add an MFA device to the mfa service so that it looks like the user has
+	// a webauthn device registered. Now MFA for admin actions should be enforced.
+	fakeMFAAuthenticator.mfaDevices = []*types.MFADevice{{
+		Device: &types.MFADevice_Webauthn{
+			Webauthn: &types.WebauthnDevice{},
+		},
+	}}
+
+	testMFAForAdminAction(t, authorizer, testCaseMFAForAdminAction{
+		name: "NOK no MFA and webauthn registered",
+		user: LocalUser{
+			Username: localUser.GetName(),
+			Identity: tlsca.Identity{
+				Username: localUser.GetName(),
+			},
+		},
+		wantAdminActionAuthorized: false,
+	})
+
+	testMFAForAdminAction(t, authorizer, testCaseMFAForAdminAction{
+		name: "NOK no MFA and webauthn registered",
+		user: LocalUser{
+			Username: localUser.GetName(),
+			Identity: tlsca.Identity{
+				Username: localUser.GetName(),
+			},
+		},
+		withMFA:                   validMFA,
+		wantAdminActionAuthorized: true,
+	})
+}
+
+type testCaseMFAForAdminAction struct {
+	name                      string
+	user                      IdentityGetter
+	withMFA                   *proto.MFAAuthenticateResponse
+	allowedReusedMFA          bool
+	wantErrContains           string
+	wantAdminActionAuthorized bool
+}
+
+func testMFAForAdminAction(t *testing.T, authorizer Authorizer, tt testCaseMFAForAdminAction) {
+	t.Run(tt.name, func(t *testing.T) {
+		ctx := context.Background()
+		if tt.withMFA != nil {
+			encodedMFAResp, err := mfa.EncodeMFAChallengeResponseCredentials(tt.withMFA)
+			require.NoError(t, err)
+			md := metadata.MD(map[string][]string{
+				mfa.ResponseMetadataKey: {encodedMFAResp},
+			})
+			ctx = metadata.NewIncomingContext(ctx, md)
+		}
+		userCtx := context.WithValue(ctx, contextUser, tt.user)
+		authCtx, err := authorizer.Authorize(userCtx)
+		if tt.wantErrContains != "" {
+			require.ErrorContains(t, err, tt.wantErrContains, "Expected matching Authorize error")
+			return
+		}
+		require.NoError(t, err)
+
+		var authAdminActionErr error
+		if tt.allowedReusedMFA {
+			authAdminActionErr = authCtx.AuthorizeAdminActionAllowReusedMFA()
+		} else {
+			authAdminActionErr = authCtx.AuthorizeAdminAction()
+		}
+
+		if tt.wantAdminActionAuthorized {
+			require.NoError(t, authAdminActionErr)
+		} else {
+			require.ErrorIs(t, authAdminActionErr, &mfa.ErrAdminActionMFARequired)
+		}
+	})
 }
 
 func TestContext_GetAccessState(t *testing.T) {
