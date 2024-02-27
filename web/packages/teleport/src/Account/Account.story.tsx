@@ -31,7 +31,7 @@ export const LoadedPasskeysOff = () => (
   <Account {...props} canAddPasskeys={false} />
 );
 
-export const LoadedMfaOff = () => <Account {...props} canAddMFA={false} />;
+export const LoadedMfaOff = () => <Account {...props} canAddMfa={false} />;
 
 export const LoadingDevices = () => (
   <Account
@@ -94,8 +94,6 @@ const props: AccountProps = {
   token: '',
   setToken: () => null,
   onAddDevice: () => null,
-  hideAddDevice: () => null,
-  fetchDevices: () => null,
   fetchDevicesAttempt: { status: 'success' },
   createRestrictedTokenAttempt: { status: '' },
   deviceToRemove: null,
@@ -105,12 +103,11 @@ const props: AccountProps = {
   hideReAuthenticate: () => null,
   hideRemoveDevice: () => null,
   isReAuthenticateVisible: false,
-  isAddDeviceVisible: false,
   isRemoveDeviceVisible: false,
   isSso: false,
-  restrictNewDeviceUsage: null,
+  newDeviceUsage: null,
   canAddPasskeys: true,
-  canAddMFA: true,
+  canAddMfa: true,
   devices: [
     {
       id: '1',
@@ -161,8 +158,8 @@ const props: AccountProps = {
       residentKey: false,
     },
   ],
-  onPasskeyAdded: () => {},
+  onDeviceAdded: () => {},
   isReauthenticationRequired: false,
-  passkeyWizardVisible: false,
-  closePasskeyWizard: () => {},
+  addDeviceWizardVisible: false,
+  closeAddDeviceWizard: () => {},
 };

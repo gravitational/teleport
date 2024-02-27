@@ -86,7 +86,7 @@ RELEASE_TARGET ?= release
 # The awk command looks for the first line that has "docker" in the second (DRIVER) column.
 # -F '[ *]+': there may be an asterisk between the first and second column if that record is the default,
 # so just subsume the asterisk into the field separator.
-DOCKER_BUILDER_NAME = $(shell docker buildx ls 2>/dev/null | awk -F '[ *]+' '$$2 == "docker" {print $$1}')
+DOCKER_BUILDER_NAME ?= $(shell docker buildx ls 2>/dev/null | awk -F '[ *]+' '$$2 == "docker" {print $$1}')
 
 .PHONY:print-docker-builder-name
 print-docker-builder-name:
@@ -141,6 +141,7 @@ buildbox:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg GOLANGCI_LINT_VERSION=$(GOLANGCI_LINT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
@@ -585,6 +586,20 @@ test-docs: docsbox
 .PHONY:print-go-version
 print-go-version:
 	@echo $(GOLANG_VERSION)
+
+#
+# Print the golangci-lint version used by Teleport.
+#
+.PHONY:print-golangci-lint-version
+print-golangci-lint-version:
+	@echo $(GOLANGCI_LINT_VERSION)
+
+#
+# Print the Buf version used by Teleport.
+#
+.PHONY:print-buf-version
+print-buf-version:
+	@echo $(BUF_VERSION)
 
 #
 # Print the Rust version used to build Teleport.

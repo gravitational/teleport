@@ -65,8 +65,8 @@ func ValidateDatabaseObjectImportRule(rule *dbobjectimportrulev1.DatabaseObjectI
 	if rule.Spec == nil {
 		return trace.BadParameter("missing spec")
 	}
-	if rule.Spec.DbLabels == nil || len(rule.Spec.DbLabels.Values) == 0 {
-		return trace.BadParameter("missing db_labels")
+	if len(rule.Spec.DatabaseLabels) == 0 {
+		return trace.BadParameter("missing database_labels")
 	}
 	if len(rule.Spec.Mappings) == 0 {
 		return trace.BadParameter("missing mappings")

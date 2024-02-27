@@ -2435,7 +2435,7 @@ func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiR
 	}
 
 	switch {
-	case resource.namespace != "":
+	case resource.namespace != "" && resource.resourceName != "":
 		// <resource> "<pod_name>" is forbidden: User "<user>" cannot create resource "<resource>" in API group "" in the namespace "<namespace>"
 		return fmt.Sprintf(
 			"%[1]s %[2]q is forbidden: User %[3]q cannot %[4]s resource %[1]q in API group %[5]q in the namespace %[6]q\n"+
@@ -2449,6 +2449,32 @@ func (f *Forwarder) kubeResourceDeniedAccessMsg(user, verb string, resource apiR
 			resource.namespace,     // 6
 			teleportType,           // 7
 			kubernetesResourcesKey, // 8
+		)
+	case resource.namespace != "":
+		// <resource> is forbidden: User "<user>" cannot create resource "<resource>" in API group "" in the namespace "<namespace>"
+		return fmt.Sprintf(
+			"%[1]s is forbidden: User %[2]q cannot %[3]s resource %[1]q in API group %[4]q in the namespace %[5]q\n"+
+				"Ask your Teleport admin to ensure that your Teleport role includes access to the %[6]s in %[7]q field.\n"+
+				"Check by running: kubectl auth can-i %[3]s %[1]s --namespace %[5]s ",
+			kind,                   // 1
+			user,                   // 2
+			verb,                   // 3
+			apiGroup,               // 4
+			resource.namespace,     // 5
+			teleportType,           // 6
+			kubernetesResourcesKey, // 7
+		)
+	case resource.resourceName == "":
+		return fmt.Sprintf(
+			"%[1]s is forbidden: User %[2]q cannot %[3]s resource %[1]q in API group %[4]q at the cluster scope\n"+
+				"Ask your Teleport admin to ensure that your Teleport role includes access to the %[5]s in %[6]q field.\n"+
+				"Check by running: kubectl auth can-i %[3]s %[1]s",
+			kind,                   // 1
+			user,                   // 2
+			verb,                   // 3
+			apiGroup,               // 4
+			teleportType,           // 5
+			kubernetesResourcesKey, // 6
 		)
 	default:
 		return fmt.Sprintf(
