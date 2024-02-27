@@ -682,11 +682,6 @@ func ByteCount(b int64) string {
 // ErrLimitReached means that the read limit is reached.
 var ErrLimitReached = &trace.LimitExceededError{Message: "the read limit is reached"}
 
-// ErrClientCredentialsHaveExpired means
-// that the credentials expired on the server-side,
-// and the user should relogin.
-var ErrClientCredentialsHaveExpired = &trace.AccessDeniedError{Message: "access denied: client credentials have expired, please relogin."}
-
 const (
 	// CertTeleportUser specifies teleport user
 	CertTeleportUser = "x-teleport-user"

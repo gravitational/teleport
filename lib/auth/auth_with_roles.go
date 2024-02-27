@@ -2898,7 +2898,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			return nil, trace.AccessDenied("access denied")
 		}
 		if req.Expires.Before(a.authServer.GetClock().Now()) {
-			return nil, utils.ErrClientCredentialsHaveExpired
+			return nil, trace.Wrap(client.ErrClientCredentialsHaveExpired)
 		}
 
 		if identity.Renewable || isRoleImpersonation(req) {
