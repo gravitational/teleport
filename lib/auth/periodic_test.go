@@ -25,8 +25,126 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
+
+func TestInstanceMetricsPeriodic(t *testing.T) {
+	tts := []struct {
+		desc           string
+		instances      []proto.UpstreamInventoryHello
+		expectedCounts map[string]map[string]int
+		upgraders      []string
+		expectEnrolled int
+	}{
+		{
+			desc: "mixed",
+			instances: []proto.UpstreamInventoryHello{
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+				{},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "14.0.0"},
+				{},
+			},
+			upgraders: []string{
+				"kube",
+				"kube",
+				"unit",
+				"",
+				"unit",
+				"",
+			},
+			expectedCounts: map[string]map[string]int{
+				"kube": {
+					"13.0.0": 1,
+					"14.0.0": 1,
+				},
+				"unit": {
+					"13.0.0": 1,
+					"14.0.0": 1,
+				},
+			},
+			expectEnrolled: 4,
+		},
+		{
+			desc: "all-unenrolled",
+			instances: []proto.UpstreamInventoryHello{
+				{},
+				{},
+			},
+			upgraders: []string{
+				"",
+				"",
+			},
+			expectedCounts: map[string]map[string]int{},
+		},
+		{
+			desc: "all-enrolled",
+			instances: []proto.UpstreamInventoryHello{
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+			},
+			upgraders: []string{
+				"kube",
+				"kube",
+				"unit",
+				"unit",
+			},
+			expectedCounts: map[string]map[string]int{
+				"kube": {
+					"13.0.0": 2,
+				},
+				"unit": {
+					"13.0.0": 2,
+				},
+			},
+			expectEnrolled: 4,
+		},
+		{
+			desc: "nil version",
+			instances: []proto.UpstreamInventoryHello{
+				{ExternalUpgrader: "kube"},
+				{ExternalUpgrader: "unit"},
+			},
+			upgraders: []string{
+				"kube",
+				"unit",
+			},
+			expectedCounts: map[string]map[string]int{
+				"kube": {
+					"": 1,
+				},
+				"unit": {
+					"": 1,
+				},
+			},
+			expectEnrolled: 2,
+		},
+		{
+			desc:           "nothing",
+			expectedCounts: map[string]map[string]int{},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			periodic := newInstanceMetricsPeriodic()
+
+			for _, instance := range tt.instances {
+				periodic.VisitInstance(instance)
+			}
+
+			require.Equal(t, tt.expectedCounts, periodic.upgraderCounts, "tt=%q", tt.desc)
+
+			require.Equal(t, tt.expectEnrolled, periodic.TotalEnrolledInUpgrades(), "tt=%q", tt.desc)
+
+			require.Len(t, tt.upgraders, periodic.TotalInstances(), "tt=%q", tt.desc)
+		})
+	}
+}
 
 func TestUpgradeEnrollPeriodic(t *testing.T) {
 	tts := []struct {
