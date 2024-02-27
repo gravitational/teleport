@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
@@ -3881,8 +3882,9 @@ func newEnv(opts ...opt) (*storageEnv, error) {
 
 	env.IdentityService = local.NewIdentityService(env.mem)
 	env.S, err = storage.New(storage.Params{
-		Backend:      env.mem,
-		UsersService: env.IdentityService,
+		Backend:            env.mem,
+		UsersService:       env.IdentityService,
+		BCryptCostOverride: bcrypt.MinCost,
 	})
 	if err != nil {
 		return nil, err

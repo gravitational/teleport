@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"slices"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,13 +59,18 @@ type UsersService interface {
 type Params struct {
 	Backend      backend.Backend
 	UsersService UsersService
+
+	// BCryptCostOverride allows overriding the default bcrypt cost for tests.
+	// Do not set in production code.
+	BCryptCostOverride int
 }
 
 // S implements the Device Trust storage, backed by a backend.Backend.
 type S struct {
-	logger  *log.Entry
-	backend backend.Backend
-	users   UsersService
+	logger     *log.Entry
+	backend    backend.Backend
+	users      UsersService
+	bcryptCost int
 }
 
 // New returns a new Device Trust storage instance.
@@ -76,10 +82,19 @@ func New(params Params) (*S, error) {
 		return nil, trace.BadParameter("param UsersService required")
 	}
 
+	cost := bcrypt.DefaultCost
+	if params.BCryptCostOverride > 0 {
+		if !testing.Testing() {
+			panic("params.BCryptCostOverride can only be used for testing")
+		}
+		cost = params.BCryptCostOverride
+	}
+
 	return &S{
-		logger:  log.WithField(trace.Component, "devicetrust.storage"),
-		backend: params.Backend,
-		users:   params.UsersService,
+		logger:     log.WithField(trace.Component, "devicetrust.storage"),
+		backend:    params.Backend,
+		users:      params.UsersService,
+		bcryptCost: cost,
 	}, nil
 }
 
@@ -1460,7 +1475,7 @@ func (s *S) createDeviceEnrollToken(
 		return nil, trace.Wrap(err, "generating a new enrollment token")
 	}
 	tokenPlain := base64.RawStdEncoding.EncodeToString(tokenRaw)
-	tokenHashed, err := bcrypt.GenerateFromPassword([]byte(tokenPlain), bcrypt.DefaultCost)
+	tokenHashed, err := bcrypt.GenerateFromPassword([]byte(tokenPlain), s.bcryptCost)
 	if err != nil {
 		return nil, trace.Wrap(err, "hashing enrollment token as a password")
 	}

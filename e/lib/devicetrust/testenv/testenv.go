@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -171,8 +172,9 @@ func New(opts ...Opt) (*E, error) {
 
 	e.IdentityService = local.NewIdentityService(mem)
 	dtStorage, err := storage.New(storage.Params{
-		Backend:      mem,
-		UsersService: e.IdentityService,
+		Backend:            mem,
+		UsersService:       e.IdentityService,
+		BCryptCostOverride: bcrypt.MinCost,
 	})
 	if err != nil {
 		return nil, err
