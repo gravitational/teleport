@@ -193,6 +193,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
 	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
 	t.Run("SFTP", suite.bind(testSFTP))
+	t.Run("ModeratedSFTP", suite.bind(testModeratedSFTP))
 	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
 	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
 	t.Run("AgentlessConnection", suite.bind(testAgentlessConnection))
@@ -8045,6 +8046,111 @@ func getRemoteAddrString(sshClientString string) string {
 	return fmt.Sprintf("%s:%s", parts[0], parts[1])
 }
 
+func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
+	// Create Teleport instance
+	teleport := suite.newTeleport(t, nil, true)
+	t.Cleanup(func() {
+		teleport.StopAll()
+	})
+
+	ctx := context.Background()
+	aSrv := teleport.Process.GetAuthServer()
+
+	// Create peer and moderator users and roles
+	username := suite.Me.Username
+	peerUsername := username + "-peer"
+	sshAccessRole, err := types.NewRole("ssh-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{username},
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = aSrv.CreateRole(ctx, sshAccessRole)
+	require.NoError(t, err)
+
+	peerRole, err := types.NewRole("peer", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{
+				{
+					Name:   "Requires oversight",
+					Filter: `equals("true", "true")`,
+					Kinds: []string{
+						string(types.SSHSessionKind),
+					},
+					Count: 1,
+					Modes: []string{
+						string(types.SessionModeratorMode),
+					},
+					OnLeave: string(types.OnSessionLeaveTerminate),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = aSrv.CreateRole(ctx, peerRole)
+	require.NoError(t, err)
+
+	peerUser, err := types.NewUser(peerUsername)
+	require.NoError(t, err)
+	peerUser.SetLogins([]string{username})
+	peerUser.SetRoles([]string{sshAccessRole.GetName(), peerRole.GetName()})
+	_, err = aSrv.CreateUser(ctx, peerUser)
+	require.NoError(t, err)
+
+	modUsername := username + "-moderator"
+	modRole, err := types.NewRole("moderator", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{{
+				Name:  "Session moderator",
+				Roles: []string{sshAccessRole.GetName()},
+				Kinds: []string{string(types.SSHSessionKind)},
+				Modes: []string{string(types.SessionModeratorMode), string(types.SessionObserverMode)},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = aSrv.CreateRole(ctx, modRole)
+	require.NoError(t, err)
+
+	modUser, err := types.NewUser(modUsername)
+	require.NoError(t, err)
+	peerUser.SetLogins([]string{username})
+	peerUser.SetRoles([]string{sshAccessRole.GetName(), modRole.GetName()})
+	_, err = aSrv.CreateUser(ctx, modUser)
+	require.NoError(t, err)
+
+	waitForNodesToRegister(t, teleport, helpers.Site)
+
+	modTC, err := teleport.NewClient(helpers.ClientConfig{
+		TeleportUser: modUsername,
+		Login:        username,
+		Cluster:      helpers.Site,
+		Host:         Host,
+	})
+	require.NoError(t, err)
+
+	modClusterCli, err := modTC.ConnectToCluster(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = modClusterCli.Close()
+	})
+
+	nodeDetails := client.NodeDetails{
+		Addr:      teleport.Config.SSH.Addr.Addr,
+		Namespace: modTC.Namespace,
+		Cluster:   helpers.Site,
+	}
+	_, _, err = modClusterCli.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, modTC.LocalAgent().ExtendedAgent)
+	require.NoError(t, err)
+}
+
 func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Create Teleport instance.
 	teleport := suite.newTeleport(t, nil, true)
@@ -8080,6 +8186,9 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		suite.Me.Username,
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, nodeClient.Close())
+	})
 
 	sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
 	require.NoError(t, err)
