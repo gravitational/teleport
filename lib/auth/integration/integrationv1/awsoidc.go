@@ -41,7 +41,7 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, _ *integrationpb.Gen
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return s.generateAWSOIDCTokenWithoutAuthZ(ctx)
@@ -207,7 +207,7 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -254,7 +254,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

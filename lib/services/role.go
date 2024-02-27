@@ -2876,7 +2876,7 @@ func (set RoleSet) String() string {
 // kind that the current user can access?".
 // GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
 // for resource X appear"?). Most callers should use CheckAccessToRule instead.
-func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string) error {
 	// "Where" clause are handled differently by the method:
 	// - "allow" rules have their "where" clause always match, as it's assumed
 	//   that there could be a resource that matches it.
@@ -2889,7 +2889,6 @@ func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, re
 		verb:       verb,
 		allowWhere: boolParser(true),  // always matches
 		denyWhere:  boolParser(false), // never matches
-		silent:     silent,
 	})
 }
 
@@ -2904,7 +2903,7 @@ func (p boolParser) Parse(string) (interface{}, error) {
 // CheckAccessToRule checks if the RoleSet provides access in the given
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
-func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
 	whereParser, err := NewWhereParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2917,7 +2916,6 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 		verb:       verb,
 		allowWhere: whereParser,
 		denyWhere:  whereParser,
-		silent:     silent,
 	})
 }
 
@@ -2963,7 +2961,6 @@ type checkAccessParams struct {
 	resource              string
 	verb                  string
 	allowWhere, denyWhere predicate.Parser
-	silent                bool
 }
 
 type accessExplicitlyDenied struct {
@@ -3017,12 +3014,10 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 				return trace.Wrap(err)
 			}
 			if matched {
-				if !p.silent {
-					log.WithFields(log.Fields{
-						trace.Component: teleport.ComponentRBAC,
-					}).Infof("Access to %v %v in namespace %v denied to %v: deny rule matched.",
-						p.verb, p.resource, p.namespace, role.GetName())
-				}
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Tracef("Access to %v %v in namespace %v denied to %v: deny rule matched.",
+					p.verb, p.resource, p.namespace, role.GetName())
 				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 			}
 		}
@@ -3042,12 +3037,10 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 		}
 	}
 
-	if !p.silent {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Infof("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
-			p.verb, p.resource, p.namespace, set)
-	}
+	log.WithFields(log.Fields{
+		trace.Component: teleport.ComponentRBAC,
+	}).Tracef("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
+		p.verb, p.resource, p.namespace, set)
 
 	// At this point no deny rule has matched and there are no more unknown
 	// errors, so this is only an implicit denial.
