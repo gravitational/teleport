@@ -51,7 +51,7 @@ export default function Player() {
   const validRecordingType = validRecordingTypes.includes(recordingType);
   const validDurationMs = Number.isInteger(durationMs) && durationMs > 0;
 
-  document.title = `${clusterId} • Play ${sid}`;
+  document.title = `Play ${sid} • ${clusterId}`;
 
   function onLogout() {
     session.logout();
