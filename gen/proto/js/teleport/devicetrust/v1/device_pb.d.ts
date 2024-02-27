@@ -15,50 +15,63 @@ import * as teleport_devicetrust_v1_os_type_pb from "../../../teleport/devicetru
 export class Device extends jspb.Message { 
     getApiVersion(): string;
     setApiVersion(value: string): Device;
+
     getId(): string;
     setId(value: string): Device;
+
     getOsType(): teleport_devicetrust_v1_os_type_pb.OSType;
     setOsType(value: teleport_devicetrust_v1_os_type_pb.OSType): Device;
+
     getAssetTag(): string;
     setAssetTag(value: string): Device;
+
 
     hasCreateTime(): boolean;
     clearCreateTime(): void;
     getCreateTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setCreateTime(value?: google_protobuf_timestamp_pb.Timestamp): Device;
 
+
     hasUpdateTime(): boolean;
     clearUpdateTime(): void;
     getUpdateTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setUpdateTime(value?: google_protobuf_timestamp_pb.Timestamp): Device;
 
+
     hasEnrollToken(): boolean;
     clearEnrollToken(): void;
     getEnrollToken(): teleport_devicetrust_v1_device_enroll_token_pb.DeviceEnrollToken | undefined;
     setEnrollToken(value?: teleport_devicetrust_v1_device_enroll_token_pb.DeviceEnrollToken): Device;
+
     getEnrollStatus(): DeviceEnrollStatus;
     setEnrollStatus(value: DeviceEnrollStatus): Device;
+
 
     hasCredential(): boolean;
     clearCredential(): void;
     getCredential(): DeviceCredential | undefined;
     setCredential(value?: DeviceCredential): Device;
+
     clearCollectedDataList(): void;
     getCollectedDataList(): Array<teleport_devicetrust_v1_device_collected_data_pb.DeviceCollectedData>;
     setCollectedDataList(value: Array<teleport_devicetrust_v1_device_collected_data_pb.DeviceCollectedData>): Device;
     addCollectedData(value?: teleport_devicetrust_v1_device_collected_data_pb.DeviceCollectedData, index?: number): teleport_devicetrust_v1_device_collected_data_pb.DeviceCollectedData;
+
 
     hasSource(): boolean;
     clearSource(): void;
     getSource(): teleport_devicetrust_v1_device_source_pb.DeviceSource | undefined;
     setSource(value?: teleport_devicetrust_v1_device_source_pb.DeviceSource): Device;
 
+
     hasProfile(): boolean;
     clearProfile(): void;
     getProfile(): teleport_devicetrust_v1_device_profile_pb.DeviceProfile | undefined;
     setProfile(value?: teleport_devicetrust_v1_device_profile_pb.DeviceProfile): Device;
+
     getOwner(): string;
     setOwner(value: string): Device;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Device.AsObject;
@@ -91,18 +104,23 @@ export namespace Device {
 export class DeviceCredential extends jspb.Message { 
     getId(): string;
     setId(value: string): DeviceCredential;
+
     getPublicKeyDer(): Uint8Array | string;
     getPublicKeyDer_asU8(): Uint8Array;
     getPublicKeyDer_asB64(): string;
     setPublicKeyDer(value: Uint8Array | string): DeviceCredential;
+
     getDeviceAttestationType(): DeviceAttestationType;
     setDeviceAttestationType(value: DeviceAttestationType): DeviceCredential;
+
     getTpmEkcertSerial(): string;
     setTpmEkcertSerial(value: string): DeviceCredential;
+
     getTpmAkPublic(): Uint8Array | string;
     getTpmAkPublic_asU8(): Uint8Array;
     getTpmAkPublic_asB64(): string;
     setTpmAkPublic(value: Uint8Array | string): DeviceCredential;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeviceCredential.AsObject;

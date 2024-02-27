@@ -11,8 +11,10 @@ export class AssistUserPreferences extends jspb.Message {
     getPreferredLoginsList(): Array<string>;
     setPreferredLoginsList(value: Array<string>): AssistUserPreferences;
     addPreferredLogins(value: string, index?: number): string;
+
     getViewMode(): AssistViewMode;
     setViewMode(value: AssistViewMode): AssistUserPreferences;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AssistUserPreferences.AsObject;

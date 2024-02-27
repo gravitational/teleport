@@ -9,8 +9,10 @@ import * as jspb from "google-protobuf";
 export class DeviceSource extends jspb.Message { 
     getName(): string;
     setName(value: string): DeviceSource;
+
     getOrigin(): DeviceOrigin;
     setOrigin(value: DeviceOrigin): DeviceSource;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeviceSource.AsObject;

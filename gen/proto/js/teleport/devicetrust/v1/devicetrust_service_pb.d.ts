@@ -24,15 +24,19 @@ export class CreateDeviceRequest extends jspb.Message {
     clearDevice(): void;
     getDevice(): teleport_devicetrust_v1_device_pb.Device | undefined;
     setDevice(value?: teleport_devicetrust_v1_device_pb.Device): CreateDeviceRequest;
+
     getCreateEnrollToken(): boolean;
     setCreateEnrollToken(value: boolean): CreateDeviceRequest;
+
     getCreateAsResource(): boolean;
     setCreateAsResource(value: boolean): CreateDeviceRequest;
+
 
     hasEnrollTokenExpireTime(): boolean;
     clearEnrollTokenExpireTime(): void;
     getEnrollTokenExpireTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setEnrollTokenExpireTime(value?: google_protobuf_timestamp_pb.Timestamp): CreateDeviceRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateDeviceRequest.AsObject;
@@ -60,10 +64,12 @@ export class UpdateDeviceRequest extends jspb.Message {
     getDevice(): teleport_devicetrust_v1_device_pb.Device | undefined;
     setDevice(value?: teleport_devicetrust_v1_device_pb.Device): UpdateDeviceRequest;
 
+
     hasUpdateMask(): boolean;
     clearUpdateMask(): void;
     getUpdateMask(): google_protobuf_field_mask_pb.FieldMask | undefined;
     setUpdateMask(value?: google_protobuf_field_mask_pb.FieldMask): UpdateDeviceRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UpdateDeviceRequest.AsObject;
@@ -88,8 +94,10 @@ export class UpsertDeviceRequest extends jspb.Message {
     clearDevice(): void;
     getDevice(): teleport_devicetrust_v1_device_pb.Device | undefined;
     setDevice(value?: teleport_devicetrust_v1_device_pb.Device): UpsertDeviceRequest;
+
     getCreateAsResource(): boolean;
     setCreateAsResource(value: boolean): UpsertDeviceRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UpsertDeviceRequest.AsObject;
@@ -112,6 +120,7 @@ export class DeleteDeviceRequest extends jspb.Message {
     getDeviceId(): string;
     setDeviceId(value: string): DeleteDeviceRequest;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeleteDeviceRequest.AsObject;
     static toObject(includeInstance: boolean, msg: DeleteDeviceRequest): DeleteDeviceRequest.AsObject;
@@ -131,6 +140,7 @@ export namespace DeleteDeviceRequest {
 export class FindDevicesRequest extends jspb.Message { 
     getIdOrTag(): string;
     setIdOrTag(value: string): FindDevicesRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): FindDevicesRequest.AsObject;
@@ -154,6 +164,7 @@ export class FindDevicesResponse extends jspb.Message {
     setDevicesList(value: Array<teleport_devicetrust_v1_device_pb.Device>): FindDevicesResponse;
     addDevices(value?: teleport_devicetrust_v1_device_pb.Device, index?: number): teleport_devicetrust_v1_device_pb.Device;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): FindDevicesResponse.AsObject;
     static toObject(includeInstance: boolean, msg: FindDevicesResponse): FindDevicesResponse.AsObject;
@@ -174,6 +185,7 @@ export class GetDeviceRequest extends jspb.Message {
     getDeviceId(): string;
     setDeviceId(value: string): GetDeviceRequest;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetDeviceRequest.AsObject;
     static toObject(includeInstance: boolean, msg: GetDeviceRequest): GetDeviceRequest.AsObject;
@@ -193,10 +205,13 @@ export namespace GetDeviceRequest {
 export class ListDevicesRequest extends jspb.Message { 
     getPageSize(): number;
     setPageSize(value: number): ListDevicesRequest;
+
     getPageToken(): string;
     setPageToken(value: string): ListDevicesRequest;
+
     getView(): DeviceView;
     setView(value: DeviceView): ListDevicesRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListDevicesRequest.AsObject;
@@ -221,8 +236,10 @@ export class ListDevicesResponse extends jspb.Message {
     getDevicesList(): Array<teleport_devicetrust_v1_device_pb.Device>;
     setDevicesList(value: Array<teleport_devicetrust_v1_device_pb.Device>): ListDevicesResponse;
     addDevices(value?: teleport_devicetrust_v1_device_pb.Device, index?: number): teleport_devicetrust_v1_device_pb.Device;
+
     getNextPageToken(): string;
     setNextPageToken(value: string): ListDevicesResponse;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListDevicesResponse.AsObject;
@@ -246,8 +263,10 @@ export class BulkCreateDevicesRequest extends jspb.Message {
     getDevicesList(): Array<teleport_devicetrust_v1_device_pb.Device>;
     setDevicesList(value: Array<teleport_devicetrust_v1_device_pb.Device>): BulkCreateDevicesRequest;
     addDevices(value?: teleport_devicetrust_v1_device_pb.Device, index?: number): teleport_devicetrust_v1_device_pb.Device;
+
     getCreateAsResource(): boolean;
     setCreateAsResource(value: boolean): BulkCreateDevicesRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): BulkCreateDevicesRequest.AsObject;
@@ -272,6 +291,7 @@ export class BulkCreateDevicesResponse extends jspb.Message {
     setDevicesList(value: Array<DeviceOrStatus>): BulkCreateDevicesResponse;
     addDevices(value?: DeviceOrStatus, index?: number): DeviceOrStatus;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): BulkCreateDevicesResponse.AsObject;
     static toObject(includeInstance: boolean, msg: BulkCreateDevicesResponse): BulkCreateDevicesResponse.AsObject;
@@ -294,10 +314,13 @@ export class DeviceOrStatus extends jspb.Message {
     clearStatus(): void;
     getStatus(): google_rpc_status_pb.Status | undefined;
     setStatus(value?: google_rpc_status_pb.Status): DeviceOrStatus;
+
     getId(): string;
     setId(value: string): DeviceOrStatus;
+
     getDeleted(): boolean;
     setDeleted(value: boolean): DeviceOrStatus;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeviceOrStatus.AsObject;
@@ -321,15 +344,18 @@ export class CreateDeviceEnrollTokenRequest extends jspb.Message {
     getDeviceId(): string;
     setDeviceId(value: string): CreateDeviceEnrollTokenRequest;
 
+
     hasDeviceData(): boolean;
     clearDeviceData(): void;
     getDeviceData(): teleport_devicetrust_v1_device_collected_data_pb.DeviceCollectedData | undefined;
     setDeviceData(value?: teleport_devicetrust_v1_device_collected_data_pb.DeviceCollectedData): CreateDeviceEnrollTokenRequest;
 
+
     hasExpireTime(): boolean;
     clearExpireTime(): void;
     getExpireTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setExpireTime(value?: google_protobuf_timestamp_pb.Timestamp): CreateDeviceEnrollTokenRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): CreateDeviceEnrollTokenRequest.AsObject;
@@ -356,15 +382,18 @@ export class EnrollDeviceRequest extends jspb.Message {
     getInit(): EnrollDeviceInit | undefined;
     setInit(value?: EnrollDeviceInit): EnrollDeviceRequest;
 
+
     hasMacosChallengeResponse(): boolean;
     clearMacosChallengeResponse(): void;
     getMacosChallengeResponse(): MacOSEnrollChallengeResponse | undefined;
     setMacosChallengeResponse(value?: MacOSEnrollChallengeResponse): EnrollDeviceRequest;
 
+
     hasTpmChallengeResponse(): boolean;
     clearTpmChallengeResponse(): void;
     getTpmChallengeResponse(): TPMEnrollChallengeResponse | undefined;
     setTpmChallengeResponse(value?: TPMEnrollChallengeResponse): EnrollDeviceRequest;
+
 
     getPayloadCase(): EnrollDeviceRequest.PayloadCase;
 
@@ -387,9 +416,13 @@ export namespace EnrollDeviceRequest {
 
     export enum PayloadCase {
         PAYLOAD_NOT_SET = 0,
-        INIT = 1,
-        MACOS_CHALLENGE_RESPONSE = 2,
-        TPM_CHALLENGE_RESPONSE = 3,
+    
+    INIT = 1,
+
+    MACOS_CHALLENGE_RESPONSE = 2,
+
+    TPM_CHALLENGE_RESPONSE = 3,
+
     }
 
 }
@@ -401,15 +434,18 @@ export class EnrollDeviceResponse extends jspb.Message {
     getSuccess(): EnrollDeviceSuccess | undefined;
     setSuccess(value?: EnrollDeviceSuccess): EnrollDeviceResponse;
 
+
     hasMacosChallenge(): boolean;
     clearMacosChallenge(): void;
     getMacosChallenge(): MacOSEnrollChallenge | undefined;
     setMacosChallenge(value?: MacOSEnrollChallenge): EnrollDeviceResponse;
 
+
     hasTpmChallenge(): boolean;
     clearTpmChallenge(): void;
     getTpmChallenge(): TPMEnrollChallenge | undefined;
     setTpmChallenge(value?: TPMEnrollChallenge): EnrollDeviceResponse;
+
 
     getPayloadCase(): EnrollDeviceResponse.PayloadCase;
 
@@ -432,9 +468,13 @@ export namespace EnrollDeviceResponse {
 
     export enum PayloadCase {
         PAYLOAD_NOT_SET = 0,
-        SUCCESS = 1,
-        MACOS_CHALLENGE = 2,
-        TPM_CHALLENGE = 3,
+    
+    SUCCESS = 1,
+
+    MACOS_CHALLENGE = 2,
+
+    TPM_CHALLENGE = 3,
+
     }
 
 }
@@ -442,23 +482,28 @@ export namespace EnrollDeviceResponse {
 export class EnrollDeviceInit extends jspb.Message { 
     getToken(): string;
     setToken(value: string): EnrollDeviceInit;
+
     getCredentialId(): string;
     setCredentialId(value: string): EnrollDeviceInit;
+
 
     hasDeviceData(): boolean;
     clearDeviceData(): void;
     getDeviceData(): teleport_devicetrust_v1_device_collected_data_pb.DeviceCollectedData | undefined;
     setDeviceData(value?: teleport_devicetrust_v1_device_collected_data_pb.DeviceCollectedData): EnrollDeviceInit;
 
+
     hasMacos(): boolean;
     clearMacos(): void;
     getMacos(): MacOSEnrollPayload | undefined;
     setMacos(value?: MacOSEnrollPayload): EnrollDeviceInit;
 
+
     hasTpm(): boolean;
     clearTpm(): void;
     getTpm(): TPMEnrollPayload | undefined;
     setTpm(value?: TPMEnrollPayload): EnrollDeviceInit;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): EnrollDeviceInit.AsObject;
@@ -487,6 +532,7 @@ export class EnrollDeviceSuccess extends jspb.Message {
     getDevice(): teleport_devicetrust_v1_device_pb.Device | undefined;
     setDevice(value?: teleport_devicetrust_v1_device_pb.Device): EnrollDeviceSuccess;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): EnrollDeviceSuccess.AsObject;
     static toObject(includeInstance: boolean, msg: EnrollDeviceSuccess): EnrollDeviceSuccess.AsObject;
@@ -508,6 +554,7 @@ export class MacOSEnrollPayload extends jspb.Message {
     getPublicKeyDer_asU8(): Uint8Array;
     getPublicKeyDer_asB64(): string;
     setPublicKeyDer(value: Uint8Array | string): MacOSEnrollPayload;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): MacOSEnrollPayload.AsObject;
@@ -531,6 +578,7 @@ export class MacOSEnrollChallenge extends jspb.Message {
     getChallenge_asB64(): string;
     setChallenge(value: Uint8Array | string): MacOSEnrollChallenge;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): MacOSEnrollChallenge.AsObject;
     static toObject(includeInstance: boolean, msg: MacOSEnrollChallenge): MacOSEnrollChallenge.AsObject;
@@ -552,6 +600,7 @@ export class MacOSEnrollChallengeResponse extends jspb.Message {
     getSignature_asU8(): Uint8Array;
     getSignature_asB64(): string;
     setSignature(value: Uint8Array | string): MacOSEnrollChallengeResponse;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): MacOSEnrollChallengeResponse.AsObject;
@@ -578,6 +627,7 @@ export class TPMEnrollPayload extends jspb.Message {
     getEkCert_asB64(): string;
     setEkCert(value: Uint8Array | string): TPMEnrollPayload;
 
+
     hasEkKey(): boolean;
     clearEkKey(): void;
     getEkKey(): Uint8Array | string;
@@ -585,10 +635,12 @@ export class TPMEnrollPayload extends jspb.Message {
     getEkKey_asB64(): string;
     setEkKey(value: Uint8Array | string): TPMEnrollPayload;
 
+
     hasAttestationParameters(): boolean;
     clearAttestationParameters(): void;
     getAttestationParameters(): TPMAttestationParameters | undefined;
     setAttestationParameters(value?: TPMAttestationParameters): TPMEnrollPayload;
+
 
     getEkCase(): TPMEnrollPayload.EkCase;
 
@@ -611,8 +663,11 @@ export namespace TPMEnrollPayload {
 
     export enum EkCase {
         EK_NOT_SET = 0,
-        EK_CERT = 1,
-        EK_KEY = 2,
+    
+    EK_CERT = 1,
+
+    EK_KEY = 2,
+
     }
 
 }
@@ -622,18 +677,22 @@ export class TPMAttestationParameters extends jspb.Message {
     getPublic_asU8(): Uint8Array;
     getPublic_asB64(): string;
     setPublic(value: Uint8Array | string): TPMAttestationParameters;
+
     getCreateData(): Uint8Array | string;
     getCreateData_asU8(): Uint8Array;
     getCreateData_asB64(): string;
     setCreateData(value: Uint8Array | string): TPMAttestationParameters;
+
     getCreateAttestation(): Uint8Array | string;
     getCreateAttestation_asU8(): Uint8Array;
     getCreateAttestation_asB64(): string;
     setCreateAttestation(value: Uint8Array | string): TPMAttestationParameters;
+
     getCreateSignature(): Uint8Array | string;
     getCreateSignature_asU8(): Uint8Array;
     getCreateSignature_asB64(): string;
     setCreateSignature(value: Uint8Array | string): TPMAttestationParameters;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TPMAttestationParameters.AsObject;
@@ -660,10 +719,12 @@ export class TPMEnrollChallenge extends jspb.Message {
     clearEncryptedCredential(): void;
     getEncryptedCredential(): TPMEncryptedCredential | undefined;
     setEncryptedCredential(value?: TPMEncryptedCredential): TPMEnrollChallenge;
+
     getAttestationNonce(): Uint8Array | string;
     getAttestationNonce_asU8(): Uint8Array;
     getAttestationNonce_asB64(): string;
     setAttestationNonce(value: Uint8Array | string): TPMEnrollChallenge;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TPMEnrollChallenge.AsObject;
@@ -687,10 +748,12 @@ export class TPMEncryptedCredential extends jspb.Message {
     getCredentialBlob_asU8(): Uint8Array;
     getCredentialBlob_asB64(): string;
     setCredentialBlob(value: Uint8Array | string): TPMEncryptedCredential;
+
     getSecret(): Uint8Array | string;
     getSecret_asU8(): Uint8Array;
     getSecret_asB64(): string;
     setSecret(value: Uint8Array | string): TPMEncryptedCredential;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TPMEncryptedCredential.AsObject;
@@ -715,10 +778,12 @@ export class TPMEnrollChallengeResponse extends jspb.Message {
     getSolution_asB64(): string;
     setSolution(value: Uint8Array | string): TPMEnrollChallengeResponse;
 
+
     hasPlatformParameters(): boolean;
     clearPlatformParameters(): void;
     getPlatformParameters(): teleport_devicetrust_v1_tpm_pb.TPMPlatformParameters | undefined;
     setPlatformParameters(value?: teleport_devicetrust_v1_tpm_pb.TPMPlatformParameters): TPMEnrollChallengeResponse;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TPMEnrollChallengeResponse.AsObject;
@@ -744,15 +809,18 @@ export class AuthenticateDeviceRequest extends jspb.Message {
     getInit(): AuthenticateDeviceInit | undefined;
     setInit(value?: AuthenticateDeviceInit): AuthenticateDeviceRequest;
 
+
     hasChallengeResponse(): boolean;
     clearChallengeResponse(): void;
     getChallengeResponse(): AuthenticateDeviceChallengeResponse | undefined;
     setChallengeResponse(value?: AuthenticateDeviceChallengeResponse): AuthenticateDeviceRequest;
 
+
     hasTpmChallengeResponse(): boolean;
     clearTpmChallengeResponse(): void;
     getTpmChallengeResponse(): TPMAuthenticateDeviceChallengeResponse | undefined;
     setTpmChallengeResponse(value?: TPMAuthenticateDeviceChallengeResponse): AuthenticateDeviceRequest;
+
 
     getPayloadCase(): AuthenticateDeviceRequest.PayloadCase;
 
@@ -775,9 +843,13 @@ export namespace AuthenticateDeviceRequest {
 
     export enum PayloadCase {
         PAYLOAD_NOT_SET = 0,
-        INIT = 1,
-        CHALLENGE_RESPONSE = 2,
-        TPM_CHALLENGE_RESPONSE = 3,
+    
+    INIT = 1,
+
+    CHALLENGE_RESPONSE = 2,
+
+    TPM_CHALLENGE_RESPONSE = 3,
+
     }
 
 }
@@ -789,15 +861,18 @@ export class AuthenticateDeviceResponse extends jspb.Message {
     getChallenge(): AuthenticateDeviceChallenge | undefined;
     setChallenge(value?: AuthenticateDeviceChallenge): AuthenticateDeviceResponse;
 
+
     hasUserCertificates(): boolean;
     clearUserCertificates(): void;
     getUserCertificates(): teleport_devicetrust_v1_user_certificates_pb.UserCertificates | undefined;
     setUserCertificates(value?: teleport_devicetrust_v1_user_certificates_pb.UserCertificates): AuthenticateDeviceResponse;
 
+
     hasTpmChallenge(): boolean;
     clearTpmChallenge(): void;
     getTpmChallenge(): TPMAuthenticateDeviceChallenge | undefined;
     setTpmChallenge(value?: TPMAuthenticateDeviceChallenge): AuthenticateDeviceResponse;
+
 
     getPayloadCase(): AuthenticateDeviceResponse.PayloadCase;
 
@@ -820,9 +895,13 @@ export namespace AuthenticateDeviceResponse {
 
     export enum PayloadCase {
         PAYLOAD_NOT_SET = 0,
-        CHALLENGE = 1,
-        USER_CERTIFICATES = 2,
-        TPM_CHALLENGE = 3,
+    
+    CHALLENGE = 1,
+
+    USER_CERTIFICATES = 2,
+
+    TPM_CHALLENGE = 3,
+
     }
 
 }
@@ -833,18 +912,22 @@ export class AuthenticateDeviceInit extends jspb.Message {
     clearUserCertificates(): void;
     getUserCertificates(): teleport_devicetrust_v1_user_certificates_pb.UserCertificates | undefined;
     setUserCertificates(value?: teleport_devicetrust_v1_user_certificates_pb.UserCertificates): AuthenticateDeviceInit;
+
     getCredentialId(): string;
     setCredentialId(value: string): AuthenticateDeviceInit;
+
 
     hasDeviceData(): boolean;
     clearDeviceData(): void;
     getDeviceData(): teleport_devicetrust_v1_device_collected_data_pb.DeviceCollectedData | undefined;
     setDeviceData(value?: teleport_devicetrust_v1_device_collected_data_pb.DeviceCollectedData): AuthenticateDeviceInit;
 
+
     hasDeviceWebToken(): boolean;
     clearDeviceWebToken(): void;
     getDeviceWebToken(): teleport_devicetrust_v1_device_web_token_pb.DeviceWebToken | undefined;
     setDeviceWebToken(value?: teleport_devicetrust_v1_device_web_token_pb.DeviceWebToken): AuthenticateDeviceInit;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AuthenticateDeviceInit.AsObject;
@@ -871,6 +954,7 @@ export class TPMAuthenticateDeviceChallenge extends jspb.Message {
     getAttestationNonce_asB64(): string;
     setAttestationNonce(value: Uint8Array | string): TPMAuthenticateDeviceChallenge;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TPMAuthenticateDeviceChallenge.AsObject;
     static toObject(includeInstance: boolean, msg: TPMAuthenticateDeviceChallenge): TPMAuthenticateDeviceChallenge.AsObject;
@@ -894,6 +978,7 @@ export class TPMAuthenticateDeviceChallengeResponse extends jspb.Message {
     getPlatformParameters(): teleport_devicetrust_v1_tpm_pb.TPMPlatformParameters | undefined;
     setPlatformParameters(value?: teleport_devicetrust_v1_tpm_pb.TPMPlatformParameters): TPMAuthenticateDeviceChallengeResponse;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TPMAuthenticateDeviceChallengeResponse.AsObject;
     static toObject(includeInstance: boolean, msg: TPMAuthenticateDeviceChallengeResponse): TPMAuthenticateDeviceChallengeResponse.AsObject;
@@ -916,6 +1001,7 @@ export class AuthenticateDeviceChallenge extends jspb.Message {
     getChallenge_asB64(): string;
     setChallenge(value: Uint8Array | string): AuthenticateDeviceChallenge;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AuthenticateDeviceChallenge.AsObject;
     static toObject(includeInstance: boolean, msg: AuthenticateDeviceChallenge): AuthenticateDeviceChallenge.AsObject;
@@ -937,6 +1023,7 @@ export class AuthenticateDeviceChallengeResponse extends jspb.Message {
     getSignature_asU8(): Uint8Array;
     getSignature_asB64(): string;
     setSignature(value: Uint8Array | string): AuthenticateDeviceChallengeResponse;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AuthenticateDeviceChallengeResponse.AsObject;
@@ -961,20 +1048,24 @@ export class SyncInventoryRequest extends jspb.Message {
     getStart(): SyncInventoryStart | undefined;
     setStart(value?: SyncInventoryStart): SyncInventoryRequest;
 
+
     hasEnd(): boolean;
     clearEnd(): void;
     getEnd(): SyncInventoryEnd | undefined;
     setEnd(value?: SyncInventoryEnd): SyncInventoryRequest;
+
 
     hasDevicesToUpsert(): boolean;
     clearDevicesToUpsert(): void;
     getDevicesToUpsert(): SyncInventoryDevices | undefined;
     setDevicesToUpsert(value?: SyncInventoryDevices): SyncInventoryRequest;
 
+
     hasDevicesToRemove(): boolean;
     clearDevicesToRemove(): void;
     getDevicesToRemove(): SyncInventoryDevices | undefined;
     setDevicesToRemove(value?: SyncInventoryDevices): SyncInventoryRequest;
+
 
     getPayloadCase(): SyncInventoryRequest.PayloadCase;
 
@@ -998,10 +1089,15 @@ export namespace SyncInventoryRequest {
 
     export enum PayloadCase {
         PAYLOAD_NOT_SET = 0,
-        START = 1,
-        END = 2,
-        DEVICES_TO_UPSERT = 3,
-        DEVICES_TO_REMOVE = 4,
+    
+    START = 1,
+
+    END = 2,
+
+    DEVICES_TO_UPSERT = 3,
+
+    DEVICES_TO_REMOVE = 4,
+
     }
 
 }
@@ -1013,15 +1109,18 @@ export class SyncInventoryResponse extends jspb.Message {
     getAck(): SyncInventoryAck | undefined;
     setAck(value?: SyncInventoryAck): SyncInventoryResponse;
 
+
     hasResult(): boolean;
     clearResult(): void;
     getResult(): SyncInventoryResult | undefined;
     setResult(value?: SyncInventoryResult): SyncInventoryResponse;
 
+
     hasMissingDevices(): boolean;
     clearMissingDevices(): void;
     getMissingDevices(): SyncInventoryMissingDevices | undefined;
     setMissingDevices(value?: SyncInventoryMissingDevices): SyncInventoryResponse;
+
 
     getPayloadCase(): SyncInventoryResponse.PayloadCase;
 
@@ -1044,9 +1143,13 @@ export namespace SyncInventoryResponse {
 
     export enum PayloadCase {
         PAYLOAD_NOT_SET = 0,
-        ACK = 1,
-        RESULT = 2,
-        MISSING_DEVICES = 3,
+    
+    ACK = 1,
+
+    RESULT = 2,
+
+    MISSING_DEVICES = 3,
+
     }
 
 }
@@ -1057,8 +1160,10 @@ export class SyncInventoryStart extends jspb.Message {
     clearSource(): void;
     getSource(): teleport_devicetrust_v1_device_source_pb.DeviceSource | undefined;
     setSource(value?: teleport_devicetrust_v1_device_source_pb.DeviceSource): SyncInventoryStart;
+
     getTrackMissingDevices(): boolean;
     setTrackMissingDevices(value: boolean): SyncInventoryStart;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SyncInventoryStart.AsObject;
@@ -1100,6 +1205,7 @@ export class SyncInventoryDevices extends jspb.Message {
     setDevicesList(value: Array<teleport_devicetrust_v1_device_pb.Device>): SyncInventoryDevices;
     addDevices(value?: teleport_devicetrust_v1_device_pb.Device, index?: number): teleport_devicetrust_v1_device_pb.Device;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SyncInventoryDevices.AsObject;
     static toObject(includeInstance: boolean, msg: SyncInventoryDevices): SyncInventoryDevices.AsObject;
@@ -1139,6 +1245,7 @@ export class SyncInventoryResult extends jspb.Message {
     setDevicesList(value: Array<DeviceOrStatus>): SyncInventoryResult;
     addDevices(value?: DeviceOrStatus, index?: number): DeviceOrStatus;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SyncInventoryResult.AsObject;
     static toObject(includeInstance: boolean, msg: SyncInventoryResult): SyncInventoryResult.AsObject;
@@ -1160,6 +1267,7 @@ export class SyncInventoryMissingDevices extends jspb.Message {
     getDevicesList(): Array<teleport_devicetrust_v1_device_pb.Device>;
     setDevicesList(value: Array<teleport_devicetrust_v1_device_pb.Device>): SyncInventoryMissingDevices;
     addDevices(value?: teleport_devicetrust_v1_device_pb.Device, index?: number): teleport_devicetrust_v1_device_pb.Device;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SyncInventoryMissingDevices.AsObject;

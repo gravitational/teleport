@@ -9,10 +9,13 @@ import * as jspb from "google-protobuf";
 export class UnifiedResourcePreferences extends jspb.Message { 
     getDefaultTab(): DefaultTab;
     setDefaultTab(value: DefaultTab): UnifiedResourcePreferences;
+
     getViewMode(): ViewMode;
     setViewMode(value: ViewMode): UnifiedResourcePreferences;
+
     getLabelsViewMode(): LabelsViewMode;
     setLabelsViewMode(value: LabelsViewMode): UnifiedResourcePreferences;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UnifiedResourcePreferences.AsObject;

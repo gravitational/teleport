@@ -10,30 +10,41 @@ import * as teleport_lib_teleterm_v1_label_pb from "../../../../teleport/lib/tel
 export class App extends jspb.Message { 
     getUri(): string;
     setUri(value: string): App;
+
     getName(): string;
     setName(value: string): App;
+
     getEndpointUri(): string;
     setEndpointUri(value: string): App;
+
     getDesc(): string;
     setDesc(value: string): App;
+
     getAwsConsole(): boolean;
     setAwsConsole(value: boolean): App;
+
     getPublicAddr(): string;
     setPublicAddr(value: string): App;
+
     getFriendlyName(): string;
     setFriendlyName(value: string): App;
+
     getSamlApp(): boolean;
     setSamlApp(value: boolean): App;
+
     clearLabelsList(): void;
     getLabelsList(): Array<teleport_lib_teleterm_v1_label_pb.Label>;
     setLabelsList(value: Array<teleport_lib_teleterm_v1_label_pb.Label>): App;
     addLabels(value?: teleport_lib_teleterm_v1_label_pb.Label, index?: number): teleport_lib_teleterm_v1_label_pb.Label;
+
     getFqdn(): string;
     setFqdn(value: string): App;
+
     clearAwsRolesList(): void;
     getAwsRolesList(): Array<AWSRole>;
     setAwsRolesList(value: Array<AWSRole>): App;
     addAwsRoles(value?: AWSRole, index?: number): AWSRole;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): App.AsObject;
@@ -64,10 +75,13 @@ export namespace App {
 export class AWSRole extends jspb.Message { 
     getName(): string;
     setName(value: string): AWSRole;
+
     getDisplay(): string;
     setDisplay(value: string): AWSRole;
+
     getArn(): string;
     setArn(value: string): AWSRole;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AWSRole.AsObject;

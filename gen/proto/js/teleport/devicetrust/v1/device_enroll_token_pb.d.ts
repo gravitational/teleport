@@ -11,10 +11,12 @@ export class DeviceEnrollToken extends jspb.Message {
     getToken(): string;
     setToken(value: string): DeviceEnrollToken;
 
+
     hasExpireTime(): boolean;
     clearExpireTime(): void;
     getExpireTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setExpireTime(value?: google_protobuf_timestamp_pb.Timestamp): DeviceEnrollToken;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeviceEnrollToken.AsObject;

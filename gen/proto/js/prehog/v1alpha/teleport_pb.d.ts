@@ -11,12 +11,16 @@ import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/t
 export class UserLoginEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UserLoginEvent;
+
     getConnectorType(): string;
     setConnectorType(value: string): UserLoginEvent;
+
     getDeviceId(): string;
     setDeviceId(value: string): UserLoginEvent;
+
     getRequiredPrivateKeyPolicy(): string;
     setRequiredPrivateKeyPolicy(value: string): UserLoginEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserLoginEvent.AsObject;
@@ -40,12 +44,16 @@ export namespace UserLoginEvent {
 export class MFAAuthenticationEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): MFAAuthenticationEvent;
+
     getDeviceId(): string;
     setDeviceId(value: string): MFAAuthenticationEvent;
+
     getDeviceType(): string;
     setDeviceType(value: string): MFAAuthenticationEvent;
+
     getMfaChallengeScope(): string;
     setMfaChallengeScope(value: string): MFAAuthenticationEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): MFAAuthenticationEvent.AsObject;
@@ -70,6 +78,7 @@ export class SSOCreateEvent extends jspb.Message {
     getConnectorType(): string;
     setConnectorType(value: string): SSOCreateEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SSOCreateEvent.AsObject;
     static toObject(includeInstance: boolean, msg: SSOCreateEvent): SSOCreateEvent.AsObject;
@@ -89,15 +98,19 @@ export namespace SSOCreateEvent {
 export class ResourceCreateEvent extends jspb.Message { 
     getResourceType(): string;
     setResourceType(value: string): ResourceCreateEvent;
+
     getResourceOrigin(): string;
     setResourceOrigin(value: string): ResourceCreateEvent;
+
     getCloudProvider(): string;
     setCloudProvider(value: string): ResourceCreateEvent;
+
 
     hasDatabase(): boolean;
     clearDatabase(): void;
     getDatabase(): DiscoveredDatabaseMetadata | undefined;
     setDatabase(value?: DiscoveredDatabaseMetadata): ResourceCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceCreateEvent.AsObject;
@@ -121,8 +134,10 @@ export namespace ResourceCreateEvent {
 export class DiscoveredDatabaseMetadata extends jspb.Message { 
     getDbType(): string;
     setDbType(value: string): DiscoveredDatabaseMetadata;
+
     getDbProtocol(): string;
     setDbProtocol(value: string): DiscoveredDatabaseMetadata;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DiscoveredDatabaseMetadata.AsObject;
@@ -146,10 +161,13 @@ export class ResourceHeartbeatEvent extends jspb.Message {
     getResourceName_asU8(): Uint8Array;
     getResourceName_asB64(): string;
     setResourceName(value: Uint8Array | string): ResourceHeartbeatEvent;
+
     getResourceKind(): ResourceKind;
     setResourceKind(value: ResourceKind): ResourceHeartbeatEvent;
+
     getStatic(): boolean;
     setStatic(value: boolean): ResourceHeartbeatEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceHeartbeatEvent.AsObject;
@@ -172,20 +190,25 @@ export namespace ResourceHeartbeatEvent {
 export class SessionStartEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): SessionStartEvent;
+
     getSessionType(): string;
     setSessionType(value: string): SessionStartEvent;
+
 
     hasDatabase(): boolean;
     clearDatabase(): void;
     getDatabase(): SessionStartDatabaseMetadata | undefined;
     setDatabase(value?: SessionStartDatabaseMetadata): SessionStartEvent;
 
+
     hasDesktop(): boolean;
     clearDesktop(): void;
     getDesktop(): SessionStartDesktopMetadata | undefined;
     setDesktop(value?: SessionStartDesktopMetadata): SessionStartEvent;
+
     getUserKind(): UserKind;
     setUserKind(value: UserKind): SessionStartEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartEvent.AsObject;
@@ -210,10 +233,13 @@ export namespace SessionStartEvent {
 export class SessionStartDatabaseMetadata extends jspb.Message { 
     getDbType(): string;
     setDbType(value: string): SessionStartDatabaseMetadata;
+
     getDbProtocol(): string;
     setDbProtocol(value: string): SessionStartDatabaseMetadata;
+
     getDbOrigin(): string;
     setDbOrigin(value: string): SessionStartDatabaseMetadata;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartDatabaseMetadata.AsObject;
@@ -236,12 +262,16 @@ export namespace SessionStartDatabaseMetadata {
 export class SessionStartDesktopMetadata extends jspb.Message { 
     getDesktopType(): string;
     setDesktopType(value: string): SessionStartDesktopMetadata;
+
     getOrigin(): string;
     setOrigin(value: string): SessionStartDesktopMetadata;
+
     getWindowsDomain(): string;
     setWindowsDomain(value: string): SessionStartDesktopMetadata;
+
     getAllowUserCreation(): boolean;
     setAllowUserCreation(value: boolean): SessionStartDesktopMetadata;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartDesktopMetadata.AsObject;
@@ -266,22 +296,30 @@ export class UserCertificateIssuedEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UserCertificateIssuedEvent;
 
+
     hasTtl(): boolean;
     clearTtl(): void;
     getTtl(): google_protobuf_duration_pb.Duration | undefined;
     setTtl(value?: google_protobuf_duration_pb.Duration): UserCertificateIssuedEvent;
+
     getIsBot(): boolean;
     setIsBot(value: boolean): UserCertificateIssuedEvent;
+
     getUsageDatabase(): boolean;
     setUsageDatabase(value: boolean): UserCertificateIssuedEvent;
+
     getUsageApp(): boolean;
     setUsageApp(value: boolean): UserCertificateIssuedEvent;
+
     getUsageKubernetes(): boolean;
     setUsageKubernetes(value: boolean): UserCertificateIssuedEvent;
+
     getUsageDesktop(): boolean;
     setUsageDesktop(value: boolean): UserCertificateIssuedEvent;
+
     getPrivateKeyPolicy(): string;
     setPrivateKeyPolicy(value: string): UserCertificateIssuedEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserCertificateIssuedEvent.AsObject;
@@ -309,16 +347,22 @@ export namespace UserCertificateIssuedEvent {
 export class SPIFFESVIDIssuedEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): SPIFFESVIDIssuedEvent;
+
     getUserKind(): UserKind;
     setUserKind(value: UserKind): SPIFFESVIDIssuedEvent;
+
     getSpiffeId(): string;
     setSpiffeId(value: string): SPIFFESVIDIssuedEvent;
+
     getIpSansCount(): number;
     setIpSansCount(value: number): SPIFFESVIDIssuedEvent;
+
     getDnsSansCount(): number;
     setDnsSansCount(value: number): SPIFFESVIDIssuedEvent;
+
     getSvidType(): string;
     setSvidType(value: string): SPIFFESVIDIssuedEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SPIFFESVIDIssuedEvent.AsObject;
@@ -344,8 +388,10 @@ export namespace SPIFFESVIDIssuedEvent {
 export class UIBannerClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UIBannerClickEvent;
+
     getAlert(): string;
     setAlert(value: string): UIBannerClickEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIBannerClickEvent.AsObject;
@@ -368,6 +414,7 @@ export class UIOnboardCompleteGoToDashboardClickEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UIOnboardCompleteGoToDashboardClickEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIOnboardCompleteGoToDashboardClickEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UIOnboardCompleteGoToDashboardClickEvent): UIOnboardCompleteGoToDashboardClickEvent.AsObject;
@@ -387,6 +434,7 @@ export namespace UIOnboardCompleteGoToDashboardClickEvent {
 export class UIOnboardAddFirstResourceClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UIOnboardAddFirstResourceClickEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIOnboardAddFirstResourceClickEvent.AsObject;
@@ -408,6 +456,7 @@ export class UIOnboardAddFirstResourceLaterClickEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UIOnboardAddFirstResourceLaterClickEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIOnboardAddFirstResourceLaterClickEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UIOnboardAddFirstResourceLaterClickEvent): UIOnboardAddFirstResourceLaterClickEvent.AsObject;
@@ -428,6 +477,7 @@ export class UIOnboardSetCredentialSubmitEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UIOnboardSetCredentialSubmitEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIOnboardSetCredentialSubmitEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UIOnboardSetCredentialSubmitEvent): UIOnboardSetCredentialSubmitEvent.AsObject;
@@ -447,10 +497,13 @@ export namespace UIOnboardSetCredentialSubmitEvent {
 export class UIOnboardRegisterChallengeSubmitEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UIOnboardRegisterChallengeSubmitEvent;
+
     getMfaType(): string;
     setMfaType(value: string): UIOnboardRegisterChallengeSubmitEvent;
+
     getLoginFlow(): string;
     setLoginFlow(value: string): UIOnboardRegisterChallengeSubmitEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIOnboardRegisterChallengeSubmitEvent.AsObject;
@@ -474,6 +527,7 @@ export class UIOnboardQuestionnaireSubmitEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UIOnboardQuestionnaireSubmitEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIOnboardQuestionnaireSubmitEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UIOnboardQuestionnaireSubmitEvent): UIOnboardQuestionnaireSubmitEvent.AsObject;
@@ -493,6 +547,7 @@ export namespace UIOnboardQuestionnaireSubmitEvent {
 export class UIRecoveryCodesContinueClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UIRecoveryCodesContinueClickEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIRecoveryCodesContinueClickEvent.AsObject;
@@ -514,6 +569,7 @@ export class UIRecoveryCodesCopyClickEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UIRecoveryCodesCopyClickEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIRecoveryCodesCopyClickEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UIRecoveryCodesCopyClickEvent): UIRecoveryCodesCopyClickEvent.AsObject;
@@ -534,6 +590,7 @@ export class UIRecoveryCodesPrintClickEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UIRecoveryCodesPrintClickEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIRecoveryCodesPrintClickEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UIRecoveryCodesPrintClickEvent): UIRecoveryCodesPrintClickEvent.AsObject;
@@ -553,10 +610,13 @@ export namespace UIRecoveryCodesPrintClickEvent {
 export class DiscoverMetadata extends jspb.Message { 
     getId(): string;
     setId(value: string): DiscoverMetadata;
+
     getUserName(): string;
     setUserName(value: string): DiscoverMetadata;
+
     getSso(): boolean;
     setSso(value: boolean): DiscoverMetadata;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DiscoverMetadata.AsObject;
@@ -580,6 +640,7 @@ export class DiscoverResourceMetadata extends jspb.Message {
     getResource(): DiscoverResource;
     setResource(value: DiscoverResource): DiscoverResourceMetadata;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DiscoverResourceMetadata.AsObject;
     static toObject(includeInstance: boolean, msg: DiscoverResourceMetadata): DiscoverResourceMetadata.AsObject;
@@ -599,8 +660,10 @@ export namespace DiscoverResourceMetadata {
 export class DiscoverStepStatus extends jspb.Message { 
     getStatus(): DiscoverStatus;
     setStatus(value: DiscoverStatus): DiscoverStepStatus;
+
     getError(): string;
     setError(value: string): DiscoverStepStatus;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DiscoverStepStatus.AsObject;
@@ -626,10 +689,12 @@ export class UIDiscoverStartedEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverStartedEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverStartedEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverStartedEvent.AsObject;
@@ -655,15 +720,18 @@ export class UIDiscoverResourceSelectionEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverResourceSelectionEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverResourceSelectionEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverResourceSelectionEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverResourceSelectionEvent.AsObject;
@@ -690,15 +758,18 @@ export class UIDiscoverIntegrationAWSOIDCConnectEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverIntegrationAWSOIDCConnectEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverIntegrationAWSOIDCConnectEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject;
@@ -725,17 +796,21 @@ export class UIDiscoverDatabaseRDSEnrollEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverDatabaseRDSEnrollEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverDatabaseRDSEnrollEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDatabaseRDSEnrollEvent;
+
     getSelectedResourcesCount(): number;
     setSelectedResourcesCount(value: number): UIDiscoverDatabaseRDSEnrollEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDatabaseRDSEnrollEvent.AsObject;
@@ -763,19 +838,24 @@ export class UIDiscoverDeployServiceEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverDeployServiceEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverDeployServiceEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDeployServiceEvent;
+
     getDeployMethod(): UIDiscoverDeployServiceEvent.DeployMethod;
     setDeployMethod(value: UIDiscoverDeployServiceEvent.DeployMethod): UIDiscoverDeployServiceEvent;
+
     getDeployType(): UIDiscoverDeployServiceEvent.DeployType;
     setDeployType(value: UIDiscoverDeployServiceEvent.DeployType): UIDiscoverDeployServiceEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDeployServiceEvent.AsObject;
@@ -817,15 +897,18 @@ export class UIDiscoverDatabaseRegisterEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverDatabaseRegisterEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverDatabaseRegisterEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDatabaseRegisterEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDatabaseRegisterEvent.AsObject;
@@ -852,15 +935,18 @@ export class UIDiscoverDatabaseConfigureMTLSEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverDatabaseConfigureMTLSEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverDatabaseConfigureMTLSEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDatabaseConfigureMTLSEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDatabaseConfigureMTLSEvent.AsObject;
@@ -887,15 +973,18 @@ export class UIDiscoverDesktopActiveDirectoryToolsInstallEvent extends jspb.Mess
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverDesktopActiveDirectoryToolsInstallEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverDesktopActiveDirectoryToolsInstallEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDesktopActiveDirectoryToolsInstallEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDesktopActiveDirectoryToolsInstallEvent.AsObject;
@@ -922,15 +1011,18 @@ export class UIDiscoverDesktopActiveDirectoryConfigureEvent extends jspb.Message
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverDesktopActiveDirectoryConfigureEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverDesktopActiveDirectoryConfigureEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDesktopActiveDirectoryConfigureEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDesktopActiveDirectoryConfigureEvent.AsObject;
@@ -957,17 +1049,21 @@ export class UIDiscoverAutoDiscoveredResourcesEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverAutoDiscoveredResourcesEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverAutoDiscoveredResourcesEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverAutoDiscoveredResourcesEvent;
+
     getResourcesCount(): number;
     setResourcesCount(value: number): UIDiscoverAutoDiscoveredResourcesEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverAutoDiscoveredResourcesEvent.AsObject;
@@ -995,15 +1091,18 @@ export class UIDiscoverEC2InstanceSelectionEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverEC2InstanceSelectionEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverEC2InstanceSelectionEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverEC2InstanceSelectionEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverEC2InstanceSelectionEvent.AsObject;
@@ -1030,15 +1129,18 @@ export class UIDiscoverDeployEICEEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverDeployEICEEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverDeployEICEEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDeployEICEEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDeployEICEEvent.AsObject;
@@ -1065,15 +1167,18 @@ export class UIDiscoverCreateNodeEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverCreateNodeEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverCreateNodeEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverCreateNodeEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverCreateNodeEvent.AsObject;
@@ -1100,15 +1205,18 @@ export class UIDiscoverDatabaseConfigureIAMPolicyEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverDatabaseConfigureIAMPolicyEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverDatabaseConfigureIAMPolicyEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDatabaseConfigureIAMPolicyEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDatabaseConfigureIAMPolicyEvent.AsObject;
@@ -1135,15 +1243,18 @@ export class UIDiscoverPrincipalsConfigureEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverPrincipalsConfigureEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverPrincipalsConfigureEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverPrincipalsConfigureEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverPrincipalsConfigureEvent.AsObject;
@@ -1170,15 +1281,18 @@ export class UIDiscoverTestConnectionEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverTestConnectionEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverTestConnectionEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverTestConnectionEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverTestConnectionEvent.AsObject;
@@ -1205,15 +1319,18 @@ export class UIDiscoverCompletedEvent extends jspb.Message {
     getMetadata(): DiscoverMetadata | undefined;
     setMetadata(value?: DiscoverMetadata): UIDiscoverCompletedEvent;
 
+
     hasResource(): boolean;
     clearResource(): void;
     getResource(): DiscoverResourceMetadata | undefined;
     setResource(value?: DiscoverResourceMetadata): UIDiscoverCompletedEvent;
 
+
     hasStatus(): boolean;
     clearStatus(): void;
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverCompletedEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverCompletedEvent.AsObject;
@@ -1236,8 +1353,10 @@ export namespace UIDiscoverCompletedEvent {
 export class RoleCreateEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): RoleCreateEvent;
+
     getRoleName(): string;
     setRoleName(value: string): RoleCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): RoleCreateEvent.AsObject;
@@ -1259,16 +1378,22 @@ export namespace RoleCreateEvent {
 export class BotCreateEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): BotCreateEvent;
+
     getBotUserName(): string;
     setBotUserName(value: string): BotCreateEvent;
+
     getRoleName(): string;
     setRoleName(value: string): BotCreateEvent;
+
     getRoleCount(): number;
     setRoleCount(value: number): BotCreateEvent;
+
     getJoinMethod(): string;
     setJoinMethod(value: string): BotCreateEvent;
+
     getBotName(): string;
     setBotName(value: string): BotCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): BotCreateEvent.AsObject;
@@ -1294,12 +1419,16 @@ export namespace BotCreateEvent {
 export class BotJoinEvent extends jspb.Message { 
     getBotName(): string;
     setBotName(value: string): BotJoinEvent;
+
     getJoinMethod(): string;
     setJoinMethod(value: string): BotJoinEvent;
+
     getJoinTokenName(): string;
     setJoinTokenName(value: string): BotJoinEvent;
+
     getUserName(): string;
     setUserName(value: string): BotJoinEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): BotJoinEvent.AsObject;
@@ -1324,6 +1453,7 @@ export class UICreateNewRoleClickEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UICreateNewRoleClickEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UICreateNewRoleClickEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UICreateNewRoleClickEvent): UICreateNewRoleClickEvent.AsObject;
@@ -1343,6 +1473,7 @@ export namespace UICreateNewRoleClickEvent {
 export class UICreateNewRoleSaveClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UICreateNewRoleSaveClickEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UICreateNewRoleSaveClickEvent.AsObject;
@@ -1364,6 +1495,7 @@ export class UICreateNewRoleCancelClickEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UICreateNewRoleCancelClickEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UICreateNewRoleCancelClickEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UICreateNewRoleCancelClickEvent): UICreateNewRoleCancelClickEvent.AsObject;
@@ -1384,6 +1516,7 @@ export class UICreateNewRoleViewDocumentationClickEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): UICreateNewRoleViewDocumentationClickEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UICreateNewRoleViewDocumentationClickEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UICreateNewRoleViewDocumentationClickEvent): UICreateNewRoleViewDocumentationClickEvent.AsObject;
@@ -1403,8 +1536,10 @@ export namespace UICreateNewRoleViewDocumentationClickEvent {
 export class UICallToActionClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UICallToActionClickEvent;
+
     getCta(): CTA;
     setCta(value: CTA): UICallToActionClickEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UICallToActionClickEvent.AsObject;
@@ -1426,8 +1561,10 @@ export namespace UICallToActionClickEvent {
 export class KubeRequestEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): KubeRequestEvent;
+
     getUserKind(): UserKind;
     setUserKind(value: UserKind): KubeRequestEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): KubeRequestEvent.AsObject;
@@ -1449,10 +1586,13 @@ export namespace KubeRequestEvent {
 export class SFTPEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): SFTPEvent;
+
     getAction(): number;
     setAction(value: number): SFTPEvent;
+
     getUserKind(): UserKind;
     setUserKind(value: UserKind): SFTPEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SFTPEvent.AsObject;
@@ -1475,32 +1615,44 @@ export namespace SFTPEvent {
 export class AgentMetadataEvent extends jspb.Message { 
     getVersion(): string;
     setVersion(value: string): AgentMetadataEvent;
+
     getHostId(): string;
     setHostId(value: string): AgentMetadataEvent;
+
     clearServicesList(): void;
     getServicesList(): Array<string>;
     setServicesList(value: Array<string>): AgentMetadataEvent;
     addServices(value: string, index?: number): string;
+
     getOs(): string;
     setOs(value: string): AgentMetadataEvent;
+
     getOsVersion(): string;
     setOsVersion(value: string): AgentMetadataEvent;
+
     getHostArchitecture(): string;
     setHostArchitecture(value: string): AgentMetadataEvent;
+
     getGlibcVersion(): string;
     setGlibcVersion(value: string): AgentMetadataEvent;
+
     clearInstallMethodsList(): void;
     getInstallMethodsList(): Array<string>;
     setInstallMethodsList(value: Array<string>): AgentMetadataEvent;
     addInstallMethods(value: string, index?: number): string;
+
     getContainerRuntime(): string;
     setContainerRuntime(value: string): AgentMetadataEvent;
+
     getContainerOrchestrator(): string;
     setContainerOrchestrator(value: string): AgentMetadataEvent;
+
     getCloudEnvironment(): string;
     setCloudEnvironment(value: string): AgentMetadataEvent;
+
     getExternalUpgrader(): string;
     setExternalUpgrader(value: string): AgentMetadataEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AgentMetadataEvent.AsObject;
@@ -1532,14 +1684,19 @@ export namespace AgentMetadataEvent {
 export class AssistCompletionEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): AssistCompletionEvent;
+
     getConversationId(): string;
     setConversationId(value: string): AssistCompletionEvent;
+
     getTotalTokens(): number;
     setTotalTokens(value: number): AssistCompletionEvent;
+
     getPromptTokens(): number;
     setPromptTokens(value: number): AssistCompletionEvent;
+
     getCompletionTokens(): number;
     setCompletionTokens(value: number): AssistCompletionEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AssistCompletionEvent.AsObject;
@@ -1564,16 +1721,22 @@ export namespace AssistCompletionEvent {
 export class AssistExecutionEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): AssistExecutionEvent;
+
     getConversationId(): string;
     setConversationId(value: string): AssistExecutionEvent;
+
     getNodeCount(): number;
     setNodeCount(value: number): AssistExecutionEvent;
+
     getTotalTokens(): number;
     setTotalTokens(value: number): AssistExecutionEvent;
+
     getPromptTokens(): number;
     setPromptTokens(value: number): AssistExecutionEvent;
+
     getCompletionTokens(): number;
     setCompletionTokens(value: number): AssistExecutionEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AssistExecutionEvent.AsObject;
@@ -1599,8 +1762,10 @@ export namespace AssistExecutionEvent {
 export class AssistNewConversationEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): AssistNewConversationEvent;
+
     getCategory(): string;
     setCategory(value: string): AssistNewConversationEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AssistNewConversationEvent.AsObject;
@@ -1622,14 +1787,19 @@ export namespace AssistNewConversationEvent {
 export class AssistAccessRequestEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): AssistAccessRequestEvent;
+
     getResourceType(): string;
     setResourceType(value: string): AssistAccessRequestEvent;
+
     getTotalTokens(): number;
     setTotalTokens(value: number): AssistAccessRequestEvent;
+
     getPromptTokens(): number;
     setPromptTokens(value: number): AssistAccessRequestEvent;
+
     getCompletionTokens(): number;
     setCompletionTokens(value: number): AssistAccessRequestEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AssistAccessRequestEvent.AsObject;
@@ -1654,14 +1824,19 @@ export namespace AssistAccessRequestEvent {
 export class AssistActionEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): AssistActionEvent;
+
     getAction(): string;
     setAction(value: string): AssistActionEvent;
+
     getTotalTokens(): number;
     setTotalTokens(value: number): AssistActionEvent;
+
     getPromptTokens(): number;
     setPromptTokens(value: number): AssistActionEvent;
+
     getCompletionTokens(): number;
     setCompletionTokens(value: number): AssistActionEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AssistActionEvent.AsObject;
@@ -1687,6 +1862,7 @@ export class AccessListMetadata extends jspb.Message {
     getId(): string;
     setId(value: string): AccessListMetadata;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListMetadata.AsObject;
     static toObject(includeInstance: boolean, msg: AccessListMetadata): AccessListMetadata.AsObject;
@@ -1707,10 +1883,12 @@ export class AccessListCreateEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): AccessListCreateEvent;
 
+
     hasMetadata(): boolean;
     clearMetadata(): void;
     getMetadata(): AccessListMetadata | undefined;
     setMetadata(value?: AccessListMetadata): AccessListCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListCreateEvent.AsObject;
@@ -1733,10 +1911,12 @@ export class AccessListUpdateEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): AccessListUpdateEvent;
 
+
     hasMetadata(): boolean;
     clearMetadata(): void;
     getMetadata(): AccessListMetadata | undefined;
     setMetadata(value?: AccessListMetadata): AccessListUpdateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListUpdateEvent.AsObject;
@@ -1759,10 +1939,12 @@ export class AccessListDeleteEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): AccessListDeleteEvent;
 
+
     hasMetadata(): boolean;
     clearMetadata(): void;
     getMetadata(): AccessListMetadata | undefined;
     setMetadata(value?: AccessListMetadata): AccessListDeleteEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListDeleteEvent.AsObject;
@@ -1785,10 +1967,12 @@ export class AccessListMemberCreateEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): AccessListMemberCreateEvent;
 
+
     hasMetadata(): boolean;
     clearMetadata(): void;
     getMetadata(): AccessListMetadata | undefined;
     setMetadata(value?: AccessListMetadata): AccessListMemberCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListMemberCreateEvent.AsObject;
@@ -1811,10 +1995,12 @@ export class AccessListMemberUpdateEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): AccessListMemberUpdateEvent;
 
+
     hasMetadata(): boolean;
     clearMetadata(): void;
     getMetadata(): AccessListMetadata | undefined;
     setMetadata(value?: AccessListMetadata): AccessListMemberUpdateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListMemberUpdateEvent.AsObject;
@@ -1837,10 +2023,12 @@ export class AccessListMemberDeleteEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): AccessListMemberDeleteEvent;
 
+
     hasMetadata(): boolean;
     clearMetadata(): void;
     getMetadata(): AccessListMetadata | undefined;
     setMetadata(value?: AccessListMetadata): AccessListMemberDeleteEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListMemberDeleteEvent.AsObject;
@@ -1862,10 +2050,13 @@ export namespace AccessListMemberDeleteEvent {
 export class AccessListGrantsToUserEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): AccessListGrantsToUserEvent;
+
     getCountRolesGranted(): number;
     setCountRolesGranted(value: number): AccessListGrantsToUserEvent;
+
     getCountTraitsGranted(): number;
     setCountTraitsGranted(value: number): AccessListGrantsToUserEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListGrantsToUserEvent.AsObject;
@@ -1889,20 +2080,27 @@ export class AccessListReviewCreateEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): AccessListReviewCreateEvent;
 
+
     hasMetadata(): boolean;
     clearMetadata(): void;
     getMetadata(): AccessListMetadata | undefined;
     setMetadata(value?: AccessListMetadata): AccessListReviewCreateEvent;
+
     getDaysPastNextAuditDate(): number;
     setDaysPastNextAuditDate(value: number): AccessListReviewCreateEvent;
+
     getMembershipRequirementsChanged(): boolean;
     setMembershipRequirementsChanged(value: boolean): AccessListReviewCreateEvent;
+
     getReviewFrequencyChanged(): boolean;
     setReviewFrequencyChanged(value: boolean): AccessListReviewCreateEvent;
+
     getReviewDayOfMonthChanged(): boolean;
     setReviewDayOfMonthChanged(value: boolean): AccessListReviewCreateEvent;
+
     getNumberOfRemovedMembers(): number;
     setNumberOfRemovedMembers(value: number): AccessListReviewCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListReviewCreateEvent.AsObject;
@@ -1930,12 +2128,15 @@ export class AccessListReviewDeleteEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): AccessListReviewDeleteEvent;
 
+
     hasMetadata(): boolean;
     clearMetadata(): void;
     getMetadata(): AccessListMetadata | undefined;
     setMetadata(value?: AccessListMetadata): AccessListReviewDeleteEvent;
+
     getAccessListReviewId(): string;
     setAccessListReviewId(value: string): AccessListReviewDeleteEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListReviewDeleteEvent.AsObject;
@@ -1958,8 +2159,10 @@ export namespace AccessListReviewDeleteEvent {
 export class AccessListReviewComplianceEvent extends jspb.Message { 
     getTotalAccessLists(): number;
     setTotalAccessLists(value: number): AccessListReviewComplianceEvent;
+
     getAccessListsNeedReview(): number;
     setAccessListsNeedReview(value: number): AccessListReviewComplianceEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListReviewComplianceEvent.AsObject;
@@ -1981,10 +2184,13 @@ export namespace AccessListReviewComplianceEvent {
 export class IntegrationEnrollMetadata extends jspb.Message { 
     getId(): string;
     setId(value: string): IntegrationEnrollMetadata;
+
     getKind(): IntegrationEnrollKind;
     setKind(value: IntegrationEnrollKind): IntegrationEnrollMetadata;
+
     getUserName(): string;
     setUserName(value: string): IntegrationEnrollMetadata;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): IntegrationEnrollMetadata.AsObject;
@@ -2011,6 +2217,7 @@ export class UIIntegrationEnrollStartEvent extends jspb.Message {
     getMetadata(): IntegrationEnrollMetadata | undefined;
     setMetadata(value?: IntegrationEnrollMetadata): UIIntegrationEnrollStartEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIIntegrationEnrollStartEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UIIntegrationEnrollStartEvent): UIIntegrationEnrollStartEvent.AsObject;
@@ -2034,6 +2241,7 @@ export class UIIntegrationEnrollCompleteEvent extends jspb.Message {
     getMetadata(): IntegrationEnrollMetadata | undefined;
     setMetadata(value?: IntegrationEnrollMetadata): UIIntegrationEnrollCompleteEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIIntegrationEnrollCompleteEvent.AsObject;
     static toObject(includeInstance: boolean, msg: UIIntegrationEnrollCompleteEvent): UIIntegrationEnrollCompleteEvent.AsObject;
@@ -2053,8 +2261,10 @@ export namespace UIIntegrationEnrollCompleteEvent {
 export class EditorChangeEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): EditorChangeEvent;
+
     getStatus(): EditorChangeStatus;
     setStatus(value: EditorChangeStatus): EditorChangeEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): EditorChangeEvent.AsObject;
@@ -2076,10 +2286,13 @@ export namespace EditorChangeEvent {
 export class DeviceAuthenticateEvent extends jspb.Message { 
     getDeviceId(): string;
     setDeviceId(value: string): DeviceAuthenticateEvent;
+
     getUserName(): string;
     setUserName(value: string): DeviceAuthenticateEvent;
+
     getDeviceOsType(): string;
     setDeviceOsType(value: string): DeviceAuthenticateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeviceAuthenticateEvent.AsObject;
@@ -2102,12 +2315,16 @@ export namespace DeviceAuthenticateEvent {
 export class DeviceEnrollEvent extends jspb.Message { 
     getDeviceId(): string;
     setDeviceId(value: string): DeviceEnrollEvent;
+
     getUserName(): string;
     setUserName(value: string): DeviceEnrollEvent;
+
     getDeviceOsType(): string;
     setDeviceOsType(value: string): DeviceEnrollEvent;
+
     getDeviceOrigin(): string;
     setDeviceOrigin(value: string): DeviceEnrollEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeviceEnrollEvent.AsObject;
@@ -2131,10 +2348,13 @@ export namespace DeviceEnrollEvent {
 export class FeatureRecommendationEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): FeatureRecommendationEvent;
+
     getFeature(): Feature;
     setFeature(value: Feature): FeatureRecommendationEvent;
+
     getFeatureRecommendationStatus(): FeatureRecommendationStatus;
     setFeatureRecommendationStatus(value: FeatureRecommendationStatus): FeatureRecommendationEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): FeatureRecommendationEvent.AsObject;
@@ -2158,6 +2378,7 @@ export class LicenseLimitEvent extends jspb.Message {
     getLicenseLimit(): LicenseLimit;
     setLicenseLimit(value: LicenseLimit): LicenseLimitEvent;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): LicenseLimitEvent.AsObject;
     static toObject(includeInstance: boolean, msg: LicenseLimitEvent): LicenseLimitEvent.AsObject;
@@ -2177,10 +2398,13 @@ export namespace LicenseLimitEvent {
 export class DesktopDirectoryShareEvent extends jspb.Message { 
     getDesktop(): string;
     setDesktop(value: string): DesktopDirectoryShareEvent;
+
     getUserName(): string;
     setUserName(value: string): DesktopDirectoryShareEvent;
+
     getDirectoryName(): string;
     setDirectoryName(value: string): DesktopDirectoryShareEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DesktopDirectoryShareEvent.AsObject;
@@ -2203,8 +2427,10 @@ export namespace DesktopDirectoryShareEvent {
 export class DesktopClipboardEvent extends jspb.Message { 
     getDesktop(): string;
     setDesktop(value: string): DesktopClipboardEvent;
+
     getUserName(): string;
     setUserName(value: string): DesktopClipboardEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DesktopClipboardEvent.AsObject;
@@ -2226,12 +2452,16 @@ export namespace DesktopClipboardEvent {
 export class TAGExecuteQueryEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): TAGExecuteQueryEvent;
+
     getTotalNodes(): number;
     setTotalNodes(value: number): TAGExecuteQueryEvent;
+
     getTotalEdges(): number;
     setTotalEdges(value: number): TAGExecuteQueryEvent;
+
     getIsSuccess(): boolean;
     setIsSuccess(value: boolean): TAGExecuteQueryEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TAGExecuteQueryEvent.AsObject;
@@ -2272,10 +2502,13 @@ export namespace ExternalAuditStorageAuthenticateEvent {
 export class SecurityReportGetResultEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): SecurityReportGetResultEvent;
+
     getName(): string;
     setName(value: string): SecurityReportGetResultEvent;
+
     getDays(): number;
     setDays(value: number): SecurityReportGetResultEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SecurityReportGetResultEvent.AsObject;
@@ -2298,10 +2531,13 @@ export namespace SecurityReportGetResultEvent {
 export class AuditQueryRunEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): AuditQueryRunEvent;
+
     getDays(): number;
     setDays(value: number): AuditQueryRunEvent;
+
     getIsSuccess(): boolean;
     setIsSuccess(value: boolean): AuditQueryRunEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AuditQueryRunEvent.AsObject;
@@ -2324,8 +2560,10 @@ export namespace AuditQueryRunEvent {
 export class DiscoveryFetchEvent extends jspb.Message { 
     getCloudProvider(): string;
     setCloudProvider(value: string): DiscoveryFetchEvent;
+
     getResourceType(): string;
     setResourceType(value: string): DiscoveryFetchEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DiscoveryFetchEvent.AsObject;
@@ -2347,18 +2585,25 @@ export namespace DiscoveryFetchEvent {
 export class OktaAccessListSyncEvent extends jspb.Message { 
     getNumAppFilters(): number;
     setNumAppFilters(value: number): OktaAccessListSyncEvent;
+
     getNumGroupFilters(): number;
     setNumGroupFilters(value: number): OktaAccessListSyncEvent;
+
     getNumApps(): number;
     setNumApps(value: number): OktaAccessListSyncEvent;
+
     getNumGroups(): number;
     setNumGroups(value: number): OktaAccessListSyncEvent;
+
     getNumRoles(): number;
     setNumRoles(value: number): OktaAccessListSyncEvent;
+
     getNumAccessLists(): number;
     setNumAccessLists(value: number): OktaAccessListSyncEvent;
+
     getNumAccessListMembers(): number;
     setNumAccessListMembers(value: number): OktaAccessListSyncEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): OktaAccessListSyncEvent.AsObject;
@@ -2386,395 +2631,474 @@ export class SubmitEventRequest extends jspb.Message {
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
 
+
     hasTimestamp(): boolean;
     clearTimestamp(): void;
     getTimestamp(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setTimestamp(value?: google_protobuf_timestamp_pb.Timestamp): SubmitEventRequest;
+
 
     hasUserLogin(): boolean;
     clearUserLogin(): void;
     getUserLogin(): UserLoginEvent | undefined;
     setUserLogin(value?: UserLoginEvent): SubmitEventRequest;
 
+
     hasSsoCreate(): boolean;
     clearSsoCreate(): void;
     getSsoCreate(): SSOCreateEvent | undefined;
     setSsoCreate(value?: SSOCreateEvent): SubmitEventRequest;
+
 
     hasResourceCreate(): boolean;
     clearResourceCreate(): void;
     getResourceCreate(): ResourceCreateEvent | undefined;
     setResourceCreate(value?: ResourceCreateEvent): SubmitEventRequest;
 
+
     hasSessionStart(): boolean;
     clearSessionStart(): void;
     getSessionStart(): SessionStartEvent | undefined;
     setSessionStart(value?: SessionStartEvent): SubmitEventRequest;
+
 
     hasUiBannerClick(): boolean;
     clearUiBannerClick(): void;
     getUiBannerClick(): UIBannerClickEvent | undefined;
     setUiBannerClick(value?: UIBannerClickEvent): SubmitEventRequest;
 
+
     hasUiOnboardCompleteGoToDashboardClick(): boolean;
     clearUiOnboardCompleteGoToDashboardClick(): void;
     getUiOnboardCompleteGoToDashboardClick(): UIOnboardCompleteGoToDashboardClickEvent | undefined;
     setUiOnboardCompleteGoToDashboardClick(value?: UIOnboardCompleteGoToDashboardClickEvent): SubmitEventRequest;
+
 
     hasUiOnboardAddFirstResourceClick(): boolean;
     clearUiOnboardAddFirstResourceClick(): void;
     getUiOnboardAddFirstResourceClick(): UIOnboardAddFirstResourceClickEvent | undefined;
     setUiOnboardAddFirstResourceClick(value?: UIOnboardAddFirstResourceClickEvent): SubmitEventRequest;
 
+
     hasUiOnboardAddFirstResourceLaterClick(): boolean;
     clearUiOnboardAddFirstResourceLaterClick(): void;
     getUiOnboardAddFirstResourceLaterClick(): UIOnboardAddFirstResourceLaterClickEvent | undefined;
     setUiOnboardAddFirstResourceLaterClick(value?: UIOnboardAddFirstResourceLaterClickEvent): SubmitEventRequest;
+
 
     hasUiOnboardSetCredentialSubmit(): boolean;
     clearUiOnboardSetCredentialSubmit(): void;
     getUiOnboardSetCredentialSubmit(): UIOnboardSetCredentialSubmitEvent | undefined;
     setUiOnboardSetCredentialSubmit(value?: UIOnboardSetCredentialSubmitEvent): SubmitEventRequest;
 
+
     hasUiOnboardRegisterChallengeSubmit(): boolean;
     clearUiOnboardRegisterChallengeSubmit(): void;
     getUiOnboardRegisterChallengeSubmit(): UIOnboardRegisterChallengeSubmitEvent | undefined;
     setUiOnboardRegisterChallengeSubmit(value?: UIOnboardRegisterChallengeSubmitEvent): SubmitEventRequest;
+
 
     hasUiRecoveryCodesContinueClick(): boolean;
     clearUiRecoveryCodesContinueClick(): void;
     getUiRecoveryCodesContinueClick(): UIRecoveryCodesContinueClickEvent | undefined;
     setUiRecoveryCodesContinueClick(value?: UIRecoveryCodesContinueClickEvent): SubmitEventRequest;
 
+
     hasUiRecoveryCodesCopyClick(): boolean;
     clearUiRecoveryCodesCopyClick(): void;
     getUiRecoveryCodesCopyClick(): UIRecoveryCodesCopyClickEvent | undefined;
     setUiRecoveryCodesCopyClick(value?: UIRecoveryCodesCopyClickEvent): SubmitEventRequest;
+
 
     hasUiRecoveryCodesPrintClick(): boolean;
     clearUiRecoveryCodesPrintClick(): void;
     getUiRecoveryCodesPrintClick(): UIRecoveryCodesPrintClickEvent | undefined;
     setUiRecoveryCodesPrintClick(value?: UIRecoveryCodesPrintClickEvent): SubmitEventRequest;
 
+
     hasUiDiscoverStartedEvent(): boolean;
     clearUiDiscoverStartedEvent(): void;
     getUiDiscoverStartedEvent(): UIDiscoverStartedEvent | undefined;
     setUiDiscoverStartedEvent(value?: UIDiscoverStartedEvent): SubmitEventRequest;
+
 
     hasUiDiscoverResourceSelectionEvent(): boolean;
     clearUiDiscoverResourceSelectionEvent(): void;
     getUiDiscoverResourceSelectionEvent(): UIDiscoverResourceSelectionEvent | undefined;
     setUiDiscoverResourceSelectionEvent(value?: UIDiscoverResourceSelectionEvent): SubmitEventRequest;
 
+
     hasUserCertificateIssuedEvent(): boolean;
     clearUserCertificateIssuedEvent(): void;
     getUserCertificateIssuedEvent(): UserCertificateIssuedEvent | undefined;
     setUserCertificateIssuedEvent(value?: UserCertificateIssuedEvent): SubmitEventRequest;
+
 
     hasSessionStartV2(): boolean;
     clearSessionStartV2(): void;
     getSessionStartV2(): SessionStartEvent | undefined;
     setSessionStartV2(value?: SessionStartEvent): SubmitEventRequest;
 
+
     hasUiDiscoverDeployServiceEvent(): boolean;
     clearUiDiscoverDeployServiceEvent(): void;
     getUiDiscoverDeployServiceEvent(): UIDiscoverDeployServiceEvent | undefined;
     setUiDiscoverDeployServiceEvent(value?: UIDiscoverDeployServiceEvent): SubmitEventRequest;
+
 
     hasUiDiscoverDatabaseRegisterEvent(): boolean;
     clearUiDiscoverDatabaseRegisterEvent(): void;
     getUiDiscoverDatabaseRegisterEvent(): UIDiscoverDatabaseRegisterEvent | undefined;
     setUiDiscoverDatabaseRegisterEvent(value?: UIDiscoverDatabaseRegisterEvent): SubmitEventRequest;
 
+
     hasUiDiscoverDatabaseConfigureMtlsEvent(): boolean;
     clearUiDiscoverDatabaseConfigureMtlsEvent(): void;
     getUiDiscoverDatabaseConfigureMtlsEvent(): UIDiscoverDatabaseConfigureMTLSEvent | undefined;
     setUiDiscoverDatabaseConfigureMtlsEvent(value?: UIDiscoverDatabaseConfigureMTLSEvent): SubmitEventRequest;
+
 
     hasUiDiscoverDesktopActiveDirectoryToolsInstallEvent(): boolean;
     clearUiDiscoverDesktopActiveDirectoryToolsInstallEvent(): void;
     getUiDiscoverDesktopActiveDirectoryToolsInstallEvent(): UIDiscoverDesktopActiveDirectoryToolsInstallEvent | undefined;
     setUiDiscoverDesktopActiveDirectoryToolsInstallEvent(value?: UIDiscoverDesktopActiveDirectoryToolsInstallEvent): SubmitEventRequest;
 
+
     hasUiDiscoverDesktopActiveDirectoryConfigureEvent(): boolean;
     clearUiDiscoverDesktopActiveDirectoryConfigureEvent(): void;
     getUiDiscoverDesktopActiveDirectoryConfigureEvent(): UIDiscoverDesktopActiveDirectoryConfigureEvent | undefined;
     setUiDiscoverDesktopActiveDirectoryConfigureEvent(value?: UIDiscoverDesktopActiveDirectoryConfigureEvent): SubmitEventRequest;
+
 
     hasUiDiscoverAutoDiscoveredResourcesEvent(): boolean;
     clearUiDiscoverAutoDiscoveredResourcesEvent(): void;
     getUiDiscoverAutoDiscoveredResourcesEvent(): UIDiscoverAutoDiscoveredResourcesEvent | undefined;
     setUiDiscoverAutoDiscoveredResourcesEvent(value?: UIDiscoverAutoDiscoveredResourcesEvent): SubmitEventRequest;
 
+
     hasUiDiscoverDatabaseConfigureIamPolicyEvent(): boolean;
     clearUiDiscoverDatabaseConfigureIamPolicyEvent(): void;
     getUiDiscoverDatabaseConfigureIamPolicyEvent(): UIDiscoverDatabaseConfigureIAMPolicyEvent | undefined;
     setUiDiscoverDatabaseConfigureIamPolicyEvent(value?: UIDiscoverDatabaseConfigureIAMPolicyEvent): SubmitEventRequest;
+
 
     hasUiDiscoverPrincipalsConfigureEvent(): boolean;
     clearUiDiscoverPrincipalsConfigureEvent(): void;
     getUiDiscoverPrincipalsConfigureEvent(): UIDiscoverPrincipalsConfigureEvent | undefined;
     setUiDiscoverPrincipalsConfigureEvent(value?: UIDiscoverPrincipalsConfigureEvent): SubmitEventRequest;
 
+
     hasUiDiscoverTestConnectionEvent(): boolean;
     clearUiDiscoverTestConnectionEvent(): void;
     getUiDiscoverTestConnectionEvent(): UIDiscoverTestConnectionEvent | undefined;
     setUiDiscoverTestConnectionEvent(value?: UIDiscoverTestConnectionEvent): SubmitEventRequest;
+
 
     hasUiDiscoverCompletedEvent(): boolean;
     clearUiDiscoverCompletedEvent(): void;
     getUiDiscoverCompletedEvent(): UIDiscoverCompletedEvent | undefined;
     setUiDiscoverCompletedEvent(value?: UIDiscoverCompletedEvent): SubmitEventRequest;
 
+
     hasRoleCreate(): boolean;
     clearRoleCreate(): void;
     getRoleCreate(): RoleCreateEvent | undefined;
     setRoleCreate(value?: RoleCreateEvent): SubmitEventRequest;
+
 
     hasUiCreateNewRoleClick(): boolean;
     clearUiCreateNewRoleClick(): void;
     getUiCreateNewRoleClick(): UICreateNewRoleClickEvent | undefined;
     setUiCreateNewRoleClick(value?: UICreateNewRoleClickEvent): SubmitEventRequest;
 
+
     hasUiCreateNewRoleSaveClick(): boolean;
     clearUiCreateNewRoleSaveClick(): void;
     getUiCreateNewRoleSaveClick(): UICreateNewRoleSaveClickEvent | undefined;
     setUiCreateNewRoleSaveClick(value?: UICreateNewRoleSaveClickEvent): SubmitEventRequest;
+
 
     hasUiCreateNewRoleCancelClick(): boolean;
     clearUiCreateNewRoleCancelClick(): void;
     getUiCreateNewRoleCancelClick(): UICreateNewRoleCancelClickEvent | undefined;
     setUiCreateNewRoleCancelClick(value?: UICreateNewRoleCancelClickEvent): SubmitEventRequest;
 
+
     hasUiCreateNewRoleViewDocumentationClick(): boolean;
     clearUiCreateNewRoleViewDocumentationClick(): void;
     getUiCreateNewRoleViewDocumentationClick(): UICreateNewRoleViewDocumentationClickEvent | undefined;
     setUiCreateNewRoleViewDocumentationClick(value?: UICreateNewRoleViewDocumentationClickEvent): SubmitEventRequest;
+
 
     hasKubeRequest(): boolean;
     clearKubeRequest(): void;
     getKubeRequest(): KubeRequestEvent | undefined;
     setKubeRequest(value?: KubeRequestEvent): SubmitEventRequest;
 
+
     hasSftp(): boolean;
     clearSftp(): void;
     getSftp(): SFTPEvent | undefined;
     setSftp(value?: SFTPEvent): SubmitEventRequest;
+
 
     hasAgentMetadataEvent(): boolean;
     clearAgentMetadataEvent(): void;
     getAgentMetadataEvent(): AgentMetadataEvent | undefined;
     setAgentMetadataEvent(value?: AgentMetadataEvent): SubmitEventRequest;
 
+
     hasResourceHeartbeat(): boolean;
     clearResourceHeartbeat(): void;
     getResourceHeartbeat(): ResourceHeartbeatEvent | undefined;
     setResourceHeartbeat(value?: ResourceHeartbeatEvent): SubmitEventRequest;
+
 
     hasUiDiscoverIntegrationAwsOidcConnectEvent(): boolean;
     clearUiDiscoverIntegrationAwsOidcConnectEvent(): void;
     getUiDiscoverIntegrationAwsOidcConnectEvent(): UIDiscoverIntegrationAWSOIDCConnectEvent | undefined;
     setUiDiscoverIntegrationAwsOidcConnectEvent(value?: UIDiscoverIntegrationAWSOIDCConnectEvent): SubmitEventRequest;
 
+
     hasUiDiscoverDatabaseRdsEnrollEvent(): boolean;
     clearUiDiscoverDatabaseRdsEnrollEvent(): void;
     getUiDiscoverDatabaseRdsEnrollEvent(): UIDiscoverDatabaseRDSEnrollEvent | undefined;
     setUiDiscoverDatabaseRdsEnrollEvent(value?: UIDiscoverDatabaseRDSEnrollEvent): SubmitEventRequest;
+
 
     hasUiCallToActionClickEvent(): boolean;
     clearUiCallToActionClickEvent(): void;
     getUiCallToActionClickEvent(): UICallToActionClickEvent | undefined;
     setUiCallToActionClickEvent(value?: UICallToActionClickEvent): SubmitEventRequest;
 
+
     hasAssistCompletion(): boolean;
     clearAssistCompletion(): void;
     getAssistCompletion(): AssistCompletionEvent | undefined;
     setAssistCompletion(value?: AssistCompletionEvent): SubmitEventRequest;
+
 
     hasUiIntegrationEnrollStartEvent(): boolean;
     clearUiIntegrationEnrollStartEvent(): void;
     getUiIntegrationEnrollStartEvent(): UIIntegrationEnrollStartEvent | undefined;
     setUiIntegrationEnrollStartEvent(value?: UIIntegrationEnrollStartEvent): SubmitEventRequest;
 
+
     hasUiIntegrationEnrollCompleteEvent(): boolean;
     clearUiIntegrationEnrollCompleteEvent(): void;
     getUiIntegrationEnrollCompleteEvent(): UIIntegrationEnrollCompleteEvent | undefined;
     setUiIntegrationEnrollCompleteEvent(value?: UIIntegrationEnrollCompleteEvent): SubmitEventRequest;
+
 
     hasEditorChangeEvent(): boolean;
     clearEditorChangeEvent(): void;
     getEditorChangeEvent(): EditorChangeEvent | undefined;
     setEditorChangeEvent(value?: EditorChangeEvent): SubmitEventRequest;
 
+
     hasBotCreate(): boolean;
     clearBotCreate(): void;
     getBotCreate(): BotCreateEvent | undefined;
     setBotCreate(value?: BotCreateEvent): SubmitEventRequest;
+
 
     hasUiOnboardQuestionnaireSubmit(): boolean;
     clearUiOnboardQuestionnaireSubmit(): void;
     getUiOnboardQuestionnaireSubmit(): UIOnboardQuestionnaireSubmitEvent | undefined;
     setUiOnboardQuestionnaireSubmit(value?: UIOnboardQuestionnaireSubmitEvent): SubmitEventRequest;
 
+
     hasBotJoin(): boolean;
     clearBotJoin(): void;
     getBotJoin(): BotJoinEvent | undefined;
     setBotJoin(value?: BotJoinEvent): SubmitEventRequest;
+
 
     hasAssistExecution(): boolean;
     clearAssistExecution(): void;
     getAssistExecution(): AssistExecutionEvent | undefined;
     setAssistExecution(value?: AssistExecutionEvent): SubmitEventRequest;
 
+
     hasAssistNewConversation(): boolean;
     clearAssistNewConversation(): void;
     getAssistNewConversation(): AssistNewConversationEvent | undefined;
     setAssistNewConversation(value?: AssistNewConversationEvent): SubmitEventRequest;
+
 
     hasDeviceAuthenticateEvent(): boolean;
     clearDeviceAuthenticateEvent(): void;
     getDeviceAuthenticateEvent(): DeviceAuthenticateEvent | undefined;
     setDeviceAuthenticateEvent(value?: DeviceAuthenticateEvent): SubmitEventRequest;
 
+
     hasFeatureRecommendationEvent(): boolean;
     clearFeatureRecommendationEvent(): void;
     getFeatureRecommendationEvent(): FeatureRecommendationEvent | undefined;
     setFeatureRecommendationEvent(value?: FeatureRecommendationEvent): SubmitEventRequest;
+
 
     hasAssistAccessRequest(): boolean;
     clearAssistAccessRequest(): void;
     getAssistAccessRequest(): AssistAccessRequestEvent | undefined;
     setAssistAccessRequest(value?: AssistAccessRequestEvent): SubmitEventRequest;
 
+
     hasAssistAction(): boolean;
     clearAssistAction(): void;
     getAssistAction(): AssistActionEvent | undefined;
     setAssistAction(value?: AssistActionEvent): SubmitEventRequest;
+
 
     hasDeviceEnrollEvent(): boolean;
     clearDeviceEnrollEvent(): void;
     getDeviceEnrollEvent(): DeviceEnrollEvent | undefined;
     setDeviceEnrollEvent(value?: DeviceEnrollEvent): SubmitEventRequest;
 
+
     hasLicenseLimitEvent(): boolean;
     clearLicenseLimitEvent(): void;
     getLicenseLimitEvent(): LicenseLimitEvent | undefined;
     setLicenseLimitEvent(value?: LicenseLimitEvent): SubmitEventRequest;
+
 
     hasAccessListCreate(): boolean;
     clearAccessListCreate(): void;
     getAccessListCreate(): AccessListCreateEvent | undefined;
     setAccessListCreate(value?: AccessListCreateEvent): SubmitEventRequest;
 
+
     hasAccessListUpdate(): boolean;
     clearAccessListUpdate(): void;
     getAccessListUpdate(): AccessListUpdateEvent | undefined;
     setAccessListUpdate(value?: AccessListUpdateEvent): SubmitEventRequest;
+
 
     hasAccessListDelete(): boolean;
     clearAccessListDelete(): void;
     getAccessListDelete(): AccessListDeleteEvent | undefined;
     setAccessListDelete(value?: AccessListDeleteEvent): SubmitEventRequest;
 
+
     hasAccessListMemberCreate(): boolean;
     clearAccessListMemberCreate(): void;
     getAccessListMemberCreate(): AccessListMemberCreateEvent | undefined;
     setAccessListMemberCreate(value?: AccessListMemberCreateEvent): SubmitEventRequest;
+
 
     hasAccessListMemberUpdate(): boolean;
     clearAccessListMemberUpdate(): void;
     getAccessListMemberUpdate(): AccessListMemberUpdateEvent | undefined;
     setAccessListMemberUpdate(value?: AccessListMemberUpdateEvent): SubmitEventRequest;
 
+
     hasAccessListMemberDelete(): boolean;
     clearAccessListMemberDelete(): void;
     getAccessListMemberDelete(): AccessListMemberDeleteEvent | undefined;
     setAccessListMemberDelete(value?: AccessListMemberDeleteEvent): SubmitEventRequest;
+
 
     hasAccessListGrantsToUser(): boolean;
     clearAccessListGrantsToUser(): void;
     getAccessListGrantsToUser(): AccessListGrantsToUserEvent | undefined;
     setAccessListGrantsToUser(value?: AccessListGrantsToUserEvent): SubmitEventRequest;
 
+
     hasUiDiscoverEc2InstanceSelection(): boolean;
     clearUiDiscoverEc2InstanceSelection(): void;
     getUiDiscoverEc2InstanceSelection(): UIDiscoverEC2InstanceSelectionEvent | undefined;
     setUiDiscoverEc2InstanceSelection(value?: UIDiscoverEC2InstanceSelectionEvent): SubmitEventRequest;
+
 
     hasUiDiscoverDeployEice(): boolean;
     clearUiDiscoverDeployEice(): void;
     getUiDiscoverDeployEice(): UIDiscoverDeployEICEEvent | undefined;
     setUiDiscoverDeployEice(value?: UIDiscoverDeployEICEEvent): SubmitEventRequest;
 
+
     hasUiDiscoverCreateNode(): boolean;
     clearUiDiscoverCreateNode(): void;
     getUiDiscoverCreateNode(): UIDiscoverCreateNodeEvent | undefined;
     setUiDiscoverCreateNode(value?: UIDiscoverCreateNodeEvent): SubmitEventRequest;
+
 
     hasDesktopDirectoryShare(): boolean;
     clearDesktopDirectoryShare(): void;
     getDesktopDirectoryShare(): DesktopDirectoryShareEvent | undefined;
     setDesktopDirectoryShare(value?: DesktopDirectoryShareEvent): SubmitEventRequest;
 
+
     hasDesktopClipboardTransfer(): boolean;
     clearDesktopClipboardTransfer(): void;
     getDesktopClipboardTransfer(): DesktopClipboardEvent | undefined;
     setDesktopClipboardTransfer(value?: DesktopClipboardEvent): SubmitEventRequest;
+
 
     hasTagExecuteQuery(): boolean;
     clearTagExecuteQuery(): void;
     getTagExecuteQuery(): TAGExecuteQueryEvent | undefined;
     setTagExecuteQuery(value?: TAGExecuteQueryEvent): SubmitEventRequest;
 
+
     hasExternalAuditStorageAuthenticate(): boolean;
     clearExternalAuditStorageAuthenticate(): void;
     getExternalAuditStorageAuthenticate(): ExternalAuditStorageAuthenticateEvent | undefined;
     setExternalAuditStorageAuthenticate(value?: ExternalAuditStorageAuthenticateEvent): SubmitEventRequest;
+
 
     hasSecurityReportGetResult(): boolean;
     clearSecurityReportGetResult(): void;
     getSecurityReportGetResult(): SecurityReportGetResultEvent | undefined;
     setSecurityReportGetResult(value?: SecurityReportGetResultEvent): SubmitEventRequest;
 
+
     hasAuditQueryRun(): boolean;
     clearAuditQueryRun(): void;
     getAuditQueryRun(): AuditQueryRunEvent | undefined;
     setAuditQueryRun(value?: AuditQueryRunEvent): SubmitEventRequest;
+
 
     hasDiscoveryFetchEvent(): boolean;
     clearDiscoveryFetchEvent(): void;
     getDiscoveryFetchEvent(): DiscoveryFetchEvent | undefined;
     setDiscoveryFetchEvent(value?: DiscoveryFetchEvent): SubmitEventRequest;
 
+
     hasAccessListReviewCreate(): boolean;
     clearAccessListReviewCreate(): void;
     getAccessListReviewCreate(): AccessListReviewCreateEvent | undefined;
     setAccessListReviewCreate(value?: AccessListReviewCreateEvent): SubmitEventRequest;
+
 
     hasAccessListReviewDelete(): boolean;
     clearAccessListReviewDelete(): void;
     getAccessListReviewDelete(): AccessListReviewDeleteEvent | undefined;
     setAccessListReviewDelete(value?: AccessListReviewDeleteEvent): SubmitEventRequest;
 
+
     hasAccessListReviewCompliance(): boolean;
     clearAccessListReviewCompliance(): void;
     getAccessListReviewCompliance(): AccessListReviewComplianceEvent | undefined;
     setAccessListReviewCompliance(value?: AccessListReviewComplianceEvent): SubmitEventRequest;
+
 
     hasMfaAuthenticationEvent(): boolean;
     clearMfaAuthenticationEvent(): void;
     getMfaAuthenticationEvent(): MFAAuthenticationEvent | undefined;
     setMfaAuthenticationEvent(value?: MFAAuthenticationEvent): SubmitEventRequest;
 
+
     hasSpiffeSvidIssued(): boolean;
     clearSpiffeSvidIssued(): void;
     getSpiffeSvidIssued(): SPIFFESVIDIssuedEvent | undefined;
     setSpiffeSvidIssued(value?: SPIFFESVIDIssuedEvent): SubmitEventRequest;
 
+
     hasOktaAccessListSync(): boolean;
     clearOktaAccessListSync(): void;
     getOktaAccessListSync(): OktaAccessListSyncEvent | undefined;
     setOktaAccessListSync(value?: OktaAccessListSyncEvent): SubmitEventRequest;
+
 
     getEventCase(): SubmitEventRequest.EventCase;
 
@@ -2873,83 +3197,161 @@ export namespace SubmitEventRequest {
 
     export enum EventCase {
         EVENT_NOT_SET = 0,
-        USER_LOGIN = 3,
-        SSO_CREATE = 4,
-        RESOURCE_CREATE = 5,
-        SESSION_START = 6,
-        UI_BANNER_CLICK = 7,
-        UI_ONBOARD_COMPLETE_GO_TO_DASHBOARD_CLICK = 9,
-        UI_ONBOARD_ADD_FIRST_RESOURCE_CLICK = 10,
-        UI_ONBOARD_ADD_FIRST_RESOURCE_LATER_CLICK = 11,
-        UI_ONBOARD_SET_CREDENTIAL_SUBMIT = 12,
-        UI_ONBOARD_REGISTER_CHALLENGE_SUBMIT = 13,
-        UI_RECOVERY_CODES_CONTINUE_CLICK = 14,
-        UI_RECOVERY_CODES_COPY_CLICK = 15,
-        UI_RECOVERY_CODES_PRINT_CLICK = 16,
-        UI_DISCOVER_STARTED_EVENT = 17,
-        UI_DISCOVER_RESOURCE_SELECTION_EVENT = 18,
-        USER_CERTIFICATE_ISSUED_EVENT = 19,
-        SESSION_START_V2 = 20,
-        UI_DISCOVER_DEPLOY_SERVICE_EVENT = 21,
-        UI_DISCOVER_DATABASE_REGISTER_EVENT = 22,
-        UI_DISCOVER_DATABASE_CONFIGURE_MTLS_EVENT = 23,
-        UI_DISCOVER_DESKTOP_ACTIVE_DIRECTORY_TOOLS_INSTALL_EVENT = 24,
-        UI_DISCOVER_DESKTOP_ACTIVE_DIRECTORY_CONFIGURE_EVENT = 25,
-        UI_DISCOVER_AUTO_DISCOVERED_RESOURCES_EVENT = 26,
-        UI_DISCOVER_DATABASE_CONFIGURE_IAM_POLICY_EVENT = 27,
-        UI_DISCOVER_PRINCIPALS_CONFIGURE_EVENT = 28,
-        UI_DISCOVER_TEST_CONNECTION_EVENT = 29,
-        UI_DISCOVER_COMPLETED_EVENT = 30,
-        ROLE_CREATE = 31,
-        UI_CREATE_NEW_ROLE_CLICK = 32,
-        UI_CREATE_NEW_ROLE_SAVE_CLICK = 33,
-        UI_CREATE_NEW_ROLE_CANCEL_CLICK = 34,
-        UI_CREATE_NEW_ROLE_VIEW_DOCUMENTATION_CLICK = 35,
-        KUBE_REQUEST = 36,
-        SFTP = 37,
-        AGENT_METADATA_EVENT = 38,
-        RESOURCE_HEARTBEAT = 39,
-        UI_DISCOVER_INTEGRATION_AWS_OIDC_CONNECT_EVENT = 40,
-        UI_DISCOVER_DATABASE_RDS_ENROLL_EVENT = 41,
-        UI_CALL_TO_ACTION_CLICK_EVENT = 42,
-        ASSIST_COMPLETION = 43,
-        UI_INTEGRATION_ENROLL_START_EVENT = 44,
-        UI_INTEGRATION_ENROLL_COMPLETE_EVENT = 45,
-        EDITOR_CHANGE_EVENT = 46,
-        BOT_CREATE = 47,
-        UI_ONBOARD_QUESTIONNAIRE_SUBMIT = 48,
-        BOT_JOIN = 49,
-        ASSIST_EXECUTION = 50,
-        ASSIST_NEW_CONVERSATION = 51,
-        DEVICE_AUTHENTICATE_EVENT = 52,
-        FEATURE_RECOMMENDATION_EVENT = 53,
-        ASSIST_ACCESS_REQUEST = 54,
-        ASSIST_ACTION = 55,
-        DEVICE_ENROLL_EVENT = 56,
-        LICENSE_LIMIT_EVENT = 57,
-        ACCESS_LIST_CREATE = 58,
-        ACCESS_LIST_UPDATE = 59,
-        ACCESS_LIST_DELETE = 60,
-        ACCESS_LIST_MEMBER_CREATE = 61,
-        ACCESS_LIST_MEMBER_UPDATE = 62,
-        ACCESS_LIST_MEMBER_DELETE = 63,
-        ACCESS_LIST_GRANTS_TO_USER = 64,
-        UI_DISCOVER_EC2_INSTANCE_SELECTION = 65,
-        UI_DISCOVER_DEPLOY_EICE = 66,
-        UI_DISCOVER_CREATE_NODE = 67,
-        DESKTOP_DIRECTORY_SHARE = 68,
-        DESKTOP_CLIPBOARD_TRANSFER = 69,
-        TAG_EXECUTE_QUERY = 70,
-        EXTERNAL_AUDIT_STORAGE_AUTHENTICATE = 71,
-        SECURITY_REPORT_GET_RESULT = 72,
-        AUDIT_QUERY_RUN = 73,
-        DISCOVERY_FETCH_EVENT = 74,
-        ACCESS_LIST_REVIEW_CREATE = 75,
-        ACCESS_LIST_REVIEW_DELETE = 76,
-        ACCESS_LIST_REVIEW_COMPLIANCE = 77,
-        MFA_AUTHENTICATION_EVENT = 78,
-        SPIFFE_SVID_ISSUED = 79,
-        OKTA_ACCESS_LIST_SYNC = 80,
+    
+    USER_LOGIN = 3,
+
+    SSO_CREATE = 4,
+
+    RESOURCE_CREATE = 5,
+
+    SESSION_START = 6,
+
+    UI_BANNER_CLICK = 7,
+
+    UI_ONBOARD_COMPLETE_GO_TO_DASHBOARD_CLICK = 9,
+
+    UI_ONBOARD_ADD_FIRST_RESOURCE_CLICK = 10,
+
+    UI_ONBOARD_ADD_FIRST_RESOURCE_LATER_CLICK = 11,
+
+    UI_ONBOARD_SET_CREDENTIAL_SUBMIT = 12,
+
+    UI_ONBOARD_REGISTER_CHALLENGE_SUBMIT = 13,
+
+    UI_RECOVERY_CODES_CONTINUE_CLICK = 14,
+
+    UI_RECOVERY_CODES_COPY_CLICK = 15,
+
+    UI_RECOVERY_CODES_PRINT_CLICK = 16,
+
+    UI_DISCOVER_STARTED_EVENT = 17,
+
+    UI_DISCOVER_RESOURCE_SELECTION_EVENT = 18,
+
+    USER_CERTIFICATE_ISSUED_EVENT = 19,
+
+    SESSION_START_V2 = 20,
+
+    UI_DISCOVER_DEPLOY_SERVICE_EVENT = 21,
+
+    UI_DISCOVER_DATABASE_REGISTER_EVENT = 22,
+
+    UI_DISCOVER_DATABASE_CONFIGURE_MTLS_EVENT = 23,
+
+    UI_DISCOVER_DESKTOP_ACTIVE_DIRECTORY_TOOLS_INSTALL_EVENT = 24,
+
+    UI_DISCOVER_DESKTOP_ACTIVE_DIRECTORY_CONFIGURE_EVENT = 25,
+
+    UI_DISCOVER_AUTO_DISCOVERED_RESOURCES_EVENT = 26,
+
+    UI_DISCOVER_DATABASE_CONFIGURE_IAM_POLICY_EVENT = 27,
+
+    UI_DISCOVER_PRINCIPALS_CONFIGURE_EVENT = 28,
+
+    UI_DISCOVER_TEST_CONNECTION_EVENT = 29,
+
+    UI_DISCOVER_COMPLETED_EVENT = 30,
+
+    ROLE_CREATE = 31,
+
+    UI_CREATE_NEW_ROLE_CLICK = 32,
+
+    UI_CREATE_NEW_ROLE_SAVE_CLICK = 33,
+
+    UI_CREATE_NEW_ROLE_CANCEL_CLICK = 34,
+
+    UI_CREATE_NEW_ROLE_VIEW_DOCUMENTATION_CLICK = 35,
+
+    KUBE_REQUEST = 36,
+
+    SFTP = 37,
+
+    AGENT_METADATA_EVENT = 38,
+
+    RESOURCE_HEARTBEAT = 39,
+
+    UI_DISCOVER_INTEGRATION_AWS_OIDC_CONNECT_EVENT = 40,
+
+    UI_DISCOVER_DATABASE_RDS_ENROLL_EVENT = 41,
+
+    UI_CALL_TO_ACTION_CLICK_EVENT = 42,
+
+    ASSIST_COMPLETION = 43,
+
+    UI_INTEGRATION_ENROLL_START_EVENT = 44,
+
+    UI_INTEGRATION_ENROLL_COMPLETE_EVENT = 45,
+
+    EDITOR_CHANGE_EVENT = 46,
+
+    BOT_CREATE = 47,
+
+    UI_ONBOARD_QUESTIONNAIRE_SUBMIT = 48,
+
+    BOT_JOIN = 49,
+
+    ASSIST_EXECUTION = 50,
+
+    ASSIST_NEW_CONVERSATION = 51,
+
+    DEVICE_AUTHENTICATE_EVENT = 52,
+
+    FEATURE_RECOMMENDATION_EVENT = 53,
+
+    ASSIST_ACCESS_REQUEST = 54,
+
+    ASSIST_ACTION = 55,
+
+    DEVICE_ENROLL_EVENT = 56,
+
+    LICENSE_LIMIT_EVENT = 57,
+
+    ACCESS_LIST_CREATE = 58,
+
+    ACCESS_LIST_UPDATE = 59,
+
+    ACCESS_LIST_DELETE = 60,
+
+    ACCESS_LIST_MEMBER_CREATE = 61,
+
+    ACCESS_LIST_MEMBER_UPDATE = 62,
+
+    ACCESS_LIST_MEMBER_DELETE = 63,
+
+    ACCESS_LIST_GRANTS_TO_USER = 64,
+
+    UI_DISCOVER_EC2_INSTANCE_SELECTION = 65,
+
+    UI_DISCOVER_DEPLOY_EICE = 66,
+
+    UI_DISCOVER_CREATE_NODE = 67,
+
+    DESKTOP_DIRECTORY_SHARE = 68,
+
+    DESKTOP_CLIPBOARD_TRANSFER = 69,
+
+    TAG_EXECUTE_QUERY = 70,
+
+    EXTERNAL_AUDIT_STORAGE_AUTHENTICATE = 71,
+
+    SECURITY_REPORT_GET_RESULT = 72,
+
+    AUDIT_QUERY_RUN = 73,
+
+    DISCOVERY_FETCH_EVENT = 74,
+
+    ACCESS_LIST_REVIEW_CREATE = 75,
+
+    ACCESS_LIST_REVIEW_DELETE = 76,
+
+    ACCESS_LIST_REVIEW_COMPLIANCE = 77,
+
+    MFA_AUTHENTICATION_EVENT = 78,
+
+    SPIFFE_SVID_ISSUED = 79,
+
+    OKTA_ACCESS_LIST_SYNC = 80,
+
     }
 
 }
@@ -2976,6 +3378,7 @@ export class SubmitEventsRequest extends jspb.Message {
     getEventsList(): Array<SubmitEventRequest>;
     setEventsList(value: Array<SubmitEventRequest>): SubmitEventsRequest;
     addEvents(value?: SubmitEventRequest, index?: number): SubmitEventRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SubmitEventsRequest.AsObject;

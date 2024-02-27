@@ -9,12 +9,16 @@ import * as jspb from "google-protobuf";
 export class MarketingParams extends jspb.Message { 
     getCampaign(): string;
     setCampaign(value: string): MarketingParams;
+
     getSource(): string;
     setSource(value: string): MarketingParams;
+
     getMedium(): string;
     setMedium(value: string): MarketingParams;
+
     getIntent(): string;
     setIntent(value: string): MarketingParams;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): MarketingParams.AsObject;
@@ -41,10 +45,12 @@ export class OnboardUserPreferences extends jspb.Message {
     setPreferredResourcesList(value: Array<Resource>): OnboardUserPreferences;
     addPreferredResources(value: Resource, index?: number): Resource;
 
+
     hasMarketingParams(): boolean;
     clearMarketingParams(): void;
     getMarketingParams(): MarketingParams | undefined;
     setMarketingParams(value?: MarketingParams): OnboardUserPreferences;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): OnboardUserPreferences.AsObject;

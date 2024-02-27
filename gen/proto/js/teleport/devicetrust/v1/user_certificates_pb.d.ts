@@ -11,10 +11,12 @@ export class UserCertificates extends jspb.Message {
     getX509Der_asU8(): Uint8Array;
     getX509Der_asB64(): string;
     setX509Der(value: Uint8Array | string): UserCertificates;
+
     getSshAuthorizedKey(): Uint8Array | string;
     getSshAuthorizedKey_asU8(): Uint8Array;
     getSshAuthorizedKey_asB64(): string;
     setSshAuthorizedKey(value: Uint8Array | string): UserCertificates;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserCertificates.AsObject;

@@ -17,10 +17,12 @@ export class AccessList extends jspb.Message {
     getHeader(): teleport_header_v1_resourceheader_pb.ResourceHeader | undefined;
     setHeader(value?: teleport_header_v1_resourceheader_pb.ResourceHeader): AccessList;
 
+
     hasSpec(): boolean;
     clearSpec(): void;
     getSpec(): AccessListSpec | undefined;
     setSpec(value?: AccessListSpec): AccessList;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessList.AsObject;
@@ -42,41 +44,51 @@ export namespace AccessList {
 export class AccessListSpec extends jspb.Message { 
     getDescription(): string;
     setDescription(value: string): AccessListSpec;
+
     clearOwnersList(): void;
     getOwnersList(): Array<AccessListOwner>;
     setOwnersList(value: Array<AccessListOwner>): AccessListSpec;
     addOwners(value?: AccessListOwner, index?: number): AccessListOwner;
+
 
     hasAudit(): boolean;
     clearAudit(): void;
     getAudit(): AccessListAudit | undefined;
     setAudit(value?: AccessListAudit): AccessListSpec;
 
+
     hasMembershipRequires(): boolean;
     clearMembershipRequires(): void;
     getMembershipRequires(): AccessListRequires | undefined;
     setMembershipRequires(value?: AccessListRequires): AccessListSpec;
+
 
     hasOwnershipRequires(): boolean;
     clearOwnershipRequires(): void;
     getOwnershipRequires(): AccessListRequires | undefined;
     setOwnershipRequires(value?: AccessListRequires): AccessListSpec;
 
+
     hasGrants(): boolean;
     clearGrants(): void;
     getGrants(): AccessListGrants | undefined;
     setGrants(value?: AccessListGrants): AccessListSpec;
+
     getTitle(): string;
     setTitle(value: string): AccessListSpec;
+
     getMembership(): string;
     setMembership(value: string): AccessListSpec;
+
     getOwnership(): string;
     setOwnership(value: string): AccessListSpec;
+
 
     hasOwnerGrants(): boolean;
     clearOwnerGrants(): void;
     getOwnerGrants(): AccessListGrants | undefined;
     setOwnerGrants(value?: AccessListGrants): AccessListSpec;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListSpec.AsObject;
@@ -106,10 +118,13 @@ export namespace AccessListSpec {
 export class AccessListOwner extends jspb.Message { 
     getName(): string;
     setName(value: string): AccessListOwner;
+
     getDescription(): string;
     setDescription(value: string): AccessListOwner;
+
     getIneligibleStatus(): IneligibleStatus;
     setIneligibleStatus(value: IneligibleStatus): AccessListOwner;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListOwner.AsObject;
@@ -136,15 +151,18 @@ export class AccessListAudit extends jspb.Message {
     getNextAuditDate(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setNextAuditDate(value?: google_protobuf_timestamp_pb.Timestamp): AccessListAudit;
 
+
     hasRecurrence(): boolean;
     clearRecurrence(): void;
     getRecurrence(): Recurrence | undefined;
     setRecurrence(value?: Recurrence): AccessListAudit;
 
+
     hasNotifications(): boolean;
     clearNotifications(): void;
     getNotifications(): Notifications | undefined;
     setNotifications(value?: Notifications): AccessListAudit;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListAudit.AsObject;
@@ -167,8 +185,10 @@ export namespace AccessListAudit {
 export class Recurrence extends jspb.Message { 
     getFrequency(): ReviewFrequency;
     setFrequency(value: ReviewFrequency): Recurrence;
+
     getDayOfMonth(): ReviewDayOfMonth;
     setDayOfMonth(value: ReviewDayOfMonth): Recurrence;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Recurrence.AsObject;
@@ -194,6 +214,7 @@ export class Notifications extends jspb.Message {
     getStart(): google_protobuf_duration_pb.Duration | undefined;
     setStart(value?: google_protobuf_duration_pb.Duration): Notifications;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Notifications.AsObject;
     static toObject(includeInstance: boolean, msg: Notifications): Notifications.AsObject;
@@ -215,10 +236,12 @@ export class AccessListRequires extends jspb.Message {
     getRolesList(): Array<string>;
     setRolesList(value: Array<string>): AccessListRequires;
     addRoles(value: string, index?: number): string;
+
     clearTraitsList(): void;
     getTraitsList(): Array<teleport_trait_v1_trait_pb.Trait>;
     setTraitsList(value: Array<teleport_trait_v1_trait_pb.Trait>): AccessListRequires;
     addTraits(value?: teleport_trait_v1_trait_pb.Trait, index?: number): teleport_trait_v1_trait_pb.Trait;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListRequires.AsObject;
@@ -242,10 +265,12 @@ export class AccessListGrants extends jspb.Message {
     getRolesList(): Array<string>;
     setRolesList(value: Array<string>): AccessListGrants;
     addRoles(value: string, index?: number): string;
+
     clearTraitsList(): void;
     getTraitsList(): Array<teleport_trait_v1_trait_pb.Trait>;
     setTraitsList(value: Array<teleport_trait_v1_trait_pb.Trait>): AccessListGrants;
     addTraits(value?: teleport_trait_v1_trait_pb.Trait, index?: number): teleport_trait_v1_trait_pb.Trait;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AccessListGrants.AsObject;
@@ -271,10 +296,12 @@ export class Member extends jspb.Message {
     getHeader(): teleport_header_v1_resourceheader_pb.ResourceHeader | undefined;
     setHeader(value?: teleport_header_v1_resourceheader_pb.ResourceHeader): Member;
 
+
     hasSpec(): boolean;
     clearSpec(): void;
     getSpec(): MemberSpec | undefined;
     setSpec(value?: MemberSpec): Member;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Member.AsObject;
@@ -296,26 +323,34 @@ export namespace Member {
 export class MemberSpec extends jspb.Message { 
     getAccessList(): string;
     setAccessList(value: string): MemberSpec;
+
     getName(): string;
     setName(value: string): MemberSpec;
+
 
     hasJoined(): boolean;
     clearJoined(): void;
     getJoined(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setJoined(value?: google_protobuf_timestamp_pb.Timestamp): MemberSpec;
 
+
     hasExpires(): boolean;
     clearExpires(): void;
     getExpires(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setExpires(value?: google_protobuf_timestamp_pb.Timestamp): MemberSpec;
+
     getReason(): string;
     setReason(value: string): MemberSpec;
+
     getAddedBy(): string;
     setAddedBy(value: string): MemberSpec;
+
     getIneligibleStatus(): IneligibleStatus;
     setIneligibleStatus(value: IneligibleStatus): MemberSpec;
+
     getMembership(): string;
     setMembership(value: string): MemberSpec;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): MemberSpec.AsObject;
@@ -347,10 +382,12 @@ export class Review extends jspb.Message {
     getHeader(): teleport_header_v1_resourceheader_pb.ResourceHeader | undefined;
     setHeader(value?: teleport_header_v1_resourceheader_pb.ResourceHeader): Review;
 
+
     hasSpec(): boolean;
     clearSpec(): void;
     getSpec(): ReviewSpec | undefined;
     setSpec(value?: ReviewSpec): Review;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Review.AsObject;
@@ -372,22 +409,27 @@ export namespace Review {
 export class ReviewSpec extends jspb.Message { 
     getAccessList(): string;
     setAccessList(value: string): ReviewSpec;
+
     clearReviewersList(): void;
     getReviewersList(): Array<string>;
     setReviewersList(value: Array<string>): ReviewSpec;
     addReviewers(value: string, index?: number): string;
 
+
     hasReviewDate(): boolean;
     clearReviewDate(): void;
     getReviewDate(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setReviewDate(value?: google_protobuf_timestamp_pb.Timestamp): ReviewSpec;
+
     getNotes(): string;
     setNotes(value: string): ReviewSpec;
+
 
     hasChanges(): boolean;
     clearChanges(): void;
     getChanges(): ReviewChanges | undefined;
     setChanges(value?: ReviewChanges): ReviewSpec;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ReviewSpec.AsObject;
@@ -415,14 +457,18 @@ export class ReviewChanges extends jspb.Message {
     clearMembershipRequirementsChanged(): void;
     getMembershipRequirementsChanged(): AccessListRequires | undefined;
     setMembershipRequirementsChanged(value?: AccessListRequires): ReviewChanges;
+
     clearRemovedMembersList(): void;
     getRemovedMembersList(): Array<string>;
     setRemovedMembersList(value: Array<string>): ReviewChanges;
     addRemovedMembers(value: string, index?: number): string;
+
     getReviewFrequencyChanged(): ReviewFrequency;
     setReviewFrequencyChanged(value: ReviewFrequency): ReviewChanges;
+
     getReviewDayOfMonthChanged(): ReviewDayOfMonth;
     setReviewDayOfMonthChanged(value: ReviewDayOfMonth): ReviewChanges;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ReviewChanges.AsObject;

@@ -12,6 +12,7 @@ export class PinnedResourcesUserPreferences extends jspb.Message {
     setResourceIdsList(value: Array<string>): PinnedResourcesUserPreferences;
     addResourceIds(value: string, index?: number): string;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): PinnedResourcesUserPreferences.AsObject;
     static toObject(includeInstance: boolean, msg: PinnedResourcesUserPreferences): PinnedResourcesUserPreferences.AsObject;
@@ -34,6 +35,7 @@ export class ClusterUserPreferences extends jspb.Message {
     clearPinnedResources(): void;
     getPinnedResources(): PinnedResourcesUserPreferences | undefined;
     setPinnedResources(value?: PinnedResourcesUserPreferences): ClusterUserPreferences;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ClusterUserPreferences.AsObject;

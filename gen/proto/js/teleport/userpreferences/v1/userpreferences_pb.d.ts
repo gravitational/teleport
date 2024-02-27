@@ -18,23 +18,28 @@ export class UserPreferences extends jspb.Message {
     clearAssist(): void;
     getAssist(): teleport_userpreferences_v1_assist_pb.AssistUserPreferences | undefined;
     setAssist(value?: teleport_userpreferences_v1_assist_pb.AssistUserPreferences): UserPreferences;
+
     getTheme(): teleport_userpreferences_v1_theme_pb.Theme;
     setTheme(value: teleport_userpreferences_v1_theme_pb.Theme): UserPreferences;
+
 
     hasOnboard(): boolean;
     clearOnboard(): void;
     getOnboard(): teleport_userpreferences_v1_onboard_pb.OnboardUserPreferences | undefined;
     setOnboard(value?: teleport_userpreferences_v1_onboard_pb.OnboardUserPreferences): UserPreferences;
 
+
     hasClusterPreferences(): boolean;
     clearClusterPreferences(): void;
     getClusterPreferences(): teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences | undefined;
     setClusterPreferences(value?: teleport_userpreferences_v1_cluster_preferences_pb.ClusterUserPreferences): UserPreferences;
 
+
     hasUnifiedResourcePreferences(): boolean;
     clearUnifiedResourcePreferences(): void;
     getUnifiedResourcePreferences(): teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences | undefined;
     setUnifiedResourcePreferences(value?: teleport_userpreferences_v1_unified_resource_preferences_pb.UnifiedResourcePreferences): UserPreferences;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserPreferences.AsObject;
@@ -80,6 +85,7 @@ export class GetUserPreferencesResponse extends jspb.Message {
     getPreferences(): UserPreferences | undefined;
     setPreferences(value?: UserPreferences): GetUserPreferencesResponse;
 
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): GetUserPreferencesResponse.AsObject;
     static toObject(includeInstance: boolean, msg: GetUserPreferencesResponse): GetUserPreferencesResponse.AsObject;
@@ -102,6 +108,7 @@ export class UpsertUserPreferencesRequest extends jspb.Message {
     clearPreferences(): void;
     getPreferences(): UserPreferences | undefined;
     setPreferences(value?: UserPreferences): UpsertUserPreferencesRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UpsertUserPreferencesRequest.AsObject;
