@@ -25,8 +25,6 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -117,7 +115,7 @@ func (r *SSHServerWrapper) handleResumptionExchangeV1(conn *multiplexer.Conn, dh
 			r.conns[token] = entry
 			r.mu.Unlock()
 
-			if err := r.startHandoverListener(handoverContext, token, entry); err != nil && !trace.IsNotImplemented(err) {
+			if err := r.startHandoverListener(handoverContext, token, entry); err != nil {
 				r.log.WithError(err).Warn("Unable to create handover listener for resumable connection, connection resumption will not work across graceful restarts.")
 			}
 		} else {
