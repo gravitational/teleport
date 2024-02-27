@@ -86,8 +86,8 @@ supports tags). This will give the users some insight into which version a
 specific file is supporting.
 
 The suggested way to cleanup files is to set a [lifecycle rule](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html) based on expiration. This will
-let files naturally cleanup themselves after a specified time. If a file is deleted due to this rule for a proxy version still
-in use, then the proxy will just reupload the file during the next heartbeat.
+let files naturally cleanup themselves after a specified time. If a file is deleted due to this rule for an auth version still
+in use, then the auth will just reupload the file during the next heartbeat.
 
 According to AWS, the lifecycle rules are only checked [once per day](https://repost.aws/knowledge-center/s3-lifecycle-rule-delay), and are rounded to midnight UTC of the next day when an object would be "expired".  However, different storages may have different timings here, so it's best the heartbeat runs frequently. (every 10 minutes?)
 
