@@ -76,6 +76,7 @@ func (r *SSHServerWrapper) runHandoverListener(l net.Listener, entry *connEntry)
 
 	var tempDelay time.Duration
 	for {
+		// the logic for this Accept loop is copied from [net/http.Server]
 		c, err := l.Accept()
 		if err == nil {
 			tempDelay = 0
