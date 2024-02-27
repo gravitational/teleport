@@ -31,6 +31,7 @@ import (
 // Cache is used by the [Service] to query cluster config resources.
 type Cache interface {
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 }
 
 // Backend is used by the [Service] to mutate cluster config resources.
@@ -38,6 +39,10 @@ type Backend interface {
 	CreateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
 	UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error)
+
+	CreateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
+	UpdateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
+	UpsertClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
 }
 
 // ServiceConfig contain dependencies required to create a [Service].
@@ -71,7 +76,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 }
 
 // GetAuthPreference returns the locally cached auth preference.
-func (s Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
+func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
 	authzCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -97,7 +102,7 @@ func (s Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetAu
 // CreateAuthPreference creates a new auth preference if one does not exist. This
 // is an internal API and is not exposed via [clusterconfigv1.ClusterConfigServiceServer]. It
 // is only meant to be called directly from the first time an Auth instance is started.
-func (s Service) CreateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
+func (s *Service) CreateAuthPreference(ctx context.Context, p types.AuthPreference) (types.AuthPreference, error) {
 	authzCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -129,9 +134,9 @@ func (s Service) CreateAuthPreference(ctx context.Context, p types.AuthPreferenc
 	return authPrefV2, nil
 }
 
-// UpdateAuthPreference conditional updates an existing auth preference if the value
+// UpdateAuthPreference conditionally updates an existing auth preference if the value
 // wasn't concurrently modified.
-func (s Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb.UpdateAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
+func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb.UpdateAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
 	authzCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -141,7 +146,7 @@ func (s Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.AuthorizeAdminAction(); err != nil {
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -170,7 +175,7 @@ func (s Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb.
 }
 
 // UpsertAuthPreference creates a new auth preference or overwrites an existing auth preference.
-func (s Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb.UpsertAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
+func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb.UpsertAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
 	authzCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -210,7 +215,7 @@ func (s Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb.
 }
 
 // ResetAuthPreference restores the auth preferences to the default value.
-func (s Service) ResetAuthPreference(ctx context.Context, req *clusterconfigpb.ResetAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
+func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.ResetAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
 	authzCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -254,6 +259,196 @@ func (s Service) ResetAuthPreference(ctx context.Context, req *clusterconfigpb.R
 		}
 
 		return authPrefV2, nil
+	}
+
+	return nil, trace.LimitExceeded("failed to reset networking config within %v iterations", iterationLimit)
+}
+
+// GetClusterNetworkingConfig returns the locally cached networking configuration.
+func (s *Service) GetClusterNetworkingConfig(ctx context.Context, _ *clusterconfigpb.GetClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
+		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	netConfig, err := s.cache.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfgV2, ok := netConfig.(*types.ClusterNetworkingConfigV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected cluster networking config type %T (expected %T)", netConfig, cfgV2))
+	}
+	return cfgV2, nil
+}
+
+// CreateClusterNetworkingConfig creates a new cluster networking configuration if one does not exist.
+// This is an internal API and is not exposed via [clusterconfigv1.ClusterConfigServiceServer]. It
+// is only meant to be called directly from the first time an Auth instance is started.
+func (s *Service) CreateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleAuth)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	tst, err := cfg.GetTunnelStrategyType()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
+	}
+
+	created, err := s.backend.CreateClusterNetworkingConfig(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfgV2, ok := created.(*types.ClusterNetworkingConfigV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected cluster networking config type %T (expected %T)", created, cfgV2))
+	}
+
+	return cfgV2, nil
+}
+
+// UpdateClusterNetworkingConfig conditionally updates an existing networking configuration if the
+// value wasn't concurrently modified.
+func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *clusterconfigpb.UpdateClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindClusterNetworkingConfig, types.VerbUpdate); err != nil {
+		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbUpdate); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tst, err := req.ClusterNetworkConfig.GetTunnelStrategyType()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
+	}
+
+	updated, err := s.backend.UpdateClusterNetworkingConfig(ctx, req.ClusterNetworkConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfgV2, ok := updated.(*types.ClusterNetworkingConfigV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected cluster networking config type %T (expected %T)", updated, cfgV2))
+	}
+
+	return cfgV2, nil
+}
+
+// UpsertClusterNetworkingConfig creates a new networking configuration or overwrites an existing configuration.
+func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *clusterconfigpb.UpsertClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindClusterNetworkingConfig, types.VerbCreate, types.VerbUpdate); err != nil {
+		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbCreate, types.VerbUpdate); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tst, err := req.ClusterNetworkConfig.GetTunnelStrategyType()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
+	}
+
+	upserted, err := s.backend.UpsertClusterNetworkingConfig(ctx, req.GetClusterNetworkConfig())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfgV2, ok := upserted.(*types.ClusterNetworkingConfigV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected cluster networking config type %T (expected %T)", upserted, cfgV2))
+	}
+
+	return cfgV2, nil
+}
+
+// ResetClusterNetworkingConfig restores the networking configuration to the default value.
+func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterconfigpb.ResetClusterNetworkingConfigRequest) (*types.ClusterNetworkingConfigV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindClusterNetworkingConfig, types.VerbUpdate); err != nil {
+		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbUpdate); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := authzCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defaultConfig := types.DefaultClusterNetworkingConfig()
+	const iterationLimit = 3
+	// Attempt a few iterations in case the conditional update fails
+	// due to spurious networking conditions.
+	for i := 0; i < iterationLimit; i++ {
+		cfg, err := s.cache.GetClusterNetworkingConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if cfg.Origin() == types.OriginConfigFile {
+			return nil, trace.BadParameter("cluster networking configuration has been defined in the auth server's config file and cannot be set back to defaults dynamically.")
+		}
+
+		defaultConfig.SetRevision(cfg.GetRevision())
+
+		reset, err := s.backend.UpdateClusterNetworkingConfig(ctx, defaultConfig)
+		if err != nil {
+			if trace.IsCompareFailed(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		cfgV2, ok := reset.(*types.ClusterNetworkingConfigV2)
+		if !ok {
+			return nil, trace.Wrap(trace.BadParameter("unexpected cluster networking config type %T (expected %T)", reset, cfgV2))
+		}
+
+		return cfgV2, nil
 	}
 
 	return nil, trace.LimitExceeded("failed to reset networking config within %v iterations", iterationLimit)

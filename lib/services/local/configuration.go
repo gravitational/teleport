@@ -384,7 +384,7 @@ func (s *ClusterConfigurationService) DeleteClusterAuditConfig(ctx context.Conte
 }
 
 // GetClusterNetworkingConfig gets cluster networking config from the backend.
-func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, networkingPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -392,7 +392,7 @@ func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Con
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterNetworkingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+	return services.UnmarshalClusterNetworkingConfig(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // CreateClusterNetworkingConfig creates a cluster networking config if once does not already exist.
