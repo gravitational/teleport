@@ -182,16 +182,17 @@ func TestHandoverCleanup(t *testing.T) {
 	require.NoError(err)
 	require.NotEmpty(d)
 
-	ctx := context.WithValue(context.Background(), (*cleanupDelayContextKey)(nil), time.Duration(0))
+	ctx := context.Background()
 
-	require.NoError(s.HandoverCleanup(ctx))
+	const cleanupDelayZero time.Duration = 0
+	require.NoError(s.handoverCleanup(ctx, cleanupDelayZero))
 
 	d, err = os.ReadDir(handoverDir)
 	require.NoError(err)
 	require.NotEmpty(d)
 
 	l.Close()
-	require.NoError(s.HandoverCleanup(ctx))
+	require.NoError(s.handoverCleanup(ctx, cleanupDelayZero))
 
 	d, err = os.ReadDir(handoverDir)
 	require.NoError(err)
