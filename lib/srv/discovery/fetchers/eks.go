@@ -98,7 +98,7 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 // by their reliance on the integration.
 func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSClients, matchers []types.AWSMatcher) (kubeFetchers, kubeIntegrationFetchers []common.Fetcher, _ error) {
 	for _, matcher := range matchers {
-		matcherAssumeRole := types.AssumeRole{}
+		var matcherAssumeRole types.AssumeRole
 		if matcher.AssumeRole != nil {
 			matcherAssumeRole = *matcher.AssumeRole
 		}
