@@ -20,86 +20,15 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
-	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/durationpb"
 
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
-
-// GenerateHostCert takes the public key in the OpenSSH “authorized_keys“
-// plain text format, signs it using Host Certificate Authority private key and
-// returns the resulting certificate.
-// TODO(noah): DELETE IN 16.0.0
-func (c *Client) GenerateHostCert(
-	ctx context.Context,
-	key []byte,
-	hostID, nodeName string,
-	principals []string,
-	clusterName string,
-	role types.SystemRole,
-	ttl time.Duration,
-) ([]byte, error) {
-	res, err := c.APIClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         key,
-		HostId:      hostID,
-		NodeName:    nodeName,
-		Principals:  principals,
-		ClusterName: clusterName,
-		Role:        string(role),
-		Ttl:         durationpb.New(ttl),
-	})
-	if err != nil {
-		switch {
-		case trace.IsNotImplemented(err):
-			// Fall back to HTTP implementation.
-			return c.generateHostCertHTTP(
-				ctx, key, hostID, nodeName, principals, clusterName, role, ttl,
-			)
-		default:
-			return nil, trace.Wrap(err)
-		}
-	}
-	return res.SshCertificate, nil
-}
-
-// TODO(noah): DELETE IN 16.0.0
-func (c *Client) generateHostCertHTTP(
-	ctx context.Context,
-	key []byte,
-	hostID, nodeName string,
-	principals []string,
-	clusterName string,
-	role types.SystemRole,
-	ttl time.Duration,
-) ([]byte, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("ca", "host", "certs"),
-		generateHostCertReq{
-			Key:         key,
-			HostID:      hostID,
-			NodeName:    nodeName,
-			Principals:  principals,
-			ClusterName: clusterName,
-			Roles:       types.SystemRoles{role},
-			TTL:         ttl,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var cert string
-	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
-		return nil, err
-	}
-	return []byte(cert), nil
-}
 
 // TODO(Joerger): DELETE IN 16.0.0
 func (c *Client) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
