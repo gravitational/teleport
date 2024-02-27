@@ -61,11 +61,6 @@
               ]
             },
             {
-              "title": "Self-Hosted Kubernetes",
-              "slug": "/upgrading/self-hosted-kubernetes/",
-              "forScopes": ["enterprise", "oss"]
-            },
-            {
               "title": "Self-Hosted Automatic Upgrades",
               "slug": "/upgrading/self-hosted-automatic-agent-updates/",
               "forScopes": [
