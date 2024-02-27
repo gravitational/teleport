@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	ecaint "github.com/gravitational/teleport/lib/integrations/externalauditstorage"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -32,7 +31,7 @@ import (
 // audit config.
 type ClusterAuditConfigGetter interface {
 	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
 }
 
 // ServiceConfig holds configuration options for the external audit gRPC service.

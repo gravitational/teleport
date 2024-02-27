@@ -379,7 +379,7 @@ type staticAuditConfigGetter struct {
 	clusterAuditConfig types.ClusterAuditConfig
 }
 
-func (s *staticAuditConfigGetter) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+func (s *staticAuditConfigGetter) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	return s.clusterAuditConfig, nil
 }
 
