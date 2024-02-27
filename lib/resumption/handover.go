@@ -163,7 +163,7 @@ func (r *SSHServerWrapper) handleHandoverConnection(conn net.Conn, entry *connEn
 	r.resumeConnection(entry, conn, remoteIP)
 }
 
-// HandoverCleanup deletes hand-over sockets that were left over from previous
+// HandoverCleanup deletes handover sockets that were left over from previous
 // runs of Teleport that failed to clean up after themselves (because of an
 // uncatchable signal or a system crash). It will exhaustively clean up the
 // current left over sockets, so it's sufficient to call it once per process.
@@ -215,11 +215,11 @@ func (r *SSHServerWrapper) handoverCleanup(ctx context.Context, cleanupDelay tim
 	paths, secondErr := retainNonConnectableSockets(ctx, paths)
 
 	if len(paths) < 1 {
-		r.log.Debug("Found no unconnectable handover socket after waiting.")
+		r.log.Debug("Found no unconnectable handover sockets after waiting.")
 		return trace.NewAggregate(firstErr, secondErr)
 	}
 
-	r.log.WithField("sockets", len(paths)).Info("Cleaning up some non-connectable handover sockets, left over from previous Teleport instances.")
+	r.log.WithField("sockets", len(paths)).Info("Cleaning up some non-connectable handover sockets from old Teleport instances.")
 
 	errs := []error{firstErr, secondErr}
 	for _, path := range paths {
