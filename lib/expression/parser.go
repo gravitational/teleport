@@ -11,6 +11,7 @@ import (
 
 type evaluationEnvVar map[string]typical.Variable
 
+// DefaultParserSpec is the default parser specification.
 func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec {
 	return typical.ParserSpec{
 		Functions: map[string]typical.Function{
