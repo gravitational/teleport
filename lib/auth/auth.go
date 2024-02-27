@@ -1437,28 +1437,19 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 // number of teleport updaters installed and their versions. To get an accurate representation
 // of versions in an entire cluster the metric must be aggregated with all auth instances.
 func (a *Server) updateUpdaterVersionMetrics() {
-	var total int
-	var enrolled int
-	upgraderCounts := make(map[string]map[string]int)
+	imp := newInstanceMetricsPeriodic()
 
 	// record versions for all connected resources
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
-		total++
-		if upgrader := handle.Hello().ExternalUpgrader; upgrader != "" {
-			enrolled++
-			if _, exists := upgraderCounts[upgrader]; !exists {
-				upgraderCounts[upgrader] = make(map[string]int)
-			}
-			upgraderCounts[upgrader][handle.Hello().ExternalUpgraderVersion]++
-		}
+		imp.VisitInstance(handle.Hello())
 	})
 
-	enrolledInUpgradesMetric.Set(float64(enrolled))
-	totalInstancesMetric.Set(float64(total))
+	totalInstancesMetric.Set(float64(imp.TotalInstances()))
+	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
 
 	// reset the gauges so that any versions that fall off are removed from exported metrics
 	upgraderCountsMetric.Reset()
-	for upgraderType, upgraderVersions := range upgraderCounts {
+	for upgraderType, upgraderVersions := range imp.upgraderCounts {
 		for version, count := range upgraderVersions {
 			upgraderCountsMetric.With(prometheus.Labels{
 				teleport.TagUpgrader: upgraderType,

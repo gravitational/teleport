@@ -23,6 +23,7 @@ import (
 
 	"golang.org/x/mod/semver"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
@@ -99,4 +100,44 @@ func inspectVersionCounts(counts map[string]int) (median string, total int, ok b
 	}
 
 	return "", 0, false
+}
+
+// instanceMetricsPeriodic is an aggregator for general instance metrics.
+type instanceMetricsPeriodic struct {
+	upgraderCounts map[string]map[string]int
+	totalInstances int
+}
+
+func newInstanceMetricsPeriodic() *instanceMetricsPeriodic {
+	return &instanceMetricsPeriodic{
+		upgraderCounts: make(map[string]map[string]int),
+	}
+}
+
+// VisitInstance adds an instance to ongoing aggregations.
+func (i *instanceMetricsPeriodic) VisitInstance(instance proto.UpstreamInventoryHello) {
+	i.totalInstances++
+	if upgrader := instance.GetExternalUpgrader(); upgrader != "" {
+		if _, exists := i.upgraderCounts[upgrader]; !exists {
+			i.upgraderCounts[upgrader] = make(map[string]int)
+		}
+		i.upgraderCounts[upgrader][instance.GetExternalUpgraderVersion()]++
+	}
+}
+
+// TotalEnrolledInUpgrades gets the total number of instances that have some upgrader defined.
+func (i *instanceMetricsPeriodic) TotalEnrolledInUpgrades() int {
+	var total int
+	for _, upgraderVersion := range i.upgraderCounts {
+		for _, count := range upgraderVersion {
+			total += count
+		}
+	}
+
+	return total
+}
+
+// TotalInstances gets the total number of known instances.
+func (i *instanceMetricsPeriodic) TotalInstances() int {
+	return i.totalInstances
 }
