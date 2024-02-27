@@ -295,7 +295,15 @@ func (i *InstanceV1) AppendControlLog(entries ...InstanceControlLogEntry) {
 		i.Spec.ControlLog[idx].Time = entry.Time.UTC()
 	}
 	slices.SortFunc(i.Spec.ControlLog, func(a, b InstanceControlLogEntry) int {
-		return int(a.Time.UnixNano() - b.Time.UnixNano())
+		an, bn := a.Time.UnixNano(), b.Time.UnixNano()
+
+		switch {
+		case an < bn:
+			return -1
+		case bn > an:
+			return 1
+		}
+		return 0
 	})
 }
 
