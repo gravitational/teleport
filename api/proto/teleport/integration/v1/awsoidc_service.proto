@@ -42,6 +42,9 @@ service AWSOIDCService {
   // DeployDatabaseService deploys a Database Services to Amazon ECS.
   rpc DeployDatabaseService(DeployDatabaseServiceRequest) returns (DeployDatabaseServiceResponse);
 
+  // DeployService deploys an ECS Service to Amazon ECS.
+  rpc DeployService(DeployServiceRequest) returns (DeployServiceResponse);
+
   // ListEC2 lists the EC2 instances of the AWS account per region.
   // It uses the following API:
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
@@ -234,6 +237,53 @@ message DeployDatabaseServiceResponse {
   string cluster_arn = 1;
   // ClusterDashboardUrl is the URL for Amazon Web Console that links directly to the Amazon ECS Cluster.
   string cluster_dashboard_url = 2;
+}
+
+// DeployServiceRequest is a request to deploy .
+message DeployServiceRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required.
+  string integration = 1;
+  // Region is the AWS Region
+  // Required.
+  string region = 2;
+  // DeploymentMode is the deployment name that should be applied when creating the ECS Service.
+  // Allowed modes: database-service
+  // Required.
+  string deployment_mode = 3;
+  // SecurityGroups to apply to the service's network configuration.
+  // If empty, the default security group for the VPC is going to be used.
+  repeated string security_groups = 4;
+  // SubnetIds are the subnets for the network configuration.
+  // Required.
+  repeated string subnet_ids = 5;
+  // TaskRoleARN is the AWS IAM Role received by the deployed service.
+  // Required.
+  string task_role_arn = 6;
+  // TeleportVersion is the teleport version to be deployed.
+  // This is used to fetch the correct tag for the teleport container image.
+  // Eg, 14.3.4 (no "v" prefix)
+  // Required.
+  string teleport_version = 7;
+  // DeploymentJoinTokenName is the Teleport IAM Join Token to be used by the deployed
+  // service to join the cluster.
+  // Required.
+  string deployment_join_token_name = 8;
+  // TeleportConfigString is the teleport.yaml configuration (base64 encoded) used by teleport.
+  // Required.
+  string teleport_config_string = 9;
+}
+
+// DeployServiceResponse contains information about the deployed service.
+message DeployServiceResponse {
+  // ClusterArn identifies the cluster where the deployment was made.
+  string cluster_arn = 1;
+  // ServiceARN is the Amazon ECS Cluster Service ARN created to run the task.
+  string service_arn = 2;
+  // TaskDefinitionARN is the Amazon ECS Task Definition ARN created to run the Service.
+  string task_definition_arn = 3;
+  // ServiceDashboardURL is a link to the service's Dashboard URL in Amazon Console.
+  string service_dashboard_url = 4;
 }
 
 // ListEC2Request is a request for a paginated list of AWS EC2 instances.

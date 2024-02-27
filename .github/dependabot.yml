@@ -7,18 +7,11 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
-      # The latest otel version contains a data race. Ignore any updates until the issue
-      # is resolved.
-      - dependency-name: go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws
-      - dependency-name: go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
-      - dependency-name: go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
-      - dependency-name: go.opentelemetry.io/otel
-      - dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace
-      - dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc
-      - dependency-name: go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp
-      - dependency-name: go.opentelemetry.io/otel/metric
-      - dependency-name: go.opentelemetry.io/otel/sdk
-      - dependency-name: go.opentelemetry.io/otel/trace
+      # AWS, otel and k8s have their own groups.
+      - dependency-name: github.com/aws/*
+      - dependency-name: go.opentelemetry.io/*
+      - dependency-name: k8s.io/*
+      - dependency-name: sigs.k8s.io/*
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # Must be kept in-sync with libbpf
@@ -55,6 +48,83 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
+    open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - jentfoo
+      - rosstimothy
+      - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+
+  # Group certain dependencies together.
+  # These contain numerous packages and are either frequently updated (AWS) or
+  # better updated in lockstep (k8s, otel).
+  # AWS group.
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    allow:
+      - dependency-name: github.com/aws/*
+    open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - jentfoo
+      - rosstimothy
+      - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+  # otel group.
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    allow:
+      - dependency-name: go.opentelemetry.io/*
+    open-pull-requests-limit: 10
+    groups:
+      go:
+        update-types:
+          - "minor"
+          - "patch"
+    reviewers:
+      - codingllama
+      - jentfoo
+      - rosstimothy
+      - zmb3
+    labels:
+      - "dependencies"
+      - "go"
+      - "no-changelog"
+  # k8s group.
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    allow:
+      - dependency-name: k8s.io/*
+      - dependency-name: sigs.k8s.io/*
     open-pull-requests-limit: 10
     groups:
       go:

@@ -169,6 +169,7 @@ export function DesktopSession(props: State) {
         canvasOnMouseUp={canvasOnMouseUp}
         canvasOnMouseWheelScroll={canvasOnMouseWheelScroll}
         canvasOnContextMenu={canvasOnContextMenu}
+        updatePointer={true}
       />
     </Flex>
   );

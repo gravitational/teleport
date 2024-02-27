@@ -1762,7 +1762,7 @@ type clusterConfigCacheKey struct {
 var _ map[clusterConfigCacheKey]struct{} // compile-time hashability check
 
 // GetClusterAuditConfig gets ClusterAuditConfig from the backend.
-func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
+func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
 	defer span.End()
 
@@ -1773,7 +1773,7 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 	defer rg.Release()
 	if !rg.IsCacheRead() {
 		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
-			cfg, err := rg.reader.GetClusterAuditConfig(ctx, opts...)
+			cfg, err := rg.reader.GetClusterAuditConfig(ctx)
 			return cfg, err
 		})
 		if err != nil {
@@ -1781,7 +1781,7 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 		}
 		return cachedCfg.Clone(), nil
 	}
-	return rg.reader.GetClusterAuditConfig(ctx, opts...)
+	return rg.reader.GetClusterAuditConfig(ctx)
 }
 
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.

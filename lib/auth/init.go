@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -1445,7 +1446,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 	slices.SortFunc(resources, func(a, b types.Resource) int {
 		priorityA := ResourceApplyPriority[a.GetKind()]
 		priorityB := ResourceApplyPriority[b.GetKind()]
-		return priorityA - priorityB
+		return cmp.Compare(priorityA, priorityB)
 	})
 	for _, resource := range resources {
 		// Unwrap "new style" resources.
