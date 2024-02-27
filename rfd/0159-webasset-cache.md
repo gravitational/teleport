@@ -42,14 +42,9 @@ bucket allows the proxies to fallback to single repository of every webasset in 
 
 When an auth service comes online, if enabled, it will prepare the webasset
 storage service by creating an s3 client that can be used as an getter/uploader
-to the bucket. When a proxy comes online, it will start a service that runs on
-an interval that will first check if the auth server requires the proxy to send
-it's webassets. If auth is not configured to do so (or is in an error state),
-then the proxy will shutdown the storage service and carry on without as usual without it.
-
-The first step of the sync will have proxy asking auth if it is ready and to
-list the files that have been uploaded to the storage already. As of right now,
-we have ~170 items in our webassets bundle. `ListObjectsV2` will only list up to
+to the bucket. it will then enable a service that runs on an interval that will
+check the bucket if embedded webassets have been uploaded. As of right now, we
+have ~170 items in our webassets bundle. `ListObjectsV2` will only list up to
 1,000 items per page. This means that after 5 stored versions we will have to
 start iterating multiple pages to list all the keys. This is unlikely and can be
 mitigated by a implementing a decent retention policy (more on that later in the
@@ -62,29 +57,25 @@ This is wildly inefficient to try and "narrow down" the files that we are using
 to find out if we need to upload a missing file. Therefore, we'll list them all
 and just use the larger dataset.
 
-Once the keys have been listed, the proxy will then walk through its filesystem
-and upload what is missing. It does this by sending an `UploadWebasset` request
-to auth over grpc with the file name and the compressed(gzip) contents of the
-file.
-```protobuf
-// UploadWebassetRequest is a request to upload a file to configured storage bucket.
-message UploadWebassetRequest {
-	// name is the name of the file.
-	string name = 1;
-	// content is the compressed byte content of the file.
-	bytes content = 2;
-}
-```
-This will prevent extra grpc messages being sent between proxy/auth for files
-that do not need to be uploaded. Files with the same key are not uploaded twice.
-There isn't too much of a concern to have key collisions thanks to Vite's rollup
+Once the keys have been listed, auth will then walk through its filesystem and
+upload what is missing. Files with the same key are not uploaded twice. There
+isn't too much of a concern to have key collisions thanks to Vite's rollup
 hashing. A somewhat recent change has
 [moved their hashes to use base64](https://github.com/rollup/rollup/issues/4803)
 so the chances of the same split file having the same hash across multiple
 versions is very low.
 
+Relying on auth to upload its webasset bundle and serve anything missing to the proxy
+via the bucket will mean that any version of the proxy that comes online _must_ be
+of a version of auth that has come online. This is not a current requirement right now
+but should be made explicit at least in the documentation for this feature. 
+
+For example, if auth is 15.0.1 and then we upgrade to 15.1.1, proxy cannot skip
+and go straight to 15.1.2 (or behind at 15.1.0) as it will then not have its version
+of the webassets uploaded by auth.
+
 #### File cleanup
-Our current webasset bundle is ~7mb The first cause for concern is how to
+Our current webasset bundle is ~7mb. The first cause for concern is how to
 mitigate an s3 bucket filling up indefinitely with new versions of the
 webassets. Due to the chaotic nature of when/how often different users choose to
 upgrade, I believe it it out of scope for Teleport to have any control of bucket
@@ -147,14 +138,12 @@ if strings.HasPrefix(r.URL.Path, "/web/app") {
 ### Security
 This feature should be **opt in only** via configuration. 
 
-Because the proxy relies on auth to upload/get the files from the bucket,
-customers can use their existing credential setup on the auth server with this
-service and _shouldn't_ have to change anything. proxy will not require AWS
-credentials.
-
-If someone has gained access to the bucket, they could potentially overwrite files with their own code that the
-browser will then try to download. We may be able to get around this by implementing some sort of signing to
-our webasset bundles but would not be part of phase1 of this project.
+If someone has gained access to the bucket, they could potentially overwrite
+files with their own code that the browser will then try to download. We may be
+able to get around this by implementing some sort of signing to our webasset
+bundles but would not be part of phase1 of this project. Or, we can handle it
+the same way that session recordings are handled and only serve the first
+version (this will stop from 'overwriting' it with a malicious file).
 
 #### Alternative approaches
 Another approach that was discussed that didn't involve an s3 bucket was storing all the webassets in an in-memory
@@ -164,6 +153,12 @@ was different) and then any other proxy could reach out to auth to download the 
 This had a bit more complexity because it would mean that _all_ auths would have to have _all_ in-use versions of the
 webassets to ensure any proxy could hit any auth for the missing files. The benefit of approach is everything would be
 self-contained and not rely on external storage. However, being much more complex, with many different listeners/watchers, it could lead to more issues down the road.
+
+Lastly, we could remove code splitting all together and do away with the need to
+have a webasset storage. Rather than downloading a new javascript file for every
+page/feature loaded, we could instead ship the entire bundle on first load.
+
+For reference, the current largest file (the `index.js`) file that downloads on first page load is ~350kb. There are a few other javascript files downloaded at the same time, and vary in size depending on which page the user lands on.  If code splitting is removed, the entire bundle is about 1.5mb for `e` and 800kb for `oss`. The upside to a larger bundle being "frontloaded" is that another javascript file will not have to be downloaded at all for the entire web session, which removes the problem stated in this RFD. So slower response time on first load and instant response time for every feature after, or, fast response time up front with minimal response time for every feature. However, the average amount of data transferred is higher even if a user used nearly every feature in one session due to the fact they don't have to download _everything_. 
 
 #### Cloud
 This feature will eventually be integrated by the cloud team as well. More
