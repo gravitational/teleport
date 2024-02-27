@@ -134,6 +134,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_KubernetesCluster{
 			KubernetesCluster: r,
 		}
+	case *types.CrownJewel:
+		out.Resource = &proto.Event_CrownJewel{
+			CrownJewel: r,
+		}
 	case *types.AppServerV3:
 		out.Resource = &proto.Event_AppServer{
 			AppServer: r,

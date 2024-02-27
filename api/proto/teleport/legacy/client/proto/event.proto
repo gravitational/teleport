@@ -147,5 +147,7 @@ message Event {
     teleport.secreports.v1.ReportState ReportState = 52;
     // AccessListReview is an access list review resource.
     teleport.accesslist.v1.Review AccessListReview = 53;
+
+    types.CrownJewel CrownJewel = 54;
   }
 }
