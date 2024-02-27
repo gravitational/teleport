@@ -1,6 +1,7 @@
 package loginrule
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"strings"
@@ -102,7 +103,7 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 func sortLoginRules(rules []*loginrulepb.LoginRule) {
 	slices.SortFunc(rules, func(a, b *loginrulepb.LoginRule) int {
 		if a.Priority != b.Priority {
-			return int(a.Priority - b.Priority)
+			return cmp.Compare(a.Priority, b.Priority)
 		}
 		return strings.Compare(a.Metadata.Name, b.Metadata.Name)
 	})

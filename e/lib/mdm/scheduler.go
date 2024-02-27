@@ -1,6 +1,7 @@
 package mdm
 
 import (
+	"cmp"
 	"errors"
 	"slices"
 	"time"
@@ -187,6 +188,6 @@ func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initi
 
 func (t *SyncScheduler[E]) sort() {
 	slices.SortFunc(t.schedule, func(a, b ScheduleEntry[E]) int {
-		return int(a.offset - b.offset)
+		return cmp.Compare(a.offset, b.offset)
 	})
 }

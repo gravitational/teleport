@@ -830,10 +830,7 @@ func (s *S) getDeviceCollectedData(ctx context.Context, deviceID string) ([]*dev
 
 	// Sort by ascending RecordTime.
 	slices.SortFunc(cd, func(a, b *devicepb.DeviceCollectedData) int {
-		if a.RecordTime.Seconds == b.RecordTime.Seconds {
-			return int(a.RecordTime.Nanos - b.RecordTime.Nanos)
-		}
-		return int(a.RecordTime.Seconds - b.RecordTime.Seconds)
+		return a.RecordTime.AsTime().Compare(b.RecordTime.AsTime())
 	})
 
 	return cd, nil
