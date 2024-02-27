@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
-	"github.com/gravitational/teleport/lib/teleterm/services/clientcache"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -273,7 +272,7 @@ func TestGatewayCRUD(t *testing.T) {
 				GatewayCreator: mockGatewayCreator,
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
-				ClientCache:    &fakeClientCache{},
+				ClientCache:    fakeClientCache{},
 			})
 			require.NoError(t, err)
 
@@ -452,7 +451,7 @@ func TestRetryWithRelogin(t *testing.T) {
 				},
 				KubeconfigsDir: t.TempDir(),
 				AgentsDir:      t.TempDir(),
-				ClientCache:    &fakeClientCache{},
+				ClientCache:    fakeClientCache{},
 			})
 			require.NoError(t, err)
 
@@ -503,7 +502,7 @@ func TestImportantModalSemaphore(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
-		ClientCache:    &fakeClientCache{},
+		ClientCache:    fakeClientCache{},
 	})
 	require.NoError(t, err)
 
@@ -652,7 +651,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		KubeconfigsDir: t.TempDir(),
 		AgentsDir:      t.TempDir(),
-		ClientCache:    &fakeClientCache{},
+		ClientCache:    fakeClientCache{},
 	})
 	require.NoError(t, err)
 
@@ -731,9 +730,9 @@ func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cl
 }
 
 type fakeClientCache struct {
-	clientcache.Cache
+	ClientCache
 }
 
-func (f *fakeClientCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
+func (f fakeClientCache) Get(ctx context.Context, clusterURI uri.ResourceURI) (*client.ProxyClient, error) {
 	return &client.ProxyClient{}, nil
 }
