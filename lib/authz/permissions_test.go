@@ -454,6 +454,10 @@ func (a *fakeMFAAuthenticator) ValidateMFAAuthResponse(ctx context.Context, resp
 	return mfaData, nil
 }
 
+func (a *fakeMFAAuthenticator) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error) {
+	return nil, nil
+}
+
 func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 	ctx := context.Background()
 	client, watcher, _ := newTestResources(t)

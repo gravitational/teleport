@@ -160,6 +160,9 @@ type AuthorizerAccessPoint interface {
 type MFAAuthenticator interface {
 	// ValidateMFAAuthResponse validates an MFA challenge response.
 	ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, requiredExtensions *mfav1.ChallengeExtensions) (*MFAAuthData, error)
+
+	// GetMFADevices returns all mfa devices for the user defined in the token or the user defined in context.
+	GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
 }
 
 // MFAAuthData contains a user's MFA authentication data for a validated MFA response.
