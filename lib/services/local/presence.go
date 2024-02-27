@@ -678,64 +678,65 @@ func (s *PresenceService) DeleteAllTunnelConnections() error {
 }
 
 // CreateRemoteCluster creates remote cluster
-func (s *PresenceService) CreateRemoteCluster(rc types.RemoteCluster) error {
+func (s *PresenceService) CreateRemoteCluster(
+	ctx context.Context, rc types.RemoteCluster,
+) (types.RemoteCluster, error) {
 	value, err := json.Marshal(rc)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(remoteClustersPrefix, rc.GetName()),
 		Value:   value,
 		Expires: rc.Expiry(),
 	}
-	_, err = s.Create(context.TODO(), item)
+	lease, err := s.Create(ctx, item)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	rc.SetRevision(lease.Revision)
+	return rc, nil
 }
 
 // UpdateRemoteCluster updates selected remote cluster fields: expiry and labels
 // other changed fields will be ignored by the method
-func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
+func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
 	if err := services.CheckAndSetDefaults(rc); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	existingItem, update, err := s.getRemoteCluster(ctx, rc.GetName())
+	existing, err := s.GetRemoteCluster(ctx, rc.GetName())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	update.SetExpiry(rc.Expiry())
-	update.SetLastHeartbeat(rc.GetLastHeartbeat())
-	update.SetConnectionStatus(rc.GetConnectionStatus())
-	update.SetMetadata(rc.GetMetadata())
+	existing.SetExpiry(rc.Expiry())
+	existing.SetLastHeartbeat(rc.GetLastHeartbeat())
+	existing.SetConnectionStatus(rc.GetConnectionStatus())
+	existing.SetMetadata(rc.GetMetadata())
 
-	rev := update.GetRevision()
-	updateValue, err := services.MarshalRemoteCluster(update)
+	rev := existing.GetRevision()
+	updateValue, err := services.MarshalRemoteCluster(existing)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	updateItem := backend.Item{
-		Key:      backend.Key(remoteClustersPrefix, update.GetName()),
+		Key:      backend.Key(remoteClustersPrefix, existing.GetName()),
 		Value:    updateValue,
-		Expires:  update.Expiry(),
+		Expires:  existing.Expiry(),
 		Revision: rev,
 	}
 
-	_, err = s.CompareAndSwap(ctx, *existingItem, updateItem)
+	lease, err := s.ConditionalUpdate(ctx, updateItem)
 	if err != nil {
-		if trace.IsCompareFailed(err) {
-			return trace.CompareFailed("remote cluster %v has been updated by another client, try again", rc.GetName())
-		}
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	existing.SetRevision(lease.Revision)
+	return existing, nil
 }
 
 // GetRemoteClusters returns a list of remote clusters
-func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (s *PresenceService) GetRemoteClusters(ctx context.Context, opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	startKey := backend.ExactKey(remoteClustersPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -752,34 +753,77 @@ func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]t
 	return clusters, nil
 }
 
-// getRemoteCluster returns a remote cluster in raw form and unmarshaled
-func (s *PresenceService) getRemoteCluster(ctx context.Context, clusterName string) (*backend.Item, types.RemoteCluster, error) {
+// ListRemoteClusters returns a page of remote clusters
+func (s *PresenceService) ListRemoteClusters(
+	ctx context.Context, pageSize int, pageToken string,
+) ([]types.RemoteCluster, string, error) {
+	rangeStart := backend.Key(remoteClustersPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(remoteClustersPrefix))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	limit := pageSize + 1
+
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	clusters := make([]types.RemoteCluster, 0, len(result.Items))
+	for _, item := range result.Items {
+		cluster, err := services.UnmarshalRemoteCluster(item.Value,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			s.log.WithError(err).WithField("key", item.Key).Warn("Skipping item during ListRemoteClusters because conversion from backend item failed")
+			continue
+		}
+		clusters = append(clusters, cluster)
+	}
+
+	next := ""
+	if len(clusters) > pageSize {
+		next = backend.GetPaginationKey(clusters[pageSize])
+		// Truncate the last item that was used to determine next row existence.
+		clusters = clusters[:pageSize]
+	}
+	return clusters, next, nil
+}
+
+// GetRemoteCluster returns a remote cluster by name
+func (s *PresenceService) GetRemoteCluster(
+	ctx context.Context, clusterName string,
+) (types.RemoteCluster, error) {
 	if clusterName == "" {
-		return nil, nil, trace.BadParameter("missing parameter cluster name")
+		return nil, trace.BadParameter("missing parameter cluster name")
 	}
 	item, err := s.Get(ctx, backend.Key(remoteClustersPrefix, clusterName))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, nil, trace.NotFound("remote cluster %q is not found", clusterName)
+			return nil, trace.NotFound("remote cluster %q is not found", clusterName)
 		}
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	rc, err := services.UnmarshalRemoteCluster(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return item, rc, nil
-}
-
-// GetRemoteCluster returns a remote cluster by name
-func (s *PresenceService) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
-	_, rc, err := s.getRemoteCluster(context.TODO(), clusterName)
-	return rc, trace.Wrap(err)
+	return rc, nil
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
-func (s *PresenceService) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
+func (s *PresenceService) DeleteRemoteCluster(
+	ctx context.Context, clusterName string,
+) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
@@ -787,9 +831,9 @@ func (s *PresenceService) DeleteRemoteCluster(ctx context.Context, clusterName s
 }
 
 // DeleteAllRemoteClusters deletes all remote clusters
-func (s *PresenceService) DeleteAllRemoteClusters() error {
+func (s *PresenceService) DeleteAllRemoteClusters(ctx context.Context) error {
 	startKey := backend.ExactKey(remoteClustersPrefix)
-	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
 
