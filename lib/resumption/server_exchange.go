@@ -117,7 +117,7 @@ func (r *SSHServerWrapper) handleResumptionExchangeV1(conn *multiplexer.Conn, dh
 			r.conns[token] = entry
 			r.mu.Unlock()
 
-			if err := r.setupHandoverListener(handoverContext, token, entry); err != nil && !trace.IsNotImplemented(err) {
+			if err := r.startHandoverListener(handoverContext, token, entry); err != nil && !trace.IsNotImplemented(err) {
 				r.log.WithError(err).Warn("Unable to create handover listener for resumable connection, connection resumption will not work across graceful restarts.")
 			}
 		} else {

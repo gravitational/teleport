@@ -59,8 +59,8 @@ func (r *SSHServerWrapper) attemptHandover(conn *multiplexer.Conn, token resumpt
 	_ = utils.ProxyConn(context.Background(), conn, handoverConn)
 }
 
-func (r *SSHServerWrapper) setupHandoverListener(ctx context.Context, token resumptionToken, entry *connEntry) error {
-	l, err := r.listenHandover(token)
+func (r *SSHServerWrapper) startHandoverListener(ctx context.Context, token resumptionToken, entry *connEntry) error {
+	l, err := r.createHandoverListener(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
