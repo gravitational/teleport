@@ -4631,25 +4631,27 @@ func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
 	return a.authServer.DeleteAllTunnelConnections()
 }
 
-func (a *ServerWithRoles) CreateRemoteCluster(conn types.RemoteCluster) error {
+func (a *ServerWithRoles) CreateRemoteCluster(ctx context.Context, conn types.RemoteCluster) error {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.CreateRemoteCluster(conn)
+	_, err := a.authServer.CreateRemoteCluster(ctx, conn)
+	return trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpdateRemoteCluster(ctx, rc)
+	_, err := a.authServer.UpdateRemoteCluster(ctx, rc)
+	return trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster, err := a.authServer.GetRemoteCluster(clusterName)
+	cluster, err := a.authServer.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4659,11 +4661,11 @@ func (a *ServerWithRoles) GetRemoteCluster(clusterName string) (types.RemoteClus
 	return cluster, nil
 }
 
-func (a *ServerWithRoles) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context, opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteClusters, err := a.authServer.GetRemoteClusters(opts...)
+	remoteClusters, err := a.authServer.GetRemoteClusters(ctx, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4692,11 +4694,11 @@ func (a *ServerWithRoles) DeleteRemoteCluster(ctx context.Context, clusterName s
 	return a.authServer.DeleteRemoteCluster(ctx, clusterName)
 }
 
-func (a *ServerWithRoles) DeleteAllRemoteClusters() error {
+func (a *ServerWithRoles) DeleteAllRemoteClusters(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteAllRemoteClusters()
+	return a.authServer.DeleteAllRemoteClusters(ctx)
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.

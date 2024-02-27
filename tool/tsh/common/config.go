@@ -73,7 +73,7 @@ func onConfig(cf *CLIConf) error {
 	}
 	defer rootAuthClient.Close()
 
-	leafClusters, err := rootAuthClient.GetRemoteClusters()
+	leafClusters, err := rootAuthClient.GetRemoteClusters(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
