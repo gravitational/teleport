@@ -403,36 +403,32 @@ export function EnrollEksCluster(props: AgentStepProps) {
       {showContent && (
         <>
           <Box mb={2}>
-            <Box>
-              <Toggle
-                isToggled={isAutoDiscoveryEnabled}
-                onToggle={() =>
-                  setAutoDiscoveryEnabled(isEnabled => !isEnabled)
-                }
-              >
-                <Box ml={2} mr={1}>
-                  Auto-enroll all EKS clusters for selected region
-                </Box>
-                <ToolTipInfo>
-                  Auto-enroll will automatically identify all EKS clusters from
-                  the selected region and register them as Kubernetes resources
-                  in your infrastructure.
-                </ToolTipInfo>
-              </Toggle>
-              <Toggle
-                isToggled={isAppDiscoveryEnabled}
-                onToggle={() => setAppDiscoveryEnabled(isEnabled => !isEnabled)}
-              >
-                <Box ml={2} mr={1}>
-                  Enable Kubernetes App Discovery
-                </Box>
-                <ToolTipInfo>
-                  Teleport's Kubernetes App Discovery will automatically
-                  identify and enroll to Teleport HTTP applications running
-                  inside a Kubernetes cluster.
-                </ToolTipInfo>
-              </Toggle>
-            </Box>
+            <Toggle
+              isToggled={isAutoDiscoveryEnabled}
+              onToggle={() => setAutoDiscoveryEnabled(isEnabled => !isEnabled)}
+            >
+              <Box ml={2} mr={1}>
+                Auto-enroll all EKS clusters for selected region
+              </Box>
+              <ToolTipInfo>
+                Auto-enroll will automatically identify all EKS clusters from
+                the selected region and register them as Kubernetes resources in
+                your infrastructure.
+              </ToolTipInfo>
+            </Toggle>
+            <Toggle
+              isToggled={isAppDiscoveryEnabled}
+              onToggle={() => setAppDiscoveryEnabled(isEnabled => !isEnabled)}
+            >
+              <Box ml={2} mr={1}>
+                Enable Kubernetes App Discovery
+              </Box>
+              <ToolTipInfo>
+                Teleport's Kubernetes App Discovery will automatically identify
+                and enroll to Teleport HTTP applications running inside a
+                Kubernetes cluster.
+              </ToolTipInfo>
+            </Toggle>
           </Box>
           {showTable && (
             <ClustersList
