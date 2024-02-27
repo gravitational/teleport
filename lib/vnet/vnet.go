@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -44,16 +45,17 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 const (
-	nicID            = 1
-	mtu              = 1500 // TODO: Find optimal MTU.
-	defaultDNSSuffix = ".teleport.private."
+	nicID             = 1
+	mtu               = 1500
+	dnsSuffixInternal = ".internal."
 )
 
 var (
@@ -85,7 +87,6 @@ type Config struct {
 	Client     *client.TeleportClient
 	TUNDevice  tun.Device
 	DNSAddress tcpip.Address
-	DNSSuffix  string
 }
 
 // CheckAndSetDefaults checks the config and sets defaults.
@@ -99,9 +100,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.DNSAddress == (tcpip.Address{}) {
 		c.DNSAddress = defaultDNSAddress
 	}
-	if c.DNSSuffix == "" {
-		c.DNSSuffix = defaultDNSSuffix
-	}
 	return nil
 }
 
@@ -111,20 +109,25 @@ type tcpHandler func(context.Context, tcpConnector) error
 type udpHandler func(context.Context, io.ReadWriteCloser) error
 
 type state struct {
-	// Canonical data
-	apps []types.Application
-
-	// Denormalized data optimized for indexing
 	tcpHandlers map[tcpip.Address]tcpHandler
 	udpHandlers map[tcpip.Address]udpHandler
 	ips         map[string]tcpip.Address
+	nextFreeIP  uint32
+}
+
+func newState() state {
+	return state{
+		tcpHandlers: make(map[tcpip.Address]tcpHandler),
+		udpHandlers: make(map[tcpip.Address]udpHandler),
+		ips:         make(map[string]tcpip.Address),
+		nextFreeIP:  uint32(100<<24 + 64<<16 + 0<<8 + 2<<0),
+	}
 }
 
 // Manager holds configuration and state for the VNet.
 type Manager struct {
 	tc            *client.TeleportClient
 	tun           tun.Device
-	dnsSuffix     string
 	dnsAddress    tcpip.Address
 	stack         *stack.Stack
 	rootCtx       context.Context
@@ -137,7 +140,7 @@ type Manager struct {
 
 // NewManager creates a new VNet manager with the given configuration and root
 // context. Call Run() on the returned manager to start the VNet.
-func NewManager(ctx context.Context, cfg *Config) (m *Manager, err error) {
+func NewManager(ctx context.Context, cfg *Config) (*Manager, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,19 +149,21 @@ func NewManager(ctx context.Context, cfg *Config) (m *Manager, err error) {
 		return nil, trace.Wrap(err)
 	}
 	slog := slog.With(trace.Component, "VNet")
-	dnsServer := dns.NewServer(slog)
 	ctx, cancel := context.WithCancel(ctx)
-	return &Manager{
+	m := &Manager{
 		tc:            cfg.Client,
 		tun:           cfg.TUNDevice,
-		dnsSuffix:     cfg.DNSSuffix,
 		dnsAddress:    cfg.DNSAddress,
 		stack:         stack,
 		rootCtx:       ctx,
 		rootCtxCancel: cancel,
 		slog:          slog,
-		dnsServer:     dnsServer,
-	}, nil
+		state:         newState(),
+	}
+	dnsServer := dns.NewServer(slog, m)
+	m.dnsServer = dnsServer
+	m.state.udpHandlers[cfg.DNSAddress] = dnsServer.HandleUDPConn
+	return m, nil
 }
 
 // Run starts the VNet.
@@ -166,7 +171,7 @@ func (m *Manager) Run() error {
 	defer m.rootCtxCancel()
 
 	const (
-		// TODO: Figure out optimal values for these.
+		// TODO(nklaassen): Figure out optimal values for these.
 		tcpReceiveBufferSize          = 0 // 0 means a default will be used.
 		maxInFlightConnectionAttempts = 1024
 	)
@@ -200,10 +205,6 @@ func (m *Manager) Run() error {
 		}
 	}()
 
-	if err := m.refreshState(m.rootCtx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return trace.Wrap(forwardBetweenOsAndVnet(m.rootCtx, m.tun, linkEndpoint))
 }
 
@@ -214,14 +215,131 @@ func (m *Manager) Close() error {
 	return trace.Wrap(m.tun.Close())
 }
 
-func (m *Manager) tcpHandler(addr tcpip.Address) (tcpHandler, bool) {
+func (m *Manager) nextFreeIP() tcpip.Address {
+	m.mu.Lock()
+	ip := m.state.nextFreeIP
+	m.state.nextFreeIP += 1
+	m.mu.Unlock()
+	return tcpip.AddrFrom4([4]byte{byte(ip >> 24), byte(ip >> 16), byte(ip >> 8), byte(ip >> 0)})
+}
+
+// Resolve implements [dns.Resolver.Resolve]
+func (m *Manager) Resolve(ctx context.Context, domain string) (*dns.Result, error) {
+	if ip, ok := m.cachedIP(domain); ok {
+		return &dns.Result{IP: ip}, nil
+	}
+	if result, ok, err := m.resolveInternal(ctx, domain); err != nil {
+		return nil, trace.Wrap(err)
+	} else if ok {
+		return result, nil
+	}
+	return m.resolveCustomZone(domain)
+}
+
+func (m *Manager) cachedIP(domain string) (tcpip.Address, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	ip, ok := m.state.ips[domain]
+	return ip, ok
+}
+
+func (m *Manager) resolveInternal(ctx context.Context, domain string) (*dns.Result, bool, error) {
+	if !strings.HasSuffix(domain, dnsSuffixInternal) {
+		return nil, false, nil
+	}
+	internalDomain := strings.TrimSuffix(domain, dnsSuffixInternal)
+	matchingProfile, ok, err := m.matchingProfile(internalDomain)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+	if !ok {
+		return nil, false, nil
+	}
+	// TODO(nklaassen): support leaf clusters
+	clt, err := m.apiClient(ctx, matchingProfile)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+	appName := strings.TrimSuffix(internalDomain, matchingProfile)
+	appName = strings.TrimSuffix(appName, ".")
+	app, match, err := m.matchingApp(ctx, clt, appName)
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+	if !match {
+		return nil, false, nil
+	}
+
+	ip := m.nextFreeIP()
+	m.mu.Lock()
+	// TODO(nklaassen): support non-current profile
+	m.state.tcpHandlers[ip] = proxyToApp(m.tc, appName, app.GetPublicAddr())
+	m.mu.Unlock()
+
+	return &dns.Result{
+		IP: ip,
+	}, true, nil
+}
+
+func (m *Manager) matchingProfile(internalDomain string) (string, bool, error) {
+	profiles, err := m.tc.ClientStore.ListProfiles()
+	if err != nil {
+		return "", false, trace.Wrap(err, "listing user profiles")
+	}
+	for _, profile := range profiles {
+		if strings.HasSuffix(internalDomain, profile) {
+			return profile, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+func (m *Manager) apiClient(ctx context.Context, profileName string) (*apiclient.Client, error) {
+	// TODO(nklaassen): reuse api clients
+	profile, err := m.tc.ClientStore.GetProfile(profileName)
+	if err != nil {
+		return nil, trace.Wrap(err, "loading user profile")
+	}
+	creds := apiclient.LoadProfile("" /*dir*/, profileName)
+	return apiclient.New(ctx, apiclient.Config{
+		Addrs:       []string{profile.WebProxyAddr},
+		Credentials: []apiclient.Credentials{creds},
+		Context:     m.rootCtx,
+	})
+}
+
+func (m *Manager) matchingApp(ctx context.Context, clt *apiclient.Client, appName string) (types.Application, bool, error) {
+	appServers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
+		ResourceType:        types.KindAppServer,
+		PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
+	})
+	if err != nil {
+		return nil, false, trace.Wrap(err, "listing application servers")
+	}
+	if len(appServers) == 0 {
+		return nil, false, nil
+	}
+	if len(appServers) > 1 {
+		return nil, false, trace.Errorf("found multiple apps with same name %q", appName)
+	}
+	return appServers[0].GetApp(), true, nil
+}
+
+func (m *Manager) resolveCustomZone(domain string) (*dns.Result, error) {
+	// TODO(nklaassen): implement this
+	return &dns.Result{
+		NXDomain: true,
+	}, nil
+}
+
+func (m *Manager) tcpHandler(addr tcpip.Address, port uint16) (tcpHandler, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	handler, ok := m.state.tcpHandlers[addr]
 	return handler, ok
 }
 
-func (m *Manager) udpHandler(addr tcpip.Address) (udpHandler, bool) {
+func (m *Manager) udpHandler(addr tcpip.Address, port uint16) (udpHandler, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	handler, ok := m.state.udpHandlers[addr]
@@ -231,20 +349,21 @@ func (m *Manager) udpHandler(addr tcpip.Address) (udpHandler, bool) {
 func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 	ctx, cancel := context.WithCancel(m.rootCtx)
 	defer cancel()
-	slog := m.slog.With("request_id", req.ID())
+	id := req.ID()
+	slog := m.slog.With("request_id", id)
 	slog.Debug("Got TCP forward request.")
 	defer slog.Debug("Finished TCP forward request.")
 
-	// Add the address to the NIC so that the VNet routes packets back out
-	// to the host. Seems fine to call multiple times for same IP.
+	// Add the address to the NIC so that the gvisor stack routes packets back
+	// out to the host. Seems fine to call multiple times for same IP.
 	m.stack.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
-		AddressWithPrefix: req.ID().LocalAddress.WithPrefix(),
-		Protocol:          ipv4.ProtocolNumber, // TODO: Support IPv6
+		AddressWithPrefix: id.LocalAddress.WithPrefix(),
+		Protocol:          ipv4.ProtocolNumber, // TODO(nklaassen): Support IPv6
 	}, stack.AddressProperties{})
 
-	handler, ok := m.tcpHandler(req.ID().LocalAddress)
+	handler, ok := m.tcpHandler(id.LocalAddress, id.LocalPort)
 	if !ok {
-		slog.Debug("No handler for address.", "addr", req.ID().LocalAddress)
+		slog.Debug("No handler for address.", "addr", id.LocalAddress)
 		req.Complete(true) // Send RST
 		return
 	}
@@ -292,21 +411,22 @@ func (m *Manager) handleTCP(req *tcp.ForwarderRequest) {
 func (m *Manager) handleUDP(req *udp.ForwarderRequest) {
 	ctx, cancel := context.WithCancel(m.rootCtx)
 	defer cancel()
-	slog := m.slog.With("request_id", req.ID())
+	id := req.ID()
+	slog := m.slog.With("request_id", id)
 	slog.Debug("Got UDP forward request.")
 	defer slog.Debug("Finished UDP forward request.")
 
-	handler, ok := m.udpHandler(req.ID().LocalAddress)
+	handler, ok := m.udpHandler(id.LocalAddress, id.LocalPort)
 	if !ok {
-		slog.Debug("No handler for address.", "addr", req.ID().LocalAddress)
+		slog.Debug("No handler for address.", "addr", id.LocalAddress)
 		return
 	}
 
 	// Add the address to the NIC so that the VNet routes packets back out
 	// to the host. Seems fine to call multiple times for same IP.
 	m.stack.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
-		AddressWithPrefix: req.ID().LocalAddress.WithPrefix(),
-		Protocol:          ipv4.ProtocolNumber, // TODO: Support IPv6
+		AddressWithPrefix: id.LocalAddress.WithPrefix(),
+		Protocol:          ipv4.ProtocolNumber, // TODO(nklaassen): Support IPv6
 	}, stack.AddressProperties{})
 
 	var wq waiter.Queue
@@ -327,58 +447,15 @@ func (m *Manager) handleUDP(req *udp.ForwarderRequest) {
 	}
 }
 
-func (m *Manager) refreshState(ctx context.Context) error {
-	apps, err := m.tc.ListApps(ctx, nil /*filters*/)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tcpHandlers := make(map[tcpip.Address]tcpHandler, len(apps))
-	var catalog dns.Catalog
-
-	fmt.Println("\nSetting up VNet IPs for all apps:")
-	table := asciitable.MakeTable([]string{"App", "DNS", "IP"})
-	var nextIp uint32 = 100<<24 + 64<<16 + 0<<8 + 2
-	for _, app := range apps {
-		addr := tcpip.AddrFrom4([4]byte{byte(nextIp >> 24), byte(nextIp >> 16), byte(nextIp >> 8), byte(nextIp)})
-		appName := app.GetName()
-		appPublicAddr := app.GetPublicAddr()
-		fqdn := appName + m.dnsSuffix
-		table.AddRow([]string{appName, fqdn, addr.String()})
-		tcpHandlers[addr] = proxyToApp(m.tc, appName, appPublicAddr)
-		catalog.PushAddress(fqdn, addr)
-		nextIp += 1
-	}
-	_, err = io.Copy(os.Stdout, table.AsBuffer())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	m.dnsServer.UpdateCatalog(catalog)
-
-	udpHandlers := map[tcpip.Address]udpHandler{
-		m.dnsAddress: m.dnsServer.HandleUDPConn,
-	}
-	fmt.Println("\nHosting DNS at", m.dnsAddress)
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.state.apps = apps
-	m.state.tcpHandlers = tcpHandlers
-	m.state.udpHandlers = udpHandlers
-	return nil
-}
-
 func createStack() (*stack.Stack, error) {
 	netStack := stack.New(stack.Options{
-		// TODO: IPv6
-		NetworkProtocols: []stack.NetworkProtocolFactory{ipv4.NewProtocol},
-		// TODO: Consider ICMP
+		// TODO(nklaassen): IPv6
+		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
 	})
 
 	// Route everything to the one NIC.
-	// TODO: Support IPv6.
+	// TODO(nklaassen): Support IPv6.
 	ipv4Subnet, err := tcpip.NewSubnet(tcpip.AddrFrom4([4]byte{}), tcpip.MaskFromBytes(make([]byte, 4)))
 	if err != nil {
 		return nil, trace.Wrap(err, "creating VNet IPv4 subnet")

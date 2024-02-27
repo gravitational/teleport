@@ -20,12 +20,9 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"strings"
-	"sync"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 	"golang.org/x/net/dns/dnsmessage"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
@@ -38,25 +35,19 @@ const (
 type Server struct {
 	slog           *slog.Logger
 	messageBuffers chan []byte
-	catalog        Catalog
-	mu             sync.RWMutex
+	resolver       Resolver
 }
 
-func NewServer(slog *slog.Logger) *Server {
+func NewServer(slog *slog.Logger, resolver Resolver) *Server {
 	messageBuffers := make(chan []byte, maxConcurrentQueries)
 	for i := 0; i < maxConcurrentQueries; i++ {
 		messageBuffers <- []byte{}
 	}
 	return &Server{
 		messageBuffers: messageBuffers,
+		resolver:       resolver,
 		slog:           slog.With(trace.Component, "VNet.DNS"),
 	}
-}
-
-func (s *Server) UpdateCatalog(catalog Catalog) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.catalog = catalog
 }
 
 func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) error {
@@ -98,19 +89,13 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 	buf = buf[:0]
 
 	fqdn := question.Name.String()
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	zone := s.catalog.FetchZone(fqdn)
-	if zone == nil {
-		s.slog.Debug("Unknown zone, not responding.", "fqdn", fqdn)
-		return nil
+	result, err := s.resolver.Resolve(ctx, fqdn)
+	if err != nil {
+		return trace.Wrap(err, "resolving DNS request for %s", fqdn)
 	}
 
-	name := strings.TrimSuffix(fqdn, zone.Suffix)
-
-	records, ok := zone.Records[name]
-	if !ok {
-		s.slog.Debug("No match for name, responding with authoritative name error.", "name", name, "zone_names", maps.Keys(zone.Records))
+	if result.NXDomain {
+		s.slog.Debug("No match for name, responding with authoritative name error.", "fqdn", fqdn)
 		buf, err := buildDNSNXDomainResponse(buf, requestHeader, question)
 		if err != nil {
 			return trace.Wrap(err)
@@ -119,19 +104,14 @@ func (s *Server) HandleUDPConn(ctx context.Context, conn io.ReadWriteCloser) err
 		return trace.Wrap(err, "writing DNS NXDOMAIN response")
 	}
 
-	// TODO: Support AAAA
-	aRecord, ok := records[dnsmessage.TypeA].(*dnsmessage.AResource)
-	if !ok || question.Type != dnsmessage.TypeA {
-		s.slog.Debug("Query type not A or no A record found, responding with authoritative non-answer.", "query_type", question.Type)
-		buf, err := buildDNSResponseWithoutAnswer(buf, requestHeader, question)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = conn.Write(buf)
-		return trace.Wrap(err, "writing DNS response")
+	if result.ForwardTo != (tcpip.Address{}) {
+		// TODO: support custom domains with DNS forwarding
+		return trace.NotImplemented("DNS forwarding not implemented")
 	}
 
-	s.slog.Debug("Matched DNS question.", "name", name, "addr", aRecord.A)
+	// TODO: Support AAAA
+	aRecord := &dnsmessage.AResource{result.IP.As4()}
+	s.slog.Debug("Matched DNS question.", "fqdn", fqdn, "addr", aRecord.A)
 	buf, err = buildDNSResponseWithAnswer(buf, requestHeader, question, aRecord)
 	if err != nil {
 		return trace.Wrap(err)
@@ -177,75 +157,6 @@ func debugDNS(buf []byte) {
 		Authorities: authorities,
 		Additionals: additionals,
 	})
-}
-
-type Zone struct {
-	Suffix   string
-	Subzones map[string]*Zone
-	Records  map[string]Records
-	// TODO
-	// Upstream tcpip.Address
-}
-
-type Records map[dnsmessage.Type]dnsmessage.ResourceBody
-
-type Catalog struct {
-	Root Zone
-}
-
-func (c *Catalog) FetchZone(name string) *Zone {
-	labels := strings.Split(strings.TrimSuffix(name, "."), ".")
-	if len(labels) < 1 {
-		return nil
-	}
-	z := &c.Root
-	for len(labels) > 1 && z != nil {
-		l := labels[len(labels)-1]
-		labels = labels[:len(labels)-1]
-		z = z.Subzones[l]
-	}
-	return z
-}
-
-func (c *Catalog) PushRecords(name string, records Records) {
-	labels := strings.Split(strings.TrimSuffix(name, "."), ".")
-	if len(labels) < 1 {
-		return
-	}
-	z := &c.Root
-	suffix := "."
-	for len(labels) > 1 {
-		l := labels[len(labels)-1]
-		suffix = "." + l + suffix
-		sub := z.Subzones[l]
-		if sub == nil {
-			sub = &Zone{
-				Suffix: suffix,
-			}
-			mapset(&z.Subzones, l, sub)
-		}
-		z = sub
-		labels = labels[:len(labels)-1]
-	}
-	mapset(&z.Records, labels[0], records)
-}
-
-func (c *Catalog) PushAddress(name string, addr tcpip.Address) {
-	records := make(Records, 1)
-	switch addr.Len() {
-	case 4:
-		records[dnsmessage.TypeA] = &dnsmessage.AResource{addr.As4()}
-	case 16:
-		records[dnsmessage.TypeAAAA] = &dnsmessage.AAAAResource{addr.As16()}
-	}
-	c.PushRecords(name, records)
-}
-
-func mapset[K comparable, V any](m *map[K]V, k K, v V) {
-	if *m == nil {
-		*m = make(map[K]V)
-	}
-	(*m)[k] = v
 }
 
 func buildDNSResponseWithoutAnswer(buf []byte, requestHeader dnsmessage.Header, question dnsmessage.Question) ([]byte, error) {
