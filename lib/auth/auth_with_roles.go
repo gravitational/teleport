@@ -4567,6 +4567,10 @@ func (a *ServerWithRoles) UpsertTrustedCluster(ctx context.Context, tc types.Tru
 		return nil, trace.Wrap(err)
 	}
 
+	if err := a.context.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.UpsertTrustedCluster(ctx, tc)
 }
 
@@ -4583,6 +4587,10 @@ func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRe
 // DeleteTrustedCluster deletes a trusted cluster by name.
 func (a *ServerWithRoles) DeleteTrustedCluster(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
