@@ -15,6 +15,7 @@
 package migration
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"time"
@@ -93,7 +94,7 @@ func Apply(ctx context.Context, b backend.Backend, opts ...func(c *applyConfig))
 	}()
 
 	slices.SortFunc(cfg.migrations, func(a, b migration) int {
-		return int(a.Version() - b.Version())
+		return cmp.Compare(a.Version(), b.Version())
 	})
 
 	current, err := getCurrentMigration(ctx, b)
