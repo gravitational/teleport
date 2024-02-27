@@ -118,7 +118,7 @@ func (c *accessGraphServiceClient) EventsStream(ctx context.Context, opts ...grp
 
 type AccessGraphService_EventsStreamClient interface {
 	Send(*EventsStreamRequest) error
-	CloseAndRecv() (*EventsStreamResponse, error)
+	Recv() (*EventsStreamResponse, error)
 	grpc.ClientStream
 }
 
@@ -130,10 +130,7 @@ func (x *accessGraphServiceEventsStreamClient) Send(m *EventsStreamRequest) erro
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *accessGraphServiceEventsStreamClient) CloseAndRecv() (*EventsStreamResponse, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
+func (x *accessGraphServiceEventsStreamClient) Recv() (*EventsStreamResponse, error) {
 	m := new(EventsStreamResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -307,7 +304,7 @@ func _AccessGraphService_EventsStream_Handler(srv interface{}, stream grpc.Serve
 }
 
 type AccessGraphService_EventsStreamServer interface {
-	SendAndClose(*EventsStreamResponse) error
+	Send(*EventsStreamResponse) error
 	Recv() (*EventsStreamRequest, error)
 	grpc.ServerStream
 }
@@ -316,7 +313,7 @@ type accessGraphServiceEventsStreamServer struct {
 	grpc.ServerStream
 }
 
-func (x *accessGraphServiceEventsStreamServer) SendAndClose(m *EventsStreamResponse) error {
+func (x *accessGraphServiceEventsStreamServer) Send(m *EventsStreamResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -418,6 +415,7 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "EventsStream",
 			Handler:       _AccessGraphService_EventsStream_Handler,
+			ServerStreams: true,
 			ClientStreams: true,
 		},
 		{

@@ -50,7 +50,7 @@ service AccessGraphService {
   // This stream is used to sync the access graph with the Teleport database state.
   // Once Teleport finishes syncing the current state, it sends a sync command
   // to the access graph service and resumes sending events.
-  rpc EventsStream(stream EventsStreamRequest) returns (EventsStreamResponse);
+  rpc EventsStream(stream EventsStreamRequest) returns (stream EventsStreamResponse);
 
   // Register submits a new tenant representing this Teleport cluster to the TAG service,
   // identified by its HostCA certificate.
@@ -123,7 +123,28 @@ message EventsStreamRequest {
     // from the access list but they don't receive any access - in that case,
     // the request is [access_lists_members].
     ExcludeAccessListsMembers exclude_access_list_members = 5;
+    CrownJewel add_crown_jewel = 6;
+    CrownJewel delete_crown_jewel = 7;
   }
+}
+
+// CrownJewel ..
+message CrownJewel {
+  string name = 1;
+  string description = 2;
+  // user, kube, db
+  CrownJewelType type = 3;
+}
+
+// CrownJewelType ..
+enum CrownJewelType {
+  CROWN_JEWEL_TYPE_UNSPECIFIED = 0;
+  CROWN_JEWEL_TYPE_USER = 1;
+  CROWN_JEWEL_TYPE_KUBE = 2;
+  CROWN_JEWEL_TYPE_DB = 3;
+  CROWN_JEWEL_TYPE_NODE = 4;
+  CROWN_JEWEL_TYPE_WINDOWS = 5;
+  CROWN_JEWEL_TYPE_APP = 6;
 }
 
 // SyncOperation is a command that Teleport sends to the access graph service
@@ -131,7 +152,17 @@ message EventsStreamRequest {
 message SyncOperation {}
 
 // EventsStreamResponse is the response from EventsStream.
-message EventsStreamResponse {}
+message EventsStreamResponse {
+  oneof operation {
+    CrownJewelResponse crown_monitoring = 1;
+  }
+}
+
+// CrownJewelResponse is a...
+message CrownJewelResponse {
+  QueryResponse old = 1;
+  QueryResponse new = 2;
+}
 
 // RegisterRequest is the request for Register.
 message RegisterRequest {
