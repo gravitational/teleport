@@ -100,7 +100,7 @@ type gcpInstaller interface {
 	Run(ctx context.Context, req server.GCPRunRequest) error
 }
 
-
+// EKSEnrollmentClientGetter returns client for enrolling EKS clusters.
 type EKSEnrollmentClientGetter func(ctx context.Context, integration, region string) (awsoidc.EnrollEKSCLusterClient, awsV2.CredentialsProvider, error)
 
 // Config provides configuration for the discovery server.

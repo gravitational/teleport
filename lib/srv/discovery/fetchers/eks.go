@@ -94,6 +94,8 @@ func (c *EKSFetcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// MakeEKSFetchersFromAWSMatchers creates fetchers from the provided matchers. Returned fetchers are separated
+// by their reliance on the integration.
 func MakeEKSFetchersFromAWSMatchers(log logrus.FieldLogger, clients cloud.AWSClients, matchers []types.AWSMatcher) (kubeFetchers, kubeIntegrationFetchers []common.Fetcher, _ error) {
 	for _, matcher := range matchers {
 		matcherAssumeRole := types.AssumeRole{}
