@@ -224,7 +224,9 @@ func (r *SSHServerWrapper) handoverCleanup(ctx context.Context, cleanupDelay tim
 	errs := []error{firstErr, secondErr}
 	for _, path := range paths {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			errs = append(errs, trace.ConvertSystemError(err))
+			if len(errs) < 10 {
+				errs = append(errs, trace.ConvertSystemError(err))
+			}
 		}
 	}
 
@@ -234,10 +236,10 @@ func (r *SSHServerWrapper) handoverCleanup(ctx context.Context, cleanupDelay tim
 // retainNonConnectableSockets attempts to connect to the given UNIX domain
 // sockets, returning all and only the ones that exist and that refuse the
 // connection.
-func retainNonConnectableSockets(ctx context.Context, paths []string) (filtered []string, lastErr error) {
-	filtered = paths[:0]
-
+func retainNonConnectableSockets(ctx context.Context, paths []string) ([]string, error) {
 	var d net.Dialer
+	var errs []error
+	filtered := paths[:0]
 	for _, path := range paths {
 		c, err := d.DialContext(ctx, "unix", path)
 		if err == nil {
@@ -254,8 +256,10 @@ func retainNonConnectableSockets(ctx context.Context, paths []string) (filtered 
 			continue
 		}
 
-		lastErr = err
+		if len(errs) < 10 {
+			errs = append(errs, trace.ConvertSystemError(err))
+		}
 	}
 
-	return filtered, trace.ConvertSystemError(lastErr)
+	return filtered, trace.NewAggregate(errs...)
 }
