@@ -59,16 +59,24 @@ func serverVersionCRLFV1(pubKey *ecdh.PublicKey, hostID string) string {
 }
 
 type SSHServerWrapperConfig struct {
-	Log       logrus.FieldLogger
-	SSHServer func(net.Conn)
-	HostID    string
+	Log logrus.FieldLogger
 
+	// SSHServer is a function that takes ownership of a [net.Conn] and uses it
+	// as a SSH server. If the Conn is a [sshutils.SSHServerVersionOverrider],
+	// the server should use the overridden server version.
+	SSHServer func(net.Conn)
+
+	// HostID is the host ID of the Teleport instance running the server;
+	// compliant connection resumption clients will reconnect to the host ID
+	// expecting to reach the instance.
+	HostID string
+
+	// DataDir is the path to the Teleport data directory. Depending on the
+	// platform, it might be used to store temporary hand-over sockets.
 	DataDir string
 }
 
-// NewSSHServerWrapper wraps a given SSH server to support connection
-// resumption, providing a connection handler method and a
-// [multiplexer.PreDetectFunc] method.
+// NewSSHServerWrapper creates a [SSHServerWrapper].
 func NewSSHServerWrapper(cfg SSHServerWrapperConfig) *SSHServerWrapper {
 	if cfg.Log == nil {
 		cfg.Log = logrus.WithField(trace.Component, Component)
