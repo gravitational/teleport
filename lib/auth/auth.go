@@ -3097,7 +3097,7 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		}
 		username = token.GetUser()
 
-	case req.ExistingMFAResponse != nil: // Authenticated user without token, tsh.
+	default: // Authenticated user without token, tsh.
 		var err error
 		username, err = authz.GetClientUsername(ctx)
 		if err != nil {
@@ -3120,9 +3120,6 @@ func (a *Server) CreateRegisterChallenge(ctx context.Context, req *proto.CreateR
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-	default:
-		return nil, trace.BadParameter("either a token or an MFA response are required")
 	}
 
 	regChal, err := a.createRegisterChallenge(ctx, &newRegisterChallengeRequest{
