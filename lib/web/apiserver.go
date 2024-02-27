@@ -2738,26 +2738,26 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				Logger:            h.log,
 			})
 			unifiedResources = append(unifiedResources, app)
-		case types.AppServerOrSAMLIdPServiceProvider:
-			if r.IsAppServer() {
-				app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
-					LocalClusterName:  h.auth.clusterName,
-					LocalProxyDNSName: h.proxyDNSName(),
-					AppClusterName:    site.GetName(),
-					Identity:          identity,
-					UserGroupLookup:   getUserGroupLookup(),
-					Logger:            h.log,
-				})
-				unifiedResources = append(unifiedResources, app)
-			} else {
-				app := ui.MakeSAMLApp(r.GetSAMLIdPServiceProvider(), ui.MakeAppsConfig{
-					LocalClusterName:  h.auth.clusterName,
-					LocalProxyDNSName: h.proxyDNSName(),
-					AppClusterName:    site.GetName(),
-					Identity:          identity,
-				})
-				unifiedResources = append(unifiedResources, app)
-			}
+		// case types.AppServerOrSAMLIdPServiceProvider:
+		// 	if r.IsAppServer() {
+		// 		app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
+		// 			LocalClusterName:  h.auth.clusterName,
+		// 			LocalProxyDNSName: h.proxyDNSName(),
+		// 			AppClusterName:    site.GetName(),
+		// 			Identity:          identity,
+		// 			UserGroupLookup:   getUserGroupLookup(),
+		// 			Logger:            h.log,
+		// 		})
+		// 		unifiedResources = append(unifiedResources, app)
+		// 	} else {
+		// 		app := ui.MakeSAMLApp(r.GetSAMLIdPServiceProvider(), ui.MakeAppsConfig{
+		// 			LocalClusterName:  h.auth.clusterName,
+		// 			LocalProxyDNSName: h.proxyDNSName(),
+		// 			AppClusterName:    site.GetName(),
+		// 			Identity:          identity,
+		// 		})
+		// 		unifiedResources = append(unifiedResources, app)
+		// 	}
 		case types.WindowsDesktop:
 			desktop, err := ui.MakeDesktop(r, accessChecker)
 			if err != nil {

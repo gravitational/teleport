@@ -507,7 +507,9 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	}
 	resourceKind := resource.GetKind()
 	switch resourceKind {
-	case KindApp, KindSAMLIdPServiceProvider:
+	// case KindApp, KindSAMLIdPServiceProvider:
+	// 	return slices.Contains(kinds, KindApp)
+	case KindApp:
 		return slices.Contains(kinds, KindApp)
 	default:
 		return slices.Contains(kinds, resourceKind)

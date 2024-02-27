@@ -1807,7 +1807,9 @@ message PaginatedResource {
     // UserGroup represents a UserGroup resource.
     types.UserGroupV1 UserGroup = 10 [(gogoproto.jsontag) = "user_group,omitempty"];
     // AppServerOrSAMLIdPServiceProvider represents either an AppServer or a SAML IdP Service Provider resource.
-    types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11;
+    // 
+    // DEPRECATED: Use AppServer and SAMLIdPServiceProvider type individually.
+    types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11 [deprecated = true];
   }
 
   reserved 4;

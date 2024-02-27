@@ -94,21 +94,21 @@ func TestUnifiedResourcesList(t *testing.T) {
 		{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}},
 		{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: kube}},
 		{Resource: &proto.PaginatedResource_AppServer{AppServer: app}},
-		// just an app server like above, but wrapped in AppServerOrSAMLIdPServiceProvider
-		{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-			AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-				Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
-					AppServer: app,
-				},
-			}},
-		},
-		{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-			AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-				Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-					SAMLIdPServiceProvider: idpProvider.(*types.SAMLIdPServiceProviderV1),
-				},
-			}},
-		},
+		// // just an app server like above, but wrapped in AppServerOrSAMLIdPServiceProvider
+		// {Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+		// 	AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+		// 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+		// 			AppServer: app,
+		// 		},
+		// 	}},
+		// },
+		// {Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+		// 	AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+		// 		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+		// 			SAMLIdPServiceProvider: idpProvider.(*types.SAMLIdPServiceProviderV1),
+		// 		},
+		// 	}},
+		// },
 	}
 	mockedNextKey := "nextKey"
 
