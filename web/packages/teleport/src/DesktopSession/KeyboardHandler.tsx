@@ -37,7 +37,7 @@ export class KeyboardHandler {
    * - On focusout, so keys are synced when the user returns to the window.
    */
   private syncBeforeNextKey: boolean = true;
-  private isMac: boolean = getPlatform() === Platform.macOS;
+  private static isMac: boolean = getPlatform() === Platform.macOS;
 
   constructor() {
     // Bind finishHandlingKeyboardEvent to this instance so it can be passed
@@ -98,7 +98,7 @@ export class KeyboardHandler {
   private finishHandlingKeyboardEvent(params: KeyboardEventParams): void {
     const { cli, e, state } = params;
     // Special handling for CapsLock on Mac.
-    if (e.code === 'CapsLock' && this.isMac) {
+    if (e.code === 'CapsLock' && KeyboardHandler.isMac) {
       // On Mac, every UP or DOWN given to us by the browser corresponds
       // to a DOWN + UP on the remote machine for CapsLock.
       cli.sendKeyboardInput('CapsLock', ButtonState.DOWN);

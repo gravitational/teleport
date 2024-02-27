@@ -39,7 +39,7 @@ export class Withholder {
    */
   private keysToWithhold: string[] = ['Meta', 'Alt'];
   /**
-   * The internal map of keystrokes that are currently
+   * The internal array of keystrokes that are currently
    * being withheld.
    */
   private withheldKeys: Array<WithheldKeyboardEventHandler> = [];
@@ -81,7 +81,7 @@ export class Withholder {
         // A user would have to be doing something extremely unusual
         // for this to become a noticeable problem.
         this.flush();
-      }, 10); // 10 ms was determined empirically to work well.
+      }, UP_DELAY_MS);
     }
 
     this.withheldKeys.push({
@@ -93,26 +93,17 @@ export class Withholder {
 
   // Cancel all withheld keys.
   public cancel() {
-    while (this.withheldKeys.length > 0) {
-      const withheld = this.withheldKeys.shift();
-      if (withheld && withheld.timeout) {
-        clearTimeout(withheld.timeout);
-      }
-    }
+    this.withheldKeys.forEach(w => clearTimeout(w.timeout));
+    this.withheldKeys = [];
   }
 
   // Flush all withheld keys.
   private flush() {
-    while (this.withheldKeys.length > 0) {
-      const withheld = this.withheldKeys.shift();
-      if (withheld) {
-        const { handler, params, timeout } = withheld;
-        if (timeout) {
-          clearTimeout(timeout);
-        }
-        handler(params);
-      }
-    }
+    this.withheldKeys.forEach(w => {
+      clearTimeout(w.timeout);
+      w.handler(w.params);
+    });
+    this.withheldKeys = [];
   }
 }
 
@@ -121,3 +112,6 @@ type WithheldKeyboardEventHandler = {
   params: KeyboardEventParams;
   timeout?: NodeJS.Timeout;
 };
+
+// 10 ms was determined empirically to work well.
+const UP_DELAY_MS = 10;
