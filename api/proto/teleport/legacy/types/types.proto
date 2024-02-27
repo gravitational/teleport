@@ -6013,7 +6013,134 @@ enum PluginStatusCode {
 }
 
 // PluginStatusDetails are finer grained plugin status information.
-message PluginStatusDetails {}
+message PluginStatusDetails {
+  oneof details {
+    // OktaStatusDetails are details for the hosted Okta integration.
+    PluginOktaStatusDetails okta_status_details = 1;
+  }
+}
+
+// PluginOktaStatusDetails contains the details for the running Okta plugin.
+message PluginOktaStatusDetails {
+  // OrgURL is the organization URL associated with this integration.
+  string org_url = 1;
+
+  // SSODetails are status details relating to SSO.
+  PluginOktaStatusDetailsSSO sso_details = 2;
+
+  // AppGroupSyncDetails are status details relating to synchronizing apps and
+  // groups from Okta.
+  PluginOktaStatusDetailsAppGroupSync app_group_sync_details = 3;
+
+  // UsersSyncDetails are status details relating to synchronizing users from
+  // Okta.
+  PluginOktaStatusDetailsUsersSync users_sync_details = 4;
+
+  // ScimDetails are status details relating to SCIM integration with
+  // Okta.
+  PluginOktaStatusDetailsSCIM scim_details = 5;
+
+  // AccessListSyncDetails are status details relating to synchronizing access
+  // lists from Okta.
+  PluginOktaStatusDetailsAccessListsSync access_lists_sync_details = 6;
+}
+
+// PluginOktaStatusDetailsSSO are details related to the
+// current status of the Okta integration w/r/t SSO.
+message PluginOktaStatusDetailsSSO {
+  bool enabled = 1;
+  string app_id = 2;
+  string app_name = 3;
+}
+
+// PluginOktaStatusDetailsAppGroupSync are details related to the
+// current status of the Okta integration w/r/t application and group
+// sync.
+message PluginOktaStatusDetailsAppGroupSync {
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // NumAppsSynced is the total number of apps synchronized.
+  int32 num_apps_synced = 3;
+
+  // NumAppsSynced is the total number of groups synchronized.
+  int32 num_groups_synced = 4;
+}
+
+// PluginOktaStatusDetailsUsersSync are details related to the
+// current status of the Okta integration w/r/t users sync.
+message PluginOktaStatusDetailsUsersSync {
+  // Enabled is whether the users sync is enabled.
+  bool enabled = 1;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // NumUsersSynced is the total number of users synchronized.
+  int32 num_users_synced = 4;
+}
+
+// PluginOktaStatusDetailsSCIM are details related to the
+// current status of the Okta integration w/r/t SCIM.
+message PluginOktaStatusDetailsSCIM {
+  // Enabled is whether SCIM is enabled.
+  bool enabled = 1;
+}
+
+// PluginOktaStatusDetailsAccessListsSync are details related to the
+// current status of the Okta integration w/r/t access list sync.
+message PluginOktaStatusDetailsAccessListsSync {
+  // Enabled is whether access lists sync is enabled.
+  bool enabled = 1;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // AppFilters are the app filters used for the access list sync.
+  repeated string app_filters = 4;
+
+  // NumAppsSynced are the number of applications synchronized as access lists.
+  int32 num_apps_synced = 5;
+
+  // GroupFilters are the group filters used for the access list sync.
+  repeated string group_filters = 6;
+
+  // NumGroupsSynced are the number of groups synchronized as access lists.
+  int32 num_groups_synced = 7;
+}
 
 // PluginCredentialsV1 represents "live" credentials
 // that are used by the plugin to authenticate to the 3rd party API.
