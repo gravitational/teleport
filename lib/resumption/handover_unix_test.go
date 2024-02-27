@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
@@ -156,7 +157,7 @@ func TestHandoverCleanup(t *testing.T) {
 	})
 
 	handoverDir := filepath.Join(dataDir, "handover")
-	require.NoError(os.MkdirAll(handoverDir, 0o700))
+	require.NoError(os.MkdirAll(handoverDir, teleport.PrivateDirMode))
 
 	d, err := os.ReadDir(handoverDir)
 	require.NoError(err)

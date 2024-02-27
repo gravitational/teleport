@@ -31,6 +31,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 const sockSuffix = ".sock"
@@ -56,7 +58,7 @@ func (r *SSHServerWrapper) listenHandover(token resumptionToken) (net.Listener, 
 		return nil, trace.Wrap(errNoDataDir)
 	}
 
-	_ = os.MkdirAll(sockDir(r.dataDir), 0o700)
+	_ = os.MkdirAll(sockDir(r.dataDir), teleport.PrivateDirMode)
 	l, err := net.Listen("unix", sockPath(r.dataDir, token))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
