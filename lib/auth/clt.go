@@ -431,7 +431,7 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context, opts ...services.Mar
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (c *Client) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (c *Client) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	return c.APIClient.GetClusterNetworkingConfig(ctx)
 }
 

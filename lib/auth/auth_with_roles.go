@@ -4402,13 +4402,13 @@ func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context, opts ...ser
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetClusterNetworkingConfig(ctx, opts...)
+	return a.authServer.GetClusterNetworkingConfig(ctx)
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.

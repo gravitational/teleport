@@ -496,6 +496,429 @@ func TestResetAuthPreference(t *testing.T) {
 	}
 }
 
+func TestCreateClusterNetworkingConfig(t *testing.T) {
+	authRoleContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
+		Role:     types.RoleAuth,
+		Username: string(types.RoleAuth),
+	}, nil)
+	require.NoError(t, err, "creating auth role context")
+
+	cases := []struct {
+		name       string
+		modules    modules.Modules
+		authorizer authz.Authorizer
+		config     func(p types.ClusterNetworkingConfig)
+		assertion  func(t *testing.T, created types.ClusterNetworkingConfig, err error)
+	}{
+		{
+			name: "unauthorized built in role",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return authz.ContextForBuiltinRole(authz.BuiltinRole{
+					Role:     types.RoleProxy,
+					Username: string(types.RoleProxy),
+				}, nil)
+			}),
+			assertion: func(t *testing.T, created types.ClusterNetworkingConfig, err error) {
+				assert.Nil(t, created)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected proxy role to be prevented from creating networking config", err)
+			},
+		},
+		{
+			name: "authorized built in auth",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return authRoleContext, nil
+			}),
+			assertion: func(t *testing.T, created types.ClusterNetworkingConfig, err error) {
+				require.NoError(t, err, "got (%v), expected auth role to create networking config", err)
+				require.NotNil(t, created)
+			},
+		},
+		{
+			name: "creation prevented when proxy peering is set in open source",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return authRoleContext, nil
+			}),
+			config: func(p types.ClusterNetworkingConfig) {
+				p.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				})
+			},
+			assertion: func(t *testing.T, created types.ClusterNetworkingConfig, err error) {
+				assert.Nil(t, created)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected proxy peering to be rejected in OSS", err)
+			},
+		},
+		{
+			name: "creation allowed when proxy peering is set in enterprise",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return authRoleContext, nil
+			}),
+			modules: &modules.TestModules{TestBuildType: modules.BuildEnterprise},
+			config: func(p types.ClusterNetworkingConfig) {
+				p.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				})
+			},
+			assertion: func(t *testing.T, created types.ClusterNetworkingConfig, err error) {
+				require.NoError(t, err, "got (%v), expected auth role to create networking config", err)
+				require.NotNil(t, created)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.modules != nil {
+				modules.SetTestModules(t, test.modules)
+			}
+
+			var opts []serviceOpt
+			if test.authorizer != nil {
+				opts = append(opts, withAuthorizer(test.authorizer))
+			}
+
+			env, err := newTestEnv(opts...)
+			require.NoError(t, err, "creating test service")
+
+			cfg := types.DefaultClusterNetworkingConfig()
+			if test.config != nil {
+				test.config(cfg)
+			}
+
+			created, err := env.CreateClusterNetworkingConfig(context.Background(), cfg)
+			test.assertion(t, created, err)
+		})
+	}
+}
+
+func TestGetClusterNetworkingConfig(t *testing.T) {
+	cases := []struct {
+		name       string
+		authorizer authz.Authorizer
+		assertion  func(t *testing.T, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), unauthorized user to be prevented from getting auth preferences", err)
+			},
+		}, {
+			name: "authorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbRead}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(types.DefaultClusterNetworkingConfig()))
+			require.NoError(t, err, "creating test service")
+
+			got, err := env.GetClusterNetworkingConfig(context.Background(), &clusterconfigpb.GetClusterNetworkingConfigRequest{})
+			test.assertion(t, err)
+			if err == nil {
+				require.Empty(t, cmp.Diff(types.DefaultClusterNetworkingConfig(), got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			}
+		})
+	}
+}
+
+func TestUpdateClusterNetworkingConfig(t *testing.T) {
+	cases := []struct {
+		name       string
+		config     func(p types.ClusterNetworkingConfig)
+		authorizer authz.Authorizer
+		assertion  func(t *testing.T, updated types.ClusterNetworkingConfig, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent updating networking config", err)
+			},
+		},
+		{
+			name: "no admin action",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent updating networking config", err)
+			},
+		},
+		{
+			name: "oss proxy peering",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			config: func(p types.ClusterNetworkingConfig) {
+				p.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				})
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected enterprise only features to prevent updating networking config", err)
+			},
+		},
+		{
+			name: "updated",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			config: func(p types.ClusterNetworkingConfig) {
+				p.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.NoError(t, err)
+				require.Equal(t, types.RoutingStrategy_MOST_RECENT, updated.GetRoutingStrategy())
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(types.DefaultClusterNetworkingConfig()))
+			require.NoError(t, err, "creating test service")
+
+			// Set revisions to allow the update to succeed.
+			cfg := env.defaultNetworkingConfig
+			if test.config != nil {
+				test.config(cfg)
+			}
+
+			updated, err := env.UpdateClusterNetworkingConfig(context.Background(), &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)})
+			test.assertion(t, updated, err)
+		})
+	}
+}
+
+func TestUpsertClusterNetworkingConfig(t *testing.T) {
+	cases := []struct {
+		name       string
+		config     func(p types.ClusterNetworkingConfig)
+		authorizer authz.Authorizer
+		assertion  func(t *testing.T, updated types.ClusterNetworkingConfig, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent upserting network config", err)
+			},
+		},
+		{
+			name: "access prevented",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthUnauthorized,
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent upserting network config", err)
+			},
+		},
+		{
+			name: "no admin action",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbCreate, types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthUnauthorized,
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent upserting network config", err)
+			},
+		},
+		{
+			name: "oss proxy peering",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbCreate, types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			config: func(p types.ClusterNetworkingConfig) {
+				p.SetTunnelStrategy(&types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				})
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected enterprise only features to prevent upserting network config", err)
+			},
+		},
+		{
+			name: "upserted",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate, types.VerbCreate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			config: func(p types.ClusterNetworkingConfig) {
+				p.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
+			},
+			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
+				require.NoError(t, err)
+				require.Equal(t, types.RoutingStrategy_MOST_RECENT, updated.GetRoutingStrategy())
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(types.DefaultClusterNetworkingConfig()))
+			require.NoError(t, err, "creating test service")
+
+			// Set revisions to allow the update to succeed.
+			cfg := env.defaultNetworkingConfig
+			if test.config != nil {
+				test.config(cfg)
+			}
+
+			updated, err := env.UpsertClusterNetworkingConfig(context.Background(), &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)})
+			test.assertion(t, updated, err)
+		})
+	}
+}
+
+func TestResetClusterNetworkingConfig(t *testing.T) {
+	cases := []struct {
+		name       string
+		authorizer authz.Authorizer
+		modules    modules.Modules
+		config     types.ClusterNetworkingConfig
+		assertion  func(t *testing.T, reset types.ClusterNetworkingConfig, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, reset types.ClusterNetworkingConfig, err error) {
+				assert.Nil(t, reset)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent resetting network config", err)
+			},
+		},
+		{
+			name: "no admin action",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, reset types.ClusterNetworkingConfig, err error) {
+				assert.Nil(t, reset)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent resetting network config", err)
+			},
+		},
+		{
+			name: "config file origin prevents reset",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			config: func() types.ClusterNetworkingConfig {
+				cfg := types.DefaultClusterNetworkingConfig()
+				cfg.SetOrigin(types.OriginConfigFile)
+				return cfg
+			}(),
+			assertion: func(t *testing.T, reset types.ClusterNetworkingConfig, err error) {
+				assert.Nil(t, reset)
+				require.True(t, trace.IsBadParameter(err), "got (%v), expected config file origin to prevent resetting network config", err)
+			},
+		},
+		{
+			name: "reset",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterNetworkingConfig: {types.VerbUpdate, types.VerbCreate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			assertion: func(t *testing.T, reset types.ClusterNetworkingConfig, err error) {
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(types.DefaultClusterNetworkingConfig(), reset, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := types.DefaultClusterNetworkingConfig()
+			if test.config != nil {
+				cfg = test.config
+			}
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultClusterNetworkingConfig(cfg))
+			require.NoError(t, err, "creating test service")
+
+			reset, err := env.ResetClusterNetworkingConfig(context.Background(), &clusterconfigpb.ResetClusterNetworkingConfigRequest{})
+			test.assertion(t, reset, err)
+		})
+	}
+}
+
 type fakeChecker struct {
 	services.AccessChecker
 	rules map[string][]string
@@ -515,8 +938,9 @@ func (f fakeChecker) CheckAccessToRule(context services.RuleContext, namespace s
 }
 
 type envConfig struct {
-	authorizer            authz.Authorizer
-	defaultAuthPreference types.AuthPreference
+	authorizer              authz.Authorizer
+	defaultAuthPreference   types.AuthPreference
+	defaultNetworkingConfig types.ClusterNetworkingConfig
 }
 type serviceOpt = func(config *envConfig)
 
@@ -532,10 +956,17 @@ func withDefaultAuthPreference(p types.AuthPreference) serviceOpt {
 	}
 }
 
+func withDefaultClusterNetworkingConfig(c types.ClusterNetworkingConfig) serviceOpt {
+	return func(config *envConfig) {
+		config.defaultNetworkingConfig = c
+	}
+}
+
 type env struct {
 	*clusterconfigv1.Service
-	backend           clusterconfigv1.Backend
-	defaultPreference types.AuthPreference
+	backend                 clusterconfigv1.Backend
+	defaultPreference       types.AuthPreference
+	defaultNetworkingConfig types.ClusterNetworkingConfig
 }
 
 func newTestEnv(opts ...serviceOpt) (*env, error) {
@@ -564,17 +995,27 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		return nil, trace.Wrap(err, "creating users service")
 	}
 
+	ctx := context.Background()
 	var defaultPreference types.AuthPreference
 	if cfg.defaultAuthPreference != nil {
-		defaultPreference, err = service.CreateAuthPreference(context.Background(), cfg.defaultAuthPreference)
+		defaultPreference, err = service.CreateAuthPreference(ctx, cfg.defaultAuthPreference)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating default auth preference")
 		}
 	}
 
+	var defaultNetworkingConfig types.ClusterNetworkingConfig
+	if cfg.defaultNetworkingConfig != nil {
+		defaultNetworkingConfig, err = service.CreateClusterNetworkingConfig(ctx, cfg.defaultNetworkingConfig)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating default networking config")
+		}
+	}
+
 	return &env{
-		Service:           svc,
-		backend:           service,
-		defaultPreference: defaultPreference,
+		Service:                 svc,
+		backend:                 service,
+		defaultPreference:       defaultPreference,
+		defaultNetworkingConfig: defaultNetworkingConfig,
 	}, nil
 }

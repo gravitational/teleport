@@ -1774,7 +1774,7 @@ func (clusterNetworkingConfigExecutor) getReader(cache *Cache, cacheOK bool) clu
 }
 
 type clusterNetworkingConfigGetter interface {
-	GetClusterNetworkingConfig(context.Context, ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(context.Context) (types.ClusterNetworkingConfig, error)
 }
 
 var _ executor[types.ClusterNetworkingConfig, clusterNetworkingConfigGetter] = clusterNetworkingConfigExecutor{}
