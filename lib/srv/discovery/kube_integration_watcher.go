@@ -231,7 +231,9 @@ func (s *Server) getEKSEnrollmentClient(ctx context.Context, integration, region
 		return nil, nil, trace.Wrap(err)
 	}
 
-	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.AccessPoint.CreateToken)
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, func(ctx context.Context, token types.ProvisionToken) error {
+		return trace.NotImplemented("not implemented.")
+	})
 	if err != nil {
 		s.Log.WithError(err).Warn("Could not get EKS enrollment client")
 		return nil, nil, trace.Wrap(err)
