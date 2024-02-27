@@ -71,8 +71,8 @@ type SSHServerWrapperConfig struct {
 	// expecting to reach the instance.
 	HostID string
 
-	// DataDir is the path to the Teleport data directory. Depending on the
-	// platform, it might be used to store temporary hand-over sockets.
+	// DataDir is the path to the Teleport data directory, used to store
+	// temporary handover sockets.
 	DataDir string
 }
 
