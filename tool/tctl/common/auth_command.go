@@ -471,6 +471,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 		Key:         key.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
+		Principals:  principals,
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
 		Ttl:         durationpb.New(0),

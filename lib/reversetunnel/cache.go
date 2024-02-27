@@ -145,6 +145,7 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 		Key:         pubBytes,
 		HostId:      principals[0],
 		NodeName:    principals[0],
+		Principals:  principals,
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
 		Ttl:         durationpb.New(0),
