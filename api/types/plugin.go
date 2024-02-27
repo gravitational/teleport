@@ -85,6 +85,7 @@ type PluginCredentials interface {
 // PluginStatus is the plugin status
 type PluginStatus interface {
 	GetCode() PluginStatusCode
+	GetDetails() *PluginStatusDetails
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -575,4 +576,9 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 // GetCode returns the status code
 func (c PluginStatusV1) GetCode() PluginStatusCode {
 	return c.Code
+}
+
+// GetDetails returns the plugin status details.
+func (c PluginStatusV1) GetDetails() *PluginStatusDetails {
+	return c.Details
 }
