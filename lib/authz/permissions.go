@@ -459,6 +459,21 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 
 	// Check if this cluster enforces MFA for admin actions.
 	if !authpref.IsAdminActionMFAEnforced() {
+		// If admin action MFA is not strictly enforced but webauthn is enabled, check if the
+		// user has a registered webauthn device so we can opportunistically enforce it.
+		if authpref.IsSecondFactorWebauthnAllowed() {
+			mfaDevices, err := a.mfaAuthenticator.GetMFADevices(ctx, nil)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+
+			for _, d := range mfaDevices.Devices {
+				if d.GetWebauthn() != nil {
+					return true, nil
+				}
+			}
+		}
+
 		return false, nil
 	}
 
@@ -511,6 +526,10 @@ func (a *authorizer) authorizeAdminAction(ctx context.Context, authContext *Cont
 
 	if a.mfaAuthenticator == nil {
 		return trace.Errorf("failed to validate MFA auth response, authorizer missing mfaAuthenticator field")
+	}
+
+	if mfaResp.GetWebauthn() == nil {
+		return trace.AccessDenied("admin actions require webauthn device verification to complete")
 	}
 
 	requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION}
