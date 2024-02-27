@@ -21,6 +21,7 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"slices"
 	"strings"
 	"testing"
@@ -123,6 +124,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 		Region:             "us-east-1",
 		AgentVersion:       "1.2.3",
 		EnableAppDiscovery: true,
+		JoinMethod:         types.JoinMethodToken,
 	}
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
@@ -265,6 +267,33 @@ func TestEnrollEKSClusters(t *testing.T) {
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
 				require.Len(t, response.Results, 1)
 				require.NoError(t, response.Results[0].Error)
+			},
+		},
+		{
+			name: "one cluster, join method iam, we don't create token",
+			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
+				clt := baseClient(t, clusters)
+				mockClt, ok := clt.(*mockEnrollEKSClusterClient)
+				require.True(t, ok)
+				mockClt.createToken = func(ctx context.Context, token types.ProvisionToken) error {
+					assert.Fail(t, "createToken should not be called")
+					return nil
+				}
+
+				return mockClt
+			},
+			eksClusters: testEKSClusters[:1],
+			request: EnrollEKSClustersRequest{
+				Region:             "us-east-1",
+				EnableAppDiscovery: true,
+				JoinMethod:         types.JoinMethodIAM,
+			},
+			requestClusterNames: []string{"EKS1"},
+			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
+				require.Len(t, response.Results, 1)
+				require.Equal(t, "EKS1", response.Results[0].ClusterName)
+				require.Empty(t, response.Results[0].Error)
+				require.Empty(t, response.Results[0].ResourceId)
 			},
 		},
 	}

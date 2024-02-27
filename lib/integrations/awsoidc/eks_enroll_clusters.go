@@ -139,6 +139,12 @@ func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(ctx context.
 	return checkAgentAlreadyInstalled(ctx, actionConfig)
 }
 
+const integrationTokenPrefix = "awsdiscovery"
+
+func getIAMJoinTokenName(integrationName, region string) string {
+	return fmt.Sprintf("%s-%s-%s", integrationTokenPrefix, integrationName, region)
+}
+
 func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreator) (string, string, error) {
 	const eksJoinTokenTTL = 30 * time.Minute
 
@@ -233,6 +239,15 @@ type EnrollEKSClustersRequest struct {
 
 	// AgentVersion specifies version of the Helm chart that will be installed during enrollment.
 	AgentVersion string
+
+	// JoinMethod specifies join method used by the installed helm chart.
+	// possible values:
+	// 'token' - we'll try to create dedicated short-lived token for each enrolled EKS cluster
+	// 'iam' - iam join method will be used, it relies on iam token already existing, token name depends on integration.
+	JoinMethod types.JoinMethod
+
+	// IntegrationName is the name of AWS integration related to the enrolled EKS clusters.
+	IntegrationName string
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
@@ -354,9 +369,12 @@ func enrollEKSCluster(ctx context.Context, log logrus.FieldLogger, clock clockwo
 		return "", trace.AlreadyExists("teleport-kube-agent is already installed on the cluster %q", clusterName)
 	}
 
-	joinToken, resourceId, err := getToken(ctx, clock, clt.CreateToken)
-	if err != nil {
-		return "", trace.Wrap(err)
+	var joinToken, resourceId string
+	if req.JoinMethod == types.JoinMethodToken {
+		joinToken, resourceId, err = getToken(ctx, clock, clt.CreateToken)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 
 	if err := clt.InstallKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeClientGetter, log, req); err != nil {
@@ -570,7 +588,17 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	if cfg.req.EnableAppDiscovery && !strings.HasPrefix(installCmd.Version, "13") {
 		vals["roles"] = "kube,app,discovery"
 	}
-	vals["authToken"] = cfg.joinToken
+
+	switch cfg.req.JoinMethod {
+	case types.JoinMethodToken:
+		vals["authToken"] = cfg.joinToken
+	case types.JoinMethodIAM:
+		// In that case token should already be created, when auto discovery for EKS was setup.
+		vals["joinParams"] = map[string]any{"tokenName": getIAMJoinTokenName(cfg.req.IntegrationName, cfg.req.Region), "method": types.JoinMethodIAM}
+
+	default:
+		return trace.BadParameter("unsupported join method %q", cfg.req.JoinMethod)
+	}
 
 	if cfg.req.IsCloud && cfg.req.EnableAutoUpgrades {
 		vals["updater"] = map[string]any{"enabled": true, "releaseChannel": "stable/cloud"}
@@ -596,7 +624,9 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	vals["kubeClusterName"] = kubeCluster.GetName()
 
 	labels := kubeCluster.GetStaticLabels()
-	labels[types.InternalResourceIDLabel] = cfg.resourceID
+	if cfg.resourceID != "" {
+		labels[types.InternalResourceIDLabel] = cfg.resourceID
+	}
 	vals["labels"] = labels
 
 	if _, err := installCmd.RunWithContext(ctx, agentChart, vals); err != nil {

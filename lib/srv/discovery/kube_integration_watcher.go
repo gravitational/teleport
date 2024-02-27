@@ -188,6 +188,8 @@ func (s *Server) enrollEKSClusters(region, integration, proxyPublicAddr string, 
 			EnableAutoUpgrades: s.ClusterFeatures.GetAutomaticUpgrades(),
 			IsCloud:            s.ClusterFeatures.GetCloud(),
 			AgentVersion:       agentVersion,
+			JoinMethod:         types.JoinMethodIAM,
+			IntegrationName:    integration,
 		})
 
 		for _, r := range response.Results {

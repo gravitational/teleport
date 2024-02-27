@@ -374,6 +374,8 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
+	integrationName := p.ByName("name")
+
 	// todo(anton): get auth server version and use it instead of this proxy teleport.version.
 	agentVersion := teleport.Version
 	if h.ClusterFeatures.GetAutomaticUpgrades() {
@@ -391,6 +393,8 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		EksClusterNames:    req.ClusterNames,
 		EnableAppDiscovery: req.EnableAppDiscovery,
 		AgentVersion:       agentVersion,
+			IntegrationName:    integrationName,
+			JoinMethod:         types.JoinMethodToken,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
