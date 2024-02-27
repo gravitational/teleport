@@ -734,6 +734,7 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 }
 
 // GetRemoteClusters returns a list of remote clusters
+// Prefer ListRemoteClusters
 func (s *PresenceService) GetRemoteClusters(ctx context.Context, opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	startKey := backend.ExactKey(remoteClustersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
