@@ -150,7 +150,7 @@
               owner = "agreatfool";
               repo = "grpc_tools_node_protoc_ts";
               rev = nodeProtocTsVersion;
-              sha256 = "sha256-kDrflQVENjOY7ei3+D3Znx4eUDPoja8UGG2Phv1eptA=";
+              sha256 = "sha256-tIshow1lPwN+mNajyRRVkmP8UfgQ9zOAvnmmvwndQhw=";
             };
 
             npmDepsHash = "sha256-fxOyItDkkv5OAmtScD9ykq26Meh6qyZSDmWegeh+GRY=";
