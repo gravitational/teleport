@@ -23,12 +23,13 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // TestMarshalNotificationRoundTrip tests the marshaling and unmarshaling functions for Notification objects.

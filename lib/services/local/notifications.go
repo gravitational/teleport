@@ -20,10 +20,10 @@ package local
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
-	"github.com/gravitational/trace"
 )
 
 // NotificationsService manages notification resources in the backend.
@@ -288,10 +287,10 @@ func CheckAndSetExpiry(notification *notificationsv1.Notification) error {
 	// If the expiry has already been provided, ensure that it is not more than 90 days from now.
 	// This is to prevent misuse as we don't want notifications existing for too long and accumulating in the backend.
 	now := time.Now()
-	maxExpiry := now.Add(maxExpiry)
+	timeOfMaxExpiry := now.Add(maxExpiry)
 
-	if (*notification.Metadata.Expires).AsTime().After(maxExpiry) {
-		return trace.BadParameter(fmt.Sprintf("notification expiry cannot be more than %s days from its creation", maxExpiry))
+	if (*notification.Metadata.Expires).AsTime().After(timeOfMaxExpiry) {
+		return trace.BadParameter("notification expiry cannot be more than %d days from its creation", int(maxExpiry.Hours()/24))
 	}
 
 	return nil

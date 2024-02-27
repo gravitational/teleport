@@ -24,15 +24,16 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 // TestUserNotificationCRUD tests backend operations for user-specific notification resources.
@@ -272,9 +273,9 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	require.Len(t, paginatedOut, 2)
 	// Verify that notification id's and states are correct, userNotificationState1 should now have the dismissed state.
 	require.Equal(t, userNotificationState1.Spec.NotificationId, paginatedOut[0].Spec.NotificationId)
-	require.Equal(t, paginatedOut[0].Status.NotificationState, notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED)
+	require.Equal(t, notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED, paginatedOut[0].Status.NotificationState)
 	require.Equal(t, userNotificationState2.Spec.NotificationId, paginatedOut[1].Spec.NotificationId)
-	require.Equal(t, paginatedOut[1].Status.NotificationState, notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED)
+	require.Equal(t, notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED, paginatedOut[1].Status.NotificationState)
 
 	// Test deleting a notification state.
 	err = service.DeleteUserNotificationState(ctx, testUsername, notification1Id)
