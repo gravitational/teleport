@@ -298,6 +298,10 @@ func (c *genericCollection153[T, R, _]) getReader(cacheOK bool) R {
 
 var _ collectionReader[any] = (*genericCollection153[types.Resource153, any, executor153[types.Resource153, any]])(nil)
 
+type crownjewelsGetter interface {
+	GetCrownJewels(context.Context) ([]*types.CrownJewel, error)
+}
+
 // cacheCollections is a registry of resource collections used by Cache.
 type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind

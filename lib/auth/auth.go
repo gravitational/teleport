@@ -546,8 +546,8 @@ type Services struct {
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
-	services.SecReports
 	services.CrownJewels
+	services.SecReports
 	services.Notifications
 }
 
