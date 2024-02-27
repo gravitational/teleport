@@ -568,9 +568,6 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	installCmd := action.NewInstall(cfg.actionConfig)
 	installCmd.RepoURL = agentRepoURL.String()
 	installCmd.Version = cfg.req.AgentVersion
-	if strings.Contains(installCmd.Version, "dev") {
-		installCmd.Version = "" // For testing during development.
-	}
 
 	agentChart, err := getChartData(installCmd.Version)
 	if err != nil {

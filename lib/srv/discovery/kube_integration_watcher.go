@@ -213,10 +213,6 @@ func (s *Server) getKubeAgentVersion(releaseChannels automaticupgrades.Channels)
 	}
 	agentVersion := pingResponse.ServerVersion
 
-	if strings.Contains(agentVersion, "dev") {
-		// For testing in development, install latest available kube agent version.
-		return "", nil
-	}
 
 	if s.ClusterFeatures.GetAutomaticUpgrades() {
 		defaultVersion, err := releaseChannels.DefaultVersion(s.ctx)
