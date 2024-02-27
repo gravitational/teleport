@@ -3060,7 +3060,12 @@ func (h *Handler) siteNodeConnect(
 		keepAliveInterval = netConfig.GetKeepAliveInterval()
 	}
 
-	terminalConfig := TerminalHandlerConfig{
+	nw, err := site.NodeWatcher()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	term, err := NewTerminal(ctx, TerminalHandlerConfig{
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
 		UserAuthClient:     clt,
@@ -3078,9 +3083,18 @@ func (h *Handler) siteNodeConnect(
 		Tracker:            tracker,
 		PresenceChecker:    h.cfg.PresenceChecker,
 		WebsocketConn:      ws,
-	}
+		HostNameResolver: func(serverID string) (string, error) {
+			matches := nw.GetNodes(r.Context(), func(n services.Node) bool {
+				return n.GetName() == serverID
+			})
 
-	term, err := NewTerminal(ctx, terminalConfig)
+			if len(matches) != 1 {
+				return "", trace.NotFound("unable to resolve hostname for server %s", serverID)
+			}
+
+			return matches[0].GetHostname(), nil
+		},
+	})
 	if err != nil {
 		h.log.WithError(err).Error("Unable to create terminal.")
 		return nil, trace.Wrap(err)
