@@ -78,7 +78,10 @@ func (r *SSHServerWrapper) dialHandover(token resumptionToken) (net.Conn, error)
 	return c, nil
 }
 
-func filterNonConnectableSockets(ctx context.Context, paths []string) (filtered []string, lastErr error) {
+// retainNonConnectableSockets attempts to connect to the given UNIX domain
+// sockets, returning all and only the ones that exist and that refuse the
+// connection.
+func retainNonConnectableSockets(ctx context.Context, paths []string) (filtered []string, lastErr error) {
 	filtered = paths[:0]
 
 	var d net.Dialer
@@ -98,10 +101,10 @@ func filterNonConnectableSockets(ctx context.Context, paths []string) (filtered 
 			continue
 		}
 
-		lastErr = trace.ConvertSystemError(err)
+		lastErr = err
 	}
 
-	return filtered, lastErr
+	return filtered, trace.ConvertSystemError(lastErr)
 }
 
 // HandoverCleanup deletes hand-over sockets that were left over from previous
@@ -134,7 +137,7 @@ func (r *SSHServerWrapper) handoverCleanup(ctx context.Context, cleanupDelay tim
 		}
 	}
 
-	paths, firstErr := filterNonConnectableSockets(ctx, paths)
+	paths, firstErr := retainNonConnectableSockets(ctx, paths)
 
 	if len(paths) < 1 {
 		return trace.Wrap(firstErr)
@@ -153,7 +156,7 @@ func (r *SSHServerWrapper) handoverCleanup(ctx context.Context, cleanupDelay tim
 	case <-time.After(cleanupDelay):
 	}
 
-	paths, secondErr := filterNonConnectableSockets(ctx, paths)
+	paths, secondErr := retainNonConnectableSockets(ctx, paths)
 
 	if len(paths) < 1 {
 		r.log.Debug("Found no unconnectable handover socket after waiting.")
