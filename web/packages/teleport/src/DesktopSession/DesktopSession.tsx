@@ -339,6 +339,7 @@ function Session({
         canvasOnMouseUp={canvasOnMouseUp}
         canvasOnMouseWheelScroll={canvasOnMouseWheelScroll}
         canvasOnContextMenu={canvasOnContextMenu}
+        updatePointer={true}
       />
     </Flex>
   );

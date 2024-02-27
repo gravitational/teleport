@@ -71,7 +71,7 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
-require helm.sh/helm/v3 v3.14.1
+require helm.sh/helm/v3 v3.14.2
 
 require (
 	github.com/google/go-github/v57 v57.0.0 // indirect
