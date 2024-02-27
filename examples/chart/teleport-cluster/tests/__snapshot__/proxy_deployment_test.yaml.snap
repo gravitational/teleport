@@ -9,11 +9,11 @@ should provision initContainer correctly when set in values:
       name: wait-auth-update
       resources:
         limits:
-          cpu: 2
-          memory: 4Gi
-        requests:
           cpu: 1
-          memory: 2Gi
+          memory: 512Mi
+        requests:
+          cpu: 0.1
+          memory: 256Mi
     - args:
       - echo test
       image: alpine
@@ -253,11 +253,11 @@ should set resources for wait-auth-update initContainer when set in values:
       name: wait-auth-update
       resources:
         limits:
-          cpu: 2
-          memory: 4Gi
-        requests:
           cpu: 1
-          memory: 2Gi
+          memory: 512Mi
+        requests:
+          cpu: 0.1
+          memory: 256Mi
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
     volumes:
@@ -361,11 +361,11 @@ should set resources when set in values:
       name: wait-auth-update
       resources:
         limits:
-          cpu: 2
-          memory: 4Gi
-        requests:
           cpu: 1
-          memory: 2Gi
+          memory: 512Mi
+        requests:
+          cpu: 0.1
+          memory: 256Mi
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
     volumes:

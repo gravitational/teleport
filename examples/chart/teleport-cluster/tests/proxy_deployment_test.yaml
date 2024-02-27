@@ -231,16 +231,16 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.initContainers[0].resources.requests.cpu
-          value: 1
+          value: 0.1
       - equal:
           path: spec.template.spec.initContainers[0].resources.requests.memory
-          value: 2Gi
+          value: 256Mi
       - equal:
           path: spec.template.spec.initContainers[0].resources.limits.cpu
-          value: 2
+          value: 1
       - equal:
           path: spec.template.spec.initContainers[0].resources.limits.memory
-          value: 4Gi
+          value: 512Mi
       - matchSnapshot:
           path: spec.template.spec
 
