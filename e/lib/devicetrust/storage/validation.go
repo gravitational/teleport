@@ -528,3 +528,30 @@ func isVersionEqual(v1, v2 string) bool {
 	v2Prefix := "v" + v2
 	return semver.Compare(v1Prefix, v2Prefix) == 0
 }
+
+// validateDeviceWebToken validates a DeviceWebToken for creation.
+func validateDeviceWebToken(webToken *devicepb.DeviceWebToken) error {
+	switch {
+	case webToken == nil:
+		return trace.BadParameter("device web token required")
+	case webToken.WebSessionId == "":
+		return trace.BadParameter("web session ID required")
+	case webToken.BrowserUserAgent == "":
+		return trace.BadParameter("browser user agent required")
+	case webToken.BrowserIp == "":
+		return trace.BadParameter("browser IP required")
+	case webToken.User == "":
+		return trace.BadParameter("user required")
+	case webToken.ExpectedDeviceIds == nil:
+		return trace.BadParameter("expected device IDs required")
+	}
+
+	// Disallow empty IDs.
+	for i, id := range webToken.ExpectedDeviceIds {
+		if id == "" {
+			return trace.BadParameter("expected device ID %v is empty", i)
+		}
+	}
+
+	return nil
+}

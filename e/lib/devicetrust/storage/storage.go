@@ -37,6 +37,11 @@ const (
 	// DeviceEnrollTokenExpireDuration is the default expiration for enrollment
 	// tokens.
 	DeviceEnrollTokenExpireDuration = 1 * time.Hour
+
+	// deviceWebTokenExpireDuration is the default expiration for newly created
+	// DeviceWebToken instances.
+	// Used tokens are deleted on the spot, regardless of the operation's outcome.
+	deviceWebTokenExpireDuration = 5 * time.Minute
 )
 
 // ErrEnrolledDeviceLimit is returned when device enrollment is restricted due to license limit.
@@ -1607,6 +1612,112 @@ func (s *S) VerifyEnrolledDevicesLimit(ctx context.Context) error {
 	return nil
 }
 
+// CreateDeviceWebToken writes webToken to storage.
+//
+// Requires all non system-generated fields to be set, including User and
+// ExpectedDeviceIDs.
+//
+// Returns a token with only the fields required to spend it set.
+func (s *S) CreateDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+	if err := validateDeviceWebToken(webToken); err != nil {
+		return nil, trace.Wrap(err, "device web token validation")
+	}
+
+	const deviceWebTokenLen = 32
+	plainToken := make([]byte, deviceWebTokenLen)
+	if _, err := rand.Read(plainToken); err != nil {
+		return nil, trace.Wrap(err, "generating device web token")
+	}
+
+	hashedToken, err := bcrypt.GenerateFromPassword(plainToken, bcrypt.DefaultCost)
+	if err != nil {
+		return nil, trace.Wrap(err, "hashing device web token as a password")
+	}
+
+	stored := &storedDeviceWebToken{
+		HashedToken:       string(hashedToken),
+		WebSessionID:      webToken.WebSessionId,
+		User:              webToken.User,
+		BrowserUserAgent:  webToken.BrowserUserAgent,
+		BrowserIP:         webToken.BrowserIp,
+		ExpectedDeviceIDs: webToken.ExpectedDeviceIds,
+	}
+	val, err := json.Marshal(stored)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshal device web token")
+	}
+
+	id := uuid.NewString()
+	if _, err := s.backend.Create(ctx, backend.Item{
+		Key:     deviceWebTokenKey(id),
+		Value:   val,
+		Expires: s.nowUTC().Add(deviceWebTokenExpireDuration),
+	}); err != nil {
+		return nil, trace.Wrap(err, "writing device web token")
+	}
+
+	safePlainToken := base64.RawURLEncoding.EncodeToString(plainToken)
+	return &devicepb.DeviceWebToken{
+		Id:    id,
+		Token: safePlainToken,
+	}, nil
+}
+
+// SpendDeviceWebToken spends a device web token, returning the spent token on
+// success.
+//
+// It expects a token returned by [CreateDeviceWebToken] as input.
+//
+// Returns the stored token, minus the plaintext token itself.
+func (s *S) SpendDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+	id := webToken.GetId()
+	if id == "" {
+		return nil, trace.BadParameter("web token ID required")
+	}
+
+	// Read the token...
+	key := deviceWebTokenKey(id)
+	item, err := s.backend.Get(ctx, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// ...and then immediately spend it. Caller only gets one chance, regardless
+	// of the outcome.
+	if err := s.backend.Delete(ctx, key); err != nil {
+		s.logger.
+			WithError(err).
+			WithField("WebTokenID", id).
+			Warn("Failed to delete device web token")
+		// err swallowed on purpose.
+	}
+
+	plainToken, err := base64.RawURLEncoding.DecodeString(webToken.Token)
+	if err != nil {
+		// Re-wrap as a BadParameter.
+		return nil, trace.BadParameter(err.Error())
+	}
+
+	var stored storedDeviceWebToken
+	if err := json.Unmarshal(item.Value, &stored); err != nil {
+		return nil, trace.Wrap(err, "unmarshal web token")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(stored.HashedToken), plainToken); err != nil {
+		// err swallowed on purpose.
+		return nil, trace.BadParameter("invalid web token")
+	}
+
+	// Return everything but the plainToken.
+	return &devicepb.DeviceWebToken{
+		Id:                id,
+		WebSessionId:      stored.WebSessionID,
+		BrowserUserAgent:  stored.BrowserUserAgent,
+		BrowserIp:         stored.BrowserIP,
+		User:              stored.User,
+		ExpectedDeviceIds: stored.ExpectedDeviceIDs,
+	}, nil
+}
+
 func deviceIDFromKey(key []byte) string {
 	idx := bytes.LastIndexByte(key, backend.Separator)
 	return string(key[idx+1:])
@@ -1814,6 +1925,10 @@ func deviceKey(deviceID string) []byte {
 
 func deviceTokenKey(deviceID string) []byte {
 	return backend.Key("devices", "enroll_token", deviceID)
+}
+
+func deviceWebTokenKey(tokenID string) []byte {
+	return backend.Key("devices", "web_token", tokenID)
 }
 
 func devicesByAssetTagKey(assetTag string) []byte {

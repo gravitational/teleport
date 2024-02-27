@@ -38,6 +38,11 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
+const (
+	sampleUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+	sampleIP        = "40.89.244.232"
+)
+
 func TestS_BulkCreateDevices(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()
@@ -3799,6 +3804,254 @@ func TestS_UserTrustedDeviceIDs(t *testing.T) {
 					msg = "Device %q not unassigned from user %q, User.TrustedDeviceIDs=%v"
 				}
 				t.Errorf(msg, dev.Id, user, trustedIDs)
+			}
+		})
+	}
+}
+
+func TestS_CreateDeviceWebToken(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	validToken := &devicepb.DeviceWebToken{
+		WebSessionId:      "llama-session-id-1234",
+		BrowserUserAgent:  sampleUserAgent,
+		BrowserIp:         sampleIP,
+		User:              "llama",
+		ExpectedDeviceIds: []string{"device-id-1"},
+	}
+
+	// Success scenario.
+	t.Run("success", func(t *testing.T) {
+		got, err := s.CreateDeviceWebToken(ctx, validToken)
+		if err != nil {
+			t.Fatalf("CreateDeviceWebToken failed: %v", err)
+		}
+
+		// Assert that "usage" field are returned.
+		if got.Id == "" {
+			t.Error("Created DeviceWebToken has an empty ID")
+		}
+		if got.Token == "" {
+			t.Error("Created DeviceWebToken has an empty Token")
+		}
+
+		// Assert that no other fields are set.
+		want := &devicepb.DeviceWebToken{
+			Id:    got.Id,
+			Token: got.Token,
+		}
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("DeviceWebToken mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	makeToken := func(fn func(*devicepb.DeviceWebToken)) *devicepb.DeviceWebToken {
+		token := proto.Clone(validToken).(*devicepb.DeviceWebToken)
+		fn(token)
+		return token
+	}
+
+	// Failure scenarios.
+	tests := []struct {
+		name    string
+		token   *devicepb.DeviceWebToken
+		wantErr string
+	}{
+		{
+			name:    "nil token",
+			token:   nil,
+			wantErr: "token required",
+		},
+		{
+			name: "WebSessionId empty",
+			token: makeToken(func(token *devicepb.DeviceWebToken) {
+				token.WebSessionId = ""
+			}),
+			wantErr: "web session ID",
+		},
+		{
+			name: "BrowserUserAgent empty",
+			token: makeToken(func(token *devicepb.DeviceWebToken) {
+				token.BrowserUserAgent = ""
+			}),
+			wantErr: "user agent",
+		},
+		{
+			name: "BrowserIp empty",
+			token: makeToken(func(token *devicepb.DeviceWebToken) {
+				token.BrowserIp = ""
+			}),
+			wantErr: "IP",
+		},
+		{
+			name: "User empty",
+			token: makeToken(func(token *devicepb.DeviceWebToken) {
+				token.User = ""
+			}),
+			wantErr: "user",
+		},
+		{
+			name: "ExpectedDeviceIds nil",
+			token: makeToken(func(token *devicepb.DeviceWebToken) {
+				token.ExpectedDeviceIds = nil
+			}),
+			wantErr: "device IDs",
+		},
+		{
+			name: "empty ExpectedDeviceIds item",
+			token: makeToken(func(token *devicepb.DeviceWebToken) {
+				token.ExpectedDeviceIds = []string{
+					"device-id-1",
+					"", // invalid!
+					"device-id-3",
+				}
+			}),
+			wantErr: "device ID ",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := s.CreateDeviceWebToken(ctx, test.token)
+			if err == nil {
+				t.Fatal("CreateDeviceWebToken returned err=nil, want non-nil")
+			}
+			if !trace.IsBadParameter(err) {
+				t.Errorf("CreateDeviceWebToken returned err=%T, want BadParameter", trace.Unwrap(err))
+			}
+			assert.ErrorContains(t, err, test.wantErr, "CreateDeviceWebToken error mismatch")
+		})
+	}
+}
+
+func TestS_SpendDeviceWebToken(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	initialToken := &devicepb.DeviceWebToken{
+		WebSessionId:      "llama-session-id-1234",
+		BrowserUserAgent:  sampleUserAgent,
+		BrowserIp:         sampleIP,
+		User:              "llama",
+		ExpectedDeviceIds: []string{"device-id-1"},
+	}
+
+	validToken, err := s.CreateDeviceWebToken(ctx, initialToken)
+	if err != nil {
+		t.Fatalf("CreateDeviceWebToken failed: %v", err)
+	}
+
+	// Success scenario.
+	t.Run("success", func(t *testing.T) {
+		got, err := s.SpendDeviceWebToken(ctx, validToken)
+		if err != nil {
+			t.Fatalf("SpendDeviceWebToken failed: %v", err)
+		}
+
+		want := proto.Clone(initialToken).(*devicepb.DeviceWebToken)
+		want.Id = validToken.Id
+		want.Token = ""
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("SpendDeviceWebToken mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	createToken := func(t *testing.T, fn func(*devicepb.DeviceWebToken)) *devicepb.DeviceWebToken {
+		token, err := s.CreateDeviceWebToken(ctx, initialToken)
+		if err != nil {
+			t.Fatalf("CreateDeviceWebToken failed: %v", err)
+		}
+		fn(token)
+		return token
+	}
+
+	const invalidToken = "ceci n'est pas a valid token"
+
+	// Failure scenarios.
+	tests := []struct {
+		name            string
+		token           *devicepb.DeviceWebToken
+		assertErrorType func(err error) bool // defaults to trace.IsBadParameter
+		wantErr         string
+		wantDeleted     bool // Verifies if a subsequent Spend returns NotFound.
+	}{
+		{
+			name:            "previously spent token",
+			token:           validToken,
+			assertErrorType: trace.IsNotFound,
+		},
+		{
+			name: "unknown token",
+			token: &devicepb.DeviceWebToken{
+				Id:    "unknown-token-ID",
+				Token: validToken.Token,
+			},
+			assertErrorType: trace.IsNotFound,
+		},
+		{
+			name: "ID empty",
+			token: &devicepb.DeviceWebToken{
+				Token: validToken.Token,
+			},
+			wantErr: "token ID required",
+		},
+		{
+			name: "Token empty",
+			token: createToken(t, func(token *devicepb.DeviceWebToken) {
+				token.Token = "" // Same as an invalid token.
+			}),
+			wantErr:     "invalid web token",
+			wantDeleted: true,
+		},
+		{
+			name: "Token invalid",
+			token: createToken(t, func(token *devicepb.DeviceWebToken) {
+				token.Token = base64.RawStdEncoding.EncodeToString([]byte(invalidToken))
+			}),
+			wantErr:     "invalid web token",
+			wantDeleted: true,
+		},
+		{
+			name: "Token not base64",
+			token: createToken(t, func(token *devicepb.DeviceWebToken) {
+				token.Token = invalidToken
+			}),
+			wantErr:     "base64",
+			wantDeleted: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := s.SpendDeviceWebToken(ctx, test.token)
+			if err == nil {
+				t.Fatal("SpendDeviceWebToken returned err=nil, want non-nil")
+			}
+
+			// Assert error type.
+			if test.assertErrorType == nil {
+				test.assertErrorType = trace.IsBadParameter
+			}
+			if !test.assertErrorType(err) {
+				t.Errorf("SpendDeviceWebToken error type mismatch, got=%T", trace.Unwrap(err))
+			}
+
+			// Assert error type. Used to disambiguate errors.
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "SpendDeviceWebToken error mismatch")
+			}
+
+			// Assert deletion of existing token.
+			if !test.wantDeleted {
+				return
+			}
+			if _, err := s.SpendDeviceWebToken(ctx, test.token); !trace.IsNotFound(err) {
+				t.Errorf("SpendDeviceEnrollToken returned err=%q (%T), wanted NotFound (signifying a spent token)", err, trace.Unwrap(err))
 			}
 		})
 	}

@@ -114,3 +114,12 @@ type tpmPCR struct {
 	Digest    []byte `json:"digest"`     // Required.
 	DigestAlg uint64 `json:"digest_alg"` // Required.
 }
+
+type storedDeviceWebToken struct {
+	HashedToken       string   `json:"hashed_token"`        // Required.
+	WebSessionID      string   `json:"web_session_id"`      // Required.
+	User              string   `json:"user"`                // Required.
+	BrowserUserAgent  string   `json:"browser_user_agent"`  // Required.
+	BrowserIP         string   `json:"browser_ip"`          // Required.
+	ExpectedDeviceIDs []string `json:"expected_device_ids"` // Required.
+}
