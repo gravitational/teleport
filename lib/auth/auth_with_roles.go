@@ -2115,6 +2115,14 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	// Discovery service can only create tokens for Kube,App,Discovery roles.
+	if a.hasBuiltinRole(types.RoleDiscovery) {
+		for _, role := range token.GetRoles() {
+			if role != types.RoleDiscovery && role != types.RoleApp && role != types.RoleKube {
+				return trace.AccessDenied("discovery service is not allowed to create join tokens for role %q", role)
+			}
+		}
+	}
 
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return trace.Wrap(err)

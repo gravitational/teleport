@@ -587,6 +587,7 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	for k, v := range cfg.eksCluster.Tags {
 		eksTags[k] = aws.String(v)
 	}
+	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
 	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
 	if err != nil {
 		return trace.Wrap(err)

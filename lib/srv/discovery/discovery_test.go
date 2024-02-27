@@ -59,6 +59,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -2693,6 +2694,8 @@ func TestEmitUsageEvents(t *testing.T) {
 
 type fakeAccessPoint struct {
 	auth.DiscoveryAccessPoint
+
+	ping                func(ctx context.Context) (proto.PingResponse, error)
 	updateKube          bool
 	updateDatabase      bool
 	kube                types.KubeCluster
@@ -2704,6 +2707,13 @@ func newFakeAccessPoint() *fakeAccessPoint {
 	return &fakeAccessPoint{
 		upsertedServerInfos: make(chan types.ServerInfo),
 	}
+}
+
+func (f *fakeAccessPoint) Ping(ctx context.Context) (proto.PingResponse, error) {
+	if f.ping != nil {
+		return f.ping(ctx)
+	}
+	return proto.PingResponse{}, trace.NotImplemented("not implemented")
 }
 
 func (f *fakeAccessPoint) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
