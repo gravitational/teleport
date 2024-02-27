@@ -124,7 +124,7 @@ func MarshalKubeCluster(kubeCluster types.KubeCluster, opts ...MarshalOption) ([
 		return nil, trace.Wrap(err)
 	}
 
-	if c, ok := kubeCluster.(types.DiscoveredEKSCLuster); ok {
+	if c, ok := kubeCluster.(types.DiscoveredEKSCluster); ok {
 		kubeCluster = c.GetKubeCluster()
 	}
 

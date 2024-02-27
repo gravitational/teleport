@@ -77,8 +77,8 @@ type KubeCluster interface {
 	GetCloud() string
 }
 
-// DiscoveredEKSCLuster represents a server discovered by EKS discovery fetchers.
-type DiscoveredEKSCLuster interface {
+// DiscoveredEKSCluster represents a server discovered by EKS discovery fetchers.
+type DiscoveredEKSCluster interface {
 	// KubeCluster is base discovered cluster.
 	KubeCluster
 	// GetKubeCluster returns base cluster.

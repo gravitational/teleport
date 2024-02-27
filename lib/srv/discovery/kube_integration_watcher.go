@@ -91,10 +91,10 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				var newClusters []types.DiscoveredEKSCLuster
+				var newClusters []types.DiscoveredEKSCluster
 				mu.Lock()
 				for _, r := range resources {
-					newCluster, ok := r.(types.DiscoveredEKSCLuster)
+					newCluster, ok := r.(types.DiscoveredEKSCluster)
 					if !ok ||
 						enrollingClusters[newCluster.GetAWSConfig().Name] ||
 						slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
@@ -118,10 +118,10 @@ func (s *Server) startKubeIntegrationWatchers() error {
 				}
 
 				// When enrolling EKS clusters, client for enrollment depends on the region and integration used.
-				clustersByRegionAndIntegration := map[string]map[string][]types.DiscoveredEKSCLuster{}
+				clustersByRegionAndIntegration := map[string]map[string][]types.DiscoveredEKSCluster{}
 				for _, c := range newClusters {
 					if _, ok := clustersByRegionAndIntegration[c.GetAWSConfig().Region]; !ok {
-						clustersByRegionAndIntegration[c.GetAWSConfig().Region] = map[string][]types.DiscoveredEKSCLuster{}
+						clustersByRegionAndIntegration[c.GetAWSConfig().Region] = map[string][]types.DiscoveredEKSCluster{}
 					}
 					clustersByRegionAndIntegration[c.GetAWSConfig().Region][c.GetIntegration()] =
 						append(clustersByRegionAndIntegration[c.GetAWSConfig().Region][c.GetIntegration()], c)
@@ -141,7 +141,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	return nil
 }
 
-func (s *Server) enrollEKSClusters(region, integration, proxyPublicAddr string, clusters []types.DiscoveredEKSCLuster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
+func (s *Server) enrollEKSClusters(region, integration, proxyPublicAddr string, clusters []types.DiscoveredEKSCluster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
 	enrollEKSClient, credsProvider, err := s.EKSEnrollmentClientGetter(s.ctx, integration, region)
 	if err != nil {
 		s.Log.WithError(err).Warn("Could not get EKS enrollment client")
@@ -166,7 +166,7 @@ func (s *Server) enrollEKSClusters(region, integration, proxyPublicAddr string, 
 
 	// We sort input clusters into two batches - one that has Kubernetes App Discovery
 	// enabled, and another one that doesn't have it.
-	var batchedClusters = map[bool][]types.DiscoveredEKSCLuster{}
+	var batchedClusters = map[bool][]types.DiscoveredEKSCluster{}
 	for _, c := range clusters {
 		batchedClusters[c.GetKubeAppDiscovery()] = append(batchedClusters[c.GetKubeAppDiscovery()], c)
 	}
