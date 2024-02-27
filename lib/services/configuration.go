@@ -95,7 +95,7 @@ type ClusterConfiguration interface {
 	DeleteClusterAuditConfig(ctx context.Context) error
 
 	// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
-	GetClusterNetworkingConfig(context.Context, ...MarshalOption) (types.ClusterNetworkingConfig, error)
+	GetClusterNetworkingConfig(context.Context) (types.ClusterNetworkingConfig, error)
 	// CreateClusterNetworkingConfig creates a cluster networking config if once does not already exist.
 	CreateClusterNetworkingConfig(ctx context.Context, cfg types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
 	// UpdateClusterNetworkingConfig updates an existing cluster networking config.
