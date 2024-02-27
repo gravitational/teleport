@@ -1736,7 +1736,7 @@ func (clusterAuditConfigExecutor) getReader(cache *Cache, cacheOK bool) clusterA
 }
 
 type clusterAuditConfigGetter interface {
-	GetClusterAuditConfig(context.Context, ...services.MarshalOption) (types.ClusterAuditConfig, error)
+	GetClusterAuditConfig(context.Context) (types.ClusterAuditConfig, error)
 }
 
 var _ executor[types.ClusterAuditConfig, clusterAuditConfigGetter] = clusterAuditConfigExecutor{}
