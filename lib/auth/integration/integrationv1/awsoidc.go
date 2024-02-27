@@ -571,3 +571,51 @@ func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2
 		NextToken: listEC2Resp.NextToken,
 	}, nil
 }
+
+// ListEKSCluster returns a paginated list of AWS EKS Clusters.
+func (s *AWSOIDCService) ListEKSClusters(ctx context.Context, req *integrationpb.ListEKSClustersRequest) (*integrationpb.ListEKSClustersResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEKSClustersClient, err := awsoidc.NewListEKSClustersClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEKSClustersResp, err := awsoidc.ListEKSClusters(ctx, listEKSClustersClient, awsoidc.ListEKSClustersRequest{
+		Region:    req.Region,
+		NextToken: req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clustersList := make([]*integrationpb.EKSCluster, 0, len(listEKSClustersResp.Clusters))
+	for _, cluster := range listEKSClustersResp.Clusters {
+		clusterPb := &integrationpb.EKSCluster{
+			Name:       cluster.Name,
+			Region:     cluster.Region,
+			Arn:        cluster.Arn,
+			Labels:     cluster.Labels,
+			JoinLabels: cluster.JoinLabels,
+			Status:     cluster.Status,
+		}
+		clustersList = append(clustersList, clusterPb)
+	}
+
+	return &integrationpb.ListEKSClustersResponse{
+		Clusters:  clustersList,
+		NextToken: listEKSClustersResp.NextToken,
+	}, nil
+}

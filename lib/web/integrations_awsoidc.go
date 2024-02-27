@@ -467,30 +467,28 @@ func (h *Handler) awsOIDCListEKSClusters(w http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listClient, err := awsoidc.NewListEKSClustersClient(ctx, awsClientReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := awsoidc.ListEKSClusters(ctx,
-		listClient,
-		awsoidc.ListEKSClustersRequest{
-			Region:    req.Region,
-			NextToken: req.NextToken,
-		},
-	)
+	listResp, err := clt.IntegrationAWSOIDCClient().ListEKSClusters(ctx, &integrationv1.ListEKSClustersRequest{
+		Integration: integrationName,
+		Region:      req.Region,
+		NextToken:   req.NextToken,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ui.AWSOIDCListEKSClustersResponse{
-		NextToken: resp.NextToken,
-		Clusters:  ui.MakeEKSClusters(resp.Clusters),
+		NextToken: listResp.NextToken,
+		Clusters:  ui.MakeEKSClusters(listResp.Clusters),
 	}, nil
 }
 
