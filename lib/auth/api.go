@@ -758,9 +758,6 @@ type DiscoveryAccessPoint interface {
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context) (string, error)
 
-	// CreateToken creates provisioning token.
-	CreateToken(ctx context.Context, token types.ProvisionToken) error
-
 	// Ping gets basic info about the auth server.
 	Ping(context.Context) (proto.PingResponse, error)
 }
@@ -1325,11 +1322,6 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context) (string, error) {
 	return w.NoCache.GenerateAWSOIDCToken(ctx)
-}
-
-// CreateToken creates provisioning token on the auth server. That token can be used to install kube agent to an EKS cluster.
-func (w *DiscoveryWrapper) CreateToken(ctx context.Context, token types.ProvisionToken) error {
-	return w.NoCache.CreateToken(ctx, token)
 }
 
 // Ping gets basic info about the auth server.
