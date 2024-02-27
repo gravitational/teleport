@@ -253,10 +253,14 @@ func (c *Client) readClientSize() error {
 		}
 
 		if c.requestedWidth > types.MaxRDPScreenWidth || c.requestedHeight > types.MaxRDPScreenHeight {
-			return trace.BadParameter(
+			err = trace.BadParameter(
 				"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
 				s.Width, s.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
 			)
+			if err := c.sendTDPNotification(err.Error(), tdp.SeverityError); err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(err)
 		}
 
 		return nil
