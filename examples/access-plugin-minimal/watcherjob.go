@@ -28,7 +28,7 @@ func (g *googleSheetsClient) HandleEvent(ctx context.Context, event types.Event)
 		return nil
 	}
 
-	if _, ok := event.Resource.(types.WatchStatus); ok {
+	if _, ok := event.Resource.(*types.WatchStatusV1); ok {
 		fmt.Println("Successfully started listening for Access Requests...")
 		return nil
 	}
