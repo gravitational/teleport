@@ -1461,6 +1461,8 @@ type EKSCluster struct {
 	// if the cluster will be enrolled into Teleport (agent installed on it).
 	JoinLabels map[string]string `protobuf:"bytes,5,rep,name=join_labels,json=joinLabels,proto3" json:"join_labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Status is a current status of an EKS cluster in AWS.
+	// Known values are:
+	// CREATING | ACTIVE | DELETING | FAILED | UPDATING | PENDING
 	Status string `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
 }
 

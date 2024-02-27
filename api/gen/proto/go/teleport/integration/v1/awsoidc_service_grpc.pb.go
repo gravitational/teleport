@@ -68,7 +68,7 @@ type AWSOIDCServiceClient interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
 	ListEC2(ctx context.Context, in *ListEC2Request, opts ...grpc.CallOption) (*ListEC2Response, error)
-	// ListEKSClusters lists the EKS Cluster of the AWS account per region.
+	// ListEKSClusters retrieves a paginated list of EKS clusters in the specified AWS region for a specific account.
 	// It uses the following APIs:
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
@@ -172,7 +172,7 @@ type AWSOIDCServiceServer interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
 	ListEC2(context.Context, *ListEC2Request) (*ListEC2Response, error)
-	// ListEKSClusters lists the EKS Cluster of the AWS account per region.
+	// ListEKSClusters retrieves a paginated list of EKS clusters in the specified AWS region for a specific account.
 	// It uses the following APIs:
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
