@@ -34,6 +34,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/crownjewel"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -183,6 +184,10 @@ func (c *genericCollection[T, R, _]) getReader(cacheOK bool) R {
 
 var _ collectionReader[any] = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
 
+type crownjewelsGetter interface {
+	GetCrownJewels(context.Context) ([]*crownjewel.CrownJewel, error)
+}
+
 // cacheCollections is a registry of resource collections used by Cache.
 type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
@@ -210,6 +215,7 @@ type cacheCollections struct {
 	discoveryConfigs         collectionReader[services.DiscoveryConfigsGetter]
 	installers               collectionReader[installerGetter]
 	integrations             collectionReader[services.IntegrationsGetter]
+	crownJewels              collectionReader[crownjewelsGetter]
 	kubeClusters             collectionReader[kubernetesClusterGetter]
 	kubeWaitingContainers    collectionReader[kubernetesWaitingContainerGetter]
 	kubeServers              collectionReader[kubeServerGetter]
@@ -539,6 +545,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.kubeClusters
+		case types.KindCrownJewel:
+			if c.CrownJewels == nil {
+				return nil, trace.BadParameter("missing parameter crownjewels")
+			}
+			collections.crownJewels = &genericCollection[*crownjewel.CrownJewel, crownjewelsGetter, crownJewelsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.crownJewels
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
@@ -2230,6 +2245,41 @@ type kubernetesWaitingContainerGetter interface {
 }
 
 var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWaitingContainerGetter] = kubeWaitingContainerExecutor{}
+
+type crownJewelsExecutor struct{}
+
+func (crownJewelsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*crownjewel.CrownJewel, error) {
+	return cache.CrownJewels.GetCrownJewels(ctx)
+}
+
+func (crownJewelsExecutor) upsert(ctx context.Context, cache *Cache, resource *crownjewel.CrownJewel) error {
+	if _, err := cache.crownJewelsCache.CreateCrownJewel(ctx, resource); err != nil {
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (crownJewelsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.crownJewelsCache.DeleteAllCrownJewels(ctx)
+}
+
+func (crownJewelsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.crownJewelsCache.DeleteCrownJewel(ctx, resource.GetName())
+}
+
+func (crownJewelsExecutor) isSingleton() bool { return false }
+
+func (crownJewelsExecutor) getReader(cache *Cache, cacheOK bool) crownjewelsGetter {
+	if cacheOK {
+		return cache.crownJewelsCache
+	}
+	return cache.Config.CrownJewels
+}
+
+var _ executor[*crownjewel.CrownJewel, crownjewelsGetter] = crownJewelsExecutor{}
 
 //nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProvidersExecutor struct{}

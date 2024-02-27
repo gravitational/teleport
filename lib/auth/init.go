@@ -213,6 +213,8 @@ type InitConfig struct {
 	// UserGroups is a service that manages user groups.
 	UserGroups services.UserGroups
 
+	CrownJewels services.CrownJewels
+
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 

@@ -757,6 +757,8 @@ const (
 	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
 	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
 	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
+
+	AccessGraphAccessPathChanged = "access_graph.access_path_changed"
 )
 
 const (

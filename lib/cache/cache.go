@@ -44,6 +44,7 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/crownjewel"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -156,6 +157,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindCrownJewel},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
@@ -530,6 +532,7 @@ type Cache struct {
 	restrictionsCache            services.Restrictions
 	appsCache                    services.Apps
 	kubernetesCache              services.Kubernetes
+	crownJewelsCache             services.CrownJewels
 	databaseServicesCache        services.DatabaseServices
 	databasesCache               services.Databases
 	appSessionCache              services.AppSession
@@ -681,7 +684,8 @@ type Config struct {
 	// Apps is an apps service.
 	Apps services.Apps
 	// Kubernetes is an kubernetes service.
-	Kubernetes services.Kubernetes
+	Kubernetes  services.Kubernetes
+	CrownJewels services.CrownJewels
 	// DatabaseServices is a DatabaseService service.
 	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
@@ -959,6 +963,7 @@ func New(config Config) (*Cache, error) {
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
 		appsCache:                    local.NewAppService(config.Backend),
 		kubernetesCache:              local.NewKubernetesService(config.Backend),
+		crownJewelsCache:             local.NewCrownJewelsService(config.Backend),
 		databaseServicesCache:        local.NewDatabaseServicesService(config.Backend),
 		databasesCache:               local.NewDatabasesService(config.Backend),
 		appSessionCache:              local.NewIdentityService(config.Backend),
@@ -2811,7 +2816,20 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	return rg.reader.GetDiscoveryConfig(ctx, name)
 }
 
-// GetSecurityAuditQuery  returns the specified audit query resource.
+// /
+func (c *Cache) GetCrownJewels(ctx context.Context) ([]*crownjewel.CrownJewel, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetCrownJewels")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.crownJewels)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetCrownJewels(ctx)
+}
+
+// GetSecurityAuditQuery returns the specified audit query resource.
 func (c *Cache) GetSecurityAuditQuery(ctx context.Context, name string) (*secreports.AuditQuery, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQuery")
 	defer span.End()

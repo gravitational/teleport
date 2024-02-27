@@ -33,6 +33,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/crownjewel"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -1156,6 +1157,8 @@ type Cache interface {
 
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+
+	GetCrownJewels(ctx context.Context) ([]*crownjewel.CrownJewel, error)
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter

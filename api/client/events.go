@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
+	"github.com/gravitational/teleport/api/types/crownjewel"
+	crownjewelv1conv "github.com/gravitational/teleport/api/types/crownjewel/convert/v1"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	discoveryconfigv1conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	"github.com/gravitational/teleport/api/types/secreports"
@@ -255,6 +257,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *discoveryconfig.DiscoveryConfig:
 		out.Resource = &proto.Event_DiscoveryConfig{
 			DiscoveryConfig: discoveryconfigv1conv.ToProto(r),
+		}
+	case *crownjewel.CrownJewel:
+		out.Resource = &proto.Event_CrownJewel{
+			CrownJewel: crownjewelv1conv.ToProto(r),
 		}
 	case *secreports.AuditQuery:
 		out.Resource = &proto.Event_AuditQuery{

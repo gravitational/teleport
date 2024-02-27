@@ -156,6 +156,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindDatabaseObjectImportRule: rc.createDatabaseObjectImportRule,
 		types.KindDatabaseObject:           rc.createDatabaseObject,
 		types.KindAccessMonitoringRule:     rc.createAccessMonitoringRule,
+		types.KindCrownJewel:               rc.createCrownJewel,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -927,6 +928,28 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *auth.C
 	return nil
 }
 
+func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
+	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.CrownJewelsClient().CreateCrownJewel(ctx, crownJewel); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !rc.force {
+				return trace.AlreadyExists("crown jewel %q already exists", crownJewel.GetName())
+			}
+			if _, err := client.CrownJewelsClient().UpdateCrownJewel(ctx, crownJewel); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("crown jewel %q has been updated\n", crownJewel.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	fmt.Printf("crown jewel %q has been created\n", crownJewel.GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createDatabase(ctx context.Context, client *auth.Client, raw services.UnknownResource) error {
 	database, err := services.UnmarshalDatabase(raw.Raw)
 	if err != nil {
@@ -1534,6 +1557,21 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *auth.Client) (err
 			return trace.Wrap(err)
 		}
 		if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s %q has been deleted\n", resDesc, name)
+	case types.KindCrownJewel:
+		clusters, err := client.CrownJewelsClient().GetCrownJewels(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		resDesc := "Crown Jewel cluster"
+		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
+		name, err := getOneResourceNameToDelete(clusters, rc.ref, resDesc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
@@ -2239,6 +2277,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *auth.Clien
 			return nil, trace.NotFound("kubernetes cluster %q not found", rc.ref.Name)
 		}
 		return &kubeClusterCollection{clusters: clusters}, nil
+	case types.KindCrownJewel:
+		clusters, err := client.CrownJewelsClient().GetCrownJewels(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if rc.ref.Name == "" {
+			return &crownJewelCollection{clusters: clusters}, nil
+		}
+		clusters = filterByNameOrDiscoveredName(clusters, rc.ref.Name)
+		if len(clusters) == 0 {
+			return nil, trace.NotFound("crown jewel %q not found", rc.ref.Name)
+		}
+		return &crownJewelCollection{clusters: clusters}, nil
 	case types.KindWindowsDesktopService:
 		services, err := client.GetWindowsDesktopServices(ctx)
 		if err != nil {
