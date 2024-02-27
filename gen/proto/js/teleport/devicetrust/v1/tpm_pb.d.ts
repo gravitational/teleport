@@ -9,15 +9,12 @@ import * as jspb from "google-protobuf";
 export class TPMPCR extends jspb.Message { 
     getIndex(): number;
     setIndex(value: number): TPMPCR;
-
     getDigest(): Uint8Array | string;
     getDigest_asU8(): Uint8Array;
     getDigest_asB64(): string;
     setDigest(value: Uint8Array | string): TPMPCR;
-
     getDigestAlg(): number;
     setDigestAlg(value: number): TPMPCR;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TPMPCR.AsObject;
@@ -42,12 +39,10 @@ export class TPMQuote extends jspb.Message {
     getQuote_asU8(): Uint8Array;
     getQuote_asB64(): string;
     setQuote(value: Uint8Array | string): TPMQuote;
-
     getSignature(): Uint8Array | string;
     getSignature_asU8(): Uint8Array;
     getSignature_asB64(): string;
     setSignature(value: Uint8Array | string): TPMQuote;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TPMQuote.AsObject;
@@ -71,17 +66,14 @@ export class TPMPlatformParameters extends jspb.Message {
     getQuotesList(): Array<TPMQuote>;
     setQuotesList(value: Array<TPMQuote>): TPMPlatformParameters;
     addQuotes(value?: TPMQuote, index?: number): TPMQuote;
-
     clearPcrsList(): void;
     getPcrsList(): Array<TPMPCR>;
     setPcrsList(value: Array<TPMPCR>): TPMPlatformParameters;
     addPcrs(value?: TPMPCR, index?: number): TPMPCR;
-
     getEventLog(): Uint8Array | string;
     getEventLog_asU8(): Uint8Array;
     getEventLog_asB64(): string;
     setEventLog(value: Uint8Array | string): TPMPlatformParameters;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TPMPlatformParameters.AsObject;
@@ -107,12 +99,10 @@ export class TPMPlatformAttestation extends jspb.Message {
     getNonce_asB64(): string;
     setNonce(value: Uint8Array | string): TPMPlatformAttestation;
 
-
     hasPlatformParameters(): boolean;
     clearPlatformParameters(): void;
     getPlatformParameters(): TPMPlatformParameters | undefined;
     setPlatformParameters(value?: TPMPlatformParameters): TPMPlatformAttestation;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TPMPlatformAttestation.AsObject;

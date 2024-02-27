@@ -10,25 +10,18 @@ import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/t
 export class ConnectClusterLoginEvent extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): ConnectClusterLoginEvent;
-
     getUserName(): string;
     setUserName(value: string): ConnectClusterLoginEvent;
-
     getConnectorType(): string;
     setConnectorType(value: string): ConnectClusterLoginEvent;
-
     getArch(): string;
     setArch(value: string): ConnectClusterLoginEvent;
-
     getOs(): string;
     setOs(value: string): ConnectClusterLoginEvent;
-
     getOsVersion(): string;
     setOsVersion(value: string): ConnectClusterLoginEvent;
-
     getAppVersion(): string;
     setAppVersion(value: string): ConnectClusterLoginEvent;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ConnectClusterLoginEvent.AsObject;
@@ -55,16 +48,12 @@ export namespace ConnectClusterLoginEvent {
 export class ConnectProtocolUseEvent extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): ConnectProtocolUseEvent;
-
     getUserName(): string;
     setUserName(value: string): ConnectProtocolUseEvent;
-
     getProtocol(): string;
     setProtocol(value: string): ConnectProtocolUseEvent;
-
     getOrigin(): string;
     setOrigin(value: string): ConnectProtocolUseEvent;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ConnectProtocolUseEvent.AsObject;
@@ -88,13 +77,10 @@ export namespace ConnectProtocolUseEvent {
 export class ConnectAccessRequestCreateEvent extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): ConnectAccessRequestCreateEvent;
-
     getUserName(): string;
     setUserName(value: string): ConnectAccessRequestCreateEvent;
-
     getKind(): string;
     setKind(value: string): ConnectAccessRequestCreateEvent;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ConnectAccessRequestCreateEvent.AsObject;
@@ -117,10 +103,8 @@ export namespace ConnectAccessRequestCreateEvent {
 export class ConnectAccessRequestReviewEvent extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): ConnectAccessRequestReviewEvent;
-
     getUserName(): string;
     setUserName(value: string): ConnectAccessRequestReviewEvent;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ConnectAccessRequestReviewEvent.AsObject;
@@ -142,10 +126,8 @@ export namespace ConnectAccessRequestReviewEvent {
 export class ConnectAccessRequestAssumeRoleEvent extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): ConnectAccessRequestAssumeRoleEvent;
-
     getUserName(): string;
     setUserName(value: string): ConnectAccessRequestAssumeRoleEvent;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ConnectAccessRequestAssumeRoleEvent.AsObject;
@@ -167,13 +149,10 @@ export namespace ConnectAccessRequestAssumeRoleEvent {
 export class ConnectFileTransferRunEvent extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): ConnectFileTransferRunEvent;
-
     getUserName(): string;
     setUserName(value: string): ConnectFileTransferRunEvent;
-
     getIsUpload(): boolean;
     setIsUpload(value: boolean): ConnectFileTransferRunEvent;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ConnectFileTransferRunEvent.AsObject;
@@ -197,7 +176,6 @@ export class ConnectUserJobRoleUpdateEvent extends jspb.Message {
     getJobRole(): string;
     setJobRole(value: string): ConnectUserJobRoleUpdateEvent;
 
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ConnectUserJobRoleUpdateEvent.AsObject;
     static toObject(includeInstance: boolean, msg: ConnectUserJobRoleUpdateEvent): ConnectUserJobRoleUpdateEvent.AsObject;
@@ -217,16 +195,12 @@ export namespace ConnectUserJobRoleUpdateEvent {
 export class ConnectConnectMyComputerSetup extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): ConnectConnectMyComputerSetup;
-
     getUserName(): string;
     setUserName(value: string): ConnectConnectMyComputerSetup;
-
     getSuccess(): boolean;
     setSuccess(value: boolean): ConnectConnectMyComputerSetup;
-
     getFailedStep(): string;
     setFailedStep(value: string): ConnectConnectMyComputerSetup;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ConnectConnectMyComputerSetup.AsObject;
@@ -250,10 +224,8 @@ export namespace ConnectConnectMyComputerSetup {
 export class ConnectConnectMyComputerAgentStart extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): ConnectConnectMyComputerAgentStart;
-
     getUserName(): string;
     setUserName(value: string): ConnectConnectMyComputerAgentStart;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ConnectConnectMyComputerAgentStart.AsObject;
@@ -276,66 +248,55 @@ export class SubmitConnectEventRequest extends jspb.Message {
     getDistinctId(): string;
     setDistinctId(value: string): SubmitConnectEventRequest;
 
-
     hasTimestamp(): boolean;
     clearTimestamp(): void;
     getTimestamp(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setTimestamp(value?: google_protobuf_timestamp_pb.Timestamp): SubmitConnectEventRequest;
-
 
     hasClusterLogin(): boolean;
     clearClusterLogin(): void;
     getClusterLogin(): ConnectClusterLoginEvent | undefined;
     setClusterLogin(value?: ConnectClusterLoginEvent): SubmitConnectEventRequest;
 
-
     hasProtocolUse(): boolean;
     clearProtocolUse(): void;
     getProtocolUse(): ConnectProtocolUseEvent | undefined;
     setProtocolUse(value?: ConnectProtocolUseEvent): SubmitConnectEventRequest;
-
 
     hasAccessRequestCreate(): boolean;
     clearAccessRequestCreate(): void;
     getAccessRequestCreate(): ConnectAccessRequestCreateEvent | undefined;
     setAccessRequestCreate(value?: ConnectAccessRequestCreateEvent): SubmitConnectEventRequest;
 
-
     hasAccessRequestReview(): boolean;
     clearAccessRequestReview(): void;
     getAccessRequestReview(): ConnectAccessRequestReviewEvent | undefined;
     setAccessRequestReview(value?: ConnectAccessRequestReviewEvent): SubmitConnectEventRequest;
-
 
     hasAccessRequestAssumeRole(): boolean;
     clearAccessRequestAssumeRole(): void;
     getAccessRequestAssumeRole(): ConnectAccessRequestAssumeRoleEvent | undefined;
     setAccessRequestAssumeRole(value?: ConnectAccessRequestAssumeRoleEvent): SubmitConnectEventRequest;
 
-
     hasFileTransferRun(): boolean;
     clearFileTransferRun(): void;
     getFileTransferRun(): ConnectFileTransferRunEvent | undefined;
     setFileTransferRun(value?: ConnectFileTransferRunEvent): SubmitConnectEventRequest;
-
 
     hasUserJobRoleUpdate(): boolean;
     clearUserJobRoleUpdate(): void;
     getUserJobRoleUpdate(): ConnectUserJobRoleUpdateEvent | undefined;
     setUserJobRoleUpdate(value?: ConnectUserJobRoleUpdateEvent): SubmitConnectEventRequest;
 
-
     hasConnectMyComputerSetup(): boolean;
     clearConnectMyComputerSetup(): void;
     getConnectMyComputerSetup(): ConnectConnectMyComputerSetup | undefined;
     setConnectMyComputerSetup(value?: ConnectConnectMyComputerSetup): SubmitConnectEventRequest;
 
-
     hasConnectMyComputerAgentStart(): boolean;
     clearConnectMyComputerAgentStart(): void;
     getConnectMyComputerAgentStart(): ConnectConnectMyComputerAgentStart | undefined;
     setConnectMyComputerAgentStart(value?: ConnectConnectMyComputerAgentStart): SubmitConnectEventRequest;
-
 
     getEventCase(): SubmitConnectEventRequest.EventCase;
 
@@ -366,25 +327,15 @@ export namespace SubmitConnectEventRequest {
 
     export enum EventCase {
         EVENT_NOT_SET = 0,
-    
-    CLUSTER_LOGIN = 3,
-
-    PROTOCOL_USE = 4,
-
-    ACCESS_REQUEST_CREATE = 5,
-
-    ACCESS_REQUEST_REVIEW = 6,
-
-    ACCESS_REQUEST_ASSUME_ROLE = 7,
-
-    FILE_TRANSFER_RUN = 8,
-
-    USER_JOB_ROLE_UPDATE = 9,
-
-    CONNECT_MY_COMPUTER_SETUP = 10,
-
-    CONNECT_MY_COMPUTER_AGENT_START = 11,
-
+        CLUSTER_LOGIN = 3,
+        PROTOCOL_USE = 4,
+        ACCESS_REQUEST_CREATE = 5,
+        ACCESS_REQUEST_REVIEW = 6,
+        ACCESS_REQUEST_ASSUME_ROLE = 7,
+        FILE_TRANSFER_RUN = 8,
+        USER_JOB_ROLE_UPDATE = 9,
+        CONNECT_MY_COMPUTER_SETUP = 10,
+        CONNECT_MY_COMPUTER_AGENT_START = 11,
     }
 
 }

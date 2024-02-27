@@ -10,31 +10,22 @@ import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/t
 export class TbotStartEvent extends jspb.Message { 
     getRunMode(): TbotStartEvent.RunMode;
     setRunMode(value: TbotStartEvent.RunMode): TbotStartEvent;
-
     getVersion(): string;
     setVersion(value: string): TbotStartEvent;
-
     getJoinType(): string;
     setJoinType(value: string): TbotStartEvent;
-
     getHelper(): string;
     setHelper(value: string): TbotStartEvent;
-
     getHelperVersion(): string;
     setHelperVersion(value: string): TbotStartEvent;
-
     getDestinationsOther(): number;
     setDestinationsOther(value: number): TbotStartEvent;
-
     getDestinationsDatabase(): number;
     setDestinationsDatabase(value: number): TbotStartEvent;
-
     getDestinationsKubernetes(): number;
     setDestinationsKubernetes(value: number): TbotStartEvent;
-
     getDestinationsApplication(): number;
     setDestinationsApplication(value: number): TbotStartEvent;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): TbotStartEvent.AsObject;
@@ -71,18 +62,15 @@ export class SubmitTbotEventRequest extends jspb.Message {
     getDistinctId(): string;
     setDistinctId(value: string): SubmitTbotEventRequest;
 
-
     hasTimestamp(): boolean;
     clearTimestamp(): void;
     getTimestamp(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setTimestamp(value?: google_protobuf_timestamp_pb.Timestamp): SubmitTbotEventRequest;
 
-
     hasStart(): boolean;
     clearStart(): void;
     getStart(): TbotStartEvent | undefined;
     setStart(value?: TbotStartEvent): SubmitTbotEventRequest;
-
 
     getEventCase(): SubmitTbotEventRequest.EventCase;
 
@@ -105,9 +93,7 @@ export namespace SubmitTbotEventRequest {
 
     export enum EventCase {
         EVENT_NOT_SET = 0,
-    
-    START = 3,
-
+        START = 3,
     }
 
 }

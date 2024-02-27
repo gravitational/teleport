@@ -9,27 +9,20 @@ import * as jspb from "google-protobuf";
 export class DeviceWebToken extends jspb.Message { 
     getId(): string;
     setId(value: string): DeviceWebToken;
-
     getToken(): string;
     setToken(value: string): DeviceWebToken;
-
     getWebSessionId(): string;
     setWebSessionId(value: string): DeviceWebToken;
-
     getBrowserUserAgent(): string;
     setBrowserUserAgent(value: string): DeviceWebToken;
-
     getBrowserIp(): string;
     setBrowserIp(value: string): DeviceWebToken;
-
     getUser(): string;
     setUser(value: string): DeviceWebToken;
-
     clearExpectedDeviceIdsList(): void;
     getExpectedDeviceIdsList(): Array<string>;
     setExpectedDeviceIdsList(value: Array<string>): DeviceWebToken;
     addExpectedDeviceIds(value: string, index?: number): string;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeviceWebToken.AsObject;

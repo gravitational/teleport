@@ -9,37 +9,28 @@ import * as jspb from "google-protobuf";
 export class Cluster extends jspb.Message { 
     getUri(): string;
     setUri(value: string): Cluster;
-
     getName(): string;
     setName(value: string): Cluster;
-
     getProxyHost(): string;
     setProxyHost(value: string): Cluster;
-
     getConnected(): boolean;
     setConnected(value: boolean): Cluster;
-
     getLeaf(): boolean;
     setLeaf(value: boolean): Cluster;
-
 
     hasLoggedInUser(): boolean;
     clearLoggedInUser(): void;
     getLoggedInUser(): LoggedInUser | undefined;
     setLoggedInUser(value?: LoggedInUser): Cluster;
 
-
     hasFeatures(): boolean;
     clearFeatures(): void;
     getFeatures(): Features | undefined;
     setFeatures(value?: Features): Cluster;
-
     getAuthClusterId(): string;
     setAuthClusterId(value: string): Cluster;
-
     getProxyVersion(): string;
     setProxyVersion(value: string): Cluster;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Cluster.AsObject;
@@ -68,41 +59,33 @@ export namespace Cluster {
 export class LoggedInUser extends jspb.Message { 
     getName(): string;
     setName(value: string): LoggedInUser;
-
     clearRolesList(): void;
     getRolesList(): Array<string>;
     setRolesList(value: Array<string>): LoggedInUser;
     addRoles(value: string, index?: number): string;
-
     clearSshLoginsList(): void;
     getSshLoginsList(): Array<string>;
     setSshLoginsList(value: Array<string>): LoggedInUser;
     addSshLogins(value: string, index?: number): string;
 
-
     hasAcl(): boolean;
     clearAcl(): void;
     getAcl(): ACL | undefined;
     setAcl(value?: ACL): LoggedInUser;
-
     clearActiveRequestsList(): void;
     getActiveRequestsList(): Array<string>;
     setActiveRequestsList(value: Array<string>): LoggedInUser;
     addActiveRequests(value: string, index?: number): string;
-
     clearSuggestedReviewersList(): void;
     getSuggestedReviewersList(): Array<string>;
     setSuggestedReviewersList(value: Array<string>): LoggedInUser;
     addSuggestedReviewers(value: string, index?: number): string;
-
     clearRequestableRolesList(): void;
     getRequestableRolesList(): Array<string>;
     setRequestableRolesList(value: Array<string>): LoggedInUser;
     addRequestableRoles(value: string, index?: number): string;
-
     getUserType(): LoggedInUser.UserType;
     setUserType(value: LoggedInUser.UserType): LoggedInUser;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): LoggedInUser.AsObject;
@@ -141,78 +124,65 @@ export class ACL extends jspb.Message {
     getAuthConnectors(): ResourceAccess | undefined;
     setAuthConnectors(value?: ResourceAccess): ACL;
 
-
     hasRoles(): boolean;
     clearRoles(): void;
     getRoles(): ResourceAccess | undefined;
     setRoles(value?: ResourceAccess): ACL;
-
 
     hasUsers(): boolean;
     clearUsers(): void;
     getUsers(): ResourceAccess | undefined;
     setUsers(value?: ResourceAccess): ACL;
 
-
     hasTrustedClusters(): boolean;
     clearTrustedClusters(): void;
     getTrustedClusters(): ResourceAccess | undefined;
     setTrustedClusters(value?: ResourceAccess): ACL;
-
 
     hasEvents(): boolean;
     clearEvents(): void;
     getEvents(): ResourceAccess | undefined;
     setEvents(value?: ResourceAccess): ACL;
 
-
     hasTokens(): boolean;
     clearTokens(): void;
     getTokens(): ResourceAccess | undefined;
     setTokens(value?: ResourceAccess): ACL;
-
 
     hasServers(): boolean;
     clearServers(): void;
     getServers(): ResourceAccess | undefined;
     setServers(value?: ResourceAccess): ACL;
 
-
     hasApps(): boolean;
     clearApps(): void;
     getApps(): ResourceAccess | undefined;
     setApps(value?: ResourceAccess): ACL;
-
 
     hasDbs(): boolean;
     clearDbs(): void;
     getDbs(): ResourceAccess | undefined;
     setDbs(value?: ResourceAccess): ACL;
 
-
     hasKubeservers(): boolean;
     clearKubeservers(): void;
     getKubeservers(): ResourceAccess | undefined;
     setKubeservers(value?: ResourceAccess): ACL;
-
 
     hasAccessRequests(): boolean;
     clearAccessRequests(): void;
     getAccessRequests(): ResourceAccess | undefined;
     setAccessRequests(value?: ResourceAccess): ACL;
 
-
     hasRecordedSessions(): boolean;
     clearRecordedSessions(): void;
     getRecordedSessions(): ResourceAccess | undefined;
     setRecordedSessions(value?: ResourceAccess): ACL;
 
-
     hasActiveSessions(): boolean;
     clearActiveSessions(): void;
     getActiveSessions(): ResourceAccess | undefined;
     setActiveSessions(value?: ResourceAccess): ACL;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ACL.AsObject;
@@ -245,22 +215,16 @@ export namespace ACL {
 export class ResourceAccess extends jspb.Message { 
     getList(): boolean;
     setList(value: boolean): ResourceAccess;
-
     getRead(): boolean;
     setRead(value: boolean): ResourceAccess;
-
     getEdit(): boolean;
     setEdit(value: boolean): ResourceAccess;
-
     getCreate(): boolean;
     setCreate(value: boolean): ResourceAccess;
-
     getDelete(): boolean;
     setDelete(value: boolean): ResourceAccess;
-
     getUse(): boolean;
     setUse(value: boolean): ResourceAccess;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceAccess.AsObject;
@@ -286,10 +250,8 @@ export namespace ResourceAccess {
 export class Features extends jspb.Message { 
     getAdvancedAccessWorkflows(): boolean;
     setAdvancedAccessWorkflows(value: boolean): Features;
-
     getIsUsageBasedBilling(): boolean;
     setIsUsageBasedBilling(value: boolean): Features;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Features.AsObject;

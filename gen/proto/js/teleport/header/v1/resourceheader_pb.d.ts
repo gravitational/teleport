@@ -10,19 +10,15 @@ import * as teleport_header_v1_metadata_pb from "../../../teleport/header/v1/met
 export class ResourceHeader extends jspb.Message { 
     getKind(): string;
     setKind(value: string): ResourceHeader;
-
     getSubKind(): string;
     setSubKind(value: string): ResourceHeader;
-
     getVersion(): string;
     setVersion(value: string): ResourceHeader;
-
 
     hasMetadata(): boolean;
     clearMetadata(): void;
     getMetadata(): teleport_header_v1_metadata_pb.Metadata | undefined;
     setMetadata(value?: teleport_header_v1_metadata_pb.Metadata): ResourceHeader;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceHeader.AsObject;

@@ -16,54 +16,39 @@ export class DeviceCollectedData extends jspb.Message {
     getCollectTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setCollectTime(value?: google_protobuf_timestamp_pb.Timestamp): DeviceCollectedData;
 
-
     hasRecordTime(): boolean;
     clearRecordTime(): void;
     getRecordTime(): google_protobuf_timestamp_pb.Timestamp | undefined;
     setRecordTime(value?: google_protobuf_timestamp_pb.Timestamp): DeviceCollectedData;
-
     getOsType(): teleport_devicetrust_v1_os_type_pb.OSType;
     setOsType(value: teleport_devicetrust_v1_os_type_pb.OSType): DeviceCollectedData;
-
     getSerialNumber(): string;
     setSerialNumber(value: string): DeviceCollectedData;
-
     getModelIdentifier(): string;
     setModelIdentifier(value: string): DeviceCollectedData;
-
     getOsVersion(): string;
     setOsVersion(value: string): DeviceCollectedData;
-
     getOsBuild(): string;
     setOsBuild(value: string): DeviceCollectedData;
-
     getOsUsername(): string;
     setOsUsername(value: string): DeviceCollectedData;
-
     getJamfBinaryVersion(): string;
     setJamfBinaryVersion(value: string): DeviceCollectedData;
-
     getMacosEnrollmentProfiles(): string;
     setMacosEnrollmentProfiles(value: string): DeviceCollectedData;
-
     getReportedAssetTag(): string;
     setReportedAssetTag(value: string): DeviceCollectedData;
-
     getSystemSerialNumber(): string;
     setSystemSerialNumber(value: string): DeviceCollectedData;
-
     getBaseBoardSerialNumber(): string;
     setBaseBoardSerialNumber(value: string): DeviceCollectedData;
-
 
     hasTpmPlatformAttestation(): boolean;
     clearTpmPlatformAttestation(): void;
     getTpmPlatformAttestation(): teleport_devicetrust_v1_tpm_pb.TPMPlatformAttestation | undefined;
     setTpmPlatformAttestation(value?: teleport_devicetrust_v1_tpm_pb.TPMPlatformAttestation): DeviceCollectedData;
-
     getOsId(): string;
     setOsId(value: string): DeviceCollectedData;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DeviceCollectedData.AsObject;
