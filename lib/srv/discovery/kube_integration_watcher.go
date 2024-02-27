@@ -55,7 +55,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	proxyPublicAddr := pong.GetProxyPublicAddr()
 
 	releaseChannels := automaticupgrades.Channels{}
-	if err := releaseChannels.CheckAndSetDefaults(s.ClusterFeatures); err != nil {
+	if err := releaseChannels.CheckAndSetDefaults(s.ClusterFeatures()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -174,6 +174,8 @@ func (s *Server) enrollEKSClusters(region, integration, proxyPublicAddr string, 
 	defer cancel()
 	var clusterNames []string
 
+	clusterFeatures := s.ClusterFeatures()
+
 	for _, kubeAppDiscovery := range []bool{true, false} {
 		for _, c := range batchedClusters[kubeAppDiscovery] {
 			clusterNames = append(clusterNames, c.GetAWSConfig().Name)
@@ -185,8 +187,8 @@ func (s *Server) enrollEKSClusters(region, integration, proxyPublicAddr string, 
 			Region:             region,
 			ClusterNames:       clusterNames,
 			EnableAppDiscovery: kubeAppDiscovery,
-			EnableAutoUpgrades: s.ClusterFeatures.GetAutomaticUpgrades(),
-			IsCloud:            s.ClusterFeatures.GetCloud(),
+			EnableAutoUpgrades: clusterFeatures.GetAutomaticUpgrades(),
+			IsCloud:            clusterFeatures.GetCloud(),
 			AgentVersion:       agentVersion,
 		})
 
@@ -211,8 +213,8 @@ func (s *Server) getKubeAgentVersion(releaseChannels automaticupgrades.Channels)
 	}
 	agentVersion := pingResponse.ServerVersion
 
-
-	if s.ClusterFeatures.GetAutomaticUpgrades() {
+	clusterFeatures := s.ClusterFeatures()
+	if clusterFeatures.GetAutomaticUpgrades() {
 		defaultVersion, err := releaseChannels.DefaultVersion(s.ctx)
 		if err == nil {
 			agentVersion = defaultVersion

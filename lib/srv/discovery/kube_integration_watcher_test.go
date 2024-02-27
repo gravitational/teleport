@@ -97,8 +97,10 @@ func TestGetAgentVersion(t *testing.T) {
 			server := Server{
 				ctx: ctx,
 				Config: &Config{
-					AccessPoint:     &fakeAccessPoint{ping: tt.ping},
-					ClusterFeatures: tt.clusterFeatures,
+					AccessPoint: &fakeAccessPoint{ping: tt.ping},
+					ClusterFeatures: func() proto.Features {
+						return tt.clusterFeatures
+					},
 				},
 			}
 

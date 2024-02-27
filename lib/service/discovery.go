@@ -79,7 +79,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		AccessPoint:       accessPoint,
 		Log:               process.log,
 		ClusterName:       conn.ClientIdentity.ClusterName,
-		ClusterFeatures:   process.getClusterFeatures(),
+		ClusterFeatures:   process.getClusterFeatures,
 		PollInterval:      process.Config.Discovery.PollInterval,
 		ServerCredentials: tlsConfig,
 		AccessGraphConfig: process.Config.AccessGraph,
