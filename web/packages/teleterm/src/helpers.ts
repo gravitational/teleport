@@ -35,6 +35,12 @@ import {
   PtyEventStartError,
   PtyServerEvent,
 } from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb';
+import {
+  ReloginRequest,
+  SendNotificationRequest,
+  CannotProxyGatewayConnection,
+  GatewayCertExpired,
+} from 'teleterm/services/tshdEvents';
 
 export function resourceOneOfIsServer(
   resource: PaginatedResource['resource']
@@ -107,6 +113,7 @@ export function ptyEventOneOfIsExit(
 } {
   return event.oneofKind === 'exit';
 }
+
 export function ptyEventOneOfIsStartError(
   event: PtyClientEvent['event'] | PtyServerEvent['event']
 ): event is {
@@ -114,6 +121,24 @@ export function ptyEventOneOfIsStartError(
   startError: PtyEventStartError;
 } {
   return event.oneofKind === 'startError';
+}
+
+export function notificationRequestOneOfIsCannotProxyGatewayConnection(
+  subject: SendNotificationRequest['subject']
+): subject is {
+  oneofKind: 'cannotProxyGatewayConnection';
+  cannotProxyGatewayConnection: CannotProxyGatewayConnection;
+} {
+  return subject.oneofKind === 'cannotProxyGatewayConnection';
+}
+
+export function reloginReasonOneOfIsGatewayCertExpired(
+  reason: ReloginRequest['reason']
+): reason is {
+  oneofKind: 'gatewayCertExpired';
+  gatewayCertExpired: GatewayCertExpired;
+} {
+  return reason.oneofKind === 'gatewayCertExpired';
 }
 
 export function connectEventOneOfIsClusterLogin(
