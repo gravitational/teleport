@@ -20,11 +20,15 @@ package apiserver
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 // withErrorHandling is gRPC middleware that maps internal errors to proper gRPC error codes
@@ -38,6 +42,15 @@ func withErrorHandling(log logrus.FieldLogger) grpc.UnaryServerInterceptor {
 		resp, err := handler(ctx, req)
 		if err != nil {
 			log.WithError(err).Error("Request failed.")
+			// A stop gap solution that allows us to show a relogin modal when we
+			// receive an error from the server saying that the cert is expired.
+			// Read more: https://github.com/gravitational/teleport/pull/38202#discussion_r1497181659
+			// TODO(gzdunek): fix when addressing https://github.com/gravitational/teleport/issues/32550
+			var remoteErr *interceptors.RemoteError
+			if errors.As(err, &remoteErr) && strings.Contains(remoteErr.Error(), "client credentials have expired") {
+				return resp, trail.ToGRPC(err)
+			}
+
 			// do not return a full error stack on access denied errors
 			if trace.IsAccessDenied(err) {
 				return resp, trail.ToGRPC(trace.AccessDenied("access denied"))
