@@ -462,6 +462,10 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 		// If admin action MFA is not strictly enforced but webauthn is enabled, check if the
 		// user has a registered webauthn device so we can opportunistically enforce it.
 		if authpref.IsSecondFactorWebauthnAllowed() {
+			if a.mfaAuthenticator == nil {
+				return false, trace.Errorf("failed to validate MFA auth response, authorizer missing mfaAuthenticator field")
+			}
+
 			mfaDevices, err := a.mfaAuthenticator.GetMFADevices(ctx, nil)
 			if err != nil {
 				return false, trace.Wrap(err)
