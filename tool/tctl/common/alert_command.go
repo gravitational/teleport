@@ -149,7 +149,7 @@ func (c *AlertCommand) Ack(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Successfully acknowledged alert '%s'. Alerts with this ID won't be pushed for %s.\n", c.alertID, c.ttl)
+	fmt.Printf("Successfully acknowledged alert %q. Alerts with this ID won't be pushed for %s.\n", c.alertID, c.ttl)
 
 	return nil
 }
@@ -163,7 +163,7 @@ func (c *AlertCommand) ClearAck(ctx context.Context, client auth.ClientI) error 
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Successfully cleared acknowledgement for alert '%s'. Alerts with this ID will resume being pushed.\n", c.alertID)
+	fmt.Printf("Successfully cleared acknowledgement for alert %q. Alerts with this ID will resume being pushed.\n", c.alertID)
 
 	return nil
 }
