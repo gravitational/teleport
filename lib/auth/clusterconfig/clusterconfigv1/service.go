@@ -32,6 +32,7 @@ import (
 type Cache interface {
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 }
 
 // Backend is used by the [Service] to mutate cluster config resources.
@@ -43,6 +44,10 @@ type Backend interface {
 	CreateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
 	UpdateClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
 	UpsertClusterNetworkingConfig(ctx context.Context, preference types.ClusterNetworkingConfig) (types.ClusterNetworkingConfig, error)
+
+	CreateSessionRecordingConfig(ctx context.Context, preference types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
+	UpdateSessionRecordingConfig(ctx context.Context, preference types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
+	UpsertSessionRecordingConfig(ctx context.Context, preference types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
 }
 
 // ServiceConfig contain dependencies required to create a [Service].
@@ -350,6 +355,8 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
+	req.ClusterNetworkConfig.SetOrigin(types.OriginDynamic)
+
 	updated, err := s.backend.UpdateClusterNetworkingConfig(ctx, req.ClusterNetworkConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -388,6 +395,8 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
+
+	req.ClusterNetworkConfig.SetOrigin(types.OriginDynamic)
 
 	upserted, err := s.backend.UpsertClusterNetworkingConfig(ctx, req.GetClusterNetworkConfig())
 	if err != nil {
@@ -451,5 +460,174 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 		return cfgV2, nil
 	}
 
+	return nil, trace.LimitExceeded("failed to reset networking config within %v iterations", iterationLimit)
+}
+
+// GetSessionRecordingConfig returns the locally cached networking configuration.
+func (s *Service) GetSessionRecordingConfig(ctx context.Context, _ *clusterconfigpb.GetSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindSessionRecordingConfig, types.VerbRead); err != nil {
+		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	netConfig, err := s.cache.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfgV2, ok := netConfig.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", netConfig, cfgV2))
+	}
+	return cfgV2, nil
+}
+
+// CreateSessionRecordingConfig creates a new cluster networking configuration if one does not exist.
+// This is an internal API and is not exposed via [clusterconfigv1.ClusterConfigServiceServer]. It
+// is only meant to be called directly from the first time an Auth instance is started.
+func (s *Service) CreateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authzCtx, string(types.RoleAuth)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	created, err := s.backend.CreateSessionRecordingConfig(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfgV2, ok := created.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", created, cfgV2))
+	}
+
+	return cfgV2, nil
+}
+
+// UpdateSessionRecordingConfig conditionally updates an existing networking configuration if the
+// value wasn't concurrently modified.
+func (s *Service) UpdateSessionRecordingConfig(ctx context.Context, req *clusterconfigpb.UpdateSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindSessionRecordingConfig, types.VerbUpdate); err != nil {
+		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbUpdate); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
+
+	updated, err := s.backend.UpdateSessionRecordingConfig(ctx, req.SessionRecordingConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfgV2, ok := updated.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", updated, cfgV2))
+	}
+
+	return cfgV2, nil
+}
+
+// UpsertSessionRecordingConfig creates a new networking configuration or overwrites an existing configuration.
+func (s *Service) UpsertSessionRecordingConfig(ctx context.Context, req *clusterconfigpb.UpsertSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindSessionRecordingConfig, types.VerbCreate, types.VerbUpdate); err != nil {
+		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbCreate, types.VerbUpdate); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Support reused MFA for bulk tctl create requests.
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
+
+	upserted, err := s.backend.UpsertSessionRecordingConfig(ctx, req.SessionRecordingConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfgV2, ok := upserted.(*types.SessionRecordingConfigV2)
+	if !ok {
+		return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", upserted, cfgV2))
+	}
+
+	return cfgV2, nil
+}
+
+// ResetSessionRecordingConfig restores the networking configuration to the default value.
+func (s *Service) ResetSessionRecordingConfig(ctx context.Context, _ *clusterconfigpb.ResetSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindSessionRecordingConfig, types.VerbUpdate); err != nil {
+		if err2 := authzCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbUpdate); err2 != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := authzCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defaultConfig := types.DefaultSessionRecordingConfig()
+	const iterationLimit = 3
+	// Attempt a few iterations in case the conditional update fails
+	// due to spurious networking conditions.
+	for i := 0; i < iterationLimit; i++ {
+
+		cfg, err := s.cache.GetSessionRecordingConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if cfg.Origin() == types.OriginConfigFile {
+			return nil, trace.BadParameter("session recording configuration has been defined in the auth server's config file and cannot be set back to defaults dynamically.")
+		}
+
+		defaultConfig.SetRevision(cfg.GetRevision())
+
+		reset, err := s.backend.UpsertSessionRecordingConfig(ctx, defaultConfig)
+		if err != nil {
+			if trace.IsCompareFailed(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		cfgV2, ok := reset.(*types.SessionRecordingConfigV2)
+		if !ok {
+			return nil, trace.Wrap(trace.BadParameter("unexpected session recording config type %T (expected %T)", reset, cfgV2))
+		}
+
+		return cfgV2, nil
+	}
 	return nil, trace.LimitExceeded("failed to reset networking config within %v iterations", iterationLimit)
 }

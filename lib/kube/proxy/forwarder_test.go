@@ -1213,7 +1213,7 @@ func (ap mockAccessPoint) GetClusterNetworkingConfig(context.Context) (types.Clu
 	return ap.netConfig, nil
 }
 
-func (ap mockAccessPoint) GetSessionRecordingConfig(context.Context, ...services.MarshalOption) (types.SessionRecordingConfig, error) {
+func (ap mockAccessPoint) GetSessionRecordingConfig(context.Context) (types.SessionRecordingConfig, error) {
 	return ap.recordingConfig, nil
 }
 

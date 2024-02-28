@@ -160,7 +160,7 @@ func TestGetAuthPreference(t *testing.T) {
 				}, nil
 			}),
 			assertion: func(t *testing.T, err error) {
-				require.True(t, trace.IsAccessDenied(err), "got (%v), unauthorized user to be prevented from getting auth preferences", err)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to be prevented from getting auth preferences", err)
 			},
 		}, {
 			name: "authorized",
@@ -268,10 +268,12 @@ func TestUpdateAuthPreference(t *testing.T) {
 			}),
 			preference: func(p types.AuthPreference) {
 				p.(*types.AuthPreferenceV2).Spec.LockingMode = constants.LockingModeStrict
+				p.SetOrigin("test-origin")
 			},
 			assertion: func(t *testing.T, updated types.AuthPreference, err error) {
 				require.NoError(t, err)
 				require.Equal(t, constants.LockingModeStrict, updated.GetLockingMode())
+				require.Equal(t, types.OriginDynamic, updated.Origin())
 			},
 		},
 	}
@@ -385,10 +387,12 @@ func TestUpsertAuthPreference(t *testing.T) {
 			}),
 			preference: func(p types.AuthPreference) {
 				p.(*types.AuthPreferenceV2).Spec.LockingMode = constants.LockingModeStrict
+				p.SetOrigin("test-origin")
 			},
 			assertion: func(t *testing.T, updated types.AuthPreference, err error) {
 				require.NoError(t, err)
 				require.Equal(t, constants.LockingModeStrict, updated.GetLockingMode())
+				require.Equal(t, types.OriginDynamic, updated.Origin())
 			},
 		},
 	}
@@ -609,7 +613,7 @@ func TestGetClusterNetworkingConfig(t *testing.T) {
 				}, nil
 			}),
 			assertion: func(t *testing.T, err error) {
-				require.True(t, trace.IsAccessDenied(err), "got (%v), unauthorized user to be prevented from getting auth preferences", err)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to be prevented from getting auth preferences", err)
 			},
 		}, {
 			name: "authorized",
@@ -704,10 +708,12 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 			}),
 			config: func(p types.ClusterNetworkingConfig) {
 				p.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
+				p.SetOrigin("test-origin")
 			},
 			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
 				require.NoError(t, err)
 				require.Equal(t, types.RoutingStrategy_MOST_RECENT, updated.GetRoutingStrategy())
+				require.Equal(t, types.OriginDynamic, updated.Origin())
 			},
 		},
 	}
@@ -808,10 +814,12 @@ func TestUpsertClusterNetworkingConfig(t *testing.T) {
 			}),
 			config: func(p types.ClusterNetworkingConfig) {
 				p.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
+				p.SetOrigin("test-origin")
 			},
 			assertion: func(t *testing.T, updated types.ClusterNetworkingConfig, err error) {
 				require.NoError(t, err)
 				require.Equal(t, types.RoutingStrategy_MOST_RECENT, updated.GetRoutingStrategy())
+				require.Equal(t, types.OriginDynamic, updated.Origin())
 			},
 		},
 	}
@@ -919,6 +927,350 @@ func TestResetClusterNetworkingConfig(t *testing.T) {
 	}
 }
 
+func TestCreateSessionRecordingConfig(t *testing.T) {
+	authRoleContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
+		Role:     types.RoleAuth,
+		Username: string(types.RoleAuth),
+	}, nil)
+	require.NoError(t, err, "creating auth role context")
+
+	cases := []struct {
+		name       string
+		modules    modules.Modules
+		authorizer authz.Authorizer
+		assertion  func(t *testing.T, created types.SessionRecordingConfig, err error)
+	}{
+		{
+			name: "unauthorized built in role",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return authz.ContextForBuiltinRole(authz.BuiltinRole{
+					Role:     types.RoleProxy,
+					Username: string(types.RoleProxy),
+				}, nil)
+			}),
+			assertion: func(t *testing.T, created types.SessionRecordingConfig, err error) {
+				assert.Nil(t, created)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected proxy role to be prevented from creating recording config", err)
+			},
+		},
+		{
+			name: "authorized built in auth",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return authRoleContext, nil
+			}),
+			assertion: func(t *testing.T, created types.SessionRecordingConfig, err error) {
+				require.NoError(t, err, "got (%v), expected auth role to create recording config", err)
+				require.NotNil(t, created)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.modules != nil {
+				modules.SetTestModules(t, test.modules)
+			}
+
+			var opts []serviceOpt
+			if test.authorizer != nil {
+				opts = append(opts, withAuthorizer(test.authorizer))
+			}
+
+			env, err := newTestEnv(opts...)
+			require.NoError(t, err, "creating test service")
+
+			created, err := env.CreateSessionRecordingConfig(context.Background(), types.DefaultSessionRecordingConfig())
+			test.assertion(t, created, err)
+		})
+	}
+}
+
+func TestGetSessionRecordingConfig(t *testing.T) {
+	cases := []struct {
+		name       string
+		authorizer authz.Authorizer
+		assertion  func(t *testing.T, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to be prevented from getting recording config", err)
+			},
+		}, {
+			name: "authorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbRead}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultRecordingConfig(types.DefaultSessionRecordingConfig()))
+			require.NoError(t, err, "creating test service")
+
+			got, err := env.GetSessionRecordingConfig(context.Background(), &clusterconfigpb.GetSessionRecordingConfigRequest{})
+			test.assertion(t, err)
+			if err == nil {
+				require.Empty(t, cmp.Diff(types.DefaultSessionRecordingConfig(), got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			}
+		})
+	}
+}
+
+func TestUpdateSessionRecordingConfig(t *testing.T) {
+	cases := []struct {
+		name       string
+		config     func(p types.SessionRecordingConfig)
+		authorizer authz.Authorizer
+		assertion  func(t *testing.T, updated types.SessionRecordingConfig, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated types.SessionRecordingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent updating recording config", err)
+			},
+		},
+		{
+			name: "no admin action",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbUpdate}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated types.SessionRecordingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent updating recording config", err)
+			},
+		},
+		{
+			name: "updated",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			config: func(p types.SessionRecordingConfig) {
+				p.SetProxyChecksHostKeys(false)
+				p.SetOrigin("test-origin")
+			},
+			assertion: func(t *testing.T, updated types.SessionRecordingConfig, err error) {
+				require.NoError(t, err)
+				require.False(t, updated.GetProxyChecksHostKeys())
+				require.Equal(t, types.OriginDynamic, updated.Origin())
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultRecordingConfig(types.DefaultSessionRecordingConfig()))
+			require.NoError(t, err, "creating test service")
+
+			// Set revisions to allow the update to succeed.
+			cfg := env.defaultRecordingConfig
+			if test.config != nil {
+				test.config(cfg)
+			}
+
+			updated, err := env.UpdateSessionRecordingConfig(context.Background(), &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)})
+			test.assertion(t, updated, err)
+		})
+	}
+}
+
+func TestUpsertSessionRecordingConfig(t *testing.T) {
+	cases := []struct {
+		name       string
+		config     func(p types.SessionRecordingConfig)
+		authorizer authz.Authorizer
+		assertion  func(t *testing.T, updated types.SessionRecordingConfig, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated types.SessionRecordingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent upserting recording config", err)
+			},
+		},
+		{
+			name: "access prevented",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthUnauthorized,
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated types.SessionRecordingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent upserting recording config", err)
+			},
+		},
+		{
+			name: "no admin action",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbCreate, types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthUnauthorized,
+				}, nil
+			}),
+			assertion: func(t *testing.T, updated types.SessionRecordingConfig, err error) {
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent upserting recording config", err)
+			},
+		},
+		{
+			name: "upserted",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbUpdate, types.VerbCreate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			config: func(p types.SessionRecordingConfig) {
+				p.SetProxyChecksHostKeys(false)
+				p.SetOrigin("test-origin")
+			},
+			assertion: func(t *testing.T, updated types.SessionRecordingConfig, err error) {
+				require.NoError(t, err)
+				require.False(t, updated.GetProxyChecksHostKeys())
+				require.Equal(t, types.OriginDynamic, updated.Origin())
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultRecordingConfig(types.DefaultSessionRecordingConfig()))
+			require.NoError(t, err, "creating test service")
+
+			// Set revisions to allow the update to succeed.
+			cfg := env.defaultRecordingConfig
+			if test.config != nil {
+				test.config(cfg)
+			}
+
+			updated, err := env.UpsertSessionRecordingConfig(context.Background(), &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)})
+			test.assertion(t, updated, err)
+		})
+	}
+}
+
+func TestResetSessionRecordingConfig(t *testing.T) {
+	cases := []struct {
+		name       string
+		authorizer authz.Authorizer
+		modules    modules.Modules
+		config     types.SessionRecordingConfig
+		assertion  func(t *testing.T, reset types.SessionRecordingConfig, err error)
+	}{
+		{
+			name: "unauthorized",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{},
+				}, nil
+			}),
+			assertion: func(t *testing.T, reset types.SessionRecordingConfig, err error) {
+				assert.Nil(t, reset)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent resetting recording config", err)
+			},
+		},
+		{
+			name: "no admin action",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbUpdate}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, reset types.SessionRecordingConfig, err error) {
+				assert.Nil(t, reset)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected lack of admin action to prevent resetting recording config", err)
+			},
+		},
+		{
+			name: "config file origin prevents reset",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbUpdate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			config: func() types.SessionRecordingConfig {
+				cfg := types.DefaultSessionRecordingConfig()
+				cfg.SetOrigin(types.OriginConfigFile)
+				return cfg
+			}(),
+			assertion: func(t *testing.T, reset types.SessionRecordingConfig, err error) {
+				assert.Nil(t, reset)
+				require.True(t, trace.IsBadParameter(err), "got (%v), expected config file origin to prevent resetting recording config", err)
+			},
+		},
+		{
+			name: "reset",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbUpdate, types.VerbCreate}},
+					},
+					AdminActionAuthState: authz.AdminActionAuthMFAVerified,
+				}, nil
+			}),
+			assertion: func(t *testing.T, reset types.SessionRecordingConfig, err error) {
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(types.DefaultSessionRecordingConfig(), reset, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := types.DefaultSessionRecordingConfig()
+			if test.config != nil {
+				cfg = test.config
+			}
+			env, err := newTestEnv(withAuthorizer(test.authorizer), withDefaultRecordingConfig(cfg))
+			require.NoError(t, err, "creating test service")
+
+			reset, err := env.ResetSessionRecordingConfig(context.Background(), &clusterconfigpb.ResetSessionRecordingConfigRequest{})
+			test.assertion(t, reset, err)
+		})
+	}
+}
+
 type fakeChecker struct {
 	services.AccessChecker
 	rules map[string][]string
@@ -941,6 +1293,7 @@ type envConfig struct {
 	authorizer              authz.Authorizer
 	defaultAuthPreference   types.AuthPreference
 	defaultNetworkingConfig types.ClusterNetworkingConfig
+	defaultRecordingConfig  types.SessionRecordingConfig
 }
 type serviceOpt = func(config *envConfig)
 
@@ -962,11 +1315,18 @@ func withDefaultClusterNetworkingConfig(c types.ClusterNetworkingConfig) service
 	}
 }
 
+func withDefaultRecordingConfig(c types.SessionRecordingConfig) serviceOpt {
+	return func(config *envConfig) {
+		config.defaultRecordingConfig = c
+	}
+}
+
 type env struct {
 	*clusterconfigv1.Service
 	backend                 clusterconfigv1.Backend
 	defaultPreference       types.AuthPreference
 	defaultNetworkingConfig types.ClusterNetworkingConfig
+	defaultRecordingConfig  types.SessionRecordingConfig
 }
 
 func newTestEnv(opts ...serviceOpt) (*env, error) {
@@ -1012,10 +1372,19 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		}
 	}
 
+	var defaultSessionRecordingConfig types.SessionRecordingConfig
+	if cfg.defaultRecordingConfig != nil {
+		defaultSessionRecordingConfig, err = service.CreateSessionRecordingConfig(ctx, cfg.defaultRecordingConfig)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating session recording config")
+		}
+	}
+
 	return &env{
 		Service:                 svc,
 		backend:                 service,
 		defaultPreference:       defaultPreference,
 		defaultNetworkingConfig: defaultNetworkingConfig,
+		defaultRecordingConfig:  defaultSessionRecordingConfig,
 	}, nil
 }
