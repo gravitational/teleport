@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Clusters as default } from './Clusters';
+export { Clusters } from './Clusters';
