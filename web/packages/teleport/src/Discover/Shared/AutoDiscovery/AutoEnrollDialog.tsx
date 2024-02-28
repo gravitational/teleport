@@ -37,7 +37,11 @@ export type AutoEnrollDialog = {
   close(): void;
   next(): void;
   region: string;
-  notifyAboutDelay: boolean; // show notification that resources might take some time to appear after setup has finished.
+/**
+   * show notification that resources might take some
+   * time to appear after setup has finished.
+   */
+  notifyAboutDelay: boolean;
 };
 
 export function AutoEnrollDialog({
