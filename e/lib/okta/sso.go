@@ -158,7 +158,7 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 	}
 
 	// Note that we create the SSO connector with a role mapping gives all users
-	// in the Okta Everyone group the "requester" role so that they can at least log
+	// in the Okta Everyone group the "okta-requester" role so that they can at least log
 	// into the Teleport cluster, but the only thing they can do is request
 	// access from an admin.
 	args.Log.Debug("Constructing SAML connector resource")
@@ -171,7 +171,7 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 			{
 				Name:  "groups",
 				Value: oktaGroupEveryone,
-				Roles: []string{teleport.PresetRequesterRoleName},
+				Roles: []string{teleport.SystemOktaRequesterRoleName},
 			},
 		},
 	})

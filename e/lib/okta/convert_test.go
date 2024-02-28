@@ -464,7 +464,7 @@ func TestUserConversion(t *testing.T) {
 	require.Equal(t, oktaUserID, labels[eteleport.OktaUserIDLabel])
 
 	// Expect that the user has been given the requester role by default
-	require.Equal(t, []string{teleport.PresetRequesterRoleName},
+	require.Equal(t, []string{teleport.SystemOktaRequesterRoleName},
 		teleportUser.GetRoles())
 
 	// Expect that the okta user profile has been converted to traits
@@ -531,7 +531,7 @@ func TestAppUserConversion(t *testing.T) {
 	require.Equal(t, oktaUserID, labels[eteleport.OktaUserIDLabel])
 
 	// Expect that the user has been given the requester role by default
-	require.Equal(t, []string{teleport.PresetRequesterRoleName},
+	require.Equal(t, []string{teleport.SystemOktaRequesterRoleName},
 		teleportUser.GetRoles())
 
 	// Expect that the okta user profile has been converted to traits

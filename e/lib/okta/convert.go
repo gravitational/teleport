@@ -311,7 +311,7 @@ func NewOktaUser(args OktaUserArgs) (types.User, error) {
 		eteleport.OktaUserIDLabel:     args.OktaUserID,
 		eteleport.OktaUserStatusLabel: args.OktaUserStatus,
 	})
-	newUser.AddRole(teleport.PresetRequesterRoleName)
+	newUser.AddRole(teleport.SystemOktaRequesterRoleName)
 
 	newUser.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{

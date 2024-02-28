@@ -196,6 +196,11 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 	pluginsSvc := s.authPlugin.PluginsService()
 	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
 	authSvc := s.testAuthServer.AuthServer.AuthServer.Services
+	ctx := context.Background()
+	_, err := authSvc.UpsertRole(ctx, services.NewSystemOktaAccessRole())
+	require.NoError(t, err)
+	_, err = authSvc.UpsertRole(ctx, services.NewSystemOktaRequesterRole())
+	require.NoError(t, err)
 
 	// Expect the Okta credentials test request
 	mockta.
