@@ -236,13 +236,12 @@ func TestEnrollEKSClusters(t *testing.T) {
 
 		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
 
-		result, err := awsoidService.EnrollEKSClusters(userCtx, &integrationv1.EnrollEKSClustersRequest{
+		_, err := awsoidService.EnrollEKSClusters(userCtx, &integrationv1.EnrollEKSClustersRequest{
 			Integration:     integrationName,
 			Region:          "my-region",
 			PublicProxyAddr: proxyPublicAddr,
 			ClusterNames:    []string{"EKS1"},
 		})
-		_ = result
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter error, but got %T", err)
 	})
 }
