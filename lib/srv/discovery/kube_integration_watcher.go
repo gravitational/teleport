@@ -111,19 +111,24 @@ func (s *Server) startKubeIntegrationWatchers() error {
 				}
 
 				// When enrolling EKS clusters, client for enrollment depends on the region and integration used.
-				clustersByRegionAndIntegration := map[string]map[string][]types.DiscoveredEKSCluster{}
+				// When enrolling EKS clusters, client for enrollment depends on the region and integration used.
+				type regionIntegrationMapKey struct {
+					region      string
+					integration string
+				}
+				clustersByRegionAndIntegration := map[regionIntegrationMapKey][]types.DiscoveredEKSCluster{}
 				for _, c := range newClusters {
-					if _, ok := clustersByRegionAndIntegration[c.GetAWSConfig().Region]; !ok {
-						clustersByRegionAndIntegration[c.GetAWSConfig().Region] = map[string][]types.DiscoveredEKSCluster{}
+					mapKey := regionIntegrationMapKey{
+						region:      c.GetAWSConfig().Region,
+						integration: c.GetIntegration(),
 					}
-					clustersByRegionAndIntegration[c.GetAWSConfig().Region][c.GetIntegration()] =
-						append(clustersByRegionAndIntegration[c.GetAWSConfig().Region][c.GetIntegration()], c)
+					clustersByRegionAndIntegration[mapKey] = append(clustersByRegionAndIntegration[mapKey], c)
+
 				}
 
-				for region := range clustersByRegionAndIntegration {
-					for integration := range clustersByRegionAndIntegration[region] {
-						go s.enrollEKSClusters(region, integration, clustersByRegionAndIntegration[region][integration], agentVersion, &mu, enrollingClusters)
-					}
+				for key, val := range clustersByRegionAndIntegration {
+				        key, val:=key, val
+					go s.enrollEKSClusters(key.region, key.integration, proxyPublicAddr, val, agentVersion, &mu, enrollingClusters)
 				}
 
 			case <-s.ctx.Done():
