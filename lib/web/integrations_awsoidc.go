@@ -429,8 +429,6 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		Region:             req.Region,
 		ClusterNames:       req.ClusterNames,
 		EnableAppDiscovery: req.EnableAppDiscovery,
-		EnableAutoUpgrades: h.ClusterFeatures.GetAutomaticUpgrades(),
-		IsCloud:            h.ClusterFeatures.GetCloud(),
 		AgentVersion:       agentVersion,
 	})
 	if err != nil {

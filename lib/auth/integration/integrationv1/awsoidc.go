@@ -20,6 +20,7 @@ package integrationv1
 
 import (
 	"context"
+	"github.com/gravitational/teleport/lib/modules"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -522,12 +523,14 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
+	features := modules.GetModules().Features()
+
 	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
 		Region:             req.Region,
 		ClusterNames:       req.GetClusterNames(),
 		EnableAppDiscovery: req.EnableAppDiscovery,
-		EnableAutoUpgrades: req.EnableAutoUpgrades,
-		IsCloud:            req.IsCloud,
+		EnableAutoUpgrades: features.AutomaticUpgrades,
+		IsCloud:            features.Cloud,
 		AgentVersion:       req.AgentVersion,
 	})
 	if err != nil {

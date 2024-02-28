@@ -345,13 +345,9 @@ message EnrollEKSClustersRequest {
   repeated string cluster_names = 3;
   // EnableAppDiscovery specifies if we should enable Kubernetes App Discovery inside the enrolled EKS cluster.
   bool enable_app_discovery = 4;
-  // EnableAutoUpgrades specifies if we should enable agent auto upgrades.
-  bool enable_auto_upgrades = 5;
-  // IsCloud specifies if enrollment is done for the Teleport Cloud client.
-  bool is_cloud = 6;
   // AgentVersion is version of agent Helm chart to install on the EKS cluster.
   // Required.
-  string agent_version = 7;
+  string agent_version = 5;
 }
 
 // EnrollEKSClusterResult contains result for a single cluster enrollment.
