@@ -116,7 +116,8 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
-		OwnerGrants: ownerGrants,
+		OwnerGrants:    ownerGrants,
+		SubAccessLists: msg.Spec.SubAccessLists,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -195,7 +196,8 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Roles:  accessList.Spec.Grants.Roles,
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
-			OwnerGrants: ownerGrants,
+			OwnerGrants:    ownerGrants,
+			SubAccessLists: accessList.Spec.SubAccessLists,
 		},
 	}
 }

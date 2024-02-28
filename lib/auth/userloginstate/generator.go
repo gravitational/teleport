@@ -116,7 +116,7 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 		accessLists:   config.AccessLists,
 		access:        config.Access,
 		usageEvents:   config.UsageEvents,
-		memberChecker: services.NewAccessListMembershipChecker(config.Clock, config.AccessLists, config.Access),
+		memberChecker: services.NewAccessListMembershipChecker(config.Clock, config.AccessLists, config.AccessLists, config.Access),
 		clock:         config.Clock,
 	}, nil
 }

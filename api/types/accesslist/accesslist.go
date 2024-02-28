@@ -192,6 +192,10 @@ type Spec struct {
 
 	// OwnerGrants describes the access granted by ownership of this access list.
 	OwnerGrants Grants `json:"owner_grants" yaml:"owner_grants"`
+
+	// SubAccessLists is a list of AccessList ids that user membership
+	// should be fetched from
+	SubAccessLists []string `json:"sub_access_lists" yaml:"sub_access_lists"`
 }
 
 // Owner is an owner of an access list.
