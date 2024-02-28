@@ -704,33 +704,47 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 	if err := services.CheckAndSetDefaults(rc); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	existing, err := s.GetRemoteCluster(ctx, rc.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	existing.SetExpiry(rc.Expiry())
-	existing.SetLastHeartbeat(rc.GetLastHeartbeat())
-	existing.SetConnectionStatus(rc.GetConnectionStatus())
-	existing.SetMetadata(rc.GetMetadata())
 
-	rev := existing.GetRevision()
-	updateValue, err := services.MarshalRemoteCluster(existing)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	updateItem := backend.Item{
-		Key:      backend.Key(remoteClustersPrefix, existing.GetName()),
-		Value:    updateValue,
-		Expires:  existing.Expiry(),
-		Revision: rev,
-	}
+	// Small retry loop to catch cases where there's a concurrent update which
+	// could cause conditional update to fail. This is needed because of the
+	// unusual way updates are handled in this method meaning that the revision
+	// in the provided remote cluster is not used. We should eventually make a
+	// breaking change to this behaviour.
+	const iterationLimit = 3
+	for i := 0; i < iterationLimit; i++ {
+		existing, err := s.GetRemoteCluster(ctx, rc.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		existing.SetExpiry(rc.Expiry())
+		existing.SetLastHeartbeat(rc.GetLastHeartbeat())
+		existing.SetConnectionStatus(rc.GetConnectionStatus())
+		existing.SetMetadata(rc.GetMetadata())
 
-	lease, err := s.ConditionalUpdate(ctx, updateItem)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		rev := existing.GetRevision()
+		updateValue, err := services.MarshalRemoteCluster(existing)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		updateItem := backend.Item{
+			Key:      backend.Key(remoteClustersPrefix, existing.GetName()),
+			Value:    updateValue,
+			Expires:  existing.Expiry(),
+			Revision: rev,
+		}
+
+		lease, err := s.ConditionalUpdate(ctx, updateItem)
+		if err != nil {
+			if trace.IsCompareFailed(err) {
+				// Retry!
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+		existing.SetRevision(lease.Revision)
+		return existing, nil
 	}
-	existing.SetRevision(lease.Revision)
-	return existing, nil
+	return nil, trace.LimitExceeded("failed to update remote cluster within %v iterations", iterationLimit)
 }
 
 // GetRemoteClusters returns a list of remote clusters
