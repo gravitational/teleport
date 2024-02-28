@@ -492,16 +492,6 @@ func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Contex
 	return uuid.NewString(), nil
 }
 
-// mockCredentialsProvider mocks AWS credentials.Provider interface.
-type mockCredentialsProvider struct {
-	retrieveValue aws.Credentials
-	retrieveError error
-}
-
-func (m *mockCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
-	return m.retrieveValue, m.retrieveError
-}
-
 type mockEnrollEKSClusterClient struct {
 	createAccessEntry          func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
 	associateAccessPolicy      func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
