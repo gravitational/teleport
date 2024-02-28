@@ -34,6 +34,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	AWSOIDCService_ListEICE_FullMethodName              = "/teleport.integration.v1.AWSOIDCService/ListEICE"
+	AWSOIDCService_CreateEICE_FullMethodName            = "/teleport.integration.v1.AWSOIDCService/CreateEICE"
 	AWSOIDCService_ListDatabases_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
 	AWSOIDCService_ListSecurityGroups_FullMethodName    = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
 	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
@@ -50,6 +51,10 @@ type AWSOIDCServiceClient interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
 	ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error)
+	// CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateInstanceConnectEndpoint.html
+	CreateEICE(ctx context.Context, in *CreateEICERequest, opts ...grpc.CallOption) (*CreateEICEResponse, error)
 	// ListDatabases calls the following AWS API:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
@@ -80,6 +85,15 @@ func NewAWSOIDCServiceClient(cc grpc.ClientConnInterface) AWSOIDCServiceClient {
 func (c *aWSOIDCServiceClient) ListEICE(ctx context.Context, in *ListEICERequest, opts ...grpc.CallOption) (*ListEICEResponse, error) {
 	out := new(ListEICEResponse)
 	err := c.cc.Invoke(ctx, AWSOIDCService_ListEICE_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aWSOIDCServiceClient) CreateEICE(ctx context.Context, in *CreateEICERequest, opts ...grpc.CallOption) (*CreateEICEResponse, error) {
+	out := new(CreateEICEResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_CreateEICE_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +154,10 @@ type AWSOIDCServiceServer interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
 	ListEICE(context.Context, *ListEICERequest) (*ListEICEResponse, error)
+	// CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateInstanceConnectEndpoint.html
+	CreateEICE(context.Context, *CreateEICERequest) (*CreateEICEResponse, error)
 	// ListDatabases calls the following AWS API:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
 	// https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
@@ -166,6 +184,9 @@ type UnimplementedAWSOIDCServiceServer struct {
 
 func (UnimplementedAWSOIDCServiceServer) ListEICE(context.Context, *ListEICERequest) (*ListEICEResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEICE not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) CreateEICE(context.Context, *CreateEICERequest) (*CreateEICEResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateEICE not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) ListDatabases(context.Context, *ListDatabasesRequest) (*ListDatabasesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabases not implemented")
@@ -209,6 +230,24 @@ func _AWSOIDCService_ListEICE_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AWSOIDCServiceServer).ListEICE(ctx, req.(*ListEICERequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AWSOIDCService_CreateEICE_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateEICERequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).CreateEICE(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_CreateEICE_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).CreateEICE(ctx, req.(*CreateEICERequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -313,6 +352,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListEICE",
 			Handler:    _AWSOIDCService_ListEICE_Handler,
+		},
+		{
+			MethodName: "CreateEICE",
+			Handler:    _AWSOIDCService_CreateEICE_Handler,
 		},
 		{
 			MethodName: "ListDatabases",

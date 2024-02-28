@@ -28,6 +28,11 @@ service AWSOIDCService {
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstanceConnectEndpoints.html
   rpc ListEICE(ListEICERequest) returns (ListEICEResponse);
 
+  // CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
+  // It uses the following API:
+  // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateInstanceConnectEndpoint.html
+  rpc CreateEICE(CreateEICERequest) returns (CreateEICEResponse);
+
   // ListDatabases calls the following AWS API:
   // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
   // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
@@ -94,6 +99,38 @@ message ListEICEResponse {
   // NextToken is used for pagination.
   // If non-empty, it can be used to request the next page.
   string next_token = 3;
+}
+
+// CreateEICERequest contains the required fields to create an AWS EC2 Instance Connect Endpoint.
+message CreateEICERequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required.
+  string integration = 1;
+  // Region is the AWS Region
+  // Required.
+  string region = 2;
+  // Endpoints is is a list of EC2 Instance Connect Endpoints to be created.
+  // Required.
+  repeated EC2ICEndpoint endpoints = 3;
+}
+
+// EC2ICEndpoint contains the information for a single Endpoint to be created.
+message EC2ICEndpoint {
+  // Name is the endpoint name.
+  string name = 1;
+  // SubnetID is the Subnet where the Endpoint will be created.
+  string subnet_id = 2;
+  // SecurityGroupIDs is a list of SecurityGroups to assign to the Endpoint.
+  // If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
+  repeated string security_group_ids = 3;
+}
+
+// CreateEICEResponse is a request to create a VPC Endpoint of EC2 Instance Connect Endpoint type.
+message CreateEICEResponse {
+  // Name is the Endpoint ID.
+  string name = 1;
+  // CreatedEndpoints contains the name of created endpoints and their Subnet.
+  repeated EC2ICEndpoint created_endpoints = 2;
 }
 
 // ListDatabasesRequest is a request for a paginated list of AWS Databases.

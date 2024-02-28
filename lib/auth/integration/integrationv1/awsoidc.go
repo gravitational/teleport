@@ -205,7 +205,7 @@ func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEI
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -244,6 +244,65 @@ func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEI
 		NextToken:     listResp.NextToken,
 		Ec2Ices:       eiceList,
 		DashboardLink: listResp.DashboardLink,
+	}, nil
+}
+
+// CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
+func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.CreateEICERequest) (*integrationpb.CreateEICEResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	createClient, err := awsoidc.NewCreateEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	endpoints := make([]awsoidc.EC2ICEEndpoint, 0, len(req.Endpoints))
+	for _, endpoint := range req.Endpoints {
+		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
+			Name:             endpoint.Name,
+			SubnetID:         endpoint.SubnetId,
+			SecurityGroupIDs: endpoint.SecurityGroupIds,
+		})
+	}
+
+	createResp, err := awsoidc.CreateEC2ICE(ctx, createClient, awsoidc.CreateEC2ICERequest{
+		Cluster:         clusterName.GetClusterName(),
+		IntegrationName: req.Integration,
+		Endpoints:       endpoints,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	eiceList := make([]*integrationpb.EC2ICEndpoint, 0, len(createResp.CreatedEndpoints))
+	for _, e := range createResp.CreatedEndpoints {
+		eiceList = append(eiceList, &integrationpb.EC2ICEndpoint{
+			Name:             e.Name,
+			SubnetId:         e.SubnetID,
+			SecurityGroupIds: e.SecurityGroupIDs,
+		})
+	}
+
+	return &integrationpb.CreateEICEResponse{
+		Name:             createResp.Name,
+		CreatedEndpoints: eiceList,
 	}, nil
 }
 
@@ -301,7 +360,7 @@ func (s *AWSOIDCService) ListSecurityGroups(ctx context.Context, req *integratio
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -422,7 +481,7 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -472,7 +531,7 @@ func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(true, types.KindIntegration, types.VerbUse); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
