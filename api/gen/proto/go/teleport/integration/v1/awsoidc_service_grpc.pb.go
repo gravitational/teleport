@@ -39,6 +39,7 @@ const (
 	AWSOIDCService_ListSecurityGroups_FullMethodName    = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
 	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
 	AWSOIDCService_DeployService_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/DeployService"
+	AWSOIDCService_EnrollEKSClusters_FullMethodName     = "/teleport.integration.v1.AWSOIDCService/EnrollEKSClusters"
 	AWSOIDCService_ListEC2_FullMethodName               = "/teleport.integration.v1.AWSOIDCService/ListEC2"
 	AWSOIDCService_ListEKSClusters_FullMethodName       = "/teleport.integration.v1.AWSOIDCService/ListEKSClusters"
 )
@@ -69,6 +70,8 @@ type AWSOIDCServiceClient interface {
 	DeployDatabaseService(ctx context.Context, in *DeployDatabaseServiceRequest, opts ...grpc.CallOption) (*DeployDatabaseServiceResponse, error)
 	// DeployService deploys an ECS Service to Amazon ECS.
 	DeployService(ctx context.Context, in *DeployServiceRequest, opts ...grpc.CallOption) (*DeployServiceResponse, error)
+	// EnrollEKSClusters enrolls EKS clusters by installing kube agent Helm chart.
+	EnrollEKSClusters(ctx context.Context, in *EnrollEKSClustersRequest, opts ...grpc.CallOption) (*EnrollEKSClustersResponse, error)
 	// ListEC2 lists the EC2 instances of the AWS account per region.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
@@ -142,6 +145,15 @@ func (c *aWSOIDCServiceClient) DeployService(ctx context.Context, in *DeployServ
 	return out, nil
 }
 
+func (c *aWSOIDCServiceClient) EnrollEKSClusters(ctx context.Context, in *EnrollEKSClustersRequest, opts ...grpc.CallOption) (*EnrollEKSClustersResponse, error) {
+	out := new(EnrollEKSClustersResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_EnrollEKSClusters_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *aWSOIDCServiceClient) ListEC2(ctx context.Context, in *ListEC2Request, opts ...grpc.CallOption) (*ListEC2Response, error) {
 	out := new(ListEC2Response)
 	err := c.cc.Invoke(ctx, AWSOIDCService_ListEC2_FullMethodName, in, out, opts...)
@@ -186,6 +198,8 @@ type AWSOIDCServiceServer interface {
 	DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error)
 	// DeployService deploys an ECS Service to Amazon ECS.
 	DeployService(context.Context, *DeployServiceRequest) (*DeployServiceResponse, error)
+	// EnrollEKSClusters enrolls EKS clusters by installing kube agent Helm chart.
+	EnrollEKSClusters(context.Context, *EnrollEKSClustersRequest) (*EnrollEKSClustersResponse, error)
 	// ListEC2 lists the EC2 instances of the AWS account per region.
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html
@@ -219,6 +233,9 @@ func (UnimplementedAWSOIDCServiceServer) DeployDatabaseService(context.Context, 
 }
 func (UnimplementedAWSOIDCServiceServer) DeployService(context.Context, *DeployServiceRequest) (*DeployServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeployService not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) EnrollEKSClusters(context.Context, *EnrollEKSClustersRequest) (*EnrollEKSClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EnrollEKSClusters not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) ListEC2(context.Context, *ListEC2Request) (*ListEC2Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEC2 not implemented")
@@ -347,6 +364,24 @@ func _AWSOIDCService_DeployService_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AWSOIDCService_EnrollEKSClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnrollEKSClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).EnrollEKSClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_EnrollEKSClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).EnrollEKSClusters(ctx, req.(*EnrollEKSClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AWSOIDCService_ListEC2_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListEC2Request)
 	if err := dec(in); err != nil {
@@ -413,6 +448,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeployService",
 			Handler:    _AWSOIDCService_DeployService_Handler,
+		},
+		{
+			MethodName: "EnrollEKSClusters",
+			Handler:    _AWSOIDCService_EnrollEKSClusters_Handler,
 		},
 		{
 			MethodName: "ListEC2",
