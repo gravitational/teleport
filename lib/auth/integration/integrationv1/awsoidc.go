@@ -20,7 +20,6 @@ package integrationv1
 
 import (
 	"context"
-	"github.com/gravitational/teleport/lib/modules"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -32,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
@@ -537,7 +537,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	results := make([]*integrationpb.EnrollEKSClusterResult, 0, len(resp.Results))
+	results := make([]*integrationpb.EnrollEKSClusterResult, 0, len(enrollmentResponse.Results))
 	for _, r := range enrollmentResponse.Results {
 		results = append(results, &integrationpb.EnrollEKSClusterResult{
 			EksClusterName: r.ClusterName,
