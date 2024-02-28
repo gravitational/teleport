@@ -931,7 +931,7 @@ spec:
 ```
 
 By propagating scope for any resource created by a user leveraging the roles the granted scope, 
-we  make sure that our security invariant remains - Ketanji and Bob can’t expand the scope of their cluster access beyond /dev/lab.
+we make sure that our security invariant remains - Ketanji and Bob can’t expand the scope of their cluster access beyond /dev/lab.
 
 ### Allow agent forwarding for some hosts
 
