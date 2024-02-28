@@ -1086,6 +1086,10 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 	require.NotEqual(t, updated.GetDisplay(), upserted.GetDisplay())
 }
 
+// RemoteClustersCRUD tests CRUD functionality for remote clusters.
+// TODO(noah): DELETE IN V17.0.0
+// We can replace this with specific tests in the `local` package and in the
+// provisioning grpc service.
 func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clusterName := "example.com"

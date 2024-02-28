@@ -141,7 +141,60 @@ func TestRemoteClusterCRUD(t *testing.T) {
 }
 
 func TestPresenceService_ListRemoteClusters(t *testing.T) {
-	t.Fatalf("implement me")
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceBackend := NewPresenceService(bk)
+
+	// With no resources, we should not get an error but we should get an empty
+	// token and an empty slice.
+	rcs, pageToken, err := presenceBackend.ListRemoteClusters(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, pageToken)
+	require.Len(t, rcs, 0)
+
+	// Create a few remote clusters
+	for i := 0; i < 10; i++ {
+		rc, err := types.NewRemoteCluster(fmt.Sprintf("rc-%d", i))
+		require.NoError(t, err)
+		_, err = presenceBackend.CreateRemoteCluster(ctx, rc)
+		require.NoError(t, err)
+	}
+
+	// Check limit behaves
+	rcs, pageToken, err = presenceBackend.ListRemoteClusters(ctx, 1, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, pageToken)
+	require.Len(t, rcs, 1)
+
+	// Iterate through all pages with a low limit to ensure that pageToken
+	// behaves correctly.
+	rcs = []types.RemoteCluster{}
+	pageToken = ""
+	for i := 0; i < 10; i++ {
+		var got []types.RemoteCluster
+		got, pageToken, err = presenceBackend.ListRemoteClusters(ctx, 1, pageToken)
+		require.NoError(t, err)
+		if i == 9 {
+			// For the final page, we should not get a page token
+			require.Empty(t, pageToken)
+		} else {
+			require.NotEmpty(t, pageToken)
+		}
+		require.Len(t, got, 1)
+		rcs = append(rcs, got...)
+	}
+	require.Len(t, rcs, 10)
+
+	// Check that with a higher limit, we get all resources
+	rcs, pageToken, err = presenceBackend.ListRemoteClusters(ctx, 20, "")
+	require.NoError(t, err)
+	require.Empty(t, pageToken)
+	require.Len(t, rcs, 10)
 }
 
 func TestTrustedClusterCRUD(t *testing.T) {
