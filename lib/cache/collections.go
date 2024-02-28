@@ -22,6 +22,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 
 	"github.com/gravitational/trace"
 
@@ -68,6 +69,32 @@ type executor[T types.Resource, R any] interface {
 	// delete will delete a single target resource from the cache. For
 	// singletons, this is usually an alias to deleteAll.
 	delete(ctx context.Context, cache *Cache, resource types.Resource) error
+
+	// isSingleton will return true if the target resource is a singleton.
+	isSingleton() bool
+
+	// getReader returns the appropriate reader type R based on the health status of the cache.
+	// Reader type R provides getter methods related to the collection, e.g. GetNodes(), GetRoles().
+	// Note that cacheOK set to true means that cache is overall healthy and the collection was confirmed as supported.
+	getReader(c *Cache, cacheOK bool) R
+}
+
+// executor153[T, R] is a specific way to run the collector operations that we need
+// for the genericCollector for a generic resource type T and its reader type R.
+type executor153[T types.Resource153, R any] interface {
+	// getAll returns all of the target resources from the auth server.
+	// For singleton objects, this should be a size-1 slice.
+	getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]T, error)
+
+	// upsert will create or update a target resource in the cache.
+	upsert(ctx context.Context, cache *Cache, value T) error
+
+	// deleteAll will delete all target resources of the type in the cache.
+	deleteAll(ctx context.Context, cache *Cache) error
+
+	// delete will delete a single target resource from the cache. For
+	// singletons, this is usually an alias to deleteAll.
+	delete(ctx context.Context, cache *Cache, resource types.Resource153) error
 
 	// isSingleton will return true if the target resource is a singleton.
 	isSingleton() bool
@@ -171,6 +198,96 @@ func (c *genericCollection[T, R, _]) getReader(cacheOK bool) R {
 
 var _ collectionReader[any] = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
 
+// genericCollection153 is a generic collection implementation for resource type T with collection-specific logic
+// encapsulated in executor type E. Type R provides getter methods related to the collection, e.g. GetNodes(),
+// GetRoles().
+type genericCollection153[T types.Resource153, R any, E executor153[T, R]] struct {
+	cache *Cache
+	watch types.WatchKind
+	exec  E
+}
+
+// fetch implements collection
+func (g *genericCollection153[T, R, _]) fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error) {
+	// Singleton objects will only get deleted or updated, not both
+	deleteSingleton := false
+
+	var resources []T
+	if cacheOK {
+		resources, err = g.exec.getAll(ctx, g.cache, g.watch.LoadSecrets)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			deleteSingleton = true
+		}
+	}
+
+	return func(ctx context.Context) error {
+		// Always perform the delete if this is not a singleton, otherwise
+		// only perform the delete if the singleton wasn't found
+		// or the resource kind isn't cached in the current generation.
+		if !g.exec.isSingleton() || deleteSingleton || !cacheOK {
+			if err := g.exec.deleteAll(ctx, g.cache); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
+		}
+		// If this is a singleton and we performed a deletion, return here
+		// because we only want to update or delete a singleton, not both.
+		// Also don't continue if the resource kind isn't cached in the current generation.
+		if g.exec.isSingleton() && deleteSingleton || !cacheOK {
+			return nil
+		}
+		for _, resource := range resources {
+			if err := g.exec.upsert(ctx, g.cache, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+// processEvent implements collection
+func (g *genericCollection153[T, R, _]) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		if err := g.exec.delete(ctx, g.cache, types.LegacyToResource153(event.Resource)); err != nil {
+			if !trace.IsNotFound(err) {
+				g.cache.Logger.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(T)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := g.exec.upsert(ctx, g.cache, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		g.cache.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+// watchKind implements collection
+func (g *genericCollection153[T, R, _]) watchKind() types.WatchKind {
+	return g.watch
+}
+
+var _ collection = (*genericCollection153[types.Resource153, any, executor153[types.Resource153, any]])(nil)
+
+// genericCollection153 obtains the reader object from the executor based on the provided health status of the cache.
+// Note that cacheOK set to true means that cache is overall healthy and the collection was confirmed as supported.
+func (c *genericCollection153[T, R, _]) getReader(cacheOK bool) R {
+	return c.exec.getReader(c.cache, cacheOK)
+}
+
+var _ collectionReader[any] = (*genericCollection153[types.Resource153, any, executor153[types.Resource153, any]])(nil)
+
 // cacheCollections is a registry of resource collections used by Cache.
 type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
@@ -203,6 +320,7 @@ type cacheCollections struct {
 	locks                    collectionReader[services.LockGetter]
 	namespaces               collectionReader[namespaceGetter]
 	networkRestrictions      collectionReader[networkRestrictionGetter]
+	pluginNotifications      collectionReader[pluginNotificationsGetter]
 	oktaAssignments          collectionReader[oktaAssignmentGetter]
 	oktaImportRules          collectionReader[oktaImportRuleGetter]
 	proxies                  collectionReader[services.ProxyGetter]
@@ -655,6 +773,12 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.accessListReviews = &genericCollection[*accesslist.Review, accessListReviewsGetter, accessListReviewExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessListReviews
+		case types.KindPluginNotification:
+			if c.Notifications == nil {
+				return nil, trace.BadParameter("missing parameter Notifications")
+			}
+			collections.pluginNotifications = &genericCollection153[*notificationsv1.PluginNotification, pluginNotificationsGetter, pluginNotificationsExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.pluginNotifications
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2774,4 +2898,65 @@ func (accessListReviewExecutor) getReader(cache *Cache, cacheOK bool) accessList
 
 type accessListReviewsGetter interface {
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+}
+
+type pluginNotificationsExecutor struct{}
+
+func (pluginNotificationsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*notificationsv1.PluginNotification, error) {
+	var resources []*notificationsv1.PluginNotification
+	var nextToken string
+	for {
+		var page []*notificationsv1.PluginNotification
+		var err error
+		page, nextToken, err = cache.Notifications.ListPluginNotification(ctx, 0 /* page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return resources, nil
+}
+
+func (pluginNotificationsExecutor) upsert(ctx context.Context, cache *Cache, resource *notificationsv1.PluginNotification) error {
+	if _, err := cache.notificationsCache.CreatePluginNotification(ctx, resource); err != nil {
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+
+		if err := cache.notificationsCache.DeletePluginNotification(ctx, resource.GetMetadata().GetName()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, err := cache.notificationsCache.CreatePluginNotification(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (pluginNotificationsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.notificationsCache.DeleteAllPluginNotification(ctx)
+}
+
+func (pluginNotificationsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource153) error {
+	return cache.notificationsCache.DeletePluginNotification(ctx, resource.GetMetadata().GetName())
+}
+
+func (pluginNotificationsExecutor) isSingleton() bool { return false }
+
+func (pluginNotificationsExecutor) getReader(cache *Cache, cacheOK bool) pluginNotificationsGetter {
+	if cacheOK {
+		return cache.notificationsCache
+	}
+	return cache.Config.Notifications
+}
+
+type pluginNotificationsGetter interface {
+	GetPluginNotification(ctx context.Context, name string) (*notificationsv1.PluginNotification, error)
+	ListPluginNotification(ctx context.Context, page int, startKey string) ([]*notificationsv1.PluginNotification, string, error)
 }

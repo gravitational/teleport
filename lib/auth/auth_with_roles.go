@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"net/url"
 	"slices"
 	"strings"
@@ -6948,6 +6949,30 @@ func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) er
 	}
 
 	return a.authServer.DeleteClusterMaintenanceConfig(ctx)
+}
+
+func (a *ServerWithRoles) CreatePluginNotification(ctx context.Context, req *notificationsv1.PluginNotification) (*notificationsv1.PluginNotification, error) {
+	if err := a.action(apidefaults.Namespace, types.KindPluginNotification, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.CreatePluginNotification(ctx, req)
+}
+
+func (a *ServerWithRoles) DeletePluginNotification(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindPluginNotification, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeletePluginNotification(ctx, name)
+}
+
+func (a *ServerWithRoles) ListPluginNotification(ctx context.Context, page int, nextToken string) ([]*notificationsv1.PluginNotification, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindPluginNotification, types.VerbDelete); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListPluginNotification(ctx, page, nextToken)
 }
 
 func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.Emitter, headlessAuthn *types.HeadlessAuthentication, err error) {

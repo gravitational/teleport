@@ -164,6 +164,74 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification invalid-id not existing", err)
 }
 
+// TestPluginNotificationCRUD tests backend operations for plugin notification resources.
+func TestPluginNotificationCRUD(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewNotificationsService(backend.NewSanitizer(mem))
+	require.NoError(t, err)
+
+	// Create a couple notifications.
+	pluginNotification1 := newPluginNotification(t, "test-notification-1")
+	pluginNotification2 := newPluginNotification(t, "test-notification-2")
+	pluginNotificationNoMatcher := &notificationsv1.PluginNotification{
+		Spec: &notificationsv1.PluginNotificationSpec{
+			Notification: &notificationsv1.Notification{
+				SubKind: "test-subkind",
+				Spec:    &notificationsv1.NotificationSpec{},
+				Metadata: &headerv1.Metadata{
+					Description: "Test Description",
+				},
+			},
+		},
+	}
+	pluginNotificationLateExpiry := &notificationsv1.PluginNotification{
+		Spec: &notificationsv1.PluginNotificationSpec{
+			Plugin:     "pagerduty",
+			Recipients: []string{"alice", "bob", "#admin"},
+			Notification: &notificationsv1.Notification{
+				SubKind: "test-subkind",
+				Spec:    &notificationsv1.NotificationSpec{},
+				Metadata: &headerv1.Metadata{
+					Description: "Test Description",
+					Labels:      map[string]string{"description": "notification-late-expiry"},
+					// Set the expiry to 91 days from now, which is past the 90 day expiry limit.
+					Expires: timestamppb.New(time.Now().AddDate(0, 0, 91)),
+				},
+			},
+		},
+	}
+
+	// Create notifications.
+	notification, err := service.CreatePluginNotification(ctx, pluginNotification1)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(pluginNotification1, notification, protocmp.Transform()))
+	pluginNotification1Id := notification.Spec.Notification.Spec.Id
+	notification, err = service.CreatePluginNotification(ctx, pluginNotification2)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(pluginNotification2, notification, protocmp.Transform()))
+	// Expect error due to having no matcher.
+	_, err = service.CreatePluginNotification(ctx, pluginNotificationNoMatcher)
+	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-no-matcher having no matcher", err)
+	// Expect error due to expiry date being more than 90 days from now.
+	_, err = service.CreatePluginNotification(ctx, pluginNotificationLateExpiry)
+	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-late-expiry having an expiry date more than 90 days later", err)
+
+	// Test deleting a notification.
+	err = service.DeletePluginNotification(ctx, pluginNotification1Id)
+	require.NoError(t, err)
+	// Test deleting a notification that doesn't exist.
+	err = service.DeletePluginNotification(ctx, "invalid-id")
+	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification invalid-id not existing", err)
+}
+
 // TestUserNotificationStateCRUD tests backend operations for user-specific notification resources.
 func TestUserNotificationStateCRUD(t *testing.T) {
 	ctx := context.Background()
@@ -390,6 +458,26 @@ func newGlobalNotification(t *testing.T, description string) *notificationsv1.Gl
 			Matcher: &notificationsv1.GlobalNotificationSpec_All{
 				All: true,
 			},
+			Notification: &notificationsv1.Notification{
+				SubKind: "test-subkind",
+				Spec:    &notificationsv1.NotificationSpec{},
+				Metadata: &headerv1.Metadata{
+					Labels: map[string]string{"description": description},
+				},
+			},
+		},
+	}
+
+	return &notification
+}
+
+func newPluginNotification(t *testing.T, description string) *notificationsv1.PluginNotification {
+	t.Helper()
+
+	notification := notificationsv1.PluginNotification{
+		Spec: &notificationsv1.PluginNotificationSpec{
+			Plugin:     "pagerduty",
+			Recipients: []string{"alice", "bob", "#admin"},
 			Notification: &notificationsv1.Notification{
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},

@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"io"
 	"math"
 	"os"
@@ -147,6 +148,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindSecurityReport:           rc.createSecurityReport,
 		types.KindServerInfo:               rc.createServerInfo,
 		types.KindBot:                      rc.createBot,
+		types.KindPluginNotification:       rc.createPluginNotification,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:            rc.updateUser,
@@ -1237,6 +1239,22 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client auth.Cli
 	fmt.Printf("Server info %q has been %s\n",
 		name, UpsertVerb(exists, rc.force),
 	)
+	return nil
+}
+
+func (rc *ResourceCommand) createPluginNotification(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	res, err := services.UnmarshalPluginNotification(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	notification, err := client.CreatePluginNotification(ctx, res)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	fmt.Printf("Plugin notification created (name: %q)\n", notification.GetMetadata().GetName())
+
 	return nil
 }
 
@@ -2489,6 +2507,17 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		}
 		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
 		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
+	case types.KindPluginNotification:
+		if rc.ref.Name != "" {
+			resource, err := client.GetPluginNotification(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &pluginNotificationCollection{pluginNotifications: []*notificationsv1.PluginNotification{resource}}, nil
+		}
+		// Pagination? Which pagination?
+		notifications, _, err := client.ListPluginNotification(ctx, 0, "")
+		return &pluginNotificationCollection{notifications}, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

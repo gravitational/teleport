@@ -305,6 +305,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Notifications == nil {
+		cfg.Notifications, err = local.NewNotificationsService(cfg.Backend)
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -372,6 +375,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Assistant:               cfg.Assist,
 		UserPreferences:         cfg.UserPreferences,
 		PluginData:              cfg.PluginData,
+		Notifications:           cfg.Notifications,
 	}
 
 	as := Server{
@@ -525,6 +529,7 @@ type Services struct {
 	types.Events
 	events.AuditLogSessionStreamer
 	services.SecReports
+	services.Notifications
 }
 
 // SecReportsClient returns the security reports client.

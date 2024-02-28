@@ -773,6 +773,7 @@ type ClientI interface {
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
 	services.Integrations
+	services.Notifications
 	types.Events
 
 	types.WebSessionsGetter

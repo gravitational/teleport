@@ -122,10 +122,10 @@ func (r *legacyToResource153Adapter) GetVersion() string {
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
 func Resource153ToLegacy(r Resource153) Resource {
-	return &resource153ToLegacyAdapter{inner: r}
+	return &Resource153ToLegacyAdapter{inner: r}
 }
 
-type resource153ToLegacyAdapter struct {
+type Resource153ToLegacyAdapter struct {
 	inner Resource153
 }
 
@@ -133,25 +133,25 @@ type resource153ToLegacyAdapter struct {
 // the codebase as a legacy Resource.
 //
 // Ideally you shouldn't depend on this.
-func (r *resource153ToLegacyAdapter) Unwrap() Resource153 {
+func (r *Resource153ToLegacyAdapter) Unwrap() Resource153 {
 	return r.inner
 }
 
 // MarshalJSON adds support for marshaling the wrapped resource (instead of
 // marshaling the adapter itself).
-func (r *resource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
+func (r *Resource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.inner)
 }
 
-func (r *resource153ToLegacyAdapter) Expiry() time.Time {
+func (r *Resource153ToLegacyAdapter) Expiry() time.Time {
 	return r.inner.GetMetadata().Expires.AsTime()
 }
 
-func (r *resource153ToLegacyAdapter) GetKind() string {
+func (r *Resource153ToLegacyAdapter) GetKind() string {
 	return r.inner.GetKind()
 }
 
-func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
+func (r *Resource153ToLegacyAdapter) GetMetadata() Metadata {
 	md := r.inner.GetMetadata()
 	expires := md.Expires.AsTime()
 	return Metadata{
@@ -166,44 +166,44 @@ func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
 	}
 }
 
-func (r *resource153ToLegacyAdapter) GetName() string {
+func (r *Resource153ToLegacyAdapter) GetName() string {
 	return r.inner.GetMetadata().Name
 }
 
-func (r *resource153ToLegacyAdapter) GetResourceID() int64 {
+func (r *Resource153ToLegacyAdapter) GetResourceID() int64 {
 	//nolint:staticcheck // SA1019. We need to refer to Id to provide GetResourceID.
 	return r.inner.GetMetadata().Id
 }
 
-func (r *resource153ToLegacyAdapter) GetRevision() string {
+func (r *Resource153ToLegacyAdapter) GetRevision() string {
 	return r.inner.GetMetadata().Revision
 }
 
-func (r *resource153ToLegacyAdapter) GetSubKind() string {
+func (r *Resource153ToLegacyAdapter) GetSubKind() string {
 	return r.inner.GetSubKind()
 }
 
-func (r *resource153ToLegacyAdapter) GetVersion() string {
+func (r *Resource153ToLegacyAdapter) GetVersion() string {
 	return r.inner.GetVersion()
 }
 
-func (r *resource153ToLegacyAdapter) SetExpiry(t time.Time) {
+func (r *Resource153ToLegacyAdapter) SetExpiry(t time.Time) {
 	r.inner.GetMetadata().Expires = timestamppb.New(t)
 }
 
-func (r *resource153ToLegacyAdapter) SetName(name string) {
+func (r *Resource153ToLegacyAdapter) SetName(name string) {
 	r.inner.GetMetadata().Name = name
 }
 
-func (r *resource153ToLegacyAdapter) SetResourceID(id int64) {
+func (r *Resource153ToLegacyAdapter) SetResourceID(id int64) {
 	//nolint:staticcheck // SA1019. We need to refer to Id to provide SetResourceID.
 	r.inner.GetMetadata().Id = id
 }
 
-func (r *resource153ToLegacyAdapter) SetRevision(rev string) {
+func (r *Resource153ToLegacyAdapter) SetRevision(rev string) {
 	r.inner.GetMetadata().Revision = rev
 }
 
-func (r *resource153ToLegacyAdapter) SetSubKind(subKind string) {
+func (r *Resource153ToLegacyAdapter) SetSubKind(subKind string) {
 	panic("interface Resource153 does not implement SetSubKind")
 }

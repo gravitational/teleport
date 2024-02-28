@@ -149,6 +149,7 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 		DiscoveryConfigs:        cfg.Services.DiscoveryConfigClient(),
 		WebSession:              cfg.Services.WebSessions(),
 		WebToken:                cfg.Services.WebTokens(),
+		Notifications:           cfg.Services,
 		Component:               teleport.Component(component...),
 		MetricComponent:         teleport.Component(metricComponent...),
 		Tracer:                  tracer,

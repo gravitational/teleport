@@ -189,6 +189,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessListMemberParser()
 		case types.KindAccessListReview:
 			parser = newAccessListReviewParser()
+		case types.KindPluginNotification:
+			parser = newPluginNotificationParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1884,6 +1886,46 @@ func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, err
 	}
 }
 
+func newPluginNotificationParser() *pluginNotificationParser {
+	return &pluginNotificationParser{
+		baseParser: newBaseParser(backend.ExactKey(notificationsPluginPrefix)),
+	}
+}
+
+type pluginNotificationParser struct {
+	baseParser
+}
+
+func (p *pluginNotificationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		accessList, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindPluginNotification,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: accessList, // pass access list description field for the cache
+			},
+		}, nil
+	case types.OpPut:
+		notification, err := services.UnmarshalPluginNotification(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling put plugin notification event")
+		}
+		return types.Resource153ToLegacy(notification), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
 func resourceHeader(event backend.Event, kind, version string, offset int) (types.Resource, error) {
 	name, err := base(event.Item.Key, offset)
 	if err != nil {

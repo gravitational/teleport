@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"io"
 	"net"
 	"sync"
@@ -4516,4 +4517,113 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 // "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
 	return resourceusagepb.NewResourceUsageServiceClient(c.conn)
+}
+
+func (c *Client) NotificationsClient() notificationsv1.NotificationServiceClient {
+	return notificationsv1.NewNotificationServiceClient(c.conn)
+}
+
+func (c *Client) ListNotificationsForUser(ctx context.Context, request *notificationsv1.ListUserNotificationsRequest) ([]*notificationsv1.Notification, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) DeleteAllUserNotificationsForUser(ctx context.Context, username string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) GetPluginNotification(ctx context.Context, name string) (*notificationsv1.PluginNotification, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) CreatePluginNotification(ctx context.Context, pluginNotification *notificationsv1.PluginNotification) (*notificationsv1.PluginNotification, error) {
+	return c.NotificationsClient().CreatePluginNotification(
+		ctx,
+		&notificationsv1.CreatePluginNotificationRequest{
+			PluginNotification: pluginNotification,
+		})
+}
+
+func (c *Client) DeletePluginNotification(ctx context.Context, notificationId string) error {
+	_, err := c.NotificationsClient().DeletePluginNotification(
+		ctx,
+		&notificationsv1.DeletePluginNotificationRequest{
+			NotificationId: notificationId,
+		})
+	return err
+}
+
+func (c *Client) DeleteAllPluginNotification(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) ListPluginNotification(ctx context.Context, page int, nextToken string) ([]*notificationsv1.PluginNotification, string, error) {
+	resp, err := c.NotificationsClient().ListPluginNotifications(
+		ctx,
+		&notificationsv1.ListPluginNotificationsRequest{
+			PageSize:  int32(page),
+			PageToken: nextToken,
+		})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.PluginNotifications, resp.NextPageToken, nil
+}
+
+func (c *Client) UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) DeleteUserNotificationState(ctx context.Context, username string, notificationId string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) GetUserLastSeenNotification(ctx context.Context, username string) (*notificationsv1.UserLastSeenNotification, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *Client) DeleteUserLastSeenNotification(ctx context.Context, username string) error {
+	//TODO implement me
+	panic("implement me")
 }

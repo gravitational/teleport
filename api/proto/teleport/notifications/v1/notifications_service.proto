@@ -54,11 +54,11 @@ service NotificationService {
   // DeleteUserLastSeenNotification deletes a user's last seen notification item.
   rpc DeleteUserLastSeenNotification(DeleteUserLastSeenNotificationRequest) returns (google.protobuf.Empty);
 
-  // CreatePluginNotification creates a global notification.
+  // CreatePluginNotification creates a plugin notification.
   rpc CreatePluginNotification(CreatePluginNotificationRequest) returns (PluginNotification);
-  // DeletePluginNotification deletes a global notification.
+  // DeletePluginNotification deletes a plugin notification.
   rpc DeletePluginNotification(DeletePluginNotificationRequest) returns (google.protobuf.Empty);
-  // ListPluginNotifications returns a page of global notifications.
+  // ListPluginNotifications returns a page of plugin notifications.
   rpc ListPluginNotifications(ListPluginNotificationsRequest) returns (ListPluginNotificationsResponse);
 }
 

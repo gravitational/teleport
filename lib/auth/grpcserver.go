@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"io"
 	"net"
 	"time"
@@ -125,6 +126,7 @@ var (
 type GRPCServer struct {
 	authpb.UnimplementedAuthServiceServer
 	auditlogpb.UnimplementedAuditLogServiceServer
+	notificationsv1.UnimplementedNotificationServiceServer
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
@@ -5230,6 +5232,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	authpb.RegisterAuthServiceServer(server, authServer)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
 	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
+	notificationsv1.RegisterNotificationServiceServer(server, authServer)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5450,4 +5453,36 @@ func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstr
 			return trail.ToGRPC(trace.Wrap(err))
 		}
 	}
+}
+
+func (g *GRPCServer) CreatePluginNotification(ctx context.Context, req *notificationsv1.CreatePluginNotificationRequest) (*notificationsv1.PluginNotification, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.CreatePluginNotification(ctx, req.GetPluginNotification())
+}
+
+func (g *GRPCServer) DeletePluginNotification(ctx context.Context, req *notificationsv1.DeletePluginNotificationRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.DeletePluginNotification(ctx, req.GetNotificationId())
+	return &emptypb.Empty{}, trace.Wrap(err)
+}
+
+func (g *GRPCServer) ListPluginNotifications(ctx context.Context, req *notificationsv1.ListPluginNotificationsRequest) (*notificationsv1.ListPluginNotificationsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	notifications, nextToken, err := auth.ListPluginNotification(ctx, int(req.GetPageSize()), req.GetPageToken())
+	return &notificationsv1.ListPluginNotificationsResponse{
+		PluginNotifications: notifications,
+		NextPageToken:       nextToken,
+	}, trace.Wrap(err)
 }

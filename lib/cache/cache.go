@@ -166,6 +166,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessList},
 		{Kind: types.KindAccessListMember},
 		{Kind: types.KindAccessListReview},
+		{Kind: types.KindPluginNotification},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -535,6 +536,7 @@ type Cache struct {
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	secReportsCache              services.SecReports
 	userLoginStateCache          services.UserLoginStates
+	notificationsCache           services.Notifications
 	accessListCache              *simple.AccessListService
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
@@ -700,6 +702,8 @@ type Config struct {
 	SecReports services.SecReports
 	// AccessLists is the access lists service.
 	AccessLists services.AccessLists
+	// Notifications is the notifications service
+	Notifications services.Notifications
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -899,6 +903,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	notificationsCache, err := local.NewNotificationsService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
@@ -929,6 +939,7 @@ func New(config Config) (*Cache, error) {
 		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
 		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
+		notificationsCache:           notificationsCache,
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              userGroupsCache,
 		oktaCache:                    oktaCache,

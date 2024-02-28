@@ -86,6 +86,36 @@ func TestMarshalGlobalNotificationRoundTrip(t *testing.T) {
 	require.Empty(t, cmp.Diff(notification, unmarshaled, protocmp.Transform()))
 }
 
+// TestMarshalPluginNotificationRoundTrip tests the marshaling and unmarshaling functions for PluginNotification objects.
+func TestMarshalPluginNotificationRoundTrip(t *testing.T) {
+	notification := &notificationsv1.PluginNotification{
+		Kind:     types.KindPluginNotification,
+		Metadata: &headerv1.Metadata{},
+		Version:  types.V1,
+		Spec: &notificationsv1.PluginNotificationSpec{
+			Plugin:     "pagerduty",
+			Recipients: []string{"alice", "bob", "#admin"},
+			Notification: &notificationsv1.Notification{
+				SubKind: "test-subkind",
+				Spec: &notificationsv1.NotificationSpec{
+					Id: "test-notification-id",
+				},
+				Metadata: &headerv1.Metadata{
+					Labels: map[string]string{"description": "description-1"},
+				},
+			},
+		},
+	}
+
+	payload, err := MarshalPluginNotification(notification)
+	require.NoError(t, err)
+
+	unmarshaled, err := UnmarshalPluginNotification(payload)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(notification, unmarshaled, protocmp.Transform()))
+}
+
 // TestUserNotificationStateRoundTrip tests the marshaling and unmarshaling functions for UserNotificationState objects.
 func TestUserNotificationStateRoundTrip(t *testing.T) {
 	userNotificationState := &notificationsv1.UserNotificationState{

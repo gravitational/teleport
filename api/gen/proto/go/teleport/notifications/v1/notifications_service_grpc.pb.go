@@ -79,11 +79,11 @@ type NotificationServiceClient interface {
 	UpsertUserLastSeenNotification(ctx context.Context, in *UpsertUserLastSeenNotificationRequest, opts ...grpc.CallOption) (*UserLastSeenNotification, error)
 	// DeleteUserLastSeenNotification deletes a user's last seen notification item.
 	DeleteUserLastSeenNotification(ctx context.Context, in *DeleteUserLastSeenNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// CreatePluginNotification creates a global notification.
+	// CreatePluginNotification creates a plugin notification.
 	CreatePluginNotification(ctx context.Context, in *CreatePluginNotificationRequest, opts ...grpc.CallOption) (*PluginNotification, error)
-	// DeletePluginNotification deletes a global notification.
+	// DeletePluginNotification deletes a plugin notification.
 	DeletePluginNotification(ctx context.Context, in *DeletePluginNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// ListPluginNotifications returns a page of global notifications.
+	// ListPluginNotifications returns a page of plugin notifications.
 	ListPluginNotifications(ctx context.Context, in *ListPluginNotificationsRequest, opts ...grpc.CallOption) (*ListPluginNotificationsResponse, error)
 }
 
@@ -247,11 +247,11 @@ type NotificationServiceServer interface {
 	UpsertUserLastSeenNotification(context.Context, *UpsertUserLastSeenNotificationRequest) (*UserLastSeenNotification, error)
 	// DeleteUserLastSeenNotification deletes a user's last seen notification item.
 	DeleteUserLastSeenNotification(context.Context, *DeleteUserLastSeenNotificationRequest) (*emptypb.Empty, error)
-	// CreatePluginNotification creates a global notification.
+	// CreatePluginNotification creates a plugin notification.
 	CreatePluginNotification(context.Context, *CreatePluginNotificationRequest) (*PluginNotification, error)
-	// DeletePluginNotification deletes a global notification.
+	// DeletePluginNotification deletes a plugin notification.
 	DeletePluginNotification(context.Context, *DeletePluginNotificationRequest) (*emptypb.Empty, error)
-	// ListPluginNotifications returns a page of global notifications.
+	// ListPluginNotifications returns a page of plugin notifications.
 	ListPluginNotifications(context.Context, *ListPluginNotificationsRequest) (*ListPluginNotificationsResponse, error)
 	mustEmbedUnimplementedNotificationServiceServer()
 }

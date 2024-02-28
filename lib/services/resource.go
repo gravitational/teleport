@@ -230,6 +230,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindServerInfo, nil
 	case types.KindBot, "bots":
 		return types.KindBot, nil
+	case types.KindPluginNotification:
+		return types.KindPluginNotification, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
