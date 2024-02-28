@@ -1847,7 +1847,7 @@ func (sessionRecordingConfigExecutor) getReader(cache *Cache, cacheOK bool) sess
 }
 
 type sessionRecordingConfigGetter interface {
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 }
 
 var _ executor[types.SessionRecordingConfig, sessionRecordingConfigGetter] = sessionRecordingConfigExecutor{}

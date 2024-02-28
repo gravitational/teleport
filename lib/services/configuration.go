@@ -67,7 +67,7 @@ type ClusterConfiguration interface {
 	DeleteAuthPreference(ctx context.Context) error
 
 	// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
-	GetSessionRecordingConfig(context.Context, ...MarshalOption) (types.SessionRecordingConfig, error)
+	GetSessionRecordingConfig(context.Context) (types.SessionRecordingConfig, error)
 	// CreateSessionRecordingConfig creates a session recording config if once does not already exist.
 	CreateSessionRecordingConfig(ctx context.Context, cfg types.SessionRecordingConfig) (types.SessionRecordingConfig, error)
 	// UpdateSessionRecordingConfig updates an existing session recording config.
