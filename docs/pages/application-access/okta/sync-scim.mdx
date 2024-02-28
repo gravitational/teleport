@@ -18,7 +18,7 @@ On the whole, it doesn't matter to the wider Teleport system which method was
 used to import a user as both processes create identical resources inside
 Teleport.
 
-To compliment user provisioning, Okta is also able to model Okta permissions as
+To complement user provisioning, Okta is also able to model Okta permissions as
 Access Lists, which will effectively import Okta's application permissions into
 Teleport.
 
@@ -121,18 +121,18 @@ Application in order to make sure their status is updated in Teleport.
 
 ### Modeling Okta permissions within Teleport
 
-Okta has its own permissions system that doesn't necessarily map cleanly into Teleport. This
+Okta has its own permissions system that doesn't map cleanly into Teleport. This
 includes permissions granted by Okta groups along with the assignment of users to individual
 applications within Okta. To model this within Teleport, an administrator would typically need
 to carefully craft a labeling system to attach to various Okta apps and groups and a set of
 roles to go along with them.
 
-With the new Access List Synchronization feature in the Okta service, this work is performed
+With the new Access List synchronization feature in the Okta service, this work is performed
 for you. We'll discuss the details of how this works.
 
 ### Synchronizing Access Lists from Okta groups and applications
 
-The Okta Access List Synchronizer will look for any Okta group with members or any Okta
+The Okta Access List synchronizer will look for any Okta group with members or any Okta
 application with individual assignments that matches configurable filters that you can
 optionally supply. Access lists will not be created for groups or applications without
 any assignments.
@@ -144,12 +144,12 @@ The synchronizer will create the following resources for each matched group or a
 - An Access List representing membership to the group/application.
 - Members for the Access List.
 
-It should be noted that the Access List sync waits until the regular group and application
-sync finishes, so it may not start synchronizing immediately on startup.
+It should be noted that the Access List sync waits until the Okta groups and Okta applications
+has finished syncing as Teleport resources, so it may not start synchronizing immediately on startup.
 
 #### Deletion of Access Lists
 
-Okta synchronized Access Lists will be deleted when there are no members assigned to them in
+Access Lists synchronized from Okta will automatically be deleted when there are no members assigned to them in
 Okta or when they are deleted in Okta.
 
 <Admonition type="warning">

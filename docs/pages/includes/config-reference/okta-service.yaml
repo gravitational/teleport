@@ -29,7 +29,7 @@ okta_service:
     - salesforce* # Glob syntax.
     - ^.*salesforce.*$ # Regex syntax.
 
-    # Only groups with names that match the following filters will be synchronized as access lists.
+    # Only apps with names that match the following filters will be synchronized as access lists.
     app_filters:
     - salesforce* # Glob syntax.
     - ^.*salesforce.*$ # Regex syntax.
