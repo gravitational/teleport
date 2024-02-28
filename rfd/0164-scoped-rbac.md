@@ -258,7 +258,7 @@ spec:
    env: prod
 ```
 
-In this case, any resource that matches `env:prod` label will be assigned to this resource group. We will use the same label matching algorithm as in 
+In this case, any resource that matches `env:prod` label will be assigned to this resource group. We will use the same label matching algorithm as in today's `discovery_service`. 
 
 This will let administrators to gradually migrate their existing flat infrastructure to resource groups one.
 
