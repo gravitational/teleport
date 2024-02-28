@@ -827,55 +827,51 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	createEC2ICEClient, err := awsoidc.NewCreateEC2ICEClient(ctx, awsClientReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	endpoints := make([]awsoidc.EC2ICEEndpoint, 0, len(req.Endpoints))
-
+	endpoints := make([]*integrationv1.EC2ICEndpoint, 0, len(req.Endpoints))
 	for _, endpoint := range req.Endpoints {
-		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
-			SubnetID:         endpoint.SubnetID,
-			SecurityGroupIDs: endpoint.SecurityGroupIDs,
+		endpoints = append(endpoints, &integrationv1.EC2ICEndpoint{
+			SubnetId:         endpoint.SubnetID,
+			SecurityGroupIds: endpoint.SecurityGroupIDs,
 		})
 	}
 
 	// Backwards compatible: get the endpoint from the deprecated fields.
 	if len(endpoints) == 0 {
-		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
-			SubnetID:         req.SubnetID,
-			SecurityGroupIDs: req.SecurityGroupIDs,
+		endpoints = append(endpoints, &integrationv1.EC2ICEndpoint{
+			SubnetId:         req.SubnetID,
+			SecurityGroupIds: req.SecurityGroupIDs,
 		})
 	}
 
-	resp, err := awsoidc.CreateEC2ICE(ctx,
-		createEC2ICEClient,
-		awsoidc.CreateEC2ICERequest{
-			Cluster:         h.auth.clusterName,
-			IntegrationName: awsClientReq.IntegrationName,
-			Endpoints:       endpoints,
-		},
-	)
+	createResp, err := clt.IntegrationAWSOIDCClient().CreateEICE(ctx, &integrationv1.CreateEICERequest{
+		Integration: integrationName,
+		Region:      req.Region,
+		Endpoints:   endpoints,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	respEndpoints := make([]ui.AWSOIDCDeployEC2ICEResponseEndpoint, 0, len(resp.CreatedEndpoints))
-	for _, endpoint := range resp.CreatedEndpoints {
+	respEndpoints := make([]ui.AWSOIDCDeployEC2ICEResponseEndpoint, 0, len(createResp.CreatedEndpoints))
+	for _, endpoint := range createResp.CreatedEndpoints {
 		respEndpoints = append(respEndpoints, ui.AWSOIDCDeployEC2ICEResponseEndpoint{
 			Name:     endpoint.Name,
-			SubnetID: endpoint.SubnetID,
+			SubnetID: endpoint.SubnetId,
 		})
 	}
 
 	return ui.AWSOIDCDeployEC2ICEResponse{
-		Name:      resp.Name,
+		Name:      createResp.Name,
 		Endpoints: respEndpoints,
 	}, nil
 }
