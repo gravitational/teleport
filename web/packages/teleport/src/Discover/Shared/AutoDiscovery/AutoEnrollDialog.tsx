@@ -37,7 +37,7 @@ export type AutoEnrollDialog = {
   close(): void;
   next(): void;
   region: string;
-/**
+  /**
    * show notification that resources might take some
    * time to appear after setup has finished.
    */

@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { Box, ButtonSecondary, ButtonText, Flex, Link, Text, Toggle } from 'design';
+import { Box, ButtonPrimary, ButtonText, Link, Text, Toggle } from 'design';
 import styled from 'styled-components';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
@@ -54,11 +54,9 @@ import cfg from 'teleport/config';
 import {
   ActionButtons,
   Header,
-  ResourceKind,
   SelfHostedAutoDiscoverDirections,
   AutoEnrollDialog,
 } from '../../Shared';
-
 
 import { ClustersList } from './EksClustersList';
 import ManualHelmDialog from './ManualHelmDialog';
@@ -119,7 +117,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
   const [autoDiscoveryCfg, setAutoDiscoveryCfg] = useState<DiscoveryConfig>();
   const { attempt: autoDiscoverAttempt, setAttempt: setAutoDiscoverAttempt } =
     useAttempt('');
- // join token will be set only if user opens ManualHelmDialog,
+  // join token will be set only if user opens ManualHelmDialog,
   // we delay it to avoid premature admin action MFA confirmation request.
   const [joinToken, setJoinToken] = useState<JoinToken>(null);
 
@@ -468,7 +466,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
                   }}
                   pl={0}
                 >
-                Or enroll manually
+                  Or enroll manually
                 </ButtonText>
               </Box>
             </StyledBox>
