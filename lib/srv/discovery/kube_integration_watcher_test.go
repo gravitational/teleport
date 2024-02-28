@@ -174,12 +174,12 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 	}
 	clusterUpserter := func(ctx context.Context, authServer *auth.Server, request *integrationpb.EnrollEKSClustersRequest) (*integrationpb.EnrollEKSClustersResponse, error) {
 		response := &integrationpb.EnrollEKSClustersResponse{}
-		for _, c := range request.ClusterNames {
+		for _, c := range request.EksClusterNames {
 			eksCluster := clusterFinder(c)
 			if eksCluster == nil {
 				response.Results = append(response.Results, &integrationpb.EnrollEKSClusterResult{
-					ClusterName: c,
-					Error:       "not found",
+					EksClusterName: c,
+					Error:          "not found",
 				})
 				continue
 			}
@@ -193,8 +193,8 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			assert.NoError(t, err)
 
 			response.Results = append(response.Results, &integrationpb.EnrollEKSClusterResult{
-				ClusterName: c,
-				ResourceId:  "resourceID",
+				EksClusterName: c,
+				ResourceId:     "resourceID",
 			})
 		}
 		return response, nil
@@ -246,7 +246,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-						assert.Len(t, request.ClusterNames, 1)
+						assert.Len(t, request.EksClusterNames, 1)
 
 						response, err := clusterUpserter(ctx, authServer, request)
 						assert.NoError(t, err)
@@ -276,7 +276,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-						assert.Len(t, request.ClusterNames, 2)
+						assert.Len(t, request.EksClusterNames, 2)
 
 						response, err := clusterUpserter(ctx, authServer, request)
 						assert.NoError(t, err)

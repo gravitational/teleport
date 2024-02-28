@@ -47,12 +47,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 	clt := s.AccessPoint
 
-	pong, err := clt.Ping(s.ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	proxyPublicAddr := pong.GetProxyPublicAddr()
-
 	releaseChannels := automaticupgrades.Channels{}
 	if err := releaseChannels.CheckAndSetDefaults(s.ClusterFeatures()); err != nil {
 		return trace.Wrap(err)
@@ -128,7 +122,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 				for region := range clustersByRegionAndIntegration {
 					for integration := range clustersByRegionAndIntegration[region] {
-						go s.enrollEKSClusters(region, integration, proxyPublicAddr, clustersByRegionAndIntegration[region][integration], agentVersion, &mu, enrollingClusters)
+						go s.enrollEKSClusters(region, integration, clustersByRegionAndIntegration[region][integration], agentVersion, &mu, enrollingClusters)
 					}
 				}
 
@@ -140,7 +134,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	return nil
 }
 
-func (s *Server) enrollEKSClusters(region, integration, publicProxyAddr string, clusters []types.DiscoveredEKSCluster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
+func (s *Server) enrollEKSClusters(region, integration string, clusters []types.DiscoveredEKSCluster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
 	mu.Lock()
 	for _, c := range clusters {
 		if _, ok := enrollingClusters[c.GetAWSConfig().Name]; !ok {
@@ -167,8 +161,6 @@ func (s *Server) enrollEKSClusters(region, integration, publicProxyAddr string, 
 	defer cancel()
 	var clusterNames []string
 
-	clusterFeatures := s.ClusterFeatures()
-
 	for _, kubeAppDiscovery := range []bool{true, false} {
 		for _, c := range batchedClusters[kubeAppDiscovery] {
 			clusterNames = append(clusterNames, c.GetAWSConfig().Name)
@@ -180,11 +172,8 @@ func (s *Server) enrollEKSClusters(region, integration, publicProxyAddr string, 
 		rsp, err := s.AccessPoint.EnrollEKSClusters(ctx, &integrationv1.EnrollEKSClustersRequest{
 			Integration:        integration,
 			Region:             region,
-			PublicProxyAddr:    publicProxyAddr,
-			ClusterNames:       clusterNames,
+			EksClusterNames:    clusterNames,
 			EnableAppDiscovery: kubeAppDiscovery,
-			EnableAutoUpgrades: clusterFeatures.GetAutomaticUpgrades(),
-			IsCloud:            clusterFeatures.GetCloud(),
 			AgentVersion:       agentVersion,
 		})
 		if err != nil {
@@ -195,12 +184,12 @@ func (s *Server) enrollEKSClusters(region, integration, publicProxyAddr string, 
 		for _, r := range rsp.Results {
 			if r.Error != "" {
 				if !strings.Contains(r.Error, "teleport-kube-agent is already installed on the cluster") {
-					s.Log.WithError(err).Errorf("failed to enroll EKS cluster %q", r.ClusterName)
+					s.Log.WithError(err).Errorf("failed to enroll EKS cluster %q", r.EksClusterName)
 				} else {
-					s.Log.Debugf("EKS cluster %q already has installed kube agent", r.ClusterName)
+					s.Log.Debugf("EKS cluster %q already has installed kube agent", r.EksClusterName)
 				}
 			} else {
-				s.Log.Infof("successfully enrolled EKS cluster %q", r.ClusterName)
+				s.Log.Infof("successfully enrolled EKS cluster %q", r.EksClusterName)
 			}
 		}
 	}
