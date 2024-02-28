@@ -280,7 +280,7 @@ We will list those resources separately below.
 
 ##### Default Resource groups via auto-discovery
 
-Teleport can create resource groups if admins turn on auto discovery. This will significanly simplify configuration. 
+Teleport can create resource groups if admins turn on auto discovery. This will significantly simplify configuration. 
 
 Here are some of the resource groups that Teleport Discovery service will create:
 
