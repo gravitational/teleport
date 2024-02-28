@@ -1098,8 +1098,9 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 
 	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 
-	_, err = s.PresenceS.CreateRemoteCluster(ctx, rc)
+	got, err := s.PresenceS.CreateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
+	require.Zero(t, cmp.Diff(got, rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	_, err = s.PresenceS.CreateRemoteCluster(ctx, rc)
 	require.True(t, trace.IsAlreadyExists(err))
@@ -1117,8 +1118,9 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// test delete individual connection
-	_, err = s.PresenceS.CreateRemoteCluster(ctx, rc)
+	got, err = s.PresenceS.CreateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
+	require.Zero(t, cmp.Diff(got, rc, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	out, err = s.PresenceS.GetRemoteClusters(ctx)
 	require.NoError(t, err)

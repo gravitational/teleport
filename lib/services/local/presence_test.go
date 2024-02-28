@@ -73,19 +73,22 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	src.SetLastHeartbeat(clock.Now().Add(-time.Hour))
 
 	// create remote clusters
-	err = presenceBackend.CreateRemoteCluster(rc)
+	gotRC, err := presenceBackend.CreateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
-	err = presenceBackend.CreateRemoteCluster(src)
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	gotSRC, err := presenceBackend.CreateRemoteCluster(ctx, src)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// get remote cluster make sure it's correct
-	gotRC, err := presenceBackend.GetRemoteCluster("foo")
+	gotRC, err = presenceBackend.GetRemoteCluster(ctx, "foo")
 	require.NoError(t, err)
 	require.Equal(t, "foo", gotRC.GetName())
 	require.Equal(t, teleport.RemoteClusterStatusOffline, gotRC.GetConnectionStatus())
 	require.Equal(t, clock.Now().Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
 	require.Equal(t, originalLabels, gotRC.GetMetadata().Labels)
 
+	rc = gotRC
 	updatedLabels := map[string]string{
 		"e": "f",
 		"g": "h",
@@ -94,34 +97,36 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	// update remote clusters
 	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
 	rc.SetLastHeartbeat(clock.Now().Add(time.Hour))
-	rc.SetMetadata(types.Metadata{
-		Name:   "foo",
-		Labels: updatedLabels,
-	})
-	err = presenceBackend.UpdateRemoteCluster(ctx, rc)
+	meta := rc.GetMetadata()
+	meta.Labels = updatedLabels
+	rc.SetMetadata(meta)
+	gotRC, err = presenceBackend.UpdateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
+	src = gotSRC
 	src.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	src.SetLastHeartbeat(clock.Now())
-	err = presenceBackend.UpdateRemoteCluster(ctx, src)
+	gotSRC, err = presenceBackend.UpdateRemoteCluster(ctx, src)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
 
 	// get remote cluster make sure it's correct
-	gotRC, err = presenceBackend.GetRemoteCluster("foo")
+	gotRC, err = presenceBackend.GetRemoteCluster(ctx, "foo")
 	require.NoError(t, err)
 	require.Equal(t, "foo", gotRC.GetName())
 	require.Equal(t, teleport.RemoteClusterStatusOnline, gotRC.GetConnectionStatus())
 	require.Equal(t, clock.Now().Add(time.Hour).Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
 	require.Equal(t, updatedLabels, gotRC.GetMetadata().Labels)
 
-	gotRC, err = presenceBackend.GetRemoteCluster("bar")
+	gotRC, err = presenceBackend.GetRemoteCluster(ctx, "bar")
 	require.NoError(t, err)
 	require.Equal(t, "bar", gotRC.GetName())
 	require.Equal(t, teleport.RemoteClusterStatusOffline, gotRC.GetConnectionStatus())
 	require.Equal(t, clock.Now().Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
 
 	// get all clusters
-	allRC, err := presenceBackend.GetRemoteClusters()
+	allRC, err := presenceBackend.GetRemoteClusters(ctx)
 	require.NoError(t, err)
 	require.Len(t, allRC, 2)
 
@@ -133,6 +138,10 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.NotFound("key /remoteClusters/foo is not found"))
+}
+
+func TestPresenceService_ListRemoteClusters(t *testing.T) {
+	t.Fatalf("implement me")
 }
 
 func TestTrustedClusterCRUD(t *testing.T) {
