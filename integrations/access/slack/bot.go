@@ -22,6 +22,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	appAccesslist "github.com/gravitational/teleport/integrations/access/accesslist"
+	"github.com/gravitational/teleport/integrations/access/notifications"
 	"net/url"
 	"time"
 
@@ -32,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	appAccesslist "github.com/gravitational/teleport/integrations/access/accesslist"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -94,6 +96,7 @@ func (b Bot) SupportedApps() []common.App {
 	return []common.App{
 		accessrequest.NewApp(b),
 		appAccesslist.NewApp(b),
+		notifications.NewApp(b),
 	}
 }
 
@@ -283,6 +286,30 @@ func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessReques
 			ElementItems: []ContextElementItem{
 				NewContextElementItem(MarkdownObject{Text: statusText}),
 			},
+		}),
+	}
+
+	return sections
+}
+
+func (b Bot) SendNotification(ctx context.Context, recipient common.Recipient, notification *notificationsv1.Notification) error {
+	var result ChatMsgResponse
+	_, err := b.client.NewRequest().
+		SetContext(ctx).
+		SetBody(Message{BaseMessage: BaseMessage{Channel: recipient.ID}, BlockItems: b.slackNotificationMsgSections(notification)}).
+		SetResult(&result).
+		Post("chat.postMessage")
+	return trace.Wrap(err)
+}
+
+// slackAccessRequestMsgSection builds an access request Slack message section (obeys markdown).
+func (b Bot) slackNotificationMsgSections(notification *notificationsv1.Notification) []BlockItem {
+	sections := []BlockItem{
+		NewBlockItem(SectionBlock{
+			Text: NewTextObjectItem(MarkdownObject{Text: fmt.Sprintf("Notification: %s", notification.GetMetadata().GetName())}),
+		}),
+		NewBlockItem(SectionBlock{
+			Text: NewTextObjectItem(MarkdownObject{Text: notification.GetMetadata().Description}),
 		}),
 	}
 
