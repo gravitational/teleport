@@ -353,6 +353,16 @@ func testDeleteRange(t *testing.T, newBackend Constructor) {
 		require.NoError(t, err, "Failed creating value: %q => %q", item.Key, item.Value)
 	}
 
+	// Some Backends (e.g. DynamoDB) have a limit on the number of items that can
+	// be deleted in a single operation. This test is designed to be run with
+	// a backend that has a limit of 25 items per delete operation.
+	for i := 0; i < 100; i++ {
+		item := &backend.Item{Key: prefix(fmt.Sprintf("/prefix/c/cn%d", i)), Value: []byte(fmt.Sprintf("val cn%d", i))}
+		lease, err := uut.Create(ctx, *item)
+		require.NoError(t, err, "Failed creating value: %q => %q", item.Key, item.Value)
+		item.Revision = lease.Revision
+	}
+
 	err = uut.DeleteRange(ctx, prefix("/prefix/c"), backend.RangeEnd(prefix("/prefix/c")))
 	require.NoError(t, err)
 
