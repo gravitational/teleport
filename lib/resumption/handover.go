@@ -82,7 +82,9 @@ func (r *SSHServerWrapper) attemptHandover(conn *multiplexer.Conn, token resumpt
 	}
 
 	r.log.Debug("Forwarding resuming connection to handover socket.")
-	_ = utils.ProxyConn(context.Background(), conn, handoverConn)
+	if err := utils.ProxyConn(context.Background(), conn, handoverConn); err != nil && !utils.IsOKNetworkError(err) {
+		r.log.WithError(err).Debug("Finished forwarding resuming connection to handover socket.")
+	}
 }
 
 func (r *SSHServerWrapper) dialHandover(token resumptionToken) (net.Conn, error) {
