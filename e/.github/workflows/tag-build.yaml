@@ -188,6 +188,23 @@ jobs:
       # TODO(camscale): Update called workflow to use build-stage/build-prod environments
       # environment: ${{ inputs.environment }}
 
+  build-tbot-distroless-oci:
+    name: Build Tbot Distroless OCI
+    needs: [setup, build-linux]
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      security-events: write
+    uses: ./.github/workflows/build-tbot-distroless-oci.yml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      source-tag: ${{ needs.setup.outputs.version }}
+      # TODO(camscale): Update called workflow to use build-stage/build-prod environments
+      # environment: ${{ inputs.environment }}
+
   build-hardened-ami:
     name: Build Hardened AMI
     needs: [setup, build-linux]

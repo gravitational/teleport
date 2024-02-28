@@ -53,6 +53,19 @@ jobs:
     with:
       release-source-tag: ${{ needs.setup.outputs.version }}
 
+  publish-tbot-distroless-oci:
+    name: Publish Tbot distroless OCI images
+    # TODO(camscale): Update called workflow to use environments
+    if: inputs.environment == 'publish-prod' # no publish-stage available
+    needs: setup
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-tbot-distroless-oci.yml
+    with:
+      release-source-tag: ${{ needs.setup.outputs.version }}
+
   publish-hardened-amis:
     name: Publish hardened AMIs
     # TODO(camscale): Update called workflow to use environments

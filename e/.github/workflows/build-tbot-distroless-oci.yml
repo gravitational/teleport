@@ -1,0 +1,135 @@
+name: Build Tbot Distroless Images
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: The name of the OSS teleport repo to checkout.
+        type: string
+        default: gravitational/teleport
+
+      oss-teleport-ref:
+        description: Git SHA, tag or branch of the revision of OSS teleport to build.
+        required: true
+        type: string
+
+      source-tag:
+        description: |
+          The semver version of Teleport that we're building for. If not set
+          will be inferred form the `oss-teleport-ref` by assuming that it's
+          a standard Teleport release tag in the form vX.Y.Z.
+        type: string
+
+      pending-bucket-name:
+        description: Name of the pending bucket holding the Debian package artifacts.
+        type: string
+        default: dronestorage.gravitational.io
+
+      pending-access-role-arn:
+        description: ARN of the role used to access the pending bucket, for downloading.
+        type: string
+        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
+
+      build-role-arn:
+        description: The ARN of the role used to sign and store the resulting image(s) in ECR.
+        type: string
+        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
+
+      signing-key-url:
+        description: |
+          URL of the KMS key used to sign the resulting images. Must be
+          readable from the role specified by `build-role-arn`.
+        type: string
+        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
+
+      dest-repo-prefix:
+        description: |
+          Registry and namespace prefix for the destination repository,
+          formatted for use with Docker (that is, like a URI, not the AWS
+          ARN).
+        type: string
+        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
+
+      workflow-tag:
+        description: Tag used to identify workflow runs spawned by this event.
+        type: string
+
+  # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+        required: true
+      source-tag:
+        type: string
+      pending-bucket-name:
+        type: string
+        default: dronestorage.gravitational.io
+      pending-access-role-arn:
+        type: string
+        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
+      build-role-arn:
+        type: string
+        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
+      signing-key-url:
+        type: string
+        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
+      dest-repo-prefix:
+        type: string
+        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
+      workflow-tag:
+        type: string
+
+run-name: Build Tbot OCI Images for ${{ inputs.source-tag }}
+
+jobs:
+  configure:
+    name: Configure Build
+    runs-on: ubuntu-latest
+    outputs:
+      teleport-version: ${{ steps.version.outputs.full }}
+    steps:
+      - name: ${{ inputs.workflow-tag }}
+        if: inputs.workflow-tag != ''
+        run: echo ${{ inputs.workflow-tag }}
+      - name: Parse version
+        id: version
+        uses: gravitational/teleport.e/.github/actions/parse-version@master
+        with:
+          version: ${{ inputs.source-tag }}
+  build-docker-images:
+    name: Build OCI container images
+    needs: configure
+    permissions:
+      actions: read
+      contents: read
+      id-token: write  # required for aws-actions/configure-aws-credentials
+      security-events: write # required for trivy scan
+    uses: ./.github/workflows/oci-image-build.yml
+    with:
+      teleport-release: 'oss'
+      base-image: 'gcr.io/distroless/cc-debian12:latest'
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      pending-bucket-name: ${{ inputs.pending-bucket-name }}
+      pending-access-role-arn: ${{ inputs.pending-access-role-arn }}
+      source-tag: ${{ inputs.source-tag }}
+      teleport-version: ${{ needs.configure.outputs.teleport-version }}
+      dest-image-registry: ${{ inputs.dest-repo-prefix }}
+      dest-image-repo: tbot-distroless
+      dest-image-tags: ${{ needs.configure.outputs.teleport-version }}
+      build-role-arn: ${{ inputs.build-role-arn }}
+      signing-key-url: ${{ inputs.signing-key-url }}
+      architectures: |
+        amd64
+        arm
+        arm64
+      image-build-args: |
+        TELEPORT_VERSION=${{ needs.configure.outputs.teleport-version }}
+      image-build-dockerfile: Dockerfile-tbot-distroless
+      allow-overwrites: false
+    secrets:
+      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
