@@ -698,7 +698,7 @@ Teleport will grant role access  and traits internal.logins: root to `bob@exampl
 
 This grant will not be valid out of the scope of `/dev/lab`, so Bob won’t be able to SSH as root to any other servers.
 
-K8s access to specific clusters
+### K8s access to specific clusters
 
 Teleport can autodiscover clusters echo and bravo with namespaces default and prod, creating the following resource group hierarchy:
 
