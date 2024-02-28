@@ -800,7 +800,7 @@ func (remoteClusterExecutor) getReader(cache *Cache, cacheOK bool) remoteCluster
 }
 
 type remoteClusterGetter interface {
-	GetRemoteClusters(ctx context.Context, opts ...services.MarshalOption) ([]types.RemoteCluster, error)
+	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 	ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error)
 }

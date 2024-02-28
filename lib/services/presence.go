@@ -189,7 +189,7 @@ type Presence interface {
 
 	// GetRemoteClusters returns a list of remote clusters
 	// Prefer ListRemoteClusters
-	GetRemoteClusters(ctx context.Context, opts ...MarshalOption) ([]types.RemoteCluster, error)
+	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 
 	// ListRemoteClusters returns a page of remote clusters
 	ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error)

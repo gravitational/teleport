@@ -459,10 +459,10 @@ func (a *Server) updateRemoteClusterStatus(ctx context.Context, netConfig types.
 }
 
 // GetRemoteClusters returns remote clusters with updated statuses
-func (a *Server) GetRemoteClusters(ctx context.Context, opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (a *Server) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	remoteClusters, err := a.Services.GetRemoteClusters(ctx, opts...)
+	remoteClusters, err := a.Services.GetRemoteClusters(ctx)
 	return remoteClusters, trace.Wrap(err)
 }
 

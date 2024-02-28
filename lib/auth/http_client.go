@@ -490,7 +490,7 @@ func (c *HTTPClient) DeleteAllTunnelConnections() error {
 }
 
 // GetRemoteClusters returns a list of remote clusters
-func (c *HTTPClient) GetRemoteClusters(ctx context.Context, opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (c *HTTPClient) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	out, err := c.Get(ctx, c.Endpoint("remoteclusters"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -4661,11 +4661,11 @@ func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName stri
 	return cluster, nil
 }
 
-func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context, opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteClusters, err := a.authServer.GetRemoteClusters(ctx, opts...)
+	remoteClusters, err := a.authServer.GetRemoteClusters(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
