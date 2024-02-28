@@ -34,6 +34,7 @@ var supportedResourceKinds = []string{
 	types.KindDatabase,
 	types.KindKubernetesCluster,
 	types.KindApp,
+	types.KindSAMLIdPServiceProvider,
 }
 
 func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
@@ -92,26 +93,14 @@ func List(ctx context.Context, cluster *clusters.Cluster, client Client, req *pr
 					App:      app,
 				},
 			})
-		case *proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider:
-			if e.AppServerOrSAMLIdPServiceProvider.IsAppServer() {
-				app := e.AppServerOrSAMLIdPServiceProvider.GetAppServer().GetApp()
-				response.Resources = append(response.Resources, UnifiedResource{
-					App: &clusters.App{
-						URI:      cluster.URI.AppendApp(app.GetName()),
-						FQDN:     cluster.AssembleAppFQDN(app),
-						AWSRoles: cluster.GetAWSRoles(app),
-						App:      app,
-					},
-				})
-			} else {
-				provider := e.AppServerOrSAMLIdPServiceProvider.GetSAMLIdPServiceProvider()
-				response.Resources = append(response.Resources, UnifiedResource{
-					SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
-						URI:      cluster.URI.AppendApp(provider.GetName()),
-						Provider: provider,
-					},
-				})
-			}
+		case *proto.PaginatedResource_SAMLIdPServiceProvider:
+			provider := e.SAMLIdPServiceProvider
+			response.Resources = append(response.Resources, UnifiedResource{
+				SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
+					URI:      cluster.URI.AppendApp(provider.GetName()),
+					Provider: provider,
+				},
+			})
 		}
 	}
 
