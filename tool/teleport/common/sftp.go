@@ -115,7 +115,7 @@ type sftpHandler struct {
 func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, homeDir string, events chan<- *apievents.SFTP) (*sftpHandler, error) {
 	var allowed *allowedOps
 	if req != nil {
-		allowed := &allowedOps{
+		allowed = &allowedOps{
 			write: !req.Download,
 		}
 		// make filepaths consistent by ensuring all separators use backslashes
@@ -164,14 +164,14 @@ func (s *sftpHandler) checkReq(req *sftp.Request) error {
 			return fmt.Errorf("%q is not allowed to be written to", req.Filepath)
 		}
 	default:
-		return fmt.Errorf("method %s is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
+		return fmt.Errorf("method %q is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
 	}
 
 	if s.allowed.path == path.Clean(req.Filepath) {
 		return nil
 	}
 
-	return fmt.Errorf("method %s is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
+	return fmt.Errorf("method %q is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
 }
 
 // OpenFile handles 'open' requests when opening a file for reading

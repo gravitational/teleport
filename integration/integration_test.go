@@ -100,6 +100,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
+	telesftp "github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -8052,13 +8053,13 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 
 	// Create Teleport instance
-	teleport := suite.newTeleport(t, nil, true)
+	instance := suite.newTeleport(t, nil, true)
 	t.Cleanup(func() {
-		teleport.StopAll()
+		instance.StopAll()
 	})
 
 	ctx := context.Background()
-	aSrv := teleport.Process.GetAuthServer()
+	aSrv := instance.Process.GetAuthServer()
 
 	// Create peer and moderator users and roles
 	username := suite.Me.Username
@@ -8109,7 +8110,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		Allow: types.RoleConditions{
 			JoinSessions: []*types.SessionJoinPolicy{{
 				Name:  "Session moderator",
-				Roles: []string{sshAccessRole.GetName()},
+				Roles: []string{peerRole.GetName()},
 				Kinds: []string{string(types.SSHSessionKind)},
 				Modes: []string{string(types.SessionModeratorMode), string(types.SessionObserverMode)},
 			}},
@@ -8121,14 +8122,71 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	modUser, err := types.NewUser(modUsername)
 	require.NoError(t, err)
-	peerUser.SetLogins([]string{username})
-	peerUser.SetRoles([]string{sshAccessRole.GetName(), modRole.GetName()})
+	modUser.SetLogins([]string{username})
+	modUser.SetRoles([]string{sshAccessRole.GetName(), modRole.GetName()})
 	_, err = aSrv.CreateUser(ctx, modUser)
 	require.NoError(t, err)
 
-	waitForNodesToRegister(t, teleport, helpers.Site)
+	waitForNodesToRegister(t, instance, helpers.Site)
 
-	modTC, err := teleport.NewClient(helpers.ClientConfig{
+	// Start a shell so a moderated session is created
+	peerTC, err := instance.NewClient(helpers.ClientConfig{
+		TeleportUser: peerUsername,
+		Login:        username,
+		Cluster:      helpers.Site,
+		Host:         Host,
+	})
+	require.NoError(t, err)
+
+	peerClusterCli, err := peerTC.ConnectToCluster(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = peerClusterCli.Close()
+	})
+
+	nodeDetails := client.NodeDetails{
+		Addr:      instance.Config.SSH.Addr.Addr,
+		Namespace: peerTC.Namespace,
+		Cluster:   helpers.Site,
+	}
+	peerNodeCli, err := peerTC.ConnectToNode(
+		ctx,
+		peerClusterCli,
+		nodeDetails,
+		username,
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, peerNodeCli.Close())
+	})
+
+	peerSSH := peerNodeCli.Client
+	cmdSess, err := peerSSH.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, cmdSess.Close())
+	})
+
+	peerTerm := NewTerminal(250)
+	cmdSess.Stdin = peerTerm
+	cmdSess.Stdout = peerTerm
+	cmdSess.Stderr = peerTerm
+	err = cmdSess.Shell(ctx)
+	require.NoError(t, err)
+
+	var sessTracker types.SessionTracker
+	require.Eventually(t, func() bool {
+		trackers, err := peerClusterCli.AuthClient.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+		if len(trackers) == 1 {
+			sessTracker = trackers[0]
+			return true
+		}
+		return false
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// Join the waiting session so it is approved
+	modTC, err := instance.NewClient(helpers.ClientConfig{
 		TeleportUser: modUsername,
 		Login:        username,
 		Cluster:      helpers.Site,
@@ -8142,13 +8200,149 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		_ = modClusterCli.Close()
 	})
 
-	nodeDetails := client.NodeDetails{
-		Addr:      teleport.Config.SSH.Addr.Addr,
-		Namespace: modTC.Namespace,
-		Cluster:   helpers.Site,
-	}
-	_, _, err = modClusterCli.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, modTC.LocalAgent().ExtendedAgent)
+	conn, details, err := modClusterCli.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, modTC.LocalAgent().ExtendedAgent)
 	require.NoError(t, err)
+	sshConfig := modClusterCli.ProxyClient.SSHConfig(username)
+	modSSHConn, modSSHChans, modSSHReqs, err := tracessh.NewClientConn(ctx, conn, nodeDetails.ProxyFormat(), sshConfig)
+	require.NoError(t, err)
+
+	// We pass an empty channel which we close right away to ssh.NewClient
+	// because the client need to handle requests itself.
+	emptyCh := make(chan *ssh.Request)
+	close(emptyCh)
+	modNodeCli := client.NodeClient{
+		Client:          tracessh.NewClient(modSSHConn, modSSHChans, emptyCh),
+		Namespace:       nodeDetails.Namespace,
+		TC:              modTC,
+		Tracer:          modTC.Tracer,
+		FIPSEnabled:     details.FIPS,
+		ProxyPublicAddr: modTC.WebProxyAddr,
+	}
+
+	modSess, err := modNodeCli.Client.NewSession(ctx)
+	require.NoError(t, err)
+	err = modSess.Setenv(ctx, sshutils.SessionEnvVar, sessTracker.GetSessionID())
+	require.NoError(t, err)
+	err = modSess.Setenv(ctx, teleport.EnvSSHJoinMode, string(types.SessionModeratorMode))
+	require.NoError(t, err)
+
+	modTerm := NewTerminal(250)
+	modSess.Stdin = modTerm
+	modSess.Stdout = modTerm
+	modSess.Stderr = modTerm
+	err = modSess.Shell(ctx)
+	require.NoError(t, err)
+
+	// Create and approve a file download request
+	tempDir := t.TempDir()
+	dlFile := filepath.Join(tempDir, "dl-file")
+	err = os.WriteFile(dlFile, []byte("contents"), 0o666)
+	require.NoError(t, err)
+
+	err = cmdSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+		Download: true,
+		Location: dlFile,
+	})
+	require.NoError(t, err)
+
+	// Ignore session join event
+	<-modSSHReqs
+
+	sshReq := <-modSSHReqs
+	var fileReq apievents.FileTransferRequestEvent
+	err = json.Unmarshal(sshReq.Payload, &fileReq)
+	require.NoError(t, err)
+
+	err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
+	require.NoError(t, err)
+
+	// Ignore file transfer request approve event
+	<-modSSHReqs
+
+	// Test that only operations needed to complete the download
+	// are allowed
+	transferSess, err := peerSSH.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = transferSess.Close()
+	})
+
+	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+	require.NoError(t, err)
+
+	err = transferSess.RequestSubsystem(ctx, "sftp")
+	require.NoError(t, err)
+	w, err := transferSess.StdinPipe()
+	require.NoError(t, err)
+	r, err := transferSess.StdoutPipe()
+	require.NoError(t, err)
+	sftpClient, err := sftp.NewClientPipe(r, w)
+	require.NoError(t, err)
+
+	_, err = sftpClient.Open(filepath.Join(tempDir, "bad-file"))
+	require.ErrorContains(t, err, `method \"get\" is not allowed`)
+	_, err = sftpClient.OpenFile(filepath.Join(tempDir, "bad-file"), os.O_WRONLY)
+	require.ErrorContains(t, err, `is not allowed to be written to`)
+	err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
+	require.ErrorContains(t, err, `method \"mkdir\" is not allowed`)
+
+	// Opening the requested file for reading should work
+	rf, err := sftpClient.Open(dlFile)
+	require.NoError(t, err)
+	require.NoError(t, rf.Close())
+
+	require.NoError(t, sftpClient.Close())
+
+	// Create and approve a file upload request
+	err = cmdSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+		Download: false,
+		Filename: dlFile,
+	})
+	require.NoError(t, err)
+
+	sshReq = <-modSSHReqs
+	err = json.Unmarshal(sshReq.Payload, &fileReq)
+	require.NoError(t, err)
+
+	err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
+	require.NoError(t, err)
+
+	// Ignore file transfer request approve event
+	<-modSSHReqs
+
+	// Ignore EOF error
+	_ = transferSess.Close()
+	transferSess, err = peerSSH.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = transferSess.Close()
+	})
+
+	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+	require.NoError(t, err)
+
+	// Test that only operations needed to complete the download
+	// are allowed
+	err = transferSess.RequestSubsystem(ctx, "sftp")
+	require.NoError(t, err)
+	w, err = transferSess.StdinPipe()
+	require.NoError(t, err)
+	r, err = transferSess.StdoutPipe()
+	require.NoError(t, err)
+	sftpClient, err = sftp.NewClientPipe(r, w)
+	require.NoError(t, err)
+
+	_, err = sftpClient.Open(filepath.Join(tempDir, "bad-file"))
+	require.ErrorContains(t, err, `is not allowed to be read from`)
+	_, err = sftpClient.OpenFile(filepath.Join(tempDir, "bad-file"), os.O_RDONLY)
+	require.ErrorContains(t, err, `is not allowed to be read from`)
+	err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
+	require.ErrorContains(t, err, `method \"mkdir\" is not allowed`)
+
+	// Opening the requested file for reading should work
+	wf, err := sftpClient.OpenFile(dlFile, os.O_WRONLY)
+	require.NoError(t, err)
+	require.NoError(t, wf.Close())
 }
 
 func testSFTP(t *testing.T, suite *integrationTestSuite) {
