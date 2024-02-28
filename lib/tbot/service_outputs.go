@@ -720,18 +720,27 @@ func (orc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingRe
 		return orc._proxyPong, nil
 	}
 
-	// Note: this relies on the auth server's proxy address. We could
-	// potentially support some manual parameter here in the future if desired.
-	authPong, err := orc.authPing(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Determine the Proxy address to use.
+	addr, addrKind := orc.cfg.Address()
+	switch addrKind {
+	case config.AddressKindAuth:
+		// If the address is an auth address, ping auth to determine proxy addr.
+		authPong, err := orc.authPing(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		addr = authPong.ProxyPublicAddr
+	case config.AddressKindProxy:
+		// If the address is a proxy address, use it directly.
+	default:
+		return nil, trace.BadParameter("unsupported address kind: %v", addrKind)
 	}
 
 	// We use find instead of Ping as it's less resource intense and we can
 	// ping the AuthServer directly for its configuration if necessary.
 	proxyPong, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
-		ProxyAddr: authPong.ProxyPublicAddr,
+		ProxyAddr: addr,
 		Insecure:  orc.cfg.Insecure,
 	})
 	if err != nil {

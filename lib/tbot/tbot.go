@@ -244,11 +244,13 @@ func (b *Bot) preRunChecks(ctx context.Context) (func() error, error) {
 	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
 	defer span.End()
 
-	if b.cfg.AuthServer == "" {
+	switch _, addrKind := b.cfg.Address(); addrKind {
+	case config.AddressKindUnspecified:
 		return nil, trace.BadParameter(
-			"an auth or proxy server must be set via --auth-server or configuration",
+			"either a proxy or auth address must be set using --proxy, --auth-server or configuration",
 		)
 	}
+
 	// Ensure they have provided a join method.
 	if b.cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
 		return nil, trace.BadParameter("join method must be provided")
@@ -372,7 +374,8 @@ func clientForFacade(
 		return nil, trace.Wrap(err)
 	}
 
-	authAddr, err := utils.ParseAddr(cfg.AuthServer)
+	addr, _ := cfg.Address()
+	parsedAddr, err := utils.ParseAddr(addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -380,7 +383,7 @@ func clientForFacade(
 	authClientConfig := &authclient.Config{
 		TLS:         tlsConfig,
 		SSH:         sshConfig,
-		AuthServers: []utils.NetAddr{*authAddr},
+		AuthServers: []utils.NetAddr{*parsedAddr},
 		Log:         log,
 		Insecure:    cfg.Insecure,
 		Resolver:    resolver,

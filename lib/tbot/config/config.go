@@ -103,6 +103,7 @@ type CLIConf struct {
 	// AuthServer is a Teleport auth server address. It may either point
 	// directly to an auth server, or to a Teleport proxy server in which case
 	// a tunneled auth connection will be established.
+	// Prefer using Address() to pick an address.
 	AuthServer string
 
 	// DataDir stores the bot's internal data.
@@ -271,7 +272,8 @@ type BotConfig struct {
 	Services   Services         `yaml:"services,omitempty"`
 
 	Debug           bool          `yaml:"debug"`
-	AuthServer      string        `yaml:"auth_server"`
+	AuthServer      string        `yaml:"auth_server,omitempty"`
+	Proxy           string        `yaml:"proxy,omitempty"`
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
 	Oneshot         bool          `yaml:"oneshot"`
@@ -293,6 +295,30 @@ type BotConfig struct {
 	// Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification.
 	// Do not use in production.
 	Insecure bool `yaml:"insecure,omitempty"`
+}
+
+type AddressKind string
+
+const (
+	AddressKindUnspecified AddressKind = ""
+	AddressKindProxy       AddressKind = "proxy"
+	AddressKindAuth        AddressKind = "auth"
+)
+
+// Address returns the address to the auth server, either directly or via
+// a proxy, and the kind of address it is.
+func (conf *BotConfig) Address() (string, AddressKind) {
+	switch {
+	case conf.AuthServer != "" && conf.Proxy != "":
+		// This is an error case that should be prevented by the validation.
+		return "", AddressKindUnspecified
+	case conf.Proxy != "":
+		return conf.Proxy, AddressKindProxy
+	case conf.AuthServer != "":
+		return conf.AuthServer, AddressKindAuth
+	default:
+		return "", AddressKindUnspecified
+	}
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
@@ -617,6 +643,13 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 			log.Warnf("CLI parameters are overriding auth server configured in %s", cf.ConfigPath)
 		}
 		config.AuthServer = cf.AuthServer
+	}
+
+	if cf.Proxy != "" {
+		if config.Proxy != "" {
+			log.Warnf("CLI parameters are overriding proxy configured in %s", cf.ConfigPath)
+		}
+		config.Proxy = cf.Proxy
 	}
 
 	if cf.CertificateTTL != 0 {
