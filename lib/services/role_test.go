@@ -1499,7 +1499,8 @@ func TestCheckAccessToServer(t *testing.T) {
 				{server: serverWorker, login: "root", hasAccess: true},
 				{server: serverDB, login: "root", hasAccess: true},
 			},
-		}, {
+		},
+		{
 			name: "cluster requires hardware key pin, MFA not verified",
 			roles: []*types.RoleV6{
 				newRole(func(r *types.RoleV6) {
@@ -1533,7 +1534,8 @@ func TestCheckAccessToServer(t *testing.T) {
 				{server: serverWorker, login: "root", hasAccess: true},
 				{server: serverDB, login: "root", hasAccess: true},
 			},
-		}, {
+		},
+		{
 			name: "cluster requires hardware key touch and pin, MFA not verified",
 			roles: []*types.RoleV6{
 				newRole(func(r *types.RoleV6) {
@@ -2389,7 +2391,7 @@ func TestCheckRuleAccess(t *testing.T) {
 		}
 		for j, check := range tc.checks {
 			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
-			result := set.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb, false)
+			result := set.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
 			if check.hasAccess {
 				require.NoError(t, result, comment)
 			} else {
@@ -2584,14 +2586,13 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			params := test.params
-			const silent = true
 			for _, verb := range params.verbs {
-				err := test.roles.CheckAccessToRule(&params.ctx, params.namespace, params.resource, verb, silent)
+				err := test.roles.CheckAccessToRule(&params.ctx, params.namespace, params.resource, verb)
 				if gotAccess, wantAccess := err == nil, test.wantRuleAccess; gotAccess != wantAccess {
 					t.Errorf("CheckAccessToRule(verb=%q) returned err = %v=q, wantAccess = %v", verb, err, wantAccess)
 				}
 
-				err = test.roles.GuessIfAccessIsPossible(&params.ctx, params.namespace, params.resource, verb, silent)
+				err = test.roles.GuessIfAccessIsPossible(&params.ctx, params.namespace, params.resource, verb)
 				if gotAccess, wantAccess := err == nil, test.wantGuessAccess; gotAccess != wantAccess {
 					t.Errorf("GuessIfAccessIsPossible(verb=%q) returned err = %q, wantAccess = %v", verb, err, wantAccess)
 				}

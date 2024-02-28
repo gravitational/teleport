@@ -162,7 +162,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -196,7 +196,7 @@ func (bs *BotService) ListBots(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbList); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -247,11 +247,11 @@ func (bs *BotService) createBotAuthz(ctx context.Context) (*authz.Context, error
 		return nil, trace.Wrap(err)
 	}
 
-	originalErr := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate)
+	originalErr := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate)
 	if originalErr != nil {
 		// TODO(noah): DELETE IN 16.0.0
 		for _, kind := range []string{types.KindUser, types.KindRole, types.KindToken} {
-			if err := authCtx.CheckAccessToKind(false, kind, types.VerbCreate); err != nil {
+			if err := authCtx.CheckAccessToKind(kind, types.VerbCreate); err != nil {
 				return nil, originalErr
 			}
 		}
@@ -381,7 +381,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -430,7 +430,7 @@ func (bs *BotService) UpdateBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -556,11 +556,11 @@ func (bs *BotService) deleteBotAuthz(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	originalErr := authCtx.CheckAccessToKind(false, types.KindBot, types.VerbDelete)
+	originalErr := authCtx.CheckAccessToKind(types.KindBot, types.VerbDelete)
 	if originalErr != nil {
 		// TODO(noah): DELETE IN 16.0.0
 		for _, kind := range []string{types.KindUser, types.KindRole, types.KindToken} {
-			if err := authCtx.CheckAccessToKind(false, kind, types.VerbDelete); err != nil {
+			if err := authCtx.CheckAccessToKind(kind, types.VerbDelete); err != nil {
 				return originalErr
 			}
 		}

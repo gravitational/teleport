@@ -118,7 +118,7 @@ type check struct {
 	kind, verb string
 }
 
-func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string, silent bool) error {
+func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string) error {
 	c := check{kind, verb}
 	f.checks = append(f.checks, c)
 

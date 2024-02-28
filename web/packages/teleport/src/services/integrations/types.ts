@@ -336,8 +336,6 @@ export type AwsEksCluster = {
 export type EnrollEksClustersRequest = {
   region: string;
   enableAppDiscovery: boolean;
-  joinToken: string;
-  resourceId: string;
   clusterNames: string[];
 };
 

@@ -5689,6 +5689,19 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	dbobjectimportrulev12.RegisterDatabaseObjectImportRuleServiceServer(server, dbObjectImportRuleService)
 
+  workloadIdentityService, err := machineidv1.NewWorkloadIdentityService(machineidv1.WorkloadIdentityServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+		Reporter:   cfg.AuthServer.Services.UsageReporter,
+		Emitter:    cfg.Emitter,
+		Clock:      cfg.AuthServer.GetClock(),
+		KeyStore:   cfg.AuthServer.keyStore,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating workload identity service")
+	}
+	machineidv1pb.RegisterWorkloadIdentityServiceServer(server, workloadIdentityService)
+
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{

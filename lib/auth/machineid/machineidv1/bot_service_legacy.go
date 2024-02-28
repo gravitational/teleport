@@ -44,7 +44,7 @@ func (bs *BotService) GetBotUsersLegacy(ctx context.Context) ([]types.User, erro
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(false, types.KindUser, types.VerbList, types.VerbRead); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
