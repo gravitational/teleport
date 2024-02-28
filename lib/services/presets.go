@@ -538,6 +538,7 @@ func NewSystemOktaRequesterRole() types.Role {
 			Description: "Request Okta resources",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.SystemResource,
+				types.OriginLabel:                  types.OriginOkta,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -561,6 +562,10 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 		},
 		teleport.PresetAuditorRoleName: {
 			types.TeleportInternalResourceType: types.PresetResource,
+		},
+		teleport.SystemOktaRequesterRoleName: {
+			types.TeleportInternalResourceType: types.SystemResource,
+			types.OriginLabel:                  types.OriginOkta,
 		},
 		// Group access, reviewer and requester are intentionally not added here as there may be
 		// existing customer defined roles that have these labels.
