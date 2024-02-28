@@ -1018,7 +1018,8 @@ func (a *Server) createDeviceWebToken(ctx context.Context, webToken *devicepb.De
 	if a.createDeviceWebTokenFunc == nil {
 		return nil, nil
 	}
-	return a.createDeviceWebTokenFunc(ctx, webToken)
+	token, err := a.createDeviceWebTokenFunc(ctx, webToken)
+	return token, trace.Wrap(err)
 }
 
 // syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
