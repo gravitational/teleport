@@ -99,11 +99,6 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	readVerb := types.VerbReadNoSecrets
 	if req.IncludeKey {
 		readVerb = types.VerbRead
-
-		// Require admin MFA to read secrets.
-		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	// Before looking up the requested CA perform RBAC on a dummy CA to
@@ -120,6 +115,13 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 
 	if err = authCtx.CheckAccessToResource(contextCA, readVerb); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Require admin MFA to read secrets.
+	if req.IncludeKey {
+		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Retrieve the requested CA and perform RBAC on it to ensure that
