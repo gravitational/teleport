@@ -3752,6 +3752,20 @@ message WebSessionSpecV2 {
   string ConsumedAccessRequestID = 10 [(gogoproto.jsontag) = "consumed_access_request_id,omitempty"];
   // SAMLSession is data associated with a SAML IdP session.
   SAMLSessionData SAMLSession = 11 [(gogoproto.jsontag) = "saml_session,omitempty"];
+  // Device trust web authentication token.
+  // May be exchanged for a single on-behalf-of device authentication attempt
+  // (typically performed by Connect).
+  // Only present if on-behalf-of device authentication is possible.
+  DeviceWebToken DeviceWebToken = 12 [(gogoproto.jsontag) = "device_web_token,omitempty"];
+}
+
+// Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
+message DeviceWebToken {
+  // Opaque token identifier.
+  string id = 1;
+  // Opaque device web token, in plaintext, encoded in base64.RawURLEncoding
+  // (so it is inherently safe for URl use).
+  string token = 2;
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.

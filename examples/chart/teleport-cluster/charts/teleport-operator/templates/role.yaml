@@ -31,6 +31,10 @@ rules:
       - teleportoktaimportrules/status
       - teleportaccesslists
       - teleportaccesslists/status
+      - teleportopensshserversv2
+      - teleportopensshserversv2/status
+      - teleportopenssheiceserversv2
+      - teleportopenssheiceserversv2/status
     verbs:
       - get
       - list

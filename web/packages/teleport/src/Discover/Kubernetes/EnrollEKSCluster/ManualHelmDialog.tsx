@@ -17,62 +17,76 @@
  */
 
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
-import { Box, Flex, ButtonPrimary, ButtonSecondary, Text } from 'design';
+import {
+  Box,
+  Flex,
+  ButtonPrimary,
+  ButtonSecondary,
+  Text,
+  Indicator,
+} from 'design';
 
-import React from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 
 import styled from 'styled-components';
+
+import * as Icons from 'design/Icon';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { ResourceKind, TextIcon } from 'teleport/Discover/Shared';
+import { JoinToken } from 'teleport/services/joinToken';
+import { CatchError } from 'teleport/components/CatchError';
+
 type ManualHelmDialogProps = {
-  command: string;
+  setJoinTokenAndGetCommand(token: JoinToken): string;
   confirmedCommands(): void;
   cancel(): void;
 };
 
-export function ManualHelmDialog({
-  command,
+export default function Container(props: ManualHelmDialogProps) {
+  return (
+    <CatchError
+      fallbackFn={fallbackProps => (
+        <FallbackDialog error={fallbackProps.error} cancel={props.cancel} />
+      )}
+    >
+      <Suspense
+        fallback={<FallbackDialog showSpinner={true} cancel={props.cancel} />}
+      >
+        <ManualHelmDialog {...props} />
+      </Suspense>
+    </CatchError>
+  );
+}
+
+type FallbackDialogProps = {
+  cancel: () => void;
+  error?: Error;
+  showSpinner?: boolean;
+};
+
+const DialogWrapper = ({
+  children,
   cancel,
-  confirmedCommands,
-}: ManualHelmDialogProps) {
+  next,
+}: {
+  children: React.ReactNode;
+  cancel: () => void;
+  next?: () => void;
+}) => {
   return (
     <Dialog onClose={cancel} open={true}>
       <DialogContent width="850px" mb={0}>
         <Text bold caps mb={4}>
           Manual EKS Cluster Enrollment
         </Text>
-        <StyledBox mb={5}>
-          <Text bold>Step 1</Text>
-          <Text typography="subtitle1" mb={3}>
-            Add teleport-agent chart to your charts repository
-          </Text>
-          <TextSelectCopyMulti
-            lines={[
-              {
-                text: 'helm repo add teleport https://charts.releases.teleport.dev && helm repo update',
-              },
-            ]}
-          />
-        </StyledBox>
-        <CommandBox
-          header={
-            <>
-              <Text bold>Step 2</Text>
-              <Text typography="subtitle1" mb={3}>
-                Run the command below on the server your target EKS cluster is
-                at. It may take up to a minute for the Teleport Service to join
-                after running the command.
-              </Text>
-            </>
-          }
-        >
-          <TextSelectCopyMulti lines={[{ text: command }]} />
-        </CommandBox>
+        {children}
       </DialogContent>
       <DialogFooter alignItems="center" as={Flex} gap={4}>
-        <ButtonPrimary width="50%" onClick={confirmedCommands}>
+        <ButtonPrimary width="50%" onClick={next} disabled={!next}>
           I ran these commands
         </ButtonPrimary>
         <ButtonSecondary width="50%" onClick={cancel}>
@@ -80,6 +94,81 @@ export function ManualHelmDialog({
         </ButtonSecondary>
       </DialogFooter>
     </Dialog>
+  );
+};
+
+const FallbackDialog = ({
+  error,
+  cancel,
+  showSpinner,
+}: FallbackDialogProps) => {
+  return (
+    <DialogWrapper cancel={cancel}>
+      {showSpinner && (
+        <Flex mb={4} justifyContent="center">
+          <Indicator delay="none" />
+        </Flex>
+      )}
+      {error && (
+        <Box mb={4}>
+          <TextIcon mt={3}>
+            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+            Encountered an error: {error.message}
+          </TextIcon>
+        </Box>
+      )}
+    </DialogWrapper>
+  );
+};
+
+export function ManualHelmDialog({
+  setJoinTokenAndGetCommand,
+  cancel,
+  confirmedCommands,
+}: ManualHelmDialogProps) {
+  const { joinToken } = useJoinTokenSuspender([
+    ResourceKind.Kubernetes,
+    ResourceKind.Application,
+    ResourceKind.Discovery,
+  ]);
+  const [command, setCommand] = useState('');
+
+  useEffect(() => {
+    if (joinToken && !command) {
+      setCommand(setJoinTokenAndGetCommand(joinToken));
+    }
+  }, [joinToken, command, setJoinTokenAndGetCommand]);
+
+  return (
+    <DialogWrapper cancel={cancel} next={confirmedCommands}>
+      <StyledBox mb={5}>
+        <Text bold>Step 1</Text>
+        <Text typography="subtitle1" mb={3}>
+          Add teleport-agent chart to your charts repository
+        </Text>
+        <TextSelectCopyMulti
+          lines={[
+            {
+              text: 'helm repo add teleport https://charts.releases.teleport.dev && helm repo update',
+            },
+          ]}
+        />
+      </StyledBox>
+      <CommandBox
+        header={
+          <>
+            <Text bold>Step 2</Text>
+            <Text typography="subtitle1" mb={3}>
+              Run the command below on the server your target EKS cluster is at.
+              It may take up to a minute for the Teleport Service to join after
+              running the command.
+            </Text>
+          </>
+        }
+      >
+        <TextSelectCopyMulti lines={[{ text: command }]} />
+      </CommandBox>
+    </DialogWrapper>
   );
 }
 

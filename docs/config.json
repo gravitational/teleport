@@ -491,6 +491,13 @@
               "forScopes": [
                 "enterprise"
               ]
+            },
+            {
+              "title": "TAG for Self-Hosted Clusters with Helm",
+              "slug": "/access-controls/access-graph/self-hosted-helm/",
+              "forScopes": [
+                "enterprise"
+              ]
             }
           ]
         },
@@ -688,6 +695,10 @@
               "slug": "/management/operations/ca-rotation/"
             },
             {
+              "title": "Database Cert Authority Rotation",
+              "slug": "/management/operations/db-ca-rotation/"
+            },
+            {
               "title": "TLS Routing Migration",
               "slug": "/management/operations/tls-routing/",
               "forScopes": ["oss", "enterprise"]
@@ -696,6 +707,10 @@
               "title": "Proxy Peering Migration",
               "slug": "/management/operations/proxy-peering/",
               "forScopes": ["enterprise"]
+            },
+            {
+              "title": "Database CA Migrations",
+              "slug": "/management/operations/db-ca-migrations/"
             }
           ]
         },
@@ -967,9 +982,25 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Okta Service Hosted Integration",
+              "slug": "/application-access/okta/hosted-guide/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
               "title": "Architecture",
               "slug": "/application-access/okta/architecture/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Synchronization and SCIM",
+              "slug": "/application-access/okta/sync-scim/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "Reference",
@@ -1709,6 +1740,13 @@
               "slug": "/reference/helm-reference/teleport-operator/"
             },
             {
+              "title": "teleport-access-graph",
+              "slug": "/reference/helm-reference/teleport-access-graph/",
+              "forScopes": [
+                "enterprise"
+              ]
+            },
+            {
               "title": "teleport-plugin-event-handler",
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
             },
@@ -1788,7 +1826,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.9.1"
+      "version": "1.13.0"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -1798,7 +1836,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "14.3.4",
+      "version": "14.3.6",
       "major_version": "14",
       "sla": {
         "monthly_percentage": "99.9%",

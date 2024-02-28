@@ -532,7 +532,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_MFA,
 		})
-		assert.ErrorContains(t, err, "token or an MFA response")
+		assert.ErrorContains(t, err, "second factor authentication required")
 
 		// Acquire and solve an authn challenge.
 		authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
