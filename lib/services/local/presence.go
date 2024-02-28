@@ -735,6 +735,7 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 
 // GetRemoteClusters returns a list of remote clusters
 // Prefer ListRemoteClusters. This will eventually be deprecated.
+// TODO(noah): REMOVE IN 17.0.0 - replace calls with ListRemoteClusters
 func (s *PresenceService) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	startKey := backend.ExactKey(remoteClustersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
