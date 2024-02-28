@@ -8,9 +8,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
-// TODO(codingllama): Remove once loggedGetOSFromUserAgent is called.
-var _ = loggedGetOSFromUserAgent
-
 // loggedGetOSFromUserAgent debug-logs the result of [getOSFromUserAgent] before
 // returning it.
 func loggedGetOSFromUserAgent(logger log.FieldLogger, ua string) devicepb.OSType {

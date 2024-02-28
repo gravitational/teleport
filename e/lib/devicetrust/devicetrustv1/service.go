@@ -11,12 +11,14 @@ import (
 	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
+	clientpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -92,7 +94,7 @@ type AuthServer interface {
 	// other, and conform to whatever checks the underlying implementation sees
 	// fit to perform.
 	// See [auth.Server.AugmentContextUserCertificates]
-	AugmentContextUserCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
+	AugmentContextUserCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error)
 
 	// GetAuthPreference gets the cluster's auth preferences.
 	// This method is not guarded by user permissions.
@@ -793,7 +795,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 		logger:      s.logger,
 		storage:     s.storage,
 		cachedUsers: s.cachedUsers,
-		augmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
+		augmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*clientpb.Certs, error) {
 			certs, err := s.authServer.AugmentContextUserCertificates(ctx, authCtx, opts)
 			return certs, trace.Wrap(err)
 		},
@@ -924,6 +926,158 @@ func (s *Service) GetResourceDevicesUsage(ctx context.Context, f *modules.Featur
 
 func (s *Service) GetDevicesUsage(ctx context.Context, req *devicepb.GetDevicesUsageRequest) (*devicepb.DevicesUsage, error) {
 	return nil, trace.BadParameter("deprecated, use ResourceUsageService.GetUsage instead")
+}
+
+// CreateDeviceWebToken creates a device web token for a recently logged in Web
+// user.
+//
+// Returns `nil, nil` if the user has no suitable trusted device (ie, token
+// creation was not attempted).
+//
+// Returns a token if creation is successful or an error in other cases.
+//
+// CreateDeviceWebToken is not an RPC. Instead, it is called directly by the
+// Auth Server's web login logic.
+func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
+	switch {
+	case token == nil:
+		return nil, trace.BadParameter("device web token required")
+	case token.BrowserUserAgent == "":
+		return nil, trace.BadParameter("browser user agent required")
+	case token.User == "":
+		return nil, trace.BadParameter("user required")
+	}
+	// Fields we don't use directly in this method are validated by the storage
+	// write.
+
+	// Parse user agent, determine OS.
+	expectedOS := loggedGetOSFromUserAgent(s.logger, token.BrowserUserAgent)
+	if expectedOS == devicepb.OSType_OS_TYPE_UNSPECIFIED {
+		return nil, trace.BadParameter("cannot parse OS from user agent")
+	}
+
+	// Fetch user devices.
+	userDevices, _, err := s.getUserTrustedDevices(ctx, token.User)
+	switch {
+	case err != nil && len(userDevices) == 0:
+		// All reads failed.
+		return nil, trace.Wrap(err)
+	case err != nil:
+		// Some reads failed.
+		s.logger.
+			WithError(err).
+			WithField("user", token.User).
+			Warn("Failed to read all user trusted devices")
+		// err swallowed on purpose, at least one read succeeded.
+	case len(userDevices) == 0:
+		// User has no trusted devices.
+		return nil, nil
+	}
+
+	// Determine Expected Device IDs.
+	var deviceIDs []string
+	var auditDev *devicepb.Device
+	for _, dev := range userDevices {
+		if dev.OsType != expectedOS {
+			continue
+		}
+
+		// Device allowed to authenticate.
+		deviceIDs = append(deviceIDs, dev.Id)
+
+		// Pick one of the devices as the audit target.
+		// This is correct for users with a single suitable device, but just a guess
+		// in other cases.
+		if auditDev == nil {
+			auditDev = dev
+		}
+	}
+	if len(deviceIDs) == 0 {
+		s.logger.
+			WithFields(log.Fields{
+				"os":   expectedOS,
+				"user": token.User,
+			}).
+			Debug("User has no suitable trusted device for Web authentication")
+		return nil, nil // User has no suitable trusted devices.
+	}
+
+	// Avoid modifying input.
+	createToken := proto.Clone(token).(*devicepb.DeviceWebToken)
+	createToken.ExpectedDeviceIds = deviceIDs
+
+	created, err := s.storage.CreateDeviceWebToken(ctx, createToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
+		Metadata: apievents.Metadata{
+			Type: events.DeviceWebTokenCreateEvent,
+			Code: events.DeviceWebTokenCreateCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		Device:       getDeviceMetadata(auditDev),
+		UserMetadata: getUserMetadata(ctx),
+	})
+
+	return created, nil
+}
+
+// getUserTrustedDevices reads a user and its trusted devices from storage.
+//
+// Returns empty if the user has no trusted devices.
+//
+// Returns both the devices and an error if at least one device could be read
+// from storage.
+func (s *Service) getUserTrustedDevices(ctx context.Context, username string) ([]*devicepb.Device, types.User, error) {
+	user, err := s.cachedUsers.GetUser(ctx, username, false /* withSecrets */)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "read user")
+	}
+
+	ids := user.GetTrustedDeviceIDs()
+	if len(ids) == 0 {
+		return nil, user, nil // No trusted devices.
+	}
+
+	userDevices, err := s.getDevicesByID(ctx, ids)
+	return userDevices, user, trace.Wrap(err)
+}
+
+// getDevicesByID reads devices from storage concurrently.
+//
+// Returns the devices read and the aggregated errors.
+func (s *Service) getDevicesByID(ctx context.Context, ids []string) ([]*devicepb.Device, error) {
+	var g errgroup.Group
+	const maxGoroutines = 4 // Arbitrary. Should be just fine for most users.
+	g.SetLimit(maxGoroutines)
+
+	// mu guards the variables below it.
+	var mu sync.Mutex
+	devs := make([]*devicepb.Device, 0, len(ids))
+	errs := make([]error, 0, len(ids))
+
+	for _, id := range ids {
+		id := id
+		g.Go(func() error {
+			dev, err := s.storage.GetDeviceByID(ctx, id)
+			mu.Lock()
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				devs = append(devs, dev)
+			}
+			mu.Unlock()
+			return nil // Do not fail the errgroup.
+		})
+	}
+
+	_ = g.Wait() // Safe to swallow, our funcs don't error.
+
+	return devs, trace.NewAggregate(errs...)
 }
 
 func (s *Service) redactDataDriftErr(dev *devicepb.Device, err error) error {

@@ -44,6 +44,13 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
+const (
+	sampleUserAgentLinux   = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+	sampleUserAgentMacOS   = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+	sampleUserAgentWindows = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+	sampleIP               = "40.89.244.232"
+)
+
 func TestService_authz(t *testing.T) {
 	authorizer := &fakeAuthorizer{}
 	env := testenv.NewUsingT(t, testenv.WithAuthorizer(authorizer))
@@ -1820,12 +1827,9 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 	devices := env.DevicesClient
 
 	ctx := context.Background()
-	withUser := func(ctx context.Context, user string) context.Context {
-		return metadata.AppendToOutgoingContext(ctx, authorizerUserKey, user)
-	}
 
 	// Register a device for testing.
-	dev, err := devices.CreateDevice(withUser(ctx, adminUser), &devicepb.CreateDeviceRequest{
+	dev, err := devices.CreateDevice(contextWithUser(ctx, adminUser), &devicepb.CreateDeviceRequest{
 		Device: &devicepb.Device{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "llama1",
@@ -1862,7 +1866,7 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				emitter.Reset()
 
-				token, err := devices.CreateDeviceEnrollToken(withUser(ctx, test.user), test.req)
+				token, err := devices.CreateDeviceEnrollToken(contextWithUser(ctx, test.user), test.req)
 				if !test.assertErr(err) {
 					t.Errorf("CreateDeviceEnrollToken: assertErr failed, err=%v (%T)", err, err)
 				}
@@ -2066,6 +2070,12 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 
 // authorizerUserKey is used by [userAwareAuthorizer].
 const authorizerUserKey = "user"
+
+// contextWithUser returns an outbound context for the specified user.
+// Meant to be used in conjunction with [userAwareAuthorizer].
+func contextWithUser(ctx context.Context, user string) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, authorizerUserKey, user)
+}
 
 // userAwareAuthorizer allows access based on the context user. See [metadata]
 // and [authorizerUserKey]
@@ -2434,4 +2444,177 @@ func TestService_EnrollDevice_issuesDevicesLimitEvent(t *testing.T) {
 	})
 	assert.ErrorContains(t, err, "device limit")
 	assert.Equal(t, wantLimitEvent, emittedEvents)
+}
+
+func TestService_CreateDeviceWebToken(t *testing.T) {
+	const userLlama = "llama"
+	const userAlpaca = "alpaca"
+	allUsers := []string{userLlama, userAlpaca}
+
+	emitter := &eventstest.MockRecorderEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthorizer(&userAwareAuthorizer{
+			knownUsers:      allUsers,
+			authorizedUsers: allUsers,
+		}),
+		testenv.WithEmitter(emitter),
+	)
+
+	devicesClient := env.DevicesClient
+	identity := env.IdentityService
+	service := env.DevicesService
+	ctx := context.Background()
+
+	// Create the users above.
+	for _, user := range allUsers {
+		u, err := types.NewUser(user)
+		if err != nil {
+			t.Fatalf("NewUser(%q) failed: %v", user, err)
+		}
+		if _, err := identity.CreateUser(ctx, u); err != nil {
+			t.Fatalf("CreateUser(%q) failed: %v", user, err)
+		}
+	}
+
+	createAndEnrollForUser := func(t *testing.T, user string, dev *devicepb.Device) (*devicepb.Device, *fakeEnclaveKey) {
+		userCtx := contextWithUser(ctx, user)
+		dev, key, err := createAndEnroll(userCtx, devicesClient, dev)
+		if err != nil {
+			t.Fatalf("createAndEnroll failed: %v", err)
+		}
+		return dev, key
+	}
+
+	// Llama has 2 macOS trusted devices:
+	_, _ = createAndEnrollForUser(t, userLlama, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama-mac1",
+	})
+	_, _ = createAndEnrollForUser(t, userLlama, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama-mac2",
+	})
+
+	// Alpaca has no trusted devices.
+
+	makeToken := func(owner, ua string) *devicepb.DeviceWebToken {
+		return &devicepb.DeviceWebToken{
+			WebSessionId:     "my-web-session-id", // OK to fake, not looked up at this stage.
+			BrowserUserAgent: ua,
+			BrowserIp:        sampleIP,
+			User:             owner,
+		}
+	}
+
+	tests := []struct {
+		name      string
+		token     *devicepb.DeviceWebToken
+		assertErr func(error) bool
+		wantErr   string
+		wantToken bool // true if a non-nil token is expected
+	}{
+		{
+			name:      "success",
+			token:     makeToken(userLlama, sampleUserAgentMacOS),
+			wantToken: true,
+		},
+		{
+			name:  "user has no suitable trusted device (1)",
+			token: makeToken(userLlama, sampleUserAgentLinux),
+			// want `nil, nil`
+		},
+		{
+			name:  "user has no suitable trusted device (2)",
+			token: makeToken(userLlama, sampleUserAgentWindows),
+			// want `nil, nil`
+		},
+		{
+			name:  "user has no trusted devices",
+			token: makeToken(userAlpaca, sampleUserAgentMacOS),
+			// want `nil, nil`
+		},
+		{
+			name:      "nil token",
+			token:     nil,
+			assertErr: trace.IsBadParameter,
+			wantErr:   "token required",
+		},
+		{
+			name:      "BrowserUserAgent empty",
+			token:     makeToken(userLlama, ""),
+			assertErr: trace.IsBadParameter,
+			wantErr:   "user agent required",
+		},
+		{
+			name:      "BrowserUserAgent invalid",
+			token:     makeToken(userLlama, "ceci n'est pas a user agent"),
+			assertErr: trace.IsBadParameter,
+			wantErr:   "user agent",
+		},
+		{
+			name:      "User empty",
+			token:     makeToken("", sampleUserAgentMacOS),
+			assertErr: trace.IsBadParameter,
+			wantErr:   "user required",
+		},
+		{
+			name:      "User unknown",
+			token:     makeToken("unknown", sampleUserAgentMacOS),
+			assertErr: trace.IsNotFound,
+		},
+		{
+			name: "token is validated",
+			token: func() *devicepb.DeviceWebToken {
+				token := makeToken(userLlama, sampleUserAgentMacOS)
+				token.BrowserIp = "" // Not used directly, validated by storage.
+				return token
+			}(),
+			assertErr: trace.IsBadParameter,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			emitter.Reset()
+			got, err := service.CreateDeviceWebToken(ctx, test.token)
+
+			// Assert error type and contents.
+			if test.assertErr != nil && !test.assertErr(err) {
+				t.Errorf("CreateDeviceWebToken assertErr failed: err=%v (%T)", err, trace.Unwrap(err))
+			}
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "CreateDeviceWebToken error mismatch")
+			}
+			if err != nil {
+				return
+			}
+
+			// `nil, nil` is a valid return, test for those scenarios.
+			if !test.wantToken {
+				if got != nil {
+					t.Errorf("CreateDeviceWebToken returned token=%#v, want nil token", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("CreateDeviceWebToken returned a nil token, want non-nil")
+				return // return to make golangci-lint happy
+			}
+
+			// Do some light assertions in the returned token.
+			// We trust storage to assert it in depth.
+			if got.Id == "" {
+				t.Errorf("CreateDeviceWebToken returned token without ID: %#v", got)
+			}
+			if got.Token == "" {
+				t.Errorf("CreateDeviceWebToken returned token without the token itself: %#v", got)
+			}
+
+			assertEvents(t, emitter.Events(), []wantEvent{
+				{
+					Type: events.DeviceWebTokenCreateEvent,
+					Code: events.DeviceWebTokenCreateCode,
+				},
+			})
+		})
+	}
 }
