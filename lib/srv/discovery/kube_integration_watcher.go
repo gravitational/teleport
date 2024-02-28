@@ -127,8 +127,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 				}
 
 				for key, val := range clustersByRegionAndIntegration {
-				        key, val:=key, val
-					go s.enrollEKSClusters(key.region, key.integration, proxyPublicAddr, val, agentVersion, &mu, enrollingClusters)
+					key, val := key, val
+					go s.enrollEKSClusters(key.region, key.integration, val, agentVersion, &mu, enrollingClusters)
 				}
 
 			case <-s.ctx.Done():

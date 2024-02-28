@@ -498,7 +498,7 @@ func TestDiscoveryServer(t *testing.T) {
 				CloudClients:     testCloudClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
-				AccessPoint:      getDiscoveryAccessPoint(authClient),
+				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 				Matchers:         tc.staticMatchers,
 				Emitter:          tc.emitter,
 				Log:              logger,
@@ -696,7 +696,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					CloudClients:     &cloud.TestCloudClients{},
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
 					KubernetesClient: fake.NewSimpleClientset(objects...),
-					AccessPoint:      getDiscoveryAccessPoint(authClient),
+					AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						Kubernetes: tt.kubernetesMatchers,
 					},
@@ -1016,7 +1016,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					CloudClients:     testCloudClients,
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
 					KubernetesClient: fake.NewSimpleClientset(),
-					AccessPoint:      getDiscoveryAccessPoint(authClient),
+					AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -1759,7 +1759,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					CloudClients:               testCloudClients,
 					ClusterFeatures:            func() proto.Features { return proto.Features{} },
 					KubernetesClient:           fake.NewSimpleClientset(),
-					AccessPoint:                getDiscoveryAccessPoint(authClient),
+					AccessPoint:                getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -1866,7 +1866,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 			CloudClients:     testCloudClients,
 			ClusterFeatures:  func() proto.Features { return proto.Features{} },
 			KubernetesClient: fake.NewSimpleClientset(),
-			AccessPoint:      getDiscoveryAccessPoint(authClient),
+			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 			Matchers:         Matchers{},
 			Emitter:          authClient,
 			DiscoveryGroup:   mainDiscoveryGroup,
@@ -2296,7 +2296,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				CloudClients:     testCloudClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
-				AccessPoint:      getDiscoveryAccessPoint(authClient),
+				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 				Matchers:         tc.staticMatchers,
 				Emitter:          emitter,
 				Log:              logger,
@@ -2557,7 +2557,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				CloudClients:     testCloudClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
 				KubernetesClient: fake.NewSimpleClientset(),
-				AccessPoint:      getDiscoveryAccessPoint(authClient),
+				AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 				Matchers:         tc.staticMatchers,
 				Emitter:          emitter,
 				Log:              logger,
@@ -2673,7 +2673,7 @@ func TestEmitUsageEvents(t *testing.T) {
 	server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 		CloudClients:    &testClients,
 		ClusterFeatures: func() proto.Features { return proto.Features{} },
-		AccessPoint:     getDiscoveryAccessPoint(authClient),
+		AccessPoint:     getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
 		Matchers: Matchers{
 			Azure: []types.AzureMatcher{{
 				Types:          []string{"vm"},
@@ -2707,19 +2707,21 @@ type eksClustersEnroller interface {
 	EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }
 
-// combinedDiscoveryClient is an auth.Client client with other, specific, services added to it.
 type combinedDiscoveryClient struct {
-	auth.ClientI
-	services.DiscoveryConfigsGetter
+	*auth.Server
 	eksClustersEnroller
 }
 
-func getDiscoveryAccessPoint(authClient auth.ClientI) auth.DiscoveryAccessPoint {
-	return combinedDiscoveryClient{
-		ClientI:                authClient,
-		DiscoveryConfigsGetter: authClient.DiscoveryConfigClient(),
-		eksClustersEnroller:    authClient.IntegrationAWSOIDCClient(),
+func (d *combinedDiscoveryClient) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
+	if d.eksClustersEnroller != nil {
+		return d.eksClustersEnroller.EnrollEKSClusters(ctx, req)
 	}
+	return nil, trace.BadParameter("not implemented.")
+}
+
+func getDiscoveryAccessPoint(authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
+	return &combinedDiscoveryClient{Server: authServer, eksClustersEnroller: authClient.IntegrationAWSOIDCClient()}
+
 }
 
 type fakeAccessPoint struct {

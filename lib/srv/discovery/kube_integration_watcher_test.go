@@ -216,7 +216,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
 				return &accessPointWrapper{
-					DiscoveryAccessPoint: getDiscoveryAccessPoint(authClient),
+					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
 						response, err := clusterUpserter(ctx, authServer, request)
 						assert.NoError(t, err)
@@ -244,7 +244,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
 				return &accessPointWrapper{
-					DiscoveryAccessPoint: getDiscoveryAccessPoint(authClient),
+					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
 						assert.Len(t, request.EksClusterNames, 1)
 
@@ -274,7 +274,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
 				return &accessPointWrapper{
-					DiscoveryAccessPoint: getDiscoveryAccessPoint(authClient),
+					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
 						assert.Len(t, request.EksClusterNames, 2)
 
@@ -366,8 +366,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 					CloudClients:     testCloudClients,
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
 					KubernetesClient: fake.NewSimpleClientset(),
-					//AccessPoint:      getDiscoveryAccessPoint(authClient),
-					AccessPoint: tc.accessPoint(t, tlsServer.Auth(), authClient),
+					AccessPoint:      tc.accessPoint(t, tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS: tc.awsMatchers,
 					},
