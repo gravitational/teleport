@@ -28,16 +28,17 @@ import (
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	eksV1 "github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/smithy-go/middleware"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
@@ -163,31 +164,49 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		return dc
 	}
 
-	clusterFinder := func(clusterName *string) (*eks.DescribeClusterOutput, error) {
+	clusterFinder := func(clusterName string) *eksTypes.Cluster {
 		for _, c := range testEKSClusters {
-			if aws.ToString(c.Name) == aws.ToString(clusterName) {
-				return &eks.DescribeClusterOutput{
-					Cluster: &c,
-				}, nil
+			if aws.ToString(c.Name) == clusterName {
+				return &c
 			}
 		}
-
-		return nil, trace.NotFound("no cluster found")
+		return nil
 	}
-	callerIdentity := &sts.GetCallerIdentityOutput{
-		Account:        aws.String(awsAccountID),
-		Arn:            aws.String(roleArn),
-		UserId:         aws.String(awsUserID),
-		ResultMetadata: middleware.Metadata{},
+	clusterUpserter := func(ctx context.Context, authServer *auth.Server, request *integrationpb.EnrollEKSClustersRequest) (*integrationpb.EnrollEKSClustersResponse, error) {
+		response := &integrationpb.EnrollEKSClustersResponse{}
+		for _, c := range request.ClusterNames {
+			eksCluster := clusterFinder(c)
+			if eksCluster == nil {
+				response.Results = append(response.Results, &integrationpb.EnrollEKSClusterResult{
+					ClusterName: c,
+					Error:       "not found",
+				})
+				continue
+			}
+
+			kubeServer := mustConvertEKSToKubeServerV2(t, eksCluster, "resourceID", mainDiscoveryGroup)
+
+			_, err := authServer.UpsertKubernetesServer(ctx, kubeServer)
+			if err != nil {
+				return nil, err
+			}
+			assert.NoError(t, err)
+
+			response.Results = append(response.Results, &integrationpb.EnrollEKSClusterResult{
+				ClusterName: c,
+				ResourceId:  "resourceID",
+			})
+		}
+		return response, nil
 	}
 
 	testCases := []struct {
 		name                         string
 		existingKubeClusters         []types.KubeCluster
 		existingKubeServers          []types.KubeServer
-		eksEnrollmentClient          func(*testing.T, *auth.Server) EKSEnrollmentClientGetter
 		awsMatchers                  []types.AWSMatcher
 		expectedServersToExistInAuth []types.KubeServer
+		accessPoint                  func(*testing.T, *auth.Server, auth.ClientI) auth.DiscoveryAccessPoint
 		discoveryConfig              func(*testing.T) *discoveryconfig.DiscoveryConfig
 	}{
 		{
@@ -195,24 +214,14 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			eksEnrollmentClient: func(t *testing.T, authServer *auth.Server) EKSEnrollmentClientGetter {
-				return func(ctx context.Context, integration, region string) (awsoidc.EnrollEKSCLusterClient, aws.CredentialsProvider, error) {
-					return &mockEnrollEKSClusterClient{
-						describeCluster: func(ctx context.Context, input *eks.DescribeClusterInput, f ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
-							return clusterFinder(input.Name)
-						},
-						getCallerIdentity: func(ctx context.Context, input *sts.GetCallerIdentityInput, f ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-							return callerIdentity, nil
-						},
-						installKubeAgent: func(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceID string, getter genericclioptions.RESTClientGetter, logger logrus.FieldLogger, request awsoidc.EnrollEKSClustersRequest) error {
-							kubeServer := mustConvertEKSToKubeServerV2(t, eksCluster, "resourceID", mainDiscoveryGroup)
-
-							_, err := authServer.UpsertKubernetesServer(ctx, kubeServer)
-							assert.NoError(t, err)
-
-							return nil
-						},
-					}, &mockCredentialsProvider{}, nil
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
+				return &accessPointWrapper{
+					DiscoveryAccessPoint: getDiscoveryAccessPoint(authClient),
+					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
+						response, err := clusterUpserter(ctx, authServer, request)
+						assert.NoError(t, err)
+						return response, err
+					},
 				}
 			},
 			awsMatchers: []types.AWSMatcher{
@@ -233,28 +242,16 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			eksEnrollmentClient: func(t *testing.T, authServer *auth.Server) EKSEnrollmentClientGetter {
-				installCalls := 0
-				return func(ctx context.Context, integration, region string) (awsoidc.EnrollEKSCLusterClient, aws.CredentialsProvider, error) {
-					return &mockEnrollEKSClusterClient{
-						describeCluster: func(ctx context.Context, input *eks.DescribeClusterInput, f ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
-							return clusterFinder(input.Name)
-						},
-						getCallerIdentity: func(ctx context.Context, input *sts.GetCallerIdentityInput, f ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-							return callerIdentity, nil
-						},
-						installKubeAgent: func(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceID string, getter genericclioptions.RESTClientGetter, logger logrus.FieldLogger, request awsoidc.EnrollEKSClustersRequest) error {
-							installCalls++
-							assert.Less(t, installCalls, 2, "InstallKubeAgent() is called more than once")
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
+				return &accessPointWrapper{
+					DiscoveryAccessPoint: getDiscoveryAccessPoint(authClient),
+					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
+						assert.Len(t, request.ClusterNames, 1)
 
-							kubeServer := mustConvertEKSToKubeServerV2(t, eksCluster, "resourceID", mainDiscoveryGroup)
-
-							_, err := authServer.UpsertKubernetesServer(ctx, kubeServer)
-							assert.NoError(t, err)
-
-							return nil
-						},
-					}, &mockCredentialsProvider{}, nil
+						response, err := clusterUpserter(ctx, authServer, request)
+						assert.NoError(t, err)
+						return response, err
+					},
 				}
 			},
 			awsMatchers: []types.AWSMatcher{
@@ -275,28 +272,16 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			eksEnrollmentClient: func(t *testing.T, authServer *auth.Server) EKSEnrollmentClientGetter {
-				installCalls := 0
-				return func(ctx context.Context, integration, region string) (awsoidc.EnrollEKSCLusterClient, aws.CredentialsProvider, error) {
-					return &mockEnrollEKSClusterClient{
-						describeCluster: func(ctx context.Context, input *eks.DescribeClusterInput, f ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
-							return clusterFinder(input.Name)
-						},
-						getCallerIdentity: func(ctx context.Context, input *sts.GetCallerIdentityInput, f ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-							return callerIdentity, nil
-						},
-						installKubeAgent: func(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceID string, getter genericclioptions.RESTClientGetter, logger logrus.FieldLogger, request awsoidc.EnrollEKSClustersRequest) error {
-							installCalls++
-							assert.Less(t, installCalls, 3, "InstallKubeAgent() is called more than twice")
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient auth.ClientI) auth.DiscoveryAccessPoint {
+				return &accessPointWrapper{
+					DiscoveryAccessPoint: getDiscoveryAccessPoint(authClient),
+					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
+						assert.Len(t, request.ClusterNames, 2)
 
-							kubeServer := mustConvertEKSToKubeServerV2(t, eksCluster, "resourceID", mainDiscoveryGroup)
-
-							_, err := authServer.UpsertKubernetesServer(ctx, kubeServer)
-							assert.NoError(t, err)
-
-							return nil
-						},
-					}, &mockCredentialsProvider{}, nil
+						response, err := clusterUpserter(ctx, authServer, request)
+						assert.NoError(t, err)
+						return response, err
+					},
 				}
 			},
 			awsMatchers: []types.AWSMatcher{
@@ -321,7 +306,9 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 
 			testCloudClients := &cloud.TestCloudClients{
 				STS: &mocks.STSMock{},
-				EKS: newPopulatedEKSMock(),
+				EKS: &mockEKSAPI{
+					clusters: eksMockClusters[:2],
+				},
 			}
 
 			ctx := context.Background()
@@ -371,14 +358,15 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			}
 
 			reporter := &mockUsageReporter{}
+
 			tlsServer.Auth().SetUsageReporter(reporter)
 			discServer, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
-					CloudClients:              testCloudClients,
-					KubernetesClient:          fake.NewSimpleClientset(),
-					EKSEnrollmentClientGetter: tc.eksEnrollmentClient(t, tlsServer.Auth()),
-					AccessPoint:               tlsServer.Auth(),
+					CloudClients:     testCloudClients,
+					KubernetesClient: fake.NewSimpleClientset(),
+					//AccessPoint:      getDiscoveryAccessPoint(authClient),
+					AccessPoint: tc.accessPoint(t, tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS: tc.awsMatchers,
 					},
@@ -460,6 +448,22 @@ func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *eksTypes.Cluster, re
 	assert.NoError(t, err)
 
 	return kubeServer
+}
+
+type accessPointWrapper struct {
+	auth.DiscoveryAccessPoint
+
+	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
+}
+
+func (a *accessPointWrapper) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
+	if a.enrollEKSClusters != nil {
+		return a.enrollEKSClusters(ctx, req)
+	}
+	if a.DiscoveryAccessPoint != nil {
+		return a.DiscoveryAccessPoint.EnrollEKSClusters(ctx, req)
+	}
+	return &integrationpb.EnrollEKSClustersResponse{}, trace.NotImplemented("not implemented")
 }
 
 type mockIntegrationsTokenGenerator struct {

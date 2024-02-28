@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
-	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -100,9 +99,6 @@ type gcpInstaller interface {
 	Run(ctx context.Context, req server.GCPRunRequest) error
 }
 
-// EKSEnrollmentClientGetter returns client for enrolling EKS clusters.
-type EKSEnrollmentClientGetter func(ctx context.Context, integration, region string) (awsoidc.EnrollEKSCLusterClient, awsV2.CredentialsProvider, error)
-
 // Config provides configuration for the discovery server.
 type Config struct {
 	// CloudClients is an interface for retrieving cloud clients.
@@ -112,8 +108,6 @@ type Config struct {
 	IntegrationOnlyCredentials bool
 	// KubernetesClient is the Kubernetes client interface
 	KubernetesClient kubernetes.Interface
-	// EKSEnrollmentClientGetter returns client and aws credentials provider used for EKS clusters enrollment thorough AWS integration.
-	EKSEnrollmentClientGetter EKSEnrollmentClientGetter
 	// Matchers stores all types of matchers to discover resources
 	Matchers Matchers
 	// Emitter is events emitter, used to submit discrete events
@@ -217,6 +211,12 @@ kubernetes matchers are present.`)
 
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
+	}
+
+	if c.ClusterFeatures == nil {
+		c.ClusterFeatures = func() proto.Features {
+			return proto.Features{}
+		}
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
@@ -333,10 +333,6 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		dynamicTAGSyncFetchers:         make(map[string][]aws_sync.AWSSync),
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
-
-	if s.EKSEnrollmentClientGetter == nil {
-		s.EKSEnrollmentClientGetter = s.getEKSEnrollmentClient
-	}
 
 	if err := s.startDynamicMatchersWatcher(ctx); err != nil {
 		return nil, trace.Wrap(err)
@@ -1352,7 +1348,7 @@ func (s *Server) deleteDynamicFetchers(name string) {
 	s.muDynamicTAGSyncFetchers.Lock()
 	delete(s.dynamicTAGSyncFetchers, name)
 	s.muDynamicTAGSyncFetchers.Unlock()
-	
+
 	s.muDynamicKubeIntegrationFetchers.Lock()
 	delete(s.dynamicKubeIntegrationFetchers, name)
 	s.muDynamicKubeIntegrationFetchers.Unlock()
@@ -1408,7 +1404,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.muDynamicTAGSyncFetchers.Lock()
 	s.dynamicTAGSyncFetchers[dc.GetName()] = awsSyncMatchers
 	s.muDynamicTAGSyncFetchers.Unlock()
-	
+
 	kubeIntegrationFetchers, err := s.kubeIntegrationFetchersFromMatchers(matchers)
 	if err != nil {
 		return trace.Wrap(err)

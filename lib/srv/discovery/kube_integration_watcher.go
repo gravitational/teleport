@@ -26,13 +26,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gravitational/trace"
 
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -141,13 +140,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	return nil
 }
 
-func (s *Server) enrollEKSClusters(region, integration, proxyPublicAddr string, clusters []types.DiscoveredEKSCluster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
-	enrollEKSClient, credsProvider, err := s.EKSEnrollmentClientGetter(s.ctx, integration, region)
-	if err != nil {
-		s.Log.WithError(err).Warn("Could not get EKS enrollment client")
-		return
-	}
-
+func (s *Server) enrollEKSClusters(region, integration, publicProxyAddr string, clusters []types.DiscoveredEKSCluster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
 	mu.Lock()
 	for _, c := range clusters {
 		if _, ok := enrollingClusters[c.GetAWSConfig().Name]; !ok {
@@ -183,18 +176,25 @@ func (s *Server) enrollEKSClusters(region, integration, proxyPublicAddr string, 
 		if len(clusterNames) == 0 {
 			continue
 		}
-		response := awsoidc.EnrollEKSClusters(ctx, s.Log, s.clock, proxyPublicAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
+
+		rsp, err := s.AccessPoint.EnrollEKSClusters(ctx, &integrationv1.EnrollEKSClustersRequest{
+			Integration:        integration,
 			Region:             region,
+			PublicProxyAddr:    publicProxyAddr,
 			ClusterNames:       clusterNames,
 			EnableAppDiscovery: kubeAppDiscovery,
 			EnableAutoUpgrades: clusterFeatures.GetAutomaticUpgrades(),
 			IsCloud:            clusterFeatures.GetCloud(),
 			AgentVersion:       agentVersion,
 		})
+		if err != nil {
+			s.Log.WithError(err).Errorf("failed to enroll EKS clusters %v", clusterNames)
+			continue
+		}
 
-		for _, r := range response.Results {
-			if r.Error != nil {
-				if !trace.IsAlreadyExists(r.Error) {
+		for _, r := range rsp.Results {
+			if r.Error != "" {
+				if !strings.Contains(r.Error, "teleport-kube-agent is already installed on the cluster") {
 					s.Log.WithError(err).Errorf("failed to enroll EKS cluster %q", r.ClusterName)
 				} else {
 					s.Log.Debugf("EKS cluster %q already has installed kube agent", r.ClusterName)
@@ -224,60 +224,6 @@ func (s *Server) getKubeAgentVersion(releaseChannels automaticupgrades.Channels)
 	}
 
 	return strings.TrimPrefix(agentVersion, "v"), nil
-}
-
-func (s *Server) getEKSEnrollmentClient(ctx context.Context, integration, region string) (awsoidc.EnrollEKSCLusterClient, aws.CredentialsProvider, error) {
-	awsClientReq, err := s.getAWSClientReq(ctx, integration, region)
-	if err != nil {
-		s.Log.WithError(err).Warn("Could not get AWS client request")
-		return nil, nil, trace.Wrap(err)
-	}
-
-	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, func(ctx context.Context, token types.ProvisionToken) error {
-		return trace.NotImplemented("not implemented.")
-	})
-	if err != nil {
-		s.Log.WithError(err).Warn("Could not get EKS enrollment client")
-		return nil, nil, trace.Wrap(err)
-	}
-
-	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
-	if err != nil {
-		s.Log.WithError(err).Warn("Could not get AWS credentials provider")
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return enrollEKSClient, credsProvider, nil
-}
-
-func (s *Server) getAWSClientReq(ctx context.Context, integrationName, region string) (*awsoidc.AWSClientRequest, error) {
-	clt := s.AccessPoint
-
-	integration, err := clt.GetIntegration(ctx, integrationName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
-		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
-	}
-
-	token, err := clt.GenerateAWSOIDCToken(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	awsoidcSpec := integration.GetAWSOIDCIntegrationSpec()
-	if awsoidcSpec == nil {
-		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
-	}
-
-	return &awsoidc.AWSClientRequest{
-		IntegrationName: integrationName,
-		Token:           token,
-		RoleARN:         awsoidcSpec.RoleARN,
-		Region:          region,
-	}, nil
 }
 
 func (s *Server) getKubeIntegrationFetchers() []common.Fetcher {
