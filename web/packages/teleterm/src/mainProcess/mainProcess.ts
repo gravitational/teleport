@@ -34,7 +34,11 @@ import { ChannelCredentials } from '@grpc/grpc-js';
 
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
-import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
+import {
+  LoggerColor,
+  KeepLastChunks,
+  createFileLoggerService,
+} from 'teleterm/services/logger';
 import {
   ChildProcessAddresses,
   MainProcessIpc,
@@ -82,7 +86,9 @@ export default class MainProcess {
   private readonly logger: Logger;
   private readonly configService: ConfigService;
   private tshdProcess: ChildProcess;
+  private tshdProcessLastLogs: KeepLastChunks<string>;
   private sharedProcess: ChildProcess;
+  private sharedProcessLastLogs: KeepLastChunks<string>;
   private appStateFileStorage: FileStorage;
   private configFileStorage: FileStorage;
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
@@ -176,13 +182,19 @@ export default class MainProcess {
 
     this.logProcessExitAndError('tshd', this.tshdProcess);
 
-    createFileLoggerService({
+    const loggerService = createFileLoggerService({
       dev: this.settings.dev,
       dir: this.settings.logsDir,
       name: TSHD_LOGGER_NAME,
       loggerNameColor: LoggerColor.Cyan,
       passThroughMode: true,
-    }).pipeProcessOutputIntoLogger(this.tshdProcess);
+    });
+
+    this.tshdProcessLastLogs = new KeepLastChunks(NO_OF_LAST_LOGS_KEPT);
+    loggerService.pipeProcessOutputIntoLogger(
+      this.tshdProcess,
+      this.tshdProcessLastLogs
+    );
   }
 
   private initSharedProcess() {
@@ -196,13 +208,19 @@ export default class MainProcess {
 
     this.logProcessExitAndError('shared process', this.sharedProcess);
 
-    createFileLoggerService({
+    const loggerService = createFileLoggerService({
       dev: this.settings.dev,
       dir: this.settings.logsDir,
       name: SHARED_PROCESS_LOGGER_NAME,
       loggerNameColor: LoggerColor.Yellow,
       passThroughMode: true,
-    }).pipeProcessOutputIntoLogger(this.sharedProcess);
+    });
+
+    this.sharedProcessLastLogs = new KeepLastChunks(NO_OF_LAST_LOGS_KEPT);
+    loggerService.pipeProcessOutputIntoLogger(
+      this.sharedProcess,
+      this.sharedProcessLastLogs
+    );
   }
 
   private initResolvingChildProcessAddresses(): void {
@@ -215,7 +233,8 @@ export default class MainProcess {
           this.logger,
           this.settings,
           'the tsh daemon',
-          TSHD_LOGGER_NAME
+          TSHD_LOGGER_NAME,
+          this.tshdProcessLastLogs
         )
       ),
       resolveNetworkAddress(
@@ -226,7 +245,8 @@ export default class MainProcess {
           this.logger,
           this.settings,
           'the shared helper process',
-          SHARED_PROCESS_LOGGER_NAME
+          SHARED_PROCESS_LOGGER_NAME,
+          this.sharedProcessLastLogs
         )
       ),
     ]).then(([tsh, shared]) => ({ tsh, shared }));
@@ -635,11 +655,17 @@ async function createGrpcCredentials(
   return grpcCreds.createClientCredentials(mainProcessKeyPair, tshdCert);
 }
 
+// The number of lines was chosen by looking at logs from the shared process when the glibc version
+// is too old and making sure that we'd have been able to see the actual issue in the error dialog.
+// See the PR description for the logs: https://github.com/gravitational/teleport/pull/38724
+const NO_OF_LAST_LOGS_KEPT = 25;
+
 function rewrapResolveError(
   logger: Logger,
   runtimeSettings: RuntimeSettings,
   processName: string,
-  processLoggerName: string
+  processLoggerName: string,
+  processLastLogs: KeepLastChunks<string>
 ) {
   return (error: unknown) => {
     if (!(error instanceof ResolveError)) {
@@ -653,9 +679,15 @@ function rewrapResolveError(
       runtimeSettings.logsDir,
       `${processLoggerName}.log`
     );
+    // TODO(ravicious): It'd have been ideal to get the logs from the file instead of keeping last n
+    // lines in memory.
+    // We tried to use winston.Logger.prototype.query for that but it kept returning no results,
+    // even with structured logging turned on.
+    const lastLogs = processLastLogs.getChunks().join('\n');
 
     throw new Error(
-      `Could not communicate with ${processName}. For more details, check logs at ${logPath}`
+      `Could not communicate with ${processName}.\n\n` +
+        `Last logs from ${logPath}:\n${lastLogs}`
     );
   };
 }
