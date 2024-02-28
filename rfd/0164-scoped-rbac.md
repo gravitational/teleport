@@ -700,18 +700,13 @@ This grant will not be valid out of the scope of `/dev/lab`, so Bob won’t be a
 
 ### K8s access to specific clusters
 
-Teleport can autodiscover clusters echo and bravo with namespaces default and prod, creating the following resource group hierarchy:
+Teleport can autodiscover clusters `echo` and `bravo` with namespaces `default` and `prod`, creating the following resource group hierarchy:
 
 ```
-/k8s/namespaces/prod/bravo
-/k8s/namespaces/prod/echo
-
-/k8s/namespaces/default/bravo
-/k8s/namespaces/default/echo
+/k8s/bravo
+/k8s/echo
 ```
 
-Note that here we have set namespaces, and not cluster names as the root of the resource hierarchy,
-so we can group different cluster names by namespace.
 
 We can then use this hierarchy to create access lists specifying access to default namespace in any cluster:
 
@@ -721,12 +716,31 @@ metadata:
   name: access-to-default
 spec:
   grants: 
-    roles: [access]
+    roles: [k8s-access]
     traits:
       'internal.logins' : 'root'
-  scopes:  ['/k8s/namespaces/default']
+      'namespaces': ['default', 'prod']
+      'groups': ['view', 'edit']
+  scopes:  ['/k8s/bravo']
   members:
     - bob@example.com
+```
+
+The role `kube-access` can keep leveraging templates to bind traits 
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v7
+spec:
+  allow:
+    kubernetes_resources:
+      - kind: pod
+        namespace: "{{external.namespaces}}"
+        name: "*"
+    kubernetes_groups: {{external.groups}}
+  deny: {}
 ```
 
 ### Scoped search-based access requests
