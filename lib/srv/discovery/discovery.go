@@ -447,7 +447,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	// Database fetchers were added in databaseFetchersFromMatchers.
 	_, otherMatchers = splitMatchers(otherMatchers, db.IsAWSMatcherType)
 
-	// Add non-dynamic kube fetchers.
+	// Add non-integration kube fetchers.
 	kubeFetchers, _, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, otherMatchers)
 	if err != nil {
 		return trace.Wrap(err)
