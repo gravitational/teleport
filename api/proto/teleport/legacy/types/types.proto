@@ -6027,6 +6027,9 @@ message PluginStatusDetails {
 
 // PluginOktaStatusDetails contains the details for the running Okta plugin.
 message PluginOktaStatusDetails {
+  // SSODetails are status details relating to SSO.
+  PluginOktaStatusDetailsSSO sso_details = 2;
+
   // AppGroupSyncDetails are status details relating to synchronizing apps and
   // groups from Okta.
   PluginOktaStatusDetailsAppGroupSync app_group_sync_details = 3;
@@ -6042,6 +6045,14 @@ message PluginOktaStatusDetails {
   // AccessListSyncDetails are status details relating to synchronizing access
   // lists from Okta.
   PluginOktaStatusDetailsAccessListsSync access_lists_sync_details = 6;
+}
+
+// PluginOktaStatusDetailsSSO are details related to the
+// current status of the Okta integration w/r/t SSO.
+message PluginOktaStatusDetailsSSO {
+  bool enabled = 1;
+  string app_id = 2;
+  string app_name = 3;
 }
 
 // PluginOktaStatusDetailsAppGroupSync are details related to the
