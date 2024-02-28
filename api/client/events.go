@@ -15,6 +15,7 @@
 package client
 
 import (
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -254,6 +255,16 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AccessListReview{
 			AccessListReview: accesslistv1conv.ToReviewProto(r),
 		}
+	case *types.Resource153ToLegacyAdapter:
+		resource153 := r.Unwrap()
+		switch t := resource153.(type) {
+		case *notificationsv1.PluginNotification:
+			out.Resource = &proto.Event_PluginNotification{
+				PluginNotification: t,
+			}
+		default:
+			return nil, trace.BadParameter("resource 153 type %T is not supported", resource153)
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -453,6 +464,12 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetAccessListReview(); r != nil {
 		out.Resource, err = accesslistv1conv.FromReviewProto(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &out, nil
+	} else if r := in.GetPluginNotification(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

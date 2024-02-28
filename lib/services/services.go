@@ -48,6 +48,7 @@ type Services interface {
 	UserGroups
 	Integrations
 	CrownJewels
+	Notifications
 
 	OktaClient() Okta
 	AccessListClient() AccessLists

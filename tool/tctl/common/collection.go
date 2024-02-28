@@ -20,6 +20,7 @@ package common
 
 import (
 	"fmt"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"io"
 	"sort"
 	"strconv"
@@ -1437,6 +1438,33 @@ func (c *accessListCollection) writeText(w io.Writer, verbose bool) error {
 			al.Spec.Title,
 			al.Spec.Audit.Recurrence.Frequency.String(),
 			al.Spec.Audit.NextAuditDate.Format(time.RFC822),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type pluginNotificationCollection struct {
+	pluginNotifications []*notificationsv1.PluginNotification
+}
+
+func (c *pluginNotificationCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.pluginNotifications))
+	for i, resource := range c.pluginNotifications {
+		r[i] = types.Resource153ToLegacy(resource)
+	}
+	return r
+}
+
+func (c *pluginNotificationCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"ID", "Plugin", "Recipients", "Title", "Message"})
+	for _, pn := range c.pluginNotifications {
+		t.AddRow([]string{
+			pn.GetMetadata().GetName(),
+			pn.GetSpec().GetPlugin(),
+			fmt.Sprintf("%s", pn.GetSpec().GetRecipients()),
+			pn.GetSpec().GetNotification().GetMetadata().GetName(),
+			pn.GetSpec().GetNotification().GetMetadata().GetDescription(),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

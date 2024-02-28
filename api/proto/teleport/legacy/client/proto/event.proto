@@ -19,6 +19,7 @@ package proto;
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/notifications/v1/notifications.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 
@@ -147,7 +148,8 @@ message Event {
     teleport.secreports.v1.ReportState ReportState = 52;
     // AccessListReview is an access list review resource.
     teleport.accesslist.v1.Review AccessListReview = 53;
-
     types.CrownJewel CrownJewel = 54;
+    // todo
+    teleport.notifications.v1.PluginNotification PluginNotification = 55;
   }
 }

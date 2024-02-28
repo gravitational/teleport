@@ -32,18 +32,24 @@ import (
 
 // Notifications defines an interface for managing notifications.
 type Notifications interface {
-	ListNotificationsForUser(context.Context, notificationsv1.ListUserNotificationsRequest) ([]notificationsv1.Notification, error)
-	CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) error
+	ListNotificationsForUser(context.Context, *notificationsv1.ListUserNotificationsRequest) ([]*notificationsv1.Notification, error)
+	CreateUserNotification(ctx context.Context, username string, notification *notificationsv1.Notification) (*notificationsv1.Notification, error)
 	DeleteUserNotification(ctx context.Context, username string, notificationId string) error
 	DeleteAllUserNotificationsForUser(ctx context.Context, username string) error
-	CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (notificationsv1.GlobalNotification, error)
+	CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error)
 	DeleteGlobalNotification(ctx context.Context, notificationId string) error
-	UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (notificationsv1.UserNotificationState, error)
+	GetPluginNotification(ctx context.Context, name string) (*notificationsv1.PluginNotification, error)
+	CreatePluginNotification(ctx context.Context, pluginNotification *notificationsv1.PluginNotification) (*notificationsv1.PluginNotification, error)
+	DeletePluginNotification(ctx context.Context, notificationId string) error
+	DeleteAllPluginNotification(ctx context.Context) error
+	ListPluginNotification(ctx context.Context, page int, nextToken string) ([]*notificationsv1.PluginNotification, string, error)
+	// ListNotificationsForPlugin(context.Context, *notificationsv1.ListPluginNotificationsRequest) ([]*notificationsv1.PluginNotification, error)
+	UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error)
 	DeleteUserNotificationState(ctx context.Context, username string, notificationId string) error
 	DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error
-	ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]notificationsv1.UserNotificationState, string, error)
-	UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (notificationsv1.UserLastSeenNotification, error)
-	GetUserLastSeenNotification(ctx context.Context, username string) (notificationsv1.UserLastSeenNotification, error)
+	ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error)
+	UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error)
+	GetUserLastSeenNotification(ctx context.Context, username string) (*notificationsv1.UserLastSeenNotification, error)
 	DeleteUserLastSeenNotification(ctx context.Context, username string) error
 }
 
@@ -198,6 +204,88 @@ func UnmarshalGlobalNotification(data []byte, opts ...MarshalOption) (*notificat
 	}
 	if !cfg.Expires.IsZero() {
 		obj.Metadata.Expires = timestamppb.New(cfg.Expires)
+	}
+	return &obj, nil
+}
+
+// ValidatePluginNotification verifies that the necessary fields are configured for a plugin notification object.
+func ValidatePluginNotification(pluginNotification *notificationsv1.PluginNotification) error {
+	if pluginNotification.Spec == nil {
+		return trace.BadParameter("notification spec is missing")
+	}
+
+	if pluginNotification.Spec.Plugin == "" {
+		return trace.BadParameter("plugin is missing, the plugin name is required for a plugin notification")
+	}
+	if len(pluginNotification.Spec.Recipients) == 0 {
+		return trace.BadParameter("recipients are missing, at least a recipient is required for a plugin notification")
+	}
+
+	if pluginNotification.Spec.Notification == nil {
+		return trace.BadParameter("spec.notification is missing")
+	}
+
+	if pluginNotification.Spec.Notification.Metadata == nil {
+		return trace.BadParameter("spec.notification metadata is missing")
+	}
+
+	if pluginNotification.Spec.Notification.Metadata.Labels == nil {
+		return trace.BadParameter("spec.notification metadata labels are missing")
+	}
+
+	return nil
+}
+
+// MarshalPluginNotification marshals a PluginNotification resource to JSON.
+func MarshalPluginNotification(pluginNotification *notificationsv1.PluginNotification, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidatePluginNotification(pluginNotification); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !cfg.PreserveResourceID {
+		pluginNotification = proto.Clone(pluginNotification).(*notificationsv1.PluginNotification)
+		//nolint:staticcheck // SA1019. Deprecated, but still needed.
+		pluginNotification.Metadata.Id = 0
+		pluginNotification.Metadata.Revision = ""
+	}
+	// We marshal with raw protojson here because utils.FastMarshal doesn't work with oneof.
+	data, err := protojson.Marshal(pluginNotification)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return data, nil
+}
+
+// UnmarshalPluginNotification unmarshals a PluginNotification resource from JSON.
+func UnmarshalPluginNotification(data []byte, opts ...MarshalOption) (*notificationsv1.PluginNotification, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing notification data")
+	}
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var obj notificationsv1.PluginNotification
+	// We unmarshal with raw protojson here because utils.FastUnmarshal doesn't work with oneof.
+	if err = protojson.Unmarshal(data, &obj); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.ID != 0 {
+		//nolint:staticcheck // SA1019. Id is deprecated, but still needed.
+		obj.Metadata.Id = cfg.ID
+	}
+	if cfg.Revision != "" {
+		obj.Metadata.Revision = cfg.Revision
+	}
+	if !cfg.Expires.IsZero() {
+		obj.Metadata.Expires = timestamppb.New(cfg.Expires)
+	}
+	if obj.Spec.Notification.Spec == nil {
+		obj.Spec.Notification.Spec = &notificationsv1.NotificationSpec{}
 	}
 	return &obj, nil
 }

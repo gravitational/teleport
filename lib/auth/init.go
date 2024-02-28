@@ -265,6 +265,9 @@ type InitConfig struct {
 	// PluginData is a service that manages plugin data.
 	PluginData services.PluginData
 
+	// Notifications is a service that manages notifications
+	Notifications services.Notifications
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock

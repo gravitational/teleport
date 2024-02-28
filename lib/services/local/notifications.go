@@ -38,6 +38,7 @@ import (
 type NotificationsService struct {
 	userNotificationService         *generic.ServiceWrapper[*notificationsv1.Notification]
 	globalNotificationService       *generic.ServiceWrapper[*notificationsv1.GlobalNotification]
+	pluginNotificationService       *generic.ServiceWrapper[*notificationsv1.PluginNotification]
 	userNotificationStateService    *generic.ServiceWrapper[*notificationsv1.UserNotificationState]
 	userLastSeenNotificationService *generic.ServiceWrapper[*notificationsv1.UserLastSeenNotification]
 }
@@ -50,6 +51,11 @@ func NewNotificationsService(backend backend.Backend) (*NotificationsService, er
 	}
 
 	globalNotificationService, err := generic.NewServiceWrapper[*notificationsv1.GlobalNotification](backend, types.KindGlobalNotification, notificationsGlobalPrefix, services.MarshalGlobalNotification, services.UnmarshalGlobalNotification)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pluginNotificationService, err := generic.NewServiceWrapper[*notificationsv1.PluginNotification](backend, types.KindPluginNotification, notificationsPluginPrefix, services.MarshalPluginNotification, services.UnmarshalPluginNotification)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -67,15 +73,22 @@ func NewNotificationsService(backend backend.Backend) (*NotificationsService, er
 	return &NotificationsService{
 		userNotificationService:         userNotificationService,
 		globalNotificationService:       globalNotificationService,
+		pluginNotificationService:       pluginNotificationService,
 		userNotificationStateService:    userNotificationStateService,
 		userLastSeenNotificationService: userLastSeenNotificationService,
 	}, nil
 }
 
 // ListNotificationsForUser returns a paginated list of notifications which match a user, including both user-specific and global ones.
-func (s *NotificationsService) ListNotificationsForUser(ctx context.Context) ([]*notificationsv1.Notification, string, error) {
+func (s *NotificationsService) ListNotificationsForUser(ctx context.Context, request *notificationsv1.ListUserNotificationsRequest) ([]*notificationsv1.Notification, error) {
 	// TODO: rudream - implement listing notifications for a user with filtering/matching
-	return []*notificationsv1.Notification{}, "", nil
+	return []*notificationsv1.Notification{}, nil
+}
+
+// ListNotificationsForPlugin returns a paginated list of notifications for the plugin.
+func (s *NotificationsService) ListNotificationsForPlugin(ctx context.Context, request *notificationsv1.ListPluginNotificationsRequest) ([]*notificationsv1.PluginNotification, error) {
+	// TODO: implement this ?
+	return []*notificationsv1.PluginNotification{}, nil
 }
 
 // CreateUserNotification creates a user-specific notification.
@@ -186,6 +199,49 @@ func (s *NotificationsService) DeleteGlobalNotification(ctx context.Context, not
 	return trace.Wrap(err)
 }
 
+// CreatePluginNotification creates a plugin notification.
+func (s *NotificationsService) CreatePluginNotification(ctx context.Context, pluginNotification *notificationsv1.PluginNotification) (*notificationsv1.PluginNotification, error) {
+	if err := services.ValidatePluginNotification(pluginNotification); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pluginNotification.Kind = types.KindPluginNotification
+	pluginNotification.Version = types.V1
+
+	// Generate uuidv7 ID.
+	uuid, err := uuid.NewV7()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if pluginNotification.Spec.Notification.Spec == nil {
+		pluginNotification.Spec.Notification.Spec = &notificationsv1.NotificationSpec{}
+	}
+	pluginNotification.Spec.Notification.Spec.Id = uuid.String()
+
+	if pluginNotification.Metadata == nil {
+		pluginNotification.Metadata = &headerv1.Metadata{}
+	}
+
+	// We set this to the UUID because the service adapter uses `getName()` to determine the backend key to use when storing the notification.
+	pluginNotification.Metadata.Name = pluginNotification.Spec.Notification.Spec.Id
+
+	if err := CheckAndSetExpiry(pluginNotification.Spec.Notification); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pluginNotification.Spec.Notification.Spec.Created = timestamppb.New(time.Now())
+
+	created, err := s.pluginNotificationService.CreateResource(ctx, pluginNotification)
+	return created, trace.Wrap(err)
+}
+
+// DeletePluginNotification deletes a plugin notification.
+func (s *NotificationsService) DeletePluginNotification(ctx context.Context, notificationId string) error {
+	err := s.pluginNotificationService.DeleteResource(ctx, notificationId)
+	return trace.Wrap(err)
+}
+
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
 func (s *NotificationsService) UpsertUserNotificationState(ctx context.Context, username string, state *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
 	if err := services.ValidateUserNotificationState(state); err != nil {
@@ -274,6 +330,18 @@ func (s *NotificationsService) DeleteUserLastSeenNotification(ctx context.Contex
 	return trace.Wrap(err)
 }
 
+func (s *NotificationsService) GetPluginNotification(ctx context.Context, name string) (*notificationsv1.PluginNotification, error) {
+	return s.pluginNotificationService.GetResource(ctx, name)
+}
+
+func (s *NotificationsService) DeleteAllPluginNotification(ctx context.Context) error {
+	return s.pluginNotificationService.DeleteAllResources(ctx)
+}
+
+func (s *NotificationsService) ListPluginNotification(ctx context.Context, page int, nextToken string) ([]*notificationsv1.PluginNotification, string, error) {
+	return s.pluginNotificationService.ListResources(ctx, page, nextToken)
+}
+
 // CheckAndSetExpiry checks and sets the default expiry for a notification.
 func CheckAndSetExpiry(notification *notificationsv1.Notification) error {
 	// If the expiry hasn't been provided, set the default to 30 days from now.
@@ -298,6 +366,7 @@ func CheckAndSetExpiry(notification *notificationsv1.Notification) error {
 
 const (
 	notificationsGlobalPrefix       = "notifications/global"    // notifications/global/<notification id>
+	notificationsPluginPrefix       = "notifications/plugin"    // notifications/plugin/<notification id>
 	notificationsUserSpecificPrefix = "notifications/user"      // notifications/user/<username>/<notification id>
 	notificationsStatePrefix        = "notifications/states"    // notifications/states/<username>/<notification id>
 	notificationsUserLastSeenPrefix = "notifications/last_seen" // notifications/last_seen/<username>

@@ -319,6 +319,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Notifications == nil {
+		cfg.Notifications, err = local.NewNotificationsService(cfg.Backend)
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -355,39 +358,39 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
-		Trust:                     cfg.Trust,
-		PresenceInternal:          cfg.Presence,
-		Provisioner:               cfg.Provisioner,
-		Identity:                  cfg.Identity,
-		Access:                    cfg.Access,
-		DynamicAccessExt:          cfg.DynamicAccessExt,
-		ClusterConfiguration:      cfg.ClusterConfiguration,
-		Restrictions:              cfg.Restrictions,
-		Apps:                      cfg.Apps,
-		Kubernetes:                cfg.Kubernetes,
-		Databases:                 cfg.Databases,
-		DatabaseServices:          cfg.DatabaseServices,
-		AuditLogSessionStreamer:   cfg.AuditLog,
-		Events:                    cfg.Events,
-		WindowsDesktops:           cfg.WindowsDesktops,
-		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
-		UserGroups:                cfg.UserGroups,
-		SessionTrackerService:     cfg.SessionTrackerService,
-		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
-		Integrations:              cfg.Integrations,
-		DiscoveryConfigs:          cfg.DiscoveryConfigs,
-		Embeddings:                cfg.Embeddings,
-		Okta:                      cfg.Okta,
-		AccessLists:               cfg.AccessLists,
-		DatabaseObjectImportRules: cfg.DatabaseObjectImportRules,
-		SecReports:                cfg.SecReports,
-		UserLoginStates:           cfg.UserLoginState,
-		StatusInternal:            cfg.Status,
-		UsageReporter:             cfg.UsageReporter,
-		Assistant:                 cfg.Assist,
-		UserPreferences:           cfg.UserPreferences,
-		PluginData:                cfg.PluginData,
-		CrownJewels:               cfg.CrownJewels,
+		Trust:                   cfg.Trust,
+		PresenceInternal:        cfg.Presence,
+		Provisioner:             cfg.Provisioner,
+		Identity:                cfg.Identity,
+		Access:                  cfg.Access,
+		DynamicAccessExt:        cfg.DynamicAccessExt,
+		ClusterConfiguration:    cfg.ClusterConfiguration,
+		Restrictions:            cfg.Restrictions,
+		Apps:                    cfg.Apps,
+		Kubernetes:              cfg.Kubernetes,
+		Databases:               cfg.Databases,
+		DatabaseServices:        cfg.DatabaseServices,
+		AuditLogSessionStreamer: cfg.AuditLog,
+		Events:                  cfg.Events,
+		WindowsDesktops:         cfg.WindowsDesktops,
+		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		UserGroups:              cfg.UserGroups,
+		SessionTrackerService:   cfg.SessionTrackerService,
+		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
+		Integrations:            cfg.Integrations,
+		DiscoveryConfigs:        cfg.DiscoveryConfigs,
+		Embeddings:              cfg.Embeddings,
+		Okta:                    cfg.Okta,
+		AccessLists:             cfg.AccessLists,
+		SecReports:              cfg.SecReports,
+		UserLoginStates:         cfg.UserLoginState,
+		StatusInternal:          cfg.Status,
+		UsageReporter:           cfg.UsageReporter,
+		Assistant:               cfg.Assist,
+		UserPreferences:         cfg.UserPreferences,
+		PluginData:              cfg.PluginData,
+		Notifications:           cfg.Notifications,
+		CrownJewels:             cfg.CrownJewels,
 	}
 
 	as := Server{
@@ -544,6 +547,7 @@ type Services struct {
 	events.AuditLogSessionStreamer
 	services.SecReports
 	services.CrownJewels
+	services.Notifications
 }
 
 // SecReportsClient returns the security reports client.
