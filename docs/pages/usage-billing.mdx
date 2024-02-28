@@ -51,11 +51,10 @@ repository](https://github.com/gravitational/teleport/tree/master/lib/usagerepor
 ## Billing metrics
 
 Teleport uses the anonymized usage data described in the previous section to
-calculate three types of billing metrics:
+calculate two types of billing metrics:
 
 - Monthly Active Users
 - Teleport Protected Resources
-- Teleport Identity Authorizations
 
 ### Monthly Active Users
 
@@ -85,16 +84,6 @@ A "resource" is any unique bot, such as a CI/CD Jenkins or GitHub Actions job,
 or a distinct computing resource, including a Kubernetes cluster, SSH server,
 database instance, or serverless endpoint, that registers with the Teleport
 cluster at least once a month.
-
-### Teleport Identity Authorizations
-
-The Teleport Identity Authorizations (TIA) metric is the total number of Authorization Requests
-processed by Teleport within a monthly period, starting on the subscription start date and ending
-on each monthly anniversary thereafter.
-
-An Authorization Request is the authorization by Teleport of any request done via API, GUI, or CLI,
-initiated by a user or a bot and stored in the audit event storage.
-
 
 ## Usage measurement for billing
 
