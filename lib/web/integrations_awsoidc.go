@@ -403,24 +403,14 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, clt.CreateToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
 	}
 
 	// todo(anton): get auth server version and use it instead of this proxy teleport.version.
@@ -434,21 +424,25 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		agentVersion = strings.TrimPrefix(upgradesVersion, "v")
 	}
 
-	resp := awsoidc.EnrollEKSClusters(ctx, log, h.clock, h.cfg.PublicProxyAddr, credsProvider, enrollEKSClient,
-		awsoidc.EnrollEKSClustersRequest{
-			Region:             req.Region,
-			ClusterNames:       req.ClusterNames,
-			EnableAppDiscovery: req.EnableAppDiscovery,
-			EnableAutoUpgrades: h.ClusterFeatures.GetAutomaticUpgrades(),
-			IsCloud:            h.ClusterFeatures.GetCloud(),
-			AgentVersion:       agentVersion,
-		})
+	response, err := clt.IntegrationAWSOIDCClient().EnrollEKSClusters(ctx, &integrationv1.EnrollEKSClustersRequest{
+		Integration:        integrationName,
+		Region:             req.Region,
+		PublicProxyAddr:    h.cfg.PublicProxyAddr,
+		ClusterNames:       req.ClusterNames,
+		EnableAppDiscovery: req.EnableAppDiscovery,
+		EnableAutoUpgrades: h.ClusterFeatures.GetAutomaticUpgrades(),
+		IsCloud:            h.ClusterFeatures.GetCloud(),
+		AgentVersion:       agentVersion,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	var data []ui.EKSClusterEnrollmentResult
-	for _, result := range resp.Results {
+	for _, result := range response.Results {
 		data = append(data, ui.EKSClusterEnrollmentResult{
 			ClusterName: result.ClusterName,
-			Error:       trace.UserMessage(result.Error),
+			Error:       result.Error,
 			ResourceId:  result.ResourceId,
 		},
 		)

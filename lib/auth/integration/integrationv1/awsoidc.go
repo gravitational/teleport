@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -107,6 +108,7 @@ type AWSOIDCServiceConfig struct {
 	IntegrationService *Service
 	Authorizer         authz.Authorizer
 	Cache              CacheAWSOIDC
+	Clock              clockwork.Clock
 	Logger             *logrus.Entry
 }
 
@@ -125,6 +127,10 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("cache is required")
 	}
 
+	if s.Clock == nil {
+		s.Clock = clockwork.NewRealClock()
+	}
+
 	if s.Logger == nil {
 		s.Logger = logrus.WithField(trace.Component, "integrations.awsoidc.service")
 	}
@@ -139,6 +145,7 @@ type AWSOIDCService struct {
 	integrationService *Service
 	authorizer         authz.Authorizer
 	logger             *logrus.Entry
+	clock              clockwork.Clock
 	cache              CacheAWSOIDC
 }
 
@@ -164,6 +171,7 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 		integrationService: cfg.IntegrationService,
 		logger:             cfg.Logger,
 		authorizer:         cfg.Authorizer,
+		clock:              cfg.Clock,
 		cache:              cfg.Cache,
 	}, nil
 }
@@ -473,6 +481,57 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 	return &integrationpb.DeployDatabaseServiceResponse{
 		ClusterArn:          deployDBResp.ClusterARN,
 		ClusterDashboardUrl: deployDBResp.ClusterDashboardURL,
+	}, nil
+}
+
+func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest) (*integrationpb.EnrollEKSClustersResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.cache.UpsertToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, req.PublicProxyAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
+		Region:             req.Region,
+		ClusterNames:       req.GetClusterNames(),
+		EnableAppDiscovery: req.EnableAppDiscovery,
+		EnableAutoUpgrades: req.EnableAutoUpgrades,
+		IsCloud:            req.IsCloud,
+		AgentVersion:       req.AgentVersion,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var results []*integrationpb.EnrollEKSClusterResult
+	for _, r := range enrollmentResponse.Results {
+		results = append(results, &integrationpb.EnrollEKSClusterResult{
+			ClusterName: r.ClusterName,
+			ResourceId:  r.ResourceId,
+			Error:       trace.UserMessage(r.Error),
+		})
+	}
+
+	return &integrationpb.EnrollEKSClustersResponse{
+		Results: results,
 	}, nil
 }
 

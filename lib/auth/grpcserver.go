@@ -5313,6 +5313,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer:         cfg.Authorizer,
 		IntegrationService: integrationServiceServer,
 		Cache:              cfg.AuthServer,
+		Clock:              cfg.AuthServer.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
