@@ -41,6 +41,7 @@ const (
 	ClusterConfigService_GetSessionRecordingConfig_FullMethodName     = "/teleport.clusterconfig.v1.ClusterConfigService/GetSessionRecordingConfig"
 	ClusterConfigService_UpdateSessionRecordingConfig_FullMethodName  = "/teleport.clusterconfig.v1.ClusterConfigService/UpdateSessionRecordingConfig"
 	ClusterConfigService_UpsertSessionRecordingConfig_FullMethodName  = "/teleport.clusterconfig.v1.ClusterConfigService/UpsertSessionRecordingConfig"
+	ClusterConfigService_ResetSessionRecordingConfig_FullMethodName   = "/teleport.clusterconfig.v1.ClusterConfigService/ResetSessionRecordingConfig"
 	ClusterConfigService_GetAuthPreference_FullMethodName             = "/teleport.clusterconfig.v1.ClusterConfigService/GetAuthPreference"
 	ClusterConfigService_UpdateAuthPreference_FullMethodName          = "/teleport.clusterconfig.v1.ClusterConfigService/UpdateAuthPreference"
 	ClusterConfigService_UpsertAuthPreference_FullMethodName          = "/teleport.clusterconfig.v1.ClusterConfigService/UpsertAuthPreference"
@@ -69,6 +70,8 @@ type ClusterConfigServiceClient interface {
 	UpdateSessionRecordingConfig(ctx context.Context, in *UpdateSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error)
 	// UpsertSessionRecordingConfig overwrites the active session recording configuration.
 	UpsertSessionRecordingConfig(ctx context.Context, in *UpsertSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error)
+	// ResetSessionRecordingConfig restores the active session recording configuration to default settings.
+	ResetSessionRecordingConfig(ctx context.Context, in *ResetSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error)
 	// GetAuthPreference retrieves the active auth preference.
 	GetAuthPreference(ctx context.Context, in *GetAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
 	// UpdateAuthPreference updates the auth preference.
@@ -152,6 +155,15 @@ func (c *clusterConfigServiceClient) UpdateSessionRecordingConfig(ctx context.Co
 func (c *clusterConfigServiceClient) UpsertSessionRecordingConfig(ctx context.Context, in *UpsertSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error) {
 	out := new(types.SessionRecordingConfigV2)
 	err := c.cc.Invoke(ctx, ClusterConfigService_UpsertSessionRecordingConfig_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterConfigServiceClient) ResetSessionRecordingConfig(ctx context.Context, in *ResetSessionRecordingConfigRequest, opts ...grpc.CallOption) (*types.SessionRecordingConfigV2, error) {
+	out := new(types.SessionRecordingConfigV2)
+	err := c.cc.Invoke(ctx, ClusterConfigService_ResetSessionRecordingConfig_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -248,6 +260,8 @@ type ClusterConfigServiceServer interface {
 	UpdateSessionRecordingConfig(context.Context, *UpdateSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error)
 	// UpsertSessionRecordingConfig overwrites the active session recording configuration.
 	UpsertSessionRecordingConfig(context.Context, *UpsertSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error)
+	// ResetSessionRecordingConfig restores the active session recording configuration to default settings.
+	ResetSessionRecordingConfig(context.Context, *ResetSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error)
 	// GetAuthPreference retrieves the active auth preference.
 	GetAuthPreference(context.Context, *GetAuthPreferenceRequest) (*types.AuthPreferenceV2, error)
 	// UpdateAuthPreference updates the auth preference.
@@ -291,6 +305,9 @@ func (UnimplementedClusterConfigServiceServer) UpdateSessionRecordingConfig(cont
 }
 func (UnimplementedClusterConfigServiceServer) UpsertSessionRecordingConfig(context.Context, *UpsertSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertSessionRecordingConfig not implemented")
+}
+func (UnimplementedClusterConfigServiceServer) ResetSessionRecordingConfig(context.Context, *ResetSessionRecordingConfigRequest) (*types.SessionRecordingConfigV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetSessionRecordingConfig not implemented")
 }
 func (UnimplementedClusterConfigServiceServer) GetAuthPreference(context.Context, *GetAuthPreferenceRequest) (*types.AuthPreferenceV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAuthPreference not implemented")
@@ -451,6 +468,24 @@ func _ClusterConfigService_UpsertSessionRecordingConfig_Handler(srv interface{},
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ClusterConfigServiceServer).UpsertSessionRecordingConfig(ctx, req.(*UpsertSessionRecordingConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterConfigService_ResetSessionRecordingConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetSessionRecordingConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterConfigServiceServer).ResetSessionRecordingConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterConfigService_ResetSessionRecordingConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterConfigServiceServer).ResetSessionRecordingConfig(ctx, req.(*ResetSessionRecordingConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -633,6 +668,10 @@ var ClusterConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpsertSessionRecordingConfig",
 			Handler:    _ClusterConfigService_UpsertSessionRecordingConfig_Handler,
+		},
+		{
+			MethodName: "ResetSessionRecordingConfig",
+			Handler:    _ClusterConfigService_ResetSessionRecordingConfig_Handler,
 		},
 		{
 			MethodName: "GetAuthPreference",
