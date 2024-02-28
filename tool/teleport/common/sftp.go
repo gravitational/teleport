@@ -145,14 +145,20 @@ func (s *sftpHandler) checkReq(req *sftp.Request) error {
 		return nil
 	}
 
+	if s.allowed.path != path.Clean(req.Filepath) {
+		return fmt.Errorf("method %q is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
+	}
+
 	switch req.Method {
 	case methodLstat, methodStat:
 		// these methods are allowed
 	case methodGet:
+		// only allow reads for downloads
 		if s.allowed.write {
 			return fmt.Errorf("%q is not allowed to be read from", req.Filepath)
 		}
 	case methodPut:
+		// only allow writes for uploads
 		if !s.allowed.write {
 			return fmt.Errorf("%q is not allowed to be written to", req.Filepath)
 		}
@@ -167,11 +173,7 @@ func (s *sftpHandler) checkReq(req *sftp.Request) error {
 		return fmt.Errorf("method %q is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
 	}
 
-	if s.allowed.path == path.Clean(req.Filepath) {
-		return nil
-	}
-
-	return fmt.Errorf("method %q is not allowed on %q", strings.ToLower(req.Method), req.Filepath)
+	return nil
 }
 
 // OpenFile handles 'open' requests when opening a file for reading

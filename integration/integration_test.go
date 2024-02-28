@@ -8235,13 +8235,13 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	// Create and approve a file download request
 	tempDir := t.TempDir()
-	dlFile := filepath.Join(tempDir, "dl-file")
-	err = os.WriteFile(dlFile, []byte("contents"), 0o666)
+	reqFile := filepath.Join(tempDir, "req-file")
+	err = os.WriteFile(reqFile, []byte("contents"), 0o666)
 	require.NoError(t, err)
 
 	err = cmdSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
 		Download: true,
-		Location: dlFile,
+		Location: reqFile,
 	})
 	require.NoError(t, err)
 
@@ -8279,15 +8279,20 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	sftpClient, err := sftp.NewClientPipe(r, w)
 	require.NoError(t, err)
 
+	// A file not in the request shouldn't be allowed
 	_, err = sftpClient.Open(filepath.Join(tempDir, "bad-file"))
 	require.ErrorContains(t, err, `method \"get\" is not allowed`)
-	_, err = sftpClient.OpenFile(filepath.Join(tempDir, "bad-file"), os.O_WRONLY)
-	require.ErrorContains(t, err, `is not allowed to be written to`)
+	// Since this is a download no files should be allowed to be written to
+	_, err = sftpClient.OpenFile(filepath.Join(tempDir, reqFile), os.O_WRONLY)
+	require.ErrorContains(t, err, `method \"put\" is not allowed`)
+	// Only stats, reads and writes should be allowed
 	err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
 	require.ErrorContains(t, err, `method \"mkdir\" is not allowed`)
 
 	// Opening the requested file for reading should work
-	rf, err := sftpClient.Open(dlFile)
+	_, err = sftpClient.Stat(reqFile)
+	require.NoError(t, err)
+	rf, err := sftpClient.Open(reqFile)
 	require.NoError(t, err)
 	require.NoError(t, rf.Close())
 
@@ -8296,7 +8301,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	// Create and approve a file upload request
 	err = cmdSess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
 		Download: false,
-		Filename: dlFile,
+		Filename: reqFile,
 	})
 	require.NoError(t, err)
 
@@ -8332,15 +8337,20 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	sftpClient, err = sftp.NewClientPipe(r, w)
 	require.NoError(t, err)
 
+	// A file not in the request shouldn't be allowed
 	_, err = sftpClient.Open(filepath.Join(tempDir, "bad-file"))
-	require.ErrorContains(t, err, `is not allowed to be read from`)
-	_, err = sftpClient.OpenFile(filepath.Join(tempDir, "bad-file"), os.O_RDONLY)
-	require.ErrorContains(t, err, `is not allowed to be read from`)
+	require.ErrorContains(t, err, `method \"get\" is not allowed`)
+	// Since this is an upload no files should be allowed to be read from
+	_, err = sftpClient.OpenFile(filepath.Join(tempDir, reqFile), os.O_RDONLY)
+	require.ErrorContains(t, err, `method \"get\" is not allowed`)
+	// Only stats, reads and writes should be allowed
 	err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
 	require.ErrorContains(t, err, `method \"mkdir\" is not allowed`)
 
 	// Opening the requested file for reading should work
-	wf, err := sftpClient.OpenFile(dlFile, os.O_WRONLY)
+	_, err = sftpClient.Stat(reqFile)
+	require.NoError(t, err)
+	wf, err := sftpClient.OpenFile(reqFile, os.O_WRONLY)
 	require.NoError(t, err)
 	require.NoError(t, wf.Close())
 }
