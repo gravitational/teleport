@@ -184,7 +184,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 	t.Parallel()
 
 	clusterName := "test-cluster"
-	proxyPublicAddr := "127.0.0.1.nip.io"
+	proxyPublicAddr := "127.0.0.1"
 	integrationName := "my-awsoidc-integration"
 	ig, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: integrationName},
