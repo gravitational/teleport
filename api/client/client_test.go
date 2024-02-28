@@ -261,13 +261,13 @@ func (s *listResourcesService) ListResources(ctx context.Context, req *proto.Lis
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
-			// case types.KindAppOrSAMLIdPServiceProvider:
-			// 	appServerOrSP, ok := resource.(*types.AppServerOrSAMLIdPServiceProviderV1)
-			// 	if !ok {
-			// 		return nil, trace.Errorf("AppServerOrSAMLIdPServiceProvider has invalid type %T", resource)
-			// 	}
+		case types.KindSAMLIdPServiceProvider:
+			samlSP, ok := resource.(*types.SAMLIdPServiceProviderV1)
+			if !ok {
+				return nil, trace.Errorf("SAML IdP service provider has invalid type %T", resource)
+			}
 
-			// 	protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{AppServerOrSAMLIdPServiceProvider: appServerOrSP}}
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: samlSP}}
 		}
 		resp.Resources = append(resp.Resources, protoResource)
 		lastResourceName = resource.GetName()

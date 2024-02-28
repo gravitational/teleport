@@ -39,7 +39,7 @@ import (
 )
 
 // UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
-var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindWindowsDesktop}
+var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindWindowsDesktop, types.KindSAMLIdPServiceProvider}
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
@@ -355,7 +355,7 @@ type ResourceGetter interface {
 	AppServersGetter
 	WindowsDesktopGetter
 	KubernetesServerGetter
-	// SAMLIdpServiceProviderGetter
+	SAMLIdpServiceProviderGetter
 }
 
 // newWatcher starts and returns a new resource watcher for unified resources.
@@ -400,9 +400,9 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 			}
 			kind = types.KindApp
 		}
-	// case types.SAMLIdPServiceProvider:
-	// 	name = r.GetName()
-	// 	kind = types.KindApp
+	case types.SAMLIdPServiceProvider:
+		name = r.GetName()
+		kind = types.KindApp
 	case types.KubeServer:
 		cluster := r.GetCluster()
 		if cluster != nil {
@@ -449,10 +449,10 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
-	// newSAMLApps, err := c.getSAMLApps(ctx)
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
+	newSAMLApps, err := c.getSAMLApps(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	newDesktops, err := c.getDesktops(ctx)
 	if err != nil {
@@ -472,7 +472,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.DatabaseServer](c, newDbs)
 	putResources[types.AppServer](c, newApps)
 	putResources[types.KubeServer](c, newKubes)
-	// putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
+	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
 	c.stale = false
 	c.defineCollectorAsInitialized()
@@ -563,27 +563,27 @@ func (c *UnifiedResourceCache) getDesktops(ctx context.Context) ([]types.Windows
 }
 
 // getSAMLApps will get all SAML Idp Service Providers
-// func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
-// 	var newSAMLApps []types.SAMLIdPServiceProvider
-// 	startKey := ""
+func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
+	var newSAMLApps []types.SAMLIdPServiceProvider
+	startKey := ""
 
-// 	for {
-// 		resp, nextKey, err := c.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
+	for {
+		resp, nextKey, err := c.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
 
-// 		if err != nil {
-// 			return nil, trace.Wrap(err, "getting SAML apps for unified resource watcher")
-// 		}
-// 		newSAMLApps = append(newSAMLApps, resp...)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting SAML apps for unified resource watcher")
+		}
+		newSAMLApps = append(newSAMLApps, resp...)
 
-// 		if nextKey == "" {
-// 			break
-// 		}
+		if nextKey == "" {
+			break
+		}
 
-// 		startKey = nextKey
-// 	}
+		startKey = nextKey
+	}
 
-// 	return newSAMLApps, nil
-// }
+	return newSAMLApps, nil
+}
 
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on
 // wether or not the cache is currently healthy.  locking is handled internally and the passed-in tree should
@@ -807,29 +807,13 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
-		// case types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
-		// 	switch appOrSP := resource.(type) {
-		// 	case *types.AppServerV3:
-		// 		protoResource = &proto.PaginatedResource{
-		// 			Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-		// 				AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-		// 					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
-		// 						AppServer: appOrSP,
-		// 					},
-		// 				},
-		// 			}}
-		// 	case *types.SAMLIdPServiceProviderV1:
-		// 		protoResource = &proto.PaginatedResource{
-		// 			Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-		// 				AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-		// 					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-		// 						SAMLIdPServiceProvider: appOrSP,
-		// 					},
-		// 				},
-		// 			}}
-		// 	default:
-		// 		return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-		// 	}
+		case types.KindSAMLIdPServiceProvider:
+			serviceProvider, ok := resource.(*types.SAMLIdPServiceProviderV1)
+			if !ok {
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: serviceProvider}}
 		default:
 			return nil, trace.NotImplemented("MakePaginatedResources resource type %s doesn't support pagination", resource.GetKind())
 		}

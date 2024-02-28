@@ -3337,8 +3337,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubernetesServer()
 		case types.KindUserGroup:
 			resources[i] = respResource.GetUserGroup()
-		// case types.KindAppOrSAMLIdPServiceProvider:
-		// 	resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
+		case types.KindSAMLIdPServiceProvider:
+			resources[i] = respResource.GetSAMLIdPServiceProvider()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -3416,9 +3416,6 @@ func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.Resource
 	} else if r := resource.GetDatabaseService(); r != nil {
 		out = r
 		return out, nil
-	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil {
-		out = r
-		return out, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
 		out = r
 		return out, nil
@@ -3435,6 +3432,9 @@ func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.Resource
 		out = r
 		return out, nil
 	} else if r := resource.GetAppServer(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		out = r
 		return out, nil
 	} else {
@@ -3531,8 +3531,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetKubernetesServer()
 			case types.KindUserGroup:
 				resource = respResource.GetUserGroup()
-			// case types.KindAppOrSAMLIdPServiceProvider:
-			// 	resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
+			case types.KindSAMLIdPServiceProvider:
+				resource = respResource.GetSAMLIdPServiceProvider()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)

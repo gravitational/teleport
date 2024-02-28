@@ -3022,6 +3022,8 @@ var xxx_messageInfo_AppSpecV3 proto.InternalMessageInfo
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
 // Used in application listings that request both app servers and saml apps.
 //
+// DEPRECATED: Use AppServer and SAMLIdPServiceProvider type individually.
+//
 // Deprecated: Do not use.
 type AppServerOrSAMLIdPServiceProviderV1 struct {
 	// Kind is the resource kind. Always "app_server_saml_idp_sp".
