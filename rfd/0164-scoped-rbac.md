@@ -621,7 +621,7 @@ All existing Teleport features will keep working with no changes, however, with 
 
 ## User stories
 
-Let’s get back to the issues we outlined  in the start of this RFD and review how the new system will  help to resolve them.
+Let’s get back to the issues we outlined in the start of this RFD and review how the new system will help to resolve them.
 
 ### Gradual scoping
 
