@@ -31,7 +31,6 @@ import (
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -40,7 +39,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -49,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
-	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2599,44 +2596,6 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 		roles = append(roles, role)
 	}
 	return roles, nil
-}
-
-// GenerateHostCert
-// TODO(noah): DELETE IN 16.0
-// Deprecated: use [trustv1.Service.GenerateHostCert] instead.
-func (a *ServerWithRoles) GenerateHostCert(
-	ctx context.Context,
-	key []byte,
-	hostID, nodeName string,
-	principals []string,
-	clusterName string,
-	role types.SystemRole,
-	ttl time.Duration,
-) ([]byte, error) {
-	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
-		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
-			return &a.context, nil
-		}),
-		Cache:      a.authServer.Cache,
-		Backend:    a.authServer.Services,
-		AuthServer: a.authServer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resp, err := trust.GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         key,
-		HostId:      hostID,
-		NodeName:    nodeName,
-		Principals:  principals,
-		ClusterName: clusterName,
-		Role:        string(role),
-		Ttl:         durationpb.New(ttl),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp.SshCertificate, nil
 }
 
 // desiredAccessInfo inspects the current request to determine which access
