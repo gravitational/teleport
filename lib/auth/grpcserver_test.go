@@ -1177,7 +1177,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	require.NoError(t, err)
 
 	// create remote cluster
-	leaf, err = srv.Auth().CreateRemoteCluster(ctx, leaf)
+	_, err = srv.Auth().CreateRemoteCluster(ctx, leaf)
 	require.NoError(t, err)
 
 	// Create a fake user.

@@ -155,7 +155,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	rcs, pageToken, err := presenceBackend.ListRemoteClusters(ctx, 0, "")
 	require.NoError(t, err)
 	require.Empty(t, pageToken)
-	require.Len(t, rcs, 0)
+	require.Empty(t, rcs)
 
 	// Create a few remote clusters
 	for i := 0; i < 10; i++ {

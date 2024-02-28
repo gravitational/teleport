@@ -709,7 +709,7 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 	// could cause conditional update to fail. This is needed because of the
 	// unusual way updates are handled in this method meaning that the revision
 	// in the provided remote cluster is not used. We should eventually make a
-	// breaking change to this behaviour.
+	// breaking change to this behavior.
 	const iterationLimit = 3
 	for i := 0; i < iterationLimit; i++ {
 		existing, err := s.GetRemoteCluster(ctx, rc.GetName())
