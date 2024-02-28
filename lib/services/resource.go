@@ -238,6 +238,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindPluginNotification, nil
 	case types.KindDatabaseObjectImportRule, "db_object_import_rules", "database_object_import_rule":
 		return types.KindDatabaseObjectImportRule, nil
+	case types.KindCrownJewel, "crown_jewels":
+		return types.KindCrownJewel, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

@@ -5553,3 +5553,45 @@ func (g *GRPCServer) ListPluginNotifications(ctx context.Context, req *notificat
 		NextPageToken:       nextToken,
 	}, trace.Wrap(err)
 }
+
+// GetKubernetesWaitingPod returns a Kubernetes pod that has ephemeral
+// containers waiting to be created.
+func (g *GRPCServer) GetCrownJewels(ctx context.Context, req *emptypb.Empty) (*authpb.CrownJewelList, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rsp, err := auth.GetCrownJewels(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
+}
+
+// UpsertKubernetesWaitingPod creates or updates a Kubernetes pod that
+// has ephemeral containers waiting to be created.
+func (g *GRPCServer) CreateCrownJewel(ctx context.Context, crownJewal *types.CrownJewel) (*types.CrownJewel, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rsp, err := auth.CreateCrownJewel(ctx, crownJewal)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
+}
+
+// DeleteKubernetesWaitingPod deletes a Kubernetes pod that has ephemeral
+// containers waiting to be created.
+func (g *GRPCServer) DeleteCrownJewel(ctx context.Context, req *types.CrownJewel) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if _, err := auth.DeleteCrownJewel(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
