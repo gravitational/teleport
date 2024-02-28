@@ -5948,6 +5948,11 @@ message PluginOktaSyncSettings {
   //   ^app.*$
   //   ^.*service.*$
   repeated string app_filters = 7;
+
+  // AppID is the Okta-assigned unique name of the Okta App that Teleport uses
+  // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
+  // sync.
+  string app_name = 8;
 }
 
 // Defines a set of discord channel IDs
@@ -6022,12 +6027,6 @@ message PluginStatusDetails {
 
 // PluginOktaStatusDetails contains the details for the running Okta plugin.
 message PluginOktaStatusDetails {
-  // OrgURL is the organization URL associated with this integration.
-  string org_url = 1;
-
-  // SSODetails are status details relating to SSO.
-  PluginOktaStatusDetailsSSO sso_details = 2;
-
   // AppGroupSyncDetails are status details relating to synchronizing apps and
   // groups from Okta.
   PluginOktaStatusDetailsAppGroupSync app_group_sync_details = 3;
@@ -6043,14 +6042,6 @@ message PluginOktaStatusDetails {
   // AccessListSyncDetails are status details relating to synchronizing access
   // lists from Okta.
   PluginOktaStatusDetailsAccessListsSync access_lists_sync_details = 6;
-}
-
-// PluginOktaStatusDetailsSSO are details related to the
-// current status of the Okta integration w/r/t SSO.
-message PluginOktaStatusDetailsSSO {
-  bool enabled = 1;
-  string app_id = 2;
-  string app_name = 3;
 }
 
 // PluginOktaStatusDetailsAppGroupSync are details related to the

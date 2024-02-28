@@ -395,7 +395,8 @@ func (p *PluginV1) SetStatus(status PluginStatus) error {
 		return nil
 	}
 	p.Status = PluginStatusV1{
-		Code: status.GetCode(),
+		Code:    status.GetCode(),
+		Details: status.GetDetails(),
 	}
 	return nil
 }

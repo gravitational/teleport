@@ -56,3 +56,48 @@ func TestMarshalPluginRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(plugin, unmarshaled))
 }
+
+func TestMarshalPluginWithStatus(t *testing.T) {
+	spec := types.PluginSpecV1{
+		Settings: &types.PluginSpecV1_SlackAccessPlugin{
+			SlackAccessPlugin: &types.PluginSlackAccessSettings{
+				FallbackChannel: "#access-requests",
+			},
+		},
+	}
+
+	creds := &types.PluginCredentialsV1{
+		Credentials: &types.PluginCredentialsV1_Oauth2AccessToken{
+			Oauth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
+				AccessToken:  "access_token",
+				RefreshToken: "refresh_token",
+				Expires:      time.Now().UTC(),
+			},
+		},
+	}
+
+	ts := time.Now()
+
+	plugin := types.NewPluginV1(types.Metadata{Name: "foobar"}, spec, creds)
+	status := &types.PluginStatusV1{
+		Code: types.PluginStatusCode_RUNNING,
+		Details: &types.PluginStatusDetails{
+			Details: &types.PluginStatusDetails_OktaStatusDetails{
+				OktaStatusDetails: &types.PluginOktaStatusDetails{
+					UsersSyncDetails: &types.PluginOktaStatusDetailsUsersSync{
+						Enabled:        true,
+						LastSuccessful: &ts,
+					},
+				},
+			},
+		},
+	}
+	require.NoError(t, plugin.SetStatus(status))
+
+	payload, err := MarshalPlugin(plugin)
+	require.NoError(t, err)
+
+	unmarshaled, err := UnmarshalPlugin(payload)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(plugin, unmarshaled))
+}

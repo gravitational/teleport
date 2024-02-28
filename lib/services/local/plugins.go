@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -186,6 +187,7 @@ func (s *PluginsService) SetPluginCredentials(ctx context.Context, name string, 
 // SetPluginStatus implements services.Plugins
 func (s *PluginsService) SetPluginStatus(ctx context.Context, name string, status types.PluginStatus) error {
 	return s.updateAndSwap(ctx, name, func(p types.Plugin) error {
+		fmt.Printf("Status is %#v\n", status)
 		return trace.Wrap(p.SetStatus(status))
 	})
 }
