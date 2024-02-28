@@ -537,7 +537,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	var results []*integrationpb.EnrollEKSClusterResult
+	results := make([]*integrationpb.EnrollEKSClusterResult, 0, len(resp.Results))
 	for _, r := range enrollmentResponse.Results {
 		results = append(results, &integrationpb.EnrollEKSClusterResult{
 			EksClusterName: r.ClusterName,
