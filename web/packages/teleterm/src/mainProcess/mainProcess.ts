@@ -54,7 +54,7 @@ import {
 
 import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
-import { resolveNetworkAddress } from './resolveNetworkAddress';
+import { resolveNetworkAddress, ResolveError } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
 import { downloadAgent, verifyAgent, FileDownloader } from './agentDownloader';
 import {
@@ -179,7 +179,7 @@ export default class MainProcess {
     createFileLoggerService({
       dev: this.settings.dev,
       dir: this.settings.logsDir,
-      name: 'tshd',
+      name: TSHD_LOGGER_NAME,
       loggerNameColor: LoggerColor.Cyan,
       passThroughMode: true,
     }).pipeProcessOutputIntoLogger(this.tshdProcess);
@@ -199,7 +199,7 @@ export default class MainProcess {
     createFileLoggerService({
       dev: this.settings.dev,
       dir: this.settings.logsDir,
-      name: 'shared',
+      name: SHARED_PROCESS_LOGGER_NAME,
       loggerNameColor: LoggerColor.Yellow,
       passThroughMode: true,
     }).pipeProcessOutputIntoLogger(this.sharedProcess);
@@ -210,10 +210,24 @@ export default class MainProcess {
       resolveNetworkAddress(
         this.settings.tshd.requestedNetworkAddress,
         this.tshdProcess
+      ).catch(
+        rewrapResolveError(
+          this.logger,
+          this.settings,
+          'the tsh daemon',
+          TSHD_LOGGER_NAME
+        )
       ),
       resolveNetworkAddress(
         this.settings.sharedProcess.requestedNetworkAddress,
         this.sharedProcess
+      ).catch(
+        rewrapResolveError(
+          this.logger,
+          this.settings,
+          'the shared helper process',
+          SHARED_PROCESS_LOGGER_NAME
+        )
       ),
     ]).then(([tsh, shared]) => ({ tsh, shared }));
   }
@@ -557,6 +571,8 @@ export default class MainProcess {
   }
 }
 
+const TSHD_LOGGER_NAME = 'tshd';
+const SHARED_PROCESS_LOGGER_NAME = 'shared';
 const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
 
 function openDocsUrl() {
@@ -617,4 +633,29 @@ async function createGrpcCredentials(
   ]);
 
   return grpcCreds.createClientCredentials(mainProcessKeyPair, tshdCert);
+}
+
+function rewrapResolveError(
+  logger: Logger,
+  runtimeSettings: RuntimeSettings,
+  processName: string,
+  processLoggerName: string
+) {
+  return (error: unknown) => {
+    if (!(error instanceof ResolveError)) {
+      throw error;
+    }
+
+    // Log the original error for full address.
+    logger.error(error);
+
+    const logPath = path.join(
+      runtimeSettings.logsDir,
+      `${processLoggerName}.log`
+    );
+
+    throw new Error(
+      `Could not communicate with ${processName}. For more details, check logs at ${logPath}`
+    );
+  };
 }
