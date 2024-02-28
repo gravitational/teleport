@@ -19,7 +19,7 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
-import LoginSuccess from './LoginSuccess';
+import { LoginSuccess } from './LoginSuccess';
 
 test('renders', () => {
   const { container } = render(<LoginSuccess />);
