@@ -1568,7 +1568,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Create remote cluster so create access request doesn't err due to non existent cluster
 	rc, err := types.NewRemoteCluster("foobar")
 	require.NoError(t, err)
-	err = testSrv.AuthServer.AuthServer.CreateRemoteCluster(rc)
+	rc, err = testSrv.AuthServer.AuthServer.CreateRemoteCluster(ctx, rc)
 	require.NoError(t, err)
 
 	// Create approved resource request
@@ -2425,7 +2425,7 @@ func TestGenerateCerts(t *testing.T) {
 		// but can renew their own cert, for example set route to cluster
 		rc, err := types.NewRemoteCluster("cluster-remote")
 		require.NoError(t, err)
-		err = srv.Auth().CreateRemoteCluster(rc)
+		rc, err = srv.Auth().CreateRemoteCluster(ctx, rc)
 		require.NoError(t, err)
 
 		userCerts, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -2454,7 +2454,7 @@ func TestGenerateCerts(t *testing.T) {
 
 		rc1, err := types.NewRemoteCluster("cluster1")
 		require.NoError(t, err)
-		err = srv.Auth().CreateRemoteCluster(rc1)
+		rc1, err = srv.Auth().CreateRemoteCluster(ctx, rc1)
 		require.NoError(t, err)
 
 		// User can renew their certificates, however the TTL will be limited
@@ -2554,7 +2554,7 @@ func TestGenerateCerts(t *testing.T) {
 		meta := rc2.GetMetadata()
 		meta.Labels = map[string]string{"env": "prod"}
 		rc2.SetMetadata(meta)
-		err = srv.Auth().CreateRemoteCluster(rc2)
+		rc2, err = srv.Auth().CreateRemoteCluster(ctx, rc2)
 		require.NoError(t, err)
 
 		// User can't generate certificates for leaf cluster they don't have access

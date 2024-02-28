@@ -75,7 +75,7 @@ func newMockProvider(cfg *BotConfig) *mockProvider {
 	}
 }
 
-func (p *mockProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+func (p *mockProvider) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	rc, err := types.NewRemoteCluster(p.remoteClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
