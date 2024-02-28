@@ -136,9 +136,10 @@ func TestListEICE(t *testing.T) {
 	require.NoError(t, err)
 
 	awsoidService, err := NewAWSOIDCService(&AWSOIDCServiceConfig{
-		IntegrationService: resourceSvc,
-		Authorizer:         resourceSvc.authorizer,
-		Cache:              &mockCache{},
+		IntegrationService:    resourceSvc,
+		Authorizer:            resourceSvc.authorizer,
+		ProxyPublicAddrGetter: func() string { return "128.0.0.1" },
+		Cache:                 &mockCache{},
 	})
 	require.NoError(t, err)
 
@@ -201,9 +202,10 @@ func TestEnrollEKSClusters(t *testing.T) {
 	require.NoError(t, err)
 
 	awsoidService, err := NewAWSOIDCService(&AWSOIDCServiceConfig{
-		IntegrationService: resourceSvc,
-		Authorizer:         resourceSvc.authorizer,
-		Cache:              &mockCache{},
+		IntegrationService:    resourceSvc,
+		Authorizer:            resourceSvc.authorizer,
+		ProxyPublicAddrGetter: func() string { return "128.0.0.1" },
+		Cache:                 &mockCache{},
 	})
 	require.NoError(t, err)
 
@@ -220,8 +222,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 		_, err = awsoidService.EnrollEKSClusters(userCtx, &integrationv1.EnrollEKSClustersRequest{
 			Integration:     integrationName,
 			Region:          "my-region",
-			PublicProxyAddr: proxyPublicAddr,
-			ClusterNames:    []string{"EKS1"},
+			EksClusterNames: []string{"EKS1"},
 			AgentVersion:    "10.0.0",
 		})
 		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, but got %T", err)
@@ -239,8 +240,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 		_, err := awsoidService.EnrollEKSClusters(userCtx, &integrationv1.EnrollEKSClustersRequest{
 			Integration:     integrationName,
 			Region:          "my-region",
-			PublicProxyAddr: proxyPublicAddr,
-			ClusterNames:    []string{"EKS1"},
+			EksClusterNames: []string{"EKS1"},
 		})
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter error, but got %T", err)
 	})
@@ -267,9 +267,10 @@ func TestDeployService(t *testing.T) {
 	require.NoError(t, err)
 
 	awsoidService, err := NewAWSOIDCService(&AWSOIDCServiceConfig{
-		IntegrationService: resourceSvc,
-		Authorizer:         resourceSvc.authorizer,
-		Cache:              &mockCache{},
+		IntegrationService:    resourceSvc,
+		Authorizer:            resourceSvc.authorizer,
+		ProxyPublicAddrGetter: func() string { return "128.0.0.1" },
+		Cache:                 &mockCache{},
 	})
 	require.NoError(t, err)
 

@@ -344,10 +344,10 @@ message EnrollEKSClustersRequest {
   // Required.
   repeated string eks_cluster_names = 3;
   // EnableAppDiscovery specifies if we should enable Kubernetes App Discovery inside the enrolled EKS cluster.
-  bool enable_app_discovery = 5;
+  bool enable_app_discovery = 4;
   // AgentVersion is version of agent Helm chart to install on the EKS cluster.
   // Required.
-  string agent_version = 4;
+  string agent_version = 5;
 }
 
 // EnrollEKSClusterResult contains result for a single cluster enrollment.
